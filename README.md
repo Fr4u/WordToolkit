@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-WordToolkit 0.18 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread.
+WordToolkit 0.19 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The new document-engine core can also inspect the package graph and semantic structure of a saved Word OOXML file without starting Word.
 
 The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtual environment, an interpreter bootstrap, or a per-call helper process. Its MCP command points directly to:
 
@@ -8,7 +8,7 @@ The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtua
 ./runtime/win-x64/wordtoolkit-native.exe
 ```
 
-The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.18 local plugin, does not participate in its startup, and is not required at runtime.
+The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.19 local plugin, does not participate in its startup, and is not required at runtime.
 
 ## Why the runtime was replaced
 
@@ -44,8 +44,9 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 48 tested Word Live actions. The initial MCP catalog
-exposes only 10 common actions plus three token-lean gateways. Rare schemas are
+The runtime implements 48 tested Word Live actions plus two standalone,
+bounded OOXML engine actions. The initial MCP catalog exposes
+only 11 common actions plus three token-lean gateways. Rare schemas are
 searched and loaded one at a time:
 
 ```text
@@ -62,6 +63,8 @@ start_word_application
 create_live_word_document
 open_live_word_document
 connect_live_word_document
+inspect_ooxml_package
+inspect_ooxml_semantics
 inspect_live_word_document
 map_live_word_structures
 inspect_live_word_structure_items

@@ -16,6 +16,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../WordToolkit.Engine/WordToolkit.Engine.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="../../schemas/mcp-tools-local.v1.json"
                       Link="Schemas/mcp-tools-local.v1.json" />
   </ItemGroup>

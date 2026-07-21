@@ -1,5 +1,9 @@
 # WordToolkit architecture
 
+> This file documents the retained Python remote-service architecture. The
+> active native document-engine redesign is specified in
+> [DOCUMENT-ENGINE-ARCHITECTURE.md](DOCUMENT-ENGINE-ARCHITECTURE.md).
+
 ## Outcome and scope
 
 WordToolkit is a remote, authenticated MCP service for copy-on-write DOCX editing. Its primary representation is the OPC ZIP package and WordprocessingML parts, not Markdown or a `python-docx` object graph. A document is unpacked in a session-owned directory, known XML parts are parsed with hardened `lxml`, binary and unknown parts are retained, and only marked parts are serialized on save.

@@ -44,10 +44,14 @@ public sealed class McpServerTests
         var tools = responses[1].RootElement
             .GetProperty("result")
             .GetProperty("tools");
-        Assert.Equal(13, tools.GetArrayLength());
+        Assert.Equal(14, tools.GetArrayLength());
         Assert.Contains(
             tools.EnumerateArray(),
             tool => tool.GetProperty("name").GetString() == "apply_live_word_operations"
+        );
+        Assert.Contains(
+            tools.EnumerateArray(),
+            tool => tool.GetProperty("name").GetString() == "inspect_ooxml_package"
         );
         Assert.Contains(
             tools.EnumerateArray(),
@@ -114,7 +118,7 @@ public sealed class McpServerTests
         ) + "\n";
         var output = new StringWriter();
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(48, catalog.ActionCount);
+        Assert.Equal(50, catalog.ActionCount);
         var server = new McpServer(
             new StringReader(input),
             output,
