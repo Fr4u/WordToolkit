@@ -76,7 +76,7 @@ vendor claim is not implementation evidence.
 | Numbering/lists | Partial (typed graph + effective-level slice) | Exact relationship/root validation; source-linked picture/abstract/instance/level/override inventory; `numStyleLink`/`styleLink` chains, start overrides, corruption diagnostics, compact MCP inspection and effective formatting integration | Counter-state traversal across paragraphs, restart semantics in sequence, label rendering, structural edits, repair/rebuild and layout proof |
 | Fields/bookmarks/cross-references | Partial (typed read graph) | Story-scoped paired bookmark ranges; nested complex and simple field parser across paragraphs; explicit/implicit REF tokenizer; source-linked parent/child fields; typed dependency edges and corruption diagnostics; redacted lazy inspection; live allowlisted writes remain separate | Full field grammar/evaluation policy, unified element hyperlinks/notes/captions, update capability, safe structural edits and Word round-trip/layout proof |
 | TOC/TOF/TOT/captions | Partial foundation | TOC/TC/SEQ field classification and TOC bookmark-restriction edges now enter the reference graph; existing live actions/historical tests | Typed switch/options AST, caption and style dependencies, TOF/TOT distinction, backend-qualified field update, layout and round-trip tests |
-| Comments/threaded comments/revisions | Partial (strengthened) | Comment bodies/authorship/IDs, anchors and revision wrappers are projected; comment text uses guarded lossless edits; live review actions exist | Threaded/modern comment parts, people graph, moves, merge and accept/reject semantics |
+| Comments/threaded comments/revisions | Partial (typed read graph) | Source-linked comment bodies, story anchors, reply/root links, done state, durable IDs, extensible/reaction inventory, people records, authorship-linked revisions, nested/property/cell/custom-XML kinds, named move pairs, permission ranges and review settings; redacted lazy inspection and live review actions exist | Hash-preconditioned package mutations, full reaction semantics, merge and accept/reject proof across Word versions |
 | Content controls/custom XML | Partial | Content-control projection; unknown part retention | Binding graph, repeats, locks, data update and lossless custom XML edits |
 | Equations/OfficeMath | Partial (canonical read graph) | Source-linked graph covers all 19 standard OMML objects, argument roles, matrix rows/cells, runs/text, display paragraphs, main math defaults, Strict markup, story boundaries, invalid placement and preserved extensions; stable equation/node IDs; compact redacted lazy inspection; mature live insertion remains separate | Cross-format semantic AST, safe structural mutations, LaTeX/MathML/UnicodeMath/OMML round trips, mathematical-equivalence diagnostics and Word visual proof |
 | DrawingML/VML/images/text boxes | Partial (strengthened) | Drawing markers and opaque bytes; nested `w:txbxContent` is a source-linked semantic boundary with editable text; live image operations | Typed anchors/layout/wrap/group/geometry model and render corpus |
@@ -123,10 +123,10 @@ it does not mean the engine understands or can edit it.
 | theme | Partial (typed read graph + effective resolution) | Exact relationship/content/root validation; all twelve color slots; system fallback, transform and environment diagnostics; major/minor primary and supplemental fonts; `themeFontLang`-driven explicit/likely script selection; format-scheme inventory; compact MCP views; deterministic theme font/RGB provenance in effective formatting | Exhaustive Word locale/version substitution behavior, full DrawingML color transform evaluation, exact Word quantization, mutation and visual proof |
 | settings | Partial (typed read graph) | Exact relationship/content/root validation; bounded view/zoom/defaults, `themeFontLang`, compatibility profile and derived mode, legacy switches, protection metadata, document variables, attached-template and mail-merge references, separators and root inventory; compact redacted MCP views | Broader settings vocabulary, relationship-specific validation, typed mutations, version behavior and Word round-trip proof |
 | fontTable | Partial (typed read graph) | Exact relationship/content/root validation; font identity/classification/PANOSE/signature metadata; four embedded faces; content-type/key readability checks; duplicate/orphan diagnostics; compact byte-free MCP views and effective-format cross-reference | Font substitution/fallback engine, obfuscation/deobfuscation workflow, mutation, licensing policy and measured render portability |
-| comments | Partial | Standard comment bodies, IDs, authorship, anchors and lossless text edits; threaded metadata missing |
-| commentsExtended | Not started | Thread/status/person graph and version compatibility |
-| revisions | Partial | Wrapper recognition only; full authorship/move/property revisions |
-| tracked changes | Partial | Recognition only; filtered accept/reject and merge |
+| comments | Partial (typed read graph) | Standard bodies/IDs/authorship, story-scoped complete/point/damaged anchors, text counts/fingerprints/source links and guarded lossless text edits; structural mutation remains |
+| commentsExtended | Partial (typed read graph) | Last-paragraph `paraId` joins, reply/root links, done state, durable-ID joins, extensible UTC/placeholder/extensions/reaction inventory and bounded corruption diagnostics; write/version compatibility remains |
+| revisions | Partial (typed read graph) | Authorship/date/text/property/nesting/source links across insertion/deletion/move/conflict/property/cell/custom-XML kinds plus people links and malformed-state diagnostics; structural mutation remains |
+| tracked changes | Partial (typed read graph) | Revision inventory, status, named source/destination move pairs and `trackRevisions`/move/format settings; filtered accept/reject and merge remain |
 | bookmarks | Partial (typed read graph) | Start/end markers are source-linked; ranges pair by `w:id` per story across paragraphs; duplicate case-insensitive names, missing/orphan ends and table-column ranges are diagnosed; safe edits remain |
 | hyperlinks | Partial (strengthened read graph) | Semantic element node/relationship ID plus local/external HYPERLINK-field dependency edges; element and field forms are not yet unified and edits remain |
 | fields | Partial (typed read graph) | Nested complex begin/separate/end parser, recursive `fldSimple`, bounded tokenizer, field-family classification, source links, parent/child graph, cached-result bounds and dependency edges; evaluator/update/safe edits missing |
@@ -159,15 +159,15 @@ it does not mean the engine understands or can edit it.
 | macros | Opaque only | Same VBA policy gap; no execution surface |
 | signatures | Opaque only | Signature origins, validation, invalidation and resign workflow |
 | encryption | Not started | Encrypted OOXML detection, authorized decrypt/encrypt adapter |
-| permissions | Not started | PermStart/PermEnd ranges and enforcement |
+| permissions | Partial (typed read graph) | Story-scoped `permStart`/`permEnd` pairing with editor/group and table-column scope plus orphan/duplicate/reversed diagnostics | Mutation enforcement, authorization policy and Word-version proof |
 | protection | Partial (metadata/policy only) | Document/write-protection modes and algorithm metadata are typed; secrets never returned; editing restriction is explicitly not treated as encryption | Permission-range integration, mutation enforcement, password workflow, authorized encryption adapter and Word probes |
-| revision IDs | Partial | Some durable IDs read; global identity/collision/version semantics missing |
+| revision IDs | Partial (strengthened) | Stable graph IDs, native `w:id` values, nested parents and move-range links are distinct from comment paragraph/durable IDs; duplicates and unresolved links are diagnosed | Cross-document/version identity, merge collision policy and mutation-safe ID allocation |
 | style inheritance | Partial | Base-first `basedOn` graph, default selection, link diagnostics, modeled property provenance and deterministic theme dereferencing exist; conditional table/version behavior and mutations remain |
 | numbering inheritance | Partial | Abstract/instance/full-level/start override and numbering-style indirection resolve with provenance; paragraph-sequence counters, restart execution and edits remain |
 | XML namespaces | Partial (strengthened) | Prefixes, declaration placement, expanded element/attribute names and untouched bytes are retained; general namespace-changing edits remain |
 | compatibility mode | Partial (typed read graph) | Bounded `compatSetting` tuples, legacy switches and explicit derived `compatibilityMode` with duplicate/conflict diagnostics | Versioned behavioral profiles, broader setting interpretation and Word probes |
 | Word version differences | Not started | Versioned capability profiles and corpus |
-| co-authoring metadata | Opaque only | People, comments, session/change metadata and merge semantics |
+| co-authoring metadata | Partial read-only | People author/provider/user records, comment thread/durable/extension/reaction inventory and revision author links; collaboration sessions, live presence, change logs and merge semantics remain opaque |
 
 ## Exact semantic-operation ledger
 
@@ -227,7 +227,7 @@ preconditions, affected-node proof, transaction, validation, and inverse.
 | Bookmark | Partial paired, source-linked read object; no safe range edits |
 | Reference | Partial typed dependency edge across fields/bookmarks and named targets |
 | Caption | Not started |
-| Comment | Partial body/author/ID object; threaded metadata missing |
+| Comment | Partial source-linked body/anchor/thread/durable/person/reaction read object; structural edits and full collaboration semantics missing |
 | Field | Partial nested complex/simple read graph; no evaluator or safe edits |
 | Style | Partial typed graph, defaults, metadata, declared properties, inheritance diagnostics and modeled effective paragraph/run properties |
 | Numbering | Partial read-only graph and effective level; no sequence counter or structural edits |
@@ -236,8 +236,8 @@ preconditions, affected-node proof, transaction, validation, and inverse.
 | Shape | Drawing marker only |
 | Chart | Opaque only |
 
-AI currently receives package summaries, bounded semantic nodes and a redacted typed
-field/bookmark/reference graph; it still lacks the complete object model, query
+AI currently receives package summaries, bounded semantic nodes and redacted typed
+field/bookmark/reference, OfficeMath and review graphs; it still lacks the complete object model, query
 language, planning layer, typed mutation commands, and automatic OOXML execution
 required by the goal.
 
@@ -245,7 +245,7 @@ required by the goal.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Unit/regression tests | Partial | 150 engine, 63 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
+| Unit/regression tests | Partial | 154 engine, 67 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
 | Property/fuzz testing | Partial | Deterministic malformed bytes and random opaque round-trip smoke | Continuous coverage-guided fuzzing, minimized corpus and resource assertions |
 | Fault injection | Not started | Validation/concurrency failure tests only | Every persistence/transaction phase, disk-full, denied, crash and race tests |
 | Preservation benchmark | Partial | Entry hashes and random no-op round trip | Public producer/feature corpus with untouched part/subtree metrics |
@@ -254,16 +254,20 @@ required by the goal.
 | Visual regression | Not started for new engine | Historical screenshots and live acceptance | Versioned PDF/page/object baselines across rendering backends |
 | Cross-platform CI | Not started | Engine targets `net8.0`; current verification is Windows | Windows/Linux/macOS core tests and qualified backend matrix |
 | Public competitor benchmark | Not started | Research matrix only | Same fixtures, versions, commands, results, caveats and reproducible harness |
-| Release packaging | Partial (strengthened) | Versioned 0.24.0 self-contained Windows build succeeds, contains the engine/runtime/manifest, contains zero Python files, and passes an unpacked equation-action smoke; ZIP SHA-256 `2a305d1b0c870ef74ceed20b24a962f44ff43dfc8c63c528b1718db1e36c156c` | Rollback exercise; optional signing/provenance policy |
+| Release packaging | Partial (strengthened) | Versioned 0.25.0 self-contained Windows build succeeds, contains the engine/runtime/manifest, contains zero Python files, and passes unpacked equation/review action smoke; ZIP SHA-256 `7ff2d4fd8ef2c2bcfb4db864765bdd04ebf1bb270eb83681ca49b06227b489ac` | Rollback exercise; optional signing/provenance policy |
 
 ## Current checkpoint evidence
 
-- `dotnet test native/WordToolkit.Engine.Tests` — 150 passed.
-- `dotnet test native/WordToolkit.Native.Tests` — 63 passed.
+- `dotnet test native/WordToolkit.Engine.Tests` — 154 passed.
+- `dotnet test native/WordToolkit.Native.Tests` — 67 passed.
 - `.venv/Scripts/python -m pytest -q` — 1273 passed, 16 intentionally skipped.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
 - Packaged/native MCP graph inspection was exercised end to end.
+- Saved-package review inspection was exercised end to end against WordToolkit,
+  Mammoth, Pandoc and Apache POI comments, tracked revisions and move fixtures; default
+  structured responses remained approximately 1.2–1.7 KB and raw XML/personal text was
+  absent.
 - Semantic inspection was exercised through lazy search -> schema inspection -> execute.
 - Header-story query -> guarded plan -> atomic apply was exercised end to end while
   proving that the main document part remained byte-identical.

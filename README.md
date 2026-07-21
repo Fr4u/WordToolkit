@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-WordToolkit 0.24 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference and canonical OfficeMath graphs, and modeled effective formatting of a saved Word OOXML file without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Every result retains its declaration and provenance. The lossless editing slice binds text in the main body, headers, footers, notes, comments, glossary building blocks and text boxes to exact XML byte spans, combines bounded commands into one hash-preconditioned package mutation, predicts the result fingerprint and retains an exact guarded inverse without reserializing unrelated XML.
+WordToolkit 0.25 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference, canonical OfficeMath and review/revision graphs, and modeled effective formatting of a saved Word OOXML file without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing slice binds text in the main body, headers, footers, notes, comments, glossary building blocks and text boxes to exact XML byte spans, combines bounded commands into one hash-preconditioned package mutation, predicts the result fingerprint and retains an exact guarded inverse without reserializing unrelated XML.
 
 The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtual environment, an interpreter bootstrap, or a per-call helper process. Its MCP command points directly to:
 
@@ -8,7 +8,7 @@ The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtua
 ./runtime/win-x64/wordtoolkit-native.exe
 ```
 
-The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.24 local plugin, does not participate in its startup, and is not required at runtime.
+The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.25 local plugin, does not participate in its startup, and is not required at runtime.
 
 ## Why the runtime was replaced
 
@@ -44,7 +44,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 48 tested Word Live actions plus fourteen standalone,
+The runtime implements 48 tested Word Live actions plus fifteen standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus three token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -73,6 +73,7 @@ inspect_ooxml_theme
 inspect_ooxml_settings
 inspect_ooxml_references
 inspect_ooxml_equations
+inspect_ooxml_review
 inspect_ooxml_fonts
 resolve_ooxml_formatting
 plan_ooxml_text_edits
@@ -124,19 +125,29 @@ disconnect_live_word_document
 
 The catalog describes all 12,167 public members found in the installed Word type library on the release machine. It does not lie that all of them are safe edits: stable capability IDs expose metadata for every member, while lifecycle, macro, DDE, print/mail/web, sensitive, global, event, restricted and unknown operations fail closed. Dedicated tools remain the preferred path.
 
-Saved-package settings, font and reference inspection is metadata-first and bounded. Document
-variable values, mail-merge query/connection details and targets are redacted unless
-explicitly requested. Protection hashes and salts are never returned, and embedded
-font bytes are never exposed. Bookmark names, field instructions, cached results and
-dependency keys are also redacted by default. External field targets are classified but
-never followed or executed. Font hashes are opt-in metadata only. Protection is reported
-as an editing restriction, not misrepresented as document encryption.
+Saved-package settings, font, reference and review inspection is metadata-first and
+bounded. Document variable values, mail-merge query/connection details and targets are
+redacted unless explicitly requested. Protection hashes and salts are never returned,
+and embedded font bytes are never exposed. Bookmark names, field instructions, cached
+results and dependency keys are also redacted by default. External field targets are
+classified but never followed or executed. Comment/revision text, author/editor/person
+names, provider/user identifiers and move names are fingerprinted and redacted by
+default. Font hashes are opt-in metadata only. Protection is reported as an editing
+restriction, not misrepresented as document encryption.
 
 Saved-package equation inspection is also metadata-first. Its default response groups
 equations by story, display mode and structural status without returning formula text or
 raw OMML. Exact equation IDs, a flat paged OfficeMath node graph, normalized properties,
 source provenance and bounded text previews are separate opt-ins. Inspection never opens
 Word, converts notation or follows external content.
+
+Saved-package review inspection links standard comments to story-scoped start/end/reference
+anchors, `commentsExtended` threads and resolved state, `commentsIds` durable IDs,
+`commentsExtensible` metadata/reaction inventory and `people` identities. It separately
+classifies text, property, move, conflict, cell and custom-XML revisions; pairs named move
+ranges; and reports permission ranges plus tracking settings. The action is parse-only:
+it does not accept, reject, merge, resolve or rewrite review markup, and it never returns
+raw XML.
 
 ## Fast model-to-Word path
 
@@ -271,12 +282,14 @@ The cleaner constrains every target to the repository root. It preserves only th
 Version:
 
 ```text
-0.24.0+codex.20260721233323
+0.25.0+codex.20260722004250
 ```
 
 Windows x64 ZIP:
 
-[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.24.0/WordToolkit-0.24.0%2Bcodex.20260721233323-native-win-x64.zip)
+[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.25.0/WordToolkit-0.25.0%2Bcodex.20260722004250-native-win-x64.zip)
+
+SHA-256: `7ff2d4fd8ef2c2bcfb4db864765bdd04ebf1bb270eb83681ca49b06227b489ac`
 
 Live demonstration document:
 

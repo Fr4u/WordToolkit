@@ -4459,6 +4459,101 @@
       }
     },
     {
+      "name": "inspect_ooxml_review",
+      "title": "Inspect saved Word review graph",
+      "description": "Inspect a source-linked graph of comments, anchors, threaded replies, people, tracked revisions, named moves, permission ranges, and review settings in a saved Word package without opening or changing Word. Resolves commentsExtended, commentsIds, commentsExtensible, durable IDs, reactions inventory, and people metadata. Personal values and text are fingerprinted and redacted by default; raw XML is never returned.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "comments", "anchors", "threads", "revisions", "move_ranges", "moves", "permissions", "people", "settings", "issues"],
+            "default": "summary",
+            "description": "Return compact aggregates or one paged review-object family."
+          },
+          "detail": {
+            "type": "string",
+            "enum": ["metadata", "links"],
+            "default": "metadata",
+            "description": "Use links to include bounded parent, thread, anchor, person, revision, and range IDs."
+          },
+          "comment_id": {
+            "type": "string",
+            "pattern": "^wdc_[A-Za-z0-9_-]+$",
+            "maxLength": 128,
+            "description": "Optional exact comment ID for comments, anchors, or threads views."
+          },
+          "revision_id": {
+            "type": "string",
+            "pattern": "^wdr_[A-Za-z0-9_-]+$",
+            "maxLength": 128,
+            "description": "Optional exact revision ID for the revisions view."
+          },
+          "story_kind": {
+            "type": "string",
+            "enum": ["main", "header", "footer", "footnote", "endnote", "comment", "glossary_entry", "text_box", "other"],
+            "description": "Optional exact Word story-kind filter."
+          },
+          "revision_kind": {
+            "type": "string",
+            "enum": ["insertion", "deletion", "move_from", "move_to", "conflict_insertion", "conflict_deletion", "run_properties_change", "paragraph_properties_change", "table_properties_change", "table_grid_change", "table_row_properties_change", "table_cell_properties_change", "section_properties_change", "numbering_properties_change", "numbering_change", "cell_insertion", "cell_deletion", "cell_merge", "custom_xml_insertion", "custom_xml_deletion", "other_property_change"],
+            "description": "Optional exact revision-kind filter for summary or revisions views."
+          },
+          "author_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{16}$",
+            "maxLength": 16,
+            "description": "Optional author or editor fingerprint returned by a prior response; avoids sending personal names back to the model."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "include_sensitive": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include bounded author, editor, person, provider, user, and move-name values. Text still requires a positive text_preview_chars value."
+          },
+          "text_preview_chars": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 400,
+            "default": 0,
+            "description": "Maximum comment, anchor, or revision text preview characters. A positive value requires include_sensitive=true."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include at most 40 bounded structural diagnostics in non-issues views."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include part URIs, OOXML IDs, durable IDs, source ordinals, paragraph IDs, and semantic source node IDs."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "inspect_ooxml_fonts",
       "title": "Inspect the Word font table",
       "description": "Inspect the typed fontTable.xml graph and embedded-font relationships without opening Word. Distinguishes font declarations from package-backed embedded faces, checks Word-readable content types and font keys, never returns font bytes, and uses opt-in detail, hashes, source data, filtering, and pagination to minimize AI tokens.",

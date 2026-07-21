@@ -5,7 +5,7 @@
 - Unit: canonical equation parsers/writers, error contracts and security primitives.
 - Round-trip: LaTeX/UnicodeMath/MathML/AST → OMML → DOCX → reopened OMML with semantic AST comparison.
 - Integration: create/open/edit/save, package validation, Streamable HTTP initialization and bearer rejection.
-- Regression: the vendored `docx-mcp` test corpus covers styles, tables, notes, comments, revisions, fields, raw parts, images, sections, headers/footers and security behavior.
+- Regression: the vendored `docx-mcp` test corpus covers styles, tables, notes, comments, revisions, fields, raw parts, images, sections, headers/footers and security behavior. Native saved-package review tests additionally exercise modern comment threads/durable IDs/reactions/people, malformed anchors, nested/property revisions, named moves, permission ranges, redaction, paging and real WordToolkit/Mammoth/Pandoc/Apache POI fixtures.
 - Rendering: LibreOffice DOCX→PDF, Poppler PDF→PNG and page heuristics.
 - Golden artifacts: `examples/generated` includes validated DOCX, PDF, PNG previews and a JSON report.
 - Runtime inventory: `tests/test_runtime_modules.py` imports every packaged

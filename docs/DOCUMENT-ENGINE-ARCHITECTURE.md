@@ -505,6 +505,32 @@ The renderer must distinguish `d x` as a differential from a generic superscript
 adjacent identifier. Visual screenshots alone are regression evidence, not the internal
 representation.
 
+## Review and revisions engine
+
+`WordReviewGraph` is the initial saved-package read model for review state. Standard
+`w:comment` definitions are joined to start/end/reference anchors in each projected Word
+story. The last paragraph identity then links a comment through `commentsExtended` to
+its parent reply and done state, through `commentsIds` to a durable identifier, through
+`commentsExtensible` to UTC/intelligent-placeholder/extension and reaction inventory,
+and through `people` to author, provider and user metadata. These are separate keys with
+separate failure diagnostics; the engine never invents one universal comment ID.
+
+Tracked insertions, deletions, source/destination moves, conflicts, run/paragraph/table/
+row/cell/section/numbering property changes and custom-XML/cell review markers are
+source-linked per story. Nested revisions retain parents. Named move range markers are
+paired and then joined into source/destination moves; `permStart`/`permEnd` markers are
+paired with editor/group and table-column scope. Settings expose `trackRevisions`,
+`doNotTrackMoves` and `doNotTrackFormatting` without treating them as proof that every
+current node is tracked.
+
+Lazy `inspect_ooxml_review` exposes summary, comments, anchors, threads, revisions,
+move-range, move, permission, people, settings and issue views. Default output contains
+counts, statuses and short fingerprints. Comment/revision text, author/editor/person
+values, provider/user identifiers and move names are redacted unless explicitly and
+boundedly requested; source metadata is separately opt-in and raw XML is never returned.
+The action is parse-only. Accept/reject, comment resolution, merge and structural review
+mutations remain live-Word operations or future hash-preconditioned package commands.
+
 ## Rendering and fidelity backends
 
 Rendering is a capability interface:
@@ -557,6 +583,8 @@ The current native mapping is therefore:
 - settings/compatibility/protection metadata -> lazy `inspect_ooxml_settings`;
 - declared and embedded font metadata -> lazy `inspect_ooxml_fonts`;
 - story-aware field/bookmark/dependency inspection -> lazy `inspect_ooxml_references`;
+- source-linked comments/threads/people/revisions/moves/permissions -> lazy
+  `inspect_ooxml_review`;
 - modeled paragraph/run formatting -> lazy `resolve_ooxml_formatting`;
 - text-only `document.plan` -> lazy `plan_ooxml_text_edits`;
 - text-only `document.apply` -> lazy `apply_ooxml_text_edits`.
@@ -652,7 +680,8 @@ No feature is “supported” until it passes the relevant gates:
   result fingerprint and exact part-byte inverse implemented; general commands,
   permissions, approval and semantic inverses remain**;
 - style and numbering resolvers;
-- fields/references and review graph;
+- fields/references and source-linked review read graph — **initial implementations
+  complete; mutation/evaluation layers remain**;
 - schema/semantic validation profiles.
 
 ### Phase 4 — hard Word structures

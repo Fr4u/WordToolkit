@@ -93,6 +93,15 @@ uses them. A positive `text_preview_chars` requires `include_sensitive=true`; ot
 text remains absent and only a short fingerprint is exposed. The action is parse-only:
 it does not open Word, convert notation, fetch external content, repair malformed math,
 or prove that two notations are mathematically equivalent.
+Use lazy `inspect_ooxml_review` for comments and tracked changes already stored in a
+saved Word package. Start with `view=summary`, then page only the required comments,
+threads, revisions, moves, permissions, people, settings or issues. Filter by exact
+comment/revision ID, story, revision kind or author fingerprint before requesting
+detail. Text and personal values are fingerprinted/redacted by default; a bounded text
+preview requires both `include_sensitive=true` and positive `text_preview_chars`.
+Source metadata is separately opt-in and raw XML is never returned. The inspector is
+parse-only: it does not open Word, accept/reject changes, resolve comments, merge review
+state or mutate the package.
 After obtaining a paragraph or run ID, use lazy `resolve_ooxml_formatting` only
 when a formatting decision needs more than the declared style. Filter
 `property_names` aggressively and leave provenance/source disabled unless the

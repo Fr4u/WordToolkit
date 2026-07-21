@@ -263,8 +263,9 @@ relationship types for the primary related stories, validates their content type
 root elements, projects each target part once, exposes reference IDs, and applies the
 same lossless text transaction machinery across their source bytes. The implementation
 is tested against constructed strict/transitional cases and the bundled Word,
-LibreOffice, POI, Pandoc and Mammoth fixtures. Threaded-comment metadata and section
-inheritance remain separate unfinished graphs.
+LibreOffice, POI, Pandoc and Mammoth fixtures. Section inheritance and the initial
+threaded-comment/revision read graph are now separate typed graphs; structural review
+mutations and collaboration-session semantics remain unfinished.
 
 Section ownership cannot be recovered from filenames or relationship order. The
 [`headerReference` contract](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.headerreference)
@@ -274,6 +275,33 @@ omitted, while the document-wide
 decides whether the even variant is displayed. `titlePg` independently gates the first
 variant. The engine therefore preserves both the defined binding and the effective
 display target; collapsing them would erase “Link to Previous” semantics.
+
+## Review and collaboration part findings
+
+The standard [comments root](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.comments?view=openxml-3.0.1)
+contains [comment definitions](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.comment?view=openxml-3.0.1),
+while the visible range markers live in one or more Word stories. Their shared `w:id`
+is therefore only the first join. Modern Word adds several independent maps:
+[`commentsExtended`](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-docx/31f689cd-4192-4c2d-8d2f-202b1f8f20e9)
+joins the last comment-paragraph `w14:paraId` to reply parent and done state;
+[`commentsIds`](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-docx/6164f0a7-58f1-439a-a110-f52532b20abd)
+maps that paragraph identity to a durable ID; and
+[`commentsExtensible`](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-docx/62c16828-8131-4d1f-99f8-afd7560a1c78)
+attaches later metadata and extension/reaction inventory through the durable ID. The
+[`people` part](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-docx/f461e6b7-7a35-4bc4-8153-b60f5d925539)
+is another relationship-scoped source, carrying author and optional provider/user
+presence identifiers. Collapsing all of these into a comment index loses thread,
+identity and corruption evidence.
+
+Tracked review markup is not one wrapper type. Text insertions/deletions and moves sit
+beside property-change records for runs, paragraphs, tables, rows, cells, sections and
+numbering; named move start/end markers must also be paired before source and destination
+can be joined. Editing permissions use separate
+[`permStart`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.permstart?view=openxml-3.0.1)
+and end markers with editor/group and optional table-column scope. The engine therefore
+keeps comment IDs, paragraph IDs, durable IDs, revision IDs, move-range IDs and people
+IDs as distinct keys, preserves source links and emits bounded diagnostics for every
+missing, duplicate, orphaned or reversed join.
 
 ## OfficeMath and equation-specific findings
 

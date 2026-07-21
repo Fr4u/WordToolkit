@@ -47,6 +47,18 @@ The in-memory session registry makes this release a single-instance service. Do 
 
 ## Word Live field, object-model, bookmark, learning and equation boundaries
 
+Saved-package review inspection is a bounded parse-only path. It joins comments,
+story anchors, threaded replies, durable IDs, extensible/reaction inventory, people,
+tracked revisions, named moves, permission ranges and review settings without opening
+Word or changing the package. Comment/revision text, author/editor/person names,
+provider/user identifiers and move names are fingerprinted/redacted by default. A text
+preview requires explicit sensitive opt-in plus a positive character bound; source
+metadata is separately opt-in and raw XML is never returned. Independent limits cap
+parts, comments, anchors, revisions, move/permission ranges, people, text, thread depth
+and diagnostics. The inspector cannot accept/reject changes, resolve comments, merge
+review state, execute external content or authorize an edit merely because a permission
+marker exists.
+
 Saved-package equation inspection is a bounded parse-only path. It does not start Word,
 invoke conversion, return raw OMML, evaluate content or follow relationships. The
 default response contains only structural counts, statuses and short fingerprints;

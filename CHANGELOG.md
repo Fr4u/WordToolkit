@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## 0.25.0 — 2026-07-22
+
+- Added `WordReviewGraphBuilder`, a bounded, source-linked read graph for saved-package
+  comments, story anchors, threaded replies, people, tracked revisions, named moves,
+  permission ranges and review settings. It joins modern `commentsExtended`,
+  `commentsIds`, `commentsExtensible` and `people` parts without flattening them into
+  anonymous text.
+- Added stable review identities, durable comment IDs, reply/root links, resolved state,
+  reaction inventory, revision nesting and status, property/cell/custom-XML revision
+  kinds, source/destination move pairs, editor/group permissions and explicit corruption
+  diagnostics. Independent limits cap parts, comments, anchors, revisions, ranges,
+  people, text, thread depth and issues.
+- Added lazy `inspect_ooxml_review` with summary, comments, anchors, threads, revisions,
+  move-range, move, permission, people, settings and issue views. Text and personal
+  values are fingerprinted/redacted by default, bounded previews require explicit
+  sensitive opt-in, source metadata is optional, raw XML is never returned and the path
+  cannot open or mutate Word.
+- Added four engine tests and four native host tests. The current native totals are 154
+  engine tests and 67 host tests; end-to-end corpus smoke covers WordToolkit, Mammoth,
+  Pandoc and Apache POI comments, tracked changes and moves with compact default MCP
+  responses.
+
 ## 0.24.0 — 2026-07-21
 
 - Added `WordEquationGraphBuilder`, a bounded source-linked canonical read graph for
