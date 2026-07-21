@@ -32,7 +32,8 @@ public sealed record OpcRelationship(
     string Type,
     string Target,
     OpcRelationshipTargetMode TargetMode,
-    string? ResolvedTargetPartUri
+    string? ResolvedTargetPartUri,
+    string? TargetFragment
 );
 
 public sealed record OpcPackageEntry(

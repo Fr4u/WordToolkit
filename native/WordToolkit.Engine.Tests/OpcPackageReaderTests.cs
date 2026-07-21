@@ -109,6 +109,139 @@ public sealed class OpcPackageReaderTests
     }
 
     [Fact]
+    public void ReportsInvalidRelationshipIdAndTypeUri()
+    {
+        var relationships = RelationshipsXml(
+            Relationship("not an xml id", "type with spaces", "word/document.xml")
+        );
+        using var package = BuildPackage(
+            ("[Content_Types].xml", ContentTypes()),
+            ("_rels/.rels", relationships),
+            ("word/document.xml", DocumentXml())
+        );
+
+        var snapshot = new OpcPackageReader().Read(package);
+
+        Assert.Contains(snapshot.Diagnostics, diagnostic => diagnostic.Code == "OPC037");
+        Assert.Contains(snapshot.Diagnostics, diagnostic => diagnostic.Code == "OPC038");
+        Assert.False(snapshot.IsStructurallyValid);
+    }
+
+    [Fact]
+    public void ReportsInvalidExternalTargetWithoutDisclosingIt()
+    {
+        const string sensitiveTarget = "https://private.example/path with spaces";
+        var relationships = RelationshipsXml(
+            Relationship("rId1", "type-a", sensitiveTarget, "External")
+        );
+        using var package = BuildPackage(
+            ("[Content_Types].xml", ContentTypes()),
+            ("_rels/.rels", relationships),
+            ("word/document.xml", DocumentXml())
+        );
+
+        var snapshot = new OpcPackageReader().Read(package);
+
+        var diagnostic = Assert.Single(
+            snapshot.Diagnostics,
+            diagnostic => diagnostic.Code == "OPC039"
+        );
+        Assert.DoesNotContain(sensitiveTarget, diagnostic.Message, StringComparison.Ordinal);
+        Assert.False(snapshot.IsStructurallyValid);
+    }
+
+    [Fact]
+    public void RejectsRelationshipTargetingPackageInfrastructure()
+    {
+        using var package = BuildPackage(
+            ("[Content_Types].xml", ContentTypes()),
+            (
+                "_rels/.rels",
+                RelationshipsXml(Relationship("rId1", "type-a", "_rels/.rels"))
+            ),
+            ("word/document.xml", DocumentXml())
+        );
+
+        var snapshot = new OpcPackageReader().Read(package);
+
+        Assert.Contains(snapshot.Diagnostics, diagnostic => diagnostic.Code == "OPC043");
+        Assert.DoesNotContain(snapshot.Diagnostics, diagnostic => diagnostic.Code == "OPC034");
+        Assert.False(snapshot.IsStructurallyValid);
+    }
+
+    [Fact]
+    public void ReportsRelationshipPartWithWrongContentType()
+    {
+        var contentTypes = ContentTypes().Replace(
+            "application/vnd.openxmlformats-package.relationships+xml",
+            "application/xml",
+            StringComparison.Ordinal
+        );
+        using var package = BuildPackage(
+            ("[Content_Types].xml", contentTypes),
+            ("_rels/.rels", RootRelationships()),
+            ("word/document.xml", DocumentXml())
+        );
+
+        var snapshot = new OpcPackageReader().Read(package);
+
+        Assert.Contains(snapshot.Diagnostics, diagnostic => diagnostic.Code == "OPC041");
+        Assert.False(snapshot.IsStructurallyValid);
+    }
+
+    [Fact]
+    public void ReportsRelationshipPartThatOwnsRelationships()
+    {
+        using var package = BuildPackage(
+            ("[Content_Types].xml", ContentTypes()),
+            ("_rels/.rels", RootRelationships()),
+            (
+                "_rels/_rels/.rels.rels",
+                RelationshipsXml(Relationship("rId1", "type-a", "word/document.xml"))
+            ),
+            ("word/document.xml", DocumentXml())
+        );
+
+        var snapshot = new OpcPackageReader().Read(package);
+
+        Assert.Contains(snapshot.Diagnostics, diagnostic => diagnostic.Code == "OPC042");
+        Assert.False(snapshot.IsStructurallyValid);
+    }
+
+    [Fact]
+    public void RetainsInternalRelationshipFragmentSeparatelyFromPartUri()
+    {
+        using var package = BuildPackage(
+            ("[Content_Types].xml", ContentTypes()),
+            ("_rels/.rels", RootRelationships("word/document.xml#bookmark-1")),
+            ("word/document.xml", DocumentXml())
+        );
+
+        var snapshot = new OpcPackageReader().Read(package);
+
+        var relationship = Assert.Single(snapshot.Relationships);
+        Assert.Equal("/word/document.xml", relationship.ResolvedTargetPartUri);
+        Assert.Equal("bookmark-1", relationship.TargetFragment);
+        Assert.True(snapshot.IsStructurallyValid);
+    }
+
+    [Fact]
+    public void RejectsQueryComponentOnInternalRelationshipTarget()
+    {
+        using var package = BuildPackage(
+            ("[Content_Types].xml", ContentTypes()),
+            ("_rels/.rels", RootRelationships("word/document.xml?version=2")),
+            ("word/document.xml", DocumentXml())
+        );
+
+        var snapshot = new OpcPackageReader().Read(package);
+
+        Assert.Contains(snapshot.Diagnostics, diagnostic => diagnostic.Code == "OPC033");
+        Assert.Null(Assert.Single(snapshot.Relationships).ResolvedTargetPartUri);
+        Assert.False(snapshot.IsStructurallyValid);
+    }
+
+    [Fact]
     public void ReportsCaseInsensitiveEntryCollision()
     {
         using var package = BuildPackage(

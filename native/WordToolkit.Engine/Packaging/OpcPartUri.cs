@@ -114,14 +114,33 @@ internal static class OpcPartUri
         );
     }
 
+    public static bool IsRelationshipPartUri(string partUri)
+    {
+        if (
+            string.IsNullOrEmpty(partUri)
+            || !partUri.StartsWith("/", StringComparison.Ordinal)
+        )
+        {
+            return false;
+        }
+
+        return TryRelationshipSource(partUri[1..], out _);
+    }
+
+    public static bool IsPackageInfrastructureUri(string partUri) =>
+        string.Equals(partUri, "/" + ContentTypesEntryName, StringComparison.Ordinal)
+        || IsRelationshipPartUri(partUri);
+
     public static bool TryResolveRelationshipTarget(
         string sourcePartUri,
         string target,
         out string? resolvedPartUri,
+        out string? targetFragment,
         out string? error
     )
     {
         resolvedPartUri = null;
+        targetFragment = null;
         error = null;
         if (string.IsNullOrWhiteSpace(target))
         {
@@ -158,6 +177,12 @@ internal static class OpcPartUri
             return false;
         }
 
+        if (!string.IsNullOrEmpty(absoluteTarget.Query))
+        {
+            error = "Internal relationship target contains a query component.";
+            return false;
+        }
+
         if (!string.Equals(
             absoluteTarget.Host,
             baseUri.Host,
@@ -188,6 +213,50 @@ internal static class OpcPartUri
         var entryName = decodedPath.TrimStart('/');
         if (!TryFromEntryName(entryName, out resolvedPartUri, out error))
         {
+            return false;
+        }
+
+        targetFragment = string.IsNullOrEmpty(absoluteTarget.Fragment)
+            ? null
+            : absoluteTarget.Fragment[1..];
+
+        return true;
+    }
+
+
+    public static bool TryValidateRelationshipType(string value, out string? error) =>
+        TryValidateUriReference(value, "Relationship type", out error);
+
+    public static bool TryValidateExternalRelationshipTarget(
+        string value,
+        out string? error
+    ) => TryValidateUriReference(value, "External relationship target", out error);
+
+    private static bool TryValidateUriReference(
+        string value,
+        string description,
+        out string? error
+    )
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            error = $"{description} is empty.";
+            return false;
+        }
+
+        if (
+            value.Contains('\\', StringComparison.Ordinal)
+            || value.Any(character => char.IsControl(character) || char.IsWhiteSpace(character))
+        )
+        {
+            error = $"{description} contains a character forbidden by RFC 3986.";
+            return false;
+        }
+
+        if (!Uri.TryCreate(value, UriKind.RelativeOrAbsolute, out _))
+        {
+            error = $"{description} is not a valid URI reference.";
             return false;
         }
 

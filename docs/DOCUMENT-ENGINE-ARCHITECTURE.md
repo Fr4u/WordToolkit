@@ -117,7 +117,13 @@ Current diagnostic namespace:
 | `OPC034` | internal target part is absent |
 | `OPC035` | external relationship recorded but not dereferenced |
 | `OPC036` | invalid relationship target mode |
+| `OPC037` | relationship ID is not a valid XML ID |
+| `OPC038` | relationship type is not an RFC 3986 URI reference |
+| `OPC039` | external relationship target is not an RFC 3986 URI reference |
 | `OPC040` | part is unreachable from package-level relationships |
+| `OPC041` | relationship part has the wrong content type |
+| `OPC042` | relationship part illegally owns relationships |
+| `OPC043` | internal relationship targets package infrastructure |
 
 The implemented mutation path now preserves untouched entry bytes, supports SHA-256
 preconditions, emits deterministic packages when requested, writes to a sibling

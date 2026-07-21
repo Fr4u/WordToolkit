@@ -14,6 +14,8 @@ public sealed class OpcPackageReader
         "http://schemas.openxmlformats.org/package/2006/content-types";
     private const string RelationshipsNamespace =
         "http://schemas.openxmlformats.org/package/2006/relationships";
+    private const string RelationshipsContentType =
+        "application/vnd.openxmlformats-package.relationships+xml";
 
     private readonly OpcPackageLimits _limits;
 
@@ -56,7 +58,7 @@ public sealed class OpcPackageReader
 
         var contentTypes = ReadContentTypes(entries, diagnostics);
         var parts = BuildParts(entries, contentTypes, diagnostics);
-        var relationships = ReadRelationships(entries, parts, diagnostics);
+        var relationships = ReadRelationships(entries, parts, contentTypes, diagnostics);
         AuditRelationshipTargets(relationships, parts, diagnostics);
         AuditReachability(relationships, parts, diagnostics);
 
@@ -409,6 +411,7 @@ public sealed class OpcPackageReader
     private List<OpcRelationship> ReadRelationships(
         IReadOnlyList<OpcPackageEntry> entries,
         IReadOnlyDictionary<string, OpcPart> parts,
+        OpcContentTypes contentTypes,
         ICollection<OpcDiagnostic> diagnostics
     )
     {
@@ -440,6 +443,40 @@ public sealed class OpcPackageReader
             if (sourcePartUri is null)
             {
                 continue;
+            }
+
+            if (
+                entry.PartUri is null
+                || !string.Equals(
+                    contentTypes.Resolve(entry.PartUri),
+                    RelationshipsContentType,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                diagnostics.Add(
+                    new OpcDiagnostic(
+                        "OPC041",
+                        OpcDiagnosticSeverity.Error,
+                        "Relationship part does not have the required OPC relationships content type.",
+                        entry.PartUri ?? "/" + entry.Name
+                    )
+                );
+            }
+
+            if (
+                sourcePartUri != OpcPartUri.PackageRoot
+                && OpcPartUri.IsRelationshipPartUri(sourcePartUri)
+            )
+            {
+                diagnostics.Add(
+                    new OpcDiagnostic(
+                        "OPC042",
+                        OpcDiagnosticSeverity.Error,
+                        "A relationship part cannot itself own relationships.",
+                        entry.PartUri ?? "/" + entry.Name
+                    )
+                );
             }
 
             if (sourcePartUri != OpcPartUri.PackageRoot && !parts.ContainsKey(sourcePartUri))
@@ -506,6 +543,37 @@ public sealed class OpcPackageReader
                         );
                     }
 
+
+                    try
+                    {
+                        _ = XmlConvert.VerifyNCName(id);
+                    }
+                    catch (XmlException)
+                    {
+                        diagnostics.Add(
+                            new OpcDiagnostic(
+                                "OPC037",
+                                OpcDiagnosticSeverity.Error,
+                                "Relationship Id is not a valid XML ID.",
+                                sourcePartUri,
+                                id
+                            )
+                        );
+                    }
+
+                    if (!OpcPartUri.TryValidateRelationshipType(type, out var typeError))
+                    {
+                        diagnostics.Add(
+                            new OpcDiagnostic(
+                                "OPC038",
+                                OpcDiagnosticSeverity.Error,
+                                typeError ?? "Relationship Type is not a valid URI.",
+                                sourcePartUri,
+                                id
+                            )
+                        );
+                    }
+
                     var mode = rawMode switch
                     {
                         null or "" => OpcRelationshipTargetMode.Internal,
@@ -522,6 +590,7 @@ public sealed class OpcPackageReader
                         _ => OpcRelationshipTargetMode.Invalid,
                     };
                     string? resolvedTarget = null;
+                    string? targetFragment = null;
                     if (mode == OpcRelationshipTargetMode.Invalid)
                     {
                         diagnostics.Add(
@@ -536,6 +605,25 @@ public sealed class OpcPackageReader
                     }
                     else if (mode == OpcRelationshipTargetMode.External)
                     {
+                        if (
+                            !OpcPartUri.TryValidateExternalRelationshipTarget(
+                                target,
+                                out var targetError
+                            )
+                        )
+                        {
+                            diagnostics.Add(
+                                new OpcDiagnostic(
+                                    "OPC039",
+                                    OpcDiagnosticSeverity.Error,
+                                    targetError
+                                        ?? "External relationship target is not a valid URI reference.",
+                                    sourcePartUri,
+                                    id
+                                )
+                            );
+                        }
+
                         diagnostics.Add(
                             new OpcDiagnostic(
                                 "OPC035",
@@ -551,6 +639,7 @@ public sealed class OpcPackageReader
                             sourcePartUri,
                             target,
                             out resolvedTarget,
+                            out targetFragment,
                             out var error
                         )
                     )
@@ -574,7 +663,8 @@ public sealed class OpcPackageReader
                             type,
                             target,
                             mode,
-                            resolvedTarget
+                            resolvedTarget,
+                            targetFragment
                         )
                     );
                 }
@@ -601,14 +691,35 @@ public sealed class OpcPackageReader
         ICollection<OpcDiagnostic> diagnostics
     )
     {
-        foreach (
-            var relationship in relationships.Where(relationship =>
-                relationship.TargetMode == OpcRelationshipTargetMode.Internal
-                && relationship.ResolvedTargetPartUri is not null
-                && !parts.ContainsKey(relationship.ResolvedTargetPartUri)
-            )
-        )
+        foreach (var relationship in relationships)
         {
+            if (
+                relationship.TargetMode != OpcRelationshipTargetMode.Internal
+                || relationship.ResolvedTargetPartUri is null
+            )
+            {
+                continue;
+            }
+
+            if (OpcPartUri.IsPackageInfrastructureUri(relationship.ResolvedTargetPartUri))
+            {
+                diagnostics.Add(
+                    new OpcDiagnostic(
+                        "OPC043",
+                        OpcDiagnosticSeverity.Error,
+                        "An internal relationship cannot target package infrastructure.",
+                        relationship.SourcePartUri,
+                        relationship.Id
+                    )
+                );
+                continue;
+            }
+
+            if (parts.ContainsKey(relationship.ResolvedTargetPartUri))
+            {
+                continue;
+            }
+
             diagnostics.Add(
                 new OpcDiagnostic(
                     "OPC034",

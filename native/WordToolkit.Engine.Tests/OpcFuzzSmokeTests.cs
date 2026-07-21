@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text;
+using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
 
 namespace WordToolkit.Engine.Tests;
@@ -66,6 +67,43 @@ public sealed class OpcFuzzSmokeTests
         }
     }
 
+    [Fact]
+    public void RandomRelationshipMetadataNeverEscapesTheDiagnosticBoundary()
+    {
+        const string alphabet =
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ./:%?#[]@!$'()*+,;=\\";
+        var reader = new OpcPackageReader();
+        for (var seed = 0; seed < 500; seed++)
+        {
+            var random = new Random(seed);
+            var id = RandomValue(random, alphabet);
+            var type = RandomValue(random, alphabet);
+            var target = RandomValue(random, alphabet);
+            var targetMode = random.Next(4) switch
+            {
+                0 => null,
+                1 => "Internal",
+                2 => "External",
+                _ => RandomValue(random, alphabet),
+            };
+            using var package = BuildPackageWithRelationship(id, type, target, targetMode);
+
+            var snapshot = reader.Read(package);
+
+            foreach (
+                var relationship in snapshot.Relationships.Where(relationship =>
+                    relationship.ResolvedTargetPartUri is not null
+                )
+            )
+            {
+                Assert.StartsWith("/", relationship.ResolvedTargetPartUri, StringComparison.Ordinal);
+                Assert.DoesNotContain("?", relationship.ResolvedTargetPartUri, StringComparison.Ordinal);
+                Assert.DoesNotContain("#", relationship.ResolvedTargetPartUri, StringComparison.Ordinal);
+                Assert.DoesNotContain("\\", relationship.ResolvedTargetPartUri, StringComparison.Ordinal);
+            }
+        }
+    }
+
     private static MemoryStream BuildPackageWithOpaqueParts(int seed)
     {
         var random = new Random(seed);
@@ -118,6 +156,83 @@ public sealed class OpcFuzzSmokeTests
 
         stream.Position = 0;
         return stream;
+    }
+
+    private static MemoryStream BuildPackageWithRelationship(
+        string id,
+        string type,
+        string target,
+        string? targetMode
+    )
+    {
+        XNamespace relationshipsNamespace =
+            "http://schemas.openxmlformats.org/package/2006/relationships";
+        var relationship = new XElement(
+            relationshipsNamespace + "Relationship",
+            new XAttribute("Id", id),
+            new XAttribute("Type", type),
+            new XAttribute("Target", target)
+        );
+        if (targetMode is not null)
+        {
+            relationship.Add(new XAttribute("TargetMode", targetMode));
+        }
+
+        var relationships = new XDocument(
+            new XElement(relationshipsNamespace + "Relationships", relationship)
+        );
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            WriteEntry(
+                archive,
+                "[Content_Types].xml",
+                Encoding.UTF8.GetBytes(
+                    """
+                    <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                      <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
+                      <Default Extension="xml" ContentType="application/xml" />
+                      <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml" />
+                    </Types>
+                    """
+                )
+            );
+            WriteEntry(
+                archive,
+                "_rels/.rels",
+                Encoding.UTF8.GetBytes(relationships.ToString(SaveOptions.DisableFormatting))
+            );
+            WriteEntry(
+                archive,
+                "word/document.xml",
+                Encoding.UTF8.GetBytes(
+                    """
+                    <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                      <w:body><w:p /></w:body>
+                    </w:document>
+                    """
+                )
+            );
+        }
+
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static string RandomValue(Random random, string alphabet)
+    {
+        var length = random.Next(0, 48);
+        return string.Create(
+            length,
+            (random, alphabet),
+            static (buffer, state) =>
+            {
+                for (var index = 0; index < buffer.Length; index++)
+                {
+                    buffer[index] = state.alphabet[state.random.Next(state.alphabet.Length)];
+                }
+            }
+        );
     }
 
     private static void WriteEntry(ZipArchive archive, string name, byte[] content)

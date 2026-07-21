@@ -6,6 +6,10 @@
   immutable OPC package graph, content-type and relationship resolution,
   reachability diagnostics, opaque-part preservation and deterministic
   package fingerprints.
+- Strengthened OPC relationship validation with XML-ID and RFC 3986 checks,
+  fragment-preserving target resolution, reserved relationship-part rules,
+  required relationship content types, and explicit rejection of targets that
+  point at package infrastructure.
 - Added hash-preconditioned package mutations, deterministic serialization and
   version-checked atomic file replacement with validation and optional backup.
 - Added the token-bounded `inspect_ooxml_package` native MCP action. It inspects
@@ -16,9 +20,10 @@
   content controls, and unknown extension islands. Stable node IDs prefer
   durable Word anchors and do not depend on raw paragraph indices.
 - Added the lazy, token-bounded `inspect_ooxml_semantics` MCP action.
-- Added 26 document-engine tests, including deterministic malformed-input and
-  opaque-part round-trip fuzz smoke, plus two native end-to-end package/semantic
-  inspection tests while retaining all existing native runtime tests.
+- Added 34 document-engine tests, including deterministic malformed-input,
+  randomized relationship metadata and opaque-part round-trip fuzz smoke, plus
+  two native end-to-end package/semantic inspection tests while retaining all
+  existing native runtime tests.
 - Added a source-backed 2026 research matrix and the target lossless semantic
   document-engine architecture.
 

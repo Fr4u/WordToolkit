@@ -28,7 +28,7 @@ vendor claim is not implementation evidence.
 |---|---|---|---|
 | Bounded ZIP/OPC reader | Implemented (initial) | `WordToolkit.Engine/Packaging`; entry/size/ratio/XML limits; cancellation; tests | External fuzz campaign, hostile corpus, memory/latency benchmarks |
 | Complete entry/part/content-type graph | Implemented (initial) | Raw bytes, hashes, canonical URIs, Default/Override maps | Full OPC URI conformance and Flat OPC parity |
-| Relationship graph and reachability | Implemented (initial) | Root/part relationships, target modes, resolution, missing/orphan diagnostics | Relationship-type validation, signature/encryption semantics, corpus proof |
+| Relationship graph and reachability | Implemented (strengthened initial slice) | Root/part relationships, RFC 3986 type/target checks, XML-ID checks, fragment retention, reserved relationship-part/content-type rules, target modes, resolution, missing/orphan diagnostics | Digital-signature/encryption semantics, format-specific cardinality/type rules, repair and broad corpus proof |
 | Unknown/opaque part preservation | Implemented (initial) | Raw entry snapshots and deterministic random round-trip smoke | Large mixed-extension corpus with untouched-byte reports |
 | Immutable snapshots and fingerprints | Implemented (initial) | Order-independent package fingerprint; read-only model | Content-addressed cache, snapshot lifecycle and cross-platform reproducibility proof |
 | Lossless XML token/source model | Not started | Architecture only | Prefix, whitespace, attribute order, comments, PI, MCE and raw subtree splice tests |
@@ -107,6 +107,138 @@ vendor claim is not implementation evidence.
 | Capability negotiation | Partial | Lazy action catalogue and Word COM member capabilities | Unified backend/document/feature matrix with runtime probes |
 | Telemetry | Not started in engine | Existing runtime performance fields only | Privacy-safe sinks, opt-in controls, retention and failure diagnostics |
 | Observability/audit log | Not started | Mutation results only | Correlation, command evidence, hashes without content, recovery references |
+
+## Exact native Word/OOXML coverage ledger
+
+This table mirrors every structure named in the goal. `Opaque` means its bytes survive;
+it does not mean the engine understands or can edit it.
+
+| Explicit structure | State in new engine | What remains |
+|---|---|---|
+| package relationships | Implemented (strengthened initial slice) | Format-specific relationship constraints, signature transforms, repair and broad corpus proof |
+| content types | Implemented (initial) | MIME/parameter validation and repair |
+| `document.xml` | Partial | Lossless token model and full typed vocabulary |
+| `styles.xml` | Not started | Parse, inheritance, effective formatting, edit/serialize |
+| `numbering.xml` | Not started | Abstract/instance/override graph and inheritance |
+| theme | Not started | Theme/font/color resolution and mutation |
+| settings | Not started | Compatibility/protection/mail-merge/settings model |
+| fontTable | Not started | Font metadata, embedding, fallback and substitution |
+| comments | Not started | Comment bodies, anchors, authorship and edits |
+| commentsExtended | Not started | Thread/status/person graph and version compatibility |
+| revisions | Partial | Wrapper recognition only; full authorship/move/property revisions |
+| tracked changes | Partial | Recognition only; filtered accept/reject and merge |
+| bookmarks | Partial | Start recognition only; paired ranges and safe edits |
+| hyperlinks | Partial | Semantic node and relationship ID; full target/range/edit model |
+| fields | Partial | Basic markers/instructions; nested parser/evaluator/dependency graph missing |
+| TOC | Not started | Field/options/styles/dependency/update model |
+| footnotes | Not started | Story part, separators, references and safe numbering |
+| endnotes | Not started | Story part, separators, references and safe numbering |
+| OfficeMath / OMML | Partial | Full tree visible; canonical semantic math AST and serializers missing |
+| sections | Not started | Section chain, inheritance, page setup and story linkage |
+| headers | Not started | Variants, links-to-previous, fields and layout |
+| footers | Not started | Variants, links-to-previous, fields and layout |
+| page layout | Not started | Section/page properties, backend pagination and diagnostics |
+| page breaks | Partial | Generic break nodes; break kind and pagination semantics missing |
+| tables | Partial | Read-only row/cell projection; grid/merge/style/layout edits missing |
+| floating tables | Not started | Positioning, wrapping, anchors and layout |
+| floating images | Partial | Drawing marker/opaque bytes only; anchor/wrap/geometry model missing |
+| DrawingML | Partial | Drawing nodes/opaque source; typed geometry/effects/relationships missing |
+| SmartArt | Opaque only | Diagram data/layout/colors/styles and rendering |
+| charts | Opaque only | Chart/workbook/series/style model and edits |
+| diagrams | Opaque only | Typed graph/layout relationships and render |
+| embedded Excel | Opaque only | Safe inventory/extraction, workbook linkage and policy |
+| embedded Visio | Opaque only | Safe inventory/extraction, relationships and rendering |
+| OLE objects | Opaque only | Type detection, extraction policy, preview and security |
+| VBA | Opaque only | Inventory, signature/policy, never implicit execution |
+| custom XML | Opaque only | Item/properties/SDT binding graph and safe edits |
+| custom properties | Opaque only | Typed property values, linkage and serialization |
+| document variables | Not started | Settings variable model and field dependencies |
+| glossary | Opaque only | Building blocks, relationships and typed insertion |
+| content controls / SDT | Partial | ID/tag projection; properties, bindings, repeats, locks and edits missing |
+| mail merge | Not started | Settings, fields, data sources, regions and deterministic execution |
+| macros | Opaque only | Same VBA policy gap; no execution surface |
+| signatures | Opaque only | Signature origins, validation, invalidation and resign workflow |
+| encryption | Not started | Encrypted OOXML detection, authorized decrypt/encrypt adapter |
+| permissions | Not started | PermStart/PermEnd ranges and enforcement |
+| protection | Not started | Settings hashes, edit restrictions and capability checks |
+| revision IDs | Partial | Some durable IDs read; global identity/collision/version semantics missing |
+| style inheritance | Not started | Based-on/link/default/theme/direct provenance resolver |
+| numbering inheritance | Not started | Level/override/style-linked effective-number resolver |
+| XML namespaces | Partial | Secure namespace-aware parse and opaque retention; lossless token declarations missing |
+| compatibility mode | Opaque only | `compatSetting` interpretation and version behavior probes |
+| Word version differences | Not started | Versioned capability profiles and corpus |
+| co-authoring metadata | Opaque only | People, comments, session/change metadata and merge semantics |
+
+## Exact semantic-operation ledger
+
+These are not aliases for string replacement. Each requires a typed selector, plan,
+preconditions, affected-node proof, transaction, validation, and inverse.
+
+| Operation named in the goal | State |
+|---|---|
+| replace every definition with style `Definition` | Not started |
+| find every theorem | Not started |
+| rewrite only the paragraph containing an equation | Not started |
+| change table style from APA to IEEE | Not started |
+| create a table of figures | Not started |
+| repair numbering | Not started |
+| repair styles | Not started |
+| repair references | Not started |
+| repair footnotes | Not started |
+| repair XML relationships | Diagnostics partial; repair not started |
+| repair a corrupted document | Detection partial; repair not started |
+| detect unused styles | Not started |
+| detect duplicate styles | Not started |
+| detect dead relationships | Partial (`OPC040` reachability); typed repair not started |
+| minimize package size | Not started |
+| rebuild numbering | Not started |
+| repair OfficeMath | Not started |
+| rewrite comment bodies only | Not started |
+| accept only changes by author X | Not started in new engine |
+| revert changes by author Y | Not started in new engine |
+| align styles with a template | Not started |
+| compare two documents | Not started in new engine |
+| create a patch | Not started |
+| create a merge | Not started |
+| render to HTML | Not started |
+| render to SVG | Not started |
+| render to PNG | Not started in new engine |
+| render to PDF | Not started in new engine |
+| render one page | Not started |
+| render only a table | Not started |
+| render one equation | Not started |
+| generate a document AST | Partial read-only semantic AST |
+| generate a dependency graph | OPC graph only; semantic dependencies not started |
+| generate a style map | Not started |
+| generate a section structure | Not started |
+| generate a document analysis | Package/semantic counts partial; full analysis not started |
+
+## Exact AI object-model ledger
+
+| Required high-level object | State |
+|---|---|
+| Paragraph | Partial read-only |
+| Run | Partial read-only |
+| Equation | Partial read-only tree, not canonical math object |
+| Heading | Not typed; style metadata only |
+| Section | Not started |
+| Table | Partial read-only |
+| Figure | Not started |
+| Bookmark | Partial start marker only |
+| Reference | Not started |
+| Caption | Not started |
+| Comment | Anchor partial; body object missing |
+| Field | Partial read-only |
+| Style | Not started |
+| Numbering | Not started |
+| Footnote | Not started |
+| Image | Drawing marker only |
+| Shape | Drawing marker only |
+| Chart | Opaque only |
+
+AI currently receives package summaries and bounded semantic nodes; it still lacks the
+complete object model, query language, planning layer, typed mutation commands, and
+automatic OOXML execution required by the goal.
 
 ## Proof, performance, and release gates
 

@@ -50,6 +50,17 @@ path; unsupported islands must remain available as opaque source-backed data.
 [Open XML SDK MCE guidance](https://learn.microsoft.com/en-us/office/open-xml/general/introduction-to-markup-compatibility)
 (B).
 
+OPC relationship validation is not optional glue. Microsoft's packaging contract says
+that internal targets are relative URI references, external targets may be relative or
+absolute, relationship types must follow RFC 3986 URI syntax, and a relationship cannot
+target another relationship. Relationship parts also have a reserved naming convention
+and content type. These rules now map to explicit engine diagnostics rather than being
+left for Word's repair dialog.
+[Package.CreateRelationship](https://learn.microsoft.com/en-us/dotnet/api/system.io.packaging.package.createrelationship),
+[PackagePart.CreateRelationship](https://learn.microsoft.com/en-us/dotnet/api/system.io.packaging.packagepart.createrelationship),
+[PackUriHelper.GetRelationshipPartUri](https://learn.microsoft.com/en-us/dotnet/api/system.io.packaging.packurihelper.getrelationshipparturi)
+(B).
+
 ## Platform and API families
 
 ### Microsoft surfaces
@@ -78,7 +89,24 @@ verification backend, not as the only representation of a document.
 | Pandoc | Excellent semantic format conversion, reference-DOCX styling, and tracked-change import modes. | Conversion normalizes into Pandoc's document model, so Word-only structures and layout cannot be assumed to round-trip. | [Pandoc manual](https://pandoc.org/MANUAL.html) (B/D). |
 | LibreOffice UNO | Very broad Writer object model: text, tables, fields, redlines, indexes, notes, shapes, bookmarks, and embedded content; useful cross-platform conversion/rendering backend. | Writer's model and layout are not Word's model and layout. Fidelity must be measured by corpus and platform, not assumed from API breadth. | [UNO text namespace](https://api.libreoffice.org/docs/idl/ref/namespacecom_1_1sun_1_1star_1_1text.html) (B/D). |
 | ONLYOFFICE Document Server/API | Rich editor runtime, document API, conversion, coauthoring, and plugin surface. | Service/runtime footprint and licensing matter; its editor model is not a public, byte-preserving OPC semantic engine. | [Docs API concepts](https://api.onlyoffice.com/docs/docs-api/get-started/basic-concepts/), [Office API](https://api.onlyoffice.com/docs/office-api/get-started/overview/), [Document Builder](https://api.onlyoffice.com/docs/document-builder/get-started/overview/) (B/D). |
-| Open-Xml-PowerTools | Valuable higher-level transformations built over Open XML SDK, including document assembly and comparison patterns. | The original ecosystem is fragmented across old/forked repositories and is not a maintained complete Word engine. Any borrowed idea needs a current, isolated implementation and regression proof. | [Microsoft archive/forks search root](https://github.com/OfficeDev/Open-Xml-PowerTools) (B). |
+| [Open-Xml-PowerTools](https://github.com/OfficeDev/Open-Xml-PowerTools) `5881422a881f6ccefce2b9801b5dc6a753670d6e` | Substantial higher-level Open XML SDK transformations: document assembly/splitting, tracked-revision acceptance, comparison, chart plus embedded-workbook updates, formatting expansion, field parsing, metrics, regex replacement, and HTML conversion. The repository includes a large fixture/test corpus. | Microsoft archived it; the pinned source stopped in 2019. Source still contains unsupported chart/numbering/language paths and comparer rejections. It is a valuable mine of algorithms, not a maintained unified engine or a proof of modern Word fidelity. | A |
+
+### Implementation-level long tail
+
+The following repositories were inspected at pinned commits, not merely read from package
+indexes. They matter because narrow tools often expose failure modes that broad product
+pages hide.
+
+| Project and snapshot | Observed strength | Failure boundary relevant to WordToolkit | Evidence |
+|---|---|---|---|
+| [PHPWord](https://github.com/PHPOffice/PHPWord) `5579bd257f5eabb39a71dfc0d54cf763358aa35d` | Large pure-PHP authoring model and separate readers/writers for OOXML, ODF, RTF, HTML, and PDF routes. It covers sections, headers/footers, tables, lists, notes, drawings, OLE Excel/Visio, charts, forms, templates, comments, protection, revisions, and SDTs, backed by CI and unit tests. | Its own README says features remain in progress and PDF output travels through HTML. The typed in-memory model plus separate readers/writers is useful for authoring but does not establish byte-preserving arbitrary-DOCX round trips, Word pagination, semantic transactions, or repair. LGPL-3 also requires a deliberate integration boundary. | A |
+| [python-docx-template](https://github.com/elapouya/python-docx-template) `1f143fbe86c19ecb28c3205d5f4b1547c7e2d7ad` | Practical Jinja templating over an existing Word-designed document, with rich text, hyperlinks, images, table loops, subdocuments, headers/footers processing, and a strong template fixture suite. | Normal Jinja tags cannot cross runs, paragraphs, or rows; structural tags delete their host node; rich text loses the template run style and cannot use Jinja filters; new header/footer media cannot be added dynamically. The core patches serialized XML with regular expressions. This is a report templater, not a document graph. | A |
+| [docxcompose](https://github.com/4teamwork/docxcompose) `28ecb77fba5213598f1ba21c2acafeae169f5982` | Focused DOCX concatenation with relationship copying, style/numbering reconciliation, image deduplication, diagrams, VML shapes, footnotes, bookmark and drawing-ID renumbering, custom properties, and black-box DOCX fixtures. | The first document owns all headers and footers. Source comments call section handling “really messy”, discard the appended document's final section properties, and explicitly admit lost landscape orientation in a common case. It solves composition, not general lossless editing or merge semantics. | A |
+| [docx-rs](https://github.com/bokuweb/docx-rs) `4fdfe62dbe880bc670382ddc3fede41ffc2f478e` | Rust/WASM writer and reader with a substantial typed object model, comments, revisions/history, notes, headers/footers, tables, images, numbering, styles, TOC, JSON projection, and snapshot-heavy tests. | The public feature list still marks sections and text boxes incomplete. Source contains `todo!`/`unimplemented!` branches for text-box, shape, hyperlink-instruction, and some nested-table/comment paths. Rebuilding from the typed model does not prove preservation of unknown markup. | A |
+| [docx-templates](https://github.com/guigrpa/docx-templates) `54c2e80a090d0219503df1f26af91228b9880d77` | Capable Node/browser report generation: queries, conditions, loops over paragraphs/table rows, images, SVG fallbacks, links, HTML, literal XML, `.docm`, command inspection, asynchronous data, and configurable execution. | Templates contain executable JavaScript. Its README explicitly warns that Node's `vm` is not a security boundary and that uploaded templates are a serious code-injection risk. It cannot paginate, and page counts remain stale until Word or LibreOffice saves. This execution model must never enter WordToolkit's untrusted template lane. | A |
+| [docxtemplater](https://github.com/open-xml-templating/docxtemplater) `6fd5c9b6ffe3c5dd23c96bac4ee0ace88826287a` | Mature JavaScript placeholder/loop/condition/raw-XML compiler with a module API, extensive regression history, browser support, async rendering, inspection, mutation testing, and defensive XML handling. | Images, HTML, charts, subdocuments/subsections, table construction, styling, footnotes, metadata, and several other advanced features live in paid modules. The open core is a templating compiler, not a public lossless semantic model, layout engine, validator/repair engine, or transaction system. | A |
+| [Xceed DocX](https://github.com/xceedsoftware/DocX) `4029607c533514fe990712ee1792bfcf35c491dd` | Friendly .NET DOM for paragraphs, formatting, sections, tables, images, equations, bookmarks, hyperlinks, charts, TOC, protection, templates, joins, and parallel document work without Office. | The community source is licensed for non-commercial use. PDF, floating objects, shapes/text boxes, chart editing breadth, field updates, HTML/RTF insertion, digital signatures, notes, comments, split/advanced join, and other features are reserved for the proprietary product. Source also has explicit unsupported SVG/encryption paths. | A |
+| [addFormula2docx](https://github.com/Sun-ZhenXing/addFormula2docx) `0cb4e21f96e149ce2cedf3fe5af144b83b9b73b7` | Small proof that LaTeX can flow through `latex2mathml`, Microsoft's Word 2016 MathML/OMML XSLT, and `python-docx` to create editable OMML. It also exposes OMML-to-MathML conversion. | Eight files, no regression suite, direct XML insertion, working-directory-dependent XSLT loading, no canonical math AST, no structural validation, and no Word-version corpus. Its own safe-mode note admits repeated-conversion limits. It is evidence for one conversion route, not an equation engine. | A |
 
 ### Commercial engines
 
@@ -117,6 +145,25 @@ locators and benchmark methodology, SecurityRonin's regression discipline, and l
 Word automation for authoritative operations. Their limitations are equally useful:
 flat tool catalogs, unsafe generic code execution, in-place overwrites, weak versioning,
 and ASTs that silently flatten what they do not understand.
+
+## Conversion and rendering adapters
+
+DOCX-to-PDF and PDF-to-DOCX are not symmetric operations. The first can ask a layout
+engine to paginate a semantic source document. The second must infer paragraphs, reading
+order, tables, styles, headers, and relationships from positioned page marks. Calling both
+operations “conversion” hides the information loss.
+
+| Project and snapshot | Observed strength | Failure boundary relevant to WordToolkit | Evidence |
+|---|---|---|---|
+| [unoconv](https://github.com/unoconv/unoconv) `2d0a3a815e07094aca5ed094fd3825fbe6f0819d` | Broad CLI over LibreOffice/OpenOffice import and export filters, optional persistent UNO listener, remote execution, filter properties, and many formats. | The project declares itself deprecated in favor of unoserver and says conversion failures can be unclear, nondeterministic, and sometimes fixed by retrying or restarting. Python/pyuno version coupling, LibreOffice profiles, stale locks, filter packages, and the rule against concurrent requests make it an adapter with operational debt, not an engine core. GPL licensing also keeps it out-of-process. | A |
+| [unoserver](https://github.com/unoconv/unoserver) `7bfdcee45ec65708ee1ca897c451cd3f52a61e13` | Persistent LibreOffice listener with conversion, document comparison, health probing, binary/path transfer, explicit filters/options, request-count recycling, and conversion timeout. Avoiding repeated LibreOffice startup is a sound service design. | Windows and macOS remain untested in its own documentation. Its XML-RPC and UNO ports have no security and must not be exposed. It relies on an external supervisor after crashes/timeouts and does not restart LibreOffice itself. Fidelity is still LibreOffice's, not Word's. | A |
+| [docx2pdf](https://github.com/AlJohri/docx2pdf) `aef5cec1d93da629a3727df7d9955804213b7062` | Very small Windows/macOS bridge that delegates DOC/DOCX-to-PDF to installed Microsoft Word through win32com or JXA. This gives the installed Word build authority over pagination. | It launches or attaches to Word, opens files, uses `SaveAs`, closes documents, and normally quits Word without version tokens, transaction isolation, validation, timeout, or protection against colliding with an existing user session. Linux is explicitly unsupported. | A |
+| [pdf2docx](https://github.com/ArtifexSoftware/pdf2docx) `3e1c2319d6a3fbf2ae4d46c3ab734b7fc87bd9b4` | Clear reconstruction pipeline: PyMuPDF extracts positioned text/images/drawings, heuristic analysis infers page margins, headers/footers, paragraphs, tables and formatting, then `python-docx` generates a new DOCX. It supports page ranges, table extraction, debug layouts, and multiprocessing. | Artifex no longer actively maintains it. OCR is marked planned but throws when requested; default settings may ignore page failures; dozens of geometric thresholds decide structure. It cannot recover original fields, styles, revisions, equations, relationships, or author intent because the PDF no longer contains them. | A |
+
+WordToolkit therefore needs explicit backend capability and provenance records. Word PDF
+export is the authoritative Windows backend; LibreOffice is a useful isolated fallback;
+PDF import is a reconstruction/OCR workflow whose inferred objects carry confidence and
+source geometry. None may masquerade as lossless package editing.
 
 ## OfficeMath and equation-specific findings
 
@@ -178,8 +225,9 @@ numbers stay marked `unverified` until the same harness produces them.
 
 - Run licensed evaluation builds of Aspose, GemBox, Spire, and Syncfusion against the
   same corpus; current entries are documentation-backed, not independent benchmarks.
-- Add PHPWord, docxtemplater, docxcompose, docx-rs, unoconv, commercial cloud conversion
-  APIs, and additional editor servers to the implementation-level matrix.
+- Inspect commercial cloud conversion APIs, additional editor servers, OCR engines, and
+  more dedicated PDF-to-DOCX pipelines at pinned versions. Build an adversarial corpus to
+  measure reading order, tables, equations, floating objects, fonts, and accessibility.
 - Record Word-version capability probes for COM, JavaScript requirement sets, equation
   imports, field updates, PDF export, and CompareDocuments.
 - Measure OfficeCLI and docx-cli round-trip preservation rather than relying on source
