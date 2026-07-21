@@ -449,6 +449,96 @@ public sealed class PackageInspectionServiceTests
     }
 
     [Fact]
+    public async Task ResolveFormattingReturnsFilteredProvenanceWithoutStartingWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-formatting-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "formatting.docx");
+            CreatePackage(
+                path,
+                stylesXml: """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:docDefaults><w:rPrDefault><w:rPr><w:b w:val="0"/><w:sz w:val="22"/></w:rPr></w:rPrDefault></w:docDefaults>
+                  <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:pPr><w:jc w:val="left"/></w:pPr><w:rPr><w:b/></w:rPr></w:style>
+                  <w:style w:type="paragraph" w:styleId="Heading1"><w:basedOn w:val="Normal"/><w:rPr><w:b/><w:sz w:val="32"/></w:rPr></w:style>
+                </w:styles>
+                """,
+                paragraphPropertiesXml: "<w:pPr><w:pStyle w:val=\"Heading1\"/><w:jc w:val=\"right\"/></w:pPr>",
+                runPropertiesXml: "<w:rPr><w:b w:val=\"0\"/><w:sz w:val=\"24\"/></w:rPr>"
+            );
+            var package = new OpcPackageReader().Read(path);
+            var runId = new WordSemanticProjector().Project(package).Nodes.Single(node =>
+                node.Kind == WordSemanticNodeKind.Run
+                && node.SourcePartUri == "/word/document.xml"
+            ).Id.Value;
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                node_id = runId,
+                property_names = new[] { "alignment", "bold", "size_half_points" },
+                include_provenance = true,
+                include_source = true,
+            }));
+
+            var result = await new WordLiveService(new NoInvokeHost()).CallAsync(
+                "resolve_ooxml_formatting",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            using var json = JsonDocument.Parse(JsonSerializer.Serialize(result));
+            var root = json.RootElement;
+            var boldContributions = root.GetProperty("provenance")
+                .GetProperty("run")
+                .GetProperty("bold")
+                .GetProperty("contributions")
+                .EnumerateArray()
+                .ToArray();
+
+            Assert.Equal("Heading1", root.GetProperty("paragraph_style_id").GetString());
+            Assert.Equal(
+                "right",
+                root.GetProperty("paragraph_properties")
+                    .GetProperty("alignment")
+                    .GetString()
+            );
+            Assert.Equal(
+                "false",
+                root.GetProperty("run_properties").GetProperty("bold").GetString()
+            );
+            Assert.Equal(
+                "24",
+                root.GetProperty("run_properties")
+                    .GetProperty("size_half_points")
+                    .GetString()
+            );
+            Assert.Equal(4, boldContributions.Length);
+            Assert.Equal(
+                "direct_run_formatting",
+                boldContributions[^1].GetProperty("layer").GetString()
+            );
+            Assert.Equal(
+                "/word/document.xml",
+                boldContributions[^1].GetProperty("source_part_uri").GetString()
+            );
+            Assert.Contains(
+                root.GetProperty("coverage_omissions").EnumerateArray(),
+                value => value.GetString()
+                    == "application_defaults_for_unspecified_properties"
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task PlansAndAtomicallyAppliesReviewedTextEditWithoutStartingWord()
     {
         var directory = Path.Combine(
@@ -733,7 +823,9 @@ public sealed class PackageInspectionServiceTests
         string path,
         bool signed = false,
         string? headerText = null,
-        string? stylesXml = null
+        string? stylesXml = null,
+        string? paragraphPropertiesXml = null,
+        string? runPropertiesXml = null
     )
     {
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
@@ -784,7 +876,8 @@ public sealed class PackageInspectionServiceTests
                 xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
               <w:body>
                 <w:p w14:paraId="00112233">
-                  <w:r><w:t>Hello </w:t></w:r>
+                  {paragraphPropertiesXml}
+                  <w:r>{runPropertiesXml}<w:t>Hello </w:t></w:r>
                   <m:oMath><m:f><m:num><m:r><m:t>a</m:t></m:r></m:num><m:den><m:r><m:t>b</m:t></m:r></m:den></m:f></m:oMath>
                 </w:p>
                 {headerReference}

@@ -14,6 +14,7 @@ public sealed class LosslessXmlDocument
     private readonly SourceEncoding _sourceEncoding;
     private readonly LosslessXmlOptions _options;
     private readonly XDocument _parsedDocument;
+    private readonly IReadOnlyList<XElement> _parsedElements;
     private readonly IReadOnlyDictionary<XElement, int> _elementOrdinals;
 
     private LosslessXmlDocument(
@@ -21,6 +22,7 @@ public sealed class LosslessXmlDocument
         SourceEncoding sourceEncoding,
         LosslessXmlOptions options,
         XDocument parsedDocument,
+        IReadOnlyList<XElement> parsedElements,
         IReadOnlyList<XmlSourceElement> elements,
         IReadOnlyDictionary<XElement, int> elementOrdinals
     )
@@ -29,6 +31,7 @@ public sealed class LosslessXmlDocument
         _sourceEncoding = sourceEncoding;
         _options = options;
         _parsedDocument = parsedDocument;
+        _parsedElements = parsedElements;
         _elementOrdinals = elementOrdinals;
         Elements = new ReadOnlyCollection<XmlSourceElement>(elements.ToArray());
         Root = Elements.Single(element => element.ParentOrdinal is null);
@@ -136,6 +139,7 @@ public sealed class LosslessXmlDocument
             sourceEncoding,
             options,
             parsedDocument,
+            parsedElements,
             elements,
             ordinals
         );
@@ -394,6 +398,16 @@ public sealed class LosslessXmlDocument
             : throw new InvalidOperationException(
                 "Element does not belong to this lossless XML source."
             );
+    }
+
+    internal XElement GetParsedElement(int ordinal)
+    {
+        if ((uint)ordinal >= (uint)_parsedElements.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(ordinal));
+        }
+
+        return _parsedElements[ordinal];
     }
 
     private void VerifySourcePrecondition(string? expectedSourceSha256)

@@ -261,6 +261,19 @@ separate resolver because numbering, conditional table styles, themes, toggle-pr
 semantics and direct formatting must not be flattened into a dishonest last-value-wins
 map.
 
+The first bounded effective-format slice is now `WordEffectiveFormattingResolver`.
+Given a stable paragraph or run ID, it rebinds that node to the exact lexical element in
+its source story and applies modeled layers in order: document defaults, the base-first
+paragraph-style chain, the base-first character-style chain, then direct formatting.
+Each property retains every declaration, source layer, style ID, part, element ordinal
+and intermediate result. The twelve ISO toggle properties use state transitions at
+style levels and absolute values under direct formatting. The resolver deliberately
+returns coverage omissions for application defaults, numbering, conditional table
+styles, theme values, revision views and unmodeled property elements; it also surfaces
+Microsoft's documented default-true multi-level toggle divergence rather than silently
+pretending the base rule is Word-perfect. Lazy `resolve_ooxml_formatting` filters exact
+property names, bounds each group, and omits provenance/source evidence unless asked.
+
 `WordSemanticEditor.ReplaceText` is the first typed mutation vertical slice. It requires
 the package fingerprint, semantic node identity, source part, lexical element ordinal,
 projected text and part SHA-256 to agree; an optional caller-supplied expected value adds
@@ -421,6 +434,7 @@ The current native mapping is therefore:
 
 - `document.query` -> lazy `query_ooxml_semantics`;
 - style-map inspection -> lazy `inspect_ooxml_styles`;
+- modeled paragraph/run formatting -> lazy `resolve_ooxml_formatting`;
 - text-only `document.plan` -> lazy `plan_ooxml_text_edits`;
 - text-only `document.apply` -> lazy `apply_ooxml_text_edits`.
 

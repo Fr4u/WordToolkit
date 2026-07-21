@@ -51,6 +51,14 @@ base-first inheritance only when the next decision consumes them. Treat an
 unresolvable `basedOn` chain as evidence of document damage, not as permission
 to invent effective formatting. This action is read-only and does not yet
 resolve numbering, conditional table styles, theme values, or direct formatting.
+After obtaining a paragraph or run ID, use lazy `resolve_ooxml_formatting` only
+when a formatting decision needs more than the declared style. Filter
+`property_names` aggressively and leave provenance/source disabled unless the
+next decision must explain an override. Treat `coverage_omissions` and
+`compatibility_warnings` as hard limits: the action resolves modeled defaults,
+paragraph/character style chains and direct properties, but does not pretend
+that unresolved numbering, conditional table styles, theme values, revision
+views or application defaults are final Word rendering.
 For a saved-package text edit, use this strict lazy workflow:
 
 1. Query the narrowest possible `text` nodes and retain the package fingerprint.

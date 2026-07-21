@@ -831,7 +831,7 @@ public sealed class WordStyleGraphBuilder
         return ReadFormattingProperties(propertyElement, domain);
     }
 
-    private static WordStylePropertySet ReadFormattingProperties(
+    internal static WordStylePropertySet ReadFormattingProperties(
         XElement? propertyElement,
         WordFormattingDomain domain
     )
@@ -870,6 +870,11 @@ public sealed class WordStyleGraphBuilder
         var w = element.Name.Namespace;
         if (domain == WordFormattingDomain.Paragraph)
         {
+            if (localName == "pStyle")
+            {
+                return true;
+            }
+
             if (ParagraphOnOffProperties.TryGetValue(localName, out var onOffName))
             {
                 AddUnique(values, onOffName, ParseOnOffElement(element));
@@ -920,6 +925,11 @@ public sealed class WordStyleGraphBuilder
 
         if (domain == WordFormattingDomain.Run)
         {
+            if (localName == "rStyle")
+            {
+                return true;
+            }
+
             if (RunOnOffProperties.TryGetValue(localName, out var onOffName))
             {
                 AddUnique(values, onOffName, ParseOnOffElement(element));
@@ -1110,7 +1120,7 @@ public sealed class WordStyleGraphBuilder
         string.Equals(namespaceName, WordTransitionalNamespace, StringComparison.Ordinal)
         || string.Equals(namespaceName, WordStrictNamespace, StringComparison.Ordinal);
 
-    private enum WordFormattingDomain
+    internal enum WordFormattingDomain
     {
         Paragraph,
         Run,

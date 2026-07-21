@@ -108,6 +108,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "resolve_ooxml_formatting" => ResolvePackageFormattingAsync(
+                arguments,
+                cancellationToken
+            ),
             "plan_ooxml_text_edits" => PlanPackageTextEditsAsync(
                 arguments,
                 cancellationToken

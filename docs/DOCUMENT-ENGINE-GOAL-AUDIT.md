@@ -53,7 +53,7 @@ vendor claim is not implementation evidence.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Compact inspect | Implemented (strengthened initial slice) | `inspect_ooxml_package`, `inspect_ooxml_semantics`, lazy `query_ooxml_semantics`, `inspect_ooxml_sections` and `inspect_ooxml_styles`; projected-part inventory, per-field/item bounds and offset paging | Opaque continuation tokens, remaining auxiliary/versioned parts and measured stable response budgets |
+| Compact inspect | Implemented (strengthened initial slice) | `inspect_ooxml_package`, `inspect_ooxml_semantics`, lazy `query_ooxml_semantics`, `inspect_ooxml_sections`, `inspect_ooxml_styles` and filtered `resolve_ooxml_formatting`; projected-part inventory, per-field/item bounds and offset paging | Opaque continuation tokens, remaining auxiliary/versioned parts and measured stable response budgets |
 | Semantic query/search | Partial (strengthened initial) | Source-ordered kind/property/part/subtree selectors across main, header/footer, note, comment, glossary and text-box stories; streaming contains/equals/starts/ends matching crosses run/field/tab/break boundaries; bounded optional previews/properties/provenance | Fields/math/metadata-aware predicates, structural relationship joins, aggregations and query planner |
 | Indexing | Not started | None | Incremental external index, invalidation and privacy controls |
 | AI planner | Partial foundation | Deterministic bounded text-command plans report targets, counts, source ordinals and byte impact without returning content; lazy stateless MCP plan/apply requires reviewed plan ID and snapshot fingerprint | Natural-language intent -> evidence -> heterogeneous typed plan -> cost/risk -> richer approval policy |
@@ -72,7 +72,7 @@ vendor claim is not implementation evidence.
 |---|---|---|---|
 | Paragraphs/runs/tables | Partial | Source-linked projection plus first lossless text-leaf edit; live COM editing | Structural typed edits, effective properties, merge/split and layout tests |
 | Sections/headers/footers/notes | Partial (strengthened) | Primary story roots/bodies/references and lossless text edits; section boundaries/page properties plus first/even/default explicit/inherited/blank/effective bindings; unbound-part inventory | Section structural edits, link-to-previous mutation, separator/numbering semantics and layout proof |
-| Styles/themes/direct formatting | Partial (typed style graph) | Source-linked style inventory, document defaults, latent-style metadata, common declared paragraph/run properties, four style types, default/link/next relationships, bounded inheritance chains and explicit corruption diagnostics; lazy token-bounded inspection | Effective node-format resolver with toggle/table/numbering/theme/direct-format provenance, drift lint and safe refactor |
+| Styles/themes/direct formatting | Partial (typed graph + modeled effective slice) | Source-linked style inventory, document defaults, latent metadata, four style types and inheritance diagnostics; paragraph/run resolver applies defaults, base-first paragraph/character chains and direct formatting with per-property provenance and standard toggle transitions, while emitting explicit coverage gaps | Add numbering/table/theme/revision/application-default resolution, Word-specific toggle compatibility, drift lint and safe refactor |
 | Numbering/lists | Not started | Existing live actions only | Abstract/instance/override/restart/style-linked resolver and edits |
 | Fields/bookmarks/cross-references | Partial | Semantic field/bookmark recognition; live actions | Dependency graph, nested-field parser, update capability and safe edits |
 | TOC/TOF/TOT/captions | Not started in new engine | Existing live actions/historical tests | Reference graph, field update, layout and round-trip tests |
@@ -209,7 +209,7 @@ preconditions, affected-node proof, transaction, validation, and inverse.
 | render one equation | Not started |
 | generate a document AST | Partial read-only semantic AST |
 | generate a dependency graph | OPC graph only; semantic dependencies not started |
-| generate a style map | Partial typed, paged style graph; effective node formatting remains |
+| generate a style map | Partial typed, paged graph plus filtered paragraph/run effective-property slice and provenance |
 | generate a section structure | Partial typed boundary and effective header/footer binding graph |
 | generate a document analysis | Package/semantic counts partial; full analysis not started |
 
@@ -229,7 +229,7 @@ preconditions, affected-node proof, transaction, validation, and inverse.
 | Caption | Not started |
 | Comment | Partial body/author/ID object; threaded metadata missing |
 | Field | Partial read-only |
-| Style | Partial typed graph, defaults, metadata, declared properties and inheritance diagnostics |
+| Style | Partial typed graph, defaults, metadata, declared properties, inheritance diagnostics and modeled effective paragraph/run properties |
 | Numbering | Not started |
 | Footnote | Partial body/reference object; numbering semantics missing |
 | Image | Drawing marker only |
@@ -257,8 +257,8 @@ automatic OOXML execution required by the goal.
 
 ## Current checkpoint evidence
 
-- `dotnet test native/WordToolkit.Engine.Tests` — 93 passed.
-- `dotnet test native/WordToolkit.Native.Tests` — 51 passed.
+- `dotnet test native/WordToolkit.Engine.Tests` — 99 passed.
+- `dotnet test native/WordToolkit.Native.Tests` — 52 passed.
 - `.venv/Scripts/python -m pytest -q` — 1273 passed, 16 intentionally skipped.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
@@ -271,5 +271,8 @@ automatic OOXML execution required by the goal.
 - Style-part discovery, defaults, latent metadata, inheritance failures and token-bounded
   MCP inspection were exercised against constructed edge cases and every bundled DOCX
   style part.
+- Effective paragraph/run property ordering, direct overrides, standard toggles,
+  source provenance, explicit coverage omissions and a real header story were exercised
+  through the engine; filtered MCP resolution was exercised without invoking Word COM.
 
 These numbers prove only the rows they touch. They do not collapse the remaining work.

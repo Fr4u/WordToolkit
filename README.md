@@ -44,7 +44,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 48 tested Word Live actions plus seven standalone,
+The runtime implements 48 tested Word Live actions plus eight standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus three token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -68,6 +68,7 @@ inspect_ooxml_semantics
 query_ooxml_semantics
 inspect_ooxml_sections
 inspect_ooxml_styles
+resolve_ooxml_formatting
 plan_ooxml_text_edits
 apply_ooxml_text_edits
 inspect_live_word_document
@@ -243,12 +244,12 @@ The cleaner constrains every target to the repository root. It preserves only th
 Version:
 
 ```text
-0.19.0+codex.20260721193653
+0.19.0+codex.20260721195319
 ```
 
 Windows x64 ZIP:
 
-[WordToolkit native plugin](dist/WordToolkit-0.19.0+codex.20260721193653-native-win-x64.zip)
+[WordToolkit native plugin](dist/WordToolkit-0.19.0+codex.20260721195319-native-win-x64.zip)
 
 Live demonstration document:
 

@@ -34,6 +34,15 @@
   defaults, latent-style exceptions, four style types, UI metadata and common
   paragraph/run properties, and reports missing, mismatched or circular
   `basedOn` chains without discarding the remaining style inventory.
+- Added `WordEffectiveFormattingResolver` and lazy
+  `resolve_ooxml_formatting`. One paragraph or run is rebound to its exact XML
+  element and resolved through document defaults, base-first paragraph and
+  character style chains, and direct formatting, with per-property provenance
+  and standard toggle-property state transitions. The result explicitly lists
+  unresolved application defaults, numbering, conditional table styles,
+  themes, revision views, unmodeled elements and Microsoft's documented
+  default-true multi-level toggle divergence instead of claiming false visual
+  certainty.
 - Added the first lossless XML source model with exact byte spans, original
   prefixes/attributes/quotes/BOM retention, bounded secure parsing, guarded
   non-overlapping splices, and validated UTF-8/UTF-16/UTF-32/single-byte edits.
@@ -55,14 +64,14 @@
   a recovery backup by default, performs no write for a no-op, and fails closed
   on digitally signed packages.
 - Added the lazy, token-bounded `inspect_ooxml_semantics` MCP action.
-- Added 93 document-engine tests, including deterministic malformed-input,
+- Added 99 document-engine tests, including deterministic malformed-input,
   randomized relationship metadata and opaque-part round-trip fuzz smoke, plus
   300 randomized lexical text splices, multi-encoding/BOM preservation and
   semantic mutation provenance. A 52-document bundled corpus from Word,
   LibreOffice, Pandoc, POI and Mammoth now exercises every typed XML part and
   exact no-op source preservation, while native end-to-end package/semantic
   inspection retains all existing runtime tests.
-- The native host now has 51 tests, including end-to-end semantic query,
+- The native host now has 52 tests, including end-to-end semantic query,
   cross-story header query/apply, schema parity, recovery-backup, plan-mismatch,
   signed-package and no-op coverage that proves the saved-package path never
   invokes Word COM.
