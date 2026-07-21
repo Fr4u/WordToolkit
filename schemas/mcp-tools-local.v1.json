@@ -3759,6 +3759,85 @@
       }
     },
     {
+      "name": "inspect_ooxml_package",
+      "title": "Inspect a Word OOXML package",
+      "description": "Read a local DOCX, DOCM, DOTX, or DOTM without opening Word. Return a bounded OPC graph summary, content-type and relationship diagnostics, a stable package fingerprint, and optional part metadata. External relationship targets are never fetched and remain redacted.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local Word package."
+          },
+          "include_details": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include bounded part and relationship metadata; raw content is never returned."
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 40,
+            "description": "Maximum diagnostics, parts, and relationships returned per collection."
+          }
+        },
+        "required": [
+          "local_path"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_ooxml_semantics",
+      "title": "Inspect Word semantic structure",
+      "description": "Project a saved Word OOXML package into bounded, source-linked semantic nodes without opening Word. Return stable node IDs, structure counts, and a compact outline for paragraphs, tables, fields, equations, revisions, drawings, content controls, and extension islands.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "max_nodes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 80,
+            "description": "Maximum semantic outline nodes returned."
+          },
+          "text_preview_chars": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 400,
+            "default": 160,
+            "description": "Maximum text characters returned per outline node; use zero to omit previews."
+          },
+          "include_source_paths": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include source part URIs and XML paths for debugging or precise follow-up."
+          }
+        },
+        "required": [
+          "local_path"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "validate_ooxml",
       "title": "Validate OOXML package",
       "description": "Run bounded ZIP/OPC, XML, relationship, note, paraId and native OMML validation on a snapshot without committing a version.",

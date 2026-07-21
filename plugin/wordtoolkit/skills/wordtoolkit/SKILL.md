@@ -1,6 +1,6 @@
 ---
 name: wordtoolkit
-description: Control the real Microsoft Word application through a token-lean native .NET bridge. Use for live Word documents, formatting, equations, review, structures, export, save, close, and validation.
+description: Control real Microsoft Word and inspect saved Word OOXML packages through a token-lean native .NET bridge. Use for live documents, package/semantic inspection, formatting, equations, review, structures, export, save, close, and validation.
 ---
 
 # WordToolkit
@@ -25,6 +25,14 @@ for the next operation.
   is not needed for the task.
 
 ## Core lifecycle
+
+For a saved DOCX/DOCM/DOTX/DOTM that only needs structural inspection, use
+`inspect_ooxml_package` directly. It does not open or start Word, never fetches
+external relationships, returns a compact summary by default, and exposes
+bounded part metadata only with `include_details=true`.
+Use the lazy `inspect_ooxml_semantics` action when meaning is needed without
+opening Word. Keep previews and node counts bounded; request source XML paths
+only for a precise diagnostic or planned edit.
 
 1. `list_live_word_documents`.
 2. Use `start_word_application` only when Word is unavailable.

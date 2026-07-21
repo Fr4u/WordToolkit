@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+- Added the cross-platform `WordToolkit.Engine` .NET library with a bounded,
+  immutable OPC package graph, content-type and relationship resolution,
+  reachability diagnostics, opaque-part preservation and deterministic
+  package fingerprints.
+- Added hash-preconditioned package mutations, deterministic serialization and
+  version-checked atomic file replacement with validation and optional backup.
+- Added the token-bounded `inspect_ooxml_package` native MCP action. It inspects
+  DOCX/DOCM/DOTX/DOTM files without opening Word or dereferencing external
+  relationships.
+- Added a source-linked semantic projection for paragraphs, runs, tables,
+  fields, equations and every nested OfficeMath element, revisions, drawings,
+  content controls, and unknown extension islands. Stable node IDs prefer
+  durable Word anchors and do not depend on raw paragraph indices.
+- Added the lazy, token-bounded `inspect_ooxml_semantics` MCP action.
+- Added 26 document-engine tests, including deterministic malformed-input and
+  opaque-part round-trip fuzz smoke, plus two native end-to-end package/semantic
+  inspection tests while retaining all existing native runtime tests.
+- Added a source-backed 2026 research matrix and the target lossless semantic
+  document-engine architecture.
+
 ## 0.19.0 — 2026-07-20
 
 - Replaced the eager 48-tool model surface with 10 common tools plus three

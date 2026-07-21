@@ -43,8 +43,15 @@ $project = Join-Path $root "native\WordToolkit.Native\WordToolkit.Native.csproj"
 $tests = Join-Path `
     $root `
     "native\WordToolkit.Native.Tests\WordToolkit.Native.Tests.csproj"
+$engineTests = Join-Path `
+    $root `
+    "native\WordToolkit.Engine.Tests\WordToolkit.Engine.Tests.csproj"
 
 if (-not $SkipTests) {
+    & dotnet test $engineTests -c Release
+    if ($LASTEXITCODE -ne 0) {
+        throw "Document engine tests failed"
+    }
     & dotnet test $tests -c Release
     if ($LASTEXITCODE -ne 0) {
         throw "Native tests failed"
