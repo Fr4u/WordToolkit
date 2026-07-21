@@ -44,6 +44,13 @@ Use lazy `inspect_ooxml_sections` instead of inferring section ownership from
 part filenames. Its effective mode resolves default, first-page and even-page
 header/footer display targets; request full bindings only when relationship
 provenance or inheritance must drive the next operation.
+Use lazy `inspect_ooxml_styles` instead of loading `styles.xml` or guessing from
+visible names. Filter by style type and keep `detail=metadata` for discovery;
+request declared properties, document defaults, latent exceptions, or
+base-first inheritance only when the next decision consumes them. Treat an
+unresolvable `basedOn` chain as evidence of document damage, not as permission
+to invent effective formatting. This action is read-only and does not yet
+resolve numbering, conditional table styles, theme values, or direct formatting.
 For a saved-package text edit, use this strict lazy workflow:
 
 1. Query the narrowest possible `text` nodes and retain the package fingerprint.

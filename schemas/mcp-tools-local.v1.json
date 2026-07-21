@@ -4024,6 +4024,64 @@
       }
     },
     {
+      "name": "inspect_ooxml_styles",
+      "title": "Inspect Word styles and inheritance",
+      "description": "Inspect the typed styles.xml graph, document defaults, latent styles, and bounded basedOn inheritance diagnostics without opening Word. Metadata is returned by default; declared formatting and source provenance are opt-in to minimize AI tokens.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "style_type": {
+            "type": "string",
+            "enum": ["any", "paragraph", "character", "table", "numbering"],
+            "default": "any"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_styles": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "detail": {
+            "type": "string",
+            "enum": ["metadata", "declared", "inheritance"],
+            "default": "metadata",
+            "description": "Use declared for normalized property blocks or inheritance for those blocks plus base-first style chains and source element ordinals."
+          },
+          "include_document_defaults": {
+            "type": "boolean",
+            "default": false
+          },
+          "include_latent_styles": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include latent-style defaults and at most 40 named exceptions."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include at most 40 bounded inheritance, linked-style, next-style, and default-style diagnostics."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "plan_ooxml_text_edits",
       "title": "Plan lossless Word text edits",
       "description": "Resolve a bounded batch of semantic Word or OfficeMath text-node replacements against an exact saved-package fingerprint. Returns a compact deterministic plan and predicted result fingerprint without writing the file or retaining server-side document content.",

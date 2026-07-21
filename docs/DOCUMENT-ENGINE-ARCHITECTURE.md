@@ -245,6 +245,22 @@ semantics. Missing `sectPr` yields one explicit implicit-default section; duplic
 wrong relationship types, external targets, malformed settings and limit overflow fail
 closed. Lazy `inspect_ooxml_sections` pages this graph without returning document text.
 
+`WordStyleGraphBuilder` is the next dependency adapter. It locates only an exact
+transitional or strict styles relationship from the main document, validates the
+dedicated content type and `w:styles` root, and parses it through the same bounded,
+DTD-free lossless XML layer. The graph types paragraph, character, table and numbering
+styles; retains source element ordinals; separates style IDs, display names and aliases;
+captures document defaults, latent-style metadata, UI flags and common declared
+paragraph/run properties; and records the optional Word 2013+ styles-with-effects part.
+Duplicate IDs and ambiguous syntax fail closed. Missing bases, cross-type inheritance,
+cycles, broken `next`/`link` references and ambiguous defaults remain visible as bounded
+diagnostics, so one damaged style cannot erase the rest of the inventory. Lazy
+`inspect_ooxml_styles` defaults to metadata-only paging and makes declared properties,
+latent exceptions and inheritance provenance opt-in. Effective node formatting is a
+separate resolver because numbering, conditional table styles, themes, toggle-property
+semantics and direct formatting must not be flattened into a dishonest last-value-wins
+map.
+
 `WordSemanticEditor.ReplaceText` is the first typed mutation vertical slice. It requires
 the package fingerprint, semantic node identity, source part, lexical element ordinal,
 projected text and part SHA-256 to agree; an optional caller-supplied expected value adds
@@ -404,6 +420,7 @@ index required later.
 The current native mapping is therefore:
 
 - `document.query` -> lazy `query_ooxml_semantics`;
+- style-map inspection -> lazy `inspect_ooxml_styles`;
 - text-only `document.plan` -> lazy `plan_ooxml_text_edits`;
 - text-only `document.apply` -> lazy `apply_ooxml_text_edits`.
 

@@ -359,6 +359,96 @@ public sealed class PackageInspectionServiceTests
     }
 
     [Fact]
+    public async Task InspectStylesPagesTypedMetadataWithoutStartingWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-style-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "styles.docx");
+            CreatePackage(
+                path,
+                stylesXml: """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:docDefaults><w:rPrDefault><w:rPr><w:sz w:val="22"/></w:rPr></w:rPrDefault></w:docDefaults>
+                  <w:latentStyles w:count="1"><w:lsdException w:name="Normal" w:qFormat="1"/></w:latentStyles>
+                  <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+                  <w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="Heading 1"/><w:basedOn w:val="Normal"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/></w:rPr></w:style>
+                </w:styles>
+                """
+            );
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                style_type = "paragraph",
+                detail = "inheritance",
+                include_document_defaults = true,
+                include_latent_styles = true,
+            }));
+
+            var result = await new WordLiveService(new NoInvokeHost()).CallAsync(
+                "inspect_ooxml_styles",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            using var json = JsonDocument.Parse(JsonSerializer.Serialize(result));
+            var root = json.RootElement;
+            var styles = root.GetProperty("styles").EnumerateArray().ToArray();
+            var heading = styles.Single(style =>
+                style.GetProperty("style_id").GetString() == "Heading1"
+            );
+
+            Assert.True(root.GetProperty("has_styles_part").GetBoolean());
+            Assert.Equal(2, root.GetProperty("style_count").GetInt32());
+            Assert.Equal(2, root.GetProperty("matched_style_count").GetInt32());
+            Assert.Equal(
+                "Normal",
+                root.GetProperty("default_style_ids")
+                    .GetProperty("paragraph")
+                    .GetString()
+            );
+            Assert.Equal(
+                "22",
+                root.GetProperty("document_defaults")
+                    .GetProperty("run")
+                    .GetProperty("values")
+                    .GetProperty("size_half_points")
+                    .GetString()
+            );
+            Assert.Equal(
+                ["Normal", "Heading1"],
+                heading.GetProperty("inheritance_chain_style_ids")
+                    .EnumerateArray()
+                    .Select(value => value.GetString()!)
+                    .ToArray()
+            );
+            Assert.Equal(
+                "0",
+                heading.GetProperty("declared_properties")
+                    .GetProperty("paragraph")
+                    .GetProperty("values")
+                    .GetProperty("outline_level")
+                    .GetString()
+            );
+            Assert.Equal(
+                1,
+                root.GetProperty("latent_styles")
+                    .GetProperty("exception_count")
+                    .GetInt32()
+            );
+            Assert.Equal(0, root.GetProperty("issue_count").GetInt32());
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task PlansAndAtomicallyAppliesReviewedTextEditWithoutStartingWord()
     {
         var directory = Path.Combine(
@@ -642,7 +732,8 @@ public sealed class PackageInspectionServiceTests
     private static void CreatePackage(
         string path,
         bool signed = false,
-        string? headerText = null
+        string? headerText = null,
+        string? stylesXml = null
     )
     {
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
@@ -653,6 +744,9 @@ public sealed class PackageInspectionServiceTests
         var headerOverride = headerText is null
             ? string.Empty
             : "<Override PartName=\"/word/header1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml\" />";
+        var stylesOverride = stylesXml is null
+            ? string.Empty
+            : "<Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\" />";
         WriteEntry(
             archive,
             "[Content_Types].xml",
@@ -663,6 +757,7 @@ public sealed class PackageInspectionServiceTests
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml" />
               {signatureOverride}
               {headerOverride}
+              {stylesOverride}
             </Types>
             """
         );
@@ -697,17 +792,27 @@ public sealed class PackageInspectionServiceTests
             </w:document>
             """
         );
-        if (headerText is not null)
+        if (headerText is not null || stylesXml is not null)
         {
+            var headerRelationship = headerText is null
+                ? string.Empty
+                : "<Relationship Id=\"rIdHeader\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" Target=\"header1.xml\" />";
+            var stylesRelationship = stylesXml is null
+                ? string.Empty
+                : "<Relationship Id=\"rIdStyles\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\" />";
             WriteEntry(
                 archive,
                 "word/_rels/document.xml.rels",
-                """
+                $"""
                 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-                  <Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml" />
+                  {headerRelationship}
+                  {stylesRelationship}
                 </Relationships>
                 """
             );
+        }
+        if (headerText is not null)
+        {
             WriteEntry(
                 archive,
                 "word/header1.xml",
@@ -717,6 +822,10 @@ public sealed class PackageInspectionServiceTests
                 </w:hdr>
                 """
             );
+        }
+        if (stylesXml is not null)
+        {
+            WriteEntry(archive, "word/styles.xml", stylesXml);
         }
         if (signed)
         {

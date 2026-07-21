@@ -50,6 +50,20 @@ path; unsupported islands must remain available as opaque source-backed data.
 [Open XML SDK MCE guidance](https://learn.microsoft.com/en-us/office/open-xml/general/introduction-to-markup-compatibility)
 (B).
 
+Styles are not a single `w:pStyle` lookup. WordprocessingML defines paragraph,
+character, linked, table, numbering, and document-default style forms; paragraph styles
+can contribute both paragraph and run properties. Microsoft also records that Word
+requires an acyclic `basedOn` chain even though the standard permits a loop, while
+toggle properties such as bold and italic do not obey ordinary last-value-wins merging.
+The styles part itself is optional, and Word 2013+ may retain a separate
+styles-with-effects part for round trips. These facts force a typed dependency graph,
+explicit unresolved states, and a later compatibility-aware effective-format resolver.
+[Style types and paragraph styles](https://learn.microsoft.com/en-us/office/open-xml/word/how-to-create-and-add-a-paragraph-style-to-a-word-processing-document),
+[`basedOn` interoperability note](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oe376/2c24fcd8-38fb-467d-b9d1-fd2654e5fea6),
+[toggle-property interoperability note](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oi29500/f7130225-2368-48f3-acae-a9d278d0fb25), and
+[styles-part storage](https://learn.microsoft.com/en-us/office/open-xml/word/how-to-replace-the-styles-parts-in-a-word-processing-document)
+(B).
+
 OPC relationship validation is not optional glue. Microsoft's packaging contract says
 that internal targets are relative URI references, external targets may be relative or
 absolute, relationship types must follow RFC 3986 URI syntax, and a relationship cannot

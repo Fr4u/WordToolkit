@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-WordToolkit 0.19 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The new document-engine core can also inspect the package graph and semantic structure of a saved Word OOXML file without starting Word. Its lossless editing slice binds text in the main body, headers, footers, notes, comments, glossary building blocks and text boxes to exact XML byte spans, combines bounded commands into one hash-preconditioned package mutation, predicts the result fingerprint and retains an exact guarded inverse without reserializing unrelated XML.
+WordToolkit 0.19 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The new document-engine core can also inspect the package graph, semantic structure, section bindings, and typed style graph of a saved Word OOXML file without starting Word. Its lossless editing slice binds text in the main body, headers, footers, notes, comments, glossary building blocks and text boxes to exact XML byte spans, combines bounded commands into one hash-preconditioned package mutation, predicts the result fingerprint and retains an exact guarded inverse without reserializing unrelated XML.
 
 The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtual environment, an interpreter bootstrap, or a per-call helper process. Its MCP command points directly to:
 
@@ -44,7 +44,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 48 tested Word Live actions plus six standalone,
+The runtime implements 48 tested Word Live actions plus seven standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus three token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -67,6 +67,7 @@ inspect_ooxml_package
 inspect_ooxml_semantics
 query_ooxml_semantics
 inspect_ooxml_sections
+inspect_ooxml_styles
 plan_ooxml_text_edits
 apply_ooxml_text_edits
 inspect_live_word_document
@@ -242,12 +243,12 @@ The cleaner constrains every target to the repository root. It preserves only th
 Version:
 
 ```text
-0.19.0+codex.20260720203000
+0.19.0+codex.20260721193653
 ```
 
 Windows x64 ZIP:
 
-[WordToolkit native plugin](dist/WordToolkit-0.19.0+codex.20260720203000-native-win-x64.zip)
+[WordToolkit native plugin](dist/WordToolkit-0.19.0+codex.20260721193653-native-win-x64.zip)
 
 Live demonstration document:
 

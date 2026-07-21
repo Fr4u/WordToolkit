@@ -104,6 +104,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_ooxml_styles" => InspectPackageStylesAsync(
+                arguments,
+                cancellationToken
+            ),
             "plan_ooxml_text_edits" => PlanPackageTextEditsAsync(
                 arguments,
                 cancellationToken
