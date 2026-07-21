@@ -96,6 +96,18 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "query_ooxml_semantics" => QueryPackageSemanticsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "plan_ooxml_text_edits" => PlanPackageTextEditsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_text_edits" => ApplyPackageTextEditsAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_live_word_document" => InspectAsync(arguments, cancellationToken),
             "map_live_word_structures" => MapStructuresAsync(
                 arguments,

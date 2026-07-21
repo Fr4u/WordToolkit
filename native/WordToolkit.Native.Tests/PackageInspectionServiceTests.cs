@@ -1,6 +1,9 @@
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Semantics;
+using WordToolkit.Native.Protocol;
 using WordToolkit.Native.Word;
 
 namespace WordToolkit.Native.Tests;
@@ -127,18 +130,359 @@ public sealed class PackageInspectionServiceTests
         }
     }
 
-    private static void CreatePackage(string path)
+    [Fact]
+    public async Task QuerySemanticsReturnsTextNodeLocatorWithoutStartingWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-query-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "query.docx");
+            CreatePackage(path);
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                kinds = new[] { "text" },
+                text = "hello",
+                text_match = "contains",
+                case_sensitive = false,
+                max_results = 10,
+                text_preview_chars = 20,
+                include_source = true,
+            }));
+            var service = new WordLiveService(new NoInvokeHost());
+
+            var result = await service.CallAsync(
+                "query_ooxml_semantics",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            using var json = JsonDocument.Parse(JsonSerializer.Serialize(result));
+            var root = json.RootElement;
+            var match = Assert.Single(root.GetProperty("matches").EnumerateArray());
+
+            Assert.Equal(1, root.GetProperty("matched_node_count").GetInt32());
+            Assert.Equal(1, root.GetProperty("returned_node_count").GetInt32());
+            Assert.Equal("text", match.GetProperty("kind").GetString());
+            Assert.Equal("Hello ", match.GetProperty("text_preview").GetString());
+            Assert.StartsWith(
+                "wdn_",
+                match.GetProperty("node_id").GetString(),
+                StringComparison.Ordinal
+            );
+            Assert.Equal(
+                "/word/document.xml",
+                match.GetProperty("source_part_uri").GetString()
+            );
+            Assert.True(match.GetProperty("source_element_ordinal").GetInt32() >= 0);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task PlansAndAtomicallyAppliesReviewedTextEditWithoutStartingWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-text-transaction-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "edit.docx");
+            CreatePackage(path);
+            var beforeFile = File.ReadAllBytes(path);
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var semantic = new WordSemanticProjector().Project(before);
+            var text = semantic.Nodes.Single(node =>
+                node.Kind == WordSemanticNodeKind.Text && node.Text == "Hello "
+            );
+            var commands = new[]
+            {
+                new
+                {
+                    node_id = text.Id.Value,
+                    new_text = " Changed & safe ",
+                    expected_text = "Hello ",
+                },
+            };
+            using var planArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                commands,
+                include_details = true,
+            }));
+            var service = new WordLiveService(new NoInvokeHost());
+
+            var plannedObject = await service.CallAsync(
+                "plan_ooxml_text_edits",
+                planArguments.RootElement,
+                CancellationToken.None
+            );
+            using var plannedJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(plannedObject)
+            );
+            var planned = plannedJson.RootElement;
+            var planId = planned.GetProperty("plan_id").GetString()!;
+            var predicted = planned
+                .GetProperty("result_package_fingerprint")
+                .GetString();
+
+            Assert.Equal(beforeFile, File.ReadAllBytes(path));
+            Assert.False(planned.GetProperty("apply_blocked").GetBoolean());
+            Assert.True(planned.GetProperty("has_changes").GetBoolean());
+            Assert.Equal(1, planned.GetProperty("operation_count").GetInt32());
+            Assert.Equal(1, planned.GetProperty("changed_part_count").GetInt32());
+            Assert.Single(planned.GetProperty("operations").EnumerateArray());
+
+            using var applyArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                expected_plan_id = planId,
+                commands,
+                keep_backup = true,
+            }));
+            var appliedObject = await service.CallAsync(
+                "apply_ooxml_text_edits",
+                applyArguments.RootElement,
+                CancellationToken.None
+            );
+            using var appliedJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(appliedObject)
+            );
+            var applied = appliedJson.RootElement;
+            var backupPath = applied.GetProperty("backup_path").GetString();
+
+            Assert.True(applied.GetProperty("applied").GetBoolean());
+            Assert.False(applied.GetProperty("no_op").GetBoolean());
+            Assert.Equal(predicted, applied.GetProperty("package_fingerprint").GetString());
+            Assert.Equal(
+                predicted,
+                applied.GetProperty("predicted_package_fingerprint").GetString()
+            );
+            Assert.NotNull(backupPath);
+            Assert.True(File.Exists(backupPath));
+            Assert.Equal(before.Fingerprint, reader.Read(backupPath!).Fingerprint);
+            var after = reader.Read(path);
+            Assert.Equal(predicted, after.Fingerprint);
+            Assert.Equal(
+                " Changed & safe ",
+                new WordSemanticProjector().Project(after).Nodes.Single(node =>
+                    node.Kind == WordSemanticNodeKind.Text
+                    && node.Text == " Changed & safe "
+                ).Text
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ApplyRejectsMismatchedPlanAndLeavesFileUntouched()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-plan-mismatch-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "mismatch.docx");
+            CreatePackage(path);
+            var bytes = File.ReadAllBytes(path);
+            var package = new OpcPackageReader().Read(path);
+            var text = new WordSemanticProjector().Project(package).Nodes.Single(node =>
+                node.Kind == WordSemanticNodeKind.Text && node.Text == "Hello "
+            );
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                expected_plan_id = "wplan_AAAAAAAAAAAAAAAAAAAA",
+                commands = new[]
+                {
+                    new { node_id = text.Id.Value, new_text = "changed" },
+                },
+            }));
+
+            var exception = await Assert.ThrowsAsync<NativeToolException>(() =>
+                new WordLiveService(new NoInvokeHost()).CallAsync(
+                    "apply_ooxml_text_edits",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+
+            Assert.Equal("PLAN_MISMATCH", exception.ErrorCode);
+            Assert.Equal(bytes, File.ReadAllBytes(path));
+            Assert.Empty(Directory.GetFiles(directory, "*.bak"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ApplyRejectsDigitallySignedPackageAndLeavesItUntouched()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-signed-package-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "signed.docx");
+            CreatePackage(path, signed: true);
+            var bytes = File.ReadAllBytes(path);
+            var package = new OpcPackageReader().Read(path);
+            var text = new WordSemanticProjector().Project(package).Nodes.Single(node =>
+                node.Kind == WordSemanticNodeKind.Text && node.Text == "Hello "
+            );
+            var commands = new[]
+            {
+                new { node_id = text.Id.Value, new_text = "changed" },
+            };
+            var service = new WordLiveService(new NoInvokeHost());
+            using var planArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                commands,
+            }));
+            var planObject = await service.CallAsync(
+                "plan_ooxml_text_edits",
+                planArguments.RootElement,
+                CancellationToken.None
+            );
+            using var planJson = JsonDocument.Parse(JsonSerializer.Serialize(planObject));
+            Assert.True(planJson.RootElement.GetProperty("apply_blocked").GetBoolean());
+            var planId = planJson.RootElement.GetProperty("plan_id").GetString();
+            using var applyArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                expected_plan_id = planId,
+                commands,
+            }));
+
+            var exception = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "apply_ooxml_text_edits",
+                    applyArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+
+            Assert.Equal("SIGNED_PACKAGE", exception.ErrorCode);
+            Assert.Equal(bytes, File.ReadAllBytes(path));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ReviewedNoOpDoesNotRewriteFileOrCreateBackup()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-noop-text-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "noop.docx");
+            CreatePackage(path);
+            var bytes = File.ReadAllBytes(path);
+            var package = new OpcPackageReader().Read(path);
+            var text = new WordSemanticProjector().Project(package).Nodes.Single(node =>
+                node.Kind == WordSemanticNodeKind.Text && node.Text == "Hello "
+            );
+            var commands = new[]
+            {
+                new
+                {
+                    node_id = text.Id.Value,
+                    new_text = "Hello ",
+                    expected_text = "Hello ",
+                },
+            };
+            var service = new WordLiveService(new NoInvokeHost());
+            using var planArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                commands,
+            }));
+            var planObject = await service.CallAsync(
+                "plan_ooxml_text_edits",
+                planArguments.RootElement,
+                CancellationToken.None
+            );
+            using var planJson = JsonDocument.Parse(JsonSerializer.Serialize(planObject));
+            var planId = planJson.RootElement.GetProperty("plan_id").GetString();
+            Assert.False(planJson.RootElement.GetProperty("has_changes").GetBoolean());
+            using var applyArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                expected_plan_id = planId,
+                commands,
+            }));
+
+            var applyObject = await service.CallAsync(
+                "apply_ooxml_text_edits",
+                applyArguments.RootElement,
+                CancellationToken.None
+            );
+            using var applyJson = JsonDocument.Parse(JsonSerializer.Serialize(applyObject));
+
+            Assert.False(applyJson.RootElement.GetProperty("applied").GetBoolean());
+            Assert.True(applyJson.RootElement.GetProperty("no_op").GetBoolean());
+            Assert.Equal(bytes, File.ReadAllBytes(path));
+            Assert.Empty(Directory.GetFiles(directory, "*.bak"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static void CreatePackage(string path, bool signed = false)
     {
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
+        var signatureOverride = signed
+            ? "<Override PartName=\"/_xmlsignatures/sig1.xml\" ContentType=\"application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml\" />"
+            : string.Empty;
         WriteEntry(
             archive,
             "[Content_Types].xml",
-            """
+            $"""
             <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
               <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
               <Default Extension="xml" ContentType="application/xml" />
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml" />
+              {signatureOverride}
             </Types>
             """
         );
@@ -168,6 +512,14 @@ public sealed class PackageInspectionServiceTests
             </w:document>
             """
         );
+        if (signed)
+        {
+            WriteEntry(
+                archive,
+                "_xmlsignatures/sig1.xml",
+                "<Signature xmlns=\"http://www.w3.org/2000/09/xmldsig#\" />"
+            );
+        }
     }
 
     private static void WriteEntry(ZipArchive archive, string name, string content)

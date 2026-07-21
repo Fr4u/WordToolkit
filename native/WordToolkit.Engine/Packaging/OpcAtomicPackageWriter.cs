@@ -4,6 +4,8 @@ public sealed record OpcAtomicWriteOptions
 {
     public string? ExpectedDestinationFingerprint { get; init; }
 
+    public string? ExpectedResultFingerprint { get; init; }
+
     public OpcSerializationMode SerializationMode { get; init; } =
         OpcSerializationMode.Preserve;
 
@@ -99,6 +101,22 @@ public sealed class OpcAtomicPackageWriter
             if (!options.AllowStructuralErrors && !candidate.IsStructurallyValid)
             {
                 throw new OpcPackageValidationException(candidate.Diagnostics);
+            }
+
+            if (
+                options.ExpectedResultFingerprint is { } expectedResultFingerprint
+                && !string.Equals(
+                    candidate.Fingerprint,
+                    expectedResultFingerprint,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                throw new OpcPackageResultMismatchException(
+                    $"Candidate package fingerprint differs from the planned result: "
+                        + $"expected '{expectedResultFingerprint}', actual "
+                        + $"'{candidate.Fingerprint}'."
+                );
             }
 
             AssertDestinationVersion(destination, expectedFingerprint);
@@ -222,5 +240,13 @@ public sealed class OpcPackageValidationException : IOException
         return errors.Length == 0
             ? "Candidate package failed structural validation."
             : "Candidate package failed structural validation: " + string.Join(" | ", errors);
+    }
+}
+
+public sealed class OpcPackageResultMismatchException : IOException
+{
+    public OpcPackageResultMismatchException(string message)
+        : base(message)
+    {
     }
 }

@@ -134,6 +134,7 @@ public sealed class WordSemanticNode
 public sealed class WordSemanticDocument
 {
     private readonly IReadOnlyDictionary<SemanticNodeId, WordSemanticNode> _nodes;
+    private readonly IReadOnlyList<WordSemanticNode> _nodesInSourceOrder;
 
     internal WordSemanticDocument(
         string packageFingerprint,
@@ -146,7 +147,10 @@ public sealed class WordSemanticDocument
         MainPartUri = mainPartUri;
         Root = root;
         Warnings = warnings;
-        var nodes = root.DescendantsAndSelf().ToArray();
+        var nodes = root.DescendantsAndSelf()
+            .OrderBy(node => node.SourceOrder)
+            .ToArray();
+        _nodesInSourceOrder = new ReadOnlyCollection<WordSemanticNode>(nodes);
         _nodes = new ReadOnlyDictionary<SemanticNodeId, WordSemanticNode>(
             nodes.ToDictionary(node => node.Id)
         );
@@ -162,7 +166,7 @@ public sealed class WordSemanticDocument
 
     public int NodeCount => _nodes.Count;
 
-    public IEnumerable<WordSemanticNode> Nodes => _nodes.Values;
+    public IEnumerable<WordSemanticNode> Nodes => _nodesInSourceOrder;
 
     public bool TryGetNode(SemanticNodeId id, out WordSemanticNode? node) =>
         _nodes.TryGetValue(id, out node);

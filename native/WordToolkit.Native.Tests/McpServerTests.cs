@@ -88,6 +88,10 @@ public sealed class McpServerTests
             tools.EnumerateArray(),
             tool => tool.GetProperty("name").GetString() == "insert_live_word_image"
         );
+        Assert.DoesNotContain(
+            tools.EnumerateArray(),
+            tool => tool.GetProperty("name").GetString() == "query_ooxml_semantics"
+        );
         Assert.True(
             tools.GetRawText().Length < 10_000,
             $"Core catalog is too large: {tools.GetRawText().Length} characters"
@@ -118,7 +122,7 @@ public sealed class McpServerTests
         ) + "\n";
         var output = new StringWriter();
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(50, catalog.ActionCount);
+        Assert.Equal(53, catalog.ActionCount);
         var server = new McpServer(
             new StringReader(input),
             output,

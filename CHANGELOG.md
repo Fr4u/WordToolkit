@@ -30,14 +30,26 @@
   creates one isolated forward mutation and retains an exact part-byte inverse
   guarded by the applied fingerprint. Compact plan metadata omits text content
   and per-text hashes.
+- Added streaming semantic selectors and the lazy `query_ooxml_semantics`
+  native action. Queries filter node kinds, exact properties, source parts and
+  semantic subtrees; text predicates can cross run boundaries without
+  flattening the document and results remain paged and preview-bounded.
+- Added stateless lazy `plan_ooxml_text_edits` and
+  `apply_ooxml_text_edits` actions. Apply must reproduce the reviewed plan ID
+  and base fingerprint, writes through the atomic package transaction, retains
+  a recovery backup by default, performs no write for a no-op, and fails closed
+  on digitally signed packages.
 - Added the lazy, token-bounded `inspect_ooxml_semantics` MCP action.
-- Added 64 document-engine tests, including deterministic malformed-input,
+- Added 77 document-engine tests, including deterministic malformed-input,
   randomized relationship metadata and opaque-part round-trip fuzz smoke, plus
   300 randomized lexical text splices, multi-encoding/BOM preservation and
   semantic mutation provenance. A 52-document bundled corpus from Word,
   LibreOffice, Pandoc, POI and Mammoth now exercises every typed XML part and
   exact no-op source preservation, while native end-to-end package/semantic
   inspection retains all existing runtime tests.
+- The native host now has 47 tests, including end-to-end semantic query,
+  plan/apply, recovery-backup, plan-mismatch, signed-package and no-op coverage
+  that proves the saved-package path never invokes Word COM.
 - Added a source-backed 2026 research matrix and the target lossless semantic
   document-engine architecture.
 

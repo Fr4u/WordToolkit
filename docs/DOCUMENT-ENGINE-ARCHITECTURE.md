@@ -282,6 +282,18 @@ exact part-byte inverse only while the applied package still matches that predic
 fingerprint. Neither forward nor inverse writes a file; atomic persistence remains a
 separate gated step.
 
+The native MCP exposes this slice without retaining a server-side plan cache. A client
+first calls lazy `plan_ooxml_text_edits` with the inspected package fingerprint and
+commands. To commit, it resubmits the same bounded commands to lazy
+`apply_ooxml_text_edits` together with the returned deterministic plan ID. Apply
+rebuilds the plan from the current file, rejects any fingerprint or plan mismatch, then
+uses the version-checked atomic writer. The candidate must also match the plan's
+predicted result fingerprint before replacement. A recovery backup is retained by
+default, while a no-op does not touch the file. Packages carrying OPC digital-signature parts, content types,
+or relationships fail closed because silently leaving an invalid signature would be
+corruption disguised as success. This stateless design spends some repeated input
+tokens, but avoids retaining document text in a long-lived MCP cache.
+
 ### Layer 6: analysis services
 
 All analysis consumes the same package and semantic graphs:
@@ -360,6 +372,24 @@ Responses default to summaries and stable handles. Raw XML, full text, binary pa
 style tables, and object-model catalogues are fetched only on demand. The planner reports
 estimated input/output token cost and can choose between live Word, direct OOXML, or a
 hybrid transaction based on capability and fidelity requirements.
+
+The first `document.query` slice is implemented as `WordSemanticQueryEngine` and the
+lazy native `query_ooxml_semantics` action. It filters semantic kinds, exact properties,
+source parts and a stable-node subtree; supports contains/equals/starts/ends text modes;
+and streams matching across text, field, tab and break node boundaries instead of
+flattening the document into one giant string. Results are source-ordered, offset-paged,
+preview-bounded, and omit properties and source provenance unless requested. This is
+still an in-memory scan of the main-part graph, not the incremental privacy-controlled
+index required later.
+
+The current native mapping is therefore:
+
+- `document.query` -> lazy `query_ooxml_semantics`;
+- text-only `document.plan` -> lazy `plan_ooxml_text_edits`;
+- text-only `document.apply` -> lazy `apply_ooxml_text_edits`.
+
+These schemas stay outside the core catalog, so the default model context does not pay
+for them until search/inspection selects the action.
 
 ## Template, style, numbering, and reference engines
 
