@@ -37,7 +37,9 @@ Use the lazy `query_ooxml_semantics` action when the task needs exact node IDs,
 text nodes hidden beneath an outline item, a style/property selector, or a
 phrase spanning several runs. Filter narrowly, page with `next_offset`, keep
 previews short, and request properties or source provenance only when the next
-operation consumes them.
+operation consumes them. The query covers the main body and related header,
+footer, footnote, endnote, comment and glossary stories; use `source_part_uri`
+when the edit must stay inside one story.
 For a saved-package text edit, use this strict lazy workflow:
 
 1. Query the narrowest possible `text` nodes and retain the package fingerprint.

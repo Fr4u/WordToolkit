@@ -220,11 +220,17 @@ An initial source-linked semantic projector is now implemented. It recognizes tr
 and strict WordprocessingML, paragraphs, runs, text, tabs/breaks, tables, hyperlinks,
 fields, revisions, bookmarks, comment anchors, content controls, drawings, MCE alternate
 content, equations, every nested OfficeMath element, and unknown namespace islands. It
-enforces XML character/element/depth/text limits, uses durable Word anchors where they
-exist, and emits source paths, exact lexical element ordinals, and compact text previews.
-Known views still use `XDocument` for semantic interpretation, but every projected node
-is now bound back to the independent lossless source model rather than treating the
-typed tree as storage.
+also follows bounded internal relationships from the main part into headers, footers,
+footnotes, endnotes, comments and glossary building blocks, while text boxes remain
+source-linked inside their containing story. Microsoft describes these as separate
+[WordprocessingML stories](https://learn.microsoft.com/en-us/office/open-xml/about-the-open-xml-sdk),
+not as one flat `document.xml` stream. Story roots and note/comment/reference nodes expose
+relationship or Word IDs; changing a related story does not change existing main-body
+node IDs. The projector enforces XML character/element/depth/text/story-part limits, uses
+durable Word anchors where they exist, and emits source paths, exact lexical element
+ordinals, projected-part inventory and compact text previews. Known views still use
+`XDocument` for semantic interpretation, but every projected node is bound back to the
+independent lossless source model rather than treating the typed tree as storage.
 
 `WordSemanticEditor.ReplaceText` is the first typed mutation vertical slice. It requires
 the package fingerprint, semantic node identity, source part, lexical element ordinal,

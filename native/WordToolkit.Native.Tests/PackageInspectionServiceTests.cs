@@ -91,6 +91,13 @@ public sealed class PackageInspectionServiceTests
             var root = json.RootElement;
 
             Assert.True(root.GetProperty("semantic_node_count").GetInt32() >= 8);
+            Assert.Equal(1, root.GetProperty("projected_part_count").GetInt32());
+            Assert.Equal(
+                "/word/document.xml",
+                Assert.Single(
+                    root.GetProperty("projected_part_uris").EnumerateArray()
+                ).GetString()
+            );
             Assert.Equal(
                 1,
                 root.GetProperty("node_counts").GetProperty("paragraph").GetInt32()
@@ -179,6 +186,102 @@ public sealed class PackageInspectionServiceTests
                 match.GetProperty("source_part_uri").GetString()
             );
             Assert.True(match.GetProperty("source_element_ordinal").GetInt32() >= 0);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task QueryPlanAndApplyCanTargetAHeaderStoryWithoutStartingWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-header-story-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "header.docx");
+            CreatePackage(path, headerText: "Header token");
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var mainBytes = before.Parts["/word/document.xml"].Entry.Content.ToArray();
+            var service = new WordLiveService(new NoInvokeHost());
+            using var queryArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                kinds = new[] { "text" },
+                text = "Header token",
+                source_part_uri = "/word/header1.xml",
+                include_source = true,
+            }));
+
+            var queryObject = await service.CallAsync(
+                "query_ooxml_semantics",
+                queryArguments.RootElement,
+                CancellationToken.None
+            );
+            using var queryJson = JsonDocument.Parse(JsonSerializer.Serialize(queryObject));
+            var query = queryJson.RootElement;
+            var match = Assert.Single(query.GetProperty("matches").EnumerateArray());
+            var nodeId = match.GetProperty("node_id").GetString();
+            Assert.Equal(
+                "/word/header1.xml",
+                match.GetProperty("source_part_uri").GetString()
+            );
+            var commands = new[]
+            {
+                new
+                {
+                    node_id = nodeId,
+                    new_text = "Changed header",
+                    expected_text = "Header token",
+                },
+            };
+            using var planArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                commands,
+            }));
+            var planObject = await service.CallAsync(
+                "plan_ooxml_text_edits",
+                planArguments.RootElement,
+                CancellationToken.None
+            );
+            using var planJson = JsonDocument.Parse(JsonSerializer.Serialize(planObject));
+            var planId = planJson.RootElement.GetProperty("plan_id").GetString();
+            using var applyArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                expected_plan_id = planId,
+                commands,
+                keep_backup = false,
+            }));
+
+            var applyObject = await service.CallAsync(
+                "apply_ooxml_text_edits",
+                applyArguments.RootElement,
+                CancellationToken.None
+            );
+            using var applyJson = JsonDocument.Parse(JsonSerializer.Serialize(applyObject));
+            var after = reader.Read(path);
+
+            Assert.True(applyJson.RootElement.GetProperty("applied").GetBoolean());
+            Assert.Equal(
+                mainBytes,
+                after.Parts["/word/document.xml"].Entry.Content.ToArray()
+            );
+            Assert.Contains(
+                new WordSemanticProjector().Project(after).Nodes,
+                node => node.Kind == WordSemanticNodeKind.Text
+                    && node.Text == "Changed header"
+                    && node.SourcePartUri == "/word/header1.xml"
+            );
         }
         finally
         {
@@ -467,13 +570,20 @@ public sealed class PackageInspectionServiceTests
         }
     }
 
-    private static void CreatePackage(string path, bool signed = false)
+    private static void CreatePackage(
+        string path,
+        bool signed = false,
+        string? headerText = null
+    )
     {
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
         var signatureOverride = signed
             ? "<Override PartName=\"/_xmlsignatures/sig1.xml\" ContentType=\"application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml\" />"
             : string.Empty;
+        var headerOverride = headerText is null
+            ? string.Empty
+            : "<Override PartName=\"/word/header1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml\" />";
         WriteEntry(
             archive,
             "[Content_Types].xml",
@@ -483,6 +593,7 @@ public sealed class PackageInspectionServiceTests
               <Default Extension="xml" ContentType="application/xml" />
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml" />
               {signatureOverride}
+              {headerOverride}
             </Types>
             """
         );
@@ -495,23 +606,49 @@ public sealed class PackageInspectionServiceTests
             </Relationships>
             """
         );
+        var headerReference = headerText is null
+            ? string.Empty
+            : "<w:sectPr><w:headerReference r:id=\"rIdHeader\" w:type=\"default\" /></w:sectPr>";
         WriteEntry(
             archive,
             "word/document.xml",
-            """
+            $"""
             <w:document
                 xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
                 xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"
-                xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+                xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
               <w:body>
                 <w:p w14:paraId="00112233">
                   <w:r><w:t>Hello </w:t></w:r>
                   <m:oMath><m:f><m:num><m:r><m:t>a</m:t></m:r></m:num><m:den><m:r><m:t>b</m:t></m:r></m:den></m:f></m:oMath>
                 </w:p>
+                {headerReference}
               </w:body>
             </w:document>
             """
         );
+        if (headerText is not null)
+        {
+            WriteEntry(
+                archive,
+                "word/_rels/document.xml.rels",
+                """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml" />
+                </Relationships>
+                """
+            );
+            WriteEntry(
+                archive,
+                "word/header1.xml",
+                $"""
+                <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:p><w:r><w:t>{headerText}</w:t></w:r></w:p>
+                </w:hdr>
+                """
+            );
+        }
         if (signed)
         {
             WriteEntry(

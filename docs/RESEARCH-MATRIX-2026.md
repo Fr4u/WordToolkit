@@ -165,6 +165,21 @@ export is the authoritative Windows backend; LibreOffice is a useful isolated fa
 PDF import is a reconstruction/OCR workflow whose inferred objects carry confidence and
 source geometry. None may masquerade as lossless package editing.
 
+## Word story and related-part findings
+
+Microsoft's current [Open XML overview](https://learn.microsoft.com/en-us/office/open-xml/about-the-open-xml-sdk)
+states that a WordprocessingML document is a
+collection of stories: the main document, glossary, headers and footers, comments, text
+boxes, footnotes and endnotes. Those stories live either in related package parts or,
+for text boxes, inside a containing story; flattening only `document.xml` therefore
+silently loses editable content. The native projector now follows the standard internal
+relationship types for the primary related stories, validates their content types and
+root elements, projects each target part once, exposes reference IDs, and applies the
+same lossless text transaction machinery across their source bytes. The implementation
+is tested against constructed strict/transitional cases and the bundled Word,
+LibreOffice, POI, Pandoc and Mammoth fixtures. Threaded-comment metadata and section
+inheritance remain separate unfinished graphs.
+
 ## OfficeMath and equation-specific findings
 
 Word stores professional equations as OMML, while accepting user-facing forms such as

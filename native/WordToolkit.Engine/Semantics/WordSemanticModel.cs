@@ -31,6 +31,21 @@ public enum WordSemanticNodeKind
     Drawing,
     AlternateContent,
     ExtensionIsland,
+    Header,
+    Footer,
+    Footnotes,
+    Footnote,
+    Endnotes,
+    Endnote,
+    Comments,
+    Comment,
+    GlossaryDocument,
+    GlossaryEntry,
+    TextBox,
+    HeaderReference,
+    FooterReference,
+    FootnoteReference,
+    EndnoteReference,
 }
 
 public sealed class WordSemanticNode
@@ -106,6 +121,16 @@ public sealed class WordSemanticNode
         var builder = new StringBuilder(Math.Min(maxCharacters, 256));
         foreach (var node in DescendantsAndSelf())
         {
+            if (node.Kind == WordSemanticNodeKind.Paragraph && builder.Length != 0)
+            {
+                if (builder.Length == maxCharacters)
+                {
+                    break;
+                }
+
+                builder.Append('\n');
+            }
+
             var value = node.Kind switch
             {
                 WordSemanticNodeKind.Text or WordSemanticNodeKind.Field => node.Text,
@@ -154,6 +179,11 @@ public sealed class WordSemanticDocument
         _nodes = new ReadOnlyDictionary<SemanticNodeId, WordSemanticNode>(
             nodes.ToDictionary(node => node.Id)
         );
+        ProjectedPartUris = new ReadOnlyCollection<string>(
+            nodes.Select(node => node.SourcePartUri)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray()
+        );
     }
 
     public string PackageFingerprint { get; }
@@ -163,6 +193,10 @@ public sealed class WordSemanticDocument
     public WordSemanticNode Root { get; }
 
     public IReadOnlyList<string> Warnings { get; }
+
+    public IReadOnlyList<string> ProjectedPartUris { get; }
+
+    public int ProjectedPartCount => ProjectedPartUris.Count;
 
     public int NodeCount => _nodes.Count;
 

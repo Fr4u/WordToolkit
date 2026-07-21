@@ -3797,7 +3797,7 @@
     {
       "name": "inspect_ooxml_semantics",
       "title": "Inspect Word semantic structure",
-      "description": "Project a saved Word OOXML package into bounded, source-linked semantic nodes without opening Word. Return stable node IDs, structure counts, and a compact outline for paragraphs, tables, fields, equations, revisions, drawings, content controls, and extension islands.",
+      "description": "Project a saved Word OOXML package into bounded, source-linked semantic nodes without opening Word. Traverses the main document plus related headers, footers, footnotes, endnotes, comments and glossary stories, and returns stable node IDs, part counts, structure counts, and a compact outline.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3840,7 +3840,7 @@
     {
       "name": "query_ooxml_semantics",
       "title": "Query Word semantic nodes",
-      "description": "Query a saved Word OOXML package by semantic node kind, bounded text predicate, exact semantic properties, source part, or subtree. Returns paged stable node IDs and compact previews without opening Word or returning raw XML.",
+      "description": "Query all projected text-bearing stories in a saved Word OOXML package by semantic node kind, bounded text predicate, exact semantic properties, source part, or subtree. Returns paged stable node IDs and compact previews without opening Word or returning raw XML.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3851,7 +3851,7 @@
           "kinds": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 21,
+            "maxItems": 36,
             "uniqueItems": true,
             "items": {
               "type": "string",
@@ -3876,7 +3876,22 @@
                 "revision",
                 "drawing",
                 "alternate_content",
-                "extension_island"
+                "extension_island",
+                "header",
+                "footer",
+                "footnotes",
+                "footnote",
+                "endnotes",
+                "endnote",
+                "comments",
+                "comment",
+                "glossary_document",
+                "glossary_entry",
+                "text_box",
+                "header_reference",
+                "footer_reference",
+                "footnote_reference",
+                "endnote_reference"
               ]
             },
             "description": "Optional semantic node kinds. Omit to search every kind."

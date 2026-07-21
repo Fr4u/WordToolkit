@@ -93,11 +93,21 @@ internal sealed partial class WordLiveService
                 .Take(40)
                 .Select(warning => BoundForResponse(warning, 512))
                 .ToArray();
+            var projectedPartUris = includeSourcePaths
+                ? document.ProjectedPartUris
+                    .Take(80)
+                    .Select(uri => BoundForResponse(uri, 512))
+                    .ToArray()
+                : null;
             var result = new
             {
                 file_name = Path.GetFileName(path),
                 package_fingerprint = package.Fingerprint,
                 main_part_uri = document.MainPartUri,
+                projected_part_count = document.ProjectedPartCount,
+                projected_part_uris = projectedPartUris,
+                projected_parts_truncated = projectedPartUris is not null
+                    && document.ProjectedPartCount > projectedPartUris.Length,
                 semantic_root_id = document.Root.Id.Value,
                 semantic_node_count = document.NodeCount,
                 node_counts = counts,
@@ -164,7 +174,18 @@ internal sealed partial class WordLiveService
     }
 
     private static bool IsOutlineNode(WordSemanticNodeKind kind) => kind is
-        WordSemanticNodeKind.Paragraph
+        WordSemanticNodeKind.Header
+        or WordSemanticNodeKind.Footer
+        or WordSemanticNodeKind.Footnotes
+        or WordSemanticNodeKind.Footnote
+        or WordSemanticNodeKind.Endnotes
+        or WordSemanticNodeKind.Endnote
+        or WordSemanticNodeKind.Comments
+        or WordSemanticNodeKind.Comment
+        or WordSemanticNodeKind.GlossaryDocument
+        or WordSemanticNodeKind.GlossaryEntry
+        or WordSemanticNodeKind.TextBox
+        or WordSemanticNodeKind.Paragraph
         or WordSemanticNodeKind.Table
         or WordSemanticNodeKind.Equation
         or WordSemanticNodeKind.Field

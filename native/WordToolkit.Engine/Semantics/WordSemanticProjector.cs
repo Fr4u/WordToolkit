@@ -81,36 +81,7 @@ public sealed class WordSemanticProjector
             );
         }
 
-        LosslessXmlDocument sourceDocument;
-        try
-        {
-            var mainPartBytes = mainPart.Entry.Content.ToArray();
-            sourceDocument = LosslessXmlDocument.Parse(
-                mainPartBytes,
-                new LosslessXmlOptions
-                {
-                    MaxSourceBytes = _options.MaxXmlCharacters >= int.MaxValue / 4
-                        ? int.MaxValue
-                        : checked((int)(_options.MaxXmlCharacters * 4)),
-                    MaxXmlCharacters = _options.MaxXmlCharacters,
-                    MaxXmlElements = _options.MaxXmlElements,
-                    MaxXmlDepth = _options.MaxXmlDepth,
-                    MaxTextCharacters = _options.MaxTextCharacters,
-                },
-                cancellationToken
-            );
-        }
-        catch (LosslessXmlLimitException exception)
-        {
-            throw new WordSemanticLimitException(exception.Message);
-        }
-        catch (LosslessXmlException exception)
-        {
-            throw new WordSemanticProjectionException(
-                "The Word main document part is not safe, well-formed XML.",
-                exception
-            );
-        }
+        var sourceDocument = ParseSourcePart(mainPart, cancellationToken);
 
         var xml = sourceDocument.ParsedDocument;
         var documentElement = xml.Root;
@@ -148,6 +119,14 @@ public sealed class WordSemanticProjector
             );
         }
 
+        ProjectRelatedStories(
+            package,
+            mainPartUri,
+            roots[0],
+            roots,
+            state,
+            cancellationToken
+        );
         var frozenRoot = roots[0].Freeze();
         var warnings = package.Diagnostics
             .Where(diagnostic => diagnostic.Severity == OpcDiagnosticSeverity.Warning)
@@ -159,6 +138,200 @@ public sealed class WordSemanticProjector
             frozenRoot,
             warnings
         );
+    }
+
+    private LosslessXmlDocument ParseSourcePart(
+        OpcPart part,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            return LosslessXmlDocument.Parse(
+                part.Entry.Content,
+                new LosslessXmlOptions
+                {
+                    MaxSourceBytes = _options.MaxXmlCharacters >= int.MaxValue / 4
+                        ? int.MaxValue
+                        : checked((int)(_options.MaxXmlCharacters * 4)),
+                    MaxXmlCharacters = _options.MaxXmlCharacters,
+                    MaxXmlElements = _options.MaxXmlElements,
+                    MaxXmlDepth = _options.MaxXmlDepth,
+                    MaxTextCharacters = _options.MaxTextCharacters,
+                },
+                cancellationToken
+            );
+        }
+        catch (LosslessXmlLimitException exception)
+        {
+            throw new WordSemanticLimitException(
+                $"Word part '{part.Uri}' exceeds a semantic projection limit: "
+                    + exception.Message
+            );
+        }
+        catch (LosslessXmlException exception)
+        {
+            throw new WordSemanticProjectionException(
+                $"Word part '{part.Uri}' is not safe, well-formed XML.",
+                exception
+            );
+        }
+    }
+
+    private void ProjectRelatedStories(
+        OpcPackageSnapshot package,
+        string mainPartUri,
+        MutableSemanticNode mainRoot,
+        List<MutableSemanticNode> roots,
+        ProjectionState state,
+        CancellationToken cancellationToken
+    )
+    {
+        var storyRelationships = new List<StoryRelationship>();
+        foreach (var relationship in package.RelationshipsFrom(mainPartUri))
+        {
+            if (!TryDescribeStoryRelationship(relationship.Type, out var descriptor))
+            {
+                continue;
+            }
+
+            if (
+                relationship.TargetMode != OpcRelationshipTargetMode.Internal
+                || relationship.ResolvedTargetPartUri is null
+            )
+            {
+                throw new WordSemanticProjectionException(
+                    $"Story relationship '{relationship.Id}' from '{mainPartUri}' "
+                        + "does not resolve to an internal package part."
+                );
+            }
+
+            storyRelationships.Add(new StoryRelationship(relationship, descriptor));
+            if (storyRelationships.Count > _options.MaxStoryRelationships)
+            {
+                throw new WordSemanticLimitException(
+                    "Word package contains more than "
+                        + $"{_options.MaxStoryRelationships} text-story relationships."
+                );
+            }
+        }
+
+        var groups = storyRelationships
+            .GroupBy(
+                item => item.Relationship.ResolvedTargetPartUri!,
+                StringComparer.Ordinal
+            )
+            .ToArray();
+        if (groups.Length > _options.MaxStoryParts)
+        {
+            throw new WordSemanticLimitException(
+                $"Word package references {groups.Length} text-bearing story parts; "
+                    + $"limit is {_options.MaxStoryParts}."
+            );
+        }
+
+        foreach (
+            var group in groups
+                .OrderBy(item => item.Min(value => value.Descriptor.Order))
+                .ThenBy(item => item.Key, StringComparer.Ordinal)
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var descriptors = group.Select(item => item.Descriptor).Distinct().ToArray();
+            if (descriptors.Length != 1)
+            {
+                throw new WordSemanticProjectionException(
+                    $"Story part '{group.Key}' is targeted by conflicting relationship types."
+                );
+            }
+
+            var descriptor = descriptors[0];
+            if (!package.Parts.TryGetValue(group.Key, out var part))
+            {
+                throw new WordSemanticProjectionException(
+                    $"Story relationship target '{group.Key}' does not exist."
+                );
+            }
+
+            if (
+                part.ContentType is null
+                || !string.Equals(
+                    part.ContentType,
+                    descriptor.ExpectedContentType,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                throw new WordSemanticProjectionException(
+                    $"Story part '{part.Uri}' has content type "
+                        + $"'{part.ContentType ?? "(missing)"}', expected a "
+                        + $"'{descriptor.Name}' Word part."
+                );
+            }
+
+            var source = ParseSourcePart(part, cancellationToken);
+            var storyElement = source.ParsedDocument.Root;
+            if (
+                storyElement is null
+                || !IsWordNamespace(storyElement.Name.NamespaceName)
+                || storyElement.Name.LocalName != descriptor.RootElementName
+            )
+            {
+                throw new WordSemanticProjectionException(
+                    $"Story part '{part.Uri}' does not have the expected "
+                        + $"w:{descriptor.RootElementName} root element."
+                );
+            }
+
+            var previousChildCount = mainRoot.Children.Count;
+            var storyContext = new ProjectionContext(
+                mainRoot,
+                identityContext: part.Uri,
+                occurrences: new Dictionary<string, int>(StringComparer.Ordinal),
+                roots
+            );
+            ProjectElement(
+                storyElement,
+                part.Uri,
+                sourcePath: $"/{QualifiedName(storyElement.Name)}[1]",
+                storyContext,
+                state,
+                source,
+                cancellationToken
+            );
+            if (
+                mainRoot.Children.Count != previousChildCount + 1
+                || mainRoot.Children[^1].Kind != descriptor.RootKind
+            )
+            {
+                throw new WordSemanticProjectionException(
+                    $"Story part '{part.Uri}' did not produce one "
+                        + $"{descriptor.RootKind} semantic root."
+                );
+            }
+
+            var semanticStory = mainRoot.Children[^1];
+            var relationshipIds = group.Select(item => item.Relationship.Id)
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal)
+                .ToArray();
+            semanticStory.Properties["story_kind"] = descriptor.Name;
+            semanticStory.Properties["relationship_count"] = relationshipIds.Length.ToString(
+                System.Globalization.CultureInfo.InvariantCulture
+            );
+            semanticStory.Properties["relationship_ids"] = string.Join(
+                ",",
+                relationshipIds.Take(32)
+            );
+            if (relationshipIds.Length > 32)
+            {
+                semanticStory.Properties["relationship_ids_truncated"] = "true";
+            }
+            if (relationshipIds.Length == 1)
+            {
+                semanticStory.Properties["relationship_id"] = relationshipIds[0];
+            }
+        }
     }
 
     private void ProjectElement(
@@ -259,6 +432,21 @@ public sealed class WordSemanticProjector
             {
                 "document" => WordSemanticNodeKind.Document,
                 "body" => WordSemanticNodeKind.Body,
+                "hdr" => WordSemanticNodeKind.Header,
+                "ftr" => WordSemanticNodeKind.Footer,
+                "footnotes" => WordSemanticNodeKind.Footnotes,
+                "footnote" => WordSemanticNodeKind.Footnote,
+                "endnotes" => WordSemanticNodeKind.Endnotes,
+                "endnote" => WordSemanticNodeKind.Endnote,
+                "comments" => WordSemanticNodeKind.Comments,
+                "comment" => WordSemanticNodeKind.Comment,
+                "glossaryDocument" => WordSemanticNodeKind.GlossaryDocument,
+                "docPart" => WordSemanticNodeKind.GlossaryEntry,
+                "txbxContent" => WordSemanticNodeKind.TextBox,
+                "headerReference" => WordSemanticNodeKind.HeaderReference,
+                "footerReference" => WordSemanticNodeKind.FooterReference,
+                "footnoteReference" => WordSemanticNodeKind.FootnoteReference,
+                "endnoteReference" => WordSemanticNodeKind.EndnoteReference,
                 "p" => WordSemanticNodeKind.Paragraph,
                 "r" => WordSemanticNodeKind.Run,
                 "t" or "delText" => WordSemanticNodeKind.Text,
@@ -271,7 +459,7 @@ public sealed class WordSemanticProjector
                 "fldSimple" or "fldChar" or "instrText" => WordSemanticNodeKind.Field,
                 "sdt" => WordSemanticNodeKind.ContentControl,
                 "bookmarkStart" => WordSemanticNodeKind.Bookmark,
-                "commentRangeStart" or "commentRangeEnd" =>
+                "commentRangeStart" or "commentRangeEnd" or "commentReference" =>
                     WordSemanticNodeKind.CommentAnchor,
                 "ins" or "del" or "moveFrom" or "moveTo" =>
                     WordSemanticNodeKind.Revision,
@@ -360,6 +548,18 @@ public sealed class WordSemanticProjector
         WordSemanticNodeKind kind
     )
     {
+        if (
+            kind is WordSemanticNodeKind.Header
+                or WordSemanticNodeKind.Footer
+                or WordSemanticNodeKind.Footnotes
+                or WordSemanticNodeKind.Endnotes
+                or WordSemanticNodeKind.Comments
+                or WordSemanticNodeKind.GlossaryDocument
+        )
+        {
+            return $"story-root:{kind}";
+        }
+
         var paragraphId = element.Attribute(XName.Get("paraId", Word2010Namespace))?.Value;
         if (!string.IsNullOrWhiteSpace(paragraphId))
         {
@@ -379,9 +579,40 @@ public sealed class WordSemanticProjector
             && kind is WordSemanticNodeKind.Bookmark
                 or WordSemanticNodeKind.CommentAnchor
                 or WordSemanticNodeKind.Revision
+                or WordSemanticNodeKind.Footnote
+                or WordSemanticNodeKind.Endnote
+                or WordSemanticNodeKind.Comment
+                or WordSemanticNodeKind.FootnoteReference
+                or WordSemanticNodeKind.EndnoteReference
         )
         {
             return $"{kind}:{id}";
+        }
+
+        if (kind is WordSemanticNodeKind.HeaderReference or WordSemanticNodeKind.FooterReference)
+        {
+            var relationshipId = RelationshipId(element);
+            if (!string.IsNullOrWhiteSpace(relationshipId))
+            {
+                return $"{kind}:{relationshipId}";
+            }
+        }
+
+        if (kind == WordSemanticNodeKind.GlossaryEntry)
+        {
+            var properties = element.Elements()
+                .FirstOrDefault(child =>
+                    IsWordNamespace(child.Name.NamespaceName)
+                    && child.Name.LocalName == "docPartPr"
+                );
+            var guid = properties?.Elements()
+                .FirstOrDefault(child => child.Name.LocalName == "guid")
+                ?.Attribute(wordNamespace + "val")
+                ?.Value;
+            if (!string.IsNullOrWhiteSpace(guid))
+            {
+                return $"glossary-guid:{guid}";
+            }
         }
 
         if (kind == WordSemanticNodeKind.ContentControl)
@@ -448,8 +679,7 @@ public sealed class WordSemanticProjector
             AddIfPresent(
                 result,
                 "relationship_id",
-                element.Attribute(XName.Get("id", RelationshipsTransitionalNamespace))?.Value
-                    ?? element.Attribute(XName.Get("id", RelationshipsStrictNamespace))?.Value
+                RelationshipId(element)
             );
             AddIfPresent(
                 result,
@@ -468,6 +698,72 @@ public sealed class WordSemanticProjector
                 result,
                 "field_character_type",
                 element.Attribute(wordNamespace + "fldCharType")?.Value
+            );
+        }
+        else if (
+            kind is WordSemanticNodeKind.Footnote
+                or WordSemanticNodeKind.Endnote
+                or WordSemanticNodeKind.Comment
+                or WordSemanticNodeKind.CommentAnchor
+                or WordSemanticNodeKind.FootnoteReference
+                or WordSemanticNodeKind.EndnoteReference
+        )
+        {
+            AddIfPresent(result, "id", element.Attribute(wordNamespace + "id")?.Value);
+            AddIfPresent(
+                result,
+                "type",
+                element.Attribute(wordNamespace + "type")?.Value
+            );
+            if (kind == WordSemanticNodeKind.Comment)
+            {
+                AddIfPresent(
+                    result,
+                    "author",
+                    element.Attribute(wordNamespace + "author")?.Value
+                );
+                AddIfPresent(
+                    result,
+                    "initials",
+                    element.Attribute(wordNamespace + "initials")?.Value
+                );
+                AddIfPresent(
+                    result,
+                    "date",
+                    element.Attribute(wordNamespace + "date")?.Value
+                );
+            }
+        }
+        else if (
+            kind is WordSemanticNodeKind.HeaderReference
+                or WordSemanticNodeKind.FooterReference
+        )
+        {
+            AddIfPresent(result, "relationship_id", RelationshipId(element));
+            AddIfPresent(
+                result,
+                "type",
+                element.Attribute(wordNamespace + "type")?.Value
+            );
+        }
+        else if (kind == WordSemanticNodeKind.GlossaryEntry)
+        {
+            var properties = element.Elements(wordNamespace + "docPartPr").FirstOrDefault();
+            AddIfPresent(
+                result,
+                "name",
+                properties?.Elements(wordNamespace + "name")
+                    .Attributes(wordNamespace + "val")
+                    .Select(attribute => attribute.Value)
+                    .FirstOrDefault()
+            );
+            AddIfPresent(
+                result,
+                "guid",
+                properties?.Elements(wordNamespace + "guid")
+                    .Attributes(wordNamespace + "val")
+                    .Select(attribute => attribute.Value)
+                    .FirstOrDefault()
             );
         }
         else if (kind == WordSemanticNodeKind.EquationComponent)
@@ -552,6 +848,81 @@ public sealed class WordSemanticProjector
             || contentType.Contains("ms-word", StringComparison.OrdinalIgnoreCase)
         );
 
+    private static string? RelationshipId(XElement element) =>
+        element.Attribute(XName.Get("id", RelationshipsTransitionalNamespace))?.Value
+        ?? element.Attribute(XName.Get("id", RelationshipsStrictNamespace))?.Value;
+
+    private static bool TryDescribeStoryRelationship(
+        string relationshipType,
+        out StoryPartDescriptor descriptor
+    )
+    {
+        string? name = null;
+        foreach (
+            var relationshipNamespace in new[]
+            {
+                RelationshipsTransitionalNamespace,
+                RelationshipsStrictNamespace,
+            }
+        )
+        {
+            var prefix = relationshipNamespace + "/";
+            if (relationshipType.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                name = relationshipType[prefix.Length..];
+                break;
+            }
+        }
+
+        descriptor = name switch
+        {
+            "header" => new(
+                "header",
+                "hdr",
+                WordSemanticNodeKind.Header,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml",
+                0
+            ),
+            "footer" => new(
+                "footer",
+                "ftr",
+                WordSemanticNodeKind.Footer,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml",
+                1
+            ),
+            "footnotes" => new(
+                "footnotes",
+                "footnotes",
+                WordSemanticNodeKind.Footnotes,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml",
+                2
+            ),
+            "endnotes" => new(
+                "endnotes",
+                "endnotes",
+                WordSemanticNodeKind.Endnotes,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml",
+                3
+            ),
+            "comments" => new(
+                "comments",
+                "comments",
+                WordSemanticNodeKind.Comments,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml",
+                4
+            ),
+            "glossaryDocument" => new(
+                "glossary",
+                "glossaryDocument",
+                WordSemanticNodeKind.GlossaryDocument,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml",
+                5
+            ),
+            _ => null!,
+        };
+        return descriptor is not null;
+    }
+
     private static void AddIfPresent(
         IDictionary<string, string> properties,
         string name,
@@ -572,6 +943,19 @@ public sealed class WordSemanticProjector
         hash.AppendData(length);
         hash.AppendData(bytes);
     }
+
+    private sealed record StoryPartDescriptor(
+        string Name,
+        string RootElementName,
+        WordSemanticNodeKind RootKind,
+        string ExpectedContentType,
+        int Order
+    );
+
+    private sealed record StoryRelationship(
+        OpcRelationship Relationship,
+        StoryPartDescriptor Descriptor
+    );
 
     private sealed record ProjectionContext(
         MutableSemanticNode? parent,

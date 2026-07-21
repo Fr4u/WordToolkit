@@ -53,9 +53,9 @@ public sealed record WordSemanticQuery
             throw new ArgumentException("Kinds cannot be an empty collection.", nameof(Kinds));
         }
 
-        if (Kinds is { Count: > 32 })
+        if (Kinds is { Count: > 64 })
         {
-            throw new ArgumentException("Kinds cannot contain more than 32 values.", nameof(Kinds));
+            throw new ArgumentException("Kinds cannot contain more than 64 values.", nameof(Kinds));
         }
 
         if (Text is { Length: 0 })
@@ -333,8 +333,14 @@ public sealed class WordSemanticQueryEngine
         var candidates = scope == WordSemanticTextScope.Subtree
             ? node.DescendantsAndSelf()
             : [node];
+        var hasText = false;
         foreach (var candidate in candidates)
         {
+            if (candidate.Kind == WordSemanticNodeKind.Paragraph && hasText)
+            {
+                yield return "\n";
+            }
+
             var value = candidate.Kind switch
             {
                 WordSemanticNodeKind.Text or WordSemanticNodeKind.Field =>
@@ -346,6 +352,7 @@ public sealed class WordSemanticQueryEngine
             if (!string.IsNullOrEmpty(value))
             {
                 yield return value;
+                hasText = true;
             }
         }
     }

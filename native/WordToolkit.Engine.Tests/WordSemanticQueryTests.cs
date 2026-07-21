@@ -112,6 +112,37 @@ public sealed class WordSemanticQueryTests
     }
 
     [Fact]
+    public void ParagraphBoundariesDoNotCreateFalseCrossParagraphPhrases()
+    {
+        var document = Project(TestDocumentXml());
+        var body = document.Nodes.Single(node => node.Kind == WordSemanticNodeKind.Body);
+        var engine = new WordSemanticQueryEngine();
+
+        var falseJoin = engine.Query(
+            document,
+            new WordSemanticQuery
+            {
+                Kinds = [WordSemanticNodeKind.Body],
+                Text = "gammadelta",
+                TextScope = WordSemanticTextScope.Subtree,
+            }
+        );
+        var explicitBoundary = engine.Query(
+            document,
+            new WordSemanticQuery
+            {
+                Kinds = [WordSemanticNodeKind.Body],
+                Text = "gamma\ndelta",
+                TextScope = WordSemanticTextScope.Subtree,
+            }
+        );
+
+        Assert.Empty(falseJoin.Matches);
+        Assert.Single(explicitBoundary.Matches);
+        Assert.Contains("gamma\ndelta", body.TextPreview(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void FiltersByPropertyAndSemanticSubtree()
     {
         var document = Project(TestDocumentXml());

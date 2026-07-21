@@ -19,6 +19,11 @@
   fields, equations and every nested OfficeMath element, revisions, drawings,
   content controls, and unknown extension islands. Stable node IDs prefer
   durable Word anchors and do not depend on raw paragraph indices.
+- Extended the projection across Word's primary text-bearing stories: headers,
+  footers, footnotes, endnotes, comments, glossary building blocks and text
+  boxes. Story roots, note/comment bodies and their references carry source
+  part provenance and durable relationship or Word IDs; the existing main-body
+  node IDs do not drift when a related story changes.
 - Added the first lossless XML source model with exact byte spans, original
   prefixes/attributes/quotes/BOM retention, bounded secure parsing, guarded
   non-overlapping splices, and validated UTF-8/UTF-16/UTF-32/single-byte edits.
@@ -40,16 +45,17 @@
   a recovery backup by default, performs no write for a no-op, and fails closed
   on digitally signed packages.
 - Added the lazy, token-bounded `inspect_ooxml_semantics` MCP action.
-- Added 77 document-engine tests, including deterministic malformed-input,
+- Added 83 document-engine tests, including deterministic malformed-input,
   randomized relationship metadata and opaque-part round-trip fuzz smoke, plus
   300 randomized lexical text splices, multi-encoding/BOM preservation and
   semantic mutation provenance. A 52-document bundled corpus from Word,
   LibreOffice, Pandoc, POI and Mammoth now exercises every typed XML part and
   exact no-op source preservation, while native end-to-end package/semantic
   inspection retains all existing runtime tests.
-- The native host now has 47 tests, including end-to-end semantic query,
-  plan/apply, recovery-backup, plan-mismatch, signed-package and no-op coverage
-  that proves the saved-package path never invokes Word COM.
+- The native host now has 49 tests, including end-to-end semantic query,
+  cross-story header query/apply, schema parity, recovery-backup, plan-mismatch,
+  signed-package and no-op coverage that proves the saved-package path never
+  invokes Word COM.
 - Added a source-backed 2026 research matrix and the target lossless semantic
   document-engine architecture.
 
