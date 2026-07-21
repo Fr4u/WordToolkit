@@ -160,6 +160,24 @@ public sealed class LosslessXmlDocument
         CancellationToken cancellationToken = default
     )
     {
+        var patches = CreateElementTextPatches(
+            elementOrdinal,
+            newValue,
+            expectedValue,
+            preserveBoundaryWhitespace,
+            cancellationToken
+        );
+        return ApplyPatches(patches, expectedSourceSha256, cancellationToken);
+    }
+
+    internal IReadOnlyList<XmlSourcePatch> CreateElementTextPatches(
+        int elementOrdinal,
+        string newValue,
+        string? expectedValue,
+        bool preserveBoundaryWhitespace,
+        CancellationToken cancellationToken
+    )
+    {
         ArgumentNullException.ThrowIfNull(newValue);
         cancellationToken.ThrowIfCancellationRequested();
         var element = GetElement(elementOrdinal);
@@ -183,8 +201,7 @@ public sealed class LosslessXmlDocument
 
         if (string.Equals(element.Value, newValue, StringComparison.Ordinal))
         {
-            VerifySourcePrecondition(expectedSourceSha256);
-            return _sourceBytes.ToArray();
+            return Array.Empty<XmlSourcePatch>();
         }
 
         if (!element.IsSelfClosing && element.HasLexicalMarkupInContent)
@@ -275,7 +292,7 @@ public sealed class LosslessXmlDocument
             );
         }
 
-        return ApplyPatches(patches, expectedSourceSha256, cancellationToken);
+        return patches;
     }
 
     public byte[] ApplyPatches(

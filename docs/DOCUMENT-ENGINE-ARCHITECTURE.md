@@ -230,8 +230,9 @@ typed tree as storage.
 the package fingerprint, semantic node identity, source part, lexical element ordinal,
 projected text and part SHA-256 to agree; an optional caller-supplied expected value adds
 another gate. It changes only `w:t`, `w:delText`, or `m:t`, returns an isolated OPC
-mutation builder, and performs no write by itself. Multi-command planning, inverses,
-permission checks and incremental validation remain Phase 3 work.
+mutation builder, and performs no write by itself. The same primitive now feeds a
+bounded multi-command planner; broader commands, permission checks and incremental
+validation remain Phase 3 work.
 
 ### Layer 5: transactional command engine
 
@@ -269,6 +270,17 @@ Transaction phases:
 Live Word commands use Word's custom undo record only for the scoped live mutation.
 Package rollback remains independent, so a failure never calls broad `Undo()` across
 unrelated user work.
+
+The first transaction slice is implemented for batches of text-leaf commands.
+`WordSemanticTransactionPlanner` resolves every node against one package fingerprint,
+parses each affected part once, rejects duplicate targets, builds one ordered
+non-overlapping patch set per part, and returns a compact plan with operation counts,
+source ordinals, character counts and byte deltas. It deliberately does not expose
+per-text hashes or document content in plan metadata. The plan predicts the complete
+result package fingerprint, creates an isolated forward mutation, and can create an
+exact part-byte inverse only while the applied package still matches that predicted
+fingerprint. Neither forward nor inverse writes a file; atomic persistence remains a
+separate gated step.
 
 ### Layer 6: analysis services
 
@@ -428,9 +440,10 @@ No feature is “supported” until it passes the relevant gates:
 
 ### Phase 3 — safe edits
 
-- command schema, preconditions, plan/apply, inverse patches — **package/fingerprint/
-  node/part/text preconditions and one leaf-text command implemented; plan, inverse and
-  multi-command transaction remain**;
+- command schema, preconditions, plan/apply, inverse patches — **bounded multi-text
+  planning, package/node/part/text preconditions, one patch set per part, predicted
+  result fingerprint and exact part-byte inverse implemented; general commands,
+  permissions, approval and semantic inverses remain**;
 - style and numbering resolvers;
 - fields/references and review graph;
 - schema/semantic validation profiles.

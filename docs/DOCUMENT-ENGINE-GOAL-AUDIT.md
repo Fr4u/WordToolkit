@@ -43,9 +43,9 @@ vendor claim is not implementation evidence.
 |---|---|---|---|
 | Entry-hash preconditions | Implemented (strengthened initial slice) | Mutation builder plus XML source hash, package fingerprint, semantic node, source ordinal and expected-text gates | General semantic command predicates and destination/cloud version preconditions |
 | Atomic file persistence | Implemented (initial) | Sibling temp, flush, validate, recheck, replace, optional backup | Power-loss and filesystem fault injection across supported platforms |
-| Rollback | Partial | Candidate rejection leaves original unchanged; backup path; live Word undo grants exist | Inverse semantic patches and injected failure proof for every transaction phase |
-| Multi-command document transaction | Planned | Architecture contract | Plan/apply with isolated semantic commands, one validation gate and inverse set |
-| Optimistic concurrency | Partial | Package fingerprint checked before replacement; live document versions exist | Race tests, file identity/version integration, Graph/Drive ETag support |
+| Rollback | Partial (strengthened) | Candidate rejection leaves original unchanged; backup path; a text transaction can create an exact original-part-byte inverse only against its predicted result fingerprint; live Word undo grants exist | General semantic inverses and injected failure proof for every transaction phase |
+| Multi-command document transaction | Partial (text slice) | Bounded text commands resolve against one snapshot, parse each part once, reject duplicate targets, apply one validated patch set per part, predict the result fingerprint and retain an inverse payload | Heterogeneous semantic commands, permissions/approval, unified validation gate, durable recovery artifact and atomic orchestration |
+| Optimistic concurrency | Partial (strengthened) | Forward plan requires the base package fingerprint and part hashes; inverse requires the predicted result fingerprint and after-part hashes; live document versions exist | Race tests, file identity/version integration, Graph/Drive ETag support |
 | Security policy | Partial | ZIP/XML bounds, DTD ban, external links never fetched, MCP redaction | Macro/OLE/signature/custom XML/policy profiles, sandboxed adapters and threat model audit |
 | Privacy/content-minimizing telemetry | Planned | Architecture rules | Opt-in implementation, redaction tests, expiry and debug-bundle audit |
 
@@ -56,8 +56,8 @@ vendor claim is not implementation evidence.
 | Compact inspect | Implemented (initial) | `inspect_ooxml_package`, `inspect_ooxml_semantics`; per-field/item bounds | Paging/continuations, selectors, all stories, stable response budgets |
 | Semantic query/search | Not started | Outline projection only | Typed selectors, full-text/field/math/metadata queries and bounded aggregations |
 | Indexing | Not started | None | Incremental external index, invalidation and privacy controls |
-| AI planner | Not started | Architecture command example | Intent -> evidence -> typed plan -> cost/risk -> approval/apply |
-| Typed semantic mutations | Partial (first vertical slice) | `WordSemanticEditor.ReplaceText` edits only source-bound `w:t`, `w:delText` and `m:t`; preserves unrelated bytes; handles `xml:space`; rejects mixed lexical content and stale projections | Paragraph/run/table/field/math command set, plan/apply, affected-node proof, permissions and inverses |
+| AI planner | Partial foundation | Deterministic bounded text-command plans report targets, counts, source ordinals and byte impact without returning content | Natural-language intent -> evidence -> heterogeneous typed plan -> cost/risk -> approval/apply |
+| Typed semantic mutations | Partial (text transaction slice) | `WordSemanticEditor.ReplaceText` plus bounded multi-text plans edit only source-bound `w:t`, `w:delText` and `m:t`; preserve unrelated bytes; handle `xml:space`; reject mixed lexical content/stale projections; predict result fingerprint and retain exact part-byte inverse | Paragraph/run/table/field/math command set, affected-node proof, permissions, semantic inverses and durable recovery |
 | Validator | Partial | OPC diagnostics; historical SDK validator | Unified OPC/schema/extension/semantic/Word-open profiles and incremental validation |
 | Linter | Not started in new engine | Historical Python checks only | Rule packs with source spans, severity, suppression and fix metadata |
 | Formatter | Not started | Architecture only | Explicit previewed policies; no incidental formatting on save |

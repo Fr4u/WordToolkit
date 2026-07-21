@@ -25,8 +25,13 @@
 - Added the first typed semantic mutation: hash- and fingerprint-preconditioned
   replacement of source-bound Word or OfficeMath text leaves, including XML
   escaping, `xml:space` handling and fail-closed mixed-markup behavior.
+- Added bounded multi-text transaction planning. A plan parses each affected
+  part once, rejects duplicate targets, predicts the result package fingerprint,
+  creates one isolated forward mutation and retains an exact part-byte inverse
+  guarded by the applied fingerprint. Compact plan metadata omits text content
+  and per-text hashes.
 - Added the lazy, token-bounded `inspect_ooxml_semantics` MCP action.
-- Added 57 document-engine tests, including deterministic malformed-input,
+- Added 64 document-engine tests, including deterministic malformed-input,
   randomized relationship metadata and opaque-part round-trip fuzz smoke, plus
   300 randomized lexical text splices, multi-encoding/BOM preservation and
   semantic mutation provenance. A 52-document bundled corpus from Word,

@@ -1,8 +1,6 @@
-using System.Buffers.Binary;
 using System.Collections.ObjectModel;
 using System.IO.Compression;
 using System.Security.Cryptography;
-using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 
@@ -75,7 +73,7 @@ public sealed class OpcPackageReader
             contentTypes,
             relationships.AsReadOnly(),
             Array.AsReadOnly(orderedDiagnostics),
-            ComputeFingerprint(entries)
+            OpcPackageFingerprint.Compute(entries)
         );
     }
 
@@ -798,28 +796,4 @@ public sealed class OpcPackageReader
         return XDocument.Load(reader, LoadOptions.PreserveWhitespace | LoadOptions.SetLineInfo);
     }
 
-    private static string ComputeFingerprint(IEnumerable<OpcPackageEntry> entries)
-    {
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        foreach (
-            var entry in entries.OrderBy(entry => entry.Name, StringComparer.Ordinal)
-                .ThenBy(entry => entry.Sha256, StringComparer.Ordinal)
-        )
-        {
-            AppendHashField(hash, entry.Name);
-            AppendHashField(hash, entry.Sha256);
-            AppendHashField(hash, entry.UncompressedLength.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        }
-
-        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
-    }
-
-    private static void AppendHashField(IncrementalHash hash, string value)
-    {
-        var bytes = Encoding.UTF8.GetBytes(value);
-        Span<byte> length = stackalloc byte[sizeof(int)];
-        BinaryPrimitives.WriteInt32LittleEndian(length, bytes.Length);
-        hash.AppendData(length);
-        hash.AppendData(bytes);
-    }
 }
