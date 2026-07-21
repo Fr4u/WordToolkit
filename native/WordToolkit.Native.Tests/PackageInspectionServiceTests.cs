@@ -659,6 +659,151 @@ public sealed class PackageInspectionServiceTests
     }
 
     [Fact]
+    public async Task InspectsThemeAndResolvesThemeFormattingWithoutStartingWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-theme-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "theme.docx");
+            CreatePackage(
+                path,
+                stylesXml: """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+                    <w:rPr><w:rFonts w:asciiTheme="minorHAnsi"/><w:color w:val="95B3D7" w:themeColor="accent1" w:themeTint="99"/></w:rPr>
+                  </w:style>
+                </w:styles>
+                """,
+                themeXml: ThemeXml()
+            );
+            var service = new WordLiveService(new NoInvokeHost());
+            using var colorArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "colors",
+                    detail = "declared",
+                    offset = 4,
+                    max_items = 1,
+                    include_source = true,
+                })
+            );
+
+            var colorResult = await service.CallAsync(
+                "inspect_ooxml_theme",
+                colorArguments.RootElement,
+                CancellationToken.None
+            );
+            using var colorJson = JsonDocument.Parse(JsonSerializer.Serialize(colorResult));
+            var colorRoot = colorJson.RootElement;
+            var accent1 = colorRoot.GetProperty("items").EnumerateArray().Single();
+
+            Assert.True(colorRoot.GetProperty("has_theme_part").GetBoolean());
+            Assert.Equal("Office", colorRoot.GetProperty("theme_name").GetString());
+            Assert.Equal(12, colorRoot.GetProperty("matched_item_count").GetInt32());
+            Assert.Equal(5, colorRoot.GetProperty("next_offset").GetInt32());
+            Assert.Equal("accent1", accent1.GetProperty("slot").GetString());
+            Assert.Equal("4F81BD", accent1.GetProperty("base_rgb").GetString());
+            Assert.True(accent1.GetProperty("deterministically_resolvable").GetBoolean());
+            Assert.True(accent1.GetProperty("source_element_ordinal").GetInt32() > 0);
+
+            using var fontArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new { local_path = path, view = "fonts" })
+            );
+            var fontResult = await service.CallAsync(
+                "inspect_ooxml_theme",
+                fontArguments.RootElement,
+                CancellationToken.None
+            );
+            using var fontJson = JsonDocument.Parse(JsonSerializer.Serialize(fontResult));
+            Assert.Contains(
+                fontJson.RootElement.GetProperty("items").EnumerateArray(),
+                item => item.GetProperty("collection").GetString() == "minor"
+                    && item.GetProperty("role").GetString() == "latin"
+                    && item.GetProperty("typeface").GetString() == "Calibri"
+            );
+
+            var package = new OpcPackageReader().Read(path);
+            var runId = new WordSemanticProjector().Project(package).Nodes.Single(node =>
+                node.Kind == WordSemanticNodeKind.Run
+                && node.SourcePartUri == "/word/document.xml"
+            ).Id.Value;
+            using var formattingArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    node_id = runId,
+                    property_names = new[]
+                    {
+                        "font_ascii_theme",
+                        "font_ascii_resolved",
+                        "color_resolved_rgb",
+                    },
+                    include_provenance = true,
+                    include_source = true,
+                })
+            );
+            var formattingResult = await service.CallAsync(
+                "resolve_ooxml_formatting",
+                formattingArguments.RootElement,
+                CancellationToken.None
+            );
+            using var formattingJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(formattingResult)
+            );
+            var formatting = formattingJson.RootElement;
+
+            Assert.True(
+                formatting.GetProperty("theme").GetProperty("has_theme_part").GetBoolean()
+            );
+            Assert.Equal(
+                "Calibri",
+                formatting.GetProperty("run_properties")
+                    .GetProperty("font_ascii_resolved")
+                    .GetString()
+            );
+            Assert.Equal(
+                "95B3D7",
+                formatting.GetProperty("run_properties")
+                    .GetProperty("color_resolved_rgb")
+                    .GetString()
+            );
+            var themeContribution = formatting.GetProperty("provenance")
+                .GetProperty("run")
+                .GetProperty("font_ascii_resolved")
+                .GetProperty("contributions")
+                .EnumerateArray()
+                .Single();
+            Assert.Equal("theme", themeContribution.GetProperty("layer").GetString());
+            Assert.Equal(
+                "minorHAnsi",
+                themeContribution.GetProperty("theme_token").GetString()
+            );
+            Assert.Equal(
+                "minor",
+                themeContribution.GetProperty("theme_font_collection").GetString()
+            );
+            Assert.Equal(
+                "/word/theme/theme1.xml",
+                themeContribution.GetProperty("source_part_uri").GetString()
+            );
+            Assert.DoesNotContain(
+                formatting.GetProperty("coverage_omissions").EnumerateArray(),
+                value => value.GetString() == "theme_value_resolution"
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task PlansAndAtomicallyAppliesReviewedTextEditWithoutStartingWord()
     {
         var directory = Path.Combine(
@@ -946,7 +1091,8 @@ public sealed class PackageInspectionServiceTests
         string? stylesXml = null,
         string? paragraphPropertiesXml = null,
         string? runPropertiesXml = null,
-        string? numberingXml = null
+        string? numberingXml = null,
+        string? themeXml = null
     )
     {
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
@@ -963,6 +1109,9 @@ public sealed class PackageInspectionServiceTests
         var numberingOverride = numberingXml is null
             ? string.Empty
             : "<Override PartName=\"/word/numbering.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml\" />";
+        var themeOverride = themeXml is null
+            ? string.Empty
+            : "<Override PartName=\"/word/theme/theme1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.theme+xml\" />";
         WriteEntry(
             archive,
             "[Content_Types].xml",
@@ -975,6 +1124,7 @@ public sealed class PackageInspectionServiceTests
               {headerOverride}
               {stylesOverride}
               {numberingOverride}
+              {themeOverride}
             </Types>
             """
         );
@@ -1010,7 +1160,12 @@ public sealed class PackageInspectionServiceTests
             </w:document>
             """
         );
-        if (headerText is not null || stylesXml is not null || numberingXml is not null)
+        if (
+            headerText is not null
+            || stylesXml is not null
+            || numberingXml is not null
+            || themeXml is not null
+        )
         {
             var headerRelationship = headerText is null
                 ? string.Empty
@@ -1021,6 +1176,9 @@ public sealed class PackageInspectionServiceTests
             var numberingRelationship = numberingXml is null
                 ? string.Empty
                 : "<Relationship Id=\"rIdNumbering\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering\" Target=\"numbering.xml\" />";
+            var themeRelationship = themeXml is null
+                ? string.Empty
+                : "<Relationship Id=\"rIdTheme\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"theme/theme1.xml\" />";
             WriteEntry(
                 archive,
                 "word/_rels/document.xml.rels",
@@ -1029,6 +1187,7 @@ public sealed class PackageInspectionServiceTests
                   {headerRelationship}
                   {stylesRelationship}
                   {numberingRelationship}
+                  {themeRelationship}
                 </Relationships>
                 """
             );
@@ -1053,6 +1212,10 @@ public sealed class PackageInspectionServiceTests
         {
             WriteEntry(archive, "word/numbering.xml", numberingXml);
         }
+        if (themeXml is not null)
+        {
+            WriteEntry(archive, "word/theme/theme1.xml", themeXml);
+        }
         if (signed)
         {
             WriteEntry(
@@ -1062,6 +1225,33 @@ public sealed class PackageInspectionServiceTests
             );
         }
     }
+
+    private static string ThemeXml() =>
+        """
+        <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Office">
+          <a:themeElements>
+            <a:clrScheme name="Office">
+              <a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>
+              <a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>
+              <a:dk2><a:srgbClr val="1F497D"/></a:dk2>
+              <a:lt2><a:srgbClr val="EEECE1"/></a:lt2>
+              <a:accent1><a:srgbClr val="4F81BD"/></a:accent1>
+              <a:accent2><a:srgbClr val="C0504D"/></a:accent2>
+              <a:accent3><a:srgbClr val="9BBB59"/></a:accent3>
+              <a:accent4><a:srgbClr val="8064A2"/></a:accent4>
+              <a:accent5><a:srgbClr val="4BACC6"/></a:accent5>
+              <a:accent6><a:srgbClr val="F79646"/></a:accent6>
+              <a:hlink><a:srgbClr val="0000FF"/></a:hlink>
+              <a:folHlink><a:srgbClr val="800080"/></a:folHlink>
+            </a:clrScheme>
+            <a:fontScheme name="Office">
+              <a:majorFont><a:latin typeface="Cambria"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>
+              <a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>
+            </a:fontScheme>
+            <a:fmtScheme name="Office"><a:fillStyleLst/><a:lnStyleLst/><a:effectStyleLst/><a:bgFillStyleLst/></a:fmtScheme>
+          </a:themeElements>
+        </a:theme>
+        """;
 
     private static void WriteEntry(ZipArchive archive, string name, string content)
     {

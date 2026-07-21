@@ -23,6 +23,7 @@ internal sealed class ToolCatalog
         "inspect_ooxml_sections",
         "inspect_ooxml_styles",
         "inspect_ooxml_numbering",
+        "inspect_ooxml_theme",
         "resolve_ooxml_formatting",
         "plan_ooxml_text_edits",
         "apply_ooxml_text_edits",

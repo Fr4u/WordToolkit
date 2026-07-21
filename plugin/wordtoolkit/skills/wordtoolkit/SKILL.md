@@ -49,8 +49,8 @@ visible names. Filter by style type and keep `detail=metadata` for discovery;
 request declared properties, document defaults, latent exceptions, or
 base-first inheritance only when the next decision consumes them. Treat an
 unresolvable `basedOn` chain as evidence of document damage, not as permission
-to invent effective formatting. This action is read-only and does not yet
-resolve conditional table styles, theme values, numbering levels, or direct formatting.
+to invent effective formatting. This action is read-only and reports declarations;
+use the dedicated resolvers for numbering, themes, and effective node formatting.
 Use lazy `inspect_ooxml_numbering` instead of reading `numbering.xml`. Keep the
 default `view=instances` and `detail=metadata` for discovery. Filter by
 `number_id` or `abstract_number_id`; request `view=resolved_level` with one
@@ -58,17 +58,25 @@ default `view=instances` and `detail=metadata` for discovery. Filter by
 Use `detail=declared` and `include_source=true` only for property or corruption
 diagnosis. Treat missing targets, circular style links, mismatched overrides and
 out-of-range levels as damage; never invent a list definition.
+Use lazy `inspect_ooxml_theme` instead of loading `theme1.xml`. Keep
+`view=colors` or `view=fonts` and `detail=metadata` for ordinary decisions;
+request declarations, transforms, unknown markup, or source ordinals only when
+the next step consumes that evidence. An empty East Asian or complex-script
+primary typeface is language-dependent, not permission to substitute a Latin
+font. Environmental system colors and DrawingML transform chains that cannot be
+resolved deterministically remain explicit diagnostics.
 After obtaining a paragraph or run ID, use lazy `resolve_ooxml_formatting` only
 when a formatting decision needs more than the declared style. Filter
 `property_names` aggressively and leave provenance/source disabled unless the
 next decision must explain an override. Treat `coverage_omissions` and
 `compatibility_warnings` as hard limits: the action resolves modeled defaults,
-paragraph styles, an effective numbering level, character styles and direct
-properties, but does not pretend that conditional table styles, theme values,
-revision views, application defaults or documented Word compatibility edges are
-final rendering. Its compact `numbering` block is enough for most list decisions;
-call `inspect_ooxml_numbering` only when the graph or declared level details are
-actually needed.
+paragraph styles, an effective numbering level, character styles, direct
+properties, concrete theme fonts, and theme RGB colors. It does not pretend that
+conditional table styles, language-dependent theme fallback, Office's private
+HSL quantization, revision views, application defaults, or documented Word
+compatibility edges are final rendering. Its compact `numbering` and `theme`
+blocks are enough for most decisions; call the dedicated graph inspectors only
+when their declarations or diagnostics are actually needed.
 For a saved-package text edit, use this strict lazy workflow:
 
 1. Query the narrowest possible `text` nodes and retain the package fingerprint.

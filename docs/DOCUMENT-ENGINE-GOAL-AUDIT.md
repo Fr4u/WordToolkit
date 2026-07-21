@@ -53,7 +53,7 @@ vendor claim is not implementation evidence.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Compact inspect | Implemented (strengthened initial slice) | `inspect_ooxml_package`, `inspect_ooxml_semantics`, lazy `query_ooxml_semantics`, `inspect_ooxml_sections`, `inspect_ooxml_styles`, `inspect_ooxml_numbering` and filtered `resolve_ooxml_formatting`; projected-part inventory, per-field/item bounds and offset paging | Opaque continuation tokens, remaining auxiliary/versioned parts and measured stable response budgets |
+| Compact inspect | Implemented (strengthened initial slice) | `inspect_ooxml_package`, `inspect_ooxml_semantics`, lazy `query_ooxml_semantics`, `inspect_ooxml_sections`, `inspect_ooxml_styles`, `inspect_ooxml_numbering`, `inspect_ooxml_theme` and filtered `resolve_ooxml_formatting`; projected-part inventory, per-field/item bounds and offset paging | Opaque continuation tokens, remaining auxiliary/versioned parts and measured stable response budgets |
 | Semantic query/search | Partial (strengthened initial) | Source-ordered kind/property/part/subtree selectors across main, header/footer, note, comment, glossary and text-box stories; streaming contains/equals/starts/ends matching crosses run/field/tab/break boundaries; bounded optional previews/properties/provenance | Fields/math/metadata-aware predicates, structural relationship joins, aggregations and query planner |
 | Indexing | Not started | None | Incremental external index, invalidation and privacy controls |
 | AI planner | Partial foundation | Deterministic bounded text-command plans report targets, counts, source ordinals and byte impact without returning content; lazy stateless MCP plan/apply requires reviewed plan ID and snapshot fingerprint | Natural-language intent -> evidence -> heterogeneous typed plan -> cost/risk -> richer approval policy |
@@ -72,7 +72,7 @@ vendor claim is not implementation evidence.
 |---|---|---|---|
 | Paragraphs/runs/tables | Partial | Source-linked projection plus first lossless text-leaf edit; live COM editing | Structural typed edits, effective properties, merge/split and layout tests |
 | Sections/headers/footers/notes | Partial (strengthened) | Primary story roots/bodies/references and lossless text edits; section boundaries/page properties plus first/even/default explicit/inherited/blank/effective bindings; unbound-part inventory | Section structural edits, link-to-previous mutation, separator/numbering semantics and layout proof |
-| Styles/themes/direct formatting | Partial (typed graph + modeled effective slice) | Source-linked style inventory, document defaults, latent metadata, four style types and inheritance diagnostics; paragraph/run resolver applies defaults, base-first paragraph styles, effective numbering levels, character styles and direct formatting with per-property provenance and standard toggle transitions, while emitting explicit coverage gaps | Add conditional table/theme/revision/application-default resolution, broader Word-specific compatibility, drift lint and safe refactor |
+| Styles/themes/direct formatting | Partial (typed graphs + modeled effective slice) | Source-linked style and Office theme inventories; document defaults, latent metadata, four style types, all 12 theme colors, major/minor and supplemental fonts, format-scheme counts and inheritance diagnostics; paragraph/run resolver applies defaults, base-first paragraph styles, effective numbering levels, character styles and direct formatting, then derives deterministic theme fonts/RGB values with provenance and explicit ambiguity | Add conditional table/revision/application-default resolution, language-aware theme fallback, exact Word color quantization, broader Word-specific compatibility, drift lint and safe refactor |
 | Numbering/lists | Partial (typed graph + effective-level slice) | Exact relationship/root validation; source-linked picture/abstract/instance/level/override inventory; `numStyleLink`/`styleLink` chains, start overrides, corruption diagnostics, compact MCP inspection and effective formatting integration | Counter-state traversal across paragraphs, restart semantics in sequence, label rendering, structural edits, repair/rebuild and layout proof |
 | Fields/bookmarks/cross-references | Partial | Semantic field/bookmark recognition; live actions | Dependency graph, nested-field parser, update capability and safe edits |
 | TOC/TOF/TOT/captions | Not started in new engine | Existing live actions/historical tests | Reference graph, field update, layout and round-trip tests |
@@ -118,9 +118,9 @@ it does not mean the engine understands or can edit it.
 | package relationships | Implemented (strengthened initial slice) | Format-specific relationship constraints, signature transforms, repair and broad corpus proof |
 | content types | Implemented (initial) | MIME/parameter validation and repair |
 | `document.xml` | Partial (strengthened) | Main part is projected through the lossless byte-span model and supports guarded leaf-text splice; full typed vocabulary remains |
-| `styles.xml` | Partial (typed read graph) | Defaults, latent metadata, four style types, inheritance diagnostics and modeled effective formatting exist; conditional table/theme integration and mutations remain |
+| `styles.xml` | Partial (typed read graph) | Defaults, latent metadata, four style types, inheritance diagnostics, theme integration and modeled effective formatting exist; conditional table behavior and mutations remain |
 | `numbering.xml` | Partial (typed read graph) | Picture/abstract/instance/level/override/style-link graph and one-level effective resolution exist; sequential counters, mutations and repair remain |
-| theme | Not started | Theme/font/color resolution and mutation |
+| theme | Partial (typed read graph + effective resolution) | Exact relationship/content/root validation; all twelve color slots; system fallback, transform and environment diagnostics; major/minor primary and supplemental fonts; format-scheme inventory; compact MCP views; deterministic theme font/RGB provenance in effective formatting | Language/settings-driven script fallback, full DrawingML color transform evaluation, exact Word quantization, mutation and visual proof |
 | settings | Not started | Compatibility/protection/mail-merge/settings model |
 | fontTable | Not started | Font metadata, embedding, fallback and substitution |
 | comments | Partial | Standard comment bodies, IDs, authorship, anchors and lossless text edits; threaded metadata missing |
@@ -162,7 +162,7 @@ it does not mean the engine understands or can edit it.
 | permissions | Not started | PermStart/PermEnd ranges and enforcement |
 | protection | Not started | Settings hashes, edit restrictions and capability checks |
 | revision IDs | Partial | Some durable IDs read; global identity/collision/version semantics missing |
-| style inheritance | Partial | Base-first `basedOn` graph, default selection, link diagnostics and modeled property provenance exist; theme/table/version behavior and mutations remain |
+| style inheritance | Partial | Base-first `basedOn` graph, default selection, link diagnostics, modeled property provenance and deterministic theme dereferencing exist; conditional table/version behavior and mutations remain |
 | numbering inheritance | Partial | Abstract/instance/full-level/start override and numbering-style indirection resolve with provenance; paragraph-sequence counters, restart execution and edits remain |
 | XML namespaces | Partial (strengthened) | Prefixes, declaration placement, expanded element/attribute names and untouched bytes are retained; general namespace-changing edits remain |
 | compatibility mode | Opaque only | `compatSetting` interpretation and version behavior probes |
@@ -244,7 +244,7 @@ automatic OOXML execution required by the goal.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Unit/regression tests | Partial | 109 engine, 53 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
+| Unit/regression tests | Partial | 118 engine, 54 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
 | Property/fuzz testing | Partial | Deterministic malformed bytes and random opaque round-trip smoke | Continuous coverage-guided fuzzing, minimized corpus and resource assertions |
 | Fault injection | Not started | Validation/concurrency failure tests only | Every persistence/transaction phase, disk-full, denied, crash and race tests |
 | Preservation benchmark | Partial | Entry hashes and random no-op round trip | Public producer/feature corpus with untouched part/subtree metrics |
@@ -257,8 +257,8 @@ automatic OOXML execution required by the goal.
 
 ## Current checkpoint evidence
 
-- `dotnet test native/WordToolkit.Engine.Tests` — 109 passed.
-- `dotnet test native/WordToolkit.Native.Tests` — 53 passed.
+- `dotnet test native/WordToolkit.Engine.Tests` — 118 passed.
+- `dotnet test native/WordToolkit.Native.Tests` — 54 passed.
 - `.venv/Scripts/python -m pytest -q` — 1273 passed, 16 intentionally skipped.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
@@ -279,5 +279,9 @@ automatic OOXML execution required by the goal.
   precedence and token-bounded MCP inspection were exercised against constructed edge
   cases and every bundled DOCX numbering part. The POI, Mammoth and Pandoc list fixtures
   produced zero numbering-graph diagnostics.
+- Theme relationship/content/root validation, all color/font/format inventories,
+  deterministic font and tint/shade resolution, direct composite overrides,
+  provenance, quantization diagnostics and token-bounded MCP inspection were exercised
+  against constructed edge cases and every theme part in the bundled DOCX corpus.
 
 These numbers prove only the rows they touch. They do not collapse the remaining work.

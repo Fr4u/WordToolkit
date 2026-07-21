@@ -59,11 +59,17 @@ internal sealed partial class WordLiveService
                 styles,
                 cancellationToken
             );
+            var theme = new WordThemeGraphBuilder().Build(
+                package,
+                semantic,
+                cancellationToken
+            );
             var formatting = new WordEffectiveFormattingResolver().Resolve(
                 package,
                 semantic,
                 styles,
                 numbering,
+                theme,
                 new SemanticNodeId(nodeIdValue),
                 cancellationToken
             );
@@ -94,6 +100,22 @@ internal sealed partial class WordLiveService
                 ),
                 numbering = FormattingNumbering(formatting.Numbering, includeSource),
                 numbering_removed = formatting.NumberingRemoved ? true : (bool?)null,
+                theme = new
+                {
+                    has_theme_part = theme.HasThemePart,
+                    name = BoundForResponse(theme.Name, 512),
+                    color_scheme_name = BoundForResponse(
+                        theme.ColorScheme?.Name,
+                        512
+                    ),
+                    font_scheme_name = BoundForResponse(
+                        theme.FontScheme?.Name,
+                        512
+                    ),
+                    part_uri = includeSource
+                        ? BoundForResponse(theme.ThemePartUri, 512)
+                        : null,
+                },
                 source_part_uri = includeSource
                     ? BoundForResponse(formatting.SourcePartUri, 512)
                     : null,
@@ -170,6 +192,22 @@ internal sealed partial class WordLiveService
             throw new NativeToolException(
                 "INVALID_WORD_PACKAGE",
                 "The package cannot be resolved into a Word numbering graph",
+                new { reason = BoundForResponse(exception.Message, 512) }
+            );
+        }
+        catch (WordThemeLimitException exception)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "Theme graph exceeds a bounded safety limit",
+                new { reason = BoundForResponse(exception.Message, 512) }
+            );
+        }
+        catch (WordThemeProjectionException exception)
+        {
+            throw new NativeToolException(
+                "INVALID_WORD_PACKAGE",
+                "The package cannot be resolved into a Word theme graph",
                 new { reason = BoundForResponse(exception.Message, 512) }
             );
         }
@@ -359,6 +397,14 @@ internal sealed partial class WordLiveService
                 level_index = item.LevelIndex,
                 numbering_level_source = item.NumberingLevelSourceKind is { } levelSource
                     ? ToSnakeCase(levelSource.ToString())
+                    : null,
+                theme_token = BoundForResponse(item.ThemeToken, 128),
+                theme_color_slot = BoundForResponse(item.ThemeColorSlot, 64),
+                theme_font_collection = item.ThemeFontCollection is { } fontCollection
+                    ? ToSnakeCase(fontCollection.ToString())
+                    : null,
+                theme_font_role = item.ThemeFontRole is { } fontRole
+                    ? ToSnakeCase(fontRole.ToString())
                     : null,
                 declared_value = BoundForResponse(item.DeclaredValue, 160),
                 resulting_value = BoundForResponse(item.ResultingValue, 160),

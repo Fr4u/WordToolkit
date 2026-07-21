@@ -97,6 +97,7 @@ public sealed class McpServerTests
                 "inspect_ooxml_sections",
                 "inspect_ooxml_styles",
                 "inspect_ooxml_numbering",
+                "inspect_ooxml_theme",
                 "resolve_ooxml_formatting",
                 "plan_ooxml_text_edits",
                 "apply_ooxml_text_edits",
@@ -138,7 +139,7 @@ public sealed class McpServerTests
         ) + "\n";
         var output = new StringWriter();
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(57, catalog.ActionCount);
+        Assert.Equal(58, catalog.ActionCount);
         var server = new McpServer(
             new StringReader(input),
             output,

@@ -14,6 +14,7 @@ public enum WordFormattingSourceKind
     CharacterStyle,
     DirectParagraphFormatting,
     DirectRunFormatting,
+    Theme,
 }
 
 public sealed record WordFormattingContribution(
@@ -26,7 +27,11 @@ public sealed record WordFormattingContribution(
     int? NumberId = null,
     int? AbstractNumberId = null,
     int? LevelIndex = null,
-    WordNumberingLevelSourceKind? NumberingLevelSourceKind = null
+    WordNumberingLevelSourceKind? NumberingLevelSourceKind = null,
+    string? ThemeToken = null,
+    string? ThemeColorSlot = null,
+    WordThemeFontCollectionKind? ThemeFontCollection = null,
+    WordThemeFontRole? ThemeFontRole = null
 );
 
 public sealed class WordEffectiveFormattingProperty
@@ -180,6 +185,106 @@ public sealed class WordEffectiveFormattingResolver
         "strike",
     ];
 
+    private static readonly IReadOnlyList<IReadOnlyList<string>> RunCompositePropertyGroups =
+    [
+        ["font_ascii", "font_ascii_theme"],
+        ["font_high_ansi", "font_high_ansi_theme"],
+        ["font_east_asia", "font_east_asia_theme"],
+        ["font_complex_script", "font_complex_script_theme"],
+        ["color_value", "color_theme", "color_theme_tint", "color_theme_shade"],
+        [
+            "underline_value",
+            "underline_color",
+            "underline_theme",
+            "underline_theme_tint",
+            "underline_theme_shade",
+        ],
+        [
+            "shading_pattern",
+            "shading_color",
+            "shading_fill",
+            "shading_theme_color",
+            "shading_theme_tint",
+            "shading_theme_shade",
+            "shading_theme_fill",
+            "shading_theme_fill_tint",
+            "shading_theme_fill_shade",
+        ],
+    ];
+
+    private static readonly IReadOnlyList<IReadOnlyList<string>> ParagraphCompositePropertyGroups =
+    [
+        [
+            "shading_pattern",
+            "shading_color",
+            "shading_fill",
+            "shading_theme_color",
+            "shading_theme_tint",
+            "shading_theme_shade",
+            "shading_theme_fill",
+            "shading_theme_fill_tint",
+            "shading_theme_fill_shade",
+        ],
+    ];
+
+    private static readonly IReadOnlyList<ThemeFontBinding> ThemeFontBindings =
+    [
+        new("font_ascii_theme", "font_ascii_resolved"),
+        new("font_high_ansi_theme", "font_high_ansi_resolved"),
+        new("font_east_asia_theme", "font_east_asia_resolved"),
+        new("font_complex_script_theme", "font_complex_script_resolved"),
+    ];
+
+    private static readonly IReadOnlyList<ThemeColorBinding> RunThemeColorBindings =
+    [
+        new(
+            "color_theme",
+            "color_theme_tint",
+            "color_theme_shade",
+            "color_value",
+            "color_resolved_rgb"
+        ),
+        new(
+            "underline_theme",
+            "underline_theme_tint",
+            "underline_theme_shade",
+            "underline_color",
+            "underline_resolved_rgb"
+        ),
+        new(
+            "shading_theme_color",
+            "shading_theme_tint",
+            "shading_theme_shade",
+            "shading_color",
+            "shading_color_resolved_rgb"
+        ),
+        new(
+            "shading_theme_fill",
+            "shading_theme_fill_tint",
+            "shading_theme_fill_shade",
+            "shading_fill",
+            "shading_fill_resolved_rgb"
+        ),
+    ];
+
+    private static readonly IReadOnlyList<ThemeColorBinding> ParagraphThemeColorBindings =
+    [
+        new(
+            "shading_theme_color",
+            "shading_theme_tint",
+            "shading_theme_shade",
+            "shading_color",
+            "shading_color_resolved_rgb"
+        ),
+        new(
+            "shading_theme_fill",
+            "shading_theme_fill_tint",
+            "shading_theme_fill_shade",
+            "shading_fill",
+            "shading_fill_resolved_rgb"
+        ),
+    ];
+
     private readonly WordEffectiveFormattingOptions _options;
 
     public WordEffectiveFormattingResolver(
@@ -201,6 +306,7 @@ public sealed class WordEffectiveFormattingResolver
         semanticDocument,
         styleGraph,
         numberingGraph: null,
+        themeGraph: null,
         nodeId,
         cancellationToken
     );
@@ -220,6 +326,51 @@ public sealed class WordEffectiveFormattingResolver
             semanticDocument,
             styleGraph,
             numberingGraph,
+            themeGraph: null,
+            nodeId,
+            cancellationToken
+        );
+    }
+
+    public WordEffectiveFormatting Resolve(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordStyleGraph styleGraph,
+        WordThemeGraph themeGraph,
+        SemanticNodeId nodeId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(themeGraph);
+        return ResolveCore(
+            package,
+            semanticDocument,
+            styleGraph,
+            numberingGraph: null,
+            themeGraph,
+            nodeId,
+            cancellationToken
+        );
+    }
+
+    public WordEffectiveFormatting Resolve(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordStyleGraph styleGraph,
+        WordNumberingGraph numberingGraph,
+        WordThemeGraph themeGraph,
+        SemanticNodeId nodeId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(numberingGraph);
+        ArgumentNullException.ThrowIfNull(themeGraph);
+        return ResolveCore(
+            package,
+            semanticDocument,
+            styleGraph,
+            numberingGraph,
+            themeGraph,
             nodeId,
             cancellationToken
         );
@@ -230,6 +381,7 @@ public sealed class WordEffectiveFormattingResolver
         WordSemanticDocument semanticDocument,
         WordStyleGraph styleGraph,
         WordNumberingGraph? numberingGraph,
+        WordThemeGraph? themeGraph,
         SemanticNodeId nodeId,
         CancellationToken cancellationToken
     )
@@ -238,7 +390,13 @@ public sealed class WordEffectiveFormattingResolver
         ArgumentNullException.ThrowIfNull(semanticDocument);
         ArgumentNullException.ThrowIfNull(styleGraph);
         cancellationToken.ThrowIfCancellationRequested();
-        ValidateSnapshots(package, semanticDocument, styleGraph, numberingGraph);
+        ValidateSnapshots(
+            package,
+            semanticDocument,
+            styleGraph,
+            numberingGraph,
+            themeGraph
+        );
         if (!semanticDocument.TryGetNode(nodeId, out var selected) || selected is null)
         {
             throw new WordFormattingResolutionException(
@@ -555,13 +713,22 @@ public sealed class WordEffectiveFormattingResolver
             omissions.Add("word_style_numbering_level_compatibility");
         }
 
-        if (
-            paragraphStates.Keys.Concat(runStates.Keys).Any(name =>
-                name.Contains("theme", StringComparison.Ordinal)
-            )
-        )
+        var hasThemeReferences = paragraphStates.Keys.Concat(runStates.Keys).Any(name =>
+            name.Contains("theme", StringComparison.Ordinal)
+        );
+        if (hasThemeReferences && themeGraph is null)
         {
             omissions.Add("theme_value_resolution");
+        }
+        else if (hasThemeReferences)
+        {
+            ResolveThemeValues(
+                themeGraph!,
+                paragraphStates,
+                runStates,
+                omissions,
+                warnings
+            );
         }
 
         if (HasAncestor(semanticDocument, selected, WordSemanticNodeKind.Revision))
@@ -574,6 +741,7 @@ public sealed class WordEffectiveFormattingResolver
             omissions.Add("unmodeled_property_elements");
         }
 
+        var hasDefaultTrueToggleWarning = false;
         foreach (var pair in runStates)
         {
             if (
@@ -586,9 +754,10 @@ public sealed class WordEffectiveFormattingResolver
                 warnings.Add(
                     $"{pair.Key}: Microsoft Word's default-true multi-level toggle behavior differs from the base ECMA rule."
                 );
+                hasDefaultTrueToggleWarning = true;
             }
         }
-        if (warnings.Count != 0)
+        if (hasDefaultTrueToggleWarning)
         {
             omissions.Add("word_default_true_toggle_compatibility");
         }
@@ -610,11 +779,203 @@ public sealed class WordEffectiveFormattingResolver
         );
     }
 
+    private static void ResolveThemeValues(
+        WordThemeGraph themeGraph,
+        Dictionary<string, MutableProperty> paragraphStates,
+        Dictionary<string, MutableProperty> runStates,
+        List<string> omissions,
+        List<string> warnings
+    )
+    {
+        if (!themeGraph.HasThemePart || themeGraph.ThemePartUri is null)
+        {
+            omissions.Add("theme_value_resolution");
+            warnings.Add(
+                "Theme-backed formatting is active, but the document has no usable Office theme part."
+            );
+            return;
+        }
+
+        foreach (var binding in ThemeFontBindings)
+        {
+            if (!runStates.TryGetValue(binding.ThemeProperty, out var themeValue))
+            {
+                continue;
+            }
+
+            try
+            {
+                var resolved = themeGraph.ResolveFont(themeValue.Value);
+                ApplyResolvedProperty(
+                    runStates,
+                    binding.ResolvedProperty,
+                    themeValue.Value,
+                    resolved.Typeface,
+                    new FormattingSource(
+                        WordFormattingSourceKind.Theme,
+                        null,
+                        themeGraph.ThemePartUri,
+                        resolved.SourceElementOrdinal,
+                        StyleLevel: false,
+                        ThemeToken: resolved.RequestedToken,
+                        ThemeFontCollection: resolved.CollectionKind,
+                        ThemeFontRole: resolved.Role
+                    )
+                );
+            }
+            catch (WordThemeResolutionException exception)
+            {
+                omissions.Add(
+                    exception.Message.Contains(
+                        "language-dependent",
+                        StringComparison.Ordinal
+                    )
+                        ? "theme_language_font_resolution"
+                        : "theme_font_value_resolution"
+                );
+                warnings.Add($"{binding.ThemeProperty}: {exception.Message}");
+            }
+        }
+
+        ResolveThemeColors(
+            themeGraph,
+            paragraphStates,
+            ParagraphThemeColorBindings,
+            omissions,
+            warnings
+        );
+        ResolveThemeColors(
+            themeGraph,
+            runStates,
+            RunThemeColorBindings,
+            omissions,
+            warnings
+        );
+    }
+
+    private static void ResolveThemeColors(
+        WordThemeGraph themeGraph,
+        Dictionary<string, MutableProperty> states,
+        IReadOnlyList<ThemeColorBinding> bindings,
+        List<string> omissions,
+        List<string> warnings
+    )
+    {
+        foreach (var binding in bindings)
+        {
+            var tint = states.TryGetValue(binding.TintProperty, out var tintValue)
+                ? tintValue.Value
+                : null;
+            var shade = states.TryGetValue(binding.ShadeProperty, out var shadeValue)
+                ? shadeValue.Value
+                : null;
+            if (!states.TryGetValue(binding.ThemeProperty, out var themeValue))
+            {
+                if (tint is not null || shade is not null)
+                {
+                    omissions.Add("theme_color_value_resolution");
+                    warnings.Add(
+                        $"{binding.ResolvedProperty}: theme tint or shade is present without its required theme color token."
+                    );
+                }
+                continue;
+            }
+
+            try
+            {
+                var resolved = themeGraph.ResolveColor(themeValue.Value, tint, shade);
+                ApplyResolvedProperty(
+                    states,
+                    binding.ResolvedProperty,
+                    themeValue.Value,
+                    resolved.EffectiveRgb,
+                    new FormattingSource(
+                        WordFormattingSourceKind.Theme,
+                        null,
+                        themeGraph.ThemePartUri!,
+                        resolved.SourceElementOrdinal,
+                        StyleLevel: false,
+                        ThemeToken: resolved.RequestedToken,
+                        ThemeColorSlot: resolved.ColorSlot
+                    )
+                );
+
+                if (
+                    states.TryGetValue(binding.CachedProperty, out var cachedValue)
+                    && TryNormalizeRgb(cachedValue.Value, out var cachedRgb)
+                    && !string.Equals(
+                        cachedRgb,
+                        resolved.EffectiveRgb,
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    if (tint is not null || shade is not null)
+                    {
+                        omissions.Add("theme_color_transform_word_quantization");
+                        warnings.Add(
+                            $"{binding.ResolvedProperty}: computed theme color {resolved.EffectiveRgb} differs from cached WordprocessingML color {cachedRgb}; Office uses implementation-specific HSL quantization."
+                        );
+                    }
+                    else
+                    {
+                        warnings.Add(
+                            $"{binding.ResolvedProperty}: resolved theme color {resolved.EffectiveRgb} differs from cached WordprocessingML color {cachedRgb}."
+                        );
+                    }
+                }
+            }
+            catch (WordThemeResolutionException exception)
+            {
+                omissions.Add("theme_color_value_resolution");
+                warnings.Add($"{binding.ThemeProperty}: {exception.Message}");
+            }
+        }
+    }
+
+    private static void ApplyResolvedProperty(
+        Dictionary<string, MutableProperty> states,
+        string propertyName,
+        string declaredValue,
+        string resolvedValue,
+        FormattingSource source
+    )
+    {
+        if (!states.TryGetValue(propertyName, out var state))
+        {
+            state = new MutableProperty(propertyName, isToggle: false);
+            states.Add(propertyName, state);
+        }
+
+        state.Apply(resolvedValue, source, declaredValue);
+    }
+
+    private static bool TryNormalizeRgb(string value, out string normalized)
+    {
+        normalized = string.Empty;
+        if (
+            value.Length != 6
+            || !uint.TryParse(
+                value,
+                NumberStyles.AllowHexSpecifier,
+                CultureInfo.InvariantCulture,
+                out _
+            )
+        )
+        {
+            return false;
+        }
+
+        normalized = value.ToUpperInvariant();
+        return true;
+    }
+
     private static void ValidateSnapshots(
         OpcPackageSnapshot package,
         WordSemanticDocument semanticDocument,
         WordStyleGraph styleGraph,
-        WordNumberingGraph? numberingGraph
+        WordNumberingGraph? numberingGraph,
+        WordThemeGraph? themeGraph
     )
     {
         if (
@@ -626,10 +987,15 @@ public sealed class WordEffectiveFormattingResolver
                     !string.Equals(package.Fingerprint, numberingGraph.PackageFingerprint, StringComparison.Ordinal)
                     || !string.Equals(semanticDocument.MainPartUri, numberingGraph.MainPartUri, StringComparison.Ordinal)
                 )
+            || themeGraph is not null
+                && (
+                    !string.Equals(package.Fingerprint, themeGraph.PackageFingerprint, StringComparison.Ordinal)
+                    || !string.Equals(semanticDocument.MainPartUri, themeGraph.MainPartUri, StringComparison.Ordinal)
+                )
         )
         {
             throw new WordFormattingResolutionException(
-                "Effective formatting requires package, semantic, and style snapshots from the same document version."
+                "Effective formatting requires package, semantic, style, numbering, and theme snapshots from the same document version."
             );
         }
     }
@@ -1004,6 +1370,13 @@ public sealed class WordEffectiveFormattingResolver
         bool isRunProperties
     )
     {
+        ClearSupersededCompositeProperties(
+            states,
+            propertySet.Values,
+            isRunProperties
+                ? RunCompositePropertyGroups
+                : ParagraphCompositePropertyGroups
+        );
         foreach (var pair in propertySet.Values.OrderBy(pair => pair.Key, StringComparer.Ordinal))
         {
             var isToggle = isRunProperties && ToggleRunProperties.Contains(pair.Key);
@@ -1020,6 +1393,29 @@ public sealed class WordEffectiveFormattingResolver
             }
 
             state.Apply(pair.Value, source);
+        }
+    }
+
+    private static void ClearSupersededCompositeProperties(
+        Dictionary<string, MutableProperty> states,
+        IReadOnlyDictionary<string, string> incoming,
+        IReadOnlyList<IReadOnlyList<string>> groups
+    )
+    {
+        foreach (var group in groups)
+        {
+            if (!group.Any(incoming.ContainsKey))
+            {
+                continue;
+            }
+
+            foreach (var name in group)
+            {
+                if (!incoming.ContainsKey(name))
+                {
+                    states.Remove(name);
+                }
+            }
         }
     }
 
@@ -1049,7 +1445,24 @@ public sealed class WordEffectiveFormattingResolver
         int? NumberId = null,
         int? AbstractNumberId = null,
         int? LevelIndex = null,
-        WordNumberingLevelSourceKind? NumberingLevelSourceKind = null
+        WordNumberingLevelSourceKind? NumberingLevelSourceKind = null,
+        string? ThemeToken = null,
+        string? ThemeColorSlot = null,
+        WordThemeFontCollectionKind? ThemeFontCollection = null,
+        WordThemeFontRole? ThemeFontRole = null
+    );
+
+    private sealed record ThemeFontBinding(
+        string ThemeProperty,
+        string ResolvedProperty
+    );
+
+    private sealed record ThemeColorBinding(
+        string ThemeProperty,
+        string TintProperty,
+        string ShadeProperty,
+        string CachedProperty,
+        string ResolvedProperty
     );
 
     private sealed record NumberingReference(
@@ -1084,7 +1497,11 @@ public sealed class WordEffectiveFormattingResolver
 
         public WordFormattingSourceKind? LastSourceKind { get; private set; }
 
-        public void Apply(string declaredValue, FormattingSource source)
+        public void Apply(
+            string declaredValue,
+            FormattingSource source,
+            string? contributionDeclaredValue = null
+        )
         {
             if (IsToggle)
             {
@@ -1132,12 +1549,16 @@ public sealed class WordEffectiveFormattingResolver
                     source.StyleId,
                     source.PartUri,
                     source.ElementOrdinal,
-                    declaredValue,
+                    contributionDeclaredValue ?? declaredValue,
                     Value,
                     source.NumberId,
                     source.AbstractNumberId,
                     source.LevelIndex,
-                    source.NumberingLevelSourceKind
+                    source.NumberingLevelSourceKind,
+                    source.ThemeToken,
+                    source.ThemeColorSlot,
+                    source.ThemeFontCollection,
+                    source.ThemeFontRole
                 )
             );
             LastSourceKind = source.Kind;

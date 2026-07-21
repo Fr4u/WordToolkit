@@ -257,9 +257,9 @@ cycles, broken `next`/`link` references and ambiguous defaults remain visible as
 diagnostics, so one damaged style cannot erase the rest of the inventory. Lazy
 `inspect_ooxml_styles` defaults to metadata-only paging and makes declared properties,
 latent exceptions and inheritance provenance opt-in. Effective node formatting is a
-separate resolver because numbering, conditional table styles, themes, toggle-property
-semantics and direct formatting must not be flattened into a dishonest last-value-wins
-map.
+separate resolver because numbering, conditional table styles, theme references,
+toggle-property semantics and direct formatting must not be flattened into a dishonest
+last-value-wins map.
 
 `WordNumberingGraphBuilder` is the first numbering adapter. It follows only the exact
 transitional or strict numbering relationship, validates the content type and
@@ -280,21 +280,50 @@ recursive `numPr` and levels outside Word's 0–8 range remain bounded diagnosti
 `inspect_ooxml_numbering` returns compact instance metadata by default and exposes
 abstracts, declared levels or one resolved effective level only when requested.
 
+`WordThemeGraphBuilder` is the first DrawingML dependency adapter. It follows only the
+main document's exact transitional or strict theme relationship, validates the theme
+content type and `a:theme` root, then preserves a typed view of all twelve color slots,
+major/minor font collections, supplemental script fonts and the format-scheme inventory.
+RGB sources and `sysClr/@lastClr` are deterministic; environment-only system colors,
+scRGB/HSL/preset/scheme sources and nested DrawingML transform chains remain explicit
+diagnostics instead of invented display values. The model follows Microsoft's
+[`ThemeElements`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.drawing.themeelements)
+and
+[`FontScheme`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.drawing.themeelements.fontscheme)
+contracts. Lazy `inspect_ooxml_theme` pages color, font or format objects and keeps raw
+declarations, unknown markup and source ordinals opt-in.
+
+WordprocessingML theme tokens are resolved only when a deterministic theme source is
+available. `majorAscii`/`majorHAnsi` and their minor equivalents select the Latin theme
+face; East Asian and complex-script tokens refuse to borrow Latin when their primary
+face is empty because the correct result depends on language and supplemental script
+selection. Theme tint/shade uses the documented HSL luminance transform, with tint
+winning when both are present. Word's cached RGB examples expose private quantization
+that differs by one or two channels from continuous HSL math, so the resolver preserves
+both values and emits `theme_color_transform_word_quantization` on disagreement rather
+than burying a magic exception in the algorithm.
+
 The first bounded effective-format slice is now `WordEffectiveFormattingResolver`.
 Given a stable paragraph or run ID, it rebinds that node to the exact lexical element in
 its source story and applies modeled layers in order: document defaults, the base-first
 paragraph-style chain, the resolved numbering level, the base-first character-style
-chain, then direct formatting. This intentionally follows Word's documented behavior,
+chain, then direct formatting, followed by deterministic theme dereferencing. This
+intentionally follows Word's documented behavior,
 which applies paragraph styles before numbering styles even though the base standard
 states the reverse. Each resolved number retains its instance, requested/effective
 abstract definition, level, style-link chain, effective start and source kind.
 Each property retains every declaration, source layer, style ID, part, element ordinal
-and intermediate result. The twelve ISO toggle properties use state transitions at
-style levels and absolute values under direct formatting. The resolver deliberately
-returns coverage omissions for application defaults, conditional table styles, theme
-values, revision views and unmodeled property elements; it also surfaces Microsoft's
-documented default-true toggle and paragraph-style `ilvl` divergences rather than
-silently pretending the base rules are Word-perfect. Lazy
+and intermediate result. Theme-derived fonts and colors add their token, color slot or
+font collection/role and theme-part source ordinal. Composite `rFonts`, color,
+underline and shading elements clear stale inherited sibling attributes while
+preserving same-key provenance; a direct concrete font therefore defeats an inherited
+theme token. The twelve ISO toggle properties use state transitions at style levels and
+absolute values under direct formatting. The resolver deliberately returns coverage
+omissions for application defaults, conditional table styles, language-dependent or
+non-deterministic theme values, Office color quantization, revision views and unmodeled
+property elements; it also surfaces Microsoft's documented default-true toggle and
+paragraph-style `ilvl` divergences rather than silently pretending the base rules are
+Word-perfect. Lazy
 `resolve_ooxml_formatting` filters exact property names, bounds each group, and omits
 provenance/source evidence unless asked.
 
@@ -459,6 +488,7 @@ The current native mapping is therefore:
 - `document.query` -> lazy `query_ooxml_semantics`;
 - style-map inspection -> lazy `inspect_ooxml_styles`;
 - numbering inventory/effective-level resolution -> lazy `inspect_ooxml_numbering`;
+- theme color/font/format inspection -> lazy `inspect_ooxml_theme`;
 - modeled paragraph/run formatting -> lazy `resolve_ooxml_formatting`;
 - text-only `document.plan` -> lazy `plan_ooxml_text_edits`;
 - text-only `document.apply` -> lazy `apply_ooxml_text_edits`.

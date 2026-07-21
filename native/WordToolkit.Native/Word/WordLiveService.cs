@@ -112,6 +112,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_ooxml_theme" => InspectPackageThemeAsync(
+                arguments,
+                cancellationToken
+            ),
             "resolve_ooxml_formatting" => ResolvePackageFormattingAsync(
                 arguments,
                 cancellationToken

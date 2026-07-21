@@ -184,6 +184,157 @@ public sealed class WordEffectiveFormattingTests
     }
 
     [Fact]
+    public void ResolvesThemeFontsAndColorsAndHonorsDirectCompositeOverrides()
+    {
+        using var bytes = BuildPackage(
+            """
+            <w:body>
+              <w:p>
+                <w:pPr><w:pStyle w:val="Normal"/></w:pPr>
+                <w:r><w:t>Theme</w:t></w:r>
+                <w:r>
+                  <w:rPr><w:rFonts w:ascii="Courier New"/><w:color w:val="112233"/></w:rPr>
+                  <w:t>Direct</w:t>
+                </w:r>
+              </w:p>
+            </w:body>
+            """,
+            """
+            <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+              <w:pPr><w:shd w:val="clear" w:fill="C0504D" w:themeFill="accent2"/></w:pPr>
+              <w:rPr>
+                <w:rFonts w:asciiTheme="minorHAnsi"/>
+                <w:color w:val="95B3D7" w:themeColor="accent1" w:themeTint="99"/>
+              </w:rPr>
+            </w:style>
+            """,
+            ThemeXml()
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+        var styles = new WordStyleGraphBuilder().Build(package, semantic);
+        var theme = new WordThemeGraphBuilder().Build(package, semantic);
+        var runs = semantic.Nodes.Where(node =>
+            node.Kind == WordSemanticNodeKind.Run
+        ).ToArray();
+        var resolver = new WordEffectiveFormattingResolver();
+
+        var themed = resolver.Resolve(package, semantic, styles, theme, runs[0].Id);
+
+        Assert.Equal("minorHAnsi", themed.RunProperties["font_ascii_theme"].Value);
+        Assert.Equal("Calibri", themed.RunProperties["font_ascii_resolved"].Value);
+        Assert.Equal("95B3D7", themed.RunProperties["color_resolved_rgb"].Value);
+        Assert.Equal(
+            "C0504D",
+            themed.ParagraphProperties["shading_fill_resolved_rgb"].Value
+        );
+        var fontContribution = themed.RunProperties["font_ascii_resolved"]
+            .Contributions.Single();
+        Assert.Equal(WordFormattingSourceKind.Theme, fontContribution.SourceKind);
+        Assert.Equal("minorHAnsi", fontContribution.ThemeToken);
+        Assert.Equal(
+            WordThemeFontCollectionKind.Minor,
+            fontContribution.ThemeFontCollection
+        );
+        Assert.Equal(WordThemeFontRole.Latin, fontContribution.ThemeFontRole);
+        var colorContribution = themed.RunProperties["color_resolved_rgb"]
+            .Contributions.Single();
+        Assert.Equal("accent1", colorContribution.ThemeToken);
+        Assert.Equal("accent1", colorContribution.ThemeColorSlot);
+        Assert.DoesNotContain("theme_value_resolution", themed.CoverageOmissions);
+        Assert.DoesNotContain(
+            themed.CoverageOmissions,
+            omission => omission.StartsWith("theme_", StringComparison.Ordinal)
+        );
+        Assert.Empty(themed.CompatibilityWarnings);
+
+        var direct = resolver.Resolve(package, semantic, styles, theme, runs[1].Id);
+
+        Assert.Equal("Courier New", direct.RunProperties["font_ascii"].Value);
+        Assert.DoesNotContain("font_ascii_theme", direct.RunProperties.Keys);
+        Assert.DoesNotContain("font_ascii_resolved", direct.RunProperties.Keys);
+        Assert.Equal("112233", direct.RunProperties["color_value"].Value);
+        Assert.DoesNotContain("color_theme", direct.RunProperties.Keys);
+        Assert.DoesNotContain("color_resolved_rgb", direct.RunProperties.Keys);
+    }
+
+    [Fact]
+    public void ExposesOfficeThemeColorQuantizationInsteadOfHidingIt()
+    {
+        using var bytes = BuildPackage(
+            "<w:body><w:p><w:r><w:t>Shade</w:t></w:r></w:p></w:body>",
+            """
+            <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+              <w:rPr><w:color w:val="943634" w:themeColor="accent2" w:themeShade="BF"/></w:rPr>
+            </w:style>
+            """,
+            ThemeXml()
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+        var styles = new WordStyleGraphBuilder().Build(package, semantic);
+        var theme = new WordThemeGraphBuilder().Build(package, semantic);
+        var run = semantic.Nodes.Single(node => node.Kind == WordSemanticNodeKind.Run);
+
+        var result = new WordEffectiveFormattingResolver().Resolve(
+            package,
+            semantic,
+            styles,
+            theme,
+            run.Id
+        );
+
+        Assert.Equal("943634", result.RunProperties["color_value"].Value);
+        Assert.Equal("943734", result.RunProperties["color_resolved_rgb"].Value);
+        Assert.Contains(
+            "theme_color_transform_word_quantization",
+            result.CoverageOmissions
+        );
+        Assert.Contains(
+            result.CompatibilityWarnings,
+            warning => warning.Contains("943634", StringComparison.Ordinal)
+                && warning.Contains("943734", StringComparison.Ordinal)
+        );
+    }
+
+    [Fact]
+    public void ReportsOrphanedThemeColorModifiers()
+    {
+        using var bytes = BuildPackage(
+            "<w:body><w:p><w:r><w:t>Orphan</w:t></w:r></w:p></w:body>",
+            """
+            <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+              <w:rPr><w:color w:val="112233" w:themeTint="99"/></w:rPr>
+            </w:style>
+            """,
+            ThemeXml()
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+        var styles = new WordStyleGraphBuilder().Build(package, semantic);
+        var theme = new WordThemeGraphBuilder().Build(package, semantic);
+        var run = semantic.Nodes.Single(node => node.Kind == WordSemanticNodeKind.Run);
+
+        var result = new WordEffectiveFormattingResolver().Resolve(
+            package,
+            semantic,
+            styles,
+            theme,
+            run.Id
+        );
+
+        Assert.DoesNotContain("color_resolved_rgb", result.RunProperties.Keys);
+        Assert.Contains("theme_color_value_resolution", result.CoverageOmissions);
+        Assert.Contains(
+            result.CompatibilityWarnings,
+            warning => warning.Contains(
+                "without its required theme color token",
+                StringComparison.Ordinal
+            )
+        );
+    }
+
+    [Fact]
     public void RejectsMissingOrUnresolvableReferencedStyle()
     {
         using var missingBytes = BuildPackage(
@@ -262,20 +413,28 @@ public sealed class WordEffectiveFormattingTests
         Assert.NotEqual(run.Id, result.ParagraphNodeId);
     }
 
-    private static MemoryStream BuildPackage(string bodyXml, string stylesXml)
+    private static MemoryStream BuildPackage(
+        string bodyXml,
+        string stylesXml,
+        string? themeXml = null
+    )
     {
         var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
         {
+            var themeOverride = themeXml is null
+                ? string.Empty
+                : "<Override PartName=\"/word/theme/theme1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.theme+xml\"/>";
             WriteEntry(
                 archive,
                 "[Content_Types].xml",
-                """
+                $"""
                 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
                   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
                   <Default Extension="xml" ContentType="application/xml"/>
                   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
                   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+                  {themeOverride}
                 </Types>
                 """
             );
@@ -291,9 +450,10 @@ public sealed class WordEffectiveFormattingTests
             WriteEntry(
                 archive,
                 "word/_rels/document.xml.rels",
-                """
+                $"""
                 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
                   <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+                  {(themeXml is null ? string.Empty : "<Relationship Id=\"rIdTheme\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"theme/theme1.xml\"/>")}
                 </Relationships>
                 """
             );
@@ -315,11 +475,44 @@ public sealed class WordEffectiveFormattingTests
                 </w:styles>
                 """
             );
+            if (themeXml is not null)
+            {
+                WriteEntry(archive, "word/theme/theme1.xml", themeXml);
+            }
         }
 
         stream.Position = 0;
         return stream;
     }
+
+    private static string ThemeXml() =>
+        """
+        <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Office">
+          <a:themeElements>
+            <a:clrScheme name="Office">
+              <a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>
+              <a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>
+              <a:dk2><a:srgbClr val="1F497D"/></a:dk2>
+              <a:lt2><a:srgbClr val="EEECE1"/></a:lt2>
+              <a:accent1><a:srgbClr val="4F81BD"/></a:accent1>
+              <a:accent2><a:srgbClr val="C0504D"/></a:accent2>
+              <a:accent3><a:srgbClr val="9BBB59"/></a:accent3>
+              <a:accent4><a:srgbClr val="8064A2"/></a:accent4>
+              <a:accent5><a:srgbClr val="4BACC6"/></a:accent5>
+              <a:accent6><a:srgbClr val="F79646"/></a:accent6>
+              <a:hlink><a:srgbClr val="0000FF"/></a:hlink>
+              <a:folHlink><a:srgbClr val="800080"/></a:folHlink>
+            </a:clrScheme>
+            <a:fontScheme name="Office">
+              <a:majorFont><a:latin typeface="Cambria"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>
+              <a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>
+            </a:fontScheme>
+            <a:fmtScheme name="Office">
+              <a:fillStyleLst/><a:lnStyleLst/><a:effectStyleLst/><a:bgFillStyleLst/>
+            </a:fmtScheme>
+          </a:themeElements>
+        </a:theme>
+        """;
 
     private static void WriteEntry(ZipArchive archive, string name, string content)
     {

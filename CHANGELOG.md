@@ -40,9 +40,8 @@
   character style chains, effective numbering levels, and direct formatting,
   with per-property provenance and standard toggle-property state transitions.
   The result explicitly lists unresolved application defaults, conditional
-  table styles, themes, revision views, unmodeled elements and Microsoft's
-  documented compatibility divergences instead of claiming false visual
-  certainty.
+  table styles, revision views, unmodeled elements and Microsoft's documented
+  compatibility divergences instead of claiming false visual certainty.
 - Added a typed, source-linked numbering graph and lazy
   `inspect_ooxml_numbering` action. It discovers transitional and strict
   numbering relationships, validates the dedicated part, inventories picture
@@ -52,6 +51,21 @@
   flattening the surviving graph. Level paragraph/run properties now enter the
   Word-specific formatting hierarchy after paragraph styles and before
   character styles and direct formatting.
+- Added a typed, source-linked Office theme graph and lazy
+  `inspect_ooxml_theme` action. It validates transitional and strict theme
+  relationships, the theme content type and DrawingML root; models all twelve
+  color slots, system-color fallbacks, major/minor primary and supplemental
+  fonts, format-scheme inventories, unknown markup and bounded diagnostics; and
+  exposes metadata-first paged color/font/format views without opening Word.
+- Integrated theme values into effective formatting. Word font tokens such as
+  `minorHAnsi` now resolve to concrete typefaces and theme colors resolve to
+  derived RGB properties with theme-part provenance. Composite `rFonts`, color,
+  underline and shading declarations now correctly cut off stale inherited
+  attributes when a later style or direct-formatting element replaces them.
+  Language-dependent font fallback, environmental colors, unsupported
+  DrawingML transforms, and the measured difference between deterministic HSL
+  math and Word's private color quantization stay explicit instead of being
+  hidden behind fabricated values.
 - Added the first lossless XML source model with exact byte spans, original
   prefixes/attributes/quotes/BOM retention, bounded secure parsing, guarded
   non-overlapping splices, and validated UTF-8/UTF-16/UTF-32/single-byte edits.
@@ -73,17 +87,20 @@
   a recovery backup by default, performs no write for a no-op, and fails closed
   on digitally signed packages.
 - Added the lazy, token-bounded `inspect_ooxml_semantics` MCP action.
-- Added 109 document-engine tests, including deterministic malformed-input,
+- Added 118 document-engine tests, including deterministic malformed-input,
   randomized relationship metadata and opaque-part round-trip fuzz smoke, plus
   300 randomized lexical text splices, multi-encoding/BOM preservation and
-  semantic mutation provenance. A 52-document bundled corpus from Word,
-  LibreOffice, Pandoc, POI and Mammoth now exercises every typed XML part and
-  exact no-op source preservation, while native end-to-end package/semantic
-  inspection retains all existing runtime tests.
-- The native host now has 53 tests, including end-to-end semantic query,
+  semantic mutation provenance. Theme tests cover strict/transitional packages,
+  all twelve color slots, font resolution, HSL tint/shade behavior, composite
+  overrides, provenance, malformed/limited parts, and every theme found in the
+  52-document bundled corpus from Word, LibreOffice, Pandoc, POI and Mammoth.
+  The same corpus exercises every typed XML part and exact no-op source
+  preservation, while native end-to-end package/semantic inspection retains
+  all existing runtime tests.
+- The native host now has 54 tests, including end-to-end semantic query,
   cross-story header query/apply, schema parity, recovery-backup, plan-mismatch,
-  signed-package and no-op coverage that proves the saved-package path never
-  invokes Word COM.
+  signed-package and no-op coverage plus theme inspection/resolution that proves
+  the saved-package path never invokes Word COM.
 - Added a source-backed 2026 research matrix and the target lossless semantic
   document-engine architecture.
 

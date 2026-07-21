@@ -4155,9 +4155,64 @@
       }
     },
     {
+      "name": "inspect_ooxml_theme",
+      "title": "Inspect the Word document theme",
+      "description": "Inspect the typed Office theme graph behind Word theme colors, major/minor fonts, and format-style inventories without opening Word. Compact resolved metadata is returned by default; raw declarations, transforms, unknown markup, and source ordinals are opt-in to minimize AI tokens.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["colors", "fonts", "format"],
+            "default": "colors",
+            "description": "Return color slots, primary and supplemental theme fonts, or the format-scheme inventory."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "detail": {
+            "type": "string",
+            "enum": ["metadata", "declared"],
+            "default": "metadata",
+            "description": "Use declared to include bounded raw source values, transforms, supplemental metadata, and unknown markup."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include at most 40 bounded missing-slot, environment-dependent, and unresolved-transform diagnostics."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include source XML element ordinals."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "resolve_ooxml_formatting",
       "title": "Resolve modeled Word formatting",
-      "description": "Resolve bounded paragraph and run properties for one semantic paragraph or run through document defaults, base-first paragraph styles, effective numbering levels, character styles, and direct formatting. Returns numbering metadata plus explicit coverage omissions when conditional table styles, themes, revisions, application defaults, unmodeled elements, or a documented Word compatibility edge can still affect the final appearance.",
+      "description": "Resolve bounded paragraph and run properties for one semantic paragraph or run through document defaults, base-first paragraph styles, effective numbering levels, character styles, direct formatting, and the document theme. Returns concrete theme fonts and RGB colors with provenance plus explicit omissions when conditional table styles, language-dependent theme fonts, Office color quantization, revisions, application defaults, unmodeled elements, or a documented Word compatibility edge can still affect the final appearance.",
       "inputSchema": {
         "type": "object",
         "properties": {
