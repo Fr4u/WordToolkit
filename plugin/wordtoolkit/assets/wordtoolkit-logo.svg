@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400">
+  <rect width="1200" height="400" rx="56" fill="#23385D"/>
+  <rect x="64" y="64" width="16" height="272" fill="#D9A441"/>
+  <rect x="64" y="64" width="288" height="14" fill="#4C8A82"/>
+  <text x="116" y="230" fill="#FFFFFF" font-family="Segoe UI, Arial, sans-serif" font-size="112" font-weight="700">WordToolkit</text>
+  <text x="122" y="294" fill="#D7DEE8" font-family="Segoe UI, Arial, sans-serif" font-size="34">DOCX, native Office Math, validation and visual QA</text>
+</svg>

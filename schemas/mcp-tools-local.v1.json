@@ -1,0 +1,6760 @@
+{
+  "schema_version": "1.0.0",
+  "mcp_protocol": "2025-06-18",
+  "compatibility_policy": "Additive changes within v1; breaking changes require a new major schema file and migration note.",
+  "tools": [
+    {
+      "name": "create_document",
+      "title": "Create Word document",
+      "description": "Use this when a new DOCX is needed. Creates an isolated draft; it does not overwrite any user file. Page settings are bounded and the result must be saved/exported explicitly.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "default": "",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "page_size": {
+            "default": "A4",
+            "enum": [
+              "A4",
+              "Letter"
+            ],
+            "title": "Page Size",
+            "type": "string"
+          },
+          "orientation": {
+            "default": "portrait",
+            "enum": [
+              "portrait",
+              "landscape"
+            ],
+            "title": "Orientation",
+            "type": "string"
+          },
+          "margin_mm": {
+            "default": 25.4,
+            "maximum": 80,
+            "minimum": 5,
+            "title": "Margin Mm",
+            "type": "number"
+          }
+        },
+        "title": "create_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "create_from_template",
+      "title": "Create from Word template",
+      "description": "Use this when a DOCX or DOTX template must be preserved. Downloads only the authorized file reference, rejects macros and unsafe packages, copies it into an isolated session, and creates a new DOCX draft.",
+      "inputSchema": {
+        "$defs": {
+          "OpenAIFile": {
+            "additionalProperties": false,
+            "properties": {
+              "download_url": {
+                "default": "",
+                "title": "Download Url",
+                "type": "string"
+              },
+              "local_path": {
+                "default": "",
+                "title": "Local Path",
+                "type": "string"
+              },
+              "file_id": {
+                "default": "",
+                "title": "File Id",
+                "type": "string"
+              },
+              "mime_type": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Mime Type"
+              },
+              "file_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "File Name"
+              }
+            },
+            "title": "OpenAIFile",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "file": {
+            "$ref": "#/$defs/OpenAIFile"
+          },
+          "session_id": {
+            "default": "",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "create_from_templateArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "openai/fileParams": [
+          "file"
+        ]
+      }
+    },
+    {
+      "name": "create_from_markdown",
+      "title": "Create from Markdown",
+      "description": "Use this when Markdown must become a new DOCX. Accepts raw Markdown or an authorized .md file, preserves a supplied template only when separately requested, and never converts an existing DOCX through Markdown.",
+      "inputSchema": {
+        "$defs": {
+          "OpenAIFile": {
+            "additionalProperties": false,
+            "properties": {
+              "download_url": {
+                "default": "",
+                "title": "Download Url",
+                "type": "string"
+              },
+              "local_path": {
+                "default": "",
+                "title": "Local Path",
+                "type": "string"
+              },
+              "file_id": {
+                "default": "",
+                "title": "File Id",
+                "type": "string"
+              },
+              "mime_type": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Mime Type"
+              },
+              "file_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "File Name"
+              }
+            },
+            "title": "OpenAIFile",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "markdown": {
+            "default": "",
+            "title": "Markdown",
+            "type": "string"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/OpenAIFile"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "session_id": {
+            "default": "",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "title": "create_from_markdownArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "openai/fileParams": [
+          "file"
+        ]
+      }
+    },
+    {
+      "name": "open_document",
+      "title": "Open Word document",
+      "description": "Use this when an uploaded DOCX must be inspected or edited. Reads an authorized ChatGPT file reference, rejects DOCM/DOTM, ZIP bombs, XXE and unsafe relationships, then opens an isolated round-trip draft.",
+      "inputSchema": {
+        "$defs": {
+          "OpenAIFile": {
+            "additionalProperties": false,
+            "properties": {
+              "download_url": {
+                "default": "",
+                "title": "Download Url",
+                "type": "string"
+              },
+              "local_path": {
+                "default": "",
+                "title": "Local Path",
+                "type": "string"
+              },
+              "file_id": {
+                "default": "",
+                "title": "File Id",
+                "type": "string"
+              },
+              "mime_type": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Mime Type"
+              },
+              "file_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "File Name"
+              }
+            },
+            "title": "OpenAIFile",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "file": {
+            "$ref": "#/$defs/OpenAIFile"
+          },
+          "session_id": {
+            "default": "",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "open_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "openai/fileParams": [
+          "file"
+        ]
+      }
+    },
+    {
+      "name": "inspect_document",
+      "title": "Inspect Word document",
+      "description": "Use this for a read-only overview of package parts, structure, styles, sections, tables and native equations. It does not save or mutate the draft.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "inspect_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "save_document",
+      "title": "Save Word document",
+      "description": "Use this to create a new validated DOCX version. It never overwrites the uploaded original. Saving may apply documented structural repairs and returns a temporary download link.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "file_name": {
+            "default": "document.docx",
+            "title": "File Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "save_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "close_document",
+      "title": "Close Word document",
+      "description": "Use this to discard the in-memory draft and delete its extracted temporary files. Previously exported versions remain available until their artifact expiry.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "close_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_outline",
+      "title": "Get document outline",
+      "description": "Use this to read heading levels, text and stable paragraph IDs without changing the draft.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "max_level": {
+            "default": 6,
+            "maximum": 9,
+            "minimum": 1,
+            "title": "Max Level",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "get_outlineArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_sections",
+      "title": "Get document sections",
+      "description": "Use this to inspect page sizes, margins, orientation, columns and section breaks without changing the draft.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "get_sectionsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_paragraph",
+      "title": "Get paragraph",
+      "description": "Use this to read one paragraph by its w14:paraId. It returns text and style but does not flatten the whole document.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "paragraph_id": {
+            "title": "Paragraph Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id",
+          "paragraph_id"
+        ],
+        "title": "get_paragraphArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "insert_paragraph",
+      "title": "Insert paragraph",
+      "description": "Use this to insert one styled paragraph after a known paragraph ID. It mutates only document.xml and preserves unrelated parts.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "after_paragraph_id": {
+            "title": "After Paragraph Id",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 200000,
+            "title": "Text",
+            "type": "string"
+          },
+          "style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Style"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "after_paragraph_id",
+          "text"
+        ],
+        "title": "insert_paragraphArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "replace_paragraph",
+      "title": "Replace paragraph",
+      "description": "Use this to replace the text and/or style of one paragraph. This is a direct edit, not a document rebuild; use insert_tracked_change when review markup is required.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "paragraph_id": {
+            "title": "Paragraph Id",
+            "type": "string"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "maxLength": 200000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Text"
+          },
+          "style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Style"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "paragraph_id"
+        ],
+        "title": "replace_paragraphArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "delete_paragraph",
+      "title": "Delete paragraph",
+      "description": "Use this to remove exactly one paragraph from the current draft. The uploaded original is untouched, but the draft mutation is destructive until rejected by reopening or restoring a prior export.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "paragraph_id": {
+            "title": "Paragraph Id",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "paragraph_id"
+        ],
+        "title": "delete_paragraphArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "move_block",
+      "title": "Move document block",
+      "description": "Use this to move one paragraph or top-level table before or after another block. References use p:<paraId> or table:<zero-based-index>.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "block_ref": {
+            "title": "Block Ref",
+            "type": "string"
+          },
+          "target_ref": {
+            "title": "Target Ref",
+            "type": "string"
+          },
+          "position": {
+            "default": "after",
+            "enum": [
+              "before",
+              "after"
+            ],
+            "title": "Position",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "block_ref",
+          "target_ref"
+        ],
+        "title": "move_blockArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_styles",
+      "title": "List Word styles",
+      "description": "Use this to inspect paragraph and character styles before applying formatting. It is read-only.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "list_stylesArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "create_style",
+      "title": "Create Word style",
+      "description": "Use this to add one named paragraph or character style to styles.xml. Prefer this over direct formatting for reusable formatting.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "style_type": {
+            "default": "paragraph",
+            "enum": [
+              "paragraph",
+              "character"
+            ],
+            "title": "Style Type",
+            "type": "string"
+          },
+          "based_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Based On"
+          },
+          "next_style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Next Style"
+          },
+          "font_name": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Font Name"
+          },
+          "font_size_pt": {
+            "anyOf": [
+              {
+                "maximum": 200,
+                "minimum": 1,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Font Size Pt"
+          },
+          "font_color": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9A-Fa-f]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Font Color"
+          },
+          "bold": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Bold"
+          },
+          "italic": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Italic"
+          },
+          "space_before_pt": {
+            "anyOf": [
+              {
+                "maximum": 1000,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Space Before Pt"
+          },
+          "space_after_pt": {
+            "anyOf": [
+              {
+                "maximum": 1000,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Space After Pt"
+          },
+          "line_spacing": {
+            "anyOf": [
+              {
+                "maximum": 10,
+                "minimum": 0.5,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Line Spacing"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "name"
+        ],
+        "title": "create_styleArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "update_style",
+      "title": "Update Word style",
+      "description": "Use this to change inheritance or next-style metadata of one existing named style. It does not replace unrelated style definitions.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "based_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Based On"
+          },
+          "next_style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Next Style"
+          },
+          "font_name": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Font Name"
+          },
+          "font_size_pt": {
+            "anyOf": [
+              {
+                "maximum": 200,
+                "minimum": 1,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Font Size Pt"
+          },
+          "font_color": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9A-Fa-f]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Font Color"
+          },
+          "bold": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Bold"
+          },
+          "italic": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Italic"
+          },
+          "space_before_pt": {
+            "anyOf": [
+              {
+                "maximum": 1000,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Space Before Pt"
+          },
+          "space_after_pt": {
+            "anyOf": [
+              {
+                "maximum": 1000,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Space After Pt"
+          },
+          "line_spacing": {
+            "anyOf": [
+              {
+                "maximum": 10,
+                "minimum": 0.5,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Line Spacing"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "name"
+        ],
+        "title": "update_styleArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "apply_style",
+      "title": "Apply Word style",
+      "description": "Use this to apply an existing style to explicit paragraph IDs. It avoids replacing template styles with direct formatting.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "paragraph_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Paragraph Ids",
+            "type": "array"
+          },
+          "style": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Style",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "paragraph_ids",
+          "style"
+        ],
+        "title": "apply_styleArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_direct_formatting",
+      "title": "Inspect direct formatting",
+      "description": "Use this to find run-level direct formatting that may override styles. It does not alter the document.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "paragraph_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Paragraph Id"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "inspect_direct_formattingArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "normalize_formatting",
+      "title": "Normalize direct formatting",
+      "description": "Use this to remove supported direct run properties from selected paragraphs so style inheritance can take effect. It preserves fields, text and paragraph structure.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "paragraph_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Paragraph Ids"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "normalize_formattingArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "format_paragraph",
+      "title": "Format one Word paragraph",
+      "description": "Set paragraph alignment, spacing, indentation, tab stops and pagination flags without changing its text or style assignment.",
+      "inputSchema": {
+        "$defs": {
+          "TabStop": {
+            "additionalProperties": false,
+            "properties": {
+              "position_mm": {
+                "maximum": 500,
+                "minimum": 0,
+                "title": "Position Mm",
+                "type": "number"
+              },
+              "alignment": {
+                "default": "left",
+                "enum": [
+                  "left",
+                  "center",
+                  "right",
+                  "decimal",
+                  "bar"
+                ],
+                "title": "Alignment",
+                "type": "string"
+              },
+              "leader": {
+                "default": "none",
+                "enum": [
+                  "none",
+                  "dot",
+                  "hyphen",
+                  "underscore",
+                  "heavy",
+                  "middleDot"
+                ],
+                "title": "Leader",
+                "type": "string"
+              }
+            },
+            "required": [
+              "position_mm"
+            ],
+            "title": "TabStop",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "paragraph_id": {
+            "title": "Paragraph Id",
+            "type": "string"
+          },
+          "alignment": {
+            "anyOf": [
+              {
+                "enum": [
+                  "left",
+                  "center",
+                  "right",
+                  "both",
+                  "distribute"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Alignment"
+          },
+          "space_before_pt": {
+            "anyOf": [
+              {
+                "maximum": 1000,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Space Before Pt"
+          },
+          "space_after_pt": {
+            "anyOf": [
+              {
+                "maximum": 1000,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Space After Pt"
+          },
+          "line_spacing": {
+            "anyOf": [
+              {
+                "maximum": 10,
+                "minimum": 0.5,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Line Spacing"
+          },
+          "left_indent_mm": {
+            "anyOf": [
+              {
+                "maximum": 500,
+                "minimum": -500,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Left Indent Mm"
+          },
+          "right_indent_mm": {
+            "anyOf": [
+              {
+                "maximum": 500,
+                "minimum": -500,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Right Indent Mm"
+          },
+          "first_line_mm": {
+            "anyOf": [
+              {
+                "maximum": 500,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "First Line Mm"
+          },
+          "hanging_mm": {
+            "anyOf": [
+              {
+                "maximum": 500,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Hanging Mm"
+          },
+          "keep_with_next": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Keep With Next"
+          },
+          "keep_lines_together": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Keep Lines Together"
+          },
+          "widow_control": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Widow Control"
+          },
+          "page_break_before": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Page Break Before"
+          },
+          "tab_stops": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/TabStop"
+                },
+                "maxItems": 32,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Tab Stops"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "paragraph_id"
+        ],
+        "title": "format_paragraphArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "format_run",
+      "title": "Format one Word run",
+      "description": "Set direct font, size, color, highlight, emphasis, underline, strike or sub/superscript on one run identified by paragraph and run index.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "paragraph_id": {
+            "title": "Paragraph Id",
+            "type": "string"
+          },
+          "run_index": {
+            "minimum": 0,
+            "title": "Run Index",
+            "type": "integer"
+          },
+          "font_name": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Font Name"
+          },
+          "font_size_pt": {
+            "anyOf": [
+              {
+                "maximum": 200,
+                "minimum": 1,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Font Size Pt"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9A-Fa-f]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Color"
+          },
+          "highlight": {
+            "anyOf": [
+              {
+                "enum": [
+                  "yellow",
+                  "green",
+                  "cyan",
+                  "magenta",
+                  "blue",
+                  "red",
+                  "darkBlue",
+                  "darkCyan",
+                  "darkGreen",
+                  "darkMagenta",
+                  "darkRed",
+                  "darkYellow",
+                  "darkGray",
+                  "lightGray",
+                  "black",
+                  "white"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Highlight"
+          },
+          "bold": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Bold"
+          },
+          "italic": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Italic"
+          },
+          "underline": {
+            "anyOf": [
+              {
+                "enum": [
+                  "none",
+                  "single",
+                  "double",
+                  "dotted",
+                  "dash",
+                  "wave"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Underline"
+          },
+          "strike": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Strike"
+          },
+          "vertical": {
+            "anyOf": [
+              {
+                "enum": [
+                  "baseline",
+                  "superscript",
+                  "subscript"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Vertical"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "paragraph_id",
+          "run_index"
+        ],
+        "title": "format_runArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "manage_lists",
+      "title": "Manage Word lists",
+      "description": "Inspect, apply, create, restart, promote, demote or suppress native single- and multilevel Word numbering definitions.",
+      "inputSchema": {
+        "$defs": {
+          "ListLevel": {
+            "additionalProperties": false,
+            "properties": {
+              "num_fmt": {
+                "enum": [
+                  "decimal",
+                  "lowerLetter",
+                  "upperLetter",
+                  "lowerRoman",
+                  "upperRoman",
+                  "bullet"
+                ],
+                "title": "Num Fmt",
+                "type": "string"
+              },
+              "lvl_text": {
+                "maxLength": 64,
+                "minLength": 1,
+                "title": "Lvl Text",
+                "type": "string"
+              },
+              "indent": {
+                "default": 720,
+                "maximum": 20000,
+                "minimum": 0,
+                "title": "Indent",
+                "type": "integer"
+              },
+              "hanging": {
+                "default": 360,
+                "maximum": 10000,
+                "minimum": 0,
+                "title": "Hanging",
+                "type": "integer"
+              },
+              "style": {
+                "anyOf": [
+                  {
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Style"
+              }
+            },
+            "required": [
+              "num_fmt",
+              "lvl_text"
+            ],
+            "title": "ListLevel",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "action": {
+            "default": "list",
+            "enum": [
+              "list",
+              "apply",
+              "create_multilevel",
+              "restart",
+              "promote",
+              "demote",
+              "suppress"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "paragraph_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Paragraph Ids"
+          },
+          "paragraph_id": {
+            "default": "",
+            "title": "Paragraph Id",
+            "type": "string"
+          },
+          "list_style": {
+            "default": "bullet",
+            "enum": [
+              "bullet",
+              "numbered"
+            ],
+            "title": "List Style",
+            "type": "string"
+          },
+          "name": {
+            "default": "WordToolkitList",
+            "maxLength": 128,
+            "title": "Name",
+            "type": "string"
+          },
+          "levels": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/ListLevel"
+                },
+                "maxItems": 9,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Levels"
+          },
+          "level": {
+            "default": 0,
+            "maximum": 8,
+            "minimum": 0,
+            "title": "Level",
+            "type": "integer"
+          },
+          "start": {
+            "default": 1,
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Start",
+            "type": "integer"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "manage_listsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "insert_caption",
+      "title": "Insert Word caption",
+      "description": "Insert a native Caption-styled paragraph with sequence text after a figure or table anchor.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "after_paragraph_id": {
+            "title": "After Paragraph Id",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 20000,
+            "title": "Text",
+            "type": "string"
+          },
+          "label": {
+            "default": "Figure",
+            "enum": [
+              "Figure",
+              "Table",
+              "Equation"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "after_paragraph_id",
+          "text"
+        ],
+        "title": "insert_captionArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_tables",
+      "title": "List Word tables",
+      "description": "Use this for a compact read-only inventory of tables and cell content.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "list_tablesArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_table",
+      "title": "Get Word table",
+      "description": "Use this to read one table by zero-based index, including its cells and properties.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "table_index": {
+            "minimum": 0,
+            "title": "Table Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "document_id",
+          "table_index"
+        ],
+        "title": "get_tableArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "insert_table",
+      "title": "Insert Word table",
+      "description": "Use this to insert one native Word table after a paragraph. Row and column counts are bounded to prevent pathological documents.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "after_paragraph_id": {
+            "title": "After Paragraph Id",
+            "type": "string"
+          },
+          "rows": {
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Rows",
+            "type": "integer"
+          },
+          "columns": {
+            "maximum": 50,
+            "minimum": 1,
+            "title": "Columns",
+            "type": "integer"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "after_paragraph_id",
+          "rows",
+          "columns"
+        ],
+        "title": "insert_tableArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "modify_table",
+      "title": "Modify Word table",
+      "description": "Use this for one bounded table operation: add_row, delete_row, delete_table, sort, apply_style or duplicate_row. It does not rebuild the document.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "table_index": {
+            "minimum": 0,
+            "title": "Table Index",
+            "type": "integer"
+          },
+          "action": {
+            "default": "add_row",
+            "enum": [
+              "add_row",
+              "delete_row",
+              "delete_table",
+              "sort",
+              "apply_style",
+              "duplicate_row"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "row_index": {
+            "default": -1,
+            "title": "Row Index",
+            "type": "integer"
+          },
+          "cells": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cells"
+          },
+          "column_index": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Column Index",
+            "type": "integer"
+          },
+          "ascending": {
+            "default": true,
+            "title": "Ascending",
+            "type": "boolean"
+          },
+          "style": {
+            "default": "",
+            "title": "Style",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "table_index"
+        ],
+        "title": "modify_tableArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "merge_cells",
+      "title": "Merge table cells",
+      "description": "Use this to merge a rectangular range of cells in one table. Coordinates are zero-based and the operation changes table grid semantics.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "table_index": {
+            "minimum": 0,
+            "title": "Table Index",
+            "type": "integer"
+          },
+          "start_row": {
+            "minimum": 0,
+            "title": "Start Row",
+            "type": "integer"
+          },
+          "start_column": {
+            "minimum": 0,
+            "title": "Start Column",
+            "type": "integer"
+          },
+          "end_row": {
+            "minimum": 0,
+            "title": "End Row",
+            "type": "integer"
+          },
+          "end_column": {
+            "minimum": 0,
+            "title": "End Column",
+            "type": "integer"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "table_index",
+          "start_row",
+          "start_column",
+          "end_row",
+          "end_column"
+        ],
+        "title": "merge_cellsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "split_cells",
+      "title": "Split merged table cell",
+      "description": "Use this to remove supported horizontal/vertical merge properties from one cell. Complex irregular merges are reported rather than silently rebuilt.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "table_index": {
+            "minimum": 0,
+            "title": "Table Index",
+            "type": "integer"
+          },
+          "row": {
+            "minimum": 0,
+            "title": "Row",
+            "type": "integer"
+          },
+          "column": {
+            "minimum": 0,
+            "title": "Column",
+            "type": "integer"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "table_index",
+          "row",
+          "column"
+        ],
+        "title": "split_cellsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "set_cell_properties",
+      "title": "Set table cell properties",
+      "description": "Use this to change one cell's width, vertical alignment or shading, optionally its row height. Only provided properties are touched.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "table_index": {
+            "minimum": 0,
+            "title": "Table Index",
+            "type": "integer"
+          },
+          "row": {
+            "minimum": 0,
+            "title": "Row",
+            "type": "integer"
+          },
+          "column": {
+            "minimum": 0,
+            "title": "Column",
+            "type": "integer"
+          },
+          "width_mm": {
+            "anyOf": [
+              {
+                "maximum": 500,
+                "minimum": 1,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Width Mm"
+          },
+          "vertical_alignment": {
+            "anyOf": [
+              {
+                "enum": [
+                  "top",
+                  "center",
+                  "bottom"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Vertical Alignment"
+          },
+          "fill_color": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9A-Fa-f]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fill Color"
+          },
+          "row_height_mm": {
+            "anyOf": [
+              {
+                "maximum": 500,
+                "minimum": 1,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Row Height Mm"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "table_index",
+          "row",
+          "column"
+        ],
+        "title": "set_cell_propertiesArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "insert_equation",
+      "title": "Insert native Word equation",
+      "description": "Use this to insert LaTeX, UnicodeMath, Presentation MathML, OMML or structured AST as native Office Math. Inline output is m:oMath; display output is m:oMathPara. No rasterization or text fallback occurs.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "anchor_paragraph_id": {
+            "title": "Anchor Paragraph Id",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ],
+            "title": "Value"
+          },
+          "input_format": {
+            "default": "latex",
+            "enum": [
+              "latex",
+              "unicodemath",
+              "mathml",
+              "omml",
+              "ast"
+            ],
+            "title": "Input Format",
+            "type": "string"
+          },
+          "display": {
+            "default": true,
+            "title": "Display",
+            "type": "boolean"
+          },
+          "position": {
+            "default": "after",
+            "enum": [
+              "after",
+              "before",
+              "append"
+            ],
+            "title": "Position",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "anchor_paragraph_id",
+          "value"
+        ],
+        "title": "insert_equationArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "replace_equation",
+      "title": "Replace native Word equation",
+      "description": "Use this to replace exactly one equation by equation_id while retaining native OMML and the surrounding document structure.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "equation_id": {
+            "title": "Equation Id",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ],
+            "title": "Value"
+          },
+          "input_format": {
+            "default": "latex",
+            "enum": [
+              "latex",
+              "unicodemath",
+              "mathml",
+              "omml",
+              "ast"
+            ],
+            "title": "Input Format",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "equation_id",
+          "value"
+        ],
+        "title": "replace_equationArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_equations",
+      "title": "List native Word equations",
+      "description": "Use this for a read-only inventory of m:oMath elements with stable per-draft IDs, display/inline status and canonical AST.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "list_equationsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_equation",
+      "title": "Get native Word equation",
+      "description": "Use this to read one equation as OMML plus best-effort LaTeX, UnicodeMath, MathML and canonical AST.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "equation_id": {
+            "title": "Equation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id",
+          "equation_id"
+        ],
+        "title": "get_equationArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "convert_equation",
+      "title": "Convert equation format",
+      "description": "Use this for a stateless semantic conversion among LaTeX, UnicodeMath, Presentation MathML, OMML and the WordToolkit AST. Unsupported syntax fails explicitly; no image or plain-text fallback is emitted.",
+      "inputSchema": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ],
+            "title": "Value"
+          },
+          "input_format": {
+            "enum": [
+              "latex",
+              "unicodemath",
+              "mathml",
+              "omml",
+              "ast"
+            ],
+            "title": "Input Format",
+            "type": "string"
+          },
+          "output_format": {
+            "enum": [
+              "latex",
+              "unicodemath",
+              "mathml",
+              "omml",
+              "ast"
+            ],
+            "title": "Output Format",
+            "type": "string"
+          },
+          "display": {
+            "default": false,
+            "title": "Display",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "value",
+          "input_format",
+          "output_format"
+        ],
+        "title": "convert_equationArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "validate_equations",
+      "title": "Validate native Word equations",
+      "description": "Use this to parse every m:oMath in the current draft and report structural failures without modifying the document.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "validate_equationsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "number_equations",
+      "title": "Number display equations",
+      "description": "Use this to add automatic SEQ Equation fields and bookmarks after display equations. Existing source equations remain native OMML; fields are update-on-open in Word.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "start": {
+            "default": 1,
+            "maximum": 1000000,
+            "minimum": 1,
+            "title": "Start",
+            "type": "integer"
+          },
+          "bookmark_prefix": {
+            "default": "Eq_",
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,30}$",
+            "title": "Bookmark Prefix",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "number_equationsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "add_equation_reference",
+      "title": "Add equation reference",
+      "description": "Use this to append a native REF field pointing to a numbered equation bookmark. Word updates the cached field value when fields are refreshed.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "paragraph_id": {
+            "title": "Paragraph Id",
+            "type": "string"
+          },
+          "bookmark": {
+            "title": "Bookmark",
+            "type": "string"
+          },
+          "prefix_text": {
+            "default": "",
+            "title": "Prefix Text",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "paragraph_id",
+          "bookmark"
+        ],
+        "title": "add_equation_referenceArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "manage_headers_footers",
+      "title": "Manage headers and footers",
+      "description": "Read, create, replace or remove a default/first/even header or footer story. PAGE and NUMPAGES placeholders use {{PAGE}} and {{NUMPAGES}} native fields.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "action": {
+            "default": "list",
+            "enum": [
+              "list",
+              "set_text",
+              "replace_text",
+              "delete"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "story_kind": {
+            "default": "header",
+            "enum": [
+              "header",
+              "footer"
+            ],
+            "title": "Story Kind",
+            "type": "string"
+          },
+          "variant": {
+            "default": "default",
+            "enum": [
+              "default",
+              "first",
+              "even"
+            ],
+            "title": "Variant",
+            "type": "string"
+          },
+          "section_index": {
+            "default": 0,
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Section Index",
+            "type": "integer"
+          },
+          "text": {
+            "default": "",
+            "maxLength": 200000,
+            "title": "Text",
+            "type": "string"
+          },
+          "old_text": {
+            "default": "",
+            "title": "Old Text",
+            "type": "string"
+          },
+          "new_text": {
+            "default": "",
+            "title": "New Text",
+            "type": "string"
+          },
+          "author": {
+            "default": "WordToolkit",
+            "title": "Author",
+            "type": "string"
+          },
+          "tracked": {
+            "default": true,
+            "title": "Tracked",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "manage_headers_footersArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "manage_footnotes_endnotes",
+      "title": "Manage footnotes and endnotes",
+      "description": "List, add, update, delete or structurally validate native Word footnotes/endnotes. Note references and definition parts are kept linked.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "note_kind": {
+            "default": "footnote",
+            "enum": [
+              "footnote",
+              "endnote"
+            ],
+            "title": "Note Kind",
+            "type": "string"
+          },
+          "action": {
+            "default": "list",
+            "enum": [
+              "list",
+              "add",
+              "update",
+              "delete",
+              "validate"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "paragraph_id": {
+            "default": "",
+            "title": "Paragraph Id",
+            "type": "string"
+          },
+          "note_id": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Note Id"
+          },
+          "text": {
+            "default": "",
+            "maxLength": 200000,
+            "title": "Text",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "manage_footnotes_endnotesArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "manage_comments",
+      "title": "Manage Word comments",
+      "description": "List comment threads or add, reply, update, resolve and delete native Word comments and comment-extension metadata.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "action": {
+            "default": "list",
+            "enum": [
+              "list",
+              "threads",
+              "add",
+              "reply",
+              "update",
+              "resolve",
+              "delete"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "paragraph_id": {
+            "default": "",
+            "title": "Paragraph Id",
+            "type": "string"
+          },
+          "comment_id": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Comment Id"
+          },
+          "text": {
+            "default": "",
+            "maxLength": 200000,
+            "title": "Text",
+            "type": "string"
+          },
+          "author": {
+            "default": "WordToolkit",
+            "maxLength": 128,
+            "title": "Author",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "manage_commentsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "manage_bookmarks",
+      "title": "Manage bookmarks",
+      "description": "List, add, read or remove Word bookmarks. Bookmark names are constrained to Word-compatible identifiers.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "action": {
+            "default": "list",
+            "enum": [
+              "list",
+              "add",
+              "get_text",
+              "remove"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "paragraph_id": {
+            "default": "",
+            "title": "Paragraph Id",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,39}$",
+            "title": "Name",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "manage_bookmarksArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "manage_cross_references",
+      "title": "Manage cross references",
+      "description": "List hyperlinks or add an internal cross-reference between two paragraph IDs using a bookmark-backed Word hyperlink.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "action": {
+            "default": "list",
+            "enum": [
+              "list",
+              "add"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "source_paragraph_id": {
+            "default": "",
+            "title": "Source Paragraph Id",
+            "type": "string"
+          },
+          "target_paragraph_id": {
+            "default": "",
+            "title": "Target Paragraph Id",
+            "type": "string"
+          },
+          "text": {
+            "default": "",
+            "maxLength": 10000,
+            "title": "Text",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "manage_cross_referencesArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "manage_fields",
+      "title": "Manage Word fields",
+      "description": "List, add, delete or mark fields for update. Field codes are bounded; common values include TOC, PAGE, NUMPAGES and REF bookmark.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "action": {
+            "default": "list",
+            "enum": [
+              "list",
+              "add",
+              "delete",
+              "update_on_open",
+              "generate_toc",
+              "generate_figures",
+              "generate_tables"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "paragraph_id": {
+            "default": "",
+            "title": "Paragraph Id",
+            "type": "string"
+          },
+          "field_id": {
+            "default": "",
+            "title": "Field Id",
+            "type": "string"
+          },
+          "field_code": {
+            "default": "",
+            "maxLength": 4096,
+            "title": "Field Code",
+            "type": "string"
+          },
+          "cached_value": {
+            "default": "",
+            "maxLength": 10000,
+            "title": "Cached Value",
+            "type": "string"
+          },
+          "max_heading_level": {
+            "default": 3,
+            "maximum": 9,
+            "minimum": 1,
+            "title": "Max Heading Level",
+            "type": "integer"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "manage_fieldsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "insert_image",
+      "title": "Insert embedded image",
+      "description": "Download an authorized PNG/JPEG/GIF/TIFF image, verify its image type, then embed it through DrawingML. No external image relationship is created.",
+      "inputSchema": {
+        "$defs": {
+          "OpenAIFile": {
+            "additionalProperties": false,
+            "properties": {
+              "download_url": {
+                "default": "",
+                "title": "Download Url",
+                "type": "string"
+              },
+              "local_path": {
+                "default": "",
+                "title": "Local Path",
+                "type": "string"
+              },
+              "file_id": {
+                "default": "",
+                "title": "File Id",
+                "type": "string"
+              },
+              "mime_type": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Mime Type"
+              },
+              "file_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "File Name"
+              }
+            },
+            "title": "OpenAIFile",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "paragraph_id": {
+            "title": "Paragraph Id",
+            "type": "string"
+          },
+          "file": {
+            "$ref": "#/$defs/OpenAIFile"
+          },
+          "width_mm": {
+            "default": 60,
+            "maximum": 500,
+            "minimum": 1,
+            "title": "Width Mm",
+            "type": "number"
+          },
+          "height_mm": {
+            "default": 40,
+            "maximum": 500,
+            "minimum": 1,
+            "title": "Height Mm",
+            "type": "number"
+          },
+          "alt_text": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Alt Text",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "paragraph_id",
+          "file"
+        ],
+        "title": "insert_imageArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "openai/fileParams": [
+          "file"
+        ]
+      }
+    },
+    {
+      "name": "manage_sections",
+      "title": "Manage Word sections",
+      "description": "Inspect or change page/section properties including breaks, size, margins, orientation, columns and first/odd-even headers.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "action": {
+            "default": "list",
+            "enum": [
+              "list",
+              "add_break",
+              "delete_break",
+              "set_page",
+              "set_columns",
+              "different_first_page",
+              "odd_even_headers",
+              "page_break"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "paragraph_id": {
+            "default": "",
+            "title": "Paragraph Id",
+            "type": "string"
+          },
+          "section_index": {
+            "default": 0,
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Section Index",
+            "type": "integer"
+          },
+          "break_type": {
+            "default": "nextPage",
+            "enum": [
+              "nextPage",
+              "continuous",
+              "evenPage",
+              "oddPage"
+            ],
+            "title": "Break Type",
+            "type": "string"
+          },
+          "width_mm": {
+            "anyOf": [
+              {
+                "maximum": 1000,
+                "minimum": 50,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Width Mm"
+          },
+          "height_mm": {
+            "anyOf": [
+              {
+                "maximum": 1000,
+                "minimum": 50,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Height Mm"
+          },
+          "orientation": {
+            "anyOf": [
+              {
+                "enum": [
+                  "portrait",
+                  "landscape"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Orientation"
+          },
+          "margin_mm": {
+            "anyOf": [
+              {
+                "maximum": 200,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Margin Mm"
+          },
+          "columns": {
+            "default": 1,
+            "maximum": 12,
+            "minimum": 1,
+            "title": "Columns",
+            "type": "integer"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "manage_sectionsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "enable_track_changes",
+      "title": "Enable tracked changes",
+      "description": "Enable or disable Word's w:trackRevisions setting. This does not retroactively wrap existing content.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "author": {
+            "default": "WordToolkit",
+            "title": "Author",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "enable_track_changesArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_tracked_changes",
+      "title": "List tracked changes",
+      "description": "Read pending w:ins and w:del revisions with author, date, paragraph and text; no mutation occurs.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "list_tracked_changesArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "insert_tracked_change",
+      "title": "Insert tracked change",
+      "description": "Insert, delete or replace text using native Word revision elements. Context may be supplied to disambiguate a match.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "paragraph_id": {
+            "title": "Paragraph Id",
+            "type": "string"
+          },
+          "change_type": {
+            "enum": [
+              "insert",
+              "delete",
+              "replace"
+            ],
+            "title": "Change Type",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 200000,
+            "title": "Text",
+            "type": "string"
+          },
+          "replacement": {
+            "default": "",
+            "maxLength": 200000,
+            "title": "Replacement",
+            "type": "string"
+          },
+          "author": {
+            "default": "WordToolkit",
+            "maxLength": 128,
+            "title": "Author",
+            "type": "string"
+          },
+          "position": {
+            "default": "end",
+            "title": "Position",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id",
+          "paragraph_id",
+          "change_type",
+          "text"
+        ],
+        "title": "insert_tracked_changeArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "accept_changes",
+      "title": "Accept tracked changes",
+      "description": "Accept one change by ID or all pending revisions. This is destructive within the draft; the uploaded original remains untouched.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "change_id": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Change Id"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "accept_changesArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "reject_changes",
+      "title": "Reject tracked changes",
+      "description": "Reject one change by ID or all pending revisions. This is destructive within the draft; the uploaded original remains untouched.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "change_id": {
+            "anyOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Change Id"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "reject_changesArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "compare_documents",
+      "title": "Compare two Word documents",
+      "description": "Compare two authorized DOCX files and return a third DOCX containing native insertion/deletion revision markup. The inputs are never overwritten.",
+      "inputSchema": {
+        "$defs": {
+          "OpenAIFile": {
+            "additionalProperties": false,
+            "properties": {
+              "download_url": {
+                "default": "",
+                "title": "Download Url",
+                "type": "string"
+              },
+              "local_path": {
+                "default": "",
+                "title": "Local Path",
+                "type": "string"
+              },
+              "file_id": {
+                "default": "",
+                "title": "File Id",
+                "type": "string"
+              },
+              "mime_type": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Mime Type"
+              },
+              "file_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "File Name"
+              }
+            },
+            "title": "OpenAIFile",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "base_file": {
+            "$ref": "#/$defs/OpenAIFile"
+          },
+          "revised_file": {
+            "$ref": "#/$defs/OpenAIFile"
+          },
+          "session_id": {
+            "default": "",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "file_name": {
+            "default": "comparison.docx",
+            "title": "File Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "base_file",
+          "revised_file"
+        ],
+        "title": "compare_documentsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "openai/fileParams": [
+          "base_file",
+          "revised_file"
+        ]
+      }
+    },
+    {
+      "name": "validate_ooxml",
+      "title": "Validate OOXML package",
+      "description": "Run bounded ZIP/OPC, XML, relationship, note, paraId and native OMML validation on a snapshot without committing a version.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "validate_ooxmlArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "audit_document",
+      "title": "Audit Word document",
+      "description": "Audit document structure and external relationship inventory. No external target is fetched and no content is logged.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "audit_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "detect_corruption",
+      "title": "Detect document corruption",
+      "description": "Run integrity validation and return a corruption verdict with explicit issue codes; it does not modify the draft.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "detect_corruptionArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "repair_document",
+      "title": "Repair Word document",
+      "description": "Apply the engine's conservative pre-save repairs, validate the package, and return a new DOCX artifact. Unknown untouched parts remain round-trip protected.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "file_name": {
+            "default": "repaired.docx",
+            "title": "File Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "repair_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "check_accessibility",
+      "title": "Check document accessibility",
+      "description": "Check image alternative text, heading order, table headers and language metadata using OOXML heuristics.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "check_accessibilityArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "check_layout_risks",
+      "title": "Check layout risks",
+      "description": "Check static OOXML layout risks such as over-wide tables and headings lacking keep-with-next. Rendering checks are separate.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "check_layout_risksArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "detect_orphaned_relationships",
+      "title": "Detect orphaned relationships",
+      "description": "Report missing internal relationship targets and unreferenced OPC parts without deleting them.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "detect_orphaned_relationshipsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "render_document",
+      "title": "Render Word document",
+      "description": "Save, validate and render the current draft to PDF with isolated LibreOffice headless, then run page-level visual heuristics. Word and LibreOffice are not pixel-identical.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "file_name": {
+            "default": "document.pdf",
+            "title": "File Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "render_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "render_pages",
+      "title": "Render Word pages",
+      "description": "Save and render the draft to PDF and bounded PNG page previews using LibreOffice and Poppler. Returns MCP resource links instead of internal working paths.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "file_name": {
+            "default": "document.pdf",
+            "title": "File Name",
+            "type": "string"
+          },
+          "dpi": {
+            "default": 144,
+            "maximum": 300,
+            "minimum": 72,
+            "title": "Dpi",
+            "type": "integer"
+          },
+          "max_pages": {
+            "default": 20,
+            "maximum": 100,
+            "minimum": 1,
+            "title": "Max Pages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "render_pagesArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "convert_to_pdf",
+      "title": "Convert Word document to PDF",
+      "description": "Validate the draft, convert it with LibreOffice headless, render pages for visual QA, and return the PDF. Pagination may differ from Microsoft Word.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "file_name": {
+            "default": "document.pdf",
+            "title": "File Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "convert_to_pdfArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "export_document",
+      "title": "Export Word document",
+      "description": "Export the current draft as a new validated DOCX or as best-effort Markdown. DOCX export preserves untouched OPC parts; Markdown is intentionally lossy.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "output_format": {
+            "default": "docx",
+            "enum": [
+              "docx",
+              "markdown"
+            ],
+            "title": "Output Format",
+            "type": "string"
+          },
+          "file_name": {
+            "default": "document.docx",
+            "title": "File Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "export_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "generate_preview",
+      "title": "Generate document preview",
+      "description": "Generate a PDF plus the first preview pages and visual-audit findings for mobile review. The preview is LibreOffice-based, not a pixel guarantee for Word.",
+      "inputSchema": {
+        "properties": {
+          "document_id": {
+            "title": "Document Id",
+            "type": "string"
+          },
+          "max_pages": {
+            "default": 6,
+            "maximum": 20,
+            "minimum": 1,
+            "title": "Max Pages",
+            "type": "integer"
+          },
+          "dpi": {
+            "default": 120,
+            "maximum": 200,
+            "minimum": 72,
+            "title": "Dpi",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "document_id"
+        ],
+        "title": "generate_previewArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_live_word_documents",
+      "title": "List open Microsoft Word documents",
+      "description": "List documents in the already-running Microsoft Word application. This local Windows-only tool never launches Word and never opens a file copy.",
+      "inputSchema": {
+        "properties": {},
+        "title": "list_live_word_documentsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "create_live_word_document",
+      "title": "Create a new document in running Microsoft Word",
+      "description": "Create and connect to a new blank document inside the already-running Microsoft Word application. Optionally save it to one explicit new .docx path; existing files are never overwritten.",
+      "inputSchema": {
+        "properties": {
+          "output_path": {
+            "default": "",
+            "maxLength": 32767,
+            "title": "Output Path",
+            "type": "string"
+          },
+          "activate": {
+            "default": true,
+            "title": "Activate",
+            "type": "boolean"
+          }
+        },
+        "title": "create_live_word_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "connect_live_word_document",
+      "title": "Connect to an open Microsoft Word document",
+      "description": "Connect WordToolkit to exactly one document that is already open in Microsoft Word. The returned live_document_id targets the real Word document rather than an isolated DOCX draft.",
+      "inputSchema": {
+        "properties": {
+          "document_name": {
+            "default": "",
+            "maxLength": 260,
+            "title": "Document Name",
+            "type": "string"
+          },
+          "full_path": {
+            "default": "",
+            "maxLength": 32767,
+            "title": "Full Path",
+            "type": "string"
+          },
+          "use_active": {
+            "default": true,
+            "title": "Use Active",
+            "type": "boolean"
+          },
+          "activate": {
+            "default": true,
+            "title": "Activate",
+            "type": "boolean"
+          }
+        },
+        "title": "connect_live_word_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "inspect_live_word_document",
+      "title": "Inspect connected Word Live document",
+      "description": "Read live Microsoft Word metadata and counts for a connected document without exporting or rebuilding it.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "live_document_id"
+        ],
+        "title": "inspect_live_word_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "map_live_word_structures",
+      "title": "Map structures in connected Microsoft Word document",
+      "description": "Inventory Word stories and bounded collection counts for sections, styles, tables, equations, fields, bookmarks, links, comments, revisions, content controls, shapes, notes, lists and generated tables without returning document content.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "include_type_histograms": {
+            "default": false,
+            "title": "Include Type Histograms",
+            "type": "boolean"
+          },
+          "adaptive_type_histograms": {
+            "default": true,
+            "title": "Adaptive Type Histograms",
+            "type": "boolean"
+          },
+          "max_type_items": {
+            "default": 2000,
+            "maximum": 10000,
+            "minimum": 1,
+            "title": "Max Type Items",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "live_document_id"
+        ],
+        "title": "map_live_word_structuresArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "inspect_live_word_structure_items",
+      "title": "Inspect native items in one Word structure collection",
+      "description": "Read a bounded page of semantic metadata from one native Word collection through one COM attachment. Supports paragraphs, sections, styles, tables, equations, fields, forms, bookmarks, links, comments, revisions, content controls, shapes, notes, lists, subdocuments, variables and generated tables. External addresses and field codes are never returned; optional text previews are bounded and never stored by adaptive learning.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "structure": {
+            "enum": [
+              "paragraphs",
+              "sections",
+              "styles",
+              "tables",
+              "equations",
+              "fields",
+              "form_fields",
+              "bookmarks",
+              "hyperlinks",
+              "comments",
+              "revisions",
+              "content_controls",
+              "inline_shapes",
+              "floating_shapes",
+              "footnotes",
+              "endnotes",
+              "lists",
+              "list_paragraphs",
+              "subdocuments",
+              "variables",
+              "tables_of_contents",
+              "tables_of_figures",
+              "tables_of_authorities"
+            ],
+            "title": "Structure",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 50,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "include_text": {
+            "default": false,
+            "title": "Include Text",
+            "type": "boolean"
+          },
+          "max_text_chars": {
+            "default": 500,
+            "maximum": 2000,
+            "minimum": 1,
+            "title": "Max Text Chars",
+            "type": "integer"
+          },
+          "adaptive_property_probing": {
+            "default": true,
+            "title": "Adaptive Property Probing",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "structure"
+        ],
+        "title": "inspect_live_word_structure_itemsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "inspect_live_word_equation_learning",
+      "title": "Inspect local Word equation learning",
+      "description": "Read privacy-preserving aggregate outcomes learned from native Word equation classes. No formula text, document text, paths or owner identifiers are stored or returned.",
+      "inputSchema": {
+        "properties": {},
+        "title": "inspect_live_word_equation_learningArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "inspect_live_word_structure_learning",
+      "title": "Inspect local Word structure learning",
+      "description": "Read privacy-preserving aggregate evidence used to schedule adaptive native type scans. It stores only fixed collection names, native enum values, scan outcomes and timing—never document content, counts, paths, handles or identifiers.",
+      "inputSchema": {
+        "properties": {},
+        "title": "inspect_live_word_structure_learningArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "inspect_live_word_object_model_types",
+      "title": "Browse installed Microsoft Word object-model types",
+      "description": "Build or query a bounded local catalog of the actual Word COM type library installed on this PC. Returns paged API type metadata only—never document content, document counts, paths, handles, owner identifiers, help text or help-file paths. The first scan attaches read-only to already-running Word; cached queries do not attach again. Set refresh=true after an Office update.",
+      "inputSchema": {
+        "properties": {
+          "query": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Query",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "enum": [
+              "",
+              "enum",
+              "record",
+              "module",
+              "interface",
+              "dispatch",
+              "coclass",
+              "alias",
+              "union"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 100,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "refresh": {
+            "default": false,
+            "title": "Refresh",
+            "type": "boolean"
+          }
+        },
+        "title": "inspect_live_word_object_model_typesArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "inspect_live_word_object_model_members",
+      "title": "Browse members of one installed Microsoft Word object-model type",
+      "description": "Return a bounded page of methods, properties, parameters, variables or enum values for one exact type from the cached installed Word COM catalog. No Word document content or local help paths are read, stored or returned.",
+      "inputSchema": {
+        "properties": {
+          "type_name": {
+            "maxLength": 256,
+            "title": "Type Name",
+            "type": "string"
+          },
+          "query": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Query",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "enum": [
+              "",
+              "method",
+              "property_get",
+              "property_put",
+              "property_put_ref",
+              "enum_value",
+              "variable"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 100,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "refresh": {
+            "default": false,
+            "title": "Refresh",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type_name"
+        ],
+        "title": "inspect_live_word_object_model_membersArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "inspect_live_word_member_capabilities",
+      "title": "Browse individual virtual tools for installed Microsoft Word members",
+      "description": "Return a bounded page from the derived registry. Every installed Word COM catalog member has one stable capability profile, one unique virtual-tool name, and validated JSON input/output schemas. Query by type, member name, capability ID, or virtual-tool name. Constants, reads, document-scoped edits, events, lifecycle actions and blocked external effects remain distinct, and arbitrary COM paths are never exposed.",
+      "inputSchema": {
+        "properties": {
+          "query": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Query",
+            "type": "string"
+          },
+          "type_name": {
+            "default": "",
+            "maxLength": 256,
+            "title": "Type Name",
+            "type": "string"
+          },
+          "member_kind": {
+            "default": "",
+            "enum": [
+              "",
+              "method",
+              "property_get",
+              "property_put",
+              "property_put_ref",
+              "enum_value",
+              "variable"
+            ],
+            "title": "Member Kind",
+            "type": "string"
+          },
+          "effect": {
+            "default": "",
+            "enum": [
+              "",
+              "constant",
+              "read",
+              "format",
+              "content",
+              "structure",
+              "calculation",
+              "view",
+              "event",
+              "external",
+              "lifecycle",
+              "unknown"
+            ],
+            "title": "Effect",
+            "type": "string"
+          },
+          "execution": {
+            "default": "",
+            "enum": [
+              "",
+              "metadata_only",
+              "read_allowed",
+              "write_allowed",
+              "blocked"
+            ],
+            "title": "Execution",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 100,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "refresh": {
+            "default": false,
+            "title": "Refresh",
+            "type": "boolean"
+          }
+        },
+        "title": "inspect_live_word_member_capabilitiesArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "preflight_live_word_member_operations",
+      "title": "Preflight catalog-backed Microsoft Word member operations",
+      "description": "Validate up to 50 operations against their per-member virtual-tool contracts: stable capability IDs, typed targets, result and enum-constant references, optional omissions, argument positions, COM parameter types and safety policy before any live Word mutation.",
+      "inputSchema": {
+        "properties": {
+          "operations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Operations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "operations"
+        ],
+        "title": "preflight_live_word_member_operationsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "execute_live_word_member_operations",
+      "title": "Execute catalog-backed operations in an open Microsoft Word document",
+      "description": "Execute up to 50 preflighted per-member virtual tools by stable capability ID. Targets are restricted to the connected document, its current selection or content, and typed results of earlier operations. A mutating batch requires expected_version and runs in one Word Undo record with rollback on failure. Indexed setters remain non-executable until their exact Word Undo behavior is proven.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "operations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Operations",
+            "type": "array"
+          },
+          "activate": {
+            "default": true,
+            "title": "Activate",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          },
+          "optimize_screen_updates": {
+            "default": true,
+            "title": "Optimize Screen Updates",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "operations"
+        ],
+        "title": "execute_live_word_member_operationsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "get_live_word_selection",
+      "title": "Read Word Live selection",
+      "description": "Read the current cursor or selection range and a selection_token for a subsequent cursor or selection mutation. Selected text is bounded to 10,000 characters.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "live_document_id"
+        ],
+        "title": "get_live_word_selectionArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "find_live_word_text",
+      "title": "Find text in the connected Microsoft Word document",
+      "description": "Run bounded native Word Find against the connected document and return exact ranges, short context, and a content-bound range_token for each match. Supports Word wildcards without returning or rebuilding the full document.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "search_text": {
+            "maxLength": 255,
+            "title": "Search Text",
+            "type": "string"
+          },
+          "match_case": {
+            "default": false,
+            "title": "Match Case",
+            "type": "boolean"
+          },
+          "whole_word": {
+            "default": false,
+            "title": "Whole Word",
+            "type": "boolean"
+          },
+          "use_wildcards": {
+            "default": false,
+            "title": "Use Wildcards",
+            "type": "boolean"
+          },
+          "context_chars": {
+            "default": 80,
+            "maximum": 2000,
+            "minimum": 0,
+            "title": "Context Chars",
+            "type": "integer"
+          },
+          "max_results": {
+            "default": 100,
+            "maximum": 5000,
+            "minimum": 1,
+            "title": "Max Results",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "search_text"
+        ],
+        "title": "find_live_word_textArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "replace_live_word_text",
+      "title": "Replace text transactionally in the connected Microsoft Word document",
+      "description": "Find and replace up to 5,000 native Word matches through one COM attachment and one custom Undo record. The complete match set is bounded before mutation, optimistic live_version is required, Track Changes state is restored, and partial failure rolls back.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "search_text": {
+            "maxLength": 255,
+            "title": "Search Text",
+            "type": "string"
+          },
+          "replacement_text": {
+            "default": "",
+            "maxLength": 200000,
+            "title": "Replacement Text",
+            "type": "string"
+          },
+          "match_case": {
+            "default": false,
+            "title": "Match Case",
+            "type": "boolean"
+          },
+          "whole_word": {
+            "default": false,
+            "title": "Whole Word",
+            "type": "boolean"
+          },
+          "use_wildcards": {
+            "default": false,
+            "title": "Use Wildcards",
+            "type": "boolean"
+          },
+          "replace_all": {
+            "default": true,
+            "title": "Replace All",
+            "type": "boolean"
+          },
+          "track_changes": {
+            "default": "preserve",
+            "enum": [
+              "preserve",
+              "enable",
+              "disable"
+            ],
+            "title": "Track Changes",
+            "type": "string"
+          },
+          "max_replacements": {
+            "default": 1000,
+            "maximum": 5000,
+            "minimum": 1,
+            "title": "Max Replacements",
+            "type": "integer"
+          },
+          "optimize_screen_updates": {
+            "default": true,
+            "title": "Optimize Screen Updates",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "search_text"
+        ],
+        "title": "replace_live_word_textArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "inspect_live_word_review",
+      "title": "Inspect comments or tracked revisions in Microsoft Word",
+      "description": "Read one bounded page of live comments or revisions and issue a content-bound review_token for every item. Later mutations require the matching token and reject stale raw indexes.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "comments",
+              "revisions"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 50,
+            "maximum": 200,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "include_text": {
+            "default": true,
+            "title": "Include Text",
+            "type": "boolean"
+          },
+          "max_text_chars": {
+            "default": 500,
+            "maximum": 2000,
+            "minimum": 1,
+            "title": "Max Text Chars",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "kind"
+        ],
+        "title": "inspect_live_word_reviewArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "manage_live_word_review",
+      "title": "Manage comments and tracked revisions in Microsoft Word",
+      "description": "Add a comment to a fresh selection, reply to, resolve, or delete a token-verified comment, accept or reject one token-verified revision, or set Track Changes. Undoable actions use one custom record with rollback; non-undoable Word properties use verified manual rollback.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "action": {
+            "enum": [
+              "add_comment",
+              "reply_comment",
+              "resolve_comment",
+              "delete_comment",
+              "accept_revision",
+              "reject_revision",
+              "set_track_changes"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "item_index": {
+            "default": 0,
+            "maximum": 1000000,
+            "minimum": 0,
+            "title": "Item Index",
+            "type": "integer"
+          },
+          "review_token": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Review Token",
+            "type": "string"
+          },
+          "selection_token": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Selection Token",
+            "type": "string"
+          },
+          "text": {
+            "default": "",
+            "maxLength": 20000,
+            "title": "Text",
+            "type": "string"
+          },
+          "resolved": {
+            "default": true,
+            "title": "Resolved",
+            "type": "boolean"
+          },
+          "tracking_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Tracking Enabled"
+          },
+          "optimize_screen_updates": {
+            "default": true,
+            "title": "Optimize Screen Updates",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "action"
+        ],
+        "title": "manage_live_word_reviewArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "diagnose_live_word_layout",
+      "title": "Diagnose live Microsoft Word layout",
+      "description": "Run a bounded single-pass scan for keep-with-next chains, long headings, body page breaks, oversized keep-together paragraphs, disabled widow control, empty-paragraph runs, manual page breaks and heading-style overuse. Returns ranges and metadata, never document text.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "max_paragraphs": {
+            "default": 10000,
+            "maximum": 25000,
+            "minimum": 1,
+            "title": "Max Paragraphs",
+            "type": "integer"
+          },
+          "max_issues": {
+            "default": 500,
+            "maximum": 2000,
+            "minimum": 1,
+            "title": "Max Issues",
+            "type": "integer"
+          },
+          "keep_with_next_threshold": {
+            "default": 5,
+            "maximum": 100,
+            "minimum": 2,
+            "title": "Keep With Next Threshold",
+            "type": "integer"
+          },
+          "long_heading_chars": {
+            "default": 100,
+            "maximum": 2000,
+            "minimum": 20,
+            "title": "Long Heading Chars",
+            "type": "integer"
+          },
+          "long_keep_together_chars": {
+            "default": 1200,
+            "maximum": 20000,
+            "minimum": 100,
+            "title": "Long Keep Together Chars",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "live_document_id"
+        ],
+        "title": "diagnose_live_word_layoutArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "inspect_live_word_undo",
+      "title": "Inspect guarded Microsoft Word Undo",
+      "description": "Read a bounded Word Undo list and issue an undo_token only when the current top entry begins with WordToolkit:. Undocumented Word history access is treated as optional and failure closes the gate.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "max_entries": {
+            "default": 20,
+            "maximum": 50,
+            "minimum": 1,
+            "title": "Max Entries",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "live_document_id"
+        ],
+        "title": "inspect_live_word_undoArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "undo_live_word_operation",
+      "title": "Undo exactly one verified WordToolkit operation",
+      "description": "Undo only the current top Word entry, only when it is labeled WordToolkit: and still matches a fresh undo_token plus expected live_version. It never accepts a raw count and never crosses a manual user edit.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "undo_token": {
+            "maxLength": 128,
+            "title": "Undo Token",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "undo_token"
+        ],
+        "title": "undo_live_word_operationArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "insert_live_word_text",
+      "title": "Insert text directly in open Microsoft Word",
+      "description": "Insert text into the real open Word document at the verified selection, cursor, or document end. It can create a styled paragraph and the change appears immediately in Word.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 200000,
+            "title": "Text",
+            "type": "string"
+          },
+          "target": {
+            "default": "cursor",
+            "enum": [
+              "selection",
+              "cursor",
+              "document_end"
+            ],
+            "title": "Target",
+            "type": "string"
+          },
+          "as_new_paragraph": {
+            "default": false,
+            "title": "As New Paragraph",
+            "type": "boolean"
+          },
+          "style": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Style",
+            "type": "string"
+          },
+          "formatting": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Formatting"
+          },
+          "selection_token": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Selection Token",
+            "type": "string"
+          },
+          "replace_selection": {
+            "default": false,
+            "title": "Replace Selection",
+            "type": "boolean"
+          },
+          "activate": {
+            "default": true,
+            "title": "Activate",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "text"
+        ],
+        "title": "insert_live_word_textArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "format_live_word_selection",
+      "title": "Format the current selection directly in Microsoft Word",
+      "description": "Apply a Word style plus bounded font and paragraph formatting to the exact non-empty live selection verified by a fresh selection token. The operation uses one COM attachment, one Undo record and no text round-trip.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "selection_token": {
+            "maxLength": 128,
+            "title": "Selection Token",
+            "type": "string"
+          },
+          "style": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Style",
+            "type": "string"
+          },
+          "formatting": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Formatting"
+          },
+          "optimize_screen_updates": {
+            "default": true,
+            "title": "Optimize Screen Updates",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "selection_token"
+        ],
+        "title": "format_live_word_selectionArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "insert_live_word_table",
+      "title": "Insert a native table directly in Microsoft Word",
+      "description": "Create a rectangular native Word table from up to 5,000 cells in one COM attachment. Text is inserted once as a bounded tab/paragraph payload and converted with Range.ConvertToTable, avoiding per-cell COM writes.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "target": {
+            "default": "document_end",
+            "enum": [
+              "selection",
+              "cursor",
+              "document_end"
+            ],
+            "title": "Target",
+            "type": "string"
+          },
+          "selection_token": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Selection Token",
+            "type": "string"
+          },
+          "replace_selection": {
+            "default": false,
+            "title": "Replace Selection",
+            "type": "boolean"
+          },
+          "style": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Style",
+            "type": "string"
+          },
+          "header_row": {
+            "default": true,
+            "title": "Header Row",
+            "type": "boolean"
+          },
+          "autofit": {
+            "default": "window",
+            "enum": [
+              "fixed",
+              "content",
+              "window"
+            ],
+            "title": "Autofit",
+            "type": "string"
+          },
+          "alignment": {
+            "default": "left",
+            "enum": [
+              "left",
+              "center",
+              "right"
+            ],
+            "title": "Alignment",
+            "type": "string"
+          },
+          "activate": {
+            "default": true,
+            "title": "Activate",
+            "type": "boolean"
+          },
+          "optimize_screen_updates": {
+            "default": true,
+            "title": "Optimize Screen Updates",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "rows"
+        ],
+        "title": "insert_live_word_tableArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "preflight_live_word_table_formulas",
+      "title": "Preflight native Word table formulas",
+      "description": "Validate up to 200 typed table-cell calculations without attaching to Word. Supports SUM, AVERAGE, COUNT, MAX, MIN and PRODUCT over positional directions or bounded A1-style ranges generated from row and column coordinates; raw formulas and field codes are never accepted.",
+      "inputSchema": {
+        "properties": {
+          "formulas": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Formulas",
+            "type": "array"
+          }
+        },
+        "required": [
+          "formulas"
+        ],
+        "title": "preflight_live_word_table_formulasArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "insert_live_word_table_formulas",
+      "title": "Insert native formulas into an existing Word table",
+      "description": "Insert and calculate up to 200 typed native formula fields in cells of one existing rectangular Word table through one COM attachment and one Undo transaction. Destination cells must be empty unless replacement is explicitly enabled; native field types, result ranges and final counts are verified. Formula fields calculate on insertion; force_update requests an additional explicit recalculation.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "table_index": {
+            "maximum": 10000,
+            "minimum": 1,
+            "title": "Table Index",
+            "type": "integer"
+          },
+          "formulas": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Formulas",
+            "type": "array"
+          },
+          "activate": {
+            "default": true,
+            "title": "Activate",
+            "type": "boolean"
+          },
+          "optimize_screen_updates": {
+            "default": true,
+            "title": "Optimize Screen Updates",
+            "type": "boolean"
+          },
+          "force_update": {
+            "default": false,
+            "title": "Force Update",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "table_index",
+          "formulas"
+        ],
+        "title": "insert_live_word_table_formulasArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "update_live_word_table_fields",
+      "title": "Update all native fields in one existing Word table",
+      "description": "Recalculate up to 5,000 existing native fields—including table formulas—in one Word Fields.Update call, one COM attachment and one Undo transaction. Field types and counts are verified before and after; field codes, results and document content are never returned.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "table_index": {
+            "maximum": 10000,
+            "minimum": 1,
+            "title": "Table Index",
+            "type": "integer"
+          },
+          "activate": {
+            "default": true,
+            "title": "Activate",
+            "type": "boolean"
+          },
+          "optimize_screen_updates": {
+            "default": true,
+            "title": "Optimize Screen Updates",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "table_index"
+        ],
+        "title": "update_live_word_table_fieldsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "insert_live_word_list",
+      "title": "Insert a native list directly in Microsoft Word",
+      "description": "Create up to 1,000 native bulleted or numbered Word paragraphs in one COM attachment. The complete text is inserted once, then one bounded Range.ListFormat operation applies native numbering without per-item COM writes.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "list_kind": {
+            "default": "bullet",
+            "enum": [
+              "bullet",
+              "numbered"
+            ],
+            "title": "List Kind",
+            "type": "string"
+          },
+          "target": {
+            "default": "document_end",
+            "enum": [
+              "selection",
+              "cursor",
+              "document_end"
+            ],
+            "title": "Target",
+            "type": "string"
+          },
+          "selection_token": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Selection Token",
+            "type": "string"
+          },
+          "replace_selection": {
+            "default": false,
+            "title": "Replace Selection",
+            "type": "boolean"
+          },
+          "style": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Style",
+            "type": "string"
+          },
+          "formatting": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Formatting"
+          },
+          "activate": {
+            "default": true,
+            "title": "Activate",
+            "type": "boolean"
+          },
+          "optimize_screen_updates": {
+            "default": true,
+            "title": "Optimize Screen Updates",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "items"
+        ],
+        "title": "insert_live_word_listArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "preflight_live_word_bookmarks",
+      "title": "Preflight native Word bookmarks",
+      "description": "Validate up to 200 named Word bookmark ranges without attaching to Word. Names are bounded and case-insensitively unique; document text is not returned.",
+      "inputSchema": {
+        "properties": {
+          "bookmarks": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Bookmarks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "bookmarks"
+        ],
+        "title": "preflight_live_word_bookmarksArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "insert_live_word_bookmarks",
+      "title": "Insert native bookmarks directly in Microsoft Word",
+      "description": "Insert up to 200 named native Word bookmarks through one COM attachment, one text payload and one Undo transaction. Existing-name collisions and any native range mismatch fail before the live version advances.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "bookmarks": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Bookmarks",
+            "type": "array"
+          },
+          "target": {
+            "default": "document_end",
+            "enum": [
+              "selection",
+              "cursor",
+              "document_end"
+            ],
+            "title": "Target",
+            "type": "string"
+          },
+          "selection_token": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Selection Token",
+            "type": "string"
+          },
+          "replace_selection": {
+            "default": false,
+            "title": "Replace Selection",
+            "type": "boolean"
+          },
+          "activate": {
+            "default": true,
+            "title": "Activate",
+            "type": "boolean"
+          },
+          "optimize_screen_updates": {
+            "default": true,
+            "title": "Optimize Screen Updates",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "bookmarks"
+        ],
+        "title": "insert_live_word_bookmarksArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "preflight_live_word_fields",
+      "title": "Preflight safe native Word fields",
+      "description": "Validate up to 200 typed Word fields without attaching to Word. Raw field codes are never accepted; formula fields use a restricted arithmetic grammar and external-data field classes are impossible to request.",
+      "inputSchema": {
+        "properties": {
+          "fields": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Fields",
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields"
+        ],
+        "title": "preflight_live_word_fieldsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "insert_live_word_fields",
+      "title": "Insert safe native fields directly in Microsoft Word",
+      "description": "Insert up to 200 typed native Word fields through one COM attachment, one surrounding-text payload and one Undo transaction. Supports page/document metadata, date/time, sequence, internal reference and restricted formula fields; raw or external-data field codes are rejected.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "target": {
+            "default": "document_end",
+            "enum": [
+              "selection",
+              "cursor",
+              "document_end"
+            ],
+            "title": "Target",
+            "type": "string"
+          },
+          "selection_token": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Selection Token",
+            "type": "string"
+          },
+          "replace_selection": {
+            "default": false,
+            "title": "Replace Selection",
+            "type": "boolean"
+          },
+          "activate": {
+            "default": true,
+            "title": "Activate",
+            "type": "boolean"
+          },
+          "optimize_screen_updates": {
+            "default": true,
+            "title": "Optimize Screen Updates",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "fields"
+        ],
+        "title": "insert_live_word_fieldsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "insert_live_word_equation",
+      "title": "Insert native equation directly in open Microsoft Word",
+      "description": "Convert a LaTeX, UnicodeMath, Presentation MathML, or OMML string to Word linear math, create exactly one native editable OMath in the real open document, build it up, and show the change immediately.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          },
+          "input_format": {
+            "default": "latex",
+            "enum": [
+              "latex",
+              "unicodemath",
+              "mathml",
+              "omml"
+            ],
+            "title": "Input Format",
+            "type": "string"
+          },
+          "display": {
+            "default": true,
+            "title": "Display",
+            "type": "boolean"
+          },
+          "target": {
+            "default": "cursor",
+            "enum": [
+              "selection",
+              "cursor",
+              "document_end"
+            ],
+            "title": "Target",
+            "type": "string"
+          },
+          "selection_token": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Selection Token",
+            "type": "string"
+          },
+          "replace_selection": {
+            "default": false,
+            "title": "Replace Selection",
+            "type": "boolean"
+          },
+          "activate": {
+            "default": true,
+            "title": "Activate",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "value"
+        ],
+        "title": "insert_live_word_equationArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "insert_live_word_equations_batch",
+      "title": "Insert a batch of native equations directly in open Microsoft Word",
+      "description": "Insert up to 100 LaTeX, UnicodeMath, Presentation MathML, or OMML equations as native editable Word OMath objects in one COM attachment and one Undo record. Use this for fast worksheets or step-by-step solutions.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "equations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Equations",
+            "type": "array"
+          },
+          "activate": {
+            "default": true,
+            "title": "Activate",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "equations"
+        ],
+        "title": "insert_live_word_equations_batchArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "preflight_live_word_equations",
+      "title": "Preflight equations for Microsoft Word",
+      "description": "Securely parse and convert up to 200 LaTeX, UnicodeMath, Presentation MathML, or OMML equation strings before any Word mutation. DTDs and external XML resolution are prohibited. Returns the exact Word linear math that will be inserted.",
+      "inputSchema": {
+        "properties": {
+          "equations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Equations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "equations"
+        ],
+        "title": "preflight_live_word_equationsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "apply_live_word_operations",
+      "title": "Apply a fast mixed batch directly in open Microsoft Word",
+      "description": "Append up to 200 interleaved text and LaTeX, UnicodeMath, Presentation MathML, or OMML equation operations in one COM attachment and one Word Undo transaction. The complete batch is converted before mutation, inserted as one payload, and rolled back if styling, OMath build-up or native count verification fails.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "operations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Operations",
+            "type": "array"
+          },
+          "activate": {
+            "default": true,
+            "title": "Activate",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          },
+          "optimize_screen_updates": {
+            "default": true,
+            "title": "Optimize Screen Updates",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "operations"
+        ],
+        "title": "apply_live_word_operationsArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "validate_live_word_document",
+      "title": "Validate open Word document snapshot",
+      "description": "Copy the already-saved live DOCX to an internal temporary snapshot, validate its OOXML and native equations, then discard the snapshot. Unsaved live changes are rejected so validation never saves implicitly.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "live_document_id"
+        ],
+        "title": "validate_live_word_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "save_live_word_document",
+      "title": "Save the same open Microsoft Word document",
+      "description": "Call Document.Save on the connected Word Live document, writing changes to its existing path without exporting a new file. Unsaved, protected, or read-only documents are rejected.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id"
+        ],
+        "title": "save_live_word_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "start_word_application",
+      "title": "Start or attach to Microsoft Word",
+      "description": "Start Microsoft Word through native COM when no automation-visible instance exists, or attach to the running instance. No shell, Python helper, or document is created.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "visible": {
+            "default": true,
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "title": "start_word_applicationArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "open_live_word_document",
+      "title": "Open an existing file in real Microsoft Word",
+      "description": "Open one explicit absolute local Word-readable DOC, DOCX, DOCM, DOT, DOTX, DOTM, ODT, RTF, TXT, PDF, HTML/MHTML, or XML path and return a connected versioned handle. Macros are force-disabled and external links are not updated during open. An already-open exact path is reused.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "file_path": {
+            "maxLength": 32767,
+            "minLength": 1,
+            "title": "File Path",
+            "type": "string"
+          },
+          "read_only": {
+            "default": false,
+            "title": "Read Only",
+            "type": "boolean"
+          },
+          "activate": {
+            "default": true,
+            "title": "Activate",
+            "type": "boolean"
+          },
+          "visible": {
+            "default": true,
+            "title": "Visible",
+            "type": "boolean"
+          },
+          "add_to_recent_files": {
+            "default": false,
+            "title": "Add To Recent Files",
+            "type": "boolean"
+          },
+          "open_and_repair": {
+            "default": false,
+            "title": "Open And Repair",
+            "type": "boolean"
+          },
+          "launch_if_needed": {
+            "default": true,
+            "title": "Launch If Needed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "file_path"
+        ],
+        "title": "open_live_word_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "insert_live_word_image",
+      "title": "Insert a native inline image",
+      "description": "Insert one explicit local image as a native embedded Word InlineShape at a token-verified selection/cursor or at the document end. Supports bounded dimensions and accessibility text in one guarded Undo transaction.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "file_path": {
+            "maxLength": 32767,
+            "minLength": 1,
+            "title": "File Path",
+            "type": "string"
+          },
+          "target": {
+            "default": "document_end",
+            "enum": [
+              "selection",
+              "cursor",
+              "document_end"
+            ],
+            "title": "Target",
+            "type": "string"
+          },
+          "selection_token": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Selection Token",
+            "type": "string"
+          },
+          "replace_selection": {
+            "default": false,
+            "title": "Replace Selection",
+            "type": "boolean"
+          },
+          "alternative_text": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Alternative Text",
+            "type": "string"
+          },
+          "title": {
+            "default": "",
+            "maxLength": 512,
+            "title": "Title",
+            "type": "string"
+          },
+          "width_points": {
+            "anyOf": [
+              {
+                "maximum": 10000,
+                "minimum": 1,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Width Points"
+          },
+          "height_points": {
+            "anyOf": [
+              {
+                "maximum": 10000,
+                "minimum": 1,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Height Points"
+          },
+          "lock_aspect_ratio": {
+            "default": true,
+            "title": "Lock Aspect Ratio",
+            "type": "boolean"
+          },
+          "activate": {
+            "default": true,
+            "title": "Activate",
+            "type": "boolean"
+          },
+          "optimize_screen_updates": {
+            "default": true,
+            "title": "Optimize Screen Updates",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "file_path"
+        ],
+        "title": "insert_live_word_imageArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "insert_live_word_comment",
+      "title": "Comment an exact live Word selection or found range",
+      "description": "Add one native Word comment to exactly one fresh non-empty selection_token or content-bound range_token returned by find_live_word_text. The comment is created in one custom Undo record and verified by the native Comments collection.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "selection_token": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Selection Token",
+            "type": "string"
+          },
+          "range_token": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Range Token",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          },
+          "optimize_screen_updates": {
+            "default": true,
+            "title": "Optimize Screen Updates",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "text"
+        ],
+        "title": "insert_live_word_commentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "insert_live_word_note",
+      "title": "Insert a native footnote or endnote",
+      "description": "Insert one native Word footnote or endnote at a token-verified cursor/selection endpoint or the document end. Supports an optional bounded custom reference mark and one guarded Undo transaction.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "kind": {
+            "default": "footnote",
+            "enum": [
+              "footnote",
+              "endnote"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          },
+          "custom_mark": {
+            "default": "",
+            "maxLength": 10,
+            "title": "Custom Mark",
+            "type": "string"
+          },
+          "target": {
+            "default": "cursor",
+            "enum": [
+              "cursor",
+              "selection",
+              "document_end"
+            ],
+            "title": "Target",
+            "type": "string"
+          },
+          "selection_token": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Selection Token",
+            "type": "string"
+          },
+          "activate": {
+            "default": true,
+            "title": "Activate",
+            "type": "boolean"
+          },
+          "optimize_screen_updates": {
+            "default": true,
+            "title": "Optimize Screen Updates",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "text"
+        ],
+        "title": "insert_live_word_noteArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "set_live_word_header_footer",
+      "title": "Set or clear a native header or footer",
+      "description": "Set or clear the primary, first-page, or even-page header/footer in one explicit section. Controls LinkToPrevious, enables the required page-layout variant, and applies bounded style/formatting in one Undo transaction.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "section_index": {
+            "default": 1,
+            "maximum": 10000,
+            "minimum": 1,
+            "title": "Section Index",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "header",
+              "footer"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "variant": {
+            "default": "primary",
+            "enum": [
+              "primary",
+              "first_page",
+              "even_pages"
+            ],
+            "title": "Variant",
+            "type": "string"
+          },
+          "text": {
+            "default": "",
+            "maxLength": 200000,
+            "title": "Text",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "link_to_previous": {
+            "default": false,
+            "title": "Link To Previous",
+            "type": "boolean"
+          },
+          "style": {
+            "default": "",
+            "maxLength": 128,
+            "title": "Style",
+            "type": "string"
+          },
+          "formatting": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Formatting"
+          },
+          "optimize_screen_updates": {
+            "default": true,
+            "title": "Optimize Screen Updates",
+            "type": "boolean"
+          },
+          "expected_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Expected Version"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "kind"
+        ],
+        "title": "set_live_word_header_footerArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "export_live_word_pdf",
+      "title": "Export the current live Word document to PDF",
+      "description": "Export the current live Word state, including unsaved edits, to a new PDF through Word ExportAsFixedFormat. The PDF is first written to a sibling temporary path and moved or atomically replaced only after a non-empty export is verified.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "output_path": {
+            "maxLength": 32767,
+            "minLength": 1,
+            "title": "Output Path",
+            "type": "string"
+          },
+          "overwrite": {
+            "default": false,
+            "title": "Overwrite",
+            "type": "boolean"
+          },
+          "optimize_for": {
+            "default": "print",
+            "enum": [
+              "print",
+              "screen"
+            ],
+            "title": "Optimize For",
+            "type": "string"
+          },
+          "bookmarks": {
+            "default": "headings",
+            "enum": [
+              "none",
+              "headings",
+              "bookmarks"
+            ],
+            "title": "Bookmarks",
+            "type": "string"
+          },
+          "include_document_properties": {
+            "default": true,
+            "title": "Include Document Properties",
+            "type": "boolean"
+          },
+          "pdf_a": {
+            "default": false,
+            "title": "PDF A",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "output_path"
+        ],
+        "title": "export_live_word_pdfArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "close_live_word_document",
+      "title": "Close the connected Word document",
+      "description": "Close exactly one connected live document after an explicit save or discard choice. Saving an untitled document requires a new absolute DOCX output path; existing files are never overwritten.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          },
+          "save_changes": {
+            "enum": [
+              "save",
+              "discard"
+            ],
+            "title": "Save Changes",
+            "type": "string"
+          },
+          "output_path": {
+            "default": "",
+            "maxLength": 32767,
+            "title": "Output Path",
+            "type": "string"
+          },
+          "expected_version": {
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "save_changes",
+          "expected_version"
+        ],
+        "title": "close_live_word_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "quit_word_application",
+      "title": "Quit the real Microsoft Word application",
+      "description": "Quit the attached Word application only after confirm=true and an explicit save_all or discard_all choice. save_all fails closed when any dirty document has no path instead of showing an automation-blocking Save As dialog.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "save_changes": {
+            "enum": [
+              "save_all",
+              "discard_all"
+            ],
+            "title": "Save Changes",
+            "type": "string"
+          },
+          "confirm": {
+            "const": true,
+            "title": "Confirm",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "save_changes",
+          "confirm"
+        ],
+        "title": "quit_word_applicationArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "disconnect_live_word_document",
+      "title": "Disconnect Word Live document",
+      "description": "Release the WordToolkit live handle without closing Microsoft Word or the document.",
+      "inputSchema": {
+        "properties": {
+          "live_document_id": {
+            "title": "Live Document Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "live_document_id"
+        ],
+        "title": "disconnect_live_word_documentArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    }
+  ],
+  "transport": "local_stdio"
+}

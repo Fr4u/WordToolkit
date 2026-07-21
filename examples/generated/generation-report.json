@@ -1,0 +1,166 @@
+{
+  "equation_document": "WordToolkit-equations.docx",
+  "equation_report": {
+    "validation": {
+      "valid": true,
+      "errors": 0,
+      "warnings": 0,
+      "issues": [],
+      "package": {
+        "entries": 11,
+        "compressed_bytes": 4068,
+        "uncompressed_bytes": 16038,
+        "max_ratio_seen": 7.61,
+        "external_relationships": [],
+        "blocked_external_relationships": [],
+        "opaque_preserved_parts": [],
+        "warnings": []
+      },
+      "validators": {
+        "wordtoolkit_structural": {
+          "valid": true
+        },
+        "microsoft_openxml_sdk": {
+          "valid": true,
+          "errors": 0,
+          "issues": [],
+          "available": true,
+          "exit_code": 0
+        }
+      }
+    },
+    "equations": {
+      "valid": true,
+      "valid_count": 5,
+      "issues": []
+    }
+  },
+  "showcase_document": "WordToolkit-showcase.docx",
+  "showcase_report": {
+    "validation": {
+      "valid": true,
+      "errors": 0,
+      "warnings": 0,
+      "issues": [],
+      "package": {
+        "entries": 16,
+        "compressed_bytes": 8651,
+        "uncompressed_bytes": 26677,
+        "max_ratio_seen": 7.61,
+        "external_relationships": [],
+        "blocked_external_relationships": [],
+        "opaque_preserved_parts": [
+          "word/media/image1.png"
+        ],
+        "warnings": []
+      },
+      "validators": {
+        "wordtoolkit_structural": {
+          "valid": true
+        },
+        "microsoft_openxml_sdk": {
+          "valid": true,
+          "errors": 0,
+          "issues": [],
+          "available": true,
+          "exit_code": 0
+        }
+      }
+    },
+    "preservation": {
+      "preserved": true,
+      "missing_parts": [],
+      "unexpectedly_changed_parts": [],
+      "new_parts": [
+        "word/comments.xml",
+        "word/footer1.xml",
+        "word/footer2.xml",
+        "word/header2.xml",
+        "word/media/image1.png"
+      ]
+    },
+    "audit": {
+      "footnotes": {
+        "valid": true,
+        "references": 1,
+        "definitions": 1,
+        "missing_definitions": [],
+        "orphan_definitions": []
+      },
+      "paraids": {
+        "valid": true,
+        "total": 35,
+        "duplicates": {},
+        "out_of_range": []
+      },
+      "headings": {
+        "count": 4,
+        "issues": []
+      },
+      "bookmarks": {
+        "total": 2,
+        "unpaired_starts": 0,
+        "unpaired_ends": 0
+      },
+      "relationships": {
+        "missing_targets": []
+      },
+      "images": {
+        "missing": []
+      },
+      "endnotes": {
+        "valid": true,
+        "total": 0,
+        "orphaned_refs": [],
+        "orphaned_endnotes": []
+      },
+      "tables": {
+        "inconsistent_columns": []
+      },
+      "protection": {
+        "edit": "none",
+        "enforcement": "0"
+      },
+      "artifacts": [],
+      "valid": true,
+      "external_relationships": [],
+      "unknown_parts_preserved_by_default": true
+    }
+  },
+  "render": {
+    "pdf": "C:\\Users\\Admin\\Desktop\\codex\\WordToolKit\\wordtoolkit\\examples\\generated\\WordToolkit-showcase.pdf",
+    "bytes": 84985,
+    "renderer": "LibreOffice headless",
+    "compatibility_notice": "Microsoft Word and LibreOffice can paginate and shape fonts differently; this is not pixel-identical Word rendering."
+  },
+  "visual_audit": {
+    "passed": true,
+    "page_count": 1,
+    "issues": [],
+    "limitations": [
+      "Heuristics detect blank/sparse pages and edge clipping but cannot prove typographic correctness.",
+      "A Windows CI runner must perform final Microsoft Word interoperability checks."
+    ]
+  },
+  "preview_pages": [
+    "page-1.png"
+  ],
+  "equation_render": {
+    "pdf": "C:\\Users\\Admin\\Desktop\\codex\\WordToolKit\\wordtoolkit\\examples\\generated\\WordToolkit-equations.pdf",
+    "bytes": 66338,
+    "renderer": "LibreOffice headless",
+    "compatibility_notice": "Microsoft Word and LibreOffice can paginate and shape fonts differently; this is not pixel-identical Word rendering."
+  },
+  "equation_visual_audit": {
+    "passed": true,
+    "page_count": 1,
+    "issues": [],
+    "limitations": [
+      "Heuristics detect blank/sparse pages and edge clipping but cannot prove typographic correctness.",
+      "A Windows CI runner must perform final Microsoft Word interoperability checks."
+    ]
+  },
+  "equation_preview_pages": [
+    "page-1.png"
+  ]
+}

@@ -1,0 +1,506 @@
+{
+  "status": "passed",
+  "document": "C:\\Users\\Admin\\Desktop\\codex\\WordToolKit\\wordtoolkit\\examples\\advanced\\WordToolkit-advanced-torture-test.docx",
+  "pdf": "C:\\Users\\Admin\\Desktop\\codex\\WordToolKit\\wordtoolkit\\examples\\advanced\\WordToolkit-advanced-torture-test.pdf",
+  "open": {
+    "document": {
+      "path": "C:\\Users\\Admin\\Desktop\\codex\\WordToolKit\\wordtoolkit\\examples\\advanced\\WordToolkit-advanced-seed.docx",
+      "size_bytes": 6399,
+      "paragraph_count": 1,
+      "heading_count": 0,
+      "image_count": 0,
+      "footnote_count": 0,
+      "parts": [
+        "[Content_Types].xml",
+        "_rels/.rels",
+        "docProps/core.xml",
+        "word/_rels/document.xml.rels",
+        "word/document.xml",
+        "word/endnotes.xml",
+        "word/fontTable.xml",
+        "word/footnotes.xml",
+        "word/header1.xml",
+        "word/numbering.xml",
+        "word/settings.xml",
+        "word/styles.xml"
+      ]
+    },
+    "package": {
+      "entries": 16,
+      "compressed_bytes": 4515,
+      "uncompressed_bytes": 18344,
+      "max_ratio_seen": 13.99,
+      "external_relationships": [],
+      "blocked_external_relationships": [],
+      "opaque_preserved_parts": [
+        "customXml/item1.xml",
+        "customXml/itemProps1.xml",
+        "word/embeddings/opaque-preservation.bin"
+      ],
+      "warnings": []
+    },
+    "normalizations": {
+      "assigned_missing": 0,
+      "replaced_invalid_or_duplicate": 0
+    }
+  },
+  "save": {
+    "path": "C:\\Users\\Admin\\Desktop\\codex\\WordToolKit\\wordtoolkit\\examples\\advanced\\WordToolkit-advanced-torture-test.docx",
+    "size_bytes": 52277,
+    "modified_parts": [
+      "[Content_Types].xml",
+      "word/_rels/document.xml.rels",
+      "word/comments.xml",
+      "word/commentsExtended.xml",
+      "word/document.xml",
+      "word/endnotes.xml",
+      "word/footer1.xml",
+      "word/footer10.xml",
+      "word/footer11.xml",
+      "word/footer12.xml",
+      "word/footer2.xml",
+      "word/footer3.xml",
+      "word/footer4.xml",
+      "word/footer5.xml",
+      "word/footer6.xml",
+      "word/footer7.xml",
+      "word/footer8.xml",
+      "word/footer9.xml",
+      "word/footnotes.xml",
+      "word/header1.xml",
+      "word/header10.xml",
+      "word/header11.xml",
+      "word/header12.xml",
+      "word/header2.xml",
+      "word/header3.xml",
+      "word/header4.xml",
+      "word/header5.xml",
+      "word/header6.xml",
+      "word/header7.xml",
+      "word/header8.xml",
+      "word/header9.xml",
+      "word/numbering.xml",
+      "word/settings.xml",
+      "word/styles.xml"
+    ],
+    "repairs": {
+      "orphan_footnotes_removed": 0,
+      "orphan_endnotes_removed": 0,
+      "paraids_deduplicated": 1,
+      "broken_rels_removed": 0
+    },
+    "warnings": [
+      "Heading level skip: H1 -> H3 at 'Równanie 1 — latex'",
+      "Table 1 has inconsistent column counts: [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 7, 8]"
+    ],
+    "validation": {
+      "valid": true,
+      "errors": 0,
+      "warnings": 0,
+      "issues": [],
+      "package": {
+        "entries": 43,
+        "compressed_bytes": 47425,
+        "uncompressed_bytes": 166514,
+        "max_ratio_seen": 13.99,
+        "external_relationships": [
+          {
+            "part": "word/_rels/document.xml.rels",
+            "id": "rId94",
+            "target": "https://learn.microsoft.com/office/open-xml/"
+          }
+        ],
+        "blocked_external_relationships": [],
+        "opaque_preserved_parts": [
+          "customXml/item1.xml",
+          "customXml/itemProps1.xml",
+          "word/embeddings/opaque-preservation.bin",
+          "word/media/image1.png",
+          "word/media/image2.png"
+        ],
+        "warnings": []
+      },
+      "validators": {
+        "wordtoolkit_structural": {
+          "valid": true
+        },
+        "microsoft_openxml_sdk": {
+          "valid": true,
+          "errors": 0,
+          "issues": [],
+          "available": true,
+          "exit_code": 0
+        }
+      }
+    },
+    "round_trip_preservation": {
+      "preserved": true,
+      "missing_parts": [],
+      "unexpectedly_changed_parts": [],
+      "new_parts": [
+        "word/comments.xml",
+        "word/commentsExtended.xml",
+        "word/footer1.xml",
+        "word/footer10.xml",
+        "word/footer11.xml",
+        "word/footer12.xml",
+        "word/footer2.xml",
+        "word/footer3.xml",
+        "word/footer4.xml",
+        "word/footer5.xml",
+        "word/footer6.xml",
+        "word/footer7.xml",
+        "word/footer8.xml",
+        "word/footer9.xml",
+        "word/header10.xml",
+        "word/header11.xml",
+        "word/header12.xml",
+        "word/header2.xml",
+        "word/header3.xml",
+        "word/header4.xml",
+        "word/header5.xml",
+        "word/header6.xml",
+        "word/header7.xml",
+        "word/header8.xml",
+        "word/header9.xml",
+        "word/media/image1.png",
+        "word/media/image2.png"
+      ]
+    }
+  },
+  "reopen": {
+    "document": {
+      "path": "C:\\Users\\Admin\\Desktop\\codex\\WordToolKit\\wordtoolkit\\examples\\advanced\\WordToolkit-advanced-torture-test.docx",
+      "size_bytes": 52277,
+      "paragraph_count": 368,
+      "heading_count": 25,
+      "image_count": 2,
+      "footnote_count": 1,
+      "comment_count": 2,
+      "parts": [
+        "[Content_Types].xml",
+        "_rels/.rels",
+        "docProps/core.xml",
+        "word/_rels/document.xml.rels",
+        "word/comments.xml",
+        "word/commentsExtended.xml",
+        "word/document.xml",
+        "word/endnotes.xml",
+        "word/fontTable.xml",
+        "word/footer1.xml",
+        "word/footer10.xml",
+        "word/footer11.xml",
+        "word/footer12.xml",
+        "word/footer2.xml",
+        "word/footer3.xml",
+        "word/footer4.xml",
+        "word/footer5.xml",
+        "word/footer6.xml",
+        "word/footer7.xml",
+        "word/footer8.xml",
+        "word/footer9.xml",
+        "word/footnotes.xml",
+        "word/header1.xml",
+        "word/header10.xml",
+        "word/header11.xml",
+        "word/header12.xml",
+        "word/header2.xml",
+        "word/header3.xml",
+        "word/header4.xml",
+        "word/header5.xml",
+        "word/header6.xml",
+        "word/header7.xml",
+        "word/header8.xml",
+        "word/header9.xml",
+        "word/numbering.xml",
+        "word/settings.xml",
+        "word/styles.xml"
+      ]
+    },
+    "package": {
+      "entries": 43,
+      "compressed_bytes": 47425,
+      "uncompressed_bytes": 166514,
+      "max_ratio_seen": 13.99,
+      "external_relationships": [
+        {
+          "part": "word/_rels/document.xml.rels",
+          "id": "rId94",
+          "target": "https://learn.microsoft.com/office/open-xml/"
+        }
+      ],
+      "blocked_external_relationships": [],
+      "opaque_preserved_parts": [
+        "customXml/item1.xml",
+        "customXml/itemProps1.xml",
+        "word/embeddings/opaque-preservation.bin",
+        "word/media/image1.png",
+        "word/media/image2.png"
+      ],
+      "warnings": []
+    },
+    "normalizations": {
+      "assigned_missing": 16,
+      "replaced_invalid_or_duplicate": 0
+    }
+  },
+  "structural_validation": {
+    "valid": true,
+    "errors": 0,
+    "warnings": 0,
+    "issues": [],
+    "package": {
+      "entries": 43,
+      "compressed_bytes": 47425,
+      "uncompressed_bytes": 166514,
+      "max_ratio_seen": 13.99,
+      "external_relationships": [
+        {
+          "part": "word/_rels/document.xml.rels",
+          "id": "rId94",
+          "target": "https://learn.microsoft.com/office/open-xml/"
+        }
+      ],
+      "blocked_external_relationships": [],
+      "opaque_preserved_parts": [
+        "customXml/item1.xml",
+        "customXml/itemProps1.xml",
+        "word/embeddings/opaque-preservation.bin",
+        "word/media/image1.png",
+        "word/media/image2.png"
+      ],
+      "warnings": []
+    },
+    "validators": {
+      "wordtoolkit_structural": {
+        "valid": true
+      },
+      "microsoft_openxml_sdk": {
+        "valid": true,
+        "errors": 0,
+        "issues": [],
+        "available": true,
+        "exit_code": 0
+      }
+    }
+  },
+  "package_assertions": {
+    "counts": {
+      "sections": 4,
+      "tables": 2,
+      "equations": 17,
+      "math_blocks": 16,
+      "comments": 1,
+      "footnotes": 1,
+      "endnotes": 1,
+      "insertions": 35,
+      "deletions": 2,
+      "fields": 17,
+      "bookmarks": 17,
+      "content_controls": 1,
+      "data_bindings": 1,
+      "drawings": 2,
+      "image_doc_properties": 2,
+      "root_relationships": 3
+    },
+    "protected_part_hashes": {
+      "customXml/item1.xml": "c69cad94c2396527b9e49573c776d8c55fa68f4883ee21b76354aa26e9778c1f",
+      "customXml/itemProps1.xml": "93711fafee4e8de13807856ebf65a3e8e5583d3723cf3d217649f0e0d5247358",
+      "customXml/_rels/item1.xml.rels": "04dbfa168cb2c88d843912a75a583f09c0baba1e714cf143717439d88f8ce7fc",
+      "word/fontTable.xml": "082f06c652a18432228c43c805d8ba74963b8a45b1eb81ae4c7ae7ce0c3eb26c",
+      "word/embeddings/opaque-preservation.bin": "4043ab3659cd61351795c186762a045221774893a97dcc74f6ba3deade65ac03"
+    }
+  },
+  "equation_assertions": {
+    "native_equations": 17,
+    "block_source_equations": 16,
+    "semantic_source_roundtrips": 16,
+    "semantic_export_reparses": {
+      "latex": 16,
+      "unicodemath": 16,
+      "mathml": 16
+    },
+    "validation": {
+      "valid": true,
+      "valid_count": 17,
+      "issues": []
+    }
+  },
+  "accessibility": {
+    "issue_count": 0,
+    "issues": []
+  },
+  "layout_risks": {
+    "risks": [],
+    "count": 0
+  },
+  "package_audit": {
+    "footnotes": {
+      "valid": true,
+      "references": 1,
+      "definitions": 1,
+      "missing_definitions": [],
+      "orphan_definitions": []
+    },
+    "paraids": {
+      "valid": true,
+      "total": 434,
+      "duplicates": {},
+      "out_of_range": []
+    },
+    "headings": {
+      "count": 25,
+      "issues": [
+        {
+          "issue": "level_skip",
+          "heading": "Równanie 1 — latex",
+          "expected_max": 2,
+          "actual": 3
+        }
+      ]
+    },
+    "bookmarks": {
+      "total": 17,
+      "unpaired_starts": 0,
+      "unpaired_ends": 0
+    },
+    "relationships": {
+      "missing_targets": []
+    },
+    "images": {
+      "missing": []
+    },
+    "endnotes": {
+      "valid": true,
+      "total": 1,
+      "orphaned_refs": [],
+      "orphaned_endnotes": []
+    },
+    "tables": {
+      "inconsistent_columns": [
+        {
+          "table_index": 0,
+          "column_counts": [
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            8,
+            7,
+            8
+          ]
+        }
+      ]
+    },
+    "protection": {
+      "edit": "none",
+      "enforcement": "0"
+    },
+    "artifacts": [],
+    "valid": false,
+    "external_relationships": [
+      {
+        "part": "word/_rels/document.xml.rels",
+        "id": "rId94",
+        "target": "https://learn.microsoft.com/office/open-xml/"
+      }
+    ],
+    "unknown_parts_preserved_by_default": true
+  },
+  "render": {
+    "pdf": "C:\\Users\\Admin\\Desktop\\codex\\WordToolKit\\wordtoolkit\\examples\\advanced\\WordToolkit-advanced-torture-test.pdf",
+    "bytes": 248733,
+    "renderer": "LibreOffice headless",
+    "compatibility_notice": "Microsoft Word and LibreOffice can paginate and shape fonts differently; this is not pixel-identical Word rendering."
+  },
+  "rendering_assertions": {
+    "page_count": 11,
+    "orientations": [
+      "portrait",
+      "portrait",
+      "landscape",
+      "landscape",
+      "landscape",
+      "portrait",
+      "portrait",
+      "portrait",
+      "portrait",
+      "portrait",
+      "portrait"
+    ],
+    "portrait_pages": 8,
+    "landscape_pages": 3,
+    "blank_pages": [],
+    "replacement_glyph_pages": [],
+    "sparse_pages": [],
+    "extracted_text_lengths": [
+      626,
+      632,
+      1453,
+      1364,
+      608,
+      1338,
+      1851,
+      519,
+      208,
+      470,
+      265
+    ],
+    "fonts": {
+      "available": true,
+      "embedded": [
+        "BAAAAA+DejaVuSans-Oblique",
+        "CAAAAA+DejaVuSans-Bold",
+        "DAAAAA+LiberationSerif-Italic",
+        "EAAAAA+LiberationSerif",
+        "FAAAAA+OpenSymbol"
+      ],
+      "not_embedded": []
+    },
+    "visual_audit": {
+      "passed": true,
+      "page_count": 11,
+      "issues": [],
+      "limitations": [
+        "Heuristics detect blank/sparse pages and edge clipping but cannot prove typographic correctness.",
+        "A Windows CI runner must perform final Microsoft Word interoperability checks."
+      ]
+    },
+    "pngs": [
+      "page-1.png",
+      "page-2.png",
+      "page-3.png",
+      "page-4.png",
+      "page-5.png",
+      "page-6.png",
+      "page-7.png",
+      "page-8.png",
+      "page-9.png",
+      "page-10.png",
+      "page-11.png"
+    ]
+  },
+  "known_interop_notice": "LibreOffice is the control renderer. Microsoft Word may paginate and shape fonts differently; Microsoft Word validation remains a separate Windows CI gate."
+}

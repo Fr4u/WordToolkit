@@ -1,0 +1,46 @@
+{
+  "date": "2026-07-20",
+  "environment": {
+    "os": "Windows",
+    "microsoft_word": "16.0",
+    "document": "real active Word document",
+    "characters": 48800,
+    "operations": 100
+  },
+  "python_baseline": {
+    "runtime": "Python 3.12 + uv + pywin32",
+    "connect_ms": 79.665,
+    "apply_wall_ms": 751.658,
+    "reported_com_transaction_ms": 717.924,
+    "first_uv_end_to_end_ms": 4400,
+    "first_uv_installed_packages": 41,
+    "undone": true
+  },
+  "dotnet_native": {
+    "runtime": ".NET 8 persistent COM STA",
+    "connect_cold_ms": 377.688,
+    "apply_wall_ms": 268.126,
+    "reported_transaction_ms": 250.86,
+    "undo_ms": 55.973,
+    "python_used": false,
+    "undone": true
+  },
+  "packaged_runtime": {
+    "kind": "self-contained win-x64 multi-file JIT",
+    "initialize_ms": 106.767,
+    "tool_count": 20,
+    "python_children": 0,
+    "observed_children": [
+      "conhost.exe"
+    ]
+  },
+  "ratio": {
+    "python_apply_wall_divided_by_native_apply_wall": 2.803
+  },
+  "installed_cache_acceptance": {
+    "version": "0.17.0+codex.20260720034251",
+    "passed": true,
+    "document_restored": true,
+    "outstanding_mutations": 0
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "wordtoolkit": {
+      "title": "WordToolkit",
+      "description": "Token-lean native automation for the real Microsoft Word application.",
+      "cwd": ".",
+      "command": "./runtime/win-x64/wordtoolkit-native.exe",
+      "args": [],
+      "env": {
+        "DOTNET_EnableDiagnostics": "0",
+        "DOTNET_TieredPGO": "1"
+      },
+      "startup_timeout_sec": 30,
+      "tool_timeout_sec": 180
+    }
+  }
+}

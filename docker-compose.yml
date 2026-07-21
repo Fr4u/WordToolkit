@@ -1,0 +1,32 @@
+services:
+  wordtoolkit:
+    build:
+      context: .
+    init: true
+    ports:
+      - "127.0.0.1:8787:8787"
+    env_file:
+      - .env
+    environment:
+      WORDTOOLKIT_ENVIRONMENT: development
+      WORDTOOLKIT_PUBLIC_BASE_URL: http://127.0.0.1:8787
+      WORDTOOLKIT_BIND_HOST: 0.0.0.0
+      WORDTOOLKIT_AUTH_MODE: development_token
+      WORDTOOLKIT_STORAGE_ROOT: /data/sessions
+    volumes:
+      - wordtoolkit-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 2.0
+    restart: unless-stopped
+
+volumes:
+  wordtoolkit-data:
+

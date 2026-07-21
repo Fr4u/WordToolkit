@@ -1,0 +1,45 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: wordtoolkit-mcp
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "1"
+        run.googleapis.com/cpu-throttling: "false"
+    spec:
+      containerConcurrency: 10
+      timeoutSeconds: 300
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT/wordtoolkit/server:IMAGE_DIGEST
+          ports:
+            - containerPort: 8787
+          resources:
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          env:
+            - name: WORDTOOLKIT_ENVIRONMENT
+              value: production
+            - name: WORDTOOLKIT_BIND_HOST
+              value: 0.0.0.0
+            - name: WORDTOOLKIT_PUBLIC_BASE_URL
+              value: https://wordtoolkit.example.com
+            - name: WORDTOOLKIT_AUTH_MODE
+              value: oauth_jwt
+            - name: WORDTOOLKIT_OAUTH_ISSUER
+              value: https://id.example.com/
+            - name: WORDTOOLKIT_OAUTH_AUDIENCE
+              value: https://wordtoolkit.example.com/mcp
+            - name: WORDTOOLKIT_OAUTH_JWKS_URL
+              value: https://id.example.com/.well-known/jwks.json
+            - name: WORDTOOLKIT_SIGNING_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: wordtoolkit-signing-secret
+                  key: latest
+            - name: WORDTOOLKIT_STORAGE_ROOT
+              value: /tmp/wordtoolkit
+

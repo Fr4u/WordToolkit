@@ -1,0 +1,81 @@
+# MCP tool catalog
+
+The machine-readable source of truth is `schemas/mcp-tools.v1.json`. Every tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.
+
+| Tool | Read only | Destructive | Idempotent | File inputs |
+|---|---:|---:|---:|---|
+| `create_document` | False | False | False | — |
+| `create_from_template` | False | False | False | file |
+| `create_from_markdown` | False | False | False | file |
+| `open_document` | False | False | False | file |
+| `inspect_document` | True | False | True | — |
+| `save_document` | False | False | False | — |
+| `close_document` | False | True | False | — |
+| `get_outline` | True | False | True | — |
+| `get_sections` | True | False | True | — |
+| `get_paragraph` | True | False | True | — |
+| `insert_paragraph` | False | False | False | — |
+| `replace_paragraph` | False | False | False | — |
+| `delete_paragraph` | False | True | False | — |
+| `move_block` | False | False | False | — |
+| `list_styles` | True | False | True | — |
+| `create_style` | False | False | False | — |
+| `update_style` | False | False | False | — |
+| `apply_style` | False | False | False | — |
+| `inspect_direct_formatting` | True | False | True | — |
+| `normalize_formatting` | False | False | False | — |
+| `format_paragraph` | False | False | False | — |
+| `format_run` | False | False | False | — |
+| `manage_lists` | False | False | False | — |
+| `insert_caption` | False | False | False | — |
+| `list_tables` | True | False | True | — |
+| `get_table` | True | False | True | — |
+| `insert_table` | False | False | False | — |
+| `modify_table` | False | False | False | — |
+| `merge_cells` | False | False | False | — |
+| `split_cells` | False | False | False | — |
+| `set_cell_properties` | False | False | False | — |
+| `insert_equation` | False | False | False | — |
+| `replace_equation` | False | False | False | — |
+| `list_equations` | True | False | True | — |
+| `get_equation` | True | False | True | — |
+| `convert_equation` | True | False | True | — |
+| `validate_equations` | True | False | True | — |
+| `number_equations` | False | False | False | — |
+| `add_equation_reference` | False | False | False | — |
+| `manage_headers_footers` | False | False | False | — |
+| `manage_footnotes_endnotes` | False | False | False | — |
+| `manage_comments` | False | False | False | — |
+| `manage_bookmarks` | False | False | False | — |
+| `manage_cross_references` | False | False | False | — |
+| `manage_fields` | False | False | False | — |
+| `insert_image` | False | False | False | file |
+| `manage_sections` | False | False | False | — |
+| `enable_track_changes` | False | False | False | — |
+| `list_tracked_changes` | True | False | True | — |
+| `insert_tracked_change` | False | False | False | — |
+| `accept_changes` | False | True | False | — |
+| `reject_changes` | False | True | False | — |
+| `compare_documents` | False | False | False | base_file, revised_file |
+| `validate_ooxml` | True | False | True | — |
+| `audit_document` | True | False | True | — |
+| `detect_corruption` | True | False | True | — |
+| `repair_document` | False | False | False | — |
+| `check_accessibility` | True | False | True | — |
+| `check_layout_risks` | True | False | True | — |
+| `detect_orphaned_relationships` | True | False | True | — |
+| `render_document` | False | False | False | — |
+| `render_pages` | False | False | False | — |
+| `convert_to_pdf` | False | False | False | — |
+| `export_document` | False | False | False | — |
+| `generate_preview` | False | False | False | — |
+
+## Error contract
+
+Tool failures set MCP `isError: true` and return the same JSON object in text and structured content:
+
+```json
+{"ok":false,"error":{"code":"OOXML_INVALID","message":"...","details":{},"retryable":false}}
+```
+
+Input-validation failures, missing OAuth scopes, version conflicts, unsafe packages, renderer failures and internal boundary errors use distinct stable codes. Internal tracebacks, document text, credentials and server paths are not returned.

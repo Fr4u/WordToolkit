@@ -1,0 +1,15 @@
+name: microsoft-word-interop
+on:
+  workflow_dispatch:
+
+jobs:
+  word:
+    runs-on: [self-hosted, windows, word]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Open and resave samples in Microsoft Word
+        shell: powershell
+        run: |
+          ./scripts/word_interop.ps1 -InputDirectory examples/generated
+          ./scripts/word_interop.ps1 -InputDirectory examples/advanced

@@ -1,0 +1,61 @@
+---
+name: wordtoolkit
+description: Control the real Microsoft Word application through a token-lean native .NET bridge. Use for live Word documents, formatting, equations, review, structures, export, save, close, and validation.
+---
+
+# WordToolkit
+
+Use the small core catalog directly. Rare actions are lazy: search by capability
+with `search_wordtoolkit_actions`, inspect only the chosen action, then execute
+it. If the exact action name is already known, skip search. Keep
+`response_mode=compact`; request `full` only when omitted details are required
+for the next operation.
+
+## Token discipline
+
+- Generate a coherent document section in the model, then send one
+  `apply_live_word_operations` batch. Never stream tokens, sentences, table
+  cells, list items, or equations through many calls.
+- Do not preflight ordinary text. Preflight equations or typed Word objects
+  only when syntax is unfamiliar or the batch is risky.
+- Do not inspect an advanced action already inspected in the current turn.
+- Do not request full responses for confirmation; compact mutation responses
+  already include version, counts, native verification, and document state.
+- Read bounded ranges or structure pages. Never request document content that
+  is not needed for the task.
+
+## Core lifecycle
+
+1. `list_live_word_documents`.
+2. Use `start_word_application` only when Word is unavailable.
+3. Use `create_live_word_document`, `open_live_word_document`, or
+   `connect_live_word_document`; never guess a document name or path.
+4. Retain `live_document_id` and `live_version`. Pass `expected_version` on
+   every mutation.
+5. Use `get_live_word_selection` immediately before a cursor/selection edit.
+6. Save or export only when requested.
+7. Finish with `disconnect_live_word_document`. Close or quit only when the
+   user explicitly asks; those actions require their guarded policies.
+
+`apply_live_word_operations` is the default authoring tool. It creates native
+text and editable OMath in one Word Undo transaction and rolls back on failure.
+
+## Lazy actions
+
+Search with two or three capability words such as `image`, `find replace`,
+`table formula`, `review comment`, `header footer`, `equation preflight`,
+`PDF export`, `validate DOCX`, or `close document`. Search returns at most a
+small bounded list. Inspect exactly one schema and execute it; never guess its
+arguments.
+
+## Equations and safety
+
+Equation inputs may be LaTeX, UnicodeMath, Presentation MathML, or OMML.
+Prefer LaTeX for model output. Equations must remain native editable OMath;
+never replace them with screenshots or plain-text approximations.
+
+Use fresh selection, range, review, and undo tokens exactly where the inspected
+schema requires them. Never invent IDs, versions, tokens, paths, styles, or
+capability IDs. Never bypass optimistic version checks. Never invoke raw
+macros, DDE, arbitrary COM member names, or raw Undo. Never overwrite DOCX;
+overwrite PDF only when explicitly requested with `overwrite=true`.

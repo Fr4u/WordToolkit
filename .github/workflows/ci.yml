@@ -1,0 +1,49 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y libreoffice-writer poppler-utils fonts-dejavu-core fonts-liberation2
+      - run: uv sync --extra dev --locked
+      - run: uv run ruff check src/wordtoolkit scripts tests/test_*.py
+      - run: uv run pytest -ra
+      - run: uv run python scripts/export_tool_schemas.py
+      - run: uv run python scripts/generate_samples.py
+      - run: uv run python scripts/advanced_torture_test.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wordtoolkit-golden-files
+          path: |
+            examples/generated
+            examples/advanced/WordToolkit-advanced-torture-test.docx
+            examples/advanced/WordToolkit-advanced-torture-test.pdf
+            examples/advanced/advanced-test-report.json
+
+  validator:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - run: dotnet build tools/OpenXmlValidator/OpenXmlValidator.csproj -c Release
+
+  container:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: wordtoolkit:test

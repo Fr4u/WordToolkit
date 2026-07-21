@@ -1,0 +1,144 @@
+# Security model
+
+## Trust boundaries
+
+Untrusted inputs are OAuth tokens, MCP JSON, file URLs supplied by ChatGPT, ZIP metadata, XML, relationships, image bytes, Markdown and renderer inputs. The service trusts only its configuration, immutable container image, configured identity provider and files it has produced inside the session root.
+
+## Authentication and authorization
+
+Production startup fails unless the public URL is HTTPS, JWT OAuth mode is enabled, issuer/audience are configured and the signing key is non-default. JWT signatures are resolved through the configured JWKS endpoint; issuer, audience, expiry, issued-at and subject are verified. Tools require `documents:read` or `documents:write`. MCP authorization metadata identifies the resource endpoint.
+
+`development_token` exists only for loopback/local Docker testing. It must never be exposed on a public host.
+
+## Upload and SSRF controls
+
+ChatGPT file inputs use `_meta["openai/fileParams"]`. The server downloads an authorized HTTPS URL with redirects disabled by default and revalidates every redirect. Allowed host suffixes are configurable; DNS resolution rejects loopback, private, link-local, multicast, reserved and unspecified addresses. Localhost HTTP is allowed only for local tests. Downloads stream to a bounded session file and do not log body content or credentials.
+
+Image uploads are decoded and verified by Pillow before embedding. Allowed file extensions are operation-specific. DOCM/DOTM are rejected before package inspection.
+
+## OPC/ZIP controls
+
+- compressed upload, entry-count and total-uncompressed-size limits;
+- per-entry compression-ratio limit for substantial entries;
+- rejection of absolute, drive-qualified, backslash, NUL, `.` and `..` names;
+- rejection of symlinks, duplicate names and case-colliding names;
+- required core OPC/Word parts;
+- extraction only beneath a newly created session directory;
+- a second resolved-path containment check during extraction;
+- ZIP CRC validation before publication.
+
+The default limits are 50 MiB compressed, 250 MiB expanded, 5,000 entries and a 100:1 substantial-entry ratio. Production operators should lower them for narrower workloads.
+
+## XML and relationship controls
+
+All parsed XML uses `resolve_entities=False`, `load_dtd=False`, `no_network=True`, `huge_tree=False` and no recovery. DTD and entity declarations are rejected before parsing. Internal relationship targets are normalized relative to the owning part and cannot escape the package. Missing targets are validation errors on publication.
+
+External HTTP, HTTPS and `mailto` relationships can be preserved but are never fetched. `file`, `ftp`, `javascript`, `data`, `vbscript`, absolute internal targets and unknown external schemes are rejected. VBA content types and macro containers are rejected. Macros are never executed.
+
+## Renderer controls
+
+LibreOffice receives fixed argv with `shell=False`, a one-use profile, bounded runtime, a restricted HOME and no automatic external relationship retrieval by WordToolkit. The container runs as an unprivileged user with a writable data directory. Production deployment should add a read-only root filesystem, seccomp/AppArmor, CPU/memory quotas and egress rules that allow only the identity provider and authorized OpenAI file hosts.
+
+## Data lifecycle and logging
+
+Content is stored only under the configured ephemeral root. Sessions default to one hour and artifacts to one hour. Exported artifacts are copied out of the working session so closing a draft does not invalidate an unexpired download. A cleanup task closes documents and deletes expired files. Responses contain operation/error classes but never renderer stderr, document text, bearer tokens, file URLs, XML or local paths. Signed artifacts are private/no-store and expire.
+
+The in-memory session registry makes this release a single-instance service. Do not run multiple replicas without a shared encrypted object store, distributed locks and shared metadata. The supplied hosting profiles deliberately use one instance.
+
+## Word Live field, object-model, bookmark, learning and equation boundaries
+
+The local Word Live bridge never accepts arbitrary field-code text. Field
+creation uses a typed allowlist for static document metadata, page/section
+counters, dates/times, sequences, existing bookmark references and restricted
+numeric formulas. DDE, database, include, link, macro and external-data fields
+are unreachable through the public field tools.
+
+Formula identifiers are allowlisted, switches are generated from validated
+options, and reference bookmarks must exist before mutation. Fields are
+prepared before Word is attached, created inside one Undo transaction,
+type-checked and updated. Locale translation reads only Word's separator
+settings and cannot expand the accepted formula grammar. Responses omit field
+code and result text.
+
+Native table calculations use a separate typed contract. Callers select one
+of six aggregate functions and either one or two positional directions or a
+bounded row/column range. WordToolkit generates the A1-style reference and
+native formula internally; raw expressions are not accepted. Destination
+cells must be empty unless replacement is explicitly enabled. Every cell is
+validated before the Undo transaction, and each resulting field must have
+native type 34 plus a calculated result range. Word calculates on insertion;
+the optional `force_update` path additionally requires every explicit update
+to succeed. Responses omit formulas, source values and displayed results.
+
+Existing table-field refresh accepts only a live document handle plus a
+1-based table index. It caps the collection at 5,000 fields, reads only numeric
+types, performs one native collection update inside one Undo transaction and
+verifies count/type stability. It never accepts field codes and never returns
+field results. A nonzero Word update result fails and rolls back; the reported
+field index is treated as advisory because Microsoft documents that it can be
+inaccurate in some Word versions.
+
+The installed object-model catalog is separate from document learning. It
+extracts only public API metadata from the already-running Word type library:
+type/member/parameter names, kinds, numeric flags, type descriptors and enum
+values. It does not resolve a document and excludes documentation text, Help
+file paths, document counts, content, paths, handles and owner identifiers.
+The cache is bounded, schema-checked, atomically replaced and refreshed only
+on an explicit request or cache miss. Catalog discovery never authorizes a
+new mutation path by itself.
+
+The bounded structure-item inspector never returns raw field codes or external
+hyperlink addresses. It caps pages at 200 items and optional text at 2,000
+characters per item. Property failures are reported without exception text.
+Adaptive learning receives only fixed collection/property names, aggregate
+success/failure counts and timing after the COM attachment is released; it
+does not receive any returned value or text.
+
+Live bookmark names use a restricted 40-character grammar. Existing-name
+collisions are checked before mutation, and native names plus exact ranges are
+verified inside one Undo transaction. Bookmark text is never returned.
+
+Structure learning stores only fixed collection/property names, bounded native
+integer enum values, probe outcomes, rescan thresholds and aggregate duration.
+It never receives property values, content, document counts, paths, owners,
+handles or document-derived identifiers.
+
+Native Find rejects unsafe control bytes and caps Word's search string at 255
+characters. Transactional replacement discovers one complete bounded match set
+before mutation, refuses excess results, edits from the final range backward
+and restores the prior Track Changes state. A content failure, Undo-record
+closure failure or Track Changes restoration failure requests rollback and
+does not advance the live version.
+
+Comment and revision writes never trust a collection index by itself. The
+preceding inspection issues an HMAC token over document ID, live version,
+collection, index, range, metadata, content hash and review state. Any external
+item change or WordToolkit version change invalidates the token.
+
+User-requested Undo cannot accept a raw step count. It requires Word to expose
+the current top label, requires the label to begin with `WordToolkit:`, and
+binds that label to a fresh HMAC token and exact live version. An intervening
+manual action or a newer verified property change without its own Word Undo
+entry creates a hard barrier.
+
+The native bridge verifies OMath creation and final equation count, but does
+not claim semantic OMML AST readback. A build-up exception or count mismatch
+fails closed and rolls back. The in-process learning counters retain only
+input format and success/failure counts—not formula text, document content,
+names or paths.
+
+## Failure behavior
+
+Errors use stable codes and never expose tracebacks or local paths. Unsafe/invalid input fails closed. A structural or Open XML SDK validation error prevents export. Renderer failure does not make an unrendered document appear visually verified.
+
+## Production checklist
+
+- Use a dedicated OAuth 2.1/OIDC tenant and exact audience.
+- Rotate the artifact signing secret and keep it in a managed secret store.
+- Pin the public hostname and allowed upload suffixes.
+- Set one instance until a distributed session backend exists.
+- Mount only a bounded ephemeral disk; monitor quota and cleanup.
+- Restrict outbound egress and inbound traffic to HTTPS.
+- Run container and dependency scanning in CI.
+- Run the Microsoft Word interoperability workflow on a licensed self-hosted Windows runner before a release.
+- Verify retention and deletion against organizational policy.

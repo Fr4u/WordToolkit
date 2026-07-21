@@ -1,0 +1,80 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "wordtoolkit-mcp"
+version = "0.16.2"
+description = "Local and remote MCP service for round-trip DOCX and native Office Math editing"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "WordToolkit contributors" }]
+dependencies = [
+  "mcp>=1.27,<2",
+  "starlette>=0.48,<1",
+  "uvicorn[standard]>=0.35,<1",
+  "pydantic>=2.11,<3",
+  "pydantic-settings>=2.10,<3",
+  "lxml>=5.4,<7",
+  "latex2mathml>=3.78,<4",
+  "httpx>=0.28,<1",
+  "PyJWT[crypto]>=2.10,<3",
+  "Pillow>=11.2,<13",
+  "pypdf>=5.7,<7",
+  "mistune>=3.1,<4",
+  "pywin32>=312; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.4,<10",
+  "pytest-asyncio>=1.0,<2",
+  "pytest-cov>=6.2,<8",
+  "hypothesis>=6.135,<7",
+  "jsonschema>=4.24,<5",
+  "ruff>=0.12,<1",
+  "mypy>=1.16,<2",
+]
+
+[project.scripts]
+wordtoolkit = "wordtoolkit.server.app:main"
+wordtoolkit-stdio = "wordtoolkit.server.stdio:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wordtoolkit", "src/docx_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+  "integration: exercises subprocesses or an HTTP transport",
+  "render: requires LibreOffice and Poppler",
+  "word: requires Microsoft Word and is only run on a Windows validation runner",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+exclude = ["src/docx_mcp", "tests/upstream", "third_party"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "S"]
+ignore = [
+  "B008", # Pydantic Field defaults deliberately carry MCP JSON Schema constraints.
+  "E501", # Ruff formatter leaves long schema descriptions and URLs intact.
+  "S101", # pytest assertions
+  "S105", # local-development placeholder secrets are rejected in production mode
+  "S106", # redacted AccessToken value, never a credential
+  "S108", # configurable isolated ephemeral root intentionally defaults under /tmp
+  "S603", # subprocess argv is fixed and shell=False for LibreOffice/Poppler
+]
+
+[tool.coverage.run]
+source = ["wordtoolkit"]
+branch = true
+
+[[tool.mypy.overrides]]
+module = ["lxml", "lxml.*"]
+ignore_missing_imports = true
+disable_error_code = ["import-untyped"]
