@@ -804,6 +804,190 @@ public sealed class PackageInspectionServiceTests
     }
 
     [Fact]
+    public async Task InspectsSettingsAndFontsWithPrivacyAndResolvesLanguageFontWithoutWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-settings-font-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "settings-fonts.docx");
+            CreatePackage(
+                path,
+                stylesXml: """
+                <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+                    <w:rPr><w:rFonts w:asciiTheme="minorHAnsi"/></w:rPr>
+                  </w:style>
+                </w:styles>
+                """,
+                themeXml: ThemeXml(),
+                settingsXml: """
+                <w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                  <w:trackRevisions/>
+                  <w:embedTrueTypeFonts/>
+                  <w:themeFontLang w:val="ja-JP"/>
+                  <w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat>
+                  <w:documentProtection w:edit="comments" w:enforcement="1" w:hash="never-return-this" w:salt="never-return-this-either"/>
+                  <w:docVars><w:docVar w:name="CustomerSecret" w:val="secret-value"/></w:docVars>
+                </w:settings>
+                """,
+                fontTableXml: """
+                <w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                  <w:font w:name="ＭＳ 明朝">
+                    <w:family w:val="roman"/>
+                    <w:embedRegular r:id="rIdEmbeddedFont" w:fontKey="11111111-2222-3333-4444-555555555555"/>
+                  </w:font>
+                </w:fonts>
+                """
+            );
+            var service = new WordLiveService(new NoInvokeHost());
+            using var redactedArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "variables",
+                })
+            );
+
+            var settingsObject = await service.CallAsync(
+                "inspect_ooxml_settings",
+                redactedArguments.RootElement,
+                CancellationToken.None
+            );
+            using var settingsJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(settingsObject)
+            );
+            var settings = settingsJson.RootElement;
+            Assert.True(settings.GetProperty("track_revisions").GetBoolean());
+            Assert.Equal(15, settings.GetProperty("compatibility_mode").GetInt32());
+            Assert.False(
+                settings.GetProperty("document_protection")
+                    .GetProperty("security_boundary")
+                    .GetBoolean()
+            );
+            var redactedVariable = settings.GetProperty("items")
+                .EnumerateArray()
+                .Single();
+            Assert.Equal(JsonValueKind.Null, redactedVariable.GetProperty("name").ValueKind);
+            Assert.Equal(JsonValueKind.Null, redactedVariable.GetProperty("value").ValueKind);
+            Assert.True(redactedVariable.GetProperty("value_redacted").GetBoolean());
+            Assert.DoesNotContain("never-return-this", settings.GetRawText());
+            Assert.DoesNotContain("secret-value", settings.GetRawText());
+
+            using var sensitiveArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "variables",
+                    include_sensitive = true,
+                })
+            );
+            var sensitiveObject = await service.CallAsync(
+                "inspect_ooxml_settings",
+                sensitiveArguments.RootElement,
+                CancellationToken.None
+            );
+            using var sensitiveJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(sensitiveObject)
+            );
+            Assert.Equal(
+                "secret-value",
+                sensitiveJson.RootElement.GetProperty("items")
+                    .EnumerateArray()
+                    .Single()
+                    .GetProperty("value")
+                    .GetString()
+            );
+            Assert.DoesNotContain("never-return-this", sensitiveJson.RootElement.GetRawText());
+
+            using var fontArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "embedded_faces",
+                    include_source = true,
+                })
+            );
+            var fontsObject = await service.CallAsync(
+                "inspect_ooxml_fonts",
+                fontArguments.RootElement,
+                CancellationToken.None
+            );
+            using var fontsJson = JsonDocument.Parse(JsonSerializer.Serialize(fontsObject));
+            var face = fontsJson.RootElement.GetProperty("items")
+                .EnumerateArray()
+                .Single();
+            Assert.Equal("ＭＳ 明朝", face.GetProperty("font_name").GetString());
+            Assert.True(face.GetProperty("word_readable").GetBoolean());
+            Assert.Equal(JsonValueKind.Null, face.GetProperty("sha256").ValueKind);
+            Assert.Equal(
+                "/word/fonts/font1.odttf",
+                face.GetProperty("part_uri").GetString()
+            );
+
+            var package = new OpcPackageReader().Read(path);
+            var runId = new WordSemanticProjector().Project(package).Nodes.Single(node =>
+                node.Kind == WordSemanticNodeKind.Run
+                && node.SourcePartUri == "/word/document.xml"
+            ).Id.Value;
+            using var formattingArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    node_id = runId,
+                    property_names = new[]
+                    {
+                        "font_ascii_resolved",
+                        "font_ascii_document_font",
+                    },
+                    include_provenance = true,
+                })
+            );
+            var formattingObject = await service.CallAsync(
+                "resolve_ooxml_formatting",
+                formattingArguments.RootElement,
+                CancellationToken.None
+            );
+            using var formattingJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(formattingObject)
+            );
+            var formatting = formattingJson.RootElement;
+            Assert.Equal(
+                "ＭＳ 明朝",
+                formatting.GetProperty("run_properties")
+                    .GetProperty("font_ascii_resolved")
+                    .GetString()
+            );
+            Assert.Equal(
+                "declared_embedded",
+                formatting.GetProperty("run_properties")
+                    .GetProperty("font_ascii_document_font")
+                    .GetString()
+            );
+            var contribution = formatting.GetProperty("provenance")
+                .GetProperty("run")
+                .GetProperty("font_ascii_resolved")
+                .GetProperty("contributions")
+                .EnumerateArray()
+                .Single();
+            Assert.Equal("ja-JP", contribution.GetProperty("theme_language_tag").GetString());
+            Assert.Equal("Jpan", contribution.GetProperty("theme_script").GetString());
+            Assert.Equal(
+                "supplemental_language_typeface",
+                contribution.GetProperty("theme_font_resolution").GetString()
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task PlansAndAtomicallyAppliesReviewedTextEditWithoutStartingWord()
     {
         var directory = Path.Combine(
@@ -1092,7 +1276,9 @@ public sealed class PackageInspectionServiceTests
         string? paragraphPropertiesXml = null,
         string? runPropertiesXml = null,
         string? numberingXml = null,
-        string? themeXml = null
+        string? themeXml = null,
+        string? settingsXml = null,
+        string? fontTableXml = null
     )
     {
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
@@ -1112,6 +1298,12 @@ public sealed class PackageInspectionServiceTests
         var themeOverride = themeXml is null
             ? string.Empty
             : "<Override PartName=\"/word/theme/theme1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.theme+xml\" />";
+        var settingsOverride = settingsXml is null
+            ? string.Empty
+            : "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\" />";
+        var fontTableOverride = fontTableXml is null
+            ? string.Empty
+            : "<Override PartName=\"/word/fontTable.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml\" />";
         WriteEntry(
             archive,
             "[Content_Types].xml",
@@ -1119,12 +1311,15 @@ public sealed class PackageInspectionServiceTests
             <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
               <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
               <Default Extension="xml" ContentType="application/xml" />
+              <Default Extension="odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont" />
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml" />
               {signatureOverride}
               {headerOverride}
               {stylesOverride}
               {numberingOverride}
               {themeOverride}
+              {settingsOverride}
+              {fontTableOverride}
             </Types>
             """
         );
@@ -1165,6 +1360,8 @@ public sealed class PackageInspectionServiceTests
             || stylesXml is not null
             || numberingXml is not null
             || themeXml is not null
+            || settingsXml is not null
+            || fontTableXml is not null
         )
         {
             var headerRelationship = headerText is null
@@ -1179,6 +1376,12 @@ public sealed class PackageInspectionServiceTests
             var themeRelationship = themeXml is null
                 ? string.Empty
                 : "<Relationship Id=\"rIdTheme\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"theme/theme1.xml\" />";
+            var settingsRelationship = settingsXml is null
+                ? string.Empty
+                : "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\" />";
+            var fontTableRelationship = fontTableXml is null
+                ? string.Empty
+                : "<Relationship Id=\"rIdFontTable\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable\" Target=\"fontTable.xml\" />";
             WriteEntry(
                 archive,
                 "word/_rels/document.xml.rels",
@@ -1188,6 +1391,8 @@ public sealed class PackageInspectionServiceTests
                   {stylesRelationship}
                   {numberingRelationship}
                   {themeRelationship}
+                  {settingsRelationship}
+                  {fontTableRelationship}
                 </Relationships>
                 """
             );
@@ -1215,6 +1420,29 @@ public sealed class PackageInspectionServiceTests
         if (themeXml is not null)
         {
             WriteEntry(archive, "word/theme/theme1.xml", themeXml);
+        }
+        if (settingsXml is not null)
+        {
+            WriteEntry(archive, "word/settings.xml", settingsXml);
+        }
+        if (fontTableXml is not null)
+        {
+            WriteEntry(archive, "word/fontTable.xml", fontTableXml);
+            WriteEntry(
+                archive,
+                "word/_rels/fontTable.xml.rels",
+                """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rIdEmbeddedFont" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="fonts/font1.odttf" />
+                </Relationships>
+                """
+            );
+            var fontEntry = archive.CreateEntry(
+                "word/fonts/font1.odttf",
+                CompressionLevel.Optimal
+            );
+            using var fontStream = fontEntry.Open();
+            fontStream.Write([1, 2, 3, 4]);
         }
         if (signed)
         {
@@ -1245,8 +1473,8 @@ public sealed class PackageInspectionServiceTests
               <a:folHlink><a:srgbClr val="800080"/></a:folHlink>
             </a:clrScheme>
             <a:fontScheme name="Office">
-              <a:majorFont><a:latin typeface="Cambria"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>
-              <a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>
+              <a:majorFont><a:latin typeface="Cambria"/><a:ea typeface=""/><a:cs typeface=""/><a:font script="Jpan" typeface="ＭＳ ゴシック"/></a:majorFont>
+              <a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/><a:font script="Jpan" typeface="ＭＳ 明朝"/></a:minorFont>
             </a:fontScheme>
             <a:fmtScheme name="Office"><a:fillStyleLst/><a:lnStyleLst/><a:effectStyleLst/><a:bgFillStyleLst/></a:fmtScheme>
           </a:themeElements>

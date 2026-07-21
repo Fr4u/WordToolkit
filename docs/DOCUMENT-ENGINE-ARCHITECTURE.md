@@ -293,11 +293,34 @@ and
 contracts. Lazy `inspect_ooxml_theme` pages color, font or format objects and keeps raw
 declarations, unknown markup and source ordinals opt-in.
 
+`WordSettingsGraphBuilder` follows only the exact transitional or strict settings
+relationship and validates the dedicated content type and `w:settings` root. Its
+bounded read graph types view/zoom defaults, theme font languages, compatibility
+tuples and legacy switches, document/write protection metadata, document variables,
+attached-template and mail-merge relationship references, separators and the remaining
+root inventory. Duplicate singleton state and conflicting compatibility modes fail
+closed. Protection hash and salt bytes are deliberately reduced to non-secret metadata;
+the lazy `inspect_ooxml_settings` action redacts variable values and mail-merge query,
+connection and target details unless explicitly requested. Protection is an editing
+restriction signal, not a claim that the package is encrypted.
+
+`WordFontTableGraphBuilder` follows only the exact transitional or strict font-table
+relationship and validates `w:fonts`. It types font names, alternate names, character
+sets, family, pitch, PANOSE and Unicode/code-page signatures plus regular, bold, italic
+and bold-italic embedded faces. Each face resolves through an exact font relationship;
+the graph records content type, key presence, byte length and an existing package hash,
+but never returns the bytes. Duplicate case-insensitive font names, missing or external
+targets, invalid relationship types, unsupported font content and orphan relationships
+remain bounded diagnostics. Lazy `inspect_ooxml_fonts` is metadata-first and makes
+hashes/source ordinals opt-in.
+
 WordprocessingML theme tokens are resolved only when a deterministic theme source is
 available. `majorAscii`/`majorHAnsi` and their minor equivalents select the Latin theme
-face; East Asian and complex-script tokens refuse to borrow Latin when their primary
-face is empty because the correct result depends on language and supplemental script
-selection. Theme tint/shade uses the documented HSL luminance transform, with tint
+face. East Asian and complex-script tokens first use the corresponding primary face;
+when it is empty, the resolver combines `themeFontLang` with explicit BCP 47 scripts or
+a bounded CLDR-derived likely-script map to select an exact supplemental ISO 15924
+entry. Region-sensitive Chinese and Punjabi are handled explicitly; an unmappable
+language fails rather than borrowing Latin. Theme tint/shade uses the documented HSL luminance transform, with tint
 winning when both are present. Word's cached RGB examples expose private quantization
 that differs by one or two channels from continuous HSL math, so the resolver preserves
 both values and emits `theme_color_transform_word_quantization` on disagreement rather
@@ -313,13 +336,16 @@ which applies paragraph styles before numbering styles even though the base stan
 states the reverse. Each resolved number retains its instance, requested/effective
 abstract definition, level, style-link chain, effective start and source kind.
 Each property retains every declaration, source layer, style ID, part, element ordinal
-and intermediate result. Theme-derived fonts and colors add their token, color slot or
-font collection/role and theme-part source ordinal. Composite `rFonts`, color,
+and intermediate result. Theme-derived fonts and colors add their token, language,
+script, resolution kind, color slot or font collection/role and theme-part source
+ordinal. Concrete fonts are cross-referenced case-insensitively against the font table,
+adding declared/embedded/readability state without treating an absent declaration as
+proof that a system font is unavailable. Composite `rFonts`, color,
 underline and shading elements clear stale inherited sibling attributes while
 preserving same-key provenance; a direct concrete font therefore defeats an inherited
 theme token. The twelve ISO toggle properties use state transitions at style levels and
 absolute values under direct formatting. The resolver deliberately returns coverage
-omissions for application defaults, conditional table styles, language-dependent or
+omissions for application defaults, conditional table styles, unmappable or
 non-deterministic theme values, Office color quantization, revision views and unmodeled
 property elements; it also surfaces Microsoft's documented default-true toggle and
 paragraph-style `ilvl` divergences rather than silently pretending the base rules are
@@ -489,6 +515,8 @@ The current native mapping is therefore:
 - style-map inspection -> lazy `inspect_ooxml_styles`;
 - numbering inventory/effective-level resolution -> lazy `inspect_ooxml_numbering`;
 - theme color/font/format inspection -> lazy `inspect_ooxml_theme`;
+- settings/compatibility/protection metadata -> lazy `inspect_ooxml_settings`;
+- declared and embedded font metadata -> lazy `inspect_ooxml_fonts`;
 - modeled paragraph/run formatting -> lazy `resolve_ooxml_formatting`;
 - text-only `document.plan` -> lazy `plan_ooxml_text_edits`;
 - text-only `document.apply` -> lazy `apply_ooxml_text_edits`.

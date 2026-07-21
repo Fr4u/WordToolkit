@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.22.0 — 2026-07-21
+
 - Added the cross-platform `WordToolkit.Engine` .NET library with a bounded,
   immutable OPC package graph, content-type and relationship resolution,
   reachability diagnostics, opaque-part preservation and deterministic
@@ -62,10 +64,26 @@
   derived RGB properties with theme-part provenance. Composite `rFonts`, color,
   underline and shading declarations now correctly cut off stale inherited
   attributes when a later style or direct-formatting element replaces them.
-  Language-dependent font fallback, environmental colors, unsupported
-  DrawingML transforms, and the measured difference between deterministic HSL
-  math and Word's private color quantization stay explicit instead of being
-  hidden behind fabricated values.
+  `themeFontLang` now selects an explicit or likely ISO 15924 script for
+  supplemental theme fonts, including region-sensitive Chinese and Punjabi
+  behavior. Unmappable language, environmental colors, unsupported DrawingML
+  transforms, and the measured difference between deterministic HSL math and
+  Word's private color quantization stay explicit instead of being hidden behind
+  fabricated values.
+- Added a typed, source-linked settings graph and lazy
+  `inspect_ooxml_settings` action. It models view/zoom defaults, theme font
+  languages, compatibility settings and derived compatibility mode, legacy
+  compatibility switches, document and write protection metadata, document
+  variables, attached templates, mail-merge references and bounded root
+  inventory. Sensitive values are redacted by default; protection hashes and
+  salts never leave the engine.
+- Added a typed, source-linked font-table graph and lazy `inspect_ooxml_fonts`
+  action. It models declared font classification, PANOSE/signatures and all four
+  embedded faces, validates exact font relationships and Word-readable content
+  types, diagnoses duplicate names and orphan relationships, and exposes bounded
+  metadata without returning font bytes. Effective formatting now cross-references
+  concrete theme fonts against this graph and records declared/embedded/readable
+  provenance.
 - Added the first lossless XML source model with exact byte spans, original
   prefixes/attributes/quotes/BOM retention, bounded secure parsing, guarded
   non-overlapping splices, and validated UTF-8/UTF-16/UTF-32/single-byte edits.
@@ -87,20 +105,21 @@
   a recovery backup by default, performs no write for a no-op, and fails closed
   on digitally signed packages.
 - Added the lazy, token-bounded `inspect_ooxml_semantics` MCP action.
-- Added 118 document-engine tests, including deterministic malformed-input,
+- Added 132 document-engine tests, including deterministic malformed-input,
   randomized relationship metadata and opaque-part round-trip fuzz smoke, plus
   300 randomized lexical text splices, multi-encoding/BOM preservation and
-  semantic mutation provenance. Theme tests cover strict/transitional packages,
-  all twelve color slots, font resolution, HSL tint/shade behavior, composite
-  overrides, provenance, malformed/limited parts, and every theme found in the
-  52-document bundled corpus from Word, LibreOffice, Pandoc, POI and Mammoth.
+  semantic mutation provenance. Theme/settings/font tests cover strict and
+  transitional packages, all twelve color slots, language/script font resolution,
+  embedded faces, privacy boundaries, HSL tint/shade behavior, composite
+  overrides, provenance, malformed/limited parts, and every matching part found
+  in the bundled corpus from Word, LibreOffice, Pandoc, POI and Mammoth.
   The same corpus exercises every typed XML part and exact no-op source
   preservation, while native end-to-end package/semantic inspection retains
   all existing runtime tests.
-- The native host now has 54 tests, including end-to-end semantic query,
+- The native host now has 55 tests, including end-to-end semantic query,
   cross-story header query/apply, schema parity, recovery-backup, plan-mismatch,
-  signed-package and no-op coverage plus theme inspection/resolution that proves
-  the saved-package path never invokes Word COM.
+  signed-package and no-op coverage plus theme/settings/font inspection and
+  resolution that proves the saved-package path never invokes Word COM.
 - Added a source-backed 2026 research matrix and the target lossless semantic
   document-engine architecture.
 

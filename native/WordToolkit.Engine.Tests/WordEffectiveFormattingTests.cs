@@ -259,6 +259,79 @@ public sealed class WordEffectiveFormattingTests
     }
 
     [Fact]
+    public void ResolvesThemeFontLanguageAndCrossReferencesEmbeddedDocumentFont()
+    {
+        using var bytes = BuildPackage(
+            "<w:body><w:p><w:r><w:t>日本語</w:t></w:r></w:p></w:body>",
+            """
+            <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+              <w:rPr><w:rFonts w:asciiTheme="minorHAnsi"/></w:rPr>
+            </w:style>
+            """,
+            ThemeXml(),
+            """
+            <w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:themeFontLang w:val="ja-JP"/>
+            </w:settings>
+            """,
+            """
+            <w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+              <w:font w:name="ＭＳ 明朝">
+                <w:embedRegular r:id="rIdEmbeddedFont" w:fontKey="11111111-2222-3333-4444-555555555555"/>
+              </w:font>
+            </w:fonts>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+        var styles = new WordStyleGraphBuilder().Build(package, semantic);
+        var numbering = new WordNumberingGraphBuilder().Build(
+            package,
+            semantic,
+            styles
+        );
+        var theme = new WordThemeGraphBuilder().Build(package, semantic);
+        var settings = new WordSettingsGraphBuilder().Build(package, semantic);
+        var fonts = new WordFontTableGraphBuilder().Build(package, semantic);
+        var run = semantic.Nodes.Single(node => node.Kind == WordSemanticNodeKind.Run);
+
+        var result = new WordEffectiveFormattingResolver().Resolve(
+            package,
+            semantic,
+            styles,
+            numbering,
+            theme,
+            settings,
+            fonts,
+            run.Id
+        );
+
+        Assert.Equal("ＭＳ 明朝", result.RunProperties["font_ascii_resolved"].Value);
+        Assert.Equal(
+            "declared_embedded",
+            result.RunProperties["font_ascii_document_font"].Value
+        );
+        var themeContribution = result.RunProperties["font_ascii_resolved"]
+            .Contributions.Single();
+        Assert.Equal("ja-JP", themeContribution.ThemeLanguageTag);
+        Assert.Equal("Jpan", themeContribution.ThemeScript);
+        Assert.Equal(
+            WordThemeFontResolutionKind.SupplementalLanguageTypeface,
+            themeContribution.ThemeFontResolutionKind
+        );
+        Assert.Equal(
+            WordFormattingSourceKind.FontTable,
+            result.RunProperties["font_ascii_document_font"]
+                .Contributions.Single().SourceKind
+        );
+        Assert.DoesNotContain(
+            "theme_language_font_resolution",
+            result.CoverageOmissions
+        );
+        Assert.DoesNotContain("font_embedding_resolution", result.CoverageOmissions);
+    }
+
+    [Fact]
     public void ExposesOfficeThemeColorQuantizationInsteadOfHidingIt()
     {
         using var bytes = BuildPackage(
@@ -416,7 +489,9 @@ public sealed class WordEffectiveFormattingTests
     private static MemoryStream BuildPackage(
         string bodyXml,
         string stylesXml,
-        string? themeXml = null
+        string? themeXml = null,
+        string? settingsXml = null,
+        string? fontTableXml = null
     )
     {
         var stream = new MemoryStream();
@@ -425,6 +500,12 @@ public sealed class WordEffectiveFormattingTests
             var themeOverride = themeXml is null
                 ? string.Empty
                 : "<Override PartName=\"/word/theme/theme1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.theme+xml\"/>";
+            var settingsOverride = settingsXml is null
+                ? string.Empty
+                : "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>";
+            var fontTableOverride = fontTableXml is null
+                ? string.Empty
+                : "<Override PartName=\"/word/fontTable.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml\"/>";
             WriteEntry(
                 archive,
                 "[Content_Types].xml",
@@ -432,9 +513,12 @@ public sealed class WordEffectiveFormattingTests
                 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
                   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
                   <Default Extension="xml" ContentType="application/xml"/>
+                  <Default Extension="odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>
                   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
                   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
                   {themeOverride}
+                  {settingsOverride}
+                  {fontTableOverride}
                 </Types>
                 """
             );
@@ -454,6 +538,8 @@ public sealed class WordEffectiveFormattingTests
                 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
                   <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
                   {(themeXml is null ? string.Empty : "<Relationship Id=\"rIdTheme\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme\" Target=\"theme/theme1.xml\"/>")}
+                  {(settingsXml is null ? string.Empty : "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>")}
+                  {(fontTableXml is null ? string.Empty : "<Relationship Id=\"rIdFontTable\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable\" Target=\"fontTable.xml\"/>")}
                 </Relationships>
                 """
             );
@@ -478,6 +564,29 @@ public sealed class WordEffectiveFormattingTests
             if (themeXml is not null)
             {
                 WriteEntry(archive, "word/theme/theme1.xml", themeXml);
+            }
+            if (settingsXml is not null)
+            {
+                WriteEntry(archive, "word/settings.xml", settingsXml);
+            }
+            if (fontTableXml is not null)
+            {
+                WriteEntry(archive, "word/fontTable.xml", fontTableXml);
+                WriteEntry(
+                    archive,
+                    "word/_rels/fontTable.xml.rels",
+                    """
+                    <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                      <Relationship Id="rIdEmbeddedFont" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="fonts/font1.odttf"/>
+                    </Relationships>
+                    """
+                );
+                var fontEntry = archive.CreateEntry(
+                    "word/fonts/font1.odttf",
+                    CompressionLevel.Optimal
+                );
+                using var fontStream = fontEntry.Open();
+                fontStream.Write([1, 2, 3, 4]);
             }
         }
 
@@ -504,8 +613,8 @@ public sealed class WordEffectiveFormattingTests
               <a:folHlink><a:srgbClr val="800080"/></a:folHlink>
             </a:clrScheme>
             <a:fontScheme name="Office">
-              <a:majorFont><a:latin typeface="Cambria"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>
-              <a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont>
+              <a:majorFont><a:latin typeface="Cambria"/><a:ea typeface=""/><a:cs typeface=""/><a:font script="Jpan" typeface="ＭＳ ゴシック"/></a:majorFont>
+              <a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/><a:font script="Jpan" typeface="ＭＳ 明朝"/></a:minorFont>
             </a:fontScheme>
             <a:fmtScheme name="Office">
               <a:fillStyleLst/><a:lnStyleLst/><a:effectStyleLst/><a:bgFillStyleLst/>

@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-WordToolkit 0.21 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style graph, numbering graph, Office theme graph, and modeled effective formatting of a saved Word OOXML file without starting Word. Theme-backed fonts and colors resolve to concrete typefaces and RGB values while retaining their source declarations and provenance. Its lossless editing slice binds text in the main body, headers, footers, notes, comments, glossary building blocks and text boxes to exact XML byte spans, combines bounded commands into one hash-preconditioned package mutation, predicts the result fingerprint and retains an exact guarded inverse without reserializing unrelated XML.
+WordToolkit 0.22 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings and font-table graphs, and modeled effective formatting of a saved Word OOXML file without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Every result retains its declaration and provenance. The lossless editing slice binds text in the main body, headers, footers, notes, comments, glossary building blocks and text boxes to exact XML byte spans, combines bounded commands into one hash-preconditioned package mutation, predicts the result fingerprint and retains an exact guarded inverse without reserializing unrelated XML.
 
 The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtual environment, an interpreter bootstrap, or a per-call helper process. Its MCP command points directly to:
 
@@ -8,7 +8,7 @@ The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtua
 ./runtime/win-x64/wordtoolkit-native.exe
 ```
 
-The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.21 local plugin, does not participate in its startup, and is not required at runtime.
+The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.22 local plugin, does not participate in its startup, and is not required at runtime.
 
 ## Why the runtime was replaced
 
@@ -44,7 +44,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 48 tested Word Live actions plus ten standalone,
+The runtime implements 48 tested Word Live actions plus twelve standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus three token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -70,6 +70,8 @@ inspect_ooxml_sections
 inspect_ooxml_styles
 inspect_ooxml_numbering
 inspect_ooxml_theme
+inspect_ooxml_settings
+inspect_ooxml_fonts
 resolve_ooxml_formatting
 plan_ooxml_text_edits
 apply_ooxml_text_edits
@@ -119,6 +121,12 @@ disconnect_live_word_document
 ```
 
 The catalog describes all 12,167 public members found in the installed Word type library on the release machine. It does not lie that all of them are safe edits: stable capability IDs expose metadata for every member, while lifecycle, macro, DDE, print/mail/web, sensitive, global, event, restricted and unknown operations fail closed. Dedicated tools remain the preferred path.
+
+Saved-package settings and font inspection is metadata-first and bounded. Document
+variable values, mail-merge query/connection details and targets are redacted unless
+explicitly requested. Protection hashes and salts are never returned, and embedded
+font bytes are never exposed. Font hashes are opt-in metadata only. Protection is
+reported as an editing restriction, not misrepresented as document encryption.
 
 ## Fast model-to-Word path
 
@@ -246,12 +254,12 @@ The cleaner constrains every target to the repository root. It preserves only th
 Version:
 
 ```text
-0.21.0+codex.20260721210504
+0.22.0+codex.20260721215056
 ```
 
 Windows x64 ZIP:
 
-[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.21.0/WordToolkit-0.21.0%2Bcodex.20260721210504-native-win-x64.zip)
+[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.22.0/WordToolkit-0.22.0%2Bcodex.20260721215056-native-win-x64.zip)
 
 Live demonstration document:
 

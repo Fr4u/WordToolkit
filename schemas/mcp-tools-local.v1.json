@@ -4210,9 +4210,129 @@
       }
     },
     {
+      "name": "inspect_ooxml_settings",
+      "title": "Inspect Word document settings",
+      "description": "Inspect a typed settings.xml graph without opening Word: Boolean document behavior, theme font languages, compatibility mode, protection metadata, legacy document variables, mail merge, view settings, and a root inventory. Secret-bearing variable values, connection strings, queries, and relationship targets are redacted unless explicitly requested; pagination keeps AI token use bounded.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "compatibility", "variables", "mail_merge", "inventory"],
+            "default": "summary",
+            "description": "Return compact Boolean settings, compatibility declarations, privacy-redacted document variables, mail-merge metadata, or the root-element inventory."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "include_sensitive": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded document-variable names and values, mail-merge queries and connection strings, and template/data-source targets. Protection hashes and salts are never returned."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include at most 40 bounded settings diagnostics."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include settings part URI and source XML element ordinals."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_ooxml_fonts",
+      "title": "Inspect the Word font table",
+      "description": "Inspect the typed fontTable.xml graph and embedded-font relationships without opening Word. Distinguishes font declarations from package-backed embedded faces, checks Word-readable content types and font keys, never returns font bytes, and uses opt-in detail, hashes, source data, filtering, and pagination to minimize AI tokens.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["fonts", "embedded_faces", "unreferenced"],
+            "default": "fonts",
+            "description": "Return font declarations, embedded faces, or unreferenced embedded-font relationship targets."
+          },
+          "font_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "Optional exact case-insensitive font-name filter for fonts and embedded_faces views."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "detail": {
+            "type": "string",
+            "enum": ["metadata", "declared"],
+            "default": "metadata",
+            "description": "Use declared to include PANOSE/signature declarations, font keys, and bounded unknown markup."
+          },
+          "include_hashes": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include SHA-256 hashes for embedded font parts; font bytes are never returned."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include at most 40 bounded duplicate-name, relationship, content-type, font-key, and orphan diagnostics."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include part URIs and source XML element ordinals."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "resolve_ooxml_formatting",
       "title": "Resolve modeled Word formatting",
-      "description": "Resolve bounded paragraph and run properties for one semantic paragraph or run through document defaults, base-first paragraph styles, effective numbering levels, character styles, direct formatting, and the document theme. Returns concrete theme fonts and RGB colors with provenance plus explicit omissions when conditional table styles, language-dependent theme fonts, Office color quantization, revisions, application defaults, unmodeled elements, or a documented Word compatibility edge can still affect the final appearance.",
+      "description": "Resolve bounded paragraph and run properties for one semantic paragraph or run through document defaults, base-first paragraph styles, effective numbering levels, character styles, direct formatting, document settings, the theme, and the font table. Returns language/script-aware concrete theme fonts, declared/embedded font metadata, and RGB colors with provenance plus explicit omissions when conditional table styles, an unmappable locale, Office color quantization, revisions, application defaults, unmodeled elements, or a documented Word compatibility edge can still affect the final appearance.",
       "inputSchema": {
         "type": "object",
         "properties": {

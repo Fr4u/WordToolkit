@@ -75,6 +75,40 @@ left for Word's repair dialog.
 [PackUriHelper.GetRelationshipPartUri](https://learn.microsoft.com/en-us/dotnet/api/system.io.packaging.packurihelper.getrelationshipparturi)
 (B).
 
+Settings, theme language and fonts form one dependency chain; treating them as three
+unrelated XML bags produces the broken substitutions that show up only after Word lays
+out the document. `w:themeFontLang/@val`, `@eastAsia` and `@bidi` select language
+mappings for the corresponding major/minor theme-font roles, while Word documents known
+interoperability differences around that setting. DrawingML supplemental fonts are
+keyed by ISO 15924 script, so BCP 47 language tags need an explicit script or a bounded,
+versioned likely-script mapping; CLDR defines the likely-subtags algorithm and data, but
+it does not make Word's private substitution behavior universal.
+[ThemeFontLanguages](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.themefontlanguages?view=openxml-3.0.1),
+[Word theme-language interoperability](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oe376/701f92fe-a785-4829-a4fc-1f088669d87c),
+[SupplementalFont](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.drawing.supplementalfont?view=openxml-3.0.1), and
+[Unicode CLDR likely subtags](https://unicode.org/reports/tr35/#Likely_Subtags) (B).
+
+The font table is also not proof that a typeface is installed. It stores declarations
+and may reference embedded regular/bold/italic/bold-italic font parts. Microsoft exposes
+those relationships through `FontTablePart`/`FontPart`, and the embedded-face `r:id`
+must target a font relationship. Embed/subset settings affect portability, while Word
+documents additional font-part interoperability behavior. The safe engine contract is
+therefore metadata plus validated relationships and explicit readability state, never
+silent byte exposure or invented system-font availability.
+[FontTablePart](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.packaging.fonttablepart?view=openxml-3.0.1),
+[embedded-font relationship](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.relationshiptype.id?view=openxml-3.0.1),
+[EmbedTrueTypeFonts](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.embedtruetypefonts?view=openxml-3.0.1),
+[SaveSubsetFonts](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.savesubsetfonts?view=openxml-3.0.1), and
+[Word font-part interoperability](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oe376/1663dabc-5d98-463f-889e-bcd9b77c3d34) (B).
+
+Finally, `w:documentProtection` restricts editing; Microsoft's own API description says
+it does not provide document security. That line matters because calling a hash-bearing
+settings element "encryption" would be a lie. Document variables and mail-merge settings
+may contain private values, queries or connection material, so compact inspection must
+redact them by default and never return protection hashes or salts.
+[DocumentProtection](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.documentprotection?view=openxml-3.0.1) and
+[DocumentVariables](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.documentvariables?view=openxml-3.0.1) (B).
+
 ## Platform and API families
 
 ### Microsoft surfaces

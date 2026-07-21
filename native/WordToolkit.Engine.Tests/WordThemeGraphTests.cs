@@ -52,6 +52,41 @@ public sealed class WordThemeGraphTests
         Assert.Throws<WordThemeResolutionException>(() =>
             graph.ResolveFont("minorEastAsia")
         );
+
+        var languages = new WordThemeFontLanguages(
+            "ja-JP",
+            "ja-JP",
+            "ar-SA",
+            99
+        );
+        var languageResolved = graph.ResolveFont("minorAscii", languages);
+        Assert.Equal("ＭＳ 明朝", languageResolved.Typeface);
+        Assert.Equal("ja-JP", languageResolved.LanguageTag);
+        Assert.Equal("Jpan", languageResolved.Script);
+        Assert.Equal(
+            WordThemeFontResolutionKind.SupplementalLanguageTypeface,
+            languageResolved.ResolutionKind
+        );
+        Assert.Equal(
+            "ＭＳ ゴシック",
+            graph.ResolveFont("majorEastAsia", languages).Typeface
+        );
+        var explicitScript = graph.ResolveFont(
+            "majorAscii",
+            new WordThemeFontLanguages("sr-Latn-RS", null, null, 100)
+        );
+        Assert.Equal("Cambria", explicitScript.Typeface);
+        Assert.Equal("Latn", explicitScript.Script);
+        Assert.Equal(
+            WordThemeFontResolutionKind.PrimaryTypefaceLanguageFallback,
+            explicitScript.ResolutionKind
+        );
+        Assert.Throws<WordThemeResolutionException>(() =>
+            graph.ResolveFont(
+                "majorAscii",
+                new WordThemeFontLanguages("x-klingon", null, null, 101)
+            )
+        );
     }
 
     [Fact]

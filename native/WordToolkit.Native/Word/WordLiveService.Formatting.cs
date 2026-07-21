@@ -64,12 +64,24 @@ internal sealed partial class WordLiveService
                 semantic,
                 cancellationToken
             );
+            var settings = new WordSettingsGraphBuilder().Build(
+                package,
+                semantic,
+                cancellationToken
+            );
+            var fonts = new WordFontTableGraphBuilder().Build(
+                package,
+                semantic,
+                cancellationToken
+            );
             var formatting = new WordEffectiveFormattingResolver().Resolve(
                 package,
                 semantic,
                 styles,
                 numbering,
                 theme,
+                settings,
+                fonts,
                 new SemanticNodeId(nodeIdValue),
                 cancellationToken
             );
@@ -112,8 +124,33 @@ internal sealed partial class WordLiveService
                         theme.FontScheme?.Name,
                         512
                     ),
+                    font_languages = settings.ThemeFontLanguages is { } languages
+                        ? new
+                        {
+                            latin = BoundForResponse(languages.Latin, 256),
+                            east_asian = BoundForResponse(
+                                languages.EastAsian,
+                                256
+                            ),
+                            complex_script = BoundForResponse(
+                                languages.ComplexScript,
+                                256
+                            ),
+                        }
+                        : null,
                     part_uri = includeSource
                         ? BoundForResponse(theme.ThemePartUri, 512)
+                        : null,
+                },
+                font_table = new
+                {
+                    has_font_table_part = fonts.HasFontTablePart,
+                    font_count = fonts.Fonts.Count,
+                    readable_embedded_font_count = fonts.Fonts.Count(font =>
+                        font.HasWordReadableEmbeddedFace
+                    ),
+                    part_uri = includeSource
+                        ? BoundForResponse(fonts.FontTablePartUri, 512)
                         : null,
                 },
                 source_part_uri = includeSource
@@ -208,6 +245,38 @@ internal sealed partial class WordLiveService
             throw new NativeToolException(
                 "INVALID_WORD_PACKAGE",
                 "The package cannot be resolved into a Word theme graph",
+                new { reason = BoundForResponse(exception.Message, 512) }
+            );
+        }
+        catch (WordSettingsLimitException exception)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "Settings graph exceeds a bounded safety limit",
+                new { reason = BoundForResponse(exception.Message, 512) }
+            );
+        }
+        catch (WordSettingsProjectionException exception)
+        {
+            throw new NativeToolException(
+                "INVALID_WORD_PACKAGE",
+                "The package cannot be resolved into a Word settings graph",
+                new { reason = BoundForResponse(exception.Message, 512) }
+            );
+        }
+        catch (WordFontTableLimitException exception)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "Font-table graph exceeds a bounded safety limit",
+                new { reason = BoundForResponse(exception.Message, 512) }
+            );
+        }
+        catch (WordFontTableProjectionException exception)
+        {
+            throw new NativeToolException(
+                "INVALID_WORD_PACKAGE",
+                "The package cannot be resolved into a Word font-table graph",
                 new { reason = BoundForResponse(exception.Message, 512) }
             );
         }
@@ -405,6 +474,11 @@ internal sealed partial class WordLiveService
                     : null,
                 theme_font_role = item.ThemeFontRole is { } fontRole
                     ? ToSnakeCase(fontRole.ToString())
+                    : null,
+                theme_language_tag = BoundForResponse(item.ThemeLanguageTag, 256),
+                theme_script = BoundForResponse(item.ThemeScript, 16),
+                theme_font_resolution = item.ThemeFontResolutionKind is { } resolution
+                    ? ToSnakeCase(resolution.ToString())
                     : null,
                 declared_value = BoundForResponse(item.DeclaredValue, 160),
                 resulting_value = BoundForResponse(item.ResultingValue, 160),

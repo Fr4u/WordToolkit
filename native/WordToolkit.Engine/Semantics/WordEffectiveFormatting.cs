@@ -15,6 +15,7 @@ public enum WordFormattingSourceKind
     DirectParagraphFormatting,
     DirectRunFormatting,
     Theme,
+    FontTable,
 }
 
 public sealed record WordFormattingContribution(
@@ -31,7 +32,10 @@ public sealed record WordFormattingContribution(
     string? ThemeToken = null,
     string? ThemeColorSlot = null,
     WordThemeFontCollectionKind? ThemeFontCollection = null,
-    WordThemeFontRole? ThemeFontRole = null
+    WordThemeFontRole? ThemeFontRole = null,
+    string? ThemeLanguageTag = null,
+    string? ThemeScript = null,
+    WordThemeFontResolutionKind? ThemeFontResolutionKind = null
 );
 
 public sealed class WordEffectiveFormattingProperty
@@ -229,10 +233,10 @@ public sealed class WordEffectiveFormattingResolver
 
     private static readonly IReadOnlyList<ThemeFontBinding> ThemeFontBindings =
     [
-        new("font_ascii_theme", "font_ascii_resolved"),
-        new("font_high_ansi_theme", "font_high_ansi_resolved"),
-        new("font_east_asia_theme", "font_east_asia_resolved"),
-        new("font_complex_script_theme", "font_complex_script_resolved"),
+        new("font_ascii_theme", "font_ascii_resolved", "font_ascii_document_font"),
+        new("font_high_ansi_theme", "font_high_ansi_resolved", "font_high_ansi_document_font"),
+        new("font_east_asia_theme", "font_east_asia_resolved", "font_east_asia_document_font"),
+        new("font_complex_script_theme", "font_complex_script_resolved", "font_complex_script_document_font"),
     ];
 
     private static readonly IReadOnlyList<ThemeColorBinding> RunThemeColorBindings =
@@ -307,6 +311,8 @@ public sealed class WordEffectiveFormattingResolver
         styleGraph,
         numberingGraph: null,
         themeGraph: null,
+        settingsGraph: null,
+        fontTableGraph: null,
         nodeId,
         cancellationToken
     );
@@ -327,6 +333,8 @@ public sealed class WordEffectiveFormattingResolver
             styleGraph,
             numberingGraph,
             themeGraph: null,
+            settingsGraph: null,
+            fontTableGraph: null,
             nodeId,
             cancellationToken
         );
@@ -348,6 +356,8 @@ public sealed class WordEffectiveFormattingResolver
             styleGraph,
             numberingGraph: null,
             themeGraph,
+            settingsGraph: null,
+            fontTableGraph: null,
             nodeId,
             cancellationToken
         );
@@ -371,6 +381,37 @@ public sealed class WordEffectiveFormattingResolver
             styleGraph,
             numberingGraph,
             themeGraph,
+            settingsGraph: null,
+            fontTableGraph: null,
+            nodeId,
+            cancellationToken
+        );
+    }
+
+    public WordEffectiveFormatting Resolve(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordStyleGraph styleGraph,
+        WordNumberingGraph numberingGraph,
+        WordThemeGraph themeGraph,
+        WordSettingsGraph settingsGraph,
+        WordFontTableGraph fontTableGraph,
+        SemanticNodeId nodeId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(numberingGraph);
+        ArgumentNullException.ThrowIfNull(themeGraph);
+        ArgumentNullException.ThrowIfNull(settingsGraph);
+        ArgumentNullException.ThrowIfNull(fontTableGraph);
+        return ResolveCore(
+            package,
+            semanticDocument,
+            styleGraph,
+            numberingGraph,
+            themeGraph,
+            settingsGraph,
+            fontTableGraph,
             nodeId,
             cancellationToken
         );
@@ -382,6 +423,8 @@ public sealed class WordEffectiveFormattingResolver
         WordStyleGraph styleGraph,
         WordNumberingGraph? numberingGraph,
         WordThemeGraph? themeGraph,
+        WordSettingsGraph? settingsGraph,
+        WordFontTableGraph? fontTableGraph,
         SemanticNodeId nodeId,
         CancellationToken cancellationToken
     )
@@ -395,7 +438,9 @@ public sealed class WordEffectiveFormattingResolver
             semanticDocument,
             styleGraph,
             numberingGraph,
-            themeGraph
+            themeGraph,
+            settingsGraph,
+            fontTableGraph
         );
         if (!semanticDocument.TryGetNode(nodeId, out var selected) || selected is null)
         {
@@ -724,6 +769,8 @@ public sealed class WordEffectiveFormattingResolver
         {
             ResolveThemeValues(
                 themeGraph!,
+                settingsGraph,
+                fontTableGraph,
                 paragraphStates,
                 runStates,
                 omissions,
@@ -781,6 +828,8 @@ public sealed class WordEffectiveFormattingResolver
 
     private static void ResolveThemeValues(
         WordThemeGraph themeGraph,
+        WordSettingsGraph? settingsGraph,
+        WordFontTableGraph? fontTableGraph,
         Dictionary<string, MutableProperty> paragraphStates,
         Dictionary<string, MutableProperty> runStates,
         List<string> omissions,
@@ -805,7 +854,10 @@ public sealed class WordEffectiveFormattingResolver
 
             try
             {
-                var resolved = themeGraph.ResolveFont(themeValue.Value);
+                var resolved = themeGraph.ResolveFont(
+                    themeValue.Value,
+                    settingsGraph?.ThemeFontLanguages
+                );
                 ApplyResolvedProperty(
                     runStates,
                     binding.ResolvedProperty,
@@ -819,9 +871,47 @@ public sealed class WordEffectiveFormattingResolver
                         StyleLevel: false,
                         ThemeToken: resolved.RequestedToken,
                         ThemeFontCollection: resolved.CollectionKind,
-                        ThemeFontRole: resolved.Role
+                        ThemeFontRole: resolved.Role,
+                        ThemeLanguageTag: resolved.LanguageTag,
+                        ThemeScript: resolved.Script,
+                        ThemeFontResolutionKind: resolved.ResolutionKind
                     )
                 );
+                if (
+                    fontTableGraph?.FontTablePartUri is { } fontTablePartUri
+                    && fontTableGraph.TryGetFont(resolved.Typeface, out var font)
+                    && font is not null
+                )
+                {
+                    var documentFontStatus = font.EmbeddedFaces.Count == 0
+                        ? "declared"
+                        : font.HasWordReadableEmbeddedFace
+                            ? "declared_embedded"
+                            : "declared_embedded_unreadable";
+                    ApplyResolvedProperty(
+                        runStates,
+                        binding.DocumentFontProperty,
+                        resolved.Typeface,
+                        documentFontStatus,
+                        new FormattingSource(
+                            WordFormattingSourceKind.FontTable,
+                            null,
+                            fontTablePartUri,
+                            font.SourceElementOrdinal,
+                            StyleLevel: false
+                        )
+                    );
+                    if (
+                        font.EmbeddedFaces.Count > 0
+                        && !font.HasWordReadableEmbeddedFace
+                    )
+                    {
+                        omissions.Add("font_embedding_resolution");
+                        warnings.Add(
+                            $"{binding.ResolvedProperty}: font '{resolved.Typeface}' has embedded faces, but none is readable by Word under the declared relationship, content type, and font key."
+                        );
+                    }
+                }
             }
             catch (WordThemeResolutionException exception)
             {
@@ -975,7 +1065,9 @@ public sealed class WordEffectiveFormattingResolver
         WordSemanticDocument semanticDocument,
         WordStyleGraph styleGraph,
         WordNumberingGraph? numberingGraph,
-        WordThemeGraph? themeGraph
+        WordThemeGraph? themeGraph,
+        WordSettingsGraph? settingsGraph,
+        WordFontTableGraph? fontTableGraph
     )
     {
         if (
@@ -992,10 +1084,20 @@ public sealed class WordEffectiveFormattingResolver
                     !string.Equals(package.Fingerprint, themeGraph.PackageFingerprint, StringComparison.Ordinal)
                     || !string.Equals(semanticDocument.MainPartUri, themeGraph.MainPartUri, StringComparison.Ordinal)
                 )
+            || settingsGraph is not null
+                && (
+                    !string.Equals(package.Fingerprint, settingsGraph.PackageFingerprint, StringComparison.Ordinal)
+                    || !string.Equals(semanticDocument.MainPartUri, settingsGraph.MainPartUri, StringComparison.Ordinal)
+                )
+            || fontTableGraph is not null
+                && (
+                    !string.Equals(package.Fingerprint, fontTableGraph.PackageFingerprint, StringComparison.Ordinal)
+                    || !string.Equals(semanticDocument.MainPartUri, fontTableGraph.MainPartUri, StringComparison.Ordinal)
+                )
         )
         {
             throw new WordFormattingResolutionException(
-                "Effective formatting requires package, semantic, style, numbering, and theme snapshots from the same document version."
+                "Effective formatting requires package, semantic, style, numbering, theme, settings, and font-table snapshots from the same document version."
             );
         }
     }
@@ -1449,12 +1551,16 @@ public sealed class WordEffectiveFormattingResolver
         string? ThemeToken = null,
         string? ThemeColorSlot = null,
         WordThemeFontCollectionKind? ThemeFontCollection = null,
-        WordThemeFontRole? ThemeFontRole = null
+        WordThemeFontRole? ThemeFontRole = null,
+        string? ThemeLanguageTag = null,
+        string? ThemeScript = null,
+        WordThemeFontResolutionKind? ThemeFontResolutionKind = null
     );
 
     private sealed record ThemeFontBinding(
         string ThemeProperty,
-        string ResolvedProperty
+        string ResolvedProperty,
+        string DocumentFontProperty
     );
 
     private sealed record ThemeColorBinding(
@@ -1558,7 +1664,10 @@ public sealed class WordEffectiveFormattingResolver
                     source.ThemeToken,
                     source.ThemeColorSlot,
                     source.ThemeFontCollection,
-                    source.ThemeFontRole
+                    source.ThemeFontRole,
+                    source.ThemeLanguageTag,
+                    source.ThemeScript,
+                    source.ThemeFontResolutionKind
                 )
             );
             LastSourceKind = source.Kind;

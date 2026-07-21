@@ -152,6 +152,13 @@ public enum WordThemeFontRole
     ComplexScript,
 }
 
+public enum WordThemeFontResolutionKind
+{
+    PrimaryTypeface,
+    SupplementalLanguageTypeface,
+    PrimaryTypefaceLanguageFallback,
+}
+
 public sealed record WordThemeTypeface(
     string Typeface,
     string? Panose,
@@ -284,7 +291,10 @@ public sealed record WordResolvedThemeFont(
     WordThemeFontCollectionKind CollectionKind,
     WordThemeFontRole Role,
     string Typeface,
-    int SourceElementOrdinal
+    int SourceElementOrdinal,
+    string? LanguageTag,
+    string? Script,
+    WordThemeFontResolutionKind ResolutionKind
 );
 
 public sealed class WordThemeGraph
@@ -393,7 +403,13 @@ public sealed class WordThemeGraph
         );
     }
 
-    public WordResolvedThemeFont ResolveFont(string themeToken)
+    public WordResolvedThemeFont ResolveFont(string themeToken) =>
+        ResolveFont(themeToken, languages: null);
+
+    public WordResolvedThemeFont ResolveFont(
+        string themeToken,
+        WordThemeFontLanguages? languages
+    )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeToken);
         if (!HasThemePart || FontScheme is null)
@@ -422,6 +438,47 @@ public sealed class WordThemeGraph
                 $"Theme font role '{request.Role}' is not supported."
             ),
         };
+        var language = languages?.ForRole(request.Role);
+        if (!string.IsNullOrWhiteSpace(language))
+        {
+            var script = ResolveLanguageScript(language);
+            if (
+                script is not null
+                && collection.TryGetSupplementalFont(script, out var supplemental)
+                && supplemental is not null
+            )
+            {
+                return new WordResolvedThemeFont(
+                    themeToken,
+                    request.CollectionKind,
+                    request.Role,
+                    supplemental.Typeface,
+                    supplemental.SourceElementOrdinal,
+                    language,
+                    script,
+                    WordThemeFontResolutionKind.SupplementalLanguageTypeface
+                );
+            }
+            if (script is null && collection.SupplementalFonts.Count > 0)
+            {
+                throw new WordThemeResolutionException(
+                    $"Theme font token '{themeToken}' requires language-dependent font selection, but language tag '{language}' cannot be mapped safely to a DrawingML script."
+                );
+            }
+            if (!string.IsNullOrWhiteSpace(typeface.Typeface))
+            {
+                return new WordResolvedThemeFont(
+                    themeToken,
+                    request.CollectionKind,
+                    request.Role,
+                    typeface.Typeface,
+                    typeface.SourceElementOrdinal,
+                    language,
+                    script,
+                    WordThemeFontResolutionKind.PrimaryTypefaceLanguageFallback
+                );
+            }
+        }
         if (string.IsNullOrWhiteSpace(typeface.Typeface))
         {
             throw new WordThemeResolutionException(
@@ -434,9 +491,59 @@ public sealed class WordThemeGraph
             request.CollectionKind,
             request.Role,
             typeface.Typeface,
-            typeface.SourceElementOrdinal
+            typeface.SourceElementOrdinal,
+            null,
+            null,
+            WordThemeFontResolutionKind.PrimaryTypeface
         );
     }
+
+    private static string? ResolveLanguageScript(string languageTag)
+    {
+        var subtags = languageTag.Split(
+            ['-', '_'],
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
+        );
+        if (subtags.Length == 0)
+        {
+            return null;
+        }
+        for (var index = 1; index < subtags.Length; index++)
+        {
+            var subtag = subtags[index];
+            if (subtag.Length == 1)
+            {
+                break;
+            }
+            if (subtag.Length == 4 && subtag.All(IsAsciiLetter))
+            {
+                return char.ToUpperInvariant(subtag[0])
+                    + subtag[1..].ToLowerInvariant();
+            }
+        }
+
+        var language = subtags[0].ToLowerInvariant();
+        var region = subtags.Skip(1)
+            .FirstOrDefault(subtag =>
+                (subtag.Length == 2 && subtag.All(IsAsciiLetter))
+                || (subtag.Length == 3 && subtag.All(char.IsAsciiDigit))
+            )
+            ?.ToUpperInvariant();
+        if (language == "zh")
+        {
+            return region is "TW" or "HK" or "MO" ? "Hant" : "Hans";
+        }
+        if (language == "pa")
+        {
+            return region == "PK" ? "Arab" : "Guru";
+        }
+        return LanguageToScript.TryGetValue(language, out var script)
+            ? script
+            : null;
+    }
+
+    private static bool IsAsciiLetter(char value) =>
+        value is >= 'a' and <= 'z' or >= 'A' and <= 'Z';
 
     private static byte? ParseOptionalHexByte(string? value, string name)
     {
@@ -618,6 +725,86 @@ public sealed class WordThemeGraph
             ["minorHAnsi"] = new(WordThemeFontCollectionKind.Minor, WordThemeFontRole.Latin),
             ["minorEastAsia"] = new(WordThemeFontCollectionKind.Minor, WordThemeFontRole.EastAsian),
             ["minorBidi"] = new(WordThemeFontCollectionKind.Minor, WordThemeFontRole.ComplexScript),
+        };
+
+    // Compact CLDR/ISO 15924 likely-script map for the script families emitted by
+    // Office themes. Explicit BCP 47 script subtags always take precedence.
+    private static readonly IReadOnlyDictionary<string, string> LanguageToScript =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["am"] = "Ethi",
+            ["ar"] = "Arab",
+            ["as"] = "Beng",
+            ["az"] = "Latn",
+            ["be"] = "Cyrl",
+            ["bg"] = "Cyrl",
+            ["bn"] = "Beng",
+            ["bo"] = "Tibt",
+            ["cs"] = "Latn",
+            ["da"] = "Latn",
+            ["de"] = "Latn",
+            ["dv"] = "Thaa",
+            ["el"] = "Grek",
+            ["en"] = "Latn",
+            ["es"] = "Latn",
+            ["et"] = "Latn",
+            ["fa"] = "Arab",
+            ["fi"] = "Latn",
+            ["fr"] = "Latn",
+            ["gu"] = "Gujr",
+            ["he"] = "Hebr",
+            ["hi"] = "Deva",
+            ["hr"] = "Latn",
+            ["hu"] = "Latn",
+            ["hy"] = "Armn",
+            ["id"] = "Latn",
+            ["is"] = "Latn",
+            ["it"] = "Latn",
+            ["ja"] = "Jpan",
+            ["ka"] = "Geor",
+            ["kk"] = "Cyrl",
+            ["km"] = "Khmr",
+            ["kn"] = "Knda",
+            ["ko"] = "Hang",
+            ["ky"] = "Cyrl",
+            ["lo"] = "Laoo",
+            ["lt"] = "Latn",
+            ["lv"] = "Latn",
+            ["mk"] = "Cyrl",
+            ["ml"] = "Mlym",
+            ["mn"] = "Cyrl",
+            ["mr"] = "Deva",
+            ["ms"] = "Latn",
+            ["my"] = "Mymr",
+            ["ne"] = "Deva",
+            ["nl"] = "Latn",
+            ["no"] = "Latn",
+            ["or"] = "Orya",
+            ["pl"] = "Latn",
+            ["ps"] = "Arab",
+            ["pt"] = "Latn",
+            ["ro"] = "Latn",
+            ["ru"] = "Cyrl",
+            ["sa"] = "Deva",
+            ["sd"] = "Arab",
+            ["si"] = "Sinh",
+            ["sk"] = "Latn",
+            ["sl"] = "Latn",
+            ["sq"] = "Latn",
+            ["sr"] = "Cyrl",
+            ["sv"] = "Latn",
+            ["syr"] = "Syrc",
+            ["ta"] = "Taml",
+            ["te"] = "Telu",
+            ["th"] = "Thai",
+            ["ti"] = "Ethi",
+            ["tr"] = "Latn",
+            ["ug"] = "Arab",
+            ["uk"] = "Cyrl",
+            ["ur"] = "Arab",
+            ["uz"] = "Latn",
+            ["vi"] = "Latn",
+            ["yi"] = "Hebr",
         };
 }
 

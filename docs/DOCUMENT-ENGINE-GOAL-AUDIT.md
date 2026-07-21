@@ -53,7 +53,7 @@ vendor claim is not implementation evidence.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Compact inspect | Implemented (strengthened initial slice) | `inspect_ooxml_package`, `inspect_ooxml_semantics`, lazy `query_ooxml_semantics`, `inspect_ooxml_sections`, `inspect_ooxml_styles`, `inspect_ooxml_numbering`, `inspect_ooxml_theme` and filtered `resolve_ooxml_formatting`; projected-part inventory, per-field/item bounds and offset paging | Opaque continuation tokens, remaining auxiliary/versioned parts and measured stable response budgets |
+| Compact inspect | Implemented (strengthened initial slice) | `inspect_ooxml_package`, `inspect_ooxml_semantics`, lazy `query_ooxml_semantics`, `inspect_ooxml_sections`, `inspect_ooxml_styles`, `inspect_ooxml_numbering`, `inspect_ooxml_theme`, `inspect_ooxml_settings`, `inspect_ooxml_fonts` and filtered `resolve_ooxml_formatting`; projected-part inventory, redaction, per-field/item bounds and offset paging | Opaque continuation tokens, remaining auxiliary/versioned parts and measured stable response budgets |
 | Semantic query/search | Partial (strengthened initial) | Source-ordered kind/property/part/subtree selectors across main, header/footer, note, comment, glossary and text-box stories; streaming contains/equals/starts/ends matching crosses run/field/tab/break boundaries; bounded optional previews/properties/provenance | Fields/math/metadata-aware predicates, structural relationship joins, aggregations and query planner |
 | Indexing | Not started | None | Incremental external index, invalidation and privacy controls |
 | AI planner | Partial foundation | Deterministic bounded text-command plans report targets, counts, source ordinals and byte impact without returning content; lazy stateless MCP plan/apply requires reviewed plan ID and snapshot fingerprint | Natural-language intent -> evidence -> heterogeneous typed plan -> cost/risk -> richer approval policy |
@@ -72,7 +72,7 @@ vendor claim is not implementation evidence.
 |---|---|---|---|
 | Paragraphs/runs/tables | Partial | Source-linked projection plus first lossless text-leaf edit; live COM editing | Structural typed edits, effective properties, merge/split and layout tests |
 | Sections/headers/footers/notes | Partial (strengthened) | Primary story roots/bodies/references and lossless text edits; section boundaries/page properties plus first/even/default explicit/inherited/blank/effective bindings; unbound-part inventory | Section structural edits, link-to-previous mutation, separator/numbering semantics and layout proof |
-| Styles/themes/direct formatting | Partial (typed graphs + modeled effective slice) | Source-linked style and Office theme inventories; document defaults, latent metadata, four style types, all 12 theme colors, major/minor and supplemental fonts, format-scheme counts and inheritance diagnostics; paragraph/run resolver applies defaults, base-first paragraph styles, effective numbering levels, character styles and direct formatting, then derives deterministic theme fonts/RGB values with provenance and explicit ambiguity | Add conditional table/revision/application-default resolution, language-aware theme fallback, exact Word color quantization, broader Word-specific compatibility, drift lint and safe refactor |
+| Styles/themes/direct formatting | Partial (typed graphs + modeled effective slice) | Source-linked style, theme, settings and font-table inventories; document defaults, latent metadata, four style types, all 12 theme colors, major/minor and supplemental fonts, `themeFontLang`, embedded-face metadata, format-scheme counts and inheritance diagnostics; paragraph/run resolver applies defaults, base-first paragraph styles, effective numbering levels, character styles and direct formatting, then derives deterministic theme fonts/RGB values and font-table provenance with explicit ambiguity | Add conditional table/revision/application-default resolution, exhaustive Word locale/version substitution behavior, exact Word color quantization, broader Word-specific compatibility, drift lint and safe refactor |
 | Numbering/lists | Partial (typed graph + effective-level slice) | Exact relationship/root validation; source-linked picture/abstract/instance/level/override inventory; `numStyleLink`/`styleLink` chains, start overrides, corruption diagnostics, compact MCP inspection and effective formatting integration | Counter-state traversal across paragraphs, restart semantics in sequence, label rendering, structural edits, repair/rebuild and layout proof |
 | Fields/bookmarks/cross-references | Partial | Semantic field/bookmark recognition; live actions | Dependency graph, nested-field parser, update capability and safe edits |
 | TOC/TOF/TOT/captions | Not started in new engine | Existing live actions/historical tests | Reference graph, field update, layout and round-trip tests |
@@ -82,8 +82,8 @@ vendor claim is not implementation evidence.
 | DrawingML/VML/images/text boxes | Partial (strengthened) | Drawing markers and opaque bytes; nested `w:txbxContent` is a source-linked semantic boundary with editable text; live image operations | Typed anchors/layout/wrap/group/geometry model and render corpus |
 | Charts/SmartArt/OLE/embedded packages | Not started | Opaque retention only | Typed inspection/edit where safe, extraction policy, rendering and security gates |
 | Citations/bibliography | Not started | Architecture only | Source model, citation fields, style/locale handling and reference updates |
-| Templates/mail merge | Not started in new engine | Historical functionality only | Typed slots/regions/constraints/data validation and repeatable generation |
-| Macros/signatures/protection/encryption | Not started | Macro extension recognized only by file type; raw parts retained | Explicit policy, signature invalidation rules, protected operations and safe handoff |
+| Templates/mail merge | Partial metadata foundation | Settings graph exposes bounded mail-merge mode, destination, SQL/source relationship references and redacted connection/query fields; historical generation remains separate | Typed slots/regions/constraints/data validation, relationship-type validation and repeatable execution |
+| Macros/signatures/protection/encryption | Partial policy foundation | Macro extension recognized by file type; raw parts retained; settings graph distinguishes document/write protection metadata from encryption and never exposes hashes or salts | Explicit mutation policy, signature invalidation rules, protected-operation enforcement, encrypted-package adapter and safe handoff |
 | Accessibility | Not started in new engine | Historical checks only | Heading/table/alt text/language/reading order/link/metadata rule suite |
 | OCR | Not started | None | Pluggable OCR with provenance, confidence, language and privacy controls |
 
@@ -120,9 +120,9 @@ it does not mean the engine understands or can edit it.
 | `document.xml` | Partial (strengthened) | Main part is projected through the lossless byte-span model and supports guarded leaf-text splice; full typed vocabulary remains |
 | `styles.xml` | Partial (typed read graph) | Defaults, latent metadata, four style types, inheritance diagnostics, theme integration and modeled effective formatting exist; conditional table behavior and mutations remain |
 | `numbering.xml` | Partial (typed read graph) | Picture/abstract/instance/level/override/style-link graph and one-level effective resolution exist; sequential counters, mutations and repair remain |
-| theme | Partial (typed read graph + effective resolution) | Exact relationship/content/root validation; all twelve color slots; system fallback, transform and environment diagnostics; major/minor primary and supplemental fonts; format-scheme inventory; compact MCP views; deterministic theme font/RGB provenance in effective formatting | Language/settings-driven script fallback, full DrawingML color transform evaluation, exact Word quantization, mutation and visual proof |
-| settings | Not started | Compatibility/protection/mail-merge/settings model |
-| fontTable | Not started | Font metadata, embedding, fallback and substitution |
+| theme | Partial (typed read graph + effective resolution) | Exact relationship/content/root validation; all twelve color slots; system fallback, transform and environment diagnostics; major/minor primary and supplemental fonts; `themeFontLang`-driven explicit/likely script selection; format-scheme inventory; compact MCP views; deterministic theme font/RGB provenance in effective formatting | Exhaustive Word locale/version substitution behavior, full DrawingML color transform evaluation, exact Word quantization, mutation and visual proof |
+| settings | Partial (typed read graph) | Exact relationship/content/root validation; bounded view/zoom/defaults, `themeFontLang`, compatibility profile and derived mode, legacy switches, protection metadata, document variables, attached-template and mail-merge references, separators and root inventory; compact redacted MCP views | Broader settings vocabulary, relationship-specific validation, typed mutations, version behavior and Word round-trip proof |
+| fontTable | Partial (typed read graph) | Exact relationship/content/root validation; font identity/classification/PANOSE/signature metadata; four embedded faces; content-type/key readability checks; duplicate/orphan diagnostics; compact byte-free MCP views and effective-format cross-reference | Font substitution/fallback engine, obfuscation/deobfuscation workflow, mutation, licensing policy and measured render portability |
 | comments | Partial | Standard comment bodies, IDs, authorship, anchors and lossless text edits; threaded metadata missing |
 | commentsExtended | Not started | Thread/status/person graph and version compatibility |
 | revisions | Partial | Wrapper recognition only; full authorship/move/property revisions |
@@ -152,20 +152,20 @@ it does not mean the engine understands or can edit it.
 | VBA | Opaque only | Inventory, signature/policy, never implicit execution |
 | custom XML | Opaque only | Item/properties/SDT binding graph and safe edits |
 | custom properties | Opaque only | Typed property values, linkage and serialization |
-| document variables | Not started | Settings variable model and field dependencies |
+| document variables | Partial (typed read/redacted inspect) | Bounded settings variable names and values; names/values hidden by default in MCP | Field dependency graph, typed mutation, policy and targeted disclosure |
 | glossary | Partial | Glossary story and building-block names/GUIDs are projected and text-editable; typed insertion and gallery/category behavior missing |
 | content controls / SDT | Partial | ID/tag projection; properties, bindings, repeats, locks and edits missing |
-| mail merge | Not started | Settings, fields, data sources, regions and deterministic execution |
+| mail merge | Partial (metadata read graph) | Settings destination/mode and relationship references plus redacted query/connection metadata | Field/data-source graph, relationship validation, regions, policy and deterministic execution |
 | macros | Opaque only | Same VBA policy gap; no execution surface |
 | signatures | Opaque only | Signature origins, validation, invalidation and resign workflow |
 | encryption | Not started | Encrypted OOXML detection, authorized decrypt/encrypt adapter |
 | permissions | Not started | PermStart/PermEnd ranges and enforcement |
-| protection | Not started | Settings hashes, edit restrictions and capability checks |
+| protection | Partial (metadata/policy only) | Document/write-protection modes and algorithm metadata are typed; secrets never returned; editing restriction is explicitly not treated as encryption | Permission-range integration, mutation enforcement, password workflow, authorized encryption adapter and Word probes |
 | revision IDs | Partial | Some durable IDs read; global identity/collision/version semantics missing |
 | style inheritance | Partial | Base-first `basedOn` graph, default selection, link diagnostics, modeled property provenance and deterministic theme dereferencing exist; conditional table/version behavior and mutations remain |
 | numbering inheritance | Partial | Abstract/instance/full-level/start override and numbering-style indirection resolve with provenance; paragraph-sequence counters, restart execution and edits remain |
 | XML namespaces | Partial (strengthened) | Prefixes, declaration placement, expanded element/attribute names and untouched bytes are retained; general namespace-changing edits remain |
-| compatibility mode | Opaque only | `compatSetting` interpretation and version behavior probes |
+| compatibility mode | Partial (typed read graph) | Bounded `compatSetting` tuples, legacy switches and explicit derived `compatibilityMode` with duplicate/conflict diagnostics | Versioned behavioral profiles, broader setting interpretation and Word probes |
 | Word version differences | Not started | Versioned capability profiles and corpus |
 | co-authoring metadata | Opaque only | People, comments, session/change metadata and merge semantics |
 
@@ -244,7 +244,7 @@ automatic OOXML execution required by the goal.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Unit/regression tests | Partial | 118 engine, 54 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
+| Unit/regression tests | Partial | 132 engine, 55 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
 | Property/fuzz testing | Partial | Deterministic malformed bytes and random opaque round-trip smoke | Continuous coverage-guided fuzzing, minimized corpus and resource assertions |
 | Fault injection | Not started | Validation/concurrency failure tests only | Every persistence/transaction phase, disk-full, denied, crash and race tests |
 | Preservation benchmark | Partial | Entry hashes and random no-op round trip | Public producer/feature corpus with untouched part/subtree metrics |

@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using WordToolkit.Engine.Packaging;
-using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
 
@@ -166,8 +165,6 @@ public sealed class WordSectionGraphBuilder
         "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     private const string RelationshipsStrictNamespace =
         "http://purl.oclc.org/ooxml/officeDocument/relationships";
-    private const string SettingsContentType =
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml";
     private const string HeaderContentType =
         "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml";
     private const string FooterContentType =
@@ -205,7 +202,7 @@ public sealed class WordSectionGraphBuilder
 
         var evenAndOddHeaders = ReadEvenAndOddHeaders(
             package,
-            semanticDocument.MainPartUri,
+            semanticDocument,
             cancellationToken
         );
         var relationships = IndexMainRelationships(
@@ -621,86 +618,33 @@ public sealed class WordSectionGraphBuilder
 
     private bool ReadEvenAndOddHeaders(
         OpcPackageSnapshot package,
-        string mainPartUri,
+        WordSemanticDocument semanticDocument,
         CancellationToken cancellationToken
     )
     {
-        var settingsRelationships = package.RelationshipsFrom(mainPartUri)
-            .Where(relationship => IsRelationshipType(relationship.Type, "settings"))
-            .ToArray();
-        if (settingsRelationships.Length == 0)
-        {
-            return false;
-        }
-
-        if (settingsRelationships.Length != 1)
-        {
-            throw new WordSectionProjectionException(
-                "Main document part contains multiple settings relationships."
-            );
-        }
-
-        var relationship = settingsRelationships[0];
-        if (
-            relationship.TargetMode != OpcRelationshipTargetMode.Internal
-            || relationship.ResolvedTargetPartUri is null
-            || !package.Parts.TryGetValue(relationship.ResolvedTargetPartUri, out var part)
-            || !string.Equals(
-                part.ContentType,
-                SettingsContentType,
-                StringComparison.OrdinalIgnoreCase
-            )
-        )
-        {
-            throw new WordSectionProjectionException(
-                "Settings relationship does not resolve to a valid Word settings part."
-            );
-        }
-
         try
         {
-            var source = LosslessXmlDocument.Parse(
-                part.Entry.Content,
-                new LosslessXmlOptions
+            return new WordSettingsGraphBuilder(
+                new WordSettingsGraphOptions
                 {
-                    MaxSourceBytes = _options.MaxSettingsBytes,
-                    MaxXmlCharacters = _options.MaxSettingsBytes,
-                    MaxXmlElements = 100_000,
-                    MaxXmlDepth = 128,
-                    MaxTextCharacters = _options.MaxSettingsBytes,
-                },
+                    MaxSettingsPartBytes = _options.MaxSettingsBytes,
+                }
+            ).Build(
+                package,
+                semanticDocument,
                 cancellationToken
-            );
-            var root = source.ParsedDocument.Root;
-            if (
-                root is null
-                || !IsWordNamespace(root.Name.NamespaceName)
-                || root.Name.LocalName != "settings"
-            )
-            {
-                throw new WordSectionProjectionException(
-                    "Word settings part does not have a w:settings root element."
-                );
-            }
-
-            var setting = root.Elements()
-                .FirstOrDefault(element =>
-                    IsWordNamespace(element.Name.NamespaceName)
-                    && element.Name.LocalName == "evenAndOddHeaders"
-                );
-            return ParseOnOffElement(setting, "evenAndOddHeaders");
+            ).EvenAndOddHeaders;
         }
-        catch (LosslessXmlLimitException exception)
+        catch (WordSettingsLimitException exception)
         {
             throw new WordSectionLimitException(
-                "Word settings part exceeds a section-graph XML limit: "
-                    + exception.Message
+                "Word settings part exceeds a section-graph limit: " + exception.Message
             );
         }
-        catch (LosslessXmlException exception)
+        catch (WordSettingsProjectionException exception)
         {
             throw new WordSectionProjectionException(
-                "Word settings part is not safe, bounded, well-formed XML.",
+                "Word settings part cannot be resolved for the section graph.",
                 exception
             );
         }
@@ -724,27 +668,6 @@ public sealed class WordSectionGraphBuilder
             "false" => false,
             _ => throw new WordSectionProjectionException(
                 $"Section {sectionOrdinal} has invalid Boolean property '{name}'."
-            ),
-        };
-    }
-
-    private static bool ParseOnOffElement(
-        System.Xml.Linq.XElement? element,
-        string name
-    )
-    {
-        if (element is null)
-        {
-            return false;
-        }
-
-        var value = element.Attribute(element.Name.Namespace + "val")?.Value;
-        return value?.ToLowerInvariant() switch
-        {
-            null or "true" or "1" or "on" => true,
-            "false" or "0" or "off" => false,
-            _ => throw new WordSectionProjectionException(
-                $"Word setting '{name}' has invalid on/off value '{value}'."
             ),
         };
     }

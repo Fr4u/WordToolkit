@@ -65,18 +65,30 @@ the next step consumes that evidence. An empty East Asian or complex-script
 primary typeface is language-dependent, not permission to substitute a Latin
 font. Environmental system colors and DrawingML transform chains that cannot be
 resolved deterministically remain explicit diagnostics.
+Use lazy `inspect_ooxml_settings` instead of loading `settings.xml`. Start with
+`view=summary` or `view=compatibility`; request document variables or mail-merge
+metadata only when the task needs them. Values, queries, connection strings and
+targets are redacted by default. Protection hashes and salts are never returned,
+even with sensitive metadata enabled, because they do not help an ordinary edit.
+Treat document protection as an editing restriction, not encryption.
+Use lazy `inspect_ooxml_fonts` instead of reading `fontTable.xml` or embedded font
+parts. Keep `view=fonts` and metadata detail for discovery; filter by exact font
+name when possible. Request embedded-face metadata only when diagnosing portability.
+Never ask for font bytes. Hashes and source ordinals are opt-in, and unsupported or
+malformed embedded-face relationships remain explicit diagnostics.
 After obtaining a paragraph or run ID, use lazy `resolve_ooxml_formatting` only
 when a formatting decision needs more than the declared style. Filter
 `property_names` aggressively and leave provenance/source disabled unless the
 next decision must explain an override. Treat `coverage_omissions` and
 `compatibility_warnings` as hard limits: the action resolves modeled defaults,
 paragraph styles, an effective numbering level, character styles, direct
-properties, concrete theme fonts, and theme RGB colors. It does not pretend that
-conditional table styles, language-dependent theme fallback, Office's private
-HSL quantization, revision views, application defaults, or documented Word
-compatibility edges are final rendering. Its compact `numbering` and `theme`
-blocks are enough for most decisions; call the dedicated graph inspectors only
-when their declarations or diagnostics are actually needed.
+properties, settings-driven concrete theme fonts, declared/embedded font-table
+metadata, and theme RGB colors. It does not pretend that conditional table styles,
+an unmappable locale, Office's private HSL quantization, revision views,
+application defaults, or documented Word compatibility edges are final rendering.
+Its compact `numbering`, `theme`, `settings` and `font_table` blocks are enough for
+most decisions; call the dedicated graph inspectors only when their declarations
+or diagnostics are actually needed.
 For a saved-package text edit, use this strict lazy workflow:
 
 1. Query the narrowest possible `text` nodes and retain the package fingerprint.
