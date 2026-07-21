@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-WordToolkit 0.19 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The new document-engine core can also inspect the package graph, semantic structure, section bindings, and typed style graph of a saved Word OOXML file without starting Word. Its lossless editing slice binds text in the main body, headers, footers, notes, comments, glossary building blocks and text boxes to exact XML byte spans, combines bounded commands into one hash-preconditioned package mutation, predicts the result fingerprint and retains an exact guarded inverse without reserializing unrelated XML.
+WordToolkit 0.20 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style graph, numbering graph, and modeled effective formatting of a saved Word OOXML file without starting Word. Its lossless editing slice binds text in the main body, headers, footers, notes, comments, glossary building blocks and text boxes to exact XML byte spans, combines bounded commands into one hash-preconditioned package mutation, predicts the result fingerprint and retains an exact guarded inverse without reserializing unrelated XML.
 
 The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtual environment, an interpreter bootstrap, or a per-call helper process. Its MCP command points directly to:
 
@@ -8,7 +8,7 @@ The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtua
 ./runtime/win-x64/wordtoolkit-native.exe
 ```
 
-The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.19 local plugin, does not participate in its startup, and is not required at runtime.
+The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.20 local plugin, does not participate in its startup, and is not required at runtime.
 
 ## Why the runtime was replaced
 
@@ -44,7 +44,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 48 tested Word Live actions plus eight standalone,
+The runtime implements 48 tested Word Live actions plus nine standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus three token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -68,6 +68,7 @@ inspect_ooxml_semantics
 query_ooxml_semantics
 inspect_ooxml_sections
 inspect_ooxml_styles
+inspect_ooxml_numbering
 resolve_ooxml_formatting
 plan_ooxml_text_edits
 apply_ooxml_text_edits
@@ -244,12 +245,12 @@ The cleaner constrains every target to the repository root. It preserves only th
 Version:
 
 ```text
-0.19.0+codex.20260721195319
+0.20.0+codex.20260721202126
 ```
 
 Windows x64 ZIP:
 
-[WordToolkit native plugin](dist/WordToolkit-0.19.0+codex.20260721195319-native-win-x64.zip)
+[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.20.0/WordToolkit-0.20.0%2Bcodex.20260721202126-native-win-x64.zip)
 
 Live demonstration document:
 

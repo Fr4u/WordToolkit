@@ -53,10 +53,17 @@ internal sealed partial class WordLiveService
                 semantic,
                 cancellationToken
             );
+            var numbering = new WordNumberingGraphBuilder().Build(
+                package,
+                semantic,
+                styles,
+                cancellationToken
+            );
             var formatting = new WordEffectiveFormattingResolver().Resolve(
                 package,
                 semantic,
                 styles,
+                numbering,
                 new SemanticNodeId(nodeIdValue),
                 cancellationToken
             );
@@ -85,6 +92,8 @@ internal sealed partial class WordLiveService
                     formatting.CharacterStyleId,
                     253
                 ),
+                numbering = FormattingNumbering(formatting.Numbering, includeSource),
+                numbering_removed = formatting.NumberingRemoved ? true : (bool?)null,
                 source_part_uri = includeSource
                     ? BoundForResponse(formatting.SourcePartUri, 512)
                     : null,
@@ -147,6 +156,22 @@ internal sealed partial class WordLiveService
                     total_ms = Stopwatch.GetElapsedTime(started).TotalMilliseconds,
                 },
             });
+        }
+        catch (WordNumberingLimitException exception)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "Numbering graph exceeds a bounded safety limit",
+                new { reason = BoundForResponse(exception.Message, 512) }
+            );
+        }
+        catch (WordNumberingProjectionException exception)
+        {
+            throw new NativeToolException(
+                "INVALID_WORD_PACKAGE",
+                "The package cannot be resolved into a Word numbering graph",
+                new { reason = BoundForResponse(exception.Message, 512) }
+            );
         }
         catch (WordFormattingLimitException exception)
         {
@@ -329,6 +354,12 @@ internal sealed partial class WordLiveService
             {
                 layer = ToSnakeCase(item.SourceKind.ToString()),
                 style_id = BoundForResponse(item.StyleId, 253),
+                number_id = item.NumberId,
+                abstract_number_id = item.AbstractNumberId,
+                level_index = item.LevelIndex,
+                numbering_level_source = item.NumberingLevelSourceKind is { } levelSource
+                    ? ToSnakeCase(levelSource.ToString())
+                    : null,
                 declared_value = BoundForResponse(item.DeclaredValue, 160),
                 resulting_value = BoundForResponse(item.ResultingValue, 160),
                 source_part_uri = includeSource
@@ -341,4 +372,41 @@ internal sealed partial class WordLiveService
         },
         StringComparer.Ordinal
     );
+
+    private static object? FormattingNumbering(
+        WordResolvedNumberingLevel? numbering,
+        bool includeSource
+    ) => numbering is null
+        ? null
+        : new
+        {
+            number_id = numbering.NumberId,
+            requested_abstract_number_id = numbering.RequestedAbstractNumberId,
+            effective_abstract_number_id = numbering.EffectiveAbstractNumberId,
+            level_index = numbering.LevelIndex,
+            number_format = BoundForResponse(numbering.Level.NumberFormat, 128),
+            custom_number_format = BoundForResponse(
+                numbering.Level.CustomNumberFormat,
+                256
+            ),
+            level_text = BoundForResponse(numbering.Level.LevelText, 512),
+            suffix = BoundForResponse(numbering.Level.Suffix, 64),
+            effective_start = numbering.EffectiveStart,
+            level_source = ToSnakeCase(numbering.LevelSourceKind.ToString()),
+            start_source = ToSnakeCase(numbering.StartSourceKind.ToString()),
+            abstract_number_chain = numbering.AbstractNumberChain.Count > 1
+                ? numbering.AbstractNumberChain.ToArray()
+                : null,
+            numbering_style_chain = numbering.NumberingStyleChain.Count == 0
+                ? null
+                : numbering.NumberingStyleChain
+                    .Select(value => BoundForResponse(value, 253))
+                    .ToArray(),
+            source_element_ordinal = includeSource
+                ? numbering.SourceElementOrdinal
+                : (int?)null,
+            start_source_element_ordinal = includeSource
+                ? numbering.StartSourceElementOrdinal
+                : null,
+        };
 }

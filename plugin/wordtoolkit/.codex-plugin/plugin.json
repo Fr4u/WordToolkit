@@ -1,7 +1,7 @@
 {
   "name": "wordtoolkit",
-  "version": "0.19.0+codex.20260721195319",
-  "description": "Token-lean native Microsoft Word automation with 13 core/gateway tools and lazy access to 56 native actions.",
+  "version": "0.20.0+codex.20260721202126",
+  "description": "Token-lean native Microsoft Word automation with 14 core/gateway tools and lazy access to 57 native actions.",
   "author": {
     "name": "WordToolkit contributors"
   },
@@ -10,6 +10,7 @@
     "word",
     "docx",
     "ooxml",
+    "numbering",
     "omml",
     "equations",
     "validation"
@@ -18,7 +19,7 @@
   "interface": {
     "displayName": "WordToolkit",
     "shortDescription": "Token-lean automation for real Word.",
-    "longDescription": "WordToolkit controls the real Microsoft Word application through one persistent native .NET COM STA thread. A small 13-tool MCP surface covers the common lifecycle and batch path; search, inspect and execute gateways load any of 56 native actions only when needed. Compact responses omit echoed input and diagnostics by default. The full action set covers saved-package graphs, semantics, sections, styles, modeled effective formatting and guarded text edits plus live formatting, Find/replace, review, tables, formulas, lists, bookmarks, fields, images, notes, headers/footers, editable Office Math, structures, layout, Undo, PDF and Open XML validation. The installed Word object model remains policy-gated; macros, DDE, unsafe raw COM paths and external effects fail closed. The package contains no Python runtime.",
+    "longDescription": "WordToolkit controls the real Microsoft Word application through one persistent native .NET COM STA thread. A small 14-tool MCP surface covers the common lifecycle and batch path; search, inspect and execute gateways load any of 57 native actions only when needed. Compact responses omit echoed input and diagnostics by default. The full action set covers saved-package graphs, semantics, sections, styles, numbering, modeled effective formatting and guarded text edits plus live formatting, Find/replace, review, tables, formulas, lists, bookmarks, fields, images, notes, headers/footers, editable Office Math, structures, layout, Undo, PDF and Open XML validation. The installed Word object model remains policy-gated; macros, DDE, unsafe raw COM paths and external effects fail closed. The package contains no Python runtime.",
     "developerName": "WordToolkit contributors",
     "category": "Productivity",
     "capabilities": [
@@ -29,6 +30,7 @@
       "Word Live",
       "48 Tested Live Tools",
       "Typed OOXML Style Graph",
+      "Typed OOXML Numbering Graph",
       "Formatting Provenance",
       "Lazy Tool Schemas",
       "Compact AI Responses",

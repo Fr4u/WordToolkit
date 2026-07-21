@@ -53,7 +53,7 @@ vendor claim is not implementation evidence.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Compact inspect | Implemented (strengthened initial slice) | `inspect_ooxml_package`, `inspect_ooxml_semantics`, lazy `query_ooxml_semantics`, `inspect_ooxml_sections`, `inspect_ooxml_styles` and filtered `resolve_ooxml_formatting`; projected-part inventory, per-field/item bounds and offset paging | Opaque continuation tokens, remaining auxiliary/versioned parts and measured stable response budgets |
+| Compact inspect | Implemented (strengthened initial slice) | `inspect_ooxml_package`, `inspect_ooxml_semantics`, lazy `query_ooxml_semantics`, `inspect_ooxml_sections`, `inspect_ooxml_styles`, `inspect_ooxml_numbering` and filtered `resolve_ooxml_formatting`; projected-part inventory, per-field/item bounds and offset paging | Opaque continuation tokens, remaining auxiliary/versioned parts and measured stable response budgets |
 | Semantic query/search | Partial (strengthened initial) | Source-ordered kind/property/part/subtree selectors across main, header/footer, note, comment, glossary and text-box stories; streaming contains/equals/starts/ends matching crosses run/field/tab/break boundaries; bounded optional previews/properties/provenance | Fields/math/metadata-aware predicates, structural relationship joins, aggregations and query planner |
 | Indexing | Not started | None | Incremental external index, invalidation and privacy controls |
 | AI planner | Partial foundation | Deterministic bounded text-command plans report targets, counts, source ordinals and byte impact without returning content; lazy stateless MCP plan/apply requires reviewed plan ID and snapshot fingerprint | Natural-language intent -> evidence -> heterogeneous typed plan -> cost/risk -> richer approval policy |
@@ -72,8 +72,8 @@ vendor claim is not implementation evidence.
 |---|---|---|---|
 | Paragraphs/runs/tables | Partial | Source-linked projection plus first lossless text-leaf edit; live COM editing | Structural typed edits, effective properties, merge/split and layout tests |
 | Sections/headers/footers/notes | Partial (strengthened) | Primary story roots/bodies/references and lossless text edits; section boundaries/page properties plus first/even/default explicit/inherited/blank/effective bindings; unbound-part inventory | Section structural edits, link-to-previous mutation, separator/numbering semantics and layout proof |
-| Styles/themes/direct formatting | Partial (typed graph + modeled effective slice) | Source-linked style inventory, document defaults, latent metadata, four style types and inheritance diagnostics; paragraph/run resolver applies defaults, base-first paragraph/character chains and direct formatting with per-property provenance and standard toggle transitions, while emitting explicit coverage gaps | Add numbering/table/theme/revision/application-default resolution, Word-specific toggle compatibility, drift lint and safe refactor |
-| Numbering/lists | Not started | Existing live actions only | Abstract/instance/override/restart/style-linked resolver and edits |
+| Styles/themes/direct formatting | Partial (typed graph + modeled effective slice) | Source-linked style inventory, document defaults, latent metadata, four style types and inheritance diagnostics; paragraph/run resolver applies defaults, base-first paragraph styles, effective numbering levels, character styles and direct formatting with per-property provenance and standard toggle transitions, while emitting explicit coverage gaps | Add conditional table/theme/revision/application-default resolution, broader Word-specific compatibility, drift lint and safe refactor |
+| Numbering/lists | Partial (typed graph + effective-level slice) | Exact relationship/root validation; source-linked picture/abstract/instance/level/override inventory; `numStyleLink`/`styleLink` chains, start overrides, corruption diagnostics, compact MCP inspection and effective formatting integration | Counter-state traversal across paragraphs, restart semantics in sequence, label rendering, structural edits, repair/rebuild and layout proof |
 | Fields/bookmarks/cross-references | Partial | Semantic field/bookmark recognition; live actions | Dependency graph, nested-field parser, update capability and safe edits |
 | TOC/TOF/TOT/captions | Not started in new engine | Existing live actions/historical tests | Reference graph, field update, layout and round-trip tests |
 | Comments/threaded comments/revisions | Partial (strengthened) | Comment bodies/authorship/IDs, anchors and revision wrappers are projected; comment text uses guarded lossless edits; live review actions exist | Threaded/modern comment parts, people graph, moves, merge and accept/reject semantics |
@@ -118,8 +118,8 @@ it does not mean the engine understands or can edit it.
 | package relationships | Implemented (strengthened initial slice) | Format-specific relationship constraints, signature transforms, repair and broad corpus proof |
 | content types | Implemented (initial) | MIME/parameter validation and repair |
 | `document.xml` | Partial (strengthened) | Main part is projected through the lossless byte-span model and supports guarded leaf-text splice; full typed vocabulary remains |
-| `styles.xml` | Not started | Parse, inheritance, effective formatting, edit/serialize |
-| `numbering.xml` | Not started | Abstract/instance/override graph and inheritance |
+| `styles.xml` | Partial (typed read graph) | Defaults, latent metadata, four style types, inheritance diagnostics and modeled effective formatting exist; conditional table/theme integration and mutations remain |
+| `numbering.xml` | Partial (typed read graph) | Picture/abstract/instance/level/override/style-link graph and one-level effective resolution exist; sequential counters, mutations and repair remain |
 | theme | Not started | Theme/font/color resolution and mutation |
 | settings | Not started | Compatibility/protection/mail-merge/settings model |
 | fontTable | Not started | Font metadata, embedding, fallback and substitution |
@@ -162,8 +162,8 @@ it does not mean the engine understands or can edit it.
 | permissions | Not started | PermStart/PermEnd ranges and enforcement |
 | protection | Not started | Settings hashes, edit restrictions and capability checks |
 | revision IDs | Partial | Some durable IDs read; global identity/collision/version semantics missing |
-| style inheritance | Not started | Based-on/link/default/theme/direct provenance resolver |
-| numbering inheritance | Not started | Level/override/style-linked effective-number resolver |
+| style inheritance | Partial | Base-first `basedOn` graph, default selection, link diagnostics and modeled property provenance exist; theme/table/version behavior and mutations remain |
+| numbering inheritance | Partial | Abstract/instance/full-level/start override and numbering-style indirection resolve with provenance; paragraph-sequence counters, restart execution and edits remain |
 | XML namespaces | Partial (strengthened) | Prefixes, declaration placement, expanded element/attribute names and untouched bytes are retained; general namespace-changing edits remain |
 | compatibility mode | Opaque only | `compatSetting` interpretation and version behavior probes |
 | Word version differences | Not started | Versioned capability profiles and corpus |
@@ -230,7 +230,7 @@ preconditions, affected-node proof, transaction, validation, and inverse.
 | Comment | Partial body/author/ID object; threaded metadata missing |
 | Field | Partial read-only |
 | Style | Partial typed graph, defaults, metadata, declared properties, inheritance diagnostics and modeled effective paragraph/run properties |
-| Numbering | Not started |
+| Numbering | Partial read-only graph and effective level; no sequence counter or structural edits |
 | Footnote | Partial body/reference object; numbering semantics missing |
 | Image | Drawing marker only |
 | Shape | Drawing marker only |
@@ -244,7 +244,7 @@ automatic OOXML execution required by the goal.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Unit/regression tests | Partial | 88 engine, 50 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
+| Unit/regression tests | Partial | 109 engine, 53 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
 | Property/fuzz testing | Partial | Deterministic malformed bytes and random opaque round-trip smoke | Continuous coverage-guided fuzzing, minimized corpus and resource assertions |
 | Fault injection | Not started | Validation/concurrency failure tests only | Every persistence/transaction phase, disk-full, denied, crash and race tests |
 | Preservation benchmark | Partial | Entry hashes and random no-op round trip | Public producer/feature corpus with untouched part/subtree metrics |
@@ -257,8 +257,8 @@ automatic OOXML execution required by the goal.
 
 ## Current checkpoint evidence
 
-- `dotnet test native/WordToolkit.Engine.Tests` — 99 passed.
-- `dotnet test native/WordToolkit.Native.Tests` — 52 passed.
+- `dotnet test native/WordToolkit.Engine.Tests` — 109 passed.
+- `dotnet test native/WordToolkit.Native.Tests` — 53 passed.
 - `.venv/Scripts/python -m pytest -q` — 1273 passed, 16 intentionally skipped.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
@@ -274,5 +274,10 @@ automatic OOXML execution required by the goal.
 - Effective paragraph/run property ordering, direct overrides, standard toggles,
   source provenance, explicit coverage omissions and a real header story were exercised
   through the engine; filtered MCP resolution was exercised without invoking Word COM.
+- Numbering discovery, abstract/instance/override resolution, start overrides,
+  numbering-style indirection/cycles, malformed references, effective-formatting
+  precedence and token-bounded MCP inspection were exercised against constructed edge
+  cases and every bundled DOCX numbering part. The POI, Mammoth and Pandoc list fixtures
+  produced zero numbering-graph diagnostics.
 
 These numbers prove only the rows they touch. They do not collapse the remaining work.

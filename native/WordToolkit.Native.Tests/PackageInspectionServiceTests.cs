@@ -539,6 +539,126 @@ public sealed class PackageInspectionServiceTests
     }
 
     [Fact]
+    public async Task InspectNumberingAndResolveItsFormattingWithoutStartingWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-numbering-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "numbering.docx");
+            CreatePackage(
+                path,
+                paragraphPropertiesXml: "<w:pPr><w:numPr><w:ilvl w:val=\"0\"/><w:numId w:val=\"6\"/></w:numPr><w:ind w:left=\"1000\"/></w:pPr>",
+                runPropertiesXml: "<w:rPr><w:b w:val=\"0\"/></w:rPr>",
+                numberingXml:
+                    """
+                    <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                      <w:abstractNum w:abstractNumId="4"><w:nsid w:val="ABCDEF01"/><w:multiLevelType w:val="multilevel"/><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr><w:rPr><w:b/></w:rPr></w:lvl></w:abstractNum>
+                      <w:num w:numId="6"><w:abstractNumId w:val="4"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="3"/></w:lvlOverride></w:num>
+                    </w:numbering>
+                    """
+            );
+            using var numberingArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "resolved_level",
+                    number_id = 6,
+                    level_index = 0,
+                    detail = "declared",
+                    include_source = true,
+                })
+            );
+            var service = new WordLiveService(new NoInvokeHost());
+
+            var numberingResult = await service.CallAsync(
+                "inspect_ooxml_numbering",
+                numberingArguments.RootElement,
+                CancellationToken.None
+            );
+            using var numberingJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(numberingResult)
+            );
+            var resolved = numberingJson.RootElement.GetProperty("resolved_level");
+            Assert.Equal(4, resolved.GetProperty("effective_abstract_number_id").GetInt32());
+            Assert.Equal(3, resolved.GetProperty("effective_start").GetInt32());
+            Assert.Equal(
+                "decimal",
+                resolved.GetProperty("level").GetProperty("number_format").GetString()
+            );
+            Assert.Equal(
+                "720",
+                resolved.GetProperty("level")
+                    .GetProperty("declared_properties")
+                    .GetProperty("paragraph")
+                    .GetProperty("values")
+                    .GetProperty("indent_left_twips")
+                    .GetString()
+            );
+
+            var package = new OpcPackageReader().Read(path);
+            var runId = new WordSemanticProjector().Project(package).Nodes.Single(node =>
+                node.Kind == WordSemanticNodeKind.Run
+                && node.SourcePartUri == "/word/document.xml"
+            ).Id.Value;
+            using var formattingArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    node_id = runId,
+                    property_names = new[] { "indent_left_twips", "bold" },
+                    include_provenance = true,
+                })
+            );
+            var formattingResult = await service.CallAsync(
+                "resolve_ooxml_formatting",
+                formattingArguments.RootElement,
+                CancellationToken.None
+            );
+            using var formattingJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(formattingResult)
+            );
+            var formatting = formattingJson.RootElement;
+            Assert.Equal(
+                6,
+                formatting.GetProperty("numbering").GetProperty("number_id").GetInt32()
+            );
+            Assert.Equal(
+                "1000",
+                formatting.GetProperty("paragraph_properties")
+                    .GetProperty("indent_left_twips")
+                    .GetString()
+            );
+            Assert.Equal(
+                "false",
+                formatting.GetProperty("run_properties").GetProperty("bold").GetString()
+            );
+            Assert.Contains(
+                formatting.GetProperty("provenance")
+                    .GetProperty("run")
+                    .GetProperty("bold")
+                    .GetProperty("contributions")
+                    .EnumerateArray(),
+                contribution => contribution.GetProperty("layer").GetString()
+                    == "numbering_level"
+                    && contribution.GetProperty("number_id").GetInt32() == 6
+            );
+            Assert.DoesNotContain(
+                formatting.GetProperty("coverage_omissions").EnumerateArray(),
+                value => value.GetString() == "numbering_level_properties"
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task PlansAndAtomicallyAppliesReviewedTextEditWithoutStartingWord()
     {
         var directory = Path.Combine(
@@ -825,7 +945,8 @@ public sealed class PackageInspectionServiceTests
         string? headerText = null,
         string? stylesXml = null,
         string? paragraphPropertiesXml = null,
-        string? runPropertiesXml = null
+        string? runPropertiesXml = null,
+        string? numberingXml = null
     )
     {
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
@@ -839,6 +960,9 @@ public sealed class PackageInspectionServiceTests
         var stylesOverride = stylesXml is null
             ? string.Empty
             : "<Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\" />";
+        var numberingOverride = numberingXml is null
+            ? string.Empty
+            : "<Override PartName=\"/word/numbering.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml\" />";
         WriteEntry(
             archive,
             "[Content_Types].xml",
@@ -850,6 +974,7 @@ public sealed class PackageInspectionServiceTests
               {signatureOverride}
               {headerOverride}
               {stylesOverride}
+              {numberingOverride}
             </Types>
             """
         );
@@ -885,7 +1010,7 @@ public sealed class PackageInspectionServiceTests
             </w:document>
             """
         );
-        if (headerText is not null || stylesXml is not null)
+        if (headerText is not null || stylesXml is not null || numberingXml is not null)
         {
             var headerRelationship = headerText is null
                 ? string.Empty
@@ -893,6 +1018,9 @@ public sealed class PackageInspectionServiceTests
             var stylesRelationship = stylesXml is null
                 ? string.Empty
                 : "<Relationship Id=\"rIdStyles\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\" />";
+            var numberingRelationship = numberingXml is null
+                ? string.Empty
+                : "<Relationship Id=\"rIdNumbering\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering\" Target=\"numbering.xml\" />";
             WriteEntry(
                 archive,
                 "word/_rels/document.xml.rels",
@@ -900,6 +1028,7 @@ public sealed class PackageInspectionServiceTests
                 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
                   {headerRelationship}
                   {stylesRelationship}
+                  {numberingRelationship}
                 </Relationships>
                 """
             );
@@ -919,6 +1048,10 @@ public sealed class PackageInspectionServiceTests
         if (stylesXml is not null)
         {
             WriteEntry(archive, "word/styles.xml", stylesXml);
+        }
+        if (numberingXml is not null)
+        {
+            WriteEntry(archive, "word/numbering.xml", numberingXml);
         }
         if (signed)
         {

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Xml;
@@ -9,6 +10,7 @@ public enum WordFormattingSourceKind
 {
     DocumentDefault,
     ParagraphStyle,
+    NumberingLevel,
     CharacterStyle,
     DirectParagraphFormatting,
     DirectRunFormatting,
@@ -20,7 +22,11 @@ public sealed record WordFormattingContribution(
     string SourcePartUri,
     int? SourceElementOrdinal,
     string DeclaredValue,
-    string ResultingValue
+    string ResultingValue,
+    int? NumberId = null,
+    int? AbstractNumberId = null,
+    int? LevelIndex = null,
+    WordNumberingLevelSourceKind? NumberingLevelSourceKind = null
 );
 
 public sealed class WordEffectiveFormattingProperty
@@ -58,6 +64,8 @@ public sealed class WordEffectiveFormatting
         string sourcePartUri,
         string? paragraphStyleId,
         string? characterStyleId,
+        WordResolvedNumberingLevel? numbering,
+        bool numberingRemoved,
         IReadOnlyDictionary<string, WordEffectiveFormattingProperty> paragraphProperties,
         IReadOnlyDictionary<string, WordEffectiveFormattingProperty> runProperties,
         IReadOnlyList<string> unmodeledElements,
@@ -71,6 +79,8 @@ public sealed class WordEffectiveFormatting
         SourcePartUri = sourcePartUri;
         ParagraphStyleId = paragraphStyleId;
         CharacterStyleId = characterStyleId;
+        Numbering = numbering;
+        NumberingRemoved = numberingRemoved;
         ParagraphProperties = new ReadOnlyDictionary<
             string,
             WordEffectiveFormattingProperty
@@ -111,6 +121,10 @@ public sealed class WordEffectiveFormatting
     public string? ParagraphStyleId { get; }
 
     public string? CharacterStyleId { get; }
+
+    public WordResolvedNumberingLevel? Numbering { get; }
+
+    public bool NumberingRemoved { get; }
 
     public IReadOnlyDictionary<string, WordEffectiveFormattingProperty> ParagraphProperties { get; }
 
@@ -182,13 +196,49 @@ public sealed class WordEffectiveFormattingResolver
         WordStyleGraph styleGraph,
         SemanticNodeId nodeId,
         CancellationToken cancellationToken = default
+    ) => ResolveCore(
+        package,
+        semanticDocument,
+        styleGraph,
+        numberingGraph: null,
+        nodeId,
+        cancellationToken
+    );
+
+    public WordEffectiveFormatting Resolve(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordStyleGraph styleGraph,
+        WordNumberingGraph numberingGraph,
+        SemanticNodeId nodeId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(numberingGraph);
+        return ResolveCore(
+            package,
+            semanticDocument,
+            styleGraph,
+            numberingGraph,
+            nodeId,
+            cancellationToken
+        );
+    }
+
+    private WordEffectiveFormatting ResolveCore(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordStyleGraph styleGraph,
+        WordNumberingGraph? numberingGraph,
+        SemanticNodeId nodeId,
+        CancellationToken cancellationToken
     )
     {
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(semanticDocument);
         ArgumentNullException.ThrowIfNull(styleGraph);
         cancellationToken.ThrowIfCancellationRequested();
-        ValidateSnapshots(package, semanticDocument, styleGraph);
+        ValidateSnapshots(package, semanticDocument, styleGraph, numberingGraph);
         if (!semanticDocument.TryGetNode(nodeId, out var selected) || selected is null)
         {
             throw new WordFormattingResolutionException(
@@ -355,6 +405,75 @@ public sealed class WordEffectiveFormattingResolver
             }
         }
 
+        WordResolvedNumberingLevel? resolvedNumbering = null;
+        var numberingRemoved = false;
+        var numberingReference = ResolveNumberingReference(
+            paragraphStates,
+            directParagraph,
+            numberingGraph,
+            paragraphStyleId
+        );
+        if (numberingReference.NumberId is { } numberId)
+        {
+            numberingRemoved = numberId == 0;
+            if (!numberingRemoved && numberingGraph is not null)
+            {
+                try
+                {
+                    resolvedNumbering = numberingGraph.ResolveLevel(
+                        numberId,
+                        numberingReference.LevelIndex
+                    );
+                }
+                catch (WordNumberingResolutionException exception)
+                {
+                    throw new WordFormattingResolutionException(
+                        "The paragraph's numbering level cannot be resolved safely.",
+                        exception
+                    );
+                }
+
+                var numberingSource = new FormattingSource(
+                    WordFormattingSourceKind.NumberingLevel,
+                    null,
+                    numberingGraph.NumberingPartUri!,
+                    resolvedNumbering.SourceElementOrdinal,
+                    StyleLevel: true,
+                    NumberId: resolvedNumbering.NumberId,
+                    AbstractNumberId: resolvedNumbering.EffectiveAbstractNumberId,
+                    LevelIndex: resolvedNumbering.LevelIndex,
+                    NumberingLevelSourceKind: resolvedNumbering.LevelSourceKind
+                );
+                ApplySet(
+                    paragraphStates,
+                    resolvedNumbering.Level.ParagraphProperties,
+                    numberingSource,
+                    isRunProperties: false
+                );
+                ApplySet(
+                    runStates,
+                    resolvedNumbering.Level.RunProperties,
+                    numberingSource,
+                    isRunProperties: true
+                );
+                AddUnmodeled(
+                    unmodeled,
+                    $"numbering:{numberId}:{resolvedNumbering.LevelIndex}:paragraph",
+                    resolvedNumbering.Level.ParagraphProperties
+                );
+                AddUnmodeled(
+                    unmodeled,
+                    $"numbering:{numberId}:{resolvedNumbering.LevelIndex}:run",
+                    resolvedNumbering.Level.RunProperties
+                );
+                unmodeled.AddRange(
+                    resolvedNumbering.Level.UnmodeledElements.Select(name =>
+                        $"numbering:{numberId}:{resolvedNumbering.LevelIndex}:{name}"
+                    )
+                );
+            }
+        }
+
         if (characterStyleId is not null)
         {
             foreach (
@@ -418,12 +537,22 @@ public sealed class WordEffectiveFormattingResolver
             omissions.Add("conditional_table_style_properties");
         }
 
-        if (
-            paragraphStates.ContainsKey("numbering_id")
-            || paragraphStates.ContainsKey("numbering_level")
-        )
+        if (numberingReference.NumberId is > 0 && numberingGraph is null)
         {
             omissions.Add("numbering_level_properties");
+        }
+
+        if (
+            numberingReference.NumberId is > 0
+            &&
+            numberingReference.LevelFromParagraphStyle
+            && !numberingReference.LevelOverriddenDirectly
+        )
+        {
+            warnings.Add(
+                "numbering_level: Microsoft Word does not follow the standard rule that ignores ilvl inside a paragraph style; Word documents using it can behave unpredictably."
+            );
+            omissions.Add("word_style_numbering_level_compatibility");
         }
 
         if (
@@ -471,6 +600,8 @@ public sealed class WordEffectiveFormattingResolver
             selected.SourcePartUri,
             paragraphStyleId,
             characterStyleId,
+            resolvedNumbering,
+            numberingRemoved,
             Freeze(paragraphStates),
             Freeze(runStates),
             unmodeled,
@@ -482,13 +613,19 @@ public sealed class WordEffectiveFormattingResolver
     private static void ValidateSnapshots(
         OpcPackageSnapshot package,
         WordSemanticDocument semanticDocument,
-        WordStyleGraph styleGraph
+        WordStyleGraph styleGraph,
+        WordNumberingGraph? numberingGraph
     )
     {
         if (
             !string.Equals(package.Fingerprint, semanticDocument.PackageFingerprint, StringComparison.Ordinal)
             || !string.Equals(package.Fingerprint, styleGraph.PackageFingerprint, StringComparison.Ordinal)
             || !string.Equals(semanticDocument.MainPartUri, styleGraph.MainPartUri, StringComparison.Ordinal)
+            || numberingGraph is not null
+                && (
+                    !string.Equals(package.Fingerprint, numberingGraph.PackageFingerprint, StringComparison.Ordinal)
+                    || !string.Equals(semanticDocument.MainPartUri, numberingGraph.MainPartUri, StringComparison.Ordinal)
+                )
         )
         {
             throw new WordFormattingResolutionException(
@@ -732,6 +869,134 @@ public sealed class WordEffectiveFormattingResolver
         return result;
     }
 
+    private static NumberingReference ResolveNumberingReference(
+        IReadOnlyDictionary<string, MutableProperty> paragraphStates,
+        WordStylePropertySet directParagraph,
+        WordNumberingGraph? numberingGraph,
+        string? paragraphStyleId
+    )
+    {
+        var hasDirectNumberId = directParagraph.Values.TryGetValue(
+            "numbering_id",
+            out var directNumberId
+        );
+        var hasInheritedNumberId = paragraphStates.TryGetValue(
+            "numbering_id",
+            out var inheritedNumberId
+        );
+        var rawNumberId = hasDirectNumberId
+            ? directNumberId
+            : hasInheritedNumberId
+                ? inheritedNumberId!.Value
+                : null;
+        var numberIdFromParagraphStyle = !hasDirectNumberId
+            && hasInheritedNumberId
+            && inheritedNumberId!.LastSourceKind
+                == WordFormattingSourceKind.ParagraphStyle;
+        var hasDirectLevel = directParagraph.Values.TryGetValue(
+            "numbering_level",
+            out var directLevel
+        );
+        var hasInheritedLevel = paragraphStates.TryGetValue(
+            "numbering_level",
+            out var inheritedLevel
+        );
+        var rawLevel = hasDirectLevel
+            ? directLevel
+            : hasInheritedLevel
+                ? inheritedLevel!.Value
+                : null;
+        if (rawNumberId is null)
+        {
+            if (rawLevel is not null)
+            {
+                throw new WordFormattingResolutionException(
+                    "Paragraph formatting declares a numbering level without a numbering instance ID."
+                );
+            }
+
+            return new NumberingReference(null, 0, false, hasDirectLevel, false);
+        }
+
+        if (
+            !int.TryParse(
+                rawNumberId,
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out var numberId
+            )
+        )
+        {
+            throw new WordFormattingResolutionException(
+                $"Paragraph numbering ID '{rawNumberId}' is not a non-negative integer."
+            );
+        }
+
+        var levelIndex = 0;
+        if (
+            rawLevel is not null
+            && !int.TryParse(
+                rawLevel,
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out levelIndex
+            )
+        )
+        {
+            throw new WordFormattingResolutionException(
+                $"Paragraph numbering level '{rawLevel}' is not a non-negative integer."
+            );
+        }
+
+        var levelInferredFromParagraphStyle = false;
+        if (
+            rawLevel is null
+            && numberId > 0
+            && numberIdFromParagraphStyle
+            && numberingGraph is not null
+            && paragraphStyleId is not null
+        )
+        {
+            try
+            {
+                if (
+                    numberingGraph.FindLevelIndexForParagraphStyle(
+                        numberId,
+                        paragraphStyleId
+                    ) is { } mappedLevel
+                )
+                {
+                    levelIndex = mappedLevel;
+                    levelInferredFromParagraphStyle = true;
+                }
+            }
+            catch (WordNumberingResolutionException exception)
+            {
+                throw new WordFormattingResolutionException(
+                    "The paragraph style cannot be mapped to one numbering level safely.",
+                    exception
+                );
+            }
+        }
+
+        if (levelIndex is < 0 or > 8)
+        {
+            throw new WordFormattingResolutionException(
+                $"Paragraph numbering level {levelIndex} is outside Word's supported range 0 through 8."
+            );
+        }
+
+        return new NumberingReference(
+            numberId,
+            levelIndex,
+            hasInheritedLevel
+                && inheritedLevel!.LastSourceKind
+                    == WordFormattingSourceKind.ParagraphStyle,
+            hasDirectLevel,
+            levelInferredFromParagraphStyle
+        );
+    }
+
     private static void ApplySet(
         Dictionary<string, MutableProperty> states,
         WordStylePropertySet propertySet,
@@ -780,7 +1045,19 @@ public sealed class WordEffectiveFormattingResolver
         string? StyleId,
         string PartUri,
         int? ElementOrdinal,
-        bool StyleLevel
+        bool StyleLevel,
+        int? NumberId = null,
+        int? AbstractNumberId = null,
+        int? LevelIndex = null,
+        WordNumberingLevelSourceKind? NumberingLevelSourceKind = null
+    );
+
+    private sealed record NumberingReference(
+        int? NumberId,
+        int LevelIndex,
+        bool LevelFromParagraphStyle,
+        bool LevelOverriddenDirectly,
+        bool LevelInferredFromParagraphStyle
     );
 
     private sealed class MutableProperty
@@ -804,6 +1081,8 @@ public sealed class WordEffectiveFormattingResolver
         public int StyleContributionCount { get; private set; }
 
         public bool HasDirectContribution { get; private set; }
+
+        public WordFormattingSourceKind? LastSourceKind { get; private set; }
 
         public void Apply(string declaredValue, FormattingSource source)
         {
@@ -854,9 +1133,14 @@ public sealed class WordEffectiveFormattingResolver
                     source.PartUri,
                     source.ElementOrdinal,
                     declaredValue,
-                    Value
+                    Value,
+                    source.NumberId,
+                    source.AbstractNumberId,
+                    source.LevelIndex,
+                    source.NumberingLevelSourceKind
                 )
             );
+            LastSourceKind = source.Kind;
         }
 
         public WordEffectiveFormattingProperty Freeze() => new(

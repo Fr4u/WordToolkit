@@ -261,18 +261,42 @@ separate resolver because numbering, conditional table styles, themes, toggle-pr
 semantics and direct formatting must not be flattened into a dishonest last-value-wins
 map.
 
+`WordNumberingGraphBuilder` is the first numbering adapter. It follows only the exact
+transitional or strict numbering relationship, validates the content type and
+`w:numbering` root, and retains source ordinals for picture bullets, abstract
+definitions, instances, levels and overrides. It models `nsid`, multilevel type,
+template/name metadata, `numFmt`, `lvlText`, suffix, restart, legal numbering,
+paragraph-style bindings, justification and declared paragraph/run properties. A
+numbering instance first inherits an abstract definition and may then replace a level
+or only its start value, matching Microsoft's documented
+[`num`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.numberinginstance)
+and
+[`lvlOverride`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.leveloverride)
+semantics. Numbering-style indirection stays as a source-linked chain rather than being
+flattened: `numStyleLink` follows a numbering style's effective `numId`, while
+`styleLink` validates the reciprocal concrete definition. Duplicate IDs fail closed;
+missing definitions/styles/picture relationships, circular links, mismatched overrides,
+recursive `numPr` and levels outside Word's 0–8 range remain bounded diagnostics. Lazy
+`inspect_ooxml_numbering` returns compact instance metadata by default and exposes
+abstracts, declared levels or one resolved effective level only when requested.
+
 The first bounded effective-format slice is now `WordEffectiveFormattingResolver`.
 Given a stable paragraph or run ID, it rebinds that node to the exact lexical element in
 its source story and applies modeled layers in order: document defaults, the base-first
-paragraph-style chain, the base-first character-style chain, then direct formatting.
+paragraph-style chain, the resolved numbering level, the base-first character-style
+chain, then direct formatting. This intentionally follows Word's documented behavior,
+which applies paragraph styles before numbering styles even though the base standard
+states the reverse. Each resolved number retains its instance, requested/effective
+abstract definition, level, style-link chain, effective start and source kind.
 Each property retains every declaration, source layer, style ID, part, element ordinal
 and intermediate result. The twelve ISO toggle properties use state transitions at
 style levels and absolute values under direct formatting. The resolver deliberately
-returns coverage omissions for application defaults, numbering, conditional table
-styles, theme values, revision views and unmodeled property elements; it also surfaces
-Microsoft's documented default-true multi-level toggle divergence rather than silently
-pretending the base rule is Word-perfect. Lazy `resolve_ooxml_formatting` filters exact
-property names, bounds each group, and omits provenance/source evidence unless asked.
+returns coverage omissions for application defaults, conditional table styles, theme
+values, revision views and unmodeled property elements; it also surfaces Microsoft's
+documented default-true toggle and paragraph-style `ilvl` divergences rather than
+silently pretending the base rules are Word-perfect. Lazy
+`resolve_ooxml_formatting` filters exact property names, bounds each group, and omits
+provenance/source evidence unless asked.
 
 `WordSemanticEditor.ReplaceText` is the first typed mutation vertical slice. It requires
 the package fingerprint, semantic node identity, source part, lexical element ordinal,
@@ -434,6 +458,7 @@ The current native mapping is therefore:
 
 - `document.query` -> lazy `query_ooxml_semantics`;
 - style-map inspection -> lazy `inspect_ooxml_styles`;
+- numbering inventory/effective-level resolution -> lazy `inspect_ooxml_numbering`;
 - modeled paragraph/run formatting -> lazy `resolve_ooxml_formatting`;
 - text-only `document.plan` -> lazy `plan_ooxml_text_edits`;
 - text-only `document.apply` -> lazy `apply_ooxml_text_edits`.
