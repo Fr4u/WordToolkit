@@ -19,11 +19,47 @@
   fields, equations and every nested OfficeMath element, revisions, drawings,
   content controls, and unknown extension islands. Stable node IDs prefer
   durable Word anchors and do not depend on raw paragraph indices.
+- Extended the projection across Word's primary text-bearing stories: headers,
+  footers, footnotes, endnotes, comments, glossary building blocks and text
+  boxes. Story roots, note/comment bodies and their references carry source
+  part provenance and durable relationship or Word IDs; the existing main-body
+  node IDs do not drift when a related story changes.
+- Added a typed section graph and lazy `inspect_ooxml_sections` action. It
+  resolves section boundaries, page geometry and all six header/footer slots,
+  distinguishing explicit, inherited, blank and display-fallback bindings under
+  `titlePg` and `evenAndOddHeaders`, and reports unbound story parts.
+- Added the first lossless XML source model with exact byte spans, original
+  prefixes/attributes/quotes/BOM retention, bounded secure parsing, guarded
+  non-overlapping splices, and validated UTF-8/UTF-16/UTF-32/single-byte edits.
+- Added the first typed semantic mutation: hash- and fingerprint-preconditioned
+  replacement of source-bound Word or OfficeMath text leaves, including XML
+  escaping, `xml:space` handling and fail-closed mixed-markup behavior.
+- Added bounded multi-text transaction planning. A plan parses each affected
+  part once, rejects duplicate targets, predicts the result package fingerprint,
+  creates one isolated forward mutation and retains an exact part-byte inverse
+  guarded by the applied fingerprint. Compact plan metadata omits text content
+  and per-text hashes.
+- Added streaming semantic selectors and the lazy `query_ooxml_semantics`
+  native action. Queries filter node kinds, exact properties, source parts and
+  semantic subtrees; text predicates can cross run boundaries without
+  flattening the document and results remain paged and preview-bounded.
+- Added stateless lazy `plan_ooxml_text_edits` and
+  `apply_ooxml_text_edits` actions. Apply must reproduce the reviewed plan ID
+  and base fingerprint, writes through the atomic package transaction, retains
+  a recovery backup by default, performs no write for a no-op, and fails closed
+  on digitally signed packages.
 - Added the lazy, token-bounded `inspect_ooxml_semantics` MCP action.
-- Added 34 document-engine tests, including deterministic malformed-input,
+- Added 88 document-engine tests, including deterministic malformed-input,
   randomized relationship metadata and opaque-part round-trip fuzz smoke, plus
-  two native end-to-end package/semantic inspection tests while retaining all
-  existing native runtime tests.
+  300 randomized lexical text splices, multi-encoding/BOM preservation and
+  semantic mutation provenance. A 52-document bundled corpus from Word,
+  LibreOffice, Pandoc, POI and Mammoth now exercises every typed XML part and
+  exact no-op source preservation, while native end-to-end package/semantic
+  inspection retains all existing runtime tests.
+- The native host now has 50 tests, including end-to-end semantic query,
+  cross-story header query/apply, schema parity, recovery-backup, plan-mismatch,
+  signed-package and no-op coverage that proves the saved-package path never
+  invokes Word COM.
 - Added a source-backed 2026 research matrix and the target lossless semantic
   document-engine architecture.
 

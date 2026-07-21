@@ -31,6 +31,22 @@ public enum WordSemanticNodeKind
     Drawing,
     AlternateContent,
     ExtensionIsland,
+    Header,
+    Footer,
+    Footnotes,
+    Footnote,
+    Endnotes,
+    Endnote,
+    Comments,
+    Comment,
+    GlossaryDocument,
+    GlossaryEntry,
+    TextBox,
+    HeaderReference,
+    FooterReference,
+    FootnoteReference,
+    EndnoteReference,
+    Section,
 }
 
 public sealed class WordSemanticNode
@@ -40,6 +56,7 @@ public sealed class WordSemanticNode
         WordSemanticNodeKind kind,
         SemanticNodeId? parentId,
         int sourceOrder,
+        int sourceElementOrdinal,
         string sourcePartUri,
         string sourcePath,
         string? text,
@@ -51,6 +68,7 @@ public sealed class WordSemanticNode
         Kind = kind;
         ParentId = parentId;
         SourceOrder = sourceOrder;
+        SourceElementOrdinal = sourceElementOrdinal;
         SourcePartUri = sourcePartUri;
         SourcePath = sourcePath;
         Text = text;
@@ -67,6 +85,8 @@ public sealed class WordSemanticNode
     public SemanticNodeId? ParentId { get; }
 
     public int SourceOrder { get; }
+
+    public int SourceElementOrdinal { get; }
 
     public string SourcePartUri { get; }
 
@@ -102,6 +122,16 @@ public sealed class WordSemanticNode
         var builder = new StringBuilder(Math.Min(maxCharacters, 256));
         foreach (var node in DescendantsAndSelf())
         {
+            if (node.Kind == WordSemanticNodeKind.Paragraph && builder.Length != 0)
+            {
+                if (builder.Length == maxCharacters)
+                {
+                    break;
+                }
+
+                builder.Append('\n');
+            }
+
             var value = node.Kind switch
             {
                 WordSemanticNodeKind.Text or WordSemanticNodeKind.Field => node.Text,
@@ -130,6 +160,7 @@ public sealed class WordSemanticNode
 public sealed class WordSemanticDocument
 {
     private readonly IReadOnlyDictionary<SemanticNodeId, WordSemanticNode> _nodes;
+    private readonly IReadOnlyList<WordSemanticNode> _nodesInSourceOrder;
 
     internal WordSemanticDocument(
         string packageFingerprint,
@@ -142,9 +173,17 @@ public sealed class WordSemanticDocument
         MainPartUri = mainPartUri;
         Root = root;
         Warnings = warnings;
-        var nodes = root.DescendantsAndSelf().ToArray();
+        var nodes = root.DescendantsAndSelf()
+            .OrderBy(node => node.SourceOrder)
+            .ToArray();
+        _nodesInSourceOrder = new ReadOnlyCollection<WordSemanticNode>(nodes);
         _nodes = new ReadOnlyDictionary<SemanticNodeId, WordSemanticNode>(
             nodes.ToDictionary(node => node.Id)
+        );
+        ProjectedPartUris = new ReadOnlyCollection<string>(
+            nodes.Select(node => node.SourcePartUri)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray()
         );
     }
 
@@ -156,9 +195,13 @@ public sealed class WordSemanticDocument
 
     public IReadOnlyList<string> Warnings { get; }
 
+    public IReadOnlyList<string> ProjectedPartUris { get; }
+
+    public int ProjectedPartCount => ProjectedPartUris.Count;
+
     public int NodeCount => _nodes.Count;
 
-    public IEnumerable<WordSemanticNode> Nodes => _nodes.Values;
+    public IEnumerable<WordSemanticNode> Nodes => _nodesInSourceOrder;
 
     public bool TryGetNode(SemanticNodeId id, out WordSemanticNode? node) =>
         _nodes.TryGetValue(id, out node);

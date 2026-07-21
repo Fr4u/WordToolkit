@@ -12,6 +12,10 @@ public sealed record WordSemanticProjectionOptions
 
     public long MaxTextCharacters { get; init; } = 32L * 1024 * 1024;
 
+    public int MaxStoryParts { get; init; } = 512;
+
+    public int MaxStoryRelationships { get; init; } = 4_096;
+
     internal void Validate()
     {
         if (MaxXmlCharacters <= 0)
@@ -32,6 +36,16 @@ public sealed record WordSemanticProjectionOptions
         if (MaxTextCharacters <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(MaxTextCharacters));
+        }
+
+        if (MaxStoryParts <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxStoryParts));
+        }
+
+        if (MaxStoryRelationships <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxStoryRelationships));
         }
     }
 }

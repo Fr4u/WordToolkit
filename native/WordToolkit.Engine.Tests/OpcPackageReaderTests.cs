@@ -506,6 +506,53 @@ public sealed class OpcPackageReaderTests
     }
 
     [Fact]
+    public void AtomicWriterRejectsUnexpectedCandidateFingerprintBeforeReplacement()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var destination = Path.Combine(directory, "document.docx");
+            using (var package = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                ("word/document.xml", DocumentXml())
+            ))
+            {
+                File.WriteAllBytes(destination, package.ToArray());
+            }
+
+            var before = File.ReadAllBytes(destination);
+            var snapshot = new OpcPackageReader().Read(destination);
+            var mutation = new OpcPackageMutationBuilder(snapshot).ReplacePart(
+                "/word/document.xml",
+                Encoding.UTF8.GetBytes(
+                    DocumentXml().Replace("<w:p />", "<w:p><w:r /></w:p>")
+                )
+            );
+
+            Assert.Throws<OpcPackageResultMismatchException>(() =>
+                new OpcAtomicPackageWriter().Write(
+                    destination,
+                    mutation,
+                    new OpcAtomicWriteOptions
+                    {
+                        ExpectedResultFingerprint = new string('0', 64),
+                        KeepBackup = true,
+                    }
+                )
+            );
+
+            Assert.Equal(before, File.ReadAllBytes(destination));
+            Assert.Empty(Directory.GetFiles(directory, "*.bak"));
+            Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void AtomicWriterReplacesVersionMatchedDestinationAndKeepsBackupOnRequest()
     {
         var directory = CreateTemporaryDirectory();

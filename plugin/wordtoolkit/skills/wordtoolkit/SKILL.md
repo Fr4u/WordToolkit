@@ -1,6 +1,6 @@
 ---
 name: wordtoolkit
-description: Control real Microsoft Word and inspect saved Word OOXML packages through a token-lean native .NET bridge. Use for live documents, package/semantic inspection, formatting, equations, review, structures, export, save, close, and validation.
+description: Control real Microsoft Word and inspect or query saved Word OOXML packages through a token-lean native .NET bridge. Use for live documents, package/semantic inspection, semantic selectors, formatting, equations, review, structures, export, save, close, and validation.
 ---
 
 # WordToolkit
@@ -33,6 +33,29 @@ bounded part metadata only with `include_details=true`.
 Use the lazy `inspect_ooxml_semantics` action when meaning is needed without
 opening Word. Keep previews and node counts bounded; request source XML paths
 only for a precise diagnostic or planned edit.
+Use the lazy `query_ooxml_semantics` action when the task needs exact node IDs,
+text nodes hidden beneath an outline item, a style/property selector, or a
+phrase spanning several runs. Filter narrowly, page with `next_offset`, keep
+previews short, and request properties or source provenance only when the next
+operation consumes them. The query covers the main body and related header,
+footer, footnote, endnote, comment and glossary stories; use `source_part_uri`
+when the edit must stay inside one story.
+Use lazy `inspect_ooxml_sections` instead of inferring section ownership from
+part filenames. Its effective mode resolves default, first-page and even-page
+header/footer display targets; request full bindings only when relationship
+provenance or inheritance must drive the next operation.
+For a saved-package text edit, use this strict lazy workflow:
+
+1. Query the narrowest possible `text` nodes and retain the package fingerprint.
+2. Call `plan_ooxml_text_edits` with node IDs, replacements, and exact
+   `expected_text` whenever it is known.
+3. Review `plan_id`, counts, byte delta, and any `apply_blocked` reason.
+4. Only after approval, call `apply_ooxml_text_edits` with the identical commands,
+   original fingerprint, and returned plan ID. Keep the recovery backup unless the
+   user explicitly accepts its removal.
+
+Never bypass the plan with raw XML. Signed packages are intentionally blocked; do
+not attempt to strip or invalidate a signature through another action.
 
 1. `list_live_word_documents`.
 2. Use `start_word_application` only when Word is unavailable.

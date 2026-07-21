@@ -20,7 +20,7 @@ vendor claim is not implementation evidence.
 | Open XML SDK, python-docx, docx4j, POI, docx.js, Pandoc, Mammoth | Partial | Primary docs and architectural limits recorded | Reproducible representative tests and license/maintenance snapshot |
 | LibreOffice UNO and ONLYOFFICE | Partial | Primary API docs recorded | Version-pinned conversion/render corpus measurements |
 | Aspose, GemBox, Spire, Syncfusion | Partial | Official documentation recorded; claims marked vendor evidence | Licensed evaluation on shared public fixtures |
-| Remaining relevant libraries/services | Planned | Research backlog in `RESEARCH-MATRIX-2026.md` | PHPWord, docxtemplater, docxcompose, docx-rs, cloud converters and other material engines assessed |
+| Remaining relevant libraries/services | Partial | Pinned implementation review now covers PHPWord, docxtpl, docxcompose, docx-rs, docx-templates, docxtemplater, Xceed DocX, Open-Xml-PowerTools, addFormula2docx, unoconv, unoserver, pdf2docx and docx2pdf | Cloud converters, remaining material engines and shared-corpus measurements |
 
 ## Package, XML, and semantic foundation
 
@@ -31,33 +31,33 @@ vendor claim is not implementation evidence.
 | Relationship graph and reachability | Implemented (strengthened initial slice) | Root/part relationships, RFC 3986 type/target checks, XML-ID checks, fragment retention, reserved relationship-part/content-type rules, target modes, resolution, missing/orphan diagnostics | Digital-signature/encryption semantics, format-specific cardinality/type rules, repair and broad corpus proof |
 | Unknown/opaque part preservation | Implemented (initial) | Raw entry snapshots and deterministic random round-trip smoke | Large mixed-extension corpus with untouched-byte reports |
 | Immutable snapshots and fingerprints | Implemented (initial) | Order-independent package fingerprint; read-only model | Content-addressed cache, snapshot lifecycle and cross-platform reproducibility proof |
-| Lossless XML token/source model | Not started | Architecture only | Prefix, whitespace, attribute order, comments, PI, MCE and raw subtree splice tests |
-| Typed WordprocessingML parser | Partial | Read-only main-part semantic projector | All stories/parts and required Word structures with strict/transitional parity |
-| Source-linked semantic AST | Partial | Stable node IDs, paths, provenance, bounded semantic projection | Full document graph, durable locator recovery, ambiguity model and mutation provenance |
+| Lossless XML token/source model | Implemented (initial) | Raw bytes/hash; lexical element/attribute tree; prefixes, namespace URIs, quotes and exact byte spans; UTF-8/16/32 and single-byte mapping; DTD/size/depth/count bounds; validated non-overlapping patches; BOM/entity/whitespace/comment/CDATA/randomized splice tests; every typed XML part in 52 bundled multi-producer DOCX files parses and no-ops byte-exactly | Auxiliary/versioned story adapters, stateful encoding policy, token-level edits around mixed content, external hostile/version corpus and memory/latency proof |
+| Typed WordprocessingML parser | Partial (strengthened) | Read-only main part plus relationship-driven headers, footers, footnotes, endnotes, comments, glossary and nested text boxes; typed section properties and strict/transitional relationship tests | Remaining auxiliary/versioned parts and the full required Word vocabulary |
+| Source-linked semantic AST | Partial (strengthened) | Stable node IDs and exact lexical ordinals now span the primary text-bearing stories; story roots and note/comment/reference nodes retain part and relationship provenance | Full document graph, durable locator recovery, ambiguity model, threaded comments and auxiliary-story mutation provenance |
 | Stable semantic identity | Partial | `w14:paraId`/`textId`, durable IDs, fallback fingerprints, duplicate occurrence tests | Cross-save, cross-producer, move/edit and ambiguity benchmark |
-| Serializer | Partial | Package serializer preserves entry payloads and deterministic mode | Minimal XML splicing, namespace/MCE preservation, all typed part serializers |
+| Serializer | Partial (strengthened) | Package serializer preserves entry payloads and deterministic mode; leaf-text XML splice preserves every unrelated byte and validates the candidate | General token/subtree splicing, namespace/MCE mutation rules and all typed part serializers |
 
 ## Transactions, safety, and recovery
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Entry-hash preconditions | Implemented (initial) | Mutation builder tests | Semantic-node and destination/cloud version preconditions |
+| Entry-hash preconditions | Implemented (strengthened initial slice) | Mutation builder plus XML source hash, package fingerprint, semantic node, source ordinal and expected-text gates | General semantic command predicates and destination/cloud version preconditions |
 | Atomic file persistence | Implemented (initial) | Sibling temp, flush, validate, recheck, replace, optional backup | Power-loss and filesystem fault injection across supported platforms |
-| Rollback | Partial | Candidate rejection leaves original unchanged; backup path; live Word undo grants exist | Inverse semantic patches and injected failure proof for every transaction phase |
-| Multi-command document transaction | Planned | Architecture contract | Plan/apply with isolated semantic commands, one validation gate and inverse set |
-| Optimistic concurrency | Partial | Package fingerprint checked before replacement; live document versions exist | Race tests, file identity/version integration, Graph/Drive ETag support |
-| Security policy | Partial | ZIP/XML bounds, DTD ban, external links never fetched, MCP redaction | Macro/OLE/signature/custom XML/policy profiles, sandboxed adapters and threat model audit |
-| Privacy/content-minimizing telemetry | Planned | Architecture rules | Opt-in implementation, redaction tests, expiry and debug-bundle audit |
+| Rollback | Partial (strengthened) | Candidate rejection leaves original unchanged; backup path; a text transaction can create an exact original-part-byte inverse only against its predicted result fingerprint; live Word undo grants exist | General semantic inverses and injected failure proof for every transaction phase |
+| Multi-command document transaction | Partial (text slice, native plan/apply) | Bounded text commands resolve against one snapshot, parse each part once, reject duplicate targets, apply one validated patch set per part, predict the result fingerprint and retain an inverse payload; stateless lazy MCP plan/apply requires the same base fingerprint and deterministic plan ID, then uses atomic persistence and a recovery backup | Heterogeneous semantic commands, permissions/approval policies, unified validation profiles and durable portable inverse artifacts |
+| Optimistic concurrency | Partial (strengthened) | Forward plan requires the base package fingerprint and part hashes; inverse requires the predicted result fingerprint and after-part hashes; live document versions exist | Race tests, file identity/version integration, Graph/Drive ETag support |
+| Security policy | Partial (strengthened) | ZIP/XML bounds, DTD ban, external links never fetched, MCP redaction; direct semantic apply fails closed on OPC digital signatures | Macro/OLE/custom XML/protection policies, explicit signature-removal/resign workflow, sandboxed adapters and threat-model audit |
+| Privacy/content-minimizing telemetry | Partial foundation | Text plan metadata omits document text and per-text hashes; MCP plan/apply is stateless and retains no server-side document-content cache | Opt-in telemetry implementation, redaction tests, expiry and debug-bundle audit |
 
 ## Document intelligence and editing
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Compact inspect | Implemented (initial) | `inspect_ooxml_package`, `inspect_ooxml_semantics`; per-field/item bounds | Paging/continuations, selectors, all stories, stable response budgets |
-| Semantic query/search | Not started | Outline projection only | Typed selectors, full-text/field/math/metadata queries and bounded aggregations |
+| Compact inspect | Implemented (strengthened initial slice) | `inspect_ooxml_package`, `inspect_ooxml_semantics`, lazy `query_ooxml_semantics` and `inspect_ooxml_sections`; projected-part inventory, per-field/item bounds and offset paging | Opaque continuation tokens, auxiliary/versioned parts and measured stable response budgets |
+| Semantic query/search | Partial (strengthened initial) | Source-ordered kind/property/part/subtree selectors across main, header/footer, note, comment, glossary and text-box stories; streaming contains/equals/starts/ends matching crosses run/field/tab/break boundaries; bounded optional previews/properties/provenance | Fields/math/metadata-aware predicates, structural relationship joins, aggregations and query planner |
 | Indexing | Not started | None | Incremental external index, invalidation and privacy controls |
-| AI planner | Not started | Architecture command example | Intent -> evidence -> typed plan -> cost/risk -> approval/apply |
-| Typed semantic mutations | Not started | Package-entry mutation only | Paragraph/run/table/field/math commands with preconditions and inverses |
+| AI planner | Partial foundation | Deterministic bounded text-command plans report targets, counts, source ordinals and byte impact without returning content; lazy stateless MCP plan/apply requires reviewed plan ID and snapshot fingerprint | Natural-language intent -> evidence -> heterogeneous typed plan -> cost/risk -> richer approval policy |
+| Typed semantic mutations | Partial (text transaction slice) | `WordSemanticEditor.ReplaceText` plus bounded multi-text plans edit only source-bound `w:t`, `w:delText` and `m:t`; preserve unrelated bytes; handle `xml:space`; reject mixed lexical content/stale projections; predict result fingerprint and retain exact part-byte inverse | Paragraph/run/table/field/math command set, affected-node proof, permissions, semantic inverses and durable recovery |
 | Validator | Partial | OPC diagnostics; historical SDK validator | Unified OPC/schema/extension/semantic/Word-open profiles and incremental validation |
 | Linter | Not started in new engine | Historical Python checks only | Rule packs with source spans, severity, suppression and fix metadata |
 | Formatter | Not started | Architecture only | Explicit previewed policies; no incidental formatting on save |
@@ -70,16 +70,16 @@ vendor claim is not implementation evidence.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Paragraphs/runs/tables | Partial | Read-only semantic projection; live COM editing | Lossless typed edits, effective properties, merge/split and layout tests |
-| Sections/headers/footers/notes | Not started in new engine | Existing live COM actions and historical Python engine | Full typed projection/edit/serialize across linked sections and all stories |
+| Paragraphs/runs/tables | Partial | Source-linked projection plus first lossless text-leaf edit; live COM editing | Structural typed edits, effective properties, merge/split and layout tests |
+| Sections/headers/footers/notes | Partial (strengthened) | Primary story roots/bodies/references and lossless text edits; section boundaries/page properties plus first/even/default explicit/inherited/blank/effective bindings; unbound-part inventory | Section structural edits, link-to-previous mutation, separator/numbering semantics and layout proof |
 | Styles/themes/direct formatting | Not started | Architecture only; historical/live features | Effective-format resolver with provenance, drift lint and safe refactor |
 | Numbering/lists | Not started | Existing live actions only | Abstract/instance/override/restart/style-linked resolver and edits |
 | Fields/bookmarks/cross-references | Partial | Semantic field/bookmark recognition; live actions | Dependency graph, nested-field parser, update capability and safe edits |
 | TOC/TOF/TOT/captions | Not started in new engine | Existing live actions/historical tests | Reference graph, field update, layout and round-trip tests |
-| Comments/threaded comments/revisions | Partial | Semantic anchors/revision wrappers; live review actions | All review parts, moves, authorship, merge and accept/reject semantics |
+| Comments/threaded comments/revisions | Partial (strengthened) | Comment bodies/authorship/IDs, anchors and revision wrappers are projected; comment text uses guarded lossless edits; live review actions exist | Threaded/modern comment parts, people graph, moves, merge and accept/reject semantics |
 | Content controls/custom XML | Partial | Content-control projection; unknown part retention | Binding graph, repeats, locks, data update and lossless custom XML edits |
 | Equations/OfficeMath | Partial | Every nested math element projected; mature live equation insertion | Canonical math AST, all constructs, LaTeX/MathML/UnicodeMath/OMML round trips and Word visual proof |
-| DrawingML/VML/images/text boxes | Partial | Drawing markers and opaque bytes; live image operations | Typed anchors/layout/wrap/group/text-box model and render corpus |
+| DrawingML/VML/images/text boxes | Partial (strengthened) | Drawing markers and opaque bytes; nested `w:txbxContent` is a source-linked semantic boundary with editable text; live image operations | Typed anchors/layout/wrap/group/geometry model and render corpus |
 | Charts/SmartArt/OLE/embedded packages | Not started | Opaque retention only | Typed inspection/edit where safe, extraction policy, rendering and security gates |
 | Citations/bibliography | Not started | Architecture only | Source model, citation fields, style/locale handling and reference updates |
 | Templates/mail merge | Not started in new engine | Historical functionality only | Typed slots/regions/constraints/data validation and repeatable generation |
@@ -117,13 +117,13 @@ it does not mean the engine understands or can edit it.
 |---|---|---|
 | package relationships | Implemented (strengthened initial slice) | Format-specific relationship constraints, signature transforms, repair and broad corpus proof |
 | content types | Implemented (initial) | MIME/parameter validation and repair |
-| `document.xml` | Partial | Lossless token model and full typed vocabulary |
+| `document.xml` | Partial (strengthened) | Main part is projected through the lossless byte-span model and supports guarded leaf-text splice; full typed vocabulary remains |
 | `styles.xml` | Not started | Parse, inheritance, effective formatting, edit/serialize |
 | `numbering.xml` | Not started | Abstract/instance/override graph and inheritance |
 | theme | Not started | Theme/font/color resolution and mutation |
 | settings | Not started | Compatibility/protection/mail-merge/settings model |
 | fontTable | Not started | Font metadata, embedding, fallback and substitution |
-| comments | Not started | Comment bodies, anchors, authorship and edits |
+| comments | Partial | Standard comment bodies, IDs, authorship, anchors and lossless text edits; threaded metadata missing |
 | commentsExtended | Not started | Thread/status/person graph and version compatibility |
 | revisions | Partial | Wrapper recognition only; full authorship/move/property revisions |
 | tracked changes | Partial | Recognition only; filtered accept/reject and merge |
@@ -131,12 +131,12 @@ it does not mean the engine understands or can edit it.
 | hyperlinks | Partial | Semantic node and relationship ID; full target/range/edit model |
 | fields | Partial | Basic markers/instructions; nested parser/evaluator/dependency graph missing |
 | TOC | Not started | Field/options/styles/dependency/update model |
-| footnotes | Not started | Story part, separators, references and safe numbering |
-| endnotes | Not started | Story part, separators, references and safe numbering |
+| footnotes | Partial | Story container/items/references and lossless text edits; separator and numbering semantics missing |
+| endnotes | Partial | Story container/items/references and lossless text edits; separator and numbering semantics missing |
 | OfficeMath / OMML | Partial | Full tree visible; canonical semantic math AST and serializers missing |
-| sections | Not started | Section chain, inheritance, page setup and story linkage |
-| headers | Not started | Variants, links-to-previous, fields and layout |
-| footers | Not started | Variants, links-to-previous, fields and layout |
+| sections | Partial | Source-linked boundaries, break/page/margin/column/numbering properties and header/footer inheritance graph; structural edits missing |
+| headers | Partial (strengthened) | Related parts, text edits and effective default/first/even bindings across sections; link mutation and layout missing |
+| footers | Partial (strengthened) | Related parts, text edits and effective default/first/even bindings across sections; link mutation and layout missing |
 | page layout | Not started | Section/page properties, backend pagination and diagnostics |
 | page breaks | Partial | Generic break nodes; break kind and pagination semantics missing |
 | tables | Partial | Read-only row/cell projection; grid/merge/style/layout edits missing |
@@ -153,7 +153,7 @@ it does not mean the engine understands or can edit it.
 | custom XML | Opaque only | Item/properties/SDT binding graph and safe edits |
 | custom properties | Opaque only | Typed property values, linkage and serialization |
 | document variables | Not started | Settings variable model and field dependencies |
-| glossary | Opaque only | Building blocks, relationships and typed insertion |
+| glossary | Partial | Glossary story and building-block names/GUIDs are projected and text-editable; typed insertion and gallery/category behavior missing |
 | content controls / SDT | Partial | ID/tag projection; properties, bindings, repeats, locks and edits missing |
 | mail merge | Not started | Settings, fields, data sources, regions and deterministic execution |
 | macros | Opaque only | Same VBA policy gap; no execution surface |
@@ -164,7 +164,7 @@ it does not mean the engine understands or can edit it.
 | revision IDs | Partial | Some durable IDs read; global identity/collision/version semantics missing |
 | style inheritance | Not started | Based-on/link/default/theme/direct provenance resolver |
 | numbering inheritance | Not started | Level/override/style-linked effective-number resolver |
-| XML namespaces | Partial | Secure namespace-aware parse and opaque retention; lossless token declarations missing |
+| XML namespaces | Partial (strengthened) | Prefixes, declaration placement, expanded element/attribute names and untouched bytes are retained; general namespace-changing edits remain |
 | compatibility mode | Opaque only | `compatSetting` interpretation and version behavior probes |
 | Word version differences | Not started | Versioned capability profiles and corpus |
 | co-authoring metadata | Opaque only | People, comments, session/change metadata and merge semantics |
@@ -221,17 +221,17 @@ preconditions, affected-node proof, transaction, validation, and inverse.
 | Run | Partial read-only |
 | Equation | Partial read-only tree, not canonical math object |
 | Heading | Not typed; style metadata only |
-| Section | Not started |
+| Section | Partial read-only boundary, page properties and story bindings |
 | Table | Partial read-only |
 | Figure | Not started |
 | Bookmark | Partial start marker only |
 | Reference | Not started |
 | Caption | Not started |
-| Comment | Anchor partial; body object missing |
+| Comment | Partial body/author/ID object; threaded metadata missing |
 | Field | Partial read-only |
 | Style | Not started |
 | Numbering | Not started |
-| Footnote | Not started |
+| Footnote | Partial body/reference object; numbering semantics missing |
 | Image | Drawing marker only |
 | Shape | Drawing marker only |
 | Chart | Opaque only |
@@ -244,7 +244,7 @@ automatic OOXML execution required by the goal.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Unit/regression tests | Partial | 26 engine, 42 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
+| Unit/regression tests | Partial | 88 engine, 50 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
 | Property/fuzz testing | Partial | Deterministic malformed bytes and random opaque round-trip smoke | Continuous coverage-guided fuzzing, minimized corpus and resource assertions |
 | Fault injection | Not started | Validation/concurrency failure tests only | Every persistence/transaction phase, disk-full, denied, crash and race tests |
 | Preservation benchmark | Partial | Entry hashes and random no-op round trip | Public producer/feature corpus with untouched part/subtree metrics |
@@ -257,12 +257,16 @@ automatic OOXML execution required by the goal.
 
 ## Current checkpoint evidence
 
-- `dotnet test native/WordToolkit.Engine.Tests` — 26 passed.
-- `dotnet test native/WordToolkit.Native.Tests` — 42 passed.
+- `dotnet test native/WordToolkit.Engine.Tests` — 88 passed.
+- `dotnet test native/WordToolkit.Native.Tests` — 50 passed.
 - `.venv/Scripts/python -m pytest -q` — 1273 passed, 16 intentionally skipped.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
 - Packaged/native MCP graph inspection was exercised end to end.
 - Semantic inspection was exercised through lazy search -> schema inspection -> execute.
+- Header-story query -> guarded plan -> atomic apply was exercised end to end while
+  proving that the main document part remained byte-identical.
+- Section inheritance and effective header/footer selection were exercised against
+  constructed edge cases and a bundled Apache POI fixture.
 
 These numbers prove only the rows they touch. They do not collapse the remaining work.

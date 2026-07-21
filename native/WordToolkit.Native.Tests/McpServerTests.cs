@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Text;
+using WordToolkit.Engine.Semantics;
 using WordToolkit.Native.Protocol;
 
 namespace WordToolkit.Native.Tests;
@@ -88,6 +90,21 @@ public sealed class McpServerTests
             tools.EnumerateArray(),
             tool => tool.GetProperty("name").GetString() == "insert_live_word_image"
         );
+        foreach (
+            var lazyAction in new[]
+            {
+                "query_ooxml_semantics",
+                "inspect_ooxml_sections",
+                "plan_ooxml_text_edits",
+                "apply_ooxml_text_edits",
+            }
+        )
+        {
+            Assert.DoesNotContain(
+                tools.EnumerateArray(),
+                tool => tool.GetProperty("name").GetString() == lazyAction
+            );
+        }
         Assert.True(
             tools.GetRawText().Length < 10_000,
             $"Core catalog is too large: {tools.GetRawText().Length} characters"
@@ -118,7 +135,7 @@ public sealed class McpServerTests
         ) + "\n";
         var output = new StringWriter();
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(50, catalog.ActionCount);
+        Assert.Equal(54, catalog.ActionCount);
         var server = new McpServer(
             new StringReader(input),
             output,
@@ -177,6 +194,59 @@ public sealed class McpServerTests
         {
             response.Dispose();
         }
+    }
+
+    [Fact]
+    public void SemanticQuerySchemaCoversEveryEngineNodeKind()
+    {
+        var catalog = ToolCatalog.LoadNativeWordTools();
+        using var document = JsonDocument.Parse(
+            catalog.InspectAction("query_ooxml_semantics").ToJsonString()
+        );
+        var kinds = document.RootElement
+            .GetProperty("tool")
+            .GetProperty("inputSchema")
+            .GetProperty("properties")
+            .GetProperty("kinds")
+            .GetProperty("items")
+            .GetProperty("enum")
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var expected = Enum.GetNames<WordSemanticNodeKind>()
+            .Select(ToSnakeCase)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(expected, kinds);
+    }
+
+    private static string ToSnakeCase(string value)
+    {
+        var builder = new StringBuilder(value.Length + 8);
+        for (var index = 0; index < value.Length; index++)
+        {
+            var character = value[index];
+            if (
+                index > 0
+                && char.IsUpper(character)
+                && (
+                    char.IsLower(value[index - 1])
+                    || (
+                        index + 1 < value.Length
+                        && char.IsLower(value[index + 1])
+                    )
+                )
+            )
+            {
+                builder.Append('_');
+            }
+
+            builder.Append(char.ToLowerInvariant(character));
+        }
+
+        return builder.ToString();
     }
 
     [Fact]

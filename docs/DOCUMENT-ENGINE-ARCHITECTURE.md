@@ -148,6 +148,35 @@ Edits should splice only the smallest targeted subtree. Canonical formatting is 
 separate opt-in operation; it must never happen merely because a file was opened and
 saved.
 
+The first source-model slice is now implemented under `WordToolkit.Engine/Xml`. It:
+
+- retains the original byte array and SHA-256 plus immutable element, attribute,
+  namespace, prefix, quote, parent/child and byte-span provenance;
+- securely audits with `XmlReader` before building a lexical source map, prohibits
+  DTDs, never installs a resolver, and bounds source bytes, decoded characters,
+  elements, depth and text;
+- maps UTF-8, UTF-16 and UTF-32 in both byte orders, plus runtime-supported
+  single-byte XML encodings, without rewriting the declaration or BOM;
+- applies ordered, non-overlapping byte patches behind a whole-source hash
+  precondition and reparses the candidate before returning it;
+- replaces a leaf element's text while escaping XML 1.0 characters, retaining every
+  unrelated byte, expanding a self-closing element locally, and adding or correcting
+  `xml:space="preserve"` when boundary whitespace demands it.
+
+The current regression lane also parses every typed XML part in 52 bundled DOCX files
+produced by Word, LibreOffice, Pandoc, Apache POI and Mammoth, and proves an exact-byte
+no-op for each. That is meaningful smoke evidence, not a claim of broad format parity;
+the external hostile and versioned compatibility corpora are still missing.
+
+Unsupported stateful encodings and unusual UCS-4 orders fail closed. A leaf whose
+content contains comments, CDATA, processing instructions, or child elements is also
+rejected by the plain-text editor because flattening it would erase source structure.
+Those are explicit capability boundaries, not silent normalization. The encoding
+detector follows the [XML 1.0 autodetection contract](https://www.w3.org/TR/xml/#sec-guessing),
+and the parser uses documented .NET bounds and DTD prohibition rather than assuming
+well-behaved input ([`MaxCharactersInDocument`](https://learn.microsoft.com/en-us/dotnet/api/system.xml.xmlreadersettings.maxcharactersindocument),
+[`DtdProcessing`](https://learn.microsoft.com/en-us/dotnet/api/system.xml.xmlreadersettings.dtdprocessing)).
+
 ### Layer 3: typed OOXML and extension adapters
 
 Typed adapters project known structures from lossless source without owning unknown
@@ -187,14 +216,42 @@ locator may fall back through durable Word IDs, bookmark/content-control identit
 structural ancestry, neighboring fingerprints, and finally an explicit ambiguous match.
 The engine must return ambiguity; it must not quietly edit the first similar paragraph.
 
-An initial read-only semantic projector is now implemented. It recognizes transitional
+An initial source-linked semantic projector is now implemented. It recognizes transitional
 and strict WordprocessingML, paragraphs, runs, text, tabs/breaks, tables, hyperlinks,
 fields, revisions, bookmarks, comment anchors, content controls, drawings, MCE alternate
 content, equations, every nested OfficeMath element, and unknown namespace islands. It
-enforces XML character/element/depth/text limits, uses durable Word anchors where they
-exist, and emits source paths plus compact text previews. This projector currently uses
-a secure `XDocument` view over retained raw part bytes. It is not yet the lossless XML
-token/splice model described in Layer 2, and no semantic mutation is enabled through it.
+also follows bounded internal relationships from the main part into headers, footers,
+footnotes, endnotes, comments and glossary building blocks, while text boxes remain
+source-linked inside their containing story. Microsoft describes these as separate
+[WordprocessingML stories](https://learn.microsoft.com/en-us/office/open-xml/about-the-open-xml-sdk),
+not as one flat `document.xml` stream. Story roots and note/comment/reference nodes expose
+relationship or Word IDs; changing a related story does not change existing main-body
+node IDs. The projector enforces XML character/element/depth/text/story-part limits, uses
+durable Word anchors where they exist, and emits source paths, exact lexical element
+ordinals, projected-part inventory and compact text previews. Known views still use
+`XDocument` for semantic interpretation, but every projected node is bound back to the
+independent lossless source model rather than treating the typed tree as storage.
+
+The first cross-story dependency adapter is `WordSectionGraphBuilder`. It treats
+`w:sectPr` as a source-linked section boundary, extracts break, page-size, margin,
+column, numbering, orientation and first-page properties, and resolves all six
+header/footer slots. A binding records both its defined part and its effective display
+part, because an inactive first/even variant falls back to the default story while an
+omitted active variant inherits the corresponding definition from the previous section.
+The rules follow Microsoft's documented
+[`headerReference`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.headerreference)
+and [`evenAndOddHeaders`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.evenandoddheaders)
+semantics. Missing `sectPr` yields one explicit implicit-default section; duplicates,
+wrong relationship types, external targets, malformed settings and limit overflow fail
+closed. Lazy `inspect_ooxml_sections` pages this graph without returning document text.
+
+`WordSemanticEditor.ReplaceText` is the first typed mutation vertical slice. It requires
+the package fingerprint, semantic node identity, source part, lexical element ordinal,
+projected text and part SHA-256 to agree; an optional caller-supplied expected value adds
+another gate. It changes only `w:t`, `w:delText`, or `m:t`, returns an isolated OPC
+mutation builder, and performs no write by itself. The same primitive now feeds a
+bounded multi-command planner; broader commands, permission checks and incremental
+validation remain Phase 3 work.
 
 ### Layer 5: transactional command engine
 
@@ -232,6 +289,29 @@ Transaction phases:
 Live Word commands use Word's custom undo record only for the scoped live mutation.
 Package rollback remains independent, so a failure never calls broad `Undo()` across
 unrelated user work.
+
+The first transaction slice is implemented for batches of text-leaf commands.
+`WordSemanticTransactionPlanner` resolves every node against one package fingerprint,
+parses each affected part once, rejects duplicate targets, builds one ordered
+non-overlapping patch set per part, and returns a compact plan with operation counts,
+source ordinals, character counts and byte deltas. It deliberately does not expose
+per-text hashes or document content in plan metadata. The plan predicts the complete
+result package fingerprint, creates an isolated forward mutation, and can create an
+exact part-byte inverse only while the applied package still matches that predicted
+fingerprint. Neither forward nor inverse writes a file; atomic persistence remains a
+separate gated step.
+
+The native MCP exposes this slice without retaining a server-side plan cache. A client
+first calls lazy `plan_ooxml_text_edits` with the inspected package fingerprint and
+commands. To commit, it resubmits the same bounded commands to lazy
+`apply_ooxml_text_edits` together with the returned deterministic plan ID. Apply
+rebuilds the plan from the current file, rejects any fingerprint or plan mismatch, then
+uses the version-checked atomic writer. The candidate must also match the plan's
+predicted result fingerprint before replacement. A recovery backup is retained by
+default, while a no-op does not touch the file. Packages carrying OPC digital-signature parts, content types,
+or relationships fail closed because silently leaving an invalid signature would be
+corruption disguised as success. This stateless design spends some repeated input
+tokens, but avoids retaining document text in a long-lived MCP cache.
 
 ### Layer 6: analysis services
 
@@ -312,6 +392,24 @@ style tables, and object-model catalogues are fetched only on demand. The planne
 estimated input/output token cost and can choose between live Word, direct OOXML, or a
 hybrid transaction based on capability and fidelity requirements.
 
+The first `document.query` slice is implemented as `WordSemanticQueryEngine` and the
+lazy native `query_ooxml_semantics` action. It filters semantic kinds, exact properties,
+source parts and a stable-node subtree; supports contains/equals/starts/ends text modes;
+and streams matching across text, field, tab and break node boundaries instead of
+flattening the document into one giant string. Results are source-ordered, offset-paged,
+preview-bounded, and omit properties and source provenance unless requested. This is
+still an in-memory scan of the main-part graph, not the incremental privacy-controlled
+index required later.
+
+The current native mapping is therefore:
+
+- `document.query` -> lazy `query_ooxml_semantics`;
+- text-only `document.plan` -> lazy `plan_ooxml_text_edits`;
+- text-only `document.apply` -> lazy `apply_ooxml_text_edits`.
+
+These schemas stay outside the core catalog, so the default model context does not pay
+for them until search/inspection selects the action.
+
 ## Template, style, numbering, and reference engines
 
 These are resolvers, not bags of XML helpers:
@@ -374,22 +472,27 @@ No feature is “supported” until it passes the relevant gates:
 - bounded OPC reader and immutable graph — **implemented, initial tests passing**;
 - mutation builder, deterministic serializer, atomic file transaction — **implemented,
   initial tests passing**;
-- lossless no-op and single-part-edit preservation tests;
+- lossless no-op and single-part-edit preservation tests — **implemented, initial tests
+  passing**;
 - Flat OPC adapter and corruption corpus.
 
 ### Phase 2 — semantic spine
 
-- lossless XML source model;
+- lossless XML source model — **implemented, initial tests passing**;
 - read-only paragraph/run/table and OfficeMath projection — **implemented, initial tests
   passing**;
 - stable node identity and compact semantic inspection — **implemented, initial tests
   passing**;
 - section/style/numbering/reference adapters and semantic query;
-- package-to-semantic provenance tests.
+- package-to-semantic provenance tests — **implemented for main-part nodes and first
+  text mutation; full-story coverage remains**.
 
 ### Phase 3 — safe edits
 
-- command schema, preconditions, plan/apply, inverse patches;
+- command schema, preconditions, plan/apply, inverse patches — **bounded multi-text
+  planning, package/node/part/text preconditions, one patch set per part, predicted
+  result fingerprint and exact part-byte inverse implemented; general commands,
+  permissions, approval and semantic inverses remain**;
 - style and numbering resolvers;
 - fields/references and review graph;
 - schema/semantic validation profiles.

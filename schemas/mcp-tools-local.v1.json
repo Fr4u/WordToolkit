@@ -3797,7 +3797,7 @@
     {
       "name": "inspect_ooxml_semantics",
       "title": "Inspect Word semantic structure",
-      "description": "Project a saved Word OOXML package into bounded, source-linked semantic nodes without opening Word. Return stable node IDs, structure counts, and a compact outline for paragraphs, tables, fields, equations, revisions, drawings, content controls, and extension islands.",
+      "description": "Project a saved Word OOXML package into bounded, source-linked semantic nodes without opening Word. Traverses the main document plus related headers, footers, footnotes, endnotes, comments and glossary stories, and returns stable node IDs, part counts, structure counts, and a compact outline.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3834,6 +3834,314 @@
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "query_ooxml_semantics",
+      "title": "Query Word semantic nodes",
+      "description": "Query all projected text-bearing stories in a saved Word OOXML package by semantic node kind, bounded text predicate, exact semantic properties, source part, or subtree. Returns paged stable node IDs and compact previews without opening Word or returning raw XML.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "kinds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 37,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "document",
+                "body",
+                "paragraph",
+                "run",
+                "text",
+                "tab",
+                "break",
+                "table",
+                "table_row",
+                "table_cell",
+                "hyperlink",
+                "field",
+                "equation",
+                "equation_component",
+                "content_control",
+                "bookmark",
+                "comment_anchor",
+                "revision",
+                "drawing",
+                "alternate_content",
+                "extension_island",
+                "header",
+                "footer",
+                "footnotes",
+                "footnote",
+                "endnotes",
+                "endnote",
+                "comments",
+                "comment",
+                "glossary_document",
+                "glossary_entry",
+                "text_box",
+                "header_reference",
+                "footer_reference",
+                "footnote_reference",
+                "endnote_reference",
+                "section"
+              ]
+            },
+            "description": "Optional semantic node kinds. Omit to search every kind."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": "Optional text predicate. Matching streams across run/text boundaries when text_scope is subtree."
+          },
+          "text_match": {
+            "type": "string",
+            "enum": ["contains", "equals", "starts_with", "ends_with"],
+            "default": "contains"
+          },
+          "text_scope": {
+            "type": "string",
+            "enum": ["node", "subtree"],
+            "default": "node",
+            "description": "Use subtree to match a paragraph, table, equation, or other container across its descendant text nodes."
+          },
+          "case_sensitive": {
+            "type": "boolean",
+            "default": false
+          },
+          "property_equals": {
+            "type": "object",
+            "maxProperties": 16,
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "description": "Optional exact semantic property predicates, for example {\"style_id\":\"Definition\"}."
+          },
+          "within_node_id": {
+            "type": "string",
+            "pattern": "^wdn_[A-Za-z0-9_-]+$",
+            "description": "Optional semantic node whose subtree bounds the query."
+          },
+          "source_part_uri": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "Optional exact OPC part URI filter."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_results": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 80
+          },
+          "text_preview_chars": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 400,
+            "default": 160
+          },
+          "include_properties": {
+            "type": "boolean",
+            "default": false
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include source part, normalized XML path, and lexical element ordinal."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_ooxml_sections",
+      "title": "Inspect Word sections and story bindings",
+      "description": "Resolve Word section boundaries, page properties, and effective default, first-page, and even-page header/footer bindings. Reports explicit, inherited, blank, and suppressed variants without opening Word or returning document text.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_sections": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          },
+          "binding_detail": {
+            "type": "string",
+            "enum": ["none", "effective", "full"],
+            "default": "effective",
+            "description": "Use effective for displayed targets, full for source relationship provenance, or none for section metadata only."
+          },
+          "include_properties": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include bounded page size, margins, columns, numbering, orientation, and section-break properties."
+          },
+          "include_story_part_uris": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include bounded referenced and unbound header/footer part URI inventories."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "plan_ooxml_text_edits",
+      "title": "Plan lossless Word text edits",
+      "description": "Resolve a bounded batch of semantic Word or OfficeMath text-node replacements against an exact saved-package fingerprint. Returns a compact deterministic plan and predicted result fingerprint without writing the file or retaining server-side document content.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$",
+            "description": "Exact fingerprint returned by inspect/query. Planning fails if the package changed."
+          },
+          "commands": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "type": "object",
+              "properties": {
+                "node_id": {
+                  "type": "string",
+                  "pattern": "^wdn_[A-Za-z0-9_-]+$"
+                },
+                "new_text": {
+                  "type": "string",
+                  "maxLength": 1000000
+                },
+                "expected_text": {
+                  "type": "string",
+                  "maxLength": 1000000,
+                  "description": "Optional exact projected text precondition."
+                }
+              },
+              "required": ["node_id", "new_text"],
+              "additionalProperties": false
+            }
+          },
+          "include_details": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include bounded per-operation and changed-part impact metadata; never returns document text."
+          }
+        },
+        "required": ["local_path", "expected_package_fingerprint", "commands"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "apply_ooxml_text_edits",
+      "title": "Apply planned lossless Word text edits",
+      "description": "Rebuild and atomically apply an already reviewed semantic text-edit plan to a saved Word OOXML package. Requires the original package fingerprint and deterministic plan ID, validates the candidate, rejects signed packages, and can retain a sibling recovery backup.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the existing local DOCX, DOCM, DOTX, or DOTM file modified in place."
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "expected_plan_id": {
+            "type": "string",
+            "pattern": "^wplan_[A-Za-z0-9_-]+$",
+            "description": "Plan ID returned by plan_ooxml_text_edits for the exact same commands."
+          },
+          "commands": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "type": "object",
+              "properties": {
+                "node_id": {
+                  "type": "string",
+                  "pattern": "^wdn_[A-Za-z0-9_-]+$"
+                },
+                "new_text": {
+                  "type": "string",
+                  "maxLength": 1000000
+                },
+                "expected_text": {
+                  "type": "string",
+                  "maxLength": 1000000
+                }
+              },
+              "required": ["node_id", "new_text"],
+              "additionalProperties": false
+            }
+          },
+          "keep_backup": {
+            "type": "boolean",
+            "default": true,
+            "description": "Retain the atomic writer's sibling recovery backup after success."
+          }
+        },
+        "required": [
+          "local_path",
+          "expected_package_fingerprint",
+          "expected_plan_id",
+          "commands"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
         "openWorldHint": false
       }
     },
