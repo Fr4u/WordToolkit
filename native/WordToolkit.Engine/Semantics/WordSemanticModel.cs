@@ -40,6 +40,7 @@ public sealed class WordSemanticNode
         WordSemanticNodeKind kind,
         SemanticNodeId? parentId,
         int sourceOrder,
+        int sourceElementOrdinal,
         string sourcePartUri,
         string sourcePath,
         string? text,
@@ -51,6 +52,7 @@ public sealed class WordSemanticNode
         Kind = kind;
         ParentId = parentId;
         SourceOrder = sourceOrder;
+        SourceElementOrdinal = sourceElementOrdinal;
         SourcePartUri = sourcePartUri;
         SourcePath = sourcePath;
         Text = text;
@@ -67,6 +69,8 @@ public sealed class WordSemanticNode
     public SemanticNodeId? ParentId { get; }
 
     public int SourceOrder { get; }
+
+    public int SourceElementOrdinal { get; }
 
     public string SourcePartUri { get; }
 

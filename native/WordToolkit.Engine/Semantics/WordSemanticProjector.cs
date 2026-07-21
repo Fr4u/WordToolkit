@@ -1,9 +1,9 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
-using System.Xml;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
 
@@ -81,20 +81,30 @@ public sealed class WordSemanticProjector
             );
         }
 
-        XDocument xml;
+        LosslessXmlDocument sourceDocument;
         try
         {
             var mainPartBytes = mainPart.Entry.Content.ToArray();
-            AuditXml(mainPartBytes, cancellationToken);
-            xml = LoadXml(mainPartBytes);
+            sourceDocument = LosslessXmlDocument.Parse(
+                mainPartBytes,
+                new LosslessXmlOptions
+                {
+                    MaxSourceBytes = _options.MaxXmlCharacters >= int.MaxValue / 4
+                        ? int.MaxValue
+                        : checked((int)(_options.MaxXmlCharacters * 4)),
+                    MaxXmlCharacters = _options.MaxXmlCharacters,
+                    MaxXmlElements = _options.MaxXmlElements,
+                    MaxXmlDepth = _options.MaxXmlDepth,
+                    MaxTextCharacters = _options.MaxTextCharacters,
+                },
+                cancellationToken
+            );
         }
-        catch (WordSemanticLimitException)
+        catch (LosslessXmlLimitException exception)
         {
-            throw;
+            throw new WordSemanticLimitException(exception.Message);
         }
-        catch (Exception exception) when (
-            exception is XmlException or InvalidOperationException
-        )
+        catch (LosslessXmlException exception)
         {
             throw new WordSemanticProjectionException(
                 "The Word main document part is not safe, well-formed XML.",
@@ -102,6 +112,7 @@ public sealed class WordSemanticProjector
             );
         }
 
+        var xml = sourceDocument.ParsedDocument;
         var documentElement = xml.Root;
         if (
             documentElement is null
@@ -127,6 +138,7 @@ public sealed class WordSemanticProjector
             sourcePath: $"/{QualifiedName(documentElement.Name)}[1]",
             rootContext,
             state,
+            sourceDocument,
             cancellationToken
         );
         if (roots.Count != 1 || roots[0].Kind != WordSemanticNodeKind.Document)
@@ -149,75 +161,13 @@ public sealed class WordSemanticProjector
         );
     }
 
-    private void AuditXml(
-        byte[] content,
-        CancellationToken cancellationToken
-    )
-    {
-        using var stream = new MemoryStream(content, writable: false);
-        using var reader = XmlReader.Create(stream, XmlSettings());
-        var elements = 0;
-        long textCharacters = 0;
-        while (reader.Read())
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (reader.Depth > _options.MaxXmlDepth)
-            {
-                throw new WordSemanticLimitException(
-                    $"Word XML depth exceeds {_options.MaxXmlDepth}."
-                );
-            }
-
-            if (reader.NodeType == XmlNodeType.Element && ++elements > _options.MaxXmlElements)
-            {
-                throw new WordSemanticLimitException(
-                    $"Word XML contains more than {_options.MaxXmlElements} elements."
-                );
-            }
-
-            if (
-                reader.NodeType is XmlNodeType.Text
-                    or XmlNodeType.CDATA
-                    or XmlNodeType.SignificantWhitespace
-            )
-            {
-                checked
-                {
-                    textCharacters += reader.Value.Length;
-                }
-
-                if (textCharacters > _options.MaxTextCharacters)
-                {
-                    throw new WordSemanticLimitException(
-                        $"Word XML text exceeds {_options.MaxTextCharacters} characters."
-                    );
-                }
-            }
-        }
-    }
-
-    private XDocument LoadXml(byte[] content)
-    {
-        using var stream = new MemoryStream(content, writable: false);
-        using var reader = XmlReader.Create(stream, XmlSettings());
-        return XDocument.Load(reader, LoadOptions.PreserveWhitespace | LoadOptions.SetLineInfo);
-    }
-
-    private XmlReaderSettings XmlSettings() => new()
-    {
-        DtdProcessing = DtdProcessing.Prohibit,
-        XmlResolver = null,
-        MaxCharactersInDocument = _options.MaxXmlCharacters,
-        IgnoreComments = false,
-        IgnoreWhitespace = false,
-    };
-
     private void ProjectElement(
         XElement element,
         string sourcePartUri,
         string sourcePath,
         ProjectionContext context,
         ProjectionState state,
+        LosslessXmlDocument sourceDocument,
         CancellationToken cancellationToken
     )
     {
@@ -253,6 +203,7 @@ public sealed class WordSemanticProjector
                 kind.Value,
                 context.parent?.Id,
                 state.SemanticNodeCount,
+                sourceDocument.GetElementOrdinal(element),
                 sourcePartUri,
                 sourcePath,
                 NodeText(element, kind.Value),
@@ -292,6 +243,7 @@ public sealed class WordSemanticProjector
                 $"{sourcePath}/{QualifiedName(child.Name)}[{index}]",
                 childContext,
                 state,
+                sourceDocument,
                 cancellationToken
             );
         }
@@ -642,6 +594,7 @@ public sealed class WordSemanticProjector
             WordSemanticNodeKind kind,
             SemanticNodeId? parentId,
             int sourceOrder,
+            int sourceElementOrdinal,
             string sourcePartUri,
             string sourcePath,
             string? text,
@@ -652,6 +605,7 @@ public sealed class WordSemanticProjector
             Kind = kind;
             ParentId = parentId;
             SourceOrder = sourceOrder;
+            SourceElementOrdinal = sourceElementOrdinal;
             SourcePartUri = sourcePartUri;
             SourcePath = sourcePath;
             Text = text;
@@ -665,6 +619,8 @@ public sealed class WordSemanticProjector
         public SemanticNodeId? ParentId { get; }
 
         public int SourceOrder { get; }
+
+        public int SourceElementOrdinal { get; }
 
         public string SourcePartUri { get; }
 
@@ -681,6 +637,7 @@ public sealed class WordSemanticProjector
             Kind,
             ParentId,
             SourceOrder,
+            SourceElementOrdinal,
             SourcePartUri,
             SourcePath,
             Text,

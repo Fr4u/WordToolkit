@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-WordToolkit 0.19 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The new document-engine core can also inspect the package graph and semantic structure of a saved Word OOXML file without starting Word.
+WordToolkit 0.19 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The new document-engine core can also inspect the package graph and semantic structure of a saved Word OOXML file without starting Word. Its first lossless editing slice binds semantic text nodes to exact XML byte spans and produces an isolated, hash-preconditioned package mutation without reserializing unrelated XML.
 
 The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtual environment, an interpreter bootstrap, or a per-call helper process. Its MCP command points directly to:
 

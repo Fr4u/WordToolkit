@@ -19,11 +19,20 @@
   fields, equations and every nested OfficeMath element, revisions, drawings,
   content controls, and unknown extension islands. Stable node IDs prefer
   durable Word anchors and do not depend on raw paragraph indices.
+- Added the first lossless XML source model with exact byte spans, original
+  prefixes/attributes/quotes/BOM retention, bounded secure parsing, guarded
+  non-overlapping splices, and validated UTF-8/UTF-16/UTF-32/single-byte edits.
+- Added the first typed semantic mutation: hash- and fingerprint-preconditioned
+  replacement of source-bound Word or OfficeMath text leaves, including XML
+  escaping, `xml:space` handling and fail-closed mixed-markup behavior.
 - Added the lazy, token-bounded `inspect_ooxml_semantics` MCP action.
-- Added 34 document-engine tests, including deterministic malformed-input,
+- Added 57 document-engine tests, including deterministic malformed-input,
   randomized relationship metadata and opaque-part round-trip fuzz smoke, plus
-  two native end-to-end package/semantic inspection tests while retaining all
-  existing native runtime tests.
+  300 randomized lexical text splices, multi-encoding/BOM preservation and
+  semantic mutation provenance. A 52-document bundled corpus from Word,
+  LibreOffice, Pandoc, POI and Mammoth now exercises every typed XML part and
+  exact no-op source preservation, while native end-to-end package/semantic
+  inspection retains all existing runtime tests.
 - Added a source-backed 2026 research matrix and the target lossless semantic
   document-engine architecture.
 

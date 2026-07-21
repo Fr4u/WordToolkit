@@ -83,6 +83,9 @@ internal sealed partial class WordLiveService
                         source_path = includeSourcePaths
                             ? BoundForResponse(node.SourcePath, 1024)
                             : null,
+                        source_element_ordinal = includeSourcePaths
+                            ? node.SourceElementOrdinal
+                            : (int?)null,
                     };
                 })
                 .ToArray();

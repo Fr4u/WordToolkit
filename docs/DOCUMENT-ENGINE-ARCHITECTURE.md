@@ -148,6 +148,35 @@ Edits should splice only the smallest targeted subtree. Canonical formatting is 
 separate opt-in operation; it must never happen merely because a file was opened and
 saved.
 
+The first source-model slice is now implemented under `WordToolkit.Engine/Xml`. It:
+
+- retains the original byte array and SHA-256 plus immutable element, attribute,
+  namespace, prefix, quote, parent/child and byte-span provenance;
+- securely audits with `XmlReader` before building a lexical source map, prohibits
+  DTDs, never installs a resolver, and bounds source bytes, decoded characters,
+  elements, depth and text;
+- maps UTF-8, UTF-16 and UTF-32 in both byte orders, plus runtime-supported
+  single-byte XML encodings, without rewriting the declaration or BOM;
+- applies ordered, non-overlapping byte patches behind a whole-source hash
+  precondition and reparses the candidate before returning it;
+- replaces a leaf element's text while escaping XML 1.0 characters, retaining every
+  unrelated byte, expanding a self-closing element locally, and adding or correcting
+  `xml:space="preserve"` when boundary whitespace demands it.
+
+The current regression lane also parses every typed XML part in 52 bundled DOCX files
+produced by Word, LibreOffice, Pandoc, Apache POI and Mammoth, and proves an exact-byte
+no-op for each. That is meaningful smoke evidence, not a claim of broad format parity;
+the external hostile and versioned compatibility corpora are still missing.
+
+Unsupported stateful encodings and unusual UCS-4 orders fail closed. A leaf whose
+content contains comments, CDATA, processing instructions, or child elements is also
+rejected by the plain-text editor because flattening it would erase source structure.
+Those are explicit capability boundaries, not silent normalization. The encoding
+detector follows the [XML 1.0 autodetection contract](https://www.w3.org/TR/xml/#sec-guessing),
+and the parser uses documented .NET bounds and DTD prohibition rather than assuming
+well-behaved input ([`MaxCharactersInDocument`](https://learn.microsoft.com/en-us/dotnet/api/system.xml.xmlreadersettings.maxcharactersindocument),
+[`DtdProcessing`](https://learn.microsoft.com/en-us/dotnet/api/system.xml.xmlreadersettings.dtdprocessing)).
+
 ### Layer 3: typed OOXML and extension adapters
 
 Typed adapters project known structures from lossless source without owning unknown
@@ -187,14 +216,22 @@ locator may fall back through durable Word IDs, bookmark/content-control identit
 structural ancestry, neighboring fingerprints, and finally an explicit ambiguous match.
 The engine must return ambiguity; it must not quietly edit the first similar paragraph.
 
-An initial read-only semantic projector is now implemented. It recognizes transitional
+An initial source-linked semantic projector is now implemented. It recognizes transitional
 and strict WordprocessingML, paragraphs, runs, text, tabs/breaks, tables, hyperlinks,
 fields, revisions, bookmarks, comment anchors, content controls, drawings, MCE alternate
 content, equations, every nested OfficeMath element, and unknown namespace islands. It
 enforces XML character/element/depth/text limits, uses durable Word anchors where they
-exist, and emits source paths plus compact text previews. This projector currently uses
-a secure `XDocument` view over retained raw part bytes. It is not yet the lossless XML
-token/splice model described in Layer 2, and no semantic mutation is enabled through it.
+exist, and emits source paths, exact lexical element ordinals, and compact text previews.
+Known views still use `XDocument` for semantic interpretation, but every projected node
+is now bound back to the independent lossless source model rather than treating the
+typed tree as storage.
+
+`WordSemanticEditor.ReplaceText` is the first typed mutation vertical slice. It requires
+the package fingerprint, semantic node identity, source part, lexical element ordinal,
+projected text and part SHA-256 to agree; an optional caller-supplied expected value adds
+another gate. It changes only `w:t`, `w:delText`, or `m:t`, returns an isolated OPC
+mutation builder, and performs no write by itself. Multi-command planning, inverses,
+permission checks and incremental validation remain Phase 3 work.
 
 ### Layer 5: transactional command engine
 
@@ -374,22 +411,26 @@ No feature is “supported” until it passes the relevant gates:
 - bounded OPC reader and immutable graph — **implemented, initial tests passing**;
 - mutation builder, deterministic serializer, atomic file transaction — **implemented,
   initial tests passing**;
-- lossless no-op and single-part-edit preservation tests;
+- lossless no-op and single-part-edit preservation tests — **implemented, initial tests
+  passing**;
 - Flat OPC adapter and corruption corpus.
 
 ### Phase 2 — semantic spine
 
-- lossless XML source model;
+- lossless XML source model — **implemented, initial tests passing**;
 - read-only paragraph/run/table and OfficeMath projection — **implemented, initial tests
   passing**;
 - stable node identity and compact semantic inspection — **implemented, initial tests
   passing**;
 - section/style/numbering/reference adapters and semantic query;
-- package-to-semantic provenance tests.
+- package-to-semantic provenance tests — **implemented for main-part nodes and first
+  text mutation; full-story coverage remains**.
 
 ### Phase 3 — safe edits
 
-- command schema, preconditions, plan/apply, inverse patches;
+- command schema, preconditions, plan/apply, inverse patches — **package/fingerprint/
+  node/part/text preconditions and one leaf-text command implemented; plan, inverse and
+  multi-command transaction remain**;
 - style and numbering resolvers;
 - fields/references and review graph;
 - schema/semantic validation profiles.

@@ -108,11 +108,17 @@ public sealed class PackageInspectionServiceTests
             );
             Assert.All(
                 outline.EnumerateArray(),
-                node => Assert.StartsWith(
-                    "wdn_",
-                    node.GetProperty("node_id").GetString(),
-                    StringComparison.Ordinal
-                )
+                node =>
+                {
+                    Assert.StartsWith(
+                        "wdn_",
+                        node.GetProperty("node_id").GetString(),
+                        StringComparison.Ordinal
+                    );
+                    Assert.True(
+                        node.GetProperty("source_element_ordinal").GetInt32() >= 0
+                    );
+                }
             );
         }
         finally
