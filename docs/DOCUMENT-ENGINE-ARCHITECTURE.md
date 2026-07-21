@@ -218,7 +218,7 @@ The engine must return ambiguity; it must not quietly edit the first similar par
 
 An initial source-linked semantic projector is now implemented. It recognizes transitional
 and strict WordprocessingML, paragraphs, runs, text, tabs/breaks, tables, hyperlinks,
-fields, revisions, bookmarks, comment anchors, content controls, drawings, MCE alternate
+fields, revisions, bookmark starts and ends, comment anchors, content controls, drawings, MCE alternate
 content, equations, every nested OfficeMath element, and unknown namespace islands. It
 also follows bounded internal relationships from the main part into headers, footers,
 footnotes, endnotes, comments and glossary building blocks, while text boxes remain
@@ -313,6 +313,24 @@ but never returns the bytes. Duplicate case-insensitive font names, missing or e
 targets, invalid relationship types, unsupported font content and orphan relationships
 remain bounded diagnostics. Lazy `inspect_ooxml_fonts` is metadata-first and makes
 hashes/source ordinals opt-in.
+
+`WordReferenceGraphBuilder` is the first field/reference dependency adapter. It does
+not scan sibling runs inside one paragraph. It partitions every projected part into
+independent Word stories, including individual notes, comments, glossary entries and
+nested text boxes, then walks each story in complete XML document order. A bounded
+stack assembles nested `w:fldChar` begin/separate/end sequences across paragraphs;
+`w:fldSimple` is represented recursively with its result content; instruction
+fragments retain source ordinals; and malformed, orphaned or unclosed field characters
+remain explicit diagnostics. Bookmark starts and ends are paired by `w:id` within one
+story, cross-paragraph ranges and table-column ranges survive, and case-insensitive
+name lookup records Word's last-definition behavior without deleting duplicate source.
+The instruction tokenizer recognizes explicit and implicit `REF`, classifies the broad
+Word field family, and emits dependency edges for bookmarks, sequences, document
+variables, merge fields, citations, index entries, styles and external resources. It
+does not evaluate a field. DDE, LINK, INCLUDE, IMPORT, DATABASE and similar instructions
+are inert metadata: no process starts and no target is fetched. Lazy
+`inspect_ooxml_references` defaults to field-type counts; names, instructions, result
+text and dependency keys remain redacted behind opt-in detail, exact filters and paging.
 
 WordprocessingML theme tokens are resolved only when a deterministic theme source is
 available. `majorAscii`/`majorHAnsi` and their minor equivalents select the Latin theme
@@ -517,6 +535,7 @@ The current native mapping is therefore:
 - theme color/font/format inspection -> lazy `inspect_ooxml_theme`;
 - settings/compatibility/protection metadata -> lazy `inspect_ooxml_settings`;
 - declared and embedded font metadata -> lazy `inspect_ooxml_fonts`;
+- story-aware field/bookmark/dependency inspection -> lazy `inspect_ooxml_references`;
 - modeled paragraph/run formatting -> lazy `resolve_ooxml_formatting`;
 - text-only `document.plan` -> lazy `plan_ooxml_text_edits`;
 - text-only `document.apply` -> lazy `apply_ooxml_text_edits`.
@@ -533,8 +552,12 @@ These are resolvers, not bags of XML helpers:
   defaults, latent styles, themes, and direct formatting;
 - numbering resolves abstract numbering, instances, overrides, restarts, level text,
   legal numbering, and style links;
-- references build a dependency graph across bookmarks, fields, captions, notes,
-  citations, bibliography sources, TOC/TOF/TOT, and hyperlinks;
+- the implemented reference slice pairs bookmark ranges, parses nested complex/simple
+  fields and emits typed dependencies for REF/PAGEREF/NOTEREF, SEQ, TOC bookmark
+  restrictions, HYPERLINK anchors, variables, merge fields, citations, index entries,
+  styles and external-resource fields;
+- the unfinished reference layers must still unify element hyperlinks, captions,
+  notes, bibliography sources and complete TOC/TOF/TOT semantics, then add safe edits;
 - updates are backend-qualified because Word's field evaluator remains authoritative for
   fields it owns.
 

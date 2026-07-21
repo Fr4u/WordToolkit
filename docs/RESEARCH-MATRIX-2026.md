@@ -109,6 +109,44 @@ redact them by default and never return protection hashes or salts.
 [DocumentProtection](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.documentprotection?view=openxml-3.0.1) and
 [DocumentVariables](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.documentvariables?view=openxml-3.0.1) (B).
 
+Fields are not paragraph-local strings. Microsoft's complex-field model requires a
+begin and end, permits an optional separator, explicitly supports nested fields, and
+treats an unclosed field at the end of a document story as no field. The older binary
+format grammar says the same thing compactly: a field contains nested fields on both
+sides of the optional separator, and every document story owns its own field list.
+`w:fldSimple` is a different composite form whose instruction lives in `w:instr` and
+whose children are the cached result; those children can themselves contain bookmarks,
+revisions, math and nested simple fields. A sibling-run scan inside one paragraph is
+therefore structurally wrong before performance even enters the room.
+[`FieldChar`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.fieldchar?view=openxml-3.0.1),
+[`SimpleField`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.simplefield?view=openxml-3.0.1), and
+[the Microsoft field-list grammar](https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-doc/751b09bb-72f0-45ef-8e87-666dea68219f)
+(B).
+
+Bookmarks are paired source ranges, not names pasted onto paragraphs. ISO pairing uses
+the same `w:id` on a subsequent `bookmarkEnd`, ranges can cross paragraphs, and
+`colFirst`/`colLast` can describe a logical table-column slice. Word adds sharp edges:
+bookmark lookup is spelling-exact but case-insensitive, names are limited to 40
+characters, and when duplicate names exist Word retains the last definition rather
+than the first required by the base standard. REF has more Word-specific behavior:
+zero general switches and multiple field-specific switches are accepted; unknown field
+text can act as an implicit REF; and reserved automatic-bookmark names require the REF
+keyword. These divergences belong in typed diagnostics and resolution policy, not in a
+regex.
+[`BookmarkStart`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.bookmarkstart?view=openxml-3.0.1),
+[Word Bookmark object](https://learn.microsoft.com/en-us/dotnet/api/microsoft.office.interop.word.bookmark?view=word-pia),
+[Word bookmark interoperability](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oe376/88454e96-31cb-4112-b7c2-e6b0f84a2637), and
+[Word REF interoperability](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oi29500/7088a8ce-e784-49d4-94b8-cba6ef8fce78)
+(B).
+
+A public Pandoc reproducer shows the practical failure mode: placing the bookmark
+outside the intended heading paragraph can make REF capture too much content, and a
+later insertion can silently expand that range. The report is not an independent
+benchmark, but it is an adversarial fixture specification worth preserving. It proves
+why a reference engine must retain both source endpoints and never reduce a bookmark to
+its name alone.
+[Pandoc issue 8825](https://github.com/jgm/pandoc/issues/8825) (C/D).
+
 ## Platform and API families
 
 ### Microsoft surfaces

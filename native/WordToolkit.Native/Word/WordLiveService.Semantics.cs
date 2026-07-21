@@ -192,6 +192,7 @@ internal sealed partial class WordLiveService
         or WordSemanticNodeKind.Field
         or WordSemanticNodeKind.ContentControl
         or WordSemanticNodeKind.Bookmark
+        or WordSemanticNodeKind.BookmarkEnd
         or WordSemanticNodeKind.CommentAnchor
         or WordSemanticNodeKind.Revision
         or WordSemanticNodeKind.Drawing

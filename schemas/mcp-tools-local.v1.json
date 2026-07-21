@@ -3851,7 +3851,7 @@
           "kinds": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 37,
+            "maxItems": 38,
             "uniqueItems": true,
             "items": {
               "type": "string",
@@ -3872,6 +3872,7 @@
                 "equation_component",
                 "content_control",
                 "bookmark",
+                "bookmark_end",
                 "comment_anchor",
                 "revision",
                 "drawing",
@@ -4251,6 +4252,89 @@
             "type": "boolean",
             "default": false,
             "description": "Include settings part URI and source XML element ordinals."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_ooxml_references",
+      "title": "Inspect Word fields, bookmarks, and dependencies",
+      "description": "Inspect a bounded, story-aware graph of paired bookmarks, nested complex fields, simple fields, parsed field types, and reference dependencies without opening Word. The parser never evaluates fields, launches applications, or follows external targets. Bookmark names, field instructions, result text, and dependency keys are redacted by default; compact views, exact filters, and pagination minimize AI token use.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "stories", "bookmarks", "fields", "dependencies", "issues"],
+            "default": "summary",
+            "description": "Return field-type counts, story boundaries, paired bookmarks, fields, dependency edges, or diagnostics."
+          },
+          "field_type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Optional exact case-insensitive field-type filter for summary, fields, and dependencies views, for example REF, TOC, SEQ, HYPERLINK, or DDEAUTO."
+          },
+          "bookmark_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": "Optional exact case-insensitive bookmark-name filter for bookmarks and bookmark dependency edges."
+          },
+          "story_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Optional exact story identifier returned by the stories view."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "detail": {
+            "type": "string",
+            "enum": ["metadata", "parsed"],
+            "default": "metadata",
+            "description": "Use parsed for bounded instruction-token metadata. Token values and instruction text remain redacted unless include_sensitive is true."
+          },
+          "include_sensitive": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded bookmark names, dependency keys, instruction text, and parsed token values. External targets are never followed."
+          },
+          "include_result_text": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include at most 4096 characters of cached field-result text per returned field. Requires include_sensitive=true."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include at most 40 bounded structural and unresolved-reference diagnostics in non-issues views."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include story part URIs, semantic node IDs, and source XML element ordinals."
           }
         },
         "required": ["local_path"],

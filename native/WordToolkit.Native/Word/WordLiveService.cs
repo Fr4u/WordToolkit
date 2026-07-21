@@ -120,6 +120,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_ooxml_references" => InspectPackageReferencesAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_ooxml_fonts" => InspectPackageFontsAsync(
                 arguments,
                 cancellationToken

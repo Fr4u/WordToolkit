@@ -26,6 +26,7 @@ public enum WordSemanticNodeKind
     EquationComponent,
     ContentControl,
     Bookmark,
+    BookmarkEnd,
     CommentAnchor,
     Revision,
     Drawing,

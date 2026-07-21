@@ -47,6 +47,15 @@ The in-memory session registry makes this release a single-instance service. Do 
 
 ## Word Live field, object-model, bookmark, learning and equation boundaries
 
+Saved-package reference inspection is parse-only. It recognizes complex and simple
+field instructions, including DDE, DDEAUTO, LINK, INCLUDE, INCLUDETEXT,
+INCLUDEPICTURE, IMPORT, DATABASE and HYPERLINK, but never evaluates a field, launches
+an application or follows a target. The default MCP response omits bookmark names,
+instruction text, cached result text and dependency keys; it returns bounded counts,
+types and short fingerprints instead. Raw bounded values require explicit sensitive
+detail, and external targets remain inert even then. Field, token, instruction, result,
+story, bookmark and diagnostic counts all have independent limits.
+
 The local Word Live bridge never accepts arbitrary field-code text. Field
 creation uses a typed allowlist for static document metadata, page/section
 counters, dates/times, sequences, existing bookmark references and restricted

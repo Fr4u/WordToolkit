@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+## 0.23.0 — 2026-07-21
+
+- Added `WordReferenceGraphBuilder`, a bounded source-linked read graph for
+  fields, bookmarks and dependencies. It separates Word stories, pairs
+  bookmark starts/ends across paragraphs, preserves table-column ranges,
+  resolves names case-insensitively with duplicate-last provenance, parses
+  nested complex fields and recursive `w:fldSimple`, and keeps parent/child
+  field identities plus source ordinals.
+- Added a bounded field-instruction tokenizer and broad field-family
+  classification. Explicit and implicit REF, PAGEREF, NOTEREF, TOC bookmark
+  restrictions, HYPERLINK anchors, SEQ, variables, merge fields, citations,
+  index entries, styles and external-resource fields now produce typed
+  dependency edges. Malformed quotes, orphan/missing field characters,
+  excessive switches, deleted instruction text and unresolved targets remain
+  diagnostics instead of guessed results.
+- Added lazy `inspect_ooxml_references`. Its default summary returns only
+  field-type counts and bounded diagnostics; bookmark names, instructions,
+  cached result text and dependency keys are redacted unless explicitly
+  requested. DDE/LINK/INCLUDE/IMPORT/DATABASE targets are never followed and
+  no field is evaluated or allowed to launch an application.
+- Extended the semantic projector with source-linked `bookmark_end` nodes and
+  marker properties, so both endpoints can be addressed without raw XML.
+- Added nine engine tests and two native integration tests, bringing the native
+  document-engine totals to 141 engine tests and 57 host tests. Coverage
+  includes every bundled DOCX fixture, cross-paragraph ranges, nested and
+  simple fields, malformed structures, story isolation, external-field safety,
+  privacy redaction and a sub-5000-character default response budget on a
+  field-heavy TOC fixture.
+
 ## 0.22.0 — 2026-07-21
 
 - Added the cross-platform `WordToolkit.Engine` .NET library with a bounded,

@@ -1092,6 +1092,160 @@ public sealed class PackageInspectionServiceTests
     }
 
     [Fact]
+    public async Task InspectReferencesIsStoryAwareRedactedAndNeverStartsWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-reference-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "references.docx");
+            CreatePackage(
+                path,
+                additionalBodyXml: """
+                <w:p>
+                  <w:bookmarkStart w:id="9" w:name="SecretAnchor"/>
+                  <w:r><w:t>Secret result</w:t></w:r>
+                  <w:bookmarkEnd w:id="9"/>
+                </w:p>
+                <w:p>
+                  <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                  <w:r><w:instrText xml:space="preserve"> REF secretanchor \h </w:instrText></w:r>
+                  <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                  <w:r><w:t>Secret result</w:t></w:r>
+                  <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                </w:p>
+                <w:p>
+                  <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                  <w:r><w:instrText xml:space="preserve"> DDEAUTO calc.exe &quot;private-file&quot; topic </w:instrText></w:r>
+                  <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                </w:p>
+                """
+            );
+            var service = new WordLiveService(new NoInvokeHost());
+            using var dependenciesArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "dependencies",
+                    max_items = 10,
+                })
+            );
+
+            var dependenciesObject = await service.CallAsync(
+                "inspect_ooxml_references",
+                dependenciesArguments.RootElement,
+                CancellationToken.None
+            );
+            using var dependenciesJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(dependenciesObject)
+            );
+            var dependencies = dependenciesJson.RootElement;
+            Assert.Equal(2, dependencies.GetProperty("field_count").GetInt32());
+            Assert.Equal(1, dependencies.GetProperty("external_field_count").GetInt32());
+            Assert.Equal(2, dependencies.GetProperty("dependency_count").GetInt32());
+            Assert.False(dependencies.GetProperty("word_opened").GetBoolean());
+            Assert.False(
+                dependencies.GetProperty("external_targets_followed").GetBoolean()
+            );
+            Assert.All(
+                dependencies.GetProperty("items").EnumerateArray(),
+                item =>
+                {
+                    Assert.Equal(
+                        JsonValueKind.Null,
+                        item.GetProperty("target_key").ValueKind
+                    );
+                    Assert.Equal(
+                        16,
+                        item.GetProperty("target_key_fingerprint")
+                            .GetString()!
+                            .Length
+                    );
+                }
+            );
+            Assert.DoesNotContain("SecretAnchor", dependencies.GetRawText());
+            Assert.DoesNotContain("private-file", dependencies.GetRawText());
+
+            using var fieldArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "fields",
+                    field_type = "ref",
+                    detail = "parsed",
+                    include_sensitive = true,
+                    include_result_text = true,
+                    include_source = true,
+                })
+            );
+            var fieldObject = await service.CallAsync(
+                "inspect_ooxml_references",
+                fieldArguments.RootElement,
+                CancellationToken.None
+            );
+            using var fieldJson = JsonDocument.Parse(JsonSerializer.Serialize(fieldObject));
+            var field = Assert.Single(
+                fieldJson.RootElement.GetProperty("items").EnumerateArray()
+            );
+            Assert.Equal("REF", field.GetProperty("field_type").GetString());
+            Assert.Contains(
+                "secretanchor",
+                field.GetProperty("instruction").GetString(),
+                StringComparison.Ordinal
+            );
+            Assert.Equal(
+                "Secret result",
+                field.GetProperty("result_text").GetString()
+            );
+            Assert.StartsWith(
+                "wdn_",
+                field.GetProperty("start_node_id").GetString(),
+                StringComparison.Ordinal
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task DefaultReferenceSummaryStaysCompactOnFieldHeavyCorpusDocument()
+    {
+        var path = Path.Combine(
+            FindRepositoryRoot(),
+            "tests",
+            "upstream",
+            "fixtures",
+            "lo_toc_preserve.docx"
+        );
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(new { local_path = path })
+        );
+        var service = new WordLiveService(new NoInvokeHost());
+
+        var result = await service.CallAsync(
+            "inspect_ooxml_references",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(result));
+
+        Assert.Equal("summary", json.RootElement.GetProperty("view").GetString());
+        Assert.True(json.RootElement.GetProperty("field_count").GetInt32() >= 4);
+        Assert.True(json.RootElement.GetProperty("bookmark_count").GetInt32() >= 20);
+        Assert.True(
+            json.RootElement.GetRawText().Length < 5_000,
+            $"Default reference response is too large: {json.RootElement.GetRawText().Length} characters"
+        );
+        Assert.DoesNotContain("target_key", json.RootElement.GetRawText());
+    }
+
+    [Fact]
     public async Task ApplyRejectsMismatchedPlanAndLeavesFileUntouched()
     {
         var directory = Path.Combine(
@@ -1278,7 +1432,8 @@ public sealed class PackageInspectionServiceTests
         string? numberingXml = null,
         string? themeXml = null,
         string? settingsXml = null,
-        string? fontTableXml = null
+        string? fontTableXml = null,
+        string? additionalBodyXml = null
     )
     {
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
@@ -1350,6 +1505,7 @@ public sealed class PackageInspectionServiceTests
                   <w:r>{runPropertiesXml}<w:t>Hello </w:t></w:r>
                   <m:oMath><m:f><m:num><m:r><m:t>a</m:t></m:r></m:num><m:den><m:r><m:t>b</m:t></m:r></m:den></m:f></m:oMath>
                 </w:p>
+                {additionalBodyXml}
                 {headerReference}
               </w:body>
             </w:document>
@@ -1480,6 +1636,22 @@ public sealed class PackageInspectionServiceTests
           </a:themeElements>
         </a:theme>
         """;
+
+    private static string FindRepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "pyproject.toml")))
+            {
+                return current.FullName;
+            }
+            current = current.Parent;
+        }
+        throw new DirectoryNotFoundException(
+            "Could not locate the WordToolkit repository root."
+        );
+    }
 
     private static void WriteEntry(ZipArchive archive, string name, string content)
     {

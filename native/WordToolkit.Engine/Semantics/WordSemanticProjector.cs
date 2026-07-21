@@ -460,6 +460,7 @@ public sealed class WordSemanticProjector
                 "fldSimple" or "fldChar" or "instrText" => WordSemanticNodeKind.Field,
                 "sdt" => WordSemanticNodeKind.ContentControl,
                 "bookmarkStart" => WordSemanticNodeKind.Bookmark,
+                "bookmarkEnd" => WordSemanticNodeKind.BookmarkEnd,
                 "commentRangeStart" or "commentRangeEnd" or "commentReference" =>
                     WordSemanticNodeKind.CommentAnchor,
                 "ins" or "del" or "moveFrom" or "moveTo" =>
@@ -583,6 +584,7 @@ public sealed class WordSemanticProjector
         if (
             !string.IsNullOrWhiteSpace(id)
             && kind is WordSemanticNodeKind.Bookmark
+                or WordSemanticNodeKind.BookmarkEnd
                 or WordSemanticNodeKind.CommentAnchor
                 or WordSemanticNodeKind.Revision
                 or WordSemanticNodeKind.Footnote
@@ -704,6 +706,30 @@ public sealed class WordSemanticProjector
                 result,
                 "field_character_type",
                 element.Attribute(wordNamespace + "fldCharType")?.Value
+            );
+        }
+        else if (
+            kind is WordSemanticNodeKind.Bookmark or WordSemanticNodeKind.BookmarkEnd
+        )
+        {
+            AddIfPresent(result, "id", element.Attribute(wordNamespace + "id")?.Value);
+            AddIfPresent(
+                result,
+                "name",
+                element.Attribute(wordNamespace + "name")?.Value
+            );
+            result["marker_type"] = kind == WordSemanticNodeKind.Bookmark
+                ? "start"
+                : "end";
+            AddIfPresent(
+                result,
+                "column_first",
+                element.Attribute(wordNamespace + "colFirst")?.Value
+            );
+            AddIfPresent(
+                result,
+                "column_last",
+                element.Attribute(wordNamespace + "colLast")?.Value
             );
         }
         else if (

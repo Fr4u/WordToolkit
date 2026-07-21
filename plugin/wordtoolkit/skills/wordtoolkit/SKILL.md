@@ -1,6 +1,6 @@
 ---
 name: wordtoolkit
-description: Control real Microsoft Word and inspect or query saved Word OOXML packages through a token-lean native .NET bridge. Use for live documents, package/semantic inspection, semantic selectors, formatting, equations, review, structures, export, save, close, and validation.
+description: Control real Microsoft Word and inspect or query saved Word OOXML packages through a token-lean native .NET bridge. Use for live documents, package/semantic inspection, fields, bookmarks, reference dependencies, semantic selectors, formatting, equations, review, structures, export, save, close, and validation.
 ---
 
 # WordToolkit
@@ -76,6 +76,14 @@ parts. Keep `view=fonts` and metadata detail for discovery; filter by exact font
 name when possible. Request embedded-face metadata only when diagnosing portability.
 Never ask for font bytes. Hashes and source ordinals are opt-in, and unsupported or
 malformed embedded-face relationships remain explicit diagnostics.
+Use lazy `inspect_ooxml_references` instead of loading field-code runs or pairing
+bookmark markers yourself. Start with `view=summary`, then filter by exact
+`field_type`, `bookmark_name`, or `story_id`. Names, instructions, cached results and
+dependency keys are redacted by default; request parsed or sensitive detail only when
+the next decision consumes it. Treat DDE, LINK, INCLUDE, IMPORT, DATABASE and other
+external/automation fields as inert evidence. This inspector never evaluates them,
+starts an application or follows a target. Unresolved, duplicated or malformed ranges
+are damage signals, not permission to guess what Word would display.
 After obtaining a paragraph or run ID, use lazy `resolve_ooxml_formatting` only
 when a formatting decision needs more than the declared style. Filter
 `property_names` aggressively and leave provenance/source disabled unless the
