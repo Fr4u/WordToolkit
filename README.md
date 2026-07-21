@@ -44,7 +44,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 48 tested Word Live actions plus five standalone,
+The runtime implements 48 tested Word Live actions plus six standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus three token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -66,6 +66,7 @@ connect_live_word_document
 inspect_ooxml_package
 inspect_ooxml_semantics
 query_ooxml_semantics
+inspect_ooxml_sections
 plan_ooxml_text_edits
 apply_ooxml_text_edits
 inspect_live_word_document

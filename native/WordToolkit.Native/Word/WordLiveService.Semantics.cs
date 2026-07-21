@@ -185,6 +185,7 @@ internal sealed partial class WordLiveService
         or WordSemanticNodeKind.GlossaryDocument
         or WordSemanticNodeKind.GlossaryEntry
         or WordSemanticNodeKind.TextBox
+        or WordSemanticNodeKind.Section
         or WordSemanticNodeKind.Paragraph
         or WordSemanticNodeKind.Table
         or WordSemanticNodeKind.Equation

@@ -443,6 +443,7 @@ public sealed class WordSemanticProjector
                 "glossaryDocument" => WordSemanticNodeKind.GlossaryDocument,
                 "docPart" => WordSemanticNodeKind.GlossaryEntry,
                 "txbxContent" => WordSemanticNodeKind.TextBox,
+                "sectPr" => WordSemanticNodeKind.Section,
                 "headerReference" => WordSemanticNodeKind.HeaderReference,
                 "footerReference" => WordSemanticNodeKind.FooterReference,
                 "footnoteReference" => WordSemanticNodeKind.FootnoteReference,
@@ -558,6 +559,11 @@ public sealed class WordSemanticProjector
         )
         {
             return $"story-root:{kind}";
+        }
+
+        if (kind == WordSemanticNodeKind.Section)
+        {
+            return "section-properties";
         }
 
         var paragraphId = element.Attribute(XName.Get("paraId", Word2010Namespace))?.Value;
@@ -766,6 +772,74 @@ public sealed class WordSemanticProjector
                     .FirstOrDefault()
             );
         }
+        else if (kind == WordSemanticNodeKind.Section)
+        {
+            var sectionType = element.Elements(wordNamespace + "type").FirstOrDefault();
+            AddIfPresent(
+                result,
+                "break_type",
+                sectionType?.Attribute(wordNamespace + "val")?.Value ?? "nextPage"
+            );
+            var titlePage = element.Elements(wordNamespace + "titlePg").FirstOrDefault();
+            result["title_page"] = NormalizeOnOffValue(titlePage);
+
+            var pageSize = element.Elements(wordNamespace + "pgSz").FirstOrDefault();
+            AddWordAttribute(result, pageSize, "w", "page_width_twips");
+            AddWordAttribute(result, pageSize, "h", "page_height_twips");
+            AddWordAttribute(result, pageSize, "orient", "page_orientation");
+
+            var pageMargins = element.Elements(wordNamespace + "pgMar").FirstOrDefault();
+            foreach (
+                var (attributeName, propertyName) in new[]
+                {
+                    ("top", "margin_top_twips"),
+                    ("right", "margin_right_twips"),
+                    ("bottom", "margin_bottom_twips"),
+                    ("left", "margin_left_twips"),
+                    ("header", "margin_header_twips"),
+                    ("footer", "margin_footer_twips"),
+                    ("gutter", "margin_gutter_twips"),
+                }
+            )
+            {
+                AddWordAttribute(result, pageMargins, attributeName, propertyName);
+            }
+
+            var columns = element.Elements(wordNamespace + "cols").FirstOrDefault();
+            AddWordAttribute(result, columns, "num", "column_count");
+            AddWordAttribute(result, columns, "space", "column_spacing_twips");
+            AddWordAttribute(result, columns, "equalWidth", "columns_equal_width");
+            AddWordAttribute(result, columns, "sep", "columns_separator");
+
+            var pageNumbering = element.Elements(wordNamespace + "pgNumType").FirstOrDefault();
+            AddWordAttribute(result, pageNumbering, "start", "page_number_start");
+            AddWordAttribute(result, pageNumbering, "fmt", "page_number_format");
+            AddWordAttribute(result, pageNumbering, "chapStyle", "chapter_style_level");
+            AddWordAttribute(result, pageNumbering, "chapSep", "chapter_separator");
+
+            AddIfPresent(
+                result,
+                "vertical_alignment",
+                element.Elements(wordNamespace + "vAlign")
+                    .Attributes(wordNamespace + "val")
+                    .Select(attribute => attribute.Value)
+                    .FirstOrDefault()
+            );
+            AddIfPresent(
+                result,
+                "text_direction",
+                element.Elements(wordNamespace + "textDirection")
+                    .Attributes(wordNamespace + "val")
+                    .Select(attribute => attribute.Value)
+                    .FirstOrDefault()
+            );
+            result["header_reference_count"] = element.Elements(
+                wordNamespace + "headerReference"
+            ).Count().ToString(System.Globalization.CultureInfo.InvariantCulture);
+            result["footer_reference_count"] = element.Elements(
+                wordNamespace + "footerReference"
+            ).Count().ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
         else if (kind == WordSemanticNodeKind.EquationComponent)
         {
             result["math_element"] = element.Name.LocalName;
@@ -851,6 +925,41 @@ public sealed class WordSemanticProjector
     private static string? RelationshipId(XElement element) =>
         element.Attribute(XName.Get("id", RelationshipsTransitionalNamespace))?.Value
         ?? element.Attribute(XName.Get("id", RelationshipsStrictNamespace))?.Value;
+
+    private static void AddWordAttribute(
+        IDictionary<string, string> properties,
+        XElement? element,
+        string attributeName,
+        string propertyName
+    )
+    {
+        if (element is null)
+        {
+            return;
+        }
+
+        AddIfPresent(
+            properties,
+            propertyName,
+            element.Attribute(element.Name.Namespace + attributeName)?.Value
+        );
+    }
+
+    private static string NormalizeOnOffValue(XElement? element)
+    {
+        if (element is null)
+        {
+            return "false";
+        }
+
+        var value = element.Attribute(element.Name.Namespace + "val")?.Value;
+        return value?.ToLowerInvariant() switch
+        {
+            null or "true" or "1" or "on" => "true",
+            "false" or "0" or "off" => "false",
+            _ => "invalid:" + value,
+        };
+    }
 
     private static bool TryDescribeStoryRelationship(
         string relationshipType,

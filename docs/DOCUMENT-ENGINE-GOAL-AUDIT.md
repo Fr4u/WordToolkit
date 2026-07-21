@@ -32,7 +32,7 @@ vendor claim is not implementation evidence.
 | Unknown/opaque part preservation | Implemented (initial) | Raw entry snapshots and deterministic random round-trip smoke | Large mixed-extension corpus with untouched-byte reports |
 | Immutable snapshots and fingerprints | Implemented (initial) | Order-independent package fingerprint; read-only model | Content-addressed cache, snapshot lifecycle and cross-platform reproducibility proof |
 | Lossless XML token/source model | Implemented (initial) | Raw bytes/hash; lexical element/attribute tree; prefixes, namespace URIs, quotes and exact byte spans; UTF-8/16/32 and single-byte mapping; DTD/size/depth/count bounds; validated non-overlapping patches; BOM/entity/whitespace/comment/CDATA/randomized splice tests; every typed XML part in 52 bundled multi-producer DOCX files parses and no-ops byte-exactly | Auxiliary/versioned story adapters, stateful encoding policy, token-level edits around mixed content, external hostile/version corpus and memory/latency proof |
-| Typed WordprocessingML parser | Partial (strengthened) | Read-only main part plus relationship-driven headers, footers, footnotes, endnotes, comments, glossary and nested text boxes; strict/transitional relationship tests | Remaining auxiliary/versioned parts, section inheritance and the full required Word vocabulary |
+| Typed WordprocessingML parser | Partial (strengthened) | Read-only main part plus relationship-driven headers, footers, footnotes, endnotes, comments, glossary and nested text boxes; typed section properties and strict/transitional relationship tests | Remaining auxiliary/versioned parts and the full required Word vocabulary |
 | Source-linked semantic AST | Partial (strengthened) | Stable node IDs and exact lexical ordinals now span the primary text-bearing stories; story roots and note/comment/reference nodes retain part and relationship provenance | Full document graph, durable locator recovery, ambiguity model, threaded comments and auxiliary-story mutation provenance |
 | Stable semantic identity | Partial | `w14:paraId`/`textId`, durable IDs, fallback fingerprints, duplicate occurrence tests | Cross-save, cross-producer, move/edit and ambiguity benchmark |
 | Serializer | Partial (strengthened) | Package serializer preserves entry payloads and deterministic mode; leaf-text XML splice preserves every unrelated byte and validates the candidate | General token/subtree splicing, namespace/MCE mutation rules and all typed part serializers |
@@ -53,7 +53,7 @@ vendor claim is not implementation evidence.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Compact inspect | Implemented (strengthened initial slice) | `inspect_ooxml_package`, `inspect_ooxml_semantics`, lazy `query_ooxml_semantics`; projected-part inventory, per-field/item bounds and offset paging | Opaque continuation tokens, auxiliary/versioned parts and measured stable response budgets |
+| Compact inspect | Implemented (strengthened initial slice) | `inspect_ooxml_package`, `inspect_ooxml_semantics`, lazy `query_ooxml_semantics` and `inspect_ooxml_sections`; projected-part inventory, per-field/item bounds and offset paging | Opaque continuation tokens, auxiliary/versioned parts and measured stable response budgets |
 | Semantic query/search | Partial (strengthened initial) | Source-ordered kind/property/part/subtree selectors across main, header/footer, note, comment, glossary and text-box stories; streaming contains/equals/starts/ends matching crosses run/field/tab/break boundaries; bounded optional previews/properties/provenance | Fields/math/metadata-aware predicates, structural relationship joins, aggregations and query planner |
 | Indexing | Not started | None | Incremental external index, invalidation and privacy controls |
 | AI planner | Partial foundation | Deterministic bounded text-command plans report targets, counts, source ordinals and byte impact without returning content; lazy stateless MCP plan/apply requires reviewed plan ID and snapshot fingerprint | Natural-language intent -> evidence -> heterogeneous typed plan -> cost/risk -> richer approval policy |
@@ -71,7 +71,7 @@ vendor claim is not implementation evidence.
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
 | Paragraphs/runs/tables | Partial | Source-linked projection plus first lossless text-leaf edit; live COM editing | Structural typed edits, effective properties, merge/split and layout tests |
-| Sections/headers/footers/notes | Partial | Primary related story roots, bodies, references and lossless text edits; existing live COM actions | Section-chain inheritance, first/even/default resolution, separators, numbering and structural edits |
+| Sections/headers/footers/notes | Partial (strengthened) | Primary story roots/bodies/references and lossless text edits; section boundaries/page properties plus first/even/default explicit/inherited/blank/effective bindings; unbound-part inventory | Section structural edits, link-to-previous mutation, separator/numbering semantics and layout proof |
 | Styles/themes/direct formatting | Not started | Architecture only; historical/live features | Effective-format resolver with provenance, drift lint and safe refactor |
 | Numbering/lists | Not started | Existing live actions only | Abstract/instance/override/restart/style-linked resolver and edits |
 | Fields/bookmarks/cross-references | Partial | Semantic field/bookmark recognition; live actions | Dependency graph, nested-field parser, update capability and safe edits |
@@ -134,9 +134,9 @@ it does not mean the engine understands or can edit it.
 | footnotes | Partial | Story container/items/references and lossless text edits; separator and numbering semantics missing |
 | endnotes | Partial | Story container/items/references and lossless text edits; separator and numbering semantics missing |
 | OfficeMath / OMML | Partial | Full tree visible; canonical semantic math AST and serializers missing |
-| sections | Not started | Section chain, inheritance, page setup and story linkage |
-| headers | Partial | Related parts, references, story text and guarded edits; variants, links-to-previous and layout missing |
-| footers | Partial | Related parts, references, story text and guarded edits; variants, links-to-previous and layout missing |
+| sections | Partial | Source-linked boundaries, break/page/margin/column/numbering properties and header/footer inheritance graph; structural edits missing |
+| headers | Partial (strengthened) | Related parts, text edits and effective default/first/even bindings across sections; link mutation and layout missing |
+| footers | Partial (strengthened) | Related parts, text edits and effective default/first/even bindings across sections; link mutation and layout missing |
 | page layout | Not started | Section/page properties, backend pagination and diagnostics |
 | page breaks | Partial | Generic break nodes; break kind and pagination semantics missing |
 | tables | Partial | Read-only row/cell projection; grid/merge/style/layout edits missing |
@@ -221,7 +221,7 @@ preconditions, affected-node proof, transaction, validation, and inverse.
 | Run | Partial read-only |
 | Equation | Partial read-only tree, not canonical math object |
 | Heading | Not typed; style metadata only |
-| Section | Not started |
+| Section | Partial read-only boundary, page properties and story bindings |
 | Table | Partial read-only |
 | Figure | Not started |
 | Bookmark | Partial start marker only |
@@ -244,7 +244,7 @@ automatic OOXML execution required by the goal.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Unit/regression tests | Partial | 83 engine, 49 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
+| Unit/regression tests | Partial | 88 engine, 50 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
 | Property/fuzz testing | Partial | Deterministic malformed bytes and random opaque round-trip smoke | Continuous coverage-guided fuzzing, minimized corpus and resource assertions |
 | Fault injection | Not started | Validation/concurrency failure tests only | Every persistence/transaction phase, disk-full, denied, crash and race tests |
 | Preservation benchmark | Partial | Entry hashes and random no-op round trip | Public producer/feature corpus with untouched part/subtree metrics |
@@ -257,8 +257,8 @@ automatic OOXML execution required by the goal.
 
 ## Current checkpoint evidence
 
-- `dotnet test native/WordToolkit.Engine.Tests` — 83 passed.
-- `dotnet test native/WordToolkit.Native.Tests` — 49 passed.
+- `dotnet test native/WordToolkit.Engine.Tests` — 88 passed.
+- `dotnet test native/WordToolkit.Native.Tests` — 50 passed.
 - `.venv/Scripts/python -m pytest -q` — 1273 passed, 16 intentionally skipped.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
@@ -266,5 +266,7 @@ automatic OOXML execution required by the goal.
 - Semantic inspection was exercised through lazy search -> schema inspection -> execute.
 - Header-story query -> guarded plan -> atomic apply was exercised end to end while
   proving that the main document part remained byte-identical.
+- Section inheritance and effective header/footer selection were exercised against
+  constructed edge cases and a bundled Apache POI fixture.
 
 These numbers prove only the rows they touch. They do not collapse the remaining work.

@@ -290,6 +290,75 @@ public sealed class PackageInspectionServiceTests
     }
 
     [Fact]
+    public async Task InspectSectionsResolvesEffectiveHeaderBindingsWithoutStartingWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-section-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "sections.docx");
+            CreatePackage(path, headerText: "Section header");
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                binding_detail = "full",
+                include_properties = true,
+                include_story_part_uris = true,
+            }));
+
+            var result = await new WordLiveService(new NoInvokeHost()).CallAsync(
+                "inspect_ooxml_sections",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            using var json = JsonDocument.Parse(JsonSerializer.Serialize(result));
+            var root = json.RootElement;
+            var section = Assert.Single(root.GetProperty("sections").EnumerateArray());
+            var bindings = section.GetProperty("bindings");
+            var defaultHeader = bindings.EnumerateArray().Single(binding =>
+                binding.GetProperty("slot").GetString() == "header_default"
+            );
+            var firstHeader = bindings.EnumerateArray().Single(binding =>
+                binding.GetProperty("slot").GetString() == "header_first"
+            );
+
+            Assert.Equal(1, root.GetProperty("section_count").GetInt32());
+            Assert.False(root.GetProperty("even_and_odd_headers").GetBoolean());
+            Assert.Equal(1, root.GetProperty("referenced_story_part_count").GetInt32());
+            Assert.Equal(0, root.GetProperty("unbound_story_part_count").GetInt32());
+            Assert.StartsWith(
+                "wdn_",
+                section.GetProperty("node_id").GetString(),
+                StringComparison.Ordinal
+            );
+            Assert.Equal("nextPage", section.GetProperty("break_type").GetString());
+            Assert.Equal("explicit", defaultHeader.GetProperty("origin").GetString());
+            Assert.Equal(
+                "/word/header1.xml",
+                defaultHeader.GetProperty("effective_part_uri").GetString()
+            );
+            Assert.False(firstHeader.GetProperty("enabled").GetBoolean());
+            Assert.Equal("blank", firstHeader.GetProperty("origin").GetString());
+            Assert.Equal(
+                "default",
+                firstHeader.GetProperty("display_fallback_variant").GetString()
+            );
+            Assert.Equal(
+                "/word/header1.xml",
+                firstHeader.GetProperty("effective_part_uri").GetString()
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task PlansAndAtomicallyAppliesReviewedTextEditWithoutStartingWord()
     {
         var directory = Path.Combine(

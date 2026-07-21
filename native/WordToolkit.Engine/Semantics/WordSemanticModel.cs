@@ -46,6 +46,7 @@ public enum WordSemanticNodeKind
     FooterReference,
     FootnoteReference,
     EndnoteReference,
+    Section,
 }
 
 public sealed class WordSemanticNode

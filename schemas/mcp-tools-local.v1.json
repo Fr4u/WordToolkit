@@ -3851,7 +3851,7 @@
           "kinds": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 36,
+            "maxItems": 37,
             "uniqueItems": true,
             "items": {
               "type": "string",
@@ -3891,7 +3891,8 @@
                 "header_reference",
                 "footer_reference",
                 "footnote_reference",
-                "endnote_reference"
+                "endnote_reference",
+                "section"
               ]
             },
             "description": "Optional semantic node kinds. Omit to search every kind."
@@ -3961,6 +3962,55 @@
             "type": "boolean",
             "default": false,
             "description": "Include source part, normalized XML path, and lexical element ordinal."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_ooxml_sections",
+      "title": "Inspect Word sections and story bindings",
+      "description": "Resolve Word section boundaries, page properties, and effective default, first-page, and even-page header/footer bindings. Reports explicit, inherited, blank, and suppressed variants without opening Word or returning document text.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_sections": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          },
+          "binding_detail": {
+            "type": "string",
+            "enum": ["none", "effective", "full"],
+            "default": "effective",
+            "description": "Use effective for displayed targets, full for source relationship provenance, or none for section metadata only."
+          },
+          "include_properties": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include bounded page size, margins, columns, numbering, orientation, and section-break properties."
+          },
+          "include_story_part_uris": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include bounded referenced and unbound header/footer part URI inventories."
           }
         },
         "required": ["local_path"],

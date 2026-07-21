@@ -40,6 +40,10 @@ previews short, and request properties or source provenance only when the next
 operation consumes them. The query covers the main body and related header,
 footer, footnote, endnote, comment and glossary stories; use `source_part_uri`
 when the edit must stay inside one story.
+Use lazy `inspect_ooxml_sections` instead of inferring section ownership from
+part filenames. Its effective mode resolves default, first-page and even-page
+header/footer display targets; request full bindings only when relationship
+provenance or inheritance must drive the next operation.
 For a saved-package text edit, use this strict lazy workflow:
 
 1. Query the narrowest possible `text` nodes and retain the package fingerprint.

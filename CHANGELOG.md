@@ -24,6 +24,10 @@
   boxes. Story roots, note/comment bodies and their references carry source
   part provenance and durable relationship or Word IDs; the existing main-body
   node IDs do not drift when a related story changes.
+- Added a typed section graph and lazy `inspect_ooxml_sections` action. It
+  resolves section boundaries, page geometry and all six header/footer slots,
+  distinguishing explicit, inherited, blank and display-fallback bindings under
+  `titlePg` and `evenAndOddHeaders`, and reports unbound story parts.
 - Added the first lossless XML source model with exact byte spans, original
   prefixes/attributes/quotes/BOM retention, bounded secure parsing, guarded
   non-overlapping splices, and validated UTF-8/UTF-16/UTF-32/single-byte edits.
@@ -45,14 +49,14 @@
   a recovery backup by default, performs no write for a no-op, and fails closed
   on digitally signed packages.
 - Added the lazy, token-bounded `inspect_ooxml_semantics` MCP action.
-- Added 83 document-engine tests, including deterministic malformed-input,
+- Added 88 document-engine tests, including deterministic malformed-input,
   randomized relationship metadata and opaque-part round-trip fuzz smoke, plus
   300 randomized lexical text splices, multi-encoding/BOM preservation and
   semantic mutation provenance. A 52-document bundled corpus from Word,
   LibreOffice, Pandoc, POI and Mammoth now exercises every typed XML part and
   exact no-op source preservation, while native end-to-end package/semantic
   inspection retains all existing runtime tests.
-- The native host now has 49 tests, including end-to-end semantic query,
+- The native host now has 50 tests, including end-to-end semantic query,
   cross-story header query/apply, schema parity, recovery-backup, plan-mismatch,
   signed-package and no-op coverage that proves the saved-package path never
   invokes Word COM.

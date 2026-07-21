@@ -232,6 +232,19 @@ ordinals, projected-part inventory and compact text previews. Known views still 
 `XDocument` for semantic interpretation, but every projected node is bound back to the
 independent lossless source model rather than treating the typed tree as storage.
 
+The first cross-story dependency adapter is `WordSectionGraphBuilder`. It treats
+`w:sectPr` as a source-linked section boundary, extracts break, page-size, margin,
+column, numbering, orientation and first-page properties, and resolves all six
+header/footer slots. A binding records both its defined part and its effective display
+part, because an inactive first/even variant falls back to the default story while an
+omitted active variant inherits the corresponding definition from the previous section.
+The rules follow Microsoft's documented
+[`headerReference`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.headerreference)
+and [`evenAndOddHeaders`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.evenandoddheaders)
+semantics. Missing `sectPr` yields one explicit implicit-default section; duplicates,
+wrong relationship types, external targets, malformed settings and limit overflow fail
+closed. Lazy `inspect_ooxml_sections` pages this graph without returning document text.
+
 `WordSemanticEditor.ReplaceText` is the first typed mutation vertical slice. It requires
 the package fingerprint, semantic node identity, source part, lexical element ordinal,
 projected text and part SHA-256 to agree; an optional caller-supplied expected value adds
