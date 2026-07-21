@@ -462,21 +462,42 @@ that no unrelated parts changed.
 
 ## Equation engine
 
-Equations require their own semantic AST rather than string substitution. Planned nodes
-cover fractions, scripts, radicals, n-ary operators, integrals with differential
-placement, delimiters, functions, matrices, equation arrays, cases, accents, bars,
-limits, boxes, phantom elements, and text runs.
+Equations require their own semantic AST rather than string substitution. The first
+read-only layer is now implemented as `WordEquationGraph`: a source-linked OfficeMath
+tree covering all 19 standard OMML object families (`acc`, `bar`, `borderBox`, `box`,
+`d`, `eqArr`, `f`, `func`, `groupChr`, `limLow`, `limUpp`, `m`, `nary`, `phant`,
+`rad`, `sPre`, `sSub`, `sSubSup`, and `sSup`), plus matrix rows/cells, runs, text,
+WordprocessingML containers and preserved extension/unknown nodes. Arguments have
+semantic roles such as numerator, denominator, degree, base, limit and function name;
+properties are normalized without discarding their source anchors.
+
+The graph distinguishes inline `m:oMath` from display `m:oMathPara`, retains main,
+header, footer, note, comment, glossary and text-box story identity, and reads the main
+document's `m:mathPr` defaults. Stable equation and node IDs derive from semantic source
+identities rather than paragraph indexes. Bounded validation reports malformed argument
+cardinality/order, matrix structure, property vocabularies, nested math, Word-invalid
+placement, empty equations, adjacent equations Word will merge and preserved extensions.
+It does not repair or reinterpret them.
+
+Lazy `inspect_ooxml_equations` exposes compact aggregate, equation, flat-node,
+math-paragraph, settings and issue views. Formula text is absent by default, raw OMML is
+never returned, source provenance and normalized properties are opt-in, and pages are
+capped. The action parses a saved package without opening Word, converting notation or
+following external content. This is a canonical OfficeMath read graph, not yet the
+cross-format semantic algebra required for loss-aware round trips.
 
 Import paths:
 
 - LaTeX -> canonical math AST;
 - UnicodeMath -> canonical math AST;
 - MathML -> canonical math AST;
-- OMML -> canonical math AST plus lossless OMML source attachment.
+- OMML -> canonical OfficeMath read graph plus lossless source attachment — **initial
+  structural implementation complete**;
+- OfficeMath read graph -> cross-format canonical math AST — **not yet implemented**.
 
 Export paths:
 
-- canonical AST -> OMML with OfficeMath placement validation;
+- canonical AST -> OMML with OfficeMath placement validation — **not yet implemented**;
 - canonical AST -> UnicodeMath/LaTeX/MathML with explicit loss diagnostics;
 - canonical AST -> live Word equation, followed by `BuildUp` and structural inspection.
 
@@ -616,8 +637,8 @@ No feature is “supported” until it passes the relevant gates:
 ### Phase 2 — semantic spine
 
 - lossless XML source model — **implemented, initial tests passing**;
-- read-only paragraph/run/table and OfficeMath projection — **implemented, initial tests
-  passing**;
+- read-only paragraph/run/table projection and canonical source-linked OfficeMath read
+  graph — **implemented, initial tests passing**;
 - stable node identity and compact semantic inspection — **implemented, initial tests
   passing**;
 - section/style/numbering/reference adapters and semantic query;
@@ -636,7 +657,7 @@ No feature is “supported” until it passes the relevant gates:
 
 ### Phase 4 — hard Word structures
 
-- canonical equation AST and all import/export paths;
+- cross-format canonical equation AST, structural mutations and all import/export paths;
 - drawings, charts, SmartArt, VML, OLE, custom XML, macros, and signatures;
 - accessibility, citations, bibliography, OCR, and policy scanners.
 

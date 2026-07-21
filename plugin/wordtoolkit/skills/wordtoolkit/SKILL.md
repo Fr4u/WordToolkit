@@ -84,6 +84,15 @@ the next decision consumes it. Treat DDE, LINK, INCLUDE, IMPORT, DATABASE and ot
 external/automation fields as inert evidence. This inspector never evaluates them,
 starts an application or follows a target. Unresolved, duplicated or malformed ranges
 are damage signals, not permission to guess what Word would display.
+Use lazy `inspect_ooxml_equations` for equations already stored in a saved Word
+package. Start with `view=summary`; it returns structural counts and statuses without
+formula text or raw OMML. Use `view=equations` to obtain an exact equation ID, then
+`view=nodes` with that ID and an optional `node_kind` to page the canonical OfficeMath
+graph. Request `detail=properties` or `include_source=true` only when the next decision
+uses them. A positive `text_preview_chars` requires `include_sensitive=true`; otherwise
+text remains absent and only a short fingerprint is exposed. The action is parse-only:
+it does not open Word, convert notation, fetch external content, repair malformed math,
+or prove that two notations are mathematically equivalent.
 After obtaining a paragraph or run ID, use lazy `resolve_ooxml_formatting` only
 when a formatting decision needs more than the declared style. Filter
 `property_names` aggressively and leave provenance/source disabled unless the
@@ -137,6 +146,9 @@ arguments.
 Equation inputs may be LaTeX, UnicodeMath, Presentation MathML, or OMML.
 Prefer LaTeX for model output. Equations must remain native editable OMath;
 never replace them with screenshots or plain-text approximations.
+Do not confuse live equation insertion with saved-package equation inspection. The
+former asks Word to create professional OMath; the latter reads existing OMML into a
+bounded semantic graph and deliberately performs no conversion or mutation.
 
 Use fresh selection, range, review, and undo tokens exactly where the inspected
 schema requires them. Never invent IDs, versions, tokens, paths, styles, or

@@ -4348,6 +4348,117 @@
       }
     },
     {
+      "name": "inspect_ooxml_equations",
+      "title": "Inspect native Word equations",
+      "description": "Inspect a source-linked canonical graph of native OfficeMath objects in a saved Word package without opening Word, converting the equations, or returning raw OMML. Understands all standard OMML object families, display paragraphs, matrix cells, argument roles, run properties, main math defaults, Strict markup, Word story boundaries, malformed structures, and preserved extension content. Text is fingerprinted and redacted unless an explicit bounded preview is requested.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "equations", "nodes", "paragraphs", "settings", "issues"],
+            "default": "summary",
+            "description": "Return compact aggregate groups, equation metadata, a flat paged AST node list, display-math paragraphs, document math defaults, or diagnostics."
+          },
+          "equation_id": {
+            "type": "string",
+            "pattern": "^wde_[A-Za-z0-9_-]+$",
+            "maxLength": 128,
+            "description": "Optional exact equation ID from a prior response for the same package fingerprint."
+          },
+          "node_kind": {
+            "type": "string",
+            "enum": [
+              "sequence",
+              "text",
+              "run",
+              "accent",
+              "bar",
+              "border_box",
+              "box",
+              "delimiter",
+              "equation_array",
+              "fraction",
+              "function",
+              "group_character",
+              "lower_limit",
+              "upper_limit",
+              "matrix",
+              "matrix_row",
+              "matrix_cell",
+              "nary",
+              "phantom",
+              "radical",
+              "pre_sub_superscript",
+              "subscript",
+              "sub_superscript",
+              "superscript",
+              "wordprocessing_container",
+              "extension",
+              "unknown_math"
+            ],
+            "description": "Optional exact canonical node-kind filter for the nodes view."
+          },
+          "story_kind": {
+            "type": "string",
+            "enum": ["main", "header", "footer", "footnote", "endnote", "comment", "glossary_entry", "text_box", "other"],
+            "description": "Optional exact Word story-kind filter."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "detail": {
+            "type": "string",
+            "enum": ["metadata", "properties"],
+            "default": "metadata",
+            "description": "Use properties to include bounded normalized OMML properties, object-kind counts, and child node IDs. Raw XML is never returned."
+          },
+          "include_sensitive": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow bounded equation-text previews. Equation text remains absent unless text_preview_chars is also greater than zero."
+          },
+          "text_preview_chars": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 400,
+            "default": 0,
+            "description": "Maximum equation or node text preview characters. A positive value requires include_sensitive=true."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include at most 40 bounded structural diagnostics in non-issues views."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include part URIs, source XML ordinals and semantic source node IDs."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "inspect_ooxml_fonts",
       "title": "Inspect the Word font table",
       "description": "Inspect the typed fontTable.xml graph and embedded-font relationships without opening Word. Distinguishes font declarations from package-backed embedded faces, checks Word-readable content types and font keys, never returns font bytes, and uses opt-in detail, hashes, source data, filtering, and pagination to minimize AI tokens.",

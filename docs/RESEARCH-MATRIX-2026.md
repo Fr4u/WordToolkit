@@ -284,6 +284,26 @@ also constrain where `oMath` and `oMathPara` may appear and how adjacent math be
 The current Microsoft 365 documentation describes
 [MathML](https://learn.microsoft.com/en-us/office/math/mathml) and
 [LaTeX](https://learn.microsoft.com/en-us/office/math/latex) support and its limits.
+Microsoft's current [Math in Office](https://learn.microsoft.com/en-us/office/math/)
+overview states that Office stores math in OMML, while the Open XML SDK
+[Math namespace](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.math?view=openxml-3.0.1)
+enumerates the typed vocabulary. The current MathML page gives an explicit
+Presentation-MathML-to-OMML mapping. These are stronger sources for the object map than
+reverse-engineering whatever one Word build happens to emit.
+
+The repository scan found 28 real `m:oMath` equations across five local DOCX files and
+1,421 math-namespace elements across 55 packages. The three tracked equation documents
+contain 23 equations: 17 in the advanced torture document, five in the dedicated
+equation atlas and one in the showcase. They cover common fractions, roots, scripts,
+n-ary operators, matrices and arrays, but not every standard object such as phantom,
+pre-scripts or border boxes. The regression design therefore combines these
+Word-generated files with a synthetic all-object structural corpus and malformed cases;
+pretending the real corpus alone is exhaustive would be false.
+
+Microsoft's interoperability notes add failure rules that a schema-only parser misses:
+adjacent `m:oMath` elements without a `w:br` are merged, display math uses
+`m:oMathPara`, and Word rejects nested equations or math outside `w:p`. The equation
+graph records these as bounded diagnostics instead of silently normalizing them.
 
 The earlier broken differential (`d x` with `d` visually raised) demonstrated the
 failure mode: inserting math-looking text is not the same as constructing the intended

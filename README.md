@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-WordToolkit 0.23 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table and field/bookmark/reference graphs, and modeled effective formatting of a saved Word OOXML file without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Every result retains its declaration and provenance. The lossless editing slice binds text in the main body, headers, footers, notes, comments, glossary building blocks and text boxes to exact XML byte spans, combines bounded commands into one hash-preconditioned package mutation, predicts the result fingerprint and retains an exact guarded inverse without reserializing unrelated XML.
+WordToolkit 0.24 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference and canonical OfficeMath graphs, and modeled effective formatting of a saved Word OOXML file without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Every result retains its declaration and provenance. The lossless editing slice binds text in the main body, headers, footers, notes, comments, glossary building blocks and text boxes to exact XML byte spans, combines bounded commands into one hash-preconditioned package mutation, predicts the result fingerprint and retains an exact guarded inverse without reserializing unrelated XML.
 
 The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtual environment, an interpreter bootstrap, or a per-call helper process. Its MCP command points directly to:
 
@@ -8,7 +8,7 @@ The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtua
 ./runtime/win-x64/wordtoolkit-native.exe
 ```
 
-The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.23 local plugin, does not participate in its startup, and is not required at runtime.
+The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.24 local plugin, does not participate in its startup, and is not required at runtime.
 
 ## Why the runtime was replaced
 
@@ -44,7 +44,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 48 tested Word Live actions plus thirteen standalone,
+The runtime implements 48 tested Word Live actions plus fourteen standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus three token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -72,6 +72,7 @@ inspect_ooxml_numbering
 inspect_ooxml_theme
 inspect_ooxml_settings
 inspect_ooxml_references
+inspect_ooxml_equations
 inspect_ooxml_fonts
 resolve_ooxml_formatting
 plan_ooxml_text_edits
@@ -131,6 +132,12 @@ dependency keys are also redacted by default. External field targets are classif
 never followed or executed. Font hashes are opt-in metadata only. Protection is reported
 as an editing restriction, not misrepresented as document encryption.
 
+Saved-package equation inspection is also metadata-first. Its default response groups
+equations by story, display mode and structural status without returning formula text or
+raw OMML. Exact equation IDs, a flat paged OfficeMath node graph, normalized properties,
+source provenance and bounded text previews are separate opt-ins. Inspection never opens
+Word, converts notation or follows external content.
+
 ## Fast model-to-Word path
 
 For generated material, use `apply_live_word_operations` and send a coherent array of text and equation operations once:
@@ -185,6 +192,13 @@ Supported conversion includes:
 - matrices, aligned equation arrays and cases.
 
 Malformed or unsupported LaTeX fails before Word changes. MathML and OMML are parsed with DTD and external entity resolution disabled, strict root/namespace checks, bounded depth and element counts, then converted before Word changes. Equation AST input remains unsupported.
+
+For an existing saved package, lazy `inspect_ooxml_equations` takes the opposite path:
+it performs no conversion and builds a canonical read graph over all 19 standard OMML
+object families, matrix rows and cells, runs, text, WordprocessingML containers and
+preserved extensions. It distinguishes inline `m:oMath` from display `m:oMathPara`,
+keeps story/source anchors, validates argument cardinality and property vocabularies,
+and reports malformed or Word-rejected placement instead of repairing it silently.
 
 ## Safety boundaries
 
@@ -257,12 +271,12 @@ The cleaner constrains every target to the repository root. It preserves only th
 Version:
 
 ```text
-0.23.0+codex.20260721224111
+0.24.0+codex.20260721233323
 ```
 
 Windows x64 ZIP:
 
-[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.23.0/WordToolkit-0.23.0%2Bcodex.20260721224111-native-win-x64.zip)
+[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.24.0/WordToolkit-0.24.0%2Bcodex.20260721233323-native-win-x64.zip)
 
 Live demonstration document:
 

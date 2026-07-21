@@ -47,6 +47,15 @@ The in-memory session registry makes this release a single-instance service. Do 
 
 ## Word Live field, object-model, bookmark, learning and equation boundaries
 
+Saved-package equation inspection is a bounded parse-only path. It does not start Word,
+invoke conversion, return raw OMML, evaluate content or follow relationships. The
+default response contains only structural counts, statuses and short fingerprints;
+formula and node text remain absent. A bounded preview is accepted only when both
+`include_sensitive=true` and a positive `text_preview_chars` are supplied. Properties,
+source paths and node lists are separately opt-in and paged. XML parsing prohibits DTDs
+and external resolution, and independent limits cap parts, equations, math paragraphs,
+nodes, depth, properties, text and diagnostics.
+
 Saved-package reference inspection is parse-only. It recognizes complex and simple
 field instructions, including DDE, DDEAUTO, LINK, INCLUDE, INCLUDETEXT,
 INCLUDEPICTURE, IMPORT, DATABASE and HYPERLINK, but never evaluates a field, launches

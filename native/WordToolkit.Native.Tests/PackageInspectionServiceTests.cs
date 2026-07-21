@@ -1246,6 +1246,230 @@ public sealed class PackageInspectionServiceTests
     }
 
     [Fact]
+    public async Task InspectEquationsDefaultsToCompactRedactedParseOnlySummary()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-equation-summary-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "equation-summary.docx");
+            CreatePackage(path);
+            using var arguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new { local_path = path })
+            );
+            var result = await new WordLiveService(new NoInvokeHost()).CallAsync(
+                "inspect_ooxml_equations",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            using var json = JsonDocument.Parse(JsonSerializer.Serialize(result));
+            var root = json.RootElement;
+            var raw = root.GetRawText();
+
+            Assert.Equal("summary", root.GetProperty("view").GetString());
+            Assert.Equal(1, root.GetProperty("equation_count").GetInt32());
+            Assert.Equal(1, root.GetProperty("inline_equation_count").GetInt32());
+            Assert.Equal(0, root.GetProperty("display_equation_count").GetInt32());
+            Assert.Equal(1, root.GetProperty("canonical_equation_count").GetInt32());
+            Assert.False(root.GetProperty("word_opened").GetBoolean());
+            Assert.False(root.GetProperty("conversion_performed").GetBoolean());
+            Assert.False(root.GetProperty("raw_omml_returned").GetBoolean());
+            Assert.False(root.GetProperty("external_content_followed").GetBoolean());
+            Assert.False(root.GetProperty("sensitive_text_included").GetBoolean());
+            Assert.Equal(
+                "parse_only_no_word_no_conversion_no_external_access",
+                root.GetProperty("execution_policy").GetString()
+            );
+            Assert.True(
+                raw.Length < 5_000,
+                $"Default equation response is too large: {raw.Length} characters"
+            );
+            Assert.DoesNotContain("text_preview", raw, StringComparison.Ordinal);
+            Assert.DoesNotContain("<m:", raw, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task InspectEquationNodesReturnsCanonicalPagedSourceLinkedGraphOnExplicitOptIn()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-equation-node-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "equation-nodes.docx");
+            CreatePackage(path);
+            var service = new WordLiveService(new NoInvokeHost());
+            using var equationArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "equations",
+                    detail = "properties",
+                    include_sensitive = true,
+                    text_preview_chars = 8,
+                    include_source = true,
+                })
+            );
+            var equationResult = await service.CallAsync(
+                "inspect_ooxml_equations",
+                equationArguments.RootElement,
+                CancellationToken.None
+            );
+            using var equationJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(equationResult)
+            );
+            var equation = Assert.Single(
+                equationJson.RootElement.GetProperty("items").EnumerateArray()
+            );
+            var equationId = equation.GetProperty("equation_id").GetString();
+
+            Assert.NotNull(equationId);
+            Assert.Equal("ab", equation.GetProperty("text_preview").GetString());
+            Assert.Equal(
+                16,
+                equation.GetProperty("text_fingerprint").GetString()!.Length
+            );
+            Assert.Equal(
+                "/word/document.xml",
+                equation.GetProperty("part_uri").GetString()
+            );
+            Assert.StartsWith(
+                "wdn_",
+                equation.GetProperty("semantic_node_id").GetString(),
+                StringComparison.Ordinal
+            );
+
+            using var nodeArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "nodes",
+                    equation_id = equationId,
+                    node_kind = "fraction",
+                    detail = "properties",
+                    include_sensitive = true,
+                    text_preview_chars = 8,
+                    include_source = true,
+                    max_items = 10,
+                })
+            );
+            var nodeResult = await service.CallAsync(
+                "inspect_ooxml_equations",
+                nodeArguments.RootElement,
+                CancellationToken.None
+            );
+            using var nodeJson = JsonDocument.Parse(JsonSerializer.Serialize(nodeResult));
+            var root = nodeJson.RootElement;
+            var node = Assert.Single(root.GetProperty("items").EnumerateArray());
+
+            Assert.Equal("fraction", node.GetProperty("kind").GetString());
+            Assert.Equal("content", node.GetProperty("role").GetString());
+            Assert.Equal(2, node.GetProperty("child_count").GetInt32());
+            Assert.Equal(2, node.GetProperty("child_node_ids").GetArrayLength());
+            Assert.Equal(JsonValueKind.Null, node.GetProperty("text_preview").ValueKind);
+            Assert.Equal(1, root.GetProperty("matched_item_count").GetInt32());
+            Assert.Equal(1, root.GetProperty("returned_item_count").GetInt32());
+            Assert.Equal("dotnet-native", root.GetProperty("runtime").GetString());
+            Assert.False(root.GetProperty("python_used").GetBoolean());
+
+            using var pageArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "nodes",
+                    equation_id = equationId,
+                    max_items = 1,
+                })
+            );
+            var pageResult = await service.CallAsync(
+                "inspect_ooxml_equations",
+                pageArguments.RootElement,
+                CancellationToken.None
+            );
+            using var pageJson = JsonDocument.Parse(JsonSerializer.Serialize(pageResult));
+            Assert.True(
+                pageJson.RootElement.GetProperty("matched_item_count").GetInt32() > 1
+            );
+            Assert.Equal(
+                1,
+                pageJson.RootElement.GetProperty("returned_item_count").GetInt32()
+            );
+            Assert.Equal(1, pageJson.RootElement.GetProperty("next_offset").GetInt32());
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task InspectEquationsRejectsSensitivePreviewWithoutExplicitConsent()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-equation-privacy-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "equation-privacy.docx");
+            CreatePackage(path);
+            using var arguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "equations",
+                    text_preview_chars = 8,
+                })
+            );
+
+            var exception = await Assert.ThrowsAsync<NativeToolException>(() =>
+                new WordLiveService(new NoInvokeHost()).CallAsync(
+                    "inspect_ooxml_equations",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+
+            Assert.Equal("INVALID_INPUT", exception.ErrorCode);
+
+            using var misplacedFilterArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "equations",
+                    node_kind = "fraction",
+                })
+            );
+            var misplacedFilter = await Assert.ThrowsAsync<NativeToolException>(() =>
+                new WordLiveService(new NoInvokeHost()).CallAsync(
+                    "inspect_ooxml_equations",
+                    misplacedFilterArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("INVALID_INPUT", misplacedFilter.ErrorCode);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task ApplyRejectsMismatchedPlanAndLeavesFileUntouched()
     {
         var directory = Path.Combine(

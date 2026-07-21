@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+## 0.24.0 — 2026-07-21
+
+- Added `WordEquationGraphBuilder`, a bounded source-linked canonical read graph for
+  native OfficeMath in saved Word packages. It models all 19 standard OMML object
+  families, argument roles, matrix rows/cells, math runs/text, display paragraphs,
+  main math defaults, Strict markup, Word story boundaries, deleted content and
+  preserved extension or unknown nodes.
+- Added stable equation and math-node IDs derived from semantic source identities,
+  normalized typed properties, and bounded diagnostics for missing or duplicate
+  arguments, child order, matrix shape, invalid property values, nested equations,
+  invalid placement, empty math, adjacent objects Word merges and unsupported
+  extensions.
+- Added lazy `inspect_ooxml_equations` with compact summary, equation, flat-node,
+  paragraph, settings and issue views. Default responses expose counts and short
+  fingerprints only; raw OMML is never returned, text previews require explicit
+  sensitive opt-in, and the parse-only path neither starts Word nor converts or
+  follows external content.
+- Added nine engine tests and six native host/corpus cases, bringing the native
+  document-engine totals to 150 engine tests and 63 host tests. The test corpus covers
+  every standard OMML object family, malformed input, Strict markup, source-ID
+  stability, safety limits, redaction, token-bounded paging, 23 tracked native
+  equations and Microsoft Open XML SDK validation of all three tracked equation
+  documents.
+
 ## 0.23.0 — 2026-07-21
 
 - Added `WordReferenceGraphBuilder`, a bounded source-linked read graph for

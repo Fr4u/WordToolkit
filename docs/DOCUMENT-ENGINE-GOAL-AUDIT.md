@@ -78,7 +78,7 @@ vendor claim is not implementation evidence.
 | TOC/TOF/TOT/captions | Partial foundation | TOC/TC/SEQ field classification and TOC bookmark-restriction edges now enter the reference graph; existing live actions/historical tests | Typed switch/options AST, caption and style dependencies, TOF/TOT distinction, backend-qualified field update, layout and round-trip tests |
 | Comments/threaded comments/revisions | Partial (strengthened) | Comment bodies/authorship/IDs, anchors and revision wrappers are projected; comment text uses guarded lossless edits; live review actions exist | Threaded/modern comment parts, people graph, moves, merge and accept/reject semantics |
 | Content controls/custom XML | Partial | Content-control projection; unknown part retention | Binding graph, repeats, locks, data update and lossless custom XML edits |
-| Equations/OfficeMath | Partial | Every nested math element projected; mature live equation insertion | Canonical math AST, all constructs, LaTeX/MathML/UnicodeMath/OMML round trips and Word visual proof |
+| Equations/OfficeMath | Partial (canonical read graph) | Source-linked graph covers all 19 standard OMML objects, argument roles, matrix rows/cells, runs/text, display paragraphs, main math defaults, Strict markup, story boundaries, invalid placement and preserved extensions; stable equation/node IDs; compact redacted lazy inspection; mature live insertion remains separate | Cross-format semantic AST, safe structural mutations, LaTeX/MathML/UnicodeMath/OMML round trips, mathematical-equivalence diagnostics and Word visual proof |
 | DrawingML/VML/images/text boxes | Partial (strengthened) | Drawing markers and opaque bytes; nested `w:txbxContent` is a source-linked semantic boundary with editable text; live image operations | Typed anchors/layout/wrap/group/geometry model and render corpus |
 | Charts/SmartArt/OLE/embedded packages | Not started | Opaque retention only | Typed inspection/edit where safe, extraction policy, rendering and security gates |
 | Citations/bibliography | Partial lexical foundation | CITATION/BIBLIOGRAPHY field classification and citation-key dependency edges | Bibliography source part, style/locale model, validation, rendering and reference updates |
@@ -133,7 +133,7 @@ it does not mean the engine understands or can edit it.
 | TOC | Partial foundation | TOC/TC fields and `\\b` bookmark dependencies are recognized; options/styles/result refresh and layout semantics remain |
 | footnotes | Partial | Story container/items/references and lossless text edits; separator and numbering semantics missing |
 | endnotes | Partial | Story container/items/references and lossless text edits; separator and numbering semantics missing |
-| OfficeMath / OMML | Partial | Full tree visible; canonical semantic math AST and serializers missing |
+| OfficeMath / OMML | Partial (typed read graph) | All standard object families, roles, normalized properties, source anchors, settings, display/inline placement and malformed/extension diagnostics are modeled and paged; raw OMML and formula text are hidden by default | Cross-format semantic algebra, serializers, mutation/repair, equation numbering integration and Word round-trip/visual proof |
 | sections | Partial | Source-linked boundaries, break/page/margin/column/numbering properties and header/footer inheritance graph; structural edits missing |
 | headers | Partial (strengthened) | Related parts, text edits and effective default/first/even bindings across sections; link mutation and layout missing |
 | footers | Partial (strengthened) | Related parts, text edits and effective default/first/even bindings across sections; link mutation and layout missing |
@@ -219,7 +219,7 @@ preconditions, affected-node proof, transaction, validation, and inverse.
 |---|---|
 | Paragraph | Partial read-only |
 | Run | Partial read-only |
-| Equation | Partial read-only tree, not canonical math object |
+| Equation | Partial canonical OfficeMath read object; cross-format algebra and edits missing |
 | Heading | Not typed; style metadata only |
 | Section | Partial read-only boundary, page properties and story bindings |
 | Table | Partial read-only |
@@ -245,21 +245,21 @@ required by the goal.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Unit/regression tests | Partial | 141 engine, 57 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
+| Unit/regression tests | Partial | 150 engine, 63 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
 | Property/fuzz testing | Partial | Deterministic malformed bytes and random opaque round-trip smoke | Continuous coverage-guided fuzzing, minimized corpus and resource assertions |
 | Fault injection | Not started | Validation/concurrency failure tests only | Every persistence/transaction phase, disk-full, denied, crash and race tests |
 | Preservation benchmark | Partial | Entry hashes and random no-op round trip | Public producer/feature corpus with untouched part/subtree metrics |
 | Performance benchmark | Not started for new engine | Existing native COM benchmark only | Parse/edit/save/render latency, allocation, peak memory, scaling and long run |
-| AI token benchmark | Partial (strengthened) | Lazy catalogue and bounded responses; earlier 83.5% schema reduction; field-heavy default reference summary is regression-capped below 5000 serialized characters, measured at 1090 characters in the packaged smoke, and hides dependency keys | Representative task suite against competitors with raw token logs |
+| AI token benchmark | Partial (strengthened) | Lazy catalogue and bounded responses; earlier 83.5% schema reduction; field-heavy references and default equation summaries are regression-capped below 5000 serialized characters; equation text/raw OMML and reference dependency keys are hidden by default | Representative task suite against competitors with raw token logs |
 | Visual regression | Not started for new engine | Historical screenshots and live acceptance | Versioned PDF/page/object baselines across rendering backends |
 | Cross-platform CI | Not started | Engine targets `net8.0`; current verification is Windows | Windows/Linux/macOS core tests and qualified backend matrix |
 | Public competitor benchmark | Not started | Research matrix only | Same fixtures, versions, commands, results, caveats and reproducible harness |
-| Release packaging | Partial (strengthened) | Versioned 0.23.0 self-contained Windows build succeeds, contains the engine/runtime/manifest, contains zero Python files, and passes a packaged reference-action smoke; ZIP SHA-256 `5c0e475e5543733f9511ddb2f58a855ceff56ac565dfe48e297ff4366924a1da` | Clean-install and rollback exercise; optional signing/provenance policy |
+| Release packaging | Partial (strengthened) | Versioned 0.24.0 self-contained Windows build succeeds, contains the engine/runtime/manifest, contains zero Python files, and passes an unpacked equation-action smoke; ZIP SHA-256 `2a305d1b0c870ef74ceed20b24a962f44ff43dfc8c63c528b1718db1e36c156c` | Rollback exercise; optional signing/provenance policy |
 
 ## Current checkpoint evidence
 
-- `dotnet test native/WordToolkit.Engine.Tests` — 141 passed.
-- `dotnet test native/WordToolkit.Native.Tests` — 57 passed.
+- `dotnet test native/WordToolkit.Engine.Tests` — 150 passed.
+- `dotnet test native/WordToolkit.Native.Tests` — 63 passed.
 - `.venv/Scripts/python -m pytest -q` — 1273 passed, 16 intentionally skipped.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
@@ -285,6 +285,12 @@ required by the goal.
   resolved case-insensitive REF dependencies, classified inert external fields, and
   proved default redaction plus a 1090-character packaged summary without invoking
   Word COM or following an external target.
+- OfficeMath inspection covered every standard OMML object family, Strict markup,
+  display/inline and cross-story placement, malformed/unknown/extension cases, stable
+  source-derived IDs and bounded failure paths. The tracked corpus contains 23 native
+  equations across three repository documents; all three pass Microsoft Open XML SDK
+  validation, and the default MCP response stays below 5000 serialized characters
+  without formula text, raw OMML, Word startup or conversion.
 - Theme relationship/content/root validation, all color/font/format inventories,
   deterministic font and tint/shade resolution, direct composite overrides,
   provenance, quantization diagnostics and token-bounded MCP inspection were exercised
