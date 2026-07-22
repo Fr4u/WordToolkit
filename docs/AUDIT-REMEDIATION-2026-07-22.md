@@ -24,6 +24,12 @@ engine objective is complete.
   text uses an explicit LF policy so Windows checkout settings cannot silently change
   packaged manifest/skill bytes. Compiler paths are mapped to stable virtual roots so
   an absolute local or hosted-runner PDB path cannot alter packaged assemblies.
+- Release assemblies omit debug metadata, and packaging rejects a checkout path leaked
+  into either WordToolkit assembly. A fresh local checkout and two independent hosted
+  Windows builds produced the same final ZIP byte for byte.
+- The 48-action Word gate is compatible with Windows PowerShell 5.1: its source is
+  parser-safe ASCII, Unicode request values use JSON escapes, and MCP stdin is opened
+  without a UTF-8 preamble.
 - Repeatable graph/patch benchmarks and exact JSON evidence are checked in. On the
   measured workstation, 998,998 dependency nodes peaked at 4,173.1 MiB and a 400 MiB
   patch payload peaked at 2,158.1 MiB.
@@ -40,11 +46,16 @@ engine objective is complete.
 - `WordToolkit.Native.Tests`: 185 passed.
 - Python/OOXML: 1,273 passed, 16 intentionally skipped.
 - Ruff: passed.
-- Native Windows x64 package: 195 files, 35,882,398 bytes, SHA-256
-  `00a9654ac87f6a82a7fee4017d181e97d27aa46558947aa8e0393e36e36264b0`.
+- Native Windows x64 package: 195 files, 35,886,733 bytes, SHA-256
+  `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`.
+- The package hash matched across a fresh local checkout, GitHub run `29911798824`
+  attempts 1 and 2, and the current-head run `29912380897`.
 - Packaged runtime initialize smoke: `WordToolkit Native` 0.35.0, MCP 2025-06-18.
-- Existing user Word process PID 5232 remained open and responsive; no live Word gate
-  was run from this checkout.
+- Full real-Word gate: 122 MCP requests; all 48 installed live actions exercised; 47
+  positive passes and one expected confirmation-guard pass; 12 editable equations;
+  saved DOCX and PDF; zero Open XML validation errors; close/open/reconnect passed.
+- The acceptance gate ran twice after its Windows PowerShell repair. Existing user Word
+  process PID 5232, start time and active document title were unchanged before and after.
 
 ## Still open before a 0.35 release
 
@@ -52,12 +63,11 @@ engine objective is complete.
   0.19 default branch remains a real defect until that merge completes.
 - Obtain independent human review. Self-review, automated tests and CI are not a second
   maintainer.
-- Let all new mandatory GitHub checks pass on the pushed commit.
-- Re-run local/CI reproducibility comparison under the newly pinned SDK. The first
-  comparison correctly failed because local SDK 10.0.300 and CI SDK 8.0.423 supplied
-  different self-contained runtime packs and Windows checkout changed text line endings.
-- Run the full licensed Word release gate on the exact 0.35 package. Do not reuse the
-  0.34 live result as evidence for changed MCP/COM code.
+- Register a licensed `[self-hosted, windows, word]` GitHub runner before relying on the
+  tag workflow. The exact 0.35 package passed the full gate locally, but the repository
+  currently has no registered self-hosted runner to execute that workflow on a release.
+- Protect `main` with the mandatory checks and review policy before calling it a release
+  branch. It is currently unprotected.
 - The historical cumulative PR cannot honestly be made small after the fact. Merge it as
   a reviewed baseline or close it; all work after that baseline must use narrow PRs.
 - The patch envelope exists at engine level. MCP secret-store provisioning remains

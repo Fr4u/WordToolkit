@@ -3,12 +3,18 @@
 ## Unreleased
 
 - Verification checkpoint: 245 document-engine tests, 185 native-host tests, 1,273
-  Python/OOXML tests with 16 intentional skips, Ruff, a clean native package build and
-  packaged-runtime initialization all pass without touching the user's Word session.
+  Python/OOXML tests with 16 intentional skips, Ruff and every mandatory GitHub job pass.
+  A fresh local checkout and two hosted Windows builds produced the same 35,886,733-byte
+  ZIP with SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`.
+  The exact package passed all 48 real-Word actions and Open XML validation while the
+  pre-existing user-owned Word process and document remained open and unchanged.
 
 - Made the document-engine and native .NET test suites mandatory CI inputs and added a
   clean Windows job that builds the exact distributable plugin ZIP. Tag builds on the
   licensed self-hosted Word runner now execute the full 48-action live acceptance gate.
+- Repaired that gate for Windows PowerShell 5.1 by removing parser-unsafe source text,
+  avoiding unsupported JSON parameters, escaping Unicode MCP values and preventing a
+  UTF-8 preamble from corrupting the first request.
 - Bounded line-delimited MCP input at 8 MiB, added per-request cancellation tokens,
   active request IDs, synchronized concurrent responses and MCP cancellation
   notifications. A cancelled in-flight COM call now blocks new Word work until it
