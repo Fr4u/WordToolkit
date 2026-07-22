@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+## 0.26.0 — 2026-07-22
+
+- Added `WordReviewMutationPlanner`, a typed lossless saved-package transaction for
+  accepting or rejecting bounded tracked-revision selections. It handles insertion,
+  deletion and conflict wrappers, complete move pairs, run/paragraph/table/row/cell/
+  section/numbering and `tblPrEx` property snapshots, numbering-change acceptance,
+  inserted rows, cell-insertion acceptance and cell-deletion rejection while preserving
+  every unrelated byte and retaining an exact guarded inverse. These cell decisions
+  remove only safe markers; grid-blind
+  cell reconstruction, vertical-merge restoration and fake `numberingChange` rejection
+  are deliberately blocked.
+- Added fail-closed dependency planning for nested revisions and named moves. Cascading
+  is explicit; conflicting decisions, deleted paragraph-mark merges, table-grid
+  reconstruction, custom XML and unsupported structural combinations remain blocked
+  instead of being guessed into a corrupt document.
+- Added lazy `plan_ooxml_review_decisions` and `apply_ooxml_review_decisions`. Selection
+  uses stable revision IDs or redacted author fingerprints, or deliberate
+  `select_all=true`; an empty implicit all-selection is forbidden. Apply rebuilds the
+  deterministic plan under the original package fingerprint and exact plan ID, rejects
+  signed packages, persists atomically and keeps a recovery backup by default.
+- Candidate review packages are reparsed and compared against the baseline with the
+  Microsoft Open XML SDK validator. Existing unrelated errors remain visible, while any
+  newly introduced error blocks apply. Responses omit author names, document text and
+  raw XML. Runtime bounds count every selector item, including duplicates, instead of
+  trusting a caller to enforce the published JSON schema.
+- Added shared hash-preconditioned package transaction primitives and lossless element
+  remove, unwrap, local-name rename and replacement patches. Engine coverage includes
+  UTF-preserving inverse tests, adversarial nesting and real Word/Pandoc/Apache POI
+  tracked-change and move fixtures; native coverage includes plan/apply, redaction,
+  selection safety and baseline-aware validation.
+- The native checkpoint passes 172 engine tests and 73 host tests.
+
 ## 0.25.0 — 2026-07-22
 
 - Added `WordReviewGraphBuilder`, a bounded, source-linked read graph for saved-package

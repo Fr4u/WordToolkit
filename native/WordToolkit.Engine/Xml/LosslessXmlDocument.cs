@@ -299,6 +299,114 @@ public sealed class LosslessXmlDocument
         return patches;
     }
 
+    public XmlSourcePatch CreateElementRemovalPatch(int elementOrdinal)
+    {
+        var element = GetElement(elementOrdinal);
+        return new XmlSourcePatch(
+            element.FullSpan.ByteOffset,
+            element.FullSpan.ByteLength,
+            ReadOnlyMemory<byte>.Empty
+        );
+    }
+
+    public IReadOnlyList<XmlSourcePatch> CreateElementUnwrapPatches(
+        int elementOrdinal
+    )
+    {
+        var element = GetElement(elementOrdinal);
+        if (element.IsSelfClosing)
+        {
+            return [CreateElementRemovalPatch(elementOrdinal)];
+        }
+
+        var endTag = element.EndTagSpan
+            ?? throw new LosslessXmlEditException(
+                $"Element {element.Ordinal} has no lexical end tag and cannot be unwrapped."
+            );
+        return
+        [
+            new XmlSourcePatch(
+                element.StartTagSpan.ByteOffset,
+                element.StartTagSpan.ByteLength,
+                ReadOnlyMemory<byte>.Empty
+            ),
+            new XmlSourcePatch(
+                endTag.ByteOffset,
+                endTag.ByteLength,
+                ReadOnlyMemory<byte>.Empty
+            ),
+        ];
+    }
+
+    public IReadOnlyList<XmlSourcePatch> CreateElementLocalNameRenamePatches(
+        int elementOrdinal,
+        string newLocalName
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(newLocalName);
+        try
+        {
+            XmlConvert.VerifyNCName(newLocalName);
+        }
+        catch (XmlException exception)
+        {
+            throw new LosslessXmlEditException(
+                $"'{newLocalName}' is not a valid XML local name.",
+                exception
+            );
+        }
+
+        var element = GetElement(elementOrdinal);
+        if (string.Equals(element.LocalName, newLocalName, StringComparison.Ordinal))
+        {
+            return Array.Empty<XmlSourcePatch>();
+        }
+
+        var newQualifiedName = element.Prefix.Length == 0
+            ? newLocalName
+            : element.Prefix + ":" + newLocalName;
+        var oldNameBytes = EncodeMarkup(element.QualifiedName).Length;
+        var startNameOffset = checked(
+            element.StartTagSpan.ByteOffset + EncodeMarkup("<").Length
+        );
+        var patches = new List<XmlSourcePatch>
+        {
+            new(startNameOffset, oldNameBytes, EncodeMarkup(newQualifiedName)),
+        };
+        if (!element.IsSelfClosing)
+        {
+            var endTag = element.EndTagSpan
+                ?? throw new LosslessXmlEditException(
+                    $"Element {element.Ordinal} has no lexical end tag and cannot be renamed."
+                );
+            var endNameOffset = checked(
+                endTag.ByteOffset + EncodeMarkup("</").Length
+            );
+            patches.Add(
+                new XmlSourcePatch(
+                    endNameOffset,
+                    oldNameBytes,
+                    EncodeMarkup(newQualifiedName)
+                )
+            );
+        }
+
+        return patches;
+    }
+
+    public XmlSourcePatch CreateElementReplacementPatch(
+        int elementOrdinal,
+        ReadOnlyMemory<byte> replacement
+    )
+    {
+        var element = GetElement(elementOrdinal);
+        return new XmlSourcePatch(
+            element.FullSpan.ByteOffset,
+            element.FullSpan.ByteLength,
+            replacement
+        );
+    }
+
     public byte[] ApplyPatches(
         IEnumerable<XmlSourcePatch> patches,
         string? expectedSourceSha256 = null,

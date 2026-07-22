@@ -102,6 +102,26 @@ preview requires both `include_sensitive=true` and positive `text_preview_chars`
 Source metadata is separately opt-in and raw XML is never returned. The inspector is
 parse-only: it does not open Word, accept/reject changes, resolve comments, merge review
 state or mutate the package.
+For a saved-package tracked-revision decision, use this strict lazy workflow:
+
+1. Inspect only the required revisions and retain the exact package fingerprint,
+   stable revision IDs or redacted author fingerprints.
+2. Call `plan_ooxml_review_decisions` with an explicit `accept` or `reject` decision.
+   Select by IDs/fingerprints, or deliberately set `select_all=true`; an empty implicit
+   all-selection is forbidden. Use `allow_cascade=true` only after reviewing nested or
+   paired-move dependencies.
+3. Review `plan_id`, counts, byte delta, `can_apply`, block codes and the baseline-versus-
+   candidate Microsoft Open XML validation result. Request details only if a block must
+   be diagnosed.
+4. Call `apply_ooxml_review_decisions` with selectors that reproduce the same resolved
+   revision decisions, the original package fingerprint and exact returned plan ID. Keep
+   the recovery backup by default.
+
+The saved-package path never opens Word or returns author names/text. It fails closed for
+unsupported paragraph merges, table-grid or vertical-merge reconstruction, rejected
+legacy numbering changes, custom XML and conflicting nested decisions. When Word itself
+must resolve one of those structures, connect to the live document and use the guarded
+`manage_live_word_review` workflow instead.
 After obtaining a paragraph or run ID, use lazy `resolve_ooxml_formatting` only
 when a formatting decision needs more than the declared style. Filter
 `property_names` aggressively and leave provenance/source disabled unless the

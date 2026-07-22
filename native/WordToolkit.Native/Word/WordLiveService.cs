@@ -148,6 +148,14 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "plan_ooxml_review_decisions" => PlanPackageReviewDecisionsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_review_decisions" => ApplyPackageReviewDecisionsAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_live_word_document" => InspectAsync(arguments, cancellationToken),
             "map_live_word_structures" => MapStructuresAsync(
                 arguments,

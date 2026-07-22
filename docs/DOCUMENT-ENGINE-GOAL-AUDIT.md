@@ -1,6 +1,6 @@
 # Document-engine goal audit
 
-Last updated: 2026-07-21. This is the completion ledger for the WordToolkit
+Last updated: 2026-07-22. This is the completion ledger for the WordToolkit
 document-engine redesign. `Implemented` means code and tests exist in the current
 branch. `Partial` means a real slice exists but the stated capability is not complete.
 Historical Python behavior does not count as implemented in the new native engine.
@@ -35,7 +35,7 @@ vendor claim is not implementation evidence.
 | Typed WordprocessingML parser | Partial (strengthened) | Read-only main part plus relationship-driven headers, footers, footnotes, endnotes, comments, glossary and nested text boxes; typed section properties and strict/transitional relationship tests | Remaining auxiliary/versioned parts and the full required Word vocabulary |
 | Source-linked semantic AST | Partial (strengthened) | Stable node IDs and exact lexical ordinals now span the primary text-bearing stories; story roots and note/comment/reference nodes retain part and relationship provenance | Full document graph, durable locator recovery, ambiguity model, threaded comments and auxiliary-story mutation provenance |
 | Stable semantic identity | Partial | `w14:paraId`/`textId`, durable IDs, fallback fingerprints, duplicate occurrence tests | Cross-save, cross-producer, move/edit and ambiguity benchmark |
-| Serializer | Partial (strengthened) | Package serializer preserves entry payloads and deterministic mode; leaf-text XML splice preserves every unrelated byte and validates the candidate | General token/subtree splicing, namespace/MCE mutation rules and all typed part serializers |
+| Serializer | Partial (strengthened) | Package serializer preserves entry payloads and deterministic mode; lossless leaf-text and structural element remove/unwrap/local-name-rename/replacement patches preserve every unrelated byte and reparse the candidate | General namespace/MCE mutation rules and all typed part serializers |
 
 ## Transactions, safety, and recovery
 
@@ -43,11 +43,11 @@ vendor claim is not implementation evidence.
 |---|---|---|---|
 | Entry-hash preconditions | Implemented (strengthened initial slice) | Mutation builder plus XML source hash, package fingerprint, semantic node, source ordinal and expected-text gates | General semantic command predicates and destination/cloud version preconditions |
 | Atomic file persistence | Implemented (initial) | Sibling temp, flush, validate, recheck, replace, optional backup | Power-loss and filesystem fault injection across supported platforms |
-| Rollback | Partial (strengthened) | Candidate rejection leaves original unchanged; backup path; a text transaction can create an exact original-part-byte inverse only against its predicted result fingerprint; live Word undo grants exist | General semantic inverses and injected failure proof for every transaction phase |
-| Multi-command document transaction | Partial (text slice, native plan/apply) | Bounded text commands resolve against one snapshot, parse each part once, reject duplicate targets, apply one validated patch set per part, predict the result fingerprint and retain an inverse payload; stateless lazy MCP plan/apply requires the same base fingerprint and deterministic plan ID, then uses atomic persistence and a recovery backup | Heterogeneous semantic commands, permissions/approval policies, unified validation profiles and durable portable inverse artifacts |
+| Rollback | Partial (strengthened) | Candidate rejection leaves original unchanged; backup path; shared part-payload transactions give both text edits and the supported review-decision slice an exact original-byte inverse guarded by the predicted result fingerprint and after-part hashes; live Word undo grants exist | General semantic inverses and injected failure proof for every transaction phase |
+| Multi-command document transaction | Partial (text/review slices, native plan/apply) | Bounded text edits and selective review decisions resolve against one snapshot, create validated non-overlapping lossless patches, predict the result fingerprint and retain inverse payloads; stateless lazy MCP plan/apply requires the same resolved decision set, base fingerprint and result-bound deterministic plan ID, then uses atomic persistence and a recovery backup | Broader heterogeneous semantic commands, permissions/approval policies, unified validation profiles and durable portable inverse artifacts |
 | Optimistic concurrency | Partial (strengthened) | Forward plan requires the base package fingerprint and part hashes; inverse requires the predicted result fingerprint and after-part hashes; live document versions exist | Race tests, file identity/version integration, Graph/Drive ETag support |
 | Security policy | Partial (strengthened) | ZIP/XML bounds, DTD ban, external links never fetched, MCP redaction; reference inspection classifies DDE/LINK/INCLUDE/external fields but never evaluates them, launches an application or follows a target; direct semantic apply fails closed on OPC digital signatures | Macro/OLE/custom XML/protection policies, explicit signature-removal/resign workflow, sandboxed adapters and threat-model audit |
-| Privacy/content-minimizing telemetry | Partial foundation | Text plan metadata omits document text and per-text hashes; MCP plan/apply is stateless and retains no server-side document-content cache | Opt-in telemetry implementation, redaction tests, expiry and debug-bundle audit |
+| Privacy/content-minimizing telemetry | Partial foundation | Text and review plan metadata omit document text and author names; review selection accepts redacted author fingerprints; MCP plan/apply is stateless and retains no server-side document-content cache | Opt-in telemetry implementation, broader redaction tests, expiry and debug-bundle audit |
 
 ## Document intelligence and editing
 
@@ -56,9 +56,9 @@ vendor claim is not implementation evidence.
 | Compact inspect | Implemented (strengthened initial slice) | `inspect_ooxml_package`, `inspect_ooxml_semantics`, lazy `query_ooxml_semantics`, `inspect_ooxml_sections`, `inspect_ooxml_styles`, `inspect_ooxml_numbering`, `inspect_ooxml_theme`, `inspect_ooxml_settings`, `inspect_ooxml_fonts`, `inspect_ooxml_references` and filtered `resolve_ooxml_formatting`; projected-part inventory, privacy redaction, fingerprints, exact filters, per-field/item bounds and offset paging; a field-heavy TOC fixture enforces a sub-5000-character default reference response | Opaque continuation tokens, remaining auxiliary/versioned parts and a representative cross-action token benchmark suite |
 | Semantic query/search | Partial (strengthened initial) | Source-ordered kind/property/part/subtree selectors across main, header/footer, note, comment, glossary and text-box stories; streaming contains/equals/starts/ends matching crosses run/field/tab/break boundaries; bounded optional previews/properties/provenance | Fields/math/metadata-aware predicates, structural relationship joins, aggregations and query planner |
 | Indexing | Not started | None | Incremental external index, invalidation and privacy controls |
-| AI planner | Partial foundation | Deterministic bounded text-command plans report targets, counts, source ordinals and byte impact without returning content; lazy stateless MCP plan/apply requires reviewed plan ID and snapshot fingerprint | Natural-language intent -> evidence -> heterogeneous typed plan -> cost/risk -> richer approval policy |
-| Typed semantic mutations | Partial (text transaction slice) | `WordSemanticEditor.ReplaceText` plus bounded multi-text plans edit only source-bound `w:t`, `w:delText` and `m:t`; preserve unrelated bytes; handle `xml:space`; reject mixed lexical content/stale projections; predict result fingerprint and retain exact part-byte inverse | Paragraph/run/table/field/math command set, affected-node proof, permissions, semantic inverses and durable recovery |
-| Validator | Partial | OPC diagnostics; historical SDK validator | Unified OPC/schema/extension/semantic/Word-open profiles and incremental validation |
+| AI planner | Partial foundation (strengthened) | Deterministic bounded text plans and typed review-decision plans report targets/counts/byte impact without returning content; review plans expose dependency cascades, blocks, exact plan identity and baseline/candidate validation; lazy stateless apply requires reviewed plan ID and snapshot fingerprint | Natural-language intent -> evidence -> broader heterogeneous typed plan -> cost/risk -> richer approval policy |
+| Typed semantic mutations | Partial (text + review transaction slices) | Text plans edit source-bound `w:t`, `w:delText` and `m:t`; review plans accept/reject supported insertion/deletion/conflict wrappers, complete moves and property snapshots, plus numbering-change acceptance, inserted rows, cell-insertion acceptance and cell-deletion rejection. Both preserve unrelated bytes, predict the result fingerprint and retain exact part-byte inverses; unsupported merges/table-grid/numbering-reconstruction/custom-XML cases fail closed | Paragraph/run/table/field/math command set, remaining review vocabulary, affected-node proof, permissions and durable recovery artifacts |
+| Validator | Partial (strengthened) | OPC diagnostics plus exact serialized review-candidate reparse and bounded Microsoft Open XML SDK baseline/candidate comparison; new schema errors block apply | Unified OPC/schema/extension/semantic/Word-open profiles and incremental validation |
 | Linter | Not started in new engine | Historical Python checks only | Rule packs with source spans, severity, suppression and fix metadata |
 | Formatter | Not started | Architecture only | Explicit previewed policies; no incidental formatting on save |
 | Optimizer | Not started | Architecture only | Duplicate/dead-part/image/style/package optimizations with preservation proof |
@@ -76,7 +76,7 @@ vendor claim is not implementation evidence.
 | Numbering/lists | Partial (typed graph + effective-level slice) | Exact relationship/root validation; source-linked picture/abstract/instance/level/override inventory; `numStyleLink`/`styleLink` chains, start overrides, corruption diagnostics, compact MCP inspection and effective formatting integration | Counter-state traversal across paragraphs, restart semantics in sequence, label rendering, structural edits, repair/rebuild and layout proof |
 | Fields/bookmarks/cross-references | Partial (typed read graph) | Story-scoped paired bookmark ranges; nested complex and simple field parser across paragraphs; explicit/implicit REF tokenizer; source-linked parent/child fields; typed dependency edges and corruption diagnostics; redacted lazy inspection; live allowlisted writes remain separate | Full field grammar/evaluation policy, unified element hyperlinks/notes/captions, update capability, safe structural edits and Word round-trip/layout proof |
 | TOC/TOF/TOT/captions | Partial foundation | TOC/TC/SEQ field classification and TOC bookmark-restriction edges now enter the reference graph; existing live actions/historical tests | Typed switch/options AST, caption and style dependencies, TOF/TOT distinction, backend-qualified field update, layout and round-trip tests |
-| Comments/threaded comments/revisions | Partial (typed read graph) | Source-linked comment bodies, story anchors, reply/root links, done state, durable IDs, extensible/reaction inventory, people records, authorship-linked revisions, nested/property/cell/custom-XML kinds, named move pairs, permission ranges and review settings; redacted lazy inspection and live review actions exist | Hash-preconditioned package mutations, full reaction semantics, merge and accept/reject proof across Word versions |
+| Comments/threaded comments/revisions | Partial (typed read graph + bounded mutation) | Source-linked comment/thread/person graph and authorship-linked revision graph remain redacted; saved-package plan/apply selectively accepts or rejects supported wrappers, complete moves and property snapshots and handles numbering-change acceptance, inserted rows, cell-insertion acceptance and cell-deletion rejection by revision ID or author fingerprint, with exact inverse and SDK candidate validation; live review remains available | Remaining paragraph/table/numbering/custom-XML transforms, full reaction/comment mutation, merge and accept/reject proof across Word versions |
 | Content controls/custom XML | Partial | Content-control projection; unknown part retention | Binding graph, repeats, locks, data update and lossless custom XML edits |
 | Equations/OfficeMath | Partial (canonical read graph) | Source-linked graph covers all 19 standard OMML objects, argument roles, matrix rows/cells, runs/text, display paragraphs, main math defaults, Strict markup, story boundaries, invalid placement and preserved extensions; stable equation/node IDs; compact redacted lazy inspection; mature live insertion remains separate | Cross-format semantic AST, safe structural mutations, LaTeX/MathML/UnicodeMath/OMML round trips, mathematical-equivalence diagnostics and Word visual proof |
 | DrawingML/VML/images/text boxes | Partial (strengthened) | Drawing markers and opaque bytes; nested `w:txbxContent` is a source-linked semantic boundary with editable text; live image operations | Typed anchors/layout/wrap/group/geometry model and render corpus |
@@ -123,10 +123,10 @@ it does not mean the engine understands or can edit it.
 | theme | Partial (typed read graph + effective resolution) | Exact relationship/content/root validation; all twelve color slots; system fallback, transform and environment diagnostics; major/minor primary and supplemental fonts; `themeFontLang`-driven explicit/likely script selection; format-scheme inventory; compact MCP views; deterministic theme font/RGB provenance in effective formatting | Exhaustive Word locale/version substitution behavior, full DrawingML color transform evaluation, exact Word quantization, mutation and visual proof |
 | settings | Partial (typed read graph) | Exact relationship/content/root validation; bounded view/zoom/defaults, `themeFontLang`, compatibility profile and derived mode, legacy switches, protection metadata, document variables, attached-template and mail-merge references, separators and root inventory; compact redacted MCP views | Broader settings vocabulary, relationship-specific validation, typed mutations, version behavior and Word round-trip proof |
 | fontTable | Partial (typed read graph) | Exact relationship/content/root validation; font identity/classification/PANOSE/signature metadata; four embedded faces; content-type/key readability checks; duplicate/orphan diagnostics; compact byte-free MCP views and effective-format cross-reference | Font substitution/fallback engine, obfuscation/deobfuscation workflow, mutation, licensing policy and measured render portability |
-| comments | Partial (typed read graph) | Standard bodies/IDs/authorship, story-scoped complete/point/damaged anchors, text counts/fingerprints/source links and guarded lossless text edits; structural mutation remains |
+| comments | Partial (typed read graph) | Standard bodies/IDs/authorship, story-scoped complete/point/damaged anchors, text counts/fingerprints/source links and guarded lossless text edits; comment-state structural mutation remains |
 | commentsExtended | Partial (typed read graph) | Last-paragraph `paraId` joins, reply/root links, done state, durable-ID joins, extensible UTC/placeholder/extensions/reaction inventory and bounded corruption diagnostics; write/version compatibility remains |
-| revisions | Partial (typed read graph) | Authorship/date/text/property/nesting/source links across insertion/deletion/move/conflict/property/cell/custom-XML kinds plus people links and malformed-state diagnostics; structural mutation remains |
-| tracked changes | Partial (typed read graph) | Revision inventory, status, named source/destination move pairs and `trackRevisions`/move/format settings; filtered accept/reject and merge remain |
+| revisions | Partial (typed read graph + bounded mutation) | Authorship/date/text/property/nesting/source links span insertion/deletion/move/conflict/property/cell/custom-XML kinds; selective lossless decisions cover supported wrappers, complete moves, property snapshots, numbering-change acceptance, inserted rows, cell-insertion acceptance and cell-deletion rejection with exact inverse; paragraph merges, table-grid/vertical-merge/numbering reconstruction, custom XML and full vocabulary remain blocked |
+| tracked changes | Partial (typed read graph + bounded mutation) | Revision inventory, status, named move pairs and tracking settings feed fingerprint-guarded plan/apply by stable revision ID or redacted author fingerprint; nested/move cascades are explicit and Microsoft SDK candidate validation is baseline-aware; merge and unsupported structural decisions remain |
 | bookmarks | Partial (typed read graph) | Start/end markers are source-linked; ranges pair by `w:id` per story across paragraphs; duplicate case-insensitive names, missing/orphan ends and table-column ranges are diagnosed; safe edits remain |
 | hyperlinks | Partial (strengthened read graph) | Semantic element node/relationship ID plus local/external HYPERLINK-field dependency edges; element and field forms are not yet unified and edits remain |
 | fields | Partial (typed read graph) | Nested complex begin/separate/end parser, recursive `fldSimple`, bounded tokenizer, field-family classification, source links, parent/child graph, cached-result bounds and dependency edges; evaluator/update/safe edits missing |
@@ -194,8 +194,8 @@ preconditions, affected-node proof, transaction, validation, and inverse.
 | rebuild numbering | Not started |
 | repair OfficeMath | Not started |
 | rewrite comment bodies only | Not started |
-| accept only changes by author X | Not started in new engine |
-| revert changes by author Y | Not started in new engine |
+| accept only changes by author X | Partial: redacted author-fingerprint selection, explicit dependency cascade, deterministic plan/apply, exact inverse and atomic backup cover supported wrappers/moves/property snapshots/inserted rows plus proven one-sided cell/numbering decisions; unsupported paragraph/table-grid/vertical-merge/numbering/custom-XML structures block |
+| revert changes by author Y | Partial: the same saved-package planner rejects the selected author's supported revisions under exact fingerprint/plan preconditions; unsupported dependencies block and can be routed to guarded live Word |
 | align styles with a template | Not started |
 | compare two documents | Not started in new engine |
 | create a patch | Not started |
@@ -237,15 +237,16 @@ preconditions, affected-node proof, transaction, validation, and inverse.
 | Chart | Opaque only |
 
 AI currently receives package summaries, bounded semantic nodes and redacted typed
-field/bookmark/reference, OfficeMath and review graphs; it still lacks the complete object model, query
-language, planning layer, typed mutation commands, and automatic OOXML execution
-required by the goal.
+field/bookmark/reference, OfficeMath and review graphs. It now also receives deterministic
+text and tracked-review plans and can execute those bounded commands without raw XML; it
+still lacks the complete object model, general query/planning language and broad typed
+mutation/repair/render execution required by the goal.
 
 ## Proof, performance, and release gates
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Unit/regression tests | Partial | 154 engine, 67 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
+| Unit/regression tests | Partial | 172 engine, 73 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
 | Property/fuzz testing | Partial | Deterministic malformed bytes and random opaque round-trip smoke | Continuous coverage-guided fuzzing, minimized corpus and resource assertions |
 | Fault injection | Not started | Validation/concurrency failure tests only | Every persistence/transaction phase, disk-full, denied, crash and race tests |
 | Preservation benchmark | Partial | Entry hashes and random no-op round trip | Public producer/feature corpus with untouched part/subtree metrics |
@@ -254,20 +255,28 @@ required by the goal.
 | Visual regression | Not started for new engine | Historical screenshots and live acceptance | Versioned PDF/page/object baselines across rendering backends |
 | Cross-platform CI | Not started | Engine targets `net8.0`; current verification is Windows | Windows/Linux/macOS core tests and qualified backend matrix |
 | Public competitor benchmark | Not started | Research matrix only | Same fixtures, versions, commands, results, caveats and reproducible harness |
-| Release packaging | Partial (strengthened) | Versioned 0.25.0 self-contained Windows build succeeds, contains the engine/runtime/manifest, contains zero Python files, and passes unpacked equation/review action smoke; ZIP SHA-256 `7ff2d4fd8ef2c2bcfb4db864765bdd04ebf1bb270eb83681ca49b06227b489ac` | Rollback exercise; optional signing/provenance policy |
+| Release packaging | Partial (strengthened) | Versioned 0.26.0 self-contained Windows build succeeds, contains the engine/runtime/manifest, contains zero Python files, and passes unpacked search/schema/review-plan smoke without starting Word; ZIP SHA-256 `4e0386dc673c7fff0840df36e4386a9d7b4b53e36e3db7005491a76c993282f3` | Packaged apply/rollback exercise; optional signing/provenance policy |
 
 ## Current checkpoint evidence
 
-- `dotnet test native/WordToolkit.Engine.Tests` — 154 passed.
-- `dotnet test native/WordToolkit.Native.Tests` — 67 passed.
+- `dotnet test native/WordToolkit.Engine.Tests` — 172 passed.
+- `dotnet test native/WordToolkit.Native.Tests` — 73 passed.
 - `.venv/Scripts/python -m pytest -q` — 1273 passed, 16 intentionally skipped.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
+- Unpacked 0.26.0 MCP search, schema inspection and review-decision planning were
+  exercised against the Pandoc move fixture. The plan paired both revisions, removed all
+  four move markers, introduced zero SDK errors, returned no sensitive values or raw XML,
+  performed no mutation and did not start Word.
 - Packaged/native MCP graph inspection was exercised end to end.
 - Saved-package review inspection was exercised end to end against WordToolkit,
   Mammoth, Pandoc and Apache POI comments, tracked revisions and move fixtures; default
   structured responses remained approximately 1.2–1.7 KB and raw XML/personal text was
   absent.
+- Saved-package accept/reject planning and exact inverse were exercised against real
+  Word, Pandoc and Apache POI tracked-revision/move fixtures. Native plan/apply tests prove
+  redacted author selection, explicit-all enforcement, no Word startup, atomic backup and
+  baseline-aware Microsoft Open XML SDK validation.
 - Semantic inspection was exercised through lazy search -> schema inspection -> execute.
 - Header-story query -> guarded plan -> atomic apply was exercised end to end while
   proving that the main document part remained byte-identical.

@@ -1682,6 +1682,7 @@ public sealed class WordReviewGraphBuilder
             "tcPrChange" => WordRevisionKind.TableCellPropertiesChange,
             "sectPrChange" => WordRevisionKind.SectionPropertiesChange,
             "numPrChange" => WordRevisionKind.NumberingPropertiesChange,
+            "tblPrExChange" => WordRevisionKind.OtherPropertyChange,
             "numberingChange" => WordRevisionKind.NumberingChange,
             "cellIns" => WordRevisionKind.CellInsertion,
             "cellDel" => WordRevisionKind.CellDeletion,

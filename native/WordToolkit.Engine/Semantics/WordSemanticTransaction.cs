@@ -57,25 +57,27 @@ public sealed record WordSemanticPartChange(
 
 public sealed class WordSemanticTransactionPlan
 {
-    private readonly IReadOnlyDictionary<string, PartPayload> _parts;
+    private readonly WordPackageTransactionCore _transaction;
 
     internal WordSemanticTransactionPlan(
         string planId,
         string basePackageFingerprint,
         string resultPackageFingerprint,
         IReadOnlyList<WordSemanticOperationPlan> operations,
-        IReadOnlyDictionary<string, PartPayload> parts
+        IReadOnlyDictionary<string, WordPackagePartPayload> parts
     )
     {
         PlanId = planId;
         BasePackageFingerprint = basePackageFingerprint;
         ResultPackageFingerprint = resultPackageFingerprint;
         Operations = new ReadOnlyCollection<WordSemanticOperationPlan>(operations.ToArray());
-        _parts = new ReadOnlyDictionary<string, PartPayload>(
-            new Dictionary<string, PartPayload>(parts, StringComparer.Ordinal)
+        _transaction = new WordPackageTransactionCore(
+            basePackageFingerprint,
+            resultPackageFingerprint,
+            parts
         );
         ChangedParts = new ReadOnlyCollection<WordSemanticPartChange>(
-            _parts.Values
+            _transaction.Parts
                 .OrderBy(part => part.PartUri, StringComparer.Ordinal)
                 .Select(part => new WordSemanticPartChange(
                     part.PartUri,
@@ -99,7 +101,7 @@ public sealed class WordSemanticTransactionPlan
 
     public IReadOnlyList<WordSemanticPartChange> ChangedParts { get; }
 
-    public bool HasChanges => _parts.Count != 0;
+    public bool HasChanges => _transaction.HasChanges;
 
     public int OperationCount => Operations.Count;
 
@@ -112,108 +114,12 @@ public sealed class WordSemanticTransactionPlan
     );
 
     public OpcPackageMutationBuilder CreateMutation(OpcPackageSnapshot currentSnapshot)
-    {
-        ArgumentNullException.ThrowIfNull(currentSnapshot);
-        VerifyFingerprint(
-            currentSnapshot,
-            BasePackageFingerprint,
-            "Package changed after the semantic transaction was planned."
-        );
-        var mutation = new OpcPackageMutationBuilder(currentSnapshot);
-        foreach (var part in _parts.Values.OrderBy(part => part.PartUri, StringComparer.Ordinal))
-        {
-            VerifyPartHash(currentSnapshot, part.PartUri, part.BeforeSha256);
-            mutation.ReplacePart(part.PartUri, part.AfterContent, part.BeforeSha256);
-        }
-
-        return mutation;
-    }
+        => _transaction.CreateMutation(currentSnapshot);
 
     public OpcPackageMutationBuilder CreateInverseMutation(
         OpcPackageSnapshot appliedSnapshot
     )
-    {
-        ArgumentNullException.ThrowIfNull(appliedSnapshot);
-        VerifyFingerprint(
-            appliedSnapshot,
-            ResultPackageFingerprint,
-            "Applied package changed before the inverse transaction was created."
-        );
-        var mutation = new OpcPackageMutationBuilder(appliedSnapshot);
-        foreach (var part in _parts.Values.OrderBy(part => part.PartUri, StringComparer.Ordinal))
-        {
-            VerifyPartHash(appliedSnapshot, part.PartUri, part.AfterSha256);
-            mutation.ReplacePart(part.PartUri, part.BeforeContent, part.AfterSha256);
-        }
-
-        return mutation;
-    }
-
-    private static void VerifyFingerprint(
-        OpcPackageSnapshot snapshot,
-        string expected,
-        string message
-    )
-    {
-        if (!string.Equals(snapshot.Fingerprint, expected, StringComparison.Ordinal))
-        {
-            throw new WordSemanticPreconditionException(message);
-        }
-    }
-
-    private static void VerifyPartHash(
-        OpcPackageSnapshot snapshot,
-        string partUri,
-        string expectedSha256
-    )
-    {
-        if (
-            !snapshot.Parts.TryGetValue(partUri, out var part)
-            || !string.Equals(
-                part.Entry.Sha256,
-                expectedSha256,
-                StringComparison.OrdinalIgnoreCase
-            )
-        )
-        {
-            throw new WordSemanticPreconditionException(
-                $"Source part '{partUri}' changed before the transaction could be applied."
-            );
-        }
-    }
-
-    internal sealed class PartPayload
-    {
-        public PartPayload(
-            string partUri,
-            string entryName,
-            byte[] beforeContent,
-            byte[] afterContent
-        )
-        {
-            PartUri = partUri;
-            EntryName = entryName;
-            BeforeContent = beforeContent.ToArray();
-            AfterContent = afterContent.ToArray();
-            BeforeSha256 = HashBytes(BeforeContent);
-            AfterSha256 = HashBytes(AfterContent);
-        }
-
-        public string PartUri { get; }
-
-        public string EntryName { get; }
-
-        public byte[] BeforeContent { get; }
-
-        public byte[] AfterContent { get; }
-
-        public string BeforeSha256 { get; }
-
-        public string AfterSha256 { get; }
-    }
-
-    private static string HashBytes(ReadOnlySpan<byte> content) =>
-        Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+        => _transaction.CreateInverseMutation(appliedSnapshot);
 }
 
 public sealed class WordSemanticTransactionPlanner
@@ -415,10 +321,7 @@ public sealed class WordSemanticTransactionPlanner
             );
         }
 
-        var payloads = new Dictionary<
-            string,
-            WordSemanticTransactionPlan.PartPayload
-        >(StringComparer.Ordinal);
+        var payloads = new Dictionary<string, WordPackagePartPayload>(StringComparer.Ordinal);
         var projectedEntries = new Dictionary<string, ReadOnlyMemory<byte>>(
             StringComparer.Ordinal
         );
@@ -457,7 +360,7 @@ public sealed class WordSemanticTransactionPlanner
                 continue;
             }
 
-            var payload = new WordSemanticTransactionPlan.PartPayload(
+            var payload = new WordPackagePartPayload(
                 part.Uri,
                 part.Entry.Name,
                 part.Entry.Content.ToArray(),

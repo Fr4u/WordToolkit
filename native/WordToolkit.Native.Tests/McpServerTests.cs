@@ -44,7 +44,7 @@ public sealed class McpServerTests
                 .GetString()
         );
         Assert.Equal(
-            "0.25.0",
+            "0.26.0",
             responses[0].RootElement
                 .GetProperty("result")
                 .GetProperty("serverInfo")
@@ -112,6 +112,8 @@ public sealed class McpServerTests
                 "resolve_ooxml_formatting",
                 "plan_ooxml_text_edits",
                 "apply_ooxml_text_edits",
+                "plan_ooxml_review_decisions",
+                "apply_ooxml_review_decisions",
             }
         )
         {
@@ -150,7 +152,7 @@ public sealed class McpServerTests
         ) + "\n";
         var output = new StringWriter();
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(63, catalog.ActionCount);
+        Assert.Equal(65, catalog.ActionCount);
         var server = new McpServer(
             new StringReader(input),
             output,

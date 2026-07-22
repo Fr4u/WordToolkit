@@ -264,8 +264,10 @@ root elements, projects each target part once, exposes reference IDs, and applie
 same lossless text transaction machinery across their source bytes. The implementation
 is tested against constructed strict/transitional cases and the bundled Word,
 LibreOffice, POI, Pandoc and Mammoth fixtures. Section inheritance and the initial
-threaded-comment/revision read graph are now separate typed graphs; structural review
-mutations and collaboration-session semantics remain unfinished.
+threaded-comment/revision read graph are now separate typed graphs. A first bounded,
+lossless accept/reject transaction now covers supported revision wrappers, complete moves
+and property snapshots; paragraph merges, table-grid reconstruction, custom XML and full
+collaboration-session semantics remain unfinished and explicitly blocked.
 
 Section ownership cannot be recovered from filenames or relationship order. The
 [`headerReference` contract](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.headerreference)
@@ -302,6 +304,48 @@ and end markers with editor/group and optional table-column scope. The engine th
 keeps comment IDs, paragraph IDs, durable IDs, revision IDs, move-range IDs and people
 IDs as distinct keys, preserves source links and emits bounded diagnostics for every
 missing, duplicate, orphaned or reversed join.
+
+Microsoft's [accept-all Open XML example](https://learn.microsoft.com/en-us/office/open-xml/word/how-to-accept-all-revisions-in-a-word-processing-document)
+shows that acceptance is a structural transform: inserted content is retained while its
+wrapper disappears, deleted content is removed, and property-change records need their
+own treatment. Older Microsoft guidance on
+[in-memory Open XML processing](https://learn.microsoft.com/en-us/previous-versions/office/developer/officetalk2010/ee945362%28v%3Doffice.11%29)
+warns that tracked revisions span more than forty elements and attributes. A global
+search-and-delete routine is therefore garbage: it may look plausible while silently
+destroying paragraph, table or move semantics.
+
+The installed Word object model exposes the broad application-authoritative
+[`Revisions.AcceptAll`](https://learn.microsoft.com/en-us/office/vba/api/word.revisions.acceptall)
+operation, while the archived Open-Xml-PowerTools
+[`RevisionProcessor`](https://github.com/OfficeDev/Open-Xml-PowerTools/blob/5881422a881f6ccefce2b9801b5dc6a753670d6e/OpenXmlPowerTools/RevisionProcessor.cs)
+contains a much wider document transform with block-level cleanup. Neither is a safe
+license to filter wrappers independently by author: nested decisions, paired move ranges
+and deleted paragraph marks create dependencies outside the selected record. The native
+planner consequently expands only explicitly authorized same-decision dependencies and
+otherwise fails closed; structures requiring Word's broader layout-aware behavior route
+to the guarded live-Word review path.
+
+The SDK's [`cellIns` contract](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.cellinsertion?view=openxml-3.0.1)
+uses an added-column example with inserted cells in every row, while Microsoft's
+[WordprocessingML table overview](https://learn.microsoft.com/en-us/office/open-xml/word/working-with-wordprocessingml-tables)
+states that `tblGrid` independently defines the table's grid columns. It follows that
+rejecting `cellIns` by deleting only its parent `tc` can leave grid semantics behind.
+The first transaction slice therefore accepts a cell insertion by removing its marker,
+but blocks rejection until table-grid reconstruction is modeled and proved.
+
+Likewise, [`cellMerge.vMergeOrig`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.cellmerge.verticalmergeoriginal?view=openxml-3.0.1)
+stores the vertical-merge setting removed by the revision, while
+[`cellMerge.vMerge`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.cellmerge.verticalmerge?view=openxml-3.0.1)
+stores the setting applied by it. Deleting the annotation cannot implement rejection.
+Both merge decisions remain blocked until the engine restores the correct `w:vMerge`
+state across the affected vertical cell chain.
+
+The SDK's [`numberingChange` contract](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.numberingchange?view=openxml-3.0.1)
+describes `w:original` as a cache of the former LISTNUM result or paragraph-numbering
+state. Removing the marker accepts the current result. The inverse decision cannot be
+implemented by removing the same marker: it requires restoring or recalculating the old
+field/numbering state. Reject therefore remains blocked until the reference/numbering
+engines can prove that reconstruction.
 
 ## OfficeMath and equation-specific findings
 

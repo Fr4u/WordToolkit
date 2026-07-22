@@ -249,6 +249,54 @@ public sealed class LosslessXmlDocumentTests
     }
 
     [Fact]
+    public void RemovesUnwrapsAndRenamesElementsWithoutReserializingUntouchedMarkup()
+    {
+        const string xml = "<w:r xmlns:w='urn:w' a='keep'><!--opaque--><w:del><w:delText xml:space='preserve'> old </w:delText></w:del><w:tail z=\"1\"/></w:r>";
+        var source = LosslessXmlDocument.Parse(Encoding.UTF8.GetBytes(xml));
+        var deletion = source.Elements.Single(element => element.LocalName == "del");
+        var deletedText = source.Elements.Single(element => element.LocalName == "delText");
+
+        var rejected = source.ApplyPatches(
+            source.CreateElementUnwrapPatches(deletion.Ordinal)
+                .Concat(source.CreateElementLocalNameRenamePatches(deletedText.Ordinal, "t"))
+        );
+        var accepted = source.ApplyPatches(
+            [source.CreateElementRemovalPatch(deletion.Ordinal)]
+        );
+
+        Assert.Equal(
+            "<w:r xmlns:w='urn:w' a='keep'><!--opaque--><w:t xml:space='preserve'> old </w:t><w:tail z=\"1\"/></w:r>",
+            Encoding.UTF8.GetString(rejected)
+        );
+        Assert.Equal(
+            "<w:r xmlns:w='urn:w' a='keep'><!--opaque--><w:tail z=\"1\"/></w:r>",
+            Encoding.UTF8.GetString(accepted)
+        );
+    }
+
+    [Fact]
+    public void StructuralPatchesRespectUtf16ByteOffsetsAndSelfClosingUnwrap()
+    {
+        const string xml = "<?xml version='1.0' encoding='utf-16'?><r xmlns='urn:r'><empty/><old>żółć</old></r>";
+        var encoding = new UnicodeEncoding(false, true, true);
+        var bytes = encoding.GetPreamble().Concat(encoding.GetBytes(xml)).ToArray();
+        var source = LosslessXmlDocument.Parse(bytes);
+        var empty = source.Elements.Single(element => element.LocalName == "empty");
+        var old = source.Elements.Single(element => element.LocalName == "old");
+
+        var result = source.ApplyPatches(
+            source.CreateElementUnwrapPatches(empty.Ordinal)
+                .Concat(source.CreateElementLocalNameRenamePatches(old.Ordinal, "new"))
+        );
+
+        Assert.True(result.AsSpan().StartsWith(encoding.GetPreamble()));
+        Assert.Equal(
+            "<?xml version='1.0' encoding='utf-16'?><r xmlns='urn:r'><new>żółć</new></r>",
+            encoding.GetString(result.AsSpan(2))
+        );
+    }
+
+    [Fact]
     public void CancellationStopsParsingBeforeMaterialization()
     {
         using var cancellation = new CancellationTokenSource();

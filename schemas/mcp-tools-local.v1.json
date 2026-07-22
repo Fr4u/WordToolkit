@@ -4804,6 +4804,269 @@
       }
     },
     {
+      "name": "plan_ooxml_review_decisions",
+      "title": "Plan saved-package review decisions",
+      "description": "Plan a bounded accept or reject operation for tracked Word revisions selected by stable revision IDs, redacted author fingerprints, story kinds, or revision kinds. The deterministic lossless plan is fingerprint-guarded, resolves complete move pairs and nested dependencies, reports unsupported structures instead of guessing, validates the exact candidate with Microsoft Open XML SDK, never opens Word, and never returns document text or author names.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$",
+            "description": "Exact package fingerprint returned by inspect_ooxml_review."
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["accept", "reject"]
+          },
+          "revision_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^wdr_[A-Za-z0-9_-]+$"
+            },
+            "description": "Stable revision IDs from inspect_ooxml_review for this fingerprint."
+          },
+          "author_fingerprints": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Fa-f0-9]{16}$"
+            },
+            "description": "Redacted author fingerprints from inspect_ooxml_review; names are not required."
+          },
+          "select_all": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicitly select every revision before applying optional kind filters. Empty implicit selection is forbidden."
+          },
+          "story_kinds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 9,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "main",
+                "header",
+                "footer",
+                "footnote",
+                "endnote",
+                "comment",
+                "glossary_entry",
+                "text_box",
+                "other"
+              ]
+            },
+            "description": "Optional narrowing filter."
+          },
+          "revision_kinds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 21,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "insertion",
+                "deletion",
+                "move_from",
+                "move_to",
+                "conflict_insertion",
+                "conflict_deletion",
+                "run_properties_change",
+                "paragraph_properties_change",
+                "table_properties_change",
+                "table_grid_change",
+                "table_row_properties_change",
+                "table_cell_properties_change",
+                "section_properties_change",
+                "numbering_properties_change",
+                "numbering_change",
+                "cell_insertion",
+                "cell_deletion",
+                "cell_merge",
+                "custom_xml_insertion",
+                "custom_xml_deletion",
+                "other_property_change"
+              ]
+            },
+            "description": "Optional narrowing filter."
+          },
+          "allow_cascade": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicitly include same-decision nested revisions or the missing half of a move pair."
+          },
+          "include_details": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include bounded operations, block records, changed parts, and schema issue locations without sensitive text."
+          }
+        },
+        "required": ["local_path", "expected_package_fingerprint", "decision"],
+        "anyOf": [
+          {"required": ["revision_ids"]},
+          {"required": ["author_fingerprints"]},
+          {
+            "required": ["select_all"],
+            "properties": {"select_all": {"const": true}}
+          }
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "apply_ooxml_review_decisions",
+      "title": "Apply planned saved-package review decisions",
+      "description": "Rebuild and atomically apply an already reviewed tracked-revision decision plan. Requires the exact package fingerprint and wrplan ID, rejects signed packages, fails closed for unsupported dependencies or newly introduced Microsoft Open XML schema errors, and retains a recovery backup by default. Uses no Word COM session.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the existing Word OOXML package modified in place."
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "expected_plan_id": {
+            "type": "string",
+            "pattern": "^wrplan_[A-Za-z0-9_-]+$",
+            "description": "Plan ID returned by plan_ooxml_review_decisions for the same resolved revision decisions and cascade policy."
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["accept", "reject"]
+          },
+          "revision_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^wdr_[A-Za-z0-9_-]+$"
+            }
+          },
+          "author_fingerprints": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Fa-f0-9]{16}$"
+            }
+          },
+          "select_all": {
+            "type": "boolean",
+            "default": false
+          },
+          "story_kinds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 9,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "main",
+                "header",
+                "footer",
+                "footnote",
+                "endnote",
+                "comment",
+                "glossary_entry",
+                "text_box",
+                "other"
+              ]
+            }
+          },
+          "revision_kinds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 21,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "insertion",
+                "deletion",
+                "move_from",
+                "move_to",
+                "conflict_insertion",
+                "conflict_deletion",
+                "run_properties_change",
+                "paragraph_properties_change",
+                "table_properties_change",
+                "table_grid_change",
+                "table_row_properties_change",
+                "table_cell_properties_change",
+                "section_properties_change",
+                "numbering_properties_change",
+                "numbering_change",
+                "cell_insertion",
+                "cell_deletion",
+                "cell_merge",
+                "custom_xml_insertion",
+                "custom_xml_deletion",
+                "other_property_change"
+              ]
+            }
+          },
+          "allow_cascade": {
+            "type": "boolean",
+            "default": false
+          },
+          "keep_backup": {
+            "type": "boolean",
+            "default": true,
+            "description": "Retain the atomic writer's sibling recovery backup after success."
+          }
+        },
+        "required": [
+          "local_path",
+          "expected_package_fingerprint",
+          "expected_plan_id",
+          "decision"
+        ],
+        "anyOf": [
+          {"required": ["revision_ids"]},
+          {"required": ["author_fingerprints"]},
+          {
+            "required": ["select_all"],
+            "properties": {"select_all": {"const": true}}
+          }
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "validate_ooxml",
       "title": "Validate OOXML package",
       "description": "Run bounded ZIP/OPC, XML, relationship, note, paraId and native OMML validation on a snapshot without committing a version.",

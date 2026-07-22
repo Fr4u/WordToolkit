@@ -318,6 +318,13 @@ internal sealed partial class WordLiveService
                 BoundForResponse(exception.Message, 512) ?? "Transaction limit exceeded"
             );
         }
+        catch (WordReviewTransactionLimitException exception)
+        {
+            throw new NativeToolException(
+                "TRANSACTION_LIMIT",
+                BoundForResponse(exception.Message, 512) ?? "Review transaction limit exceeded"
+            );
+        }
         catch (WordSemanticPreconditionException exception)
         {
             throw new NativeToolException(

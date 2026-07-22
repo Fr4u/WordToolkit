@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-WordToolkit 0.25 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference, canonical OfficeMath and review/revision graphs, and modeled effective formatting of a saved Word OOXML file without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing slice binds text in the main body, headers, footers, notes, comments, glossary building blocks and text boxes to exact XML byte spans, combines bounded commands into one hash-preconditioned package mutation, predicts the result fingerprint and retains an exact guarded inverse without reserializing unrelated XML.
+WordToolkit 0.26 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference, canonical OfficeMath and review/revision graphs, and modeled effective formatting of a saved Word OOXML file without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text and tracked-review structures to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
 
 The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtual environment, an interpreter bootstrap, or a per-call helper process. Its MCP command points directly to:
 
@@ -8,7 +8,7 @@ The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtua
 ./runtime/win-x64/wordtoolkit-native.exe
 ```
 
-The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.25 local plugin, does not participate in its startup, and is not required at runtime.
+The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.26 local plugin, does not participate in its startup, and is not required at runtime.
 
 ## Why the runtime was replaced
 
@@ -44,7 +44,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 48 tested Word Live actions plus fifteen standalone,
+The runtime implements 48 tested Word Live actions plus seventeen standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus three token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -78,6 +78,8 @@ inspect_ooxml_fonts
 resolve_ooxml_formatting
 plan_ooxml_text_edits
 apply_ooxml_text_edits
+plan_ooxml_review_decisions
+apply_ooxml_review_decisions
 inspect_live_word_document
 map_live_word_structures
 inspect_live_word_structure_items
@@ -145,9 +147,47 @@ Saved-package review inspection links standard comments to story-scoped start/en
 anchors, `commentsExtended` threads and resolved state, `commentsIds` durable IDs,
 `commentsExtensible` metadata/reaction inventory and `people` identities. It separately
 classifies text, property, move, conflict, cell and custom-XML revisions; pairs named move
-ranges; and reports permission ranges plus tracking settings. The action is parse-only:
-it does not accept, reject, merge, resolve or rewrite review markup, and it never returns
-raw XML.
+ranges; and reports permission ranges plus tracking settings. The inspector is parse-only
+and never returns raw XML. Separate fingerprint-guarded plan/apply actions can accept or
+reject a bounded selection by stable revision ID or redacted author fingerprint. They
+handle supported text/conflict wrappers, complete move pairs, property snapshots,
+numbering-change acceptance, inserted-row decisions, cell-insertion acceptance and
+cell-deletion rejection; unsupported paragraph merges, table-grid/vertical-merge/
+numbering reconstruction, custom XML and conflicting nested decisions are reported and
+not guessed.
+
+## Saved-package review decisions
+
+First inspect only the required revision records and retain the returned package
+fingerprint and stable IDs or redacted author fingerprints. Then build a dry plan:
+
+```json
+{
+  "local_path": "C:\\docs\\reviewed.docx",
+  "expected_package_fingerprint": "<64-hex fingerprint>",
+  "decision": "accept",
+  "author_fingerprints": ["<16-hex fingerprint>"]
+}
+```
+
+Apply only after reviewing `can_apply`, `apply_blocked_reasons`, `plan_id`, changed counts,
+byte delta and the baseline/candidate schema result. Send selectors that reproduce the
+same resolved decision set and the exact plan identity:
+
+```json
+{
+  "local_path": "C:\\docs\\reviewed.docx",
+  "expected_package_fingerprint": "<64-hex fingerprint>",
+  "expected_plan_id": "wrplan_<returned-id>",
+  "decision": "accept",
+  "author_fingerprints": ["<16-hex fingerprint>"],
+  "keep_backup": true
+}
+```
+
+Use `revision_ids` for surgical selection or explicit `select_all=true` for a deliberate
+whole-document decision. Empty implicit selection is rejected. Neither action opens Word,
+returns document text, nor needs author names.
 
 ## Fast model-to-Word path
 
@@ -228,6 +268,9 @@ and reports malformed or Word-rejected placement instead of repairing it silentl
 - Same-path save uses `Document.Save()`.
 - PDF export writes and verifies a sibling temporary PDF before moving or atomically replacing the destination.
 - Validation refuses unsaved changes, copies the saved DOCX to a temporary snapshot, validates with the Microsoft Open XML SDK, then deletes the snapshot.
+- Saved-package review apply requires the original package fingerprint, an exact deterministic plan ID and identical selectors; signed packages are blocked.
+- Review candidates are reparsed and compared with the baseline under the Microsoft Open XML SDK validator; apply stops if the mutation introduces any new schema error.
+- Review mutations fail closed on unsupported structural dependencies, write atomically and retain a sibling recovery backup by default.
 
 ## Build
 
@@ -282,14 +325,14 @@ The cleaner constrains every target to the repository root. It preserves only th
 Version:
 
 ```text
-0.25.0+codex.20260722004250
+0.26.0+codex.20260722013949
 ```
 
 Windows x64 ZIP:
 
-[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.25.0/WordToolkit-0.25.0%2Bcodex.20260722004250-native-win-x64.zip)
+[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.26.0/WordToolkit-0.26.0%2Bcodex.20260722013949-native-win-x64.zip)
 
-SHA-256: `7ff2d4fd8ef2c2bcfb4db864765bdd04ebf1bb270eb83681ca49b06227b489ac`
+SHA-256: `4e0386dc673c7fff0840df36e4386a9d7b4b53e36e3db7005491a76c993282f3`
 
 Live demonstration document:
 
