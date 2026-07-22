@@ -7,5 +7,11 @@
     <FileVersion>0.35.0.0</FileVersion>
     <InformationalVersion>$(WordToolkitVersion)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+
+    <!-- Keep compiler debug metadata independent of the checkout directory. Without an
+         explicit map, a deterministic assembly still records the absolute PDB path and
+         therefore differs between local builds and GitHub-hosted runners. -->
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildProjectDirectory)=/_/$(MSBuildProjectName)</PathMap>
   </PropertyGroup>
 </Project>

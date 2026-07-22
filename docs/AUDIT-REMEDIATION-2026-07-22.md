@@ -22,7 +22,8 @@ engine objective is complete.
   generated remote-schema drift; native schema coverage is enforced by .NET tests.
 - Native builds pin SDK 8.0.423 through `global.json` and CI configuration. Repository
   text uses an explicit LF policy so Windows checkout settings cannot silently change
-  packaged manifest/skill bytes.
+  packaged manifest/skill bytes. Compiler paths are mapped to stable virtual roots so
+  an absolute local or hosted-runner PDB path cannot alter packaged assemblies.
 - Repeatable graph/patch benchmarks and exact JSON evidence are checked in. On the
   measured workstation, 998,998 dependency nodes peaked at 4,173.1 MiB and a 400 MiB
   patch payload peaked at 2,158.1 MiB.

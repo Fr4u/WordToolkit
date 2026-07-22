@@ -136,6 +136,23 @@ $runtimeAssembly = Join-Path $runtime "wordtoolkit-native.dll"
 if (-not (Test-Path -LiteralPath $runtimeAssembly -PathType Leaf)) {
     throw "Published runtime assembly is missing"
 }
+$engineAssembly = Join-Path $runtime "WordToolkit.Engine.dll"
+if (-not (Test-Path -LiteralPath $engineAssembly -PathType Leaf)) {
+    throw "Published engine assembly is missing"
+}
+
+# A deterministic compiler can still place an absolute CodeView/PDB path in a DLL.
+# Reject that leak here: it makes otherwise identical checkouts produce different ZIPs.
+$rootWithForwardSlashes = $root.Replace('\', '/')
+foreach ($assemblyPath in @($runtimeAssembly, $engineAssembly)) {
+    $assemblyText = [Text.Encoding]::ASCII.GetString(
+        [IO.File]::ReadAllBytes($assemblyPath)
+    )
+    if ($assemblyText.Contains($root) -or
+        $assemblyText.Contains($rootWithForwardSlashes)) {
+        throw "Published assembly contains the checkout path: $assemblyPath"
+    }
+}
 
 $forbidden = @(
     Get-ChildItem -LiteralPath $resolvedOutput -Recurse -File |
