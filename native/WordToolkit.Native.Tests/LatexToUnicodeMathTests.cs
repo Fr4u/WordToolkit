@@ -8,11 +8,17 @@ public sealed class LatexToUnicodeMathTests
     [Theory]
     [InlineData(@"\frac{x^2+1}{\sqrt[3]{y}}", "(x^(2)+1)/(√(3&y))")]
     [InlineData(@"\sum_{i=1}^{n} i^2", "∑_(i=1)^(n)▒i^(2)")]
-    [InlineData(@"\int_0^1 e^{-x^2}\,d x", "∫_(0)^(1)▒e^(-x^(2)) d x")]
-    [InlineData(@"\int x\,d x", "∫▒x d x")]
+    [InlineData(@"\int_0^1 e^{-x^2}\,d x", "∫_(0)^(1)▒〖e^(-x^(2)) ⅆx〗")]
+    [InlineData(@"\int x\,d x", "∫▒〖x ⅆx〗")]
+    [InlineData(@"\int f(x)\,\mathrm{d}x", "∫▒〖f(x) ⅆx〗")]
+    [InlineData(@"\int f(x)\,\dd x", "∫▒〖f(x) ⅆx〗")]
     [InlineData(
         @"\int_{-\infty}^{\infty}\int_{-\infty}^{\infty}e^{-(x^2+y^2)}\,d x\,d y",
-        "∫_(-∞)^(∞)▒∫_(-∞)^(∞)▒e^(-(x^(2)+y^(2))) d x d y"
+        "∫_(-∞)^(∞)▒〖∫_(-∞)^(∞)▒〖e^(-(x^(2)+y^(2))) ⅆx〗 ⅆy〗"
+    )]
+    [InlineData(
+        @"\iint_D f(x,y)\,\mathrm{d}x\,\mathrm{d}y",
+        "∬_(D)▒〖f(x,y) ⅆx ⅆy〗"
     )]
     [InlineData(
         @"\begin{matrix}a&b\\c&d\end{matrix}",
@@ -49,6 +55,12 @@ public sealed class LatexToUnicodeMathTests
     public void ConvertsCommonWordMath(string latex, string expected)
     {
         Assert.Equal(expected, LatexToUnicodeMath.Convert(latex));
+    }
+
+    [Fact]
+    public void DoesNotInventADifferentialWithoutDifferentialNotation()
+    {
+        Assert.Equal("a d+b", LatexToUnicodeMath.Convert(@"a\,d+b"));
     }
 
     [Theory]

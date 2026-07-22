@@ -29,6 +29,12 @@ internal static class MathMarkupToUnicodeMath
     private const string MathMlNamespace = "http://www.w3.org/1998/Math/MathML";
     private const string OfficeMathNamespace =
         "http://schemas.openxmlformats.org/officeDocument/2006/math";
+    private const string OfficeMathStrictNamespace =
+        "http://purl.oclc.org/ooxml/officeDocument/math";
+    private const string WordprocessingNamespace =
+        "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    private const string WordprocessingStrictNamespace =
+        "http://purl.oclc.org/ooxml/wordprocessingml/main";
     private const int MaximumDepth = 64;
     private const int MaximumElements = 10_000;
     private const int MaximumOutputLength = 100_000;
@@ -62,7 +68,7 @@ internal static class MathMarkupToUnicodeMath
                 "Markup conversion requires MathML or OMML input"
             ),
         };
-        result = result.Trim();
+        result = WordLinearMathNormalizer.NormalizeForWord(result.Trim());
         if (result.Length == 0)
         {
             throw new NativeToolException(
@@ -153,7 +159,8 @@ internal static class MathMarkupToUnicodeMath
             "semantics" => MathMlSemantics(children, depth + 1),
             "annotation" or "annotation-xml" or "mspace" or "none" or "maligngroup"
                 or "malignmark" => "",
-            "mi" or "mn" or "mo" => CleanLeaf(element.Value),
+            "mi" => ConvertMathMlIdentifier(element),
+            "mn" or "mo" => CleanLeaf(element.Value),
             "mtext" => WordText(element.Value),
             "mfrac" => BinaryMathMl(
                 children,
@@ -217,6 +224,19 @@ internal static class MathMarkupToUnicodeMath
             child => child.Name.LocalName is not ("annotation" or "annotation-xml")
         );
         return expression is null ? "" : MathMlNode(expression, depth);
+    }
+
+    private static string ConvertMathMlIdentifier(XElement element)
+    {
+        var value = CleanLeaf(element.Value);
+        return value == "d"
+            && string.Equals(
+                element.Attribute("mathvariant")?.Value,
+                "normal",
+                StringComparison.OrdinalIgnoreCase
+            )
+            ? WordLinearMathNormalizer.DifferentialD.ToString()
+            : value;
     }
 
     private static string MathMlSequence(IEnumerable<XElement> children, int depth)
@@ -379,7 +399,7 @@ internal static class MathMarkupToUnicodeMath
     private static string ConvertOmml(XElement root)
     {
         if (
-            root.Name.NamespaceName != OfficeMathNamespace
+            !IsOfficeMathNamespace(root.Name.NamespaceName)
             || root.Name.LocalName is not ("oMath" or "oMathPara")
         )
         {
@@ -390,7 +410,10 @@ internal static class MathMarkupToUnicodeMath
         }
         foreach (var element in root.DescendantsAndSelf())
         {
-            if (element.Name.NamespaceName != OfficeMathNamespace)
+            if (
+                !IsOfficeMathNamespace(element.Name.NamespaceName)
+                && !IsAllowedWordFormattingElement(element)
+            )
             {
                 throw new NativeToolException(
                     "EQUATION_INVALID",
@@ -410,20 +433,36 @@ internal static class MathMarkupToUnicodeMath
         return OmmlSequence(root.Elements(), 0);
     }
 
-    private static string OmmlSequence(IEnumerable<XElement> elements, int depth)
+    private static string OmmlSequence(
+        IEnumerable<XElement> elements,
+        int depth,
+        bool normalizeDifferential = false
+    )
     {
         RequireDepth(depth);
-        return string.Concat(elements.Select(element => OmmlNode(element, depth + 1)));
+        return string.Concat(
+            elements.Select(element =>
+                OmmlNode(element, depth + 1, normalizeDifferential)
+            )
+        );
     }
 
-    private static string OmmlNode(XElement element, int depth)
+    private static string OmmlNode(
+        XElement element,
+        int depth,
+        bool normalizeDifferential = false
+    )
     {
         RequireDepth(depth);
         return element.Name.LocalName switch
         {
             "oMath" or "oMathPara" or "e" or "num" or "den" or "sub" or "sup"
-                or "deg" or "fName" or "lim" => OmmlSequence(element.Elements(), depth),
-            "r" => ConvertOmmlRun(element),
+                or "deg" or "fName" or "lim" => OmmlSequence(
+                    element.Elements(),
+                    depth,
+                    normalizeDifferential
+                ),
+            "r" => ConvertOmmlRun(element, normalizeDifferential),
             "f" => $"({OmmlContainer(element, "num", depth)})/({OmmlContainer(element, "den", depth)})",
             "sSup" => $"{ParenthesizeBase(OmmlContainer(element, "e", depth))}^({OmmlContainer(element, "sup", depth)})",
             "sSub" => $"{ParenthesizeBase(OmmlContainer(element, "e", depth))}_({OmmlContainer(element, "sub", depth)})",
@@ -453,14 +492,24 @@ internal static class MathMarkupToUnicodeMath
         };
     }
 
-    private static string ConvertOmmlRun(XElement element)
+    private static string ConvertOmmlRun(
+        XElement element,
+        bool normalizeDifferential = false
+    )
     {
         var text = string.Concat(
             element.Descendants()
-                .Where(item => item.Name.LocalName == "t")
+                .Where(item => IsOfficeMathElement(item, "t"))
                 .Select(item => item.Value)
         );
-        var normal = element.Descendants().Any(item => item.Name.LocalName == "nor");
+        var normal = element.Descendants().Any(item => IsOfficeMathElement(item, "nor"));
+        if (
+            text == WordLinearMathNormalizer.DifferentialD.ToString()
+            || normalizeDifferential && normal && text == "d"
+        )
+        {
+            return WordLinearMathNormalizer.DifferentialD.ToString();
+        }
         return normal ? WordText(text) : CleanLeaf(text);
     }
 
@@ -484,11 +533,18 @@ internal static class MathMarkupToUnicodeMath
     {
         var properties = Child(element, "naryPr");
         var character = properties is null
-            ? "∑"
-            : ReadVal(Child(properties, "chr"), "∑");
+            ? "∫"
+            : ReadVal(Child(properties, "chr"), "∫");
         var lower = OmmlContainer(element, "sub", depth, required: false);
         var upper = OmmlContainer(element, "sup", depth, required: false);
-        var body = OmmlContainer(element, "e", depth, required: false);
+        var bodyElement = Child(element, "e");
+        var body = bodyElement is null
+            ? ""
+            : OmmlSequence(
+                bodyElement.Elements(),
+                depth + 1,
+                normalizeDifferential: IsIntegralCharacter(character)
+            );
         var builder = new StringBuilder(CleanLeaf(character));
         if (lower.Length > 0)
         {
@@ -543,12 +599,12 @@ internal static class MathMarkupToUnicodeMath
         var body = OmmlContainer(element, "e", depth);
         var function = character switch
         {
-            "¯" or "‾" => "bar",
-            "→" => "vec",
-            "^" or "ˆ" => "hat",
-            "~" or "˜" => "tilde",
-            "˙" or "·" => "dot",
-            "¨" => "ddot",
+            "¯" or "‾" or "\u0305" => "bar",
+            "→" or "\u20D7" => "vec",
+            "^" or "ˆ" or "\u0302" => "hat",
+            "~" or "˜" or "\u0303" => "tilde",
+            "˙" or "·" or "\u0307" => "dot",
+            "¨" or "\u0308" => "ddot",
             _ => "",
         };
         return function.Length > 0
@@ -599,22 +655,44 @@ internal static class MathMarkupToUnicodeMath
     private static XElement? Child(XElement element, string localName)
     {
         return element.Elements()
-            .FirstOrDefault(
-                child =>
-                    child.Name.NamespaceName == OfficeMathNamespace
-                    && child.Name.LocalName == localName
-            );
+            .FirstOrDefault(child => IsOfficeMathElement(child, localName));
     }
 
     private static IEnumerable<XElement> Children(XElement element, string localName)
     {
         return element.Elements()
-            .Where(
-                child =>
-                    child.Name.NamespaceName == OfficeMathNamespace
-                    && child.Name.LocalName == localName
-            );
+            .Where(child => IsOfficeMathElement(child, localName));
     }
+
+    private static bool IsOfficeMathNamespace(string value) =>
+        value is OfficeMathNamespace or OfficeMathStrictNamespace;
+
+    private static bool IsOfficeMathElement(XElement element, string localName) =>
+        IsOfficeMathNamespace(element.Name.NamespaceName)
+        && element.Name.LocalName == localName;
+
+    private static bool IsWordprocessingNamespace(string value) =>
+        value is WordprocessingNamespace or WordprocessingStrictNamespace;
+
+    private static bool IsAllowedWordFormattingElement(XElement element)
+    {
+        if (!IsWordprocessingNamespace(element.Name.NamespaceName))
+        {
+            return false;
+        }
+        var formattingRoot = element.AncestorsAndSelf()
+            .LastOrDefault(item => IsWordprocessingNamespace(item.Name.NamespaceName));
+        if (formattingRoot?.Name.LocalName != "rPr")
+        {
+            return false;
+        }
+        var mathParent = formattingRoot.Ancestors()
+            .FirstOrDefault(item => IsOfficeMathNamespace(item.Name.NamespaceName));
+        return mathParent?.Name.LocalName is "r" or "ctrlPr";
+    }
+
+    private static bool IsIntegralCharacter(string value) =>
+        value is "∫" or "∬" or "∭" or "∮";
 
     private static string ReadVal(XElement? element, string defaultValue)
     {

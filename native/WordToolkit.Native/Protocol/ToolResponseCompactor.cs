@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -16,12 +18,72 @@ internal static class ToolResponseCompactor
     {
         var node = JsonSerializer.SerializeToNode(value, JsonDefaults.Compact)
             ?? new JsonObject();
+        if (
+            node is JsonObject preflight
+            && toolName == "preflight_live_word_equations"
+        )
+        {
+            return CompactEquationPreflight(preflight);
+        }
         if (node is JsonObject obj && BatchMutationTools.Contains(toolName))
         {
             return CompactBatchMutation(obj);
         }
         StripNoise(node);
         return node;
+    }
+
+    private static JsonObject CompactEquationPreflight(JsonObject source)
+    {
+        var result = new JsonObject();
+        Copy(source, result, "valid");
+        Copy(source, result, "equation_count");
+        var items = new JsonArray();
+        var required = 0;
+        var enabled = 0;
+        if (source["equations"] is JsonArray equations)
+        {
+            foreach (var node in equations)
+            {
+                if (node is not JsonObject equation)
+                {
+                    continue;
+                }
+                var item = new JsonObject();
+                Copy(equation, item, "index");
+                Copy(equation, item, "valid");
+                Copy(equation, item, "input_format");
+                Copy(equation, item, "display");
+                Copy(equation, item, "native_readback_required");
+                Copy(equation, item, "native_readback_enabled");
+                var linear = equation["word_linear"]?.GetValue<string>() ?? "";
+                item["word_linear_characters"] = equation["word_linear_characters"]
+                    ?.DeepClone()
+                    ?? JsonValue.Create(linear.Length);
+                item["word_linear_sha256"] = Convert.ToHexString(
+                        SHA256.HashData(Encoding.UTF8.GetBytes(linear))
+                    )
+                    .ToLowerInvariant()[..16];
+                if (
+                    equation["native_readback_required"]?.GetValue<bool>() == true
+                )
+                {
+                    required++;
+                }
+                if (
+                    equation["native_readback_enabled"]?.GetValue<bool>() == true
+                )
+                {
+                    enabled++;
+                }
+                items.Add(item);
+            }
+        }
+        result["native_readback_required_count"] = required;
+        result["native_readback_enabled_count"] = enabled;
+        result["word_linear_returned"] = false;
+        result["equations"] = items;
+        return result;
     }
 
     private static JsonObject CompactBatchMutation(JsonObject source)

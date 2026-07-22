@@ -49,9 +49,9 @@ path, save-policy and confirmation checks.
 | `insert_live_word_comment` | Add one native comment to a fresh token-verified range or selection. |
 | `insert_live_word_note` | Add one native footnote or endnote. |
 | `set_live_word_header_footer` | Set one bounded header/footer variant in one section. |
-| `insert_live_word_equation` | Create, build up and verify one native Word OMath. |
-| `insert_live_word_equations_batch` | Insert up to 100 native equations in one COM attachment and verify the resulting native OMath count. |
-| `preflight_live_word_equations` | Convert and inspect up to 200 formulas without touching Word. |
+| `insert_live_word_equation` | Create, build up and selectively read back one native Word OMath. |
+| `insert_live_word_equations_batch` | Insert up to 100 native equations in one COM attachment, with automatic bounded readback for sensitive structures. |
+| `preflight_live_word_equations` | Convert up to 200 formulas without touching Word; compact mode returns lengths, fingerprints and readback flags only. |
 | `apply_live_word_operations` | Append up to 200 interleaved text/equation operations through one COM attachment, one payload and one Undo transaction. |
 | `validate_live_word_document` | Validate a temporary copy of the already-saved DOCX. |
 | `export_live_word_pdf` | Export the current live document through Word's native PDF renderer. |
@@ -78,6 +78,13 @@ symbol or split the dagger exponent. LaTeX formulas still need explicit
 `\cdot` operators after fractions and between visible factors. Preflight
 advanced notation through the converter and inspect the saved native equation
 when semantic fidelity matters.
+
+Use explicit differential notation for integrals. Prefer
+`\int f(x)\,\mathrm{d}x`; `\,d x`, `\operatorname{d}x` and `\dd x` are also
+recognized. The converter emits U+2146 `ⅆ` and an invisible Word operand group
+`〖…〗`. This prevents `BuildUp()` from raising the differential into an exponent
+or leaving it outside the integral body. A generic plain `d` is not silently
+reinterpreted as a differential.
 
 These 48 native desktop tools are absent from the remote HTTP MCP server.
 
@@ -192,13 +199,18 @@ The COM `OMaths.Add` path creates an equation from linear text and
 or preserving one advanced symbol is not proof that Word kept the complete
 formula.
 
-The native runtime currently verifies successful OMath creation and the final
-equation count. It does not yet compare Word's generated OMML against the
-prepared expression AST. A failed build-up or count mismatch raises
-`EQUATION_INVALID`, rolls back the transaction and leaves the live version
-unchanged, but a structurally valid equation can still be reinterpreted by
-Word. Use preflight and inspect advanced notation when exact mathematical
-fidelity matters.
+The native runtime verifies successful OMath creation and final equation count.
+It also automatically reads back structurally sensitive n-ary operators,
+differentials, matrices, cases, equation arrays, accents, hbar and dagger
+notation through the new equation range's bounded `WordOpenXML`. One top-level
+OMath is securely parsed, canonical hashes and symbol counts are compared, and
+every differential must remain below the corresponding `m:nary/m:e`. A mismatch
+raises `EQUATION_INVALID`, rolls back the transaction and leaves the live version
+unchanged. `verify_readback=true` extends the gate to a low-risk equation.
+
+This is structural preservation evidence, not a proof of mathematical
+equivalence. The response returns hashes, counts and verification flags, never
+raw OMML or the reconstructed formula.
 
 The in-process learning counters retain only input format and success/failure
 counts. Formula text, document text, names and paths are not retained.
@@ -417,9 +429,11 @@ This removes repeated COM startup, repaint and viewport costs. Native
 claims.
 
 Use `preflight_live_word_equations` before large or unfamiliar formula sets.
-It returns the canonical AST, linear Word input, syntax-rule hits and whether
-advanced symbols force live readback. It never attaches to Word and never
-changes a document.
+Its default compact response returns only input/output lengths, a short linear
+fingerprint, format/display flags and whether native readback is required. It
+never attaches to Word and never changes a document. Request
+`response_mode="full"` through the lazy execution gateway only when the exact
+Word linear form is needed for diagnosis.
 
 ## Concurrency and failure behavior
 

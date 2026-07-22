@@ -44,7 +44,7 @@ public sealed class McpServerTests
                 .GetString()
         );
         Assert.Equal(
-            "0.29.0",
+            "0.30.0",
             responses[0].RootElement
                 .GetProperty("result")
                 .GetProperty("serverInfo")
@@ -156,7 +156,9 @@ public sealed class McpServerTests
             """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_wordtoolkit_actions","arguments":{"query":"image"}}}""",
             """{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"inspect_wordtoolkit_action","arguments":{"action":"insert_live_word_image"}}}""",
             """{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"execute_wordtoolkit_action","arguments":{"action":"apply_live_word_operations","arguments":{"live_document_id":"live_1","operations":[{"type":"text","text":"x"}]}}}}""",
-            """{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"execute_wordtoolkit_action","arguments":{"action":"apply_live_word_operations","arguments":{"live_document_id":"live_1","operations":[{"type":"text","text":"x"}]},"response_mode":"full"}}}"""
+            """{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"execute_wordtoolkit_action","arguments":{"action":"apply_live_word_operations","arguments":{"live_document_id":"live_1","operations":[{"type":"text","text":"x"}]},"response_mode":"full"}}}""",
+            """{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"execute_wordtoolkit_action","arguments":{"action":"preflight_live_word_equations","arguments":{"equations":[{"value":"x"}]}}}}""",
+            """{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"execute_wordtoolkit_action","arguments":{"action":"preflight_live_word_equations","arguments":{"equations":[{"value":"x"}]},"response_mode":"full"}}}"""
         ) + "\n";
         var output = new StringWriter();
         var catalog = ToolCatalog.LoadNativeWordTools();
@@ -175,7 +177,7 @@ public sealed class McpServerTests
             .Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Select(line => JsonDocument.Parse(line))
             .ToArray();
-        Assert.Equal(4, responses.Length);
+        Assert.Equal(6, responses.Length);
 
         var searched = responses[0].RootElement
             .GetProperty("result")
@@ -214,6 +216,39 @@ public sealed class McpServerTests
         Assert.True(
             full.GetRawText().Length > compact.GetRawText().Length * 50,
             "Compact mode should remove at least 98% of a large echoed batch response"
+        );
+
+        var compactPreflight = responses[4].RootElement
+            .GetProperty("result")
+            .GetProperty("structuredContent")
+            .GetProperty("data");
+        var compactEquation = compactPreflight
+            .GetProperty("equations")
+            .EnumerateArray()
+            .Single();
+        Assert.False(compactEquation.TryGetProperty("word_linear", out _));
+        Assert.Equal(
+            20_000,
+            compactEquation.GetProperty("word_linear_characters").GetInt32()
+        );
+        Assert.Equal(
+            16,
+            compactEquation.GetProperty("word_linear_sha256").GetString()!.Length
+        );
+        Assert.False(compactPreflight.GetProperty("word_linear_returned").GetBoolean());
+        Assert.True(compactPreflight.GetRawText().Length < 600);
+
+        var fullPreflight = responses[5].RootElement
+            .GetProperty("result")
+            .GetProperty("structuredContent")
+            .GetProperty("data");
+        Assert.Equal(
+            20_000,
+            fullPreflight
+                .GetProperty("equations")[0]
+                .GetProperty("word_linear")
+                .GetString()!
+                .Length
         );
         foreach (var response in responses)
         {
@@ -347,6 +382,35 @@ public sealed class McpServerTests
                             window_hwnd = 123,
                         },
                         performance = new { total_ms = 12.3 },
+                        runtime = "dotnet-native",
+                        python_used = false,
+                    }
+                );
+            }
+            if (name == "preflight_live_word_equations")
+            {
+                return Task.FromResult<object>(
+                    new
+                    {
+                        valid = true,
+                        equation_count = 1,
+                        equations = new[]
+                        {
+                            new
+                            {
+                                index = 0,
+                                valid = true,
+                                input_format = "latex",
+                                word_linear = new string('x', 20_000),
+                                word_linear_characters = 20_000,
+                                display = true,
+                                native_readback_required = true,
+                                native_readback_enabled = true,
+                                rules = new[] { "large_echo" },
+                                warnings = Array.Empty<string>(),
+                            },
+                        },
+                        mutated_word = false,
                         runtime = "dotnet-native",
                         python_used = false,
                     }

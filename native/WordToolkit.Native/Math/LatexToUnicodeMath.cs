@@ -135,6 +135,7 @@ internal static class LatexToUnicodeMath
             ["degree"] = "°",
             ["dagger"] = "†",
             ["ddagger"] = "‡",
+            ["dd"] = WordLinearMathNormalizer.DifferentialD.ToString(),
             ["ldots"] = "…",
             ["cdots"] = "⋯",
             ["vdots"] = "⋮",
@@ -254,6 +255,7 @@ internal static class LatexToUnicodeMath
         private readonly string _source;
         private int _index;
         private int _depth;
+        private bool _nextPlainDIsDifferential;
 
         public Parser(string source)
         {
@@ -267,7 +269,9 @@ internal static class LatexToUnicodeMath
             {
                 throw Invalid("Unexpected trailing LaTeX input", new { index = _index });
             }
-            return NormalizeSpaces(value);
+            return WordLinearMathNormalizer.NormalizeForWord(
+                NormalizeSpaces(value)
+            );
         }
 
         private string ParseSequence(char? terminator)
@@ -351,6 +355,12 @@ internal static class LatexToUnicodeMath
         private string ParseAtom()
         {
             var character = _source[_index++];
+            var isDifferential = _nextPlainDIsDifferential && character == 'd';
+            _nextPlainDIsDifferential = false;
+            if (isDifferential)
+            {
+                return WordLinearMathNormalizer.DifferentialD.ToString();
+            }
             if (character == '{')
             {
                 var body = ParseSequence('}');
@@ -421,10 +431,16 @@ internal static class LatexToUnicodeMath
             if (!char.IsLetter(_source[_index]))
             {
                 var escaped = _source[_index++];
+                if (escaped is ',' or ';' or ':' or ' ' or '!')
+                {
+                    if (NextSourceAtomIsPlainDifferential())
+                    {
+                        _nextPlainDIsDifferential = true;
+                    }
+                    return escaped == '!' ? "" : " ";
+                }
                 return escaped switch
                 {
-                    ',' or ';' or ':' or ' ' => " ",
-                    '!' => "",
                     '{' => "{",
                     '}' => "}",
                     '_' => "_",
@@ -491,7 +507,9 @@ internal static class LatexToUnicodeMath
                         new { name }
                     );
                 }
-                return $"\"{name}\"";
+                return name == "d"
+                    ? WordLinearMathNormalizer.DifferentialD.ToString()
+                    : $"\"{name}\"";
             }
             if (
                 command
@@ -507,7 +525,10 @@ internal static class LatexToUnicodeMath
                     or "textstyle"
             )
             {
-                return ParseRequiredGroup(command);
+                var body = ParseRequiredGroup(command);
+                return command == "mathrm" && body.Trim() == "d"
+                    ? WordLinearMathNormalizer.DifferentialD.ToString()
+                    : body;
             }
             if (
                 command
@@ -774,6 +795,27 @@ internal static class LatexToUnicodeMath
             return index < _source.Length && _source[index] == NaryBodySeparator;
         }
 
+        private bool NextSourceAtomIsPlainDifferential()
+        {
+            var index = _index;
+            while (index < _source.Length && char.IsWhiteSpace(_source[index]))
+            {
+                index++;
+            }
+            if (index >= _source.Length || _source[index] != 'd')
+            {
+                return false;
+            }
+            index++;
+            if (index >= _source.Length)
+            {
+                return false;
+            }
+            return char.IsWhiteSpace(_source[index])
+                || char.IsLetterOrDigit(_source[index])
+                || _source[index] is '\\' or '{' or '(';
+        }
+
         private void Expect(char expected)
         {
             if (_index >= _source.Length || _source[_index] != expected)
@@ -868,6 +910,7 @@ internal static class LatexToUnicodeMath
             && output[^1] != ' '
             && StartsWithIdentifier(atom)
             && EndsWithIdentifier(output)
+            && output[^1] != WordLinearMathNormalizer.DifferentialD
         )
         {
             output.Append(' ');
@@ -929,6 +972,7 @@ internal static class LatexToUnicodeMath
             if (
                 pendingSpace
                 && output.Length > 0
+                && output[^1] != WordLinearMathNormalizer.DifferentialD
                 && output[^1]
                     is not ('(' or '[' or '{' or '@' or '&' or NaryBodySeparator)
                 && character is not (')' or ']' or '}' or '@' or '&' or ',' or ';')

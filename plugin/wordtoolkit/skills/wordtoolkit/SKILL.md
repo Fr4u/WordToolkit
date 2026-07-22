@@ -238,6 +238,13 @@ arguments.
 Equation inputs may be LaTeX, UnicodeMath, Presentation MathML, or OMML.
 Prefer LaTeX for model output. Equations must remain native editable OMath;
 never replace them with screenshots or plain-text approximations.
+For an integral, write an explicit differential such as
+`\int f(x)\,\mathrm{d}x`; `\,d x`, `\operatorname{d}x`, and `\dd x` are also
+accepted. Use the exact field name `input_format`, never `source_format`.
+WordToolkit canonicalizes the differential and groups the complete n-ary operand.
+Sensitive equations force bounded OMML readback and rollback on structural drift;
+raw OMML is never returned. Keep the default compact response. Request
+`response_mode="full"` only to diagnose the exact converted Word linear form.
 Do not confuse live equation insertion with saved-package equation inspection. The
 former asks Word to create professional OMath; the latter reads existing OMML into a
 bounded semantic graph and deliberately performs no conversion or mutation.

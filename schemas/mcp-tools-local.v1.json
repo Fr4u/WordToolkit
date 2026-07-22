@@ -7835,7 +7835,7 @@
     {
       "name": "insert_live_word_equation",
       "title": "Insert native equation directly in open Microsoft Word",
-      "description": "Convert a LaTeX, UnicodeMath, Presentation MathML, or OMML string to Word linear math, create exactly one native editable OMath in the real open document, build it up, and show the change immediately.",
+      "description": "Convert a LaTeX, UnicodeMath, Presentation MathML, or OMML string to Word linear math, create exactly one native editable OMath in the real open document, build it up, and show the change immediately. Structurally sensitive equations are read back as bounded native OMML and rolled back if Word changes their canonical contract.",
       "inputSchema": {
         "properties": {
           "live_document_id": {
@@ -7860,6 +7860,12 @@
           "display": {
             "default": true,
             "title": "Display",
+            "type": "boolean"
+          },
+          "verify_readback": {
+            "default": false,
+            "description": "Also verify bounded native OMML readback for an otherwise low-risk formula. N-ary operators, differentials, matrices, equation arrays, accents and advanced symbols force this verification regardless.",
+            "title": "Verify Readback",
             "type": "boolean"
           },
           "target": {
@@ -7918,7 +7924,7 @@
     {
       "name": "insert_live_word_equations_batch",
       "title": "Insert a batch of native equations directly in open Microsoft Word",
-      "description": "Insert up to 100 LaTeX, UnicodeMath, Presentation MathML, or OMML equations as native editable Word OMath objects in one COM attachment and one Undo record. Use this for fast worksheets or step-by-step solutions.",
+      "description": "Insert up to 100 LaTeX, UnicodeMath, Presentation MathML, or OMML equations as native editable Word OMath objects in one COM attachment and one Undo record. Each item may request verify_readback; structurally sensitive equations force bounded OMML readback automatically. Use this for fast worksheets or step-by-step solutions.",
       "inputSchema": {
         "properties": {
           "live_document_id": {
@@ -7927,9 +7933,40 @@
           },
           "equations": {
             "items": {
-              "additionalProperties": true,
+              "additionalProperties": false,
+              "properties": {
+                "value": {
+                  "maxLength": 100000,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "input_format": {
+                  "default": "latex",
+                  "enum": [
+                    "latex",
+                    "unicodemath",
+                    "mathml",
+                    "omml"
+                  ],
+                  "type": "string"
+                },
+                "display": {
+                  "default": true,
+                  "type": "boolean"
+                },
+                "verify_readback": {
+                  "default": false,
+                  "description": "Force bounded OMML readback for a low-risk formula; sensitive structures enable it automatically.",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "value"
+              ],
               "type": "object"
             },
+            "maxItems": 100,
+            "minItems": 1,
             "title": "Equations",
             "type": "array"
           },
@@ -7968,14 +8005,45 @@
     {
       "name": "preflight_live_word_equations",
       "title": "Preflight equations for Microsoft Word",
-      "description": "Securely parse and convert up to 200 LaTeX, UnicodeMath, Presentation MathML, or OMML equation strings before any Word mutation. DTDs and external XML resolution are prohibited. Returns the exact Word linear math that will be inserted.",
+      "description": "Securely parse and convert up to 200 LaTeX, UnicodeMath, Presentation MathML, or OMML equation strings before any Word mutation. DTDs and external XML resolution are prohibited. Compact mode returns only lengths, fingerprints and readback requirements; request response_mode=full only when the exact Word linear form is needed for debugging.",
       "inputSchema": {
         "properties": {
           "equations": {
             "items": {
-              "additionalProperties": true,
+              "additionalProperties": false,
+              "properties": {
+                "value": {
+                  "maxLength": 100000,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "input_format": {
+                  "default": "latex",
+                  "enum": [
+                    "latex",
+                    "unicodemath",
+                    "mathml",
+                    "omml"
+                  ],
+                  "type": "string"
+                },
+                "display": {
+                  "default": true,
+                  "type": "boolean"
+                },
+                "verify_readback": {
+                  "default": false,
+                  "description": "Force bounded OMML readback for a low-risk formula; sensitive structures enable it automatically.",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "value"
+              ],
               "type": "object"
             },
+            "maxItems": 200,
+            "minItems": 1,
             "title": "Equations",
             "type": "array"
           }
@@ -7996,7 +8064,7 @@
     {
       "name": "apply_live_word_operations",
       "title": "Apply a fast mixed batch directly in open Microsoft Word",
-      "description": "Append up to 200 interleaved text and LaTeX, UnicodeMath, Presentation MathML, or OMML equation operations in one COM attachment and one Word Undo transaction. The complete batch is converted before mutation, inserted as one payload, and rolled back if styling, OMath build-up or native count verification fails.",
+      "description": "Append up to 200 interleaved text and LaTeX, UnicodeMath, Presentation MathML, or OMML equation operations in one COM attachment and one Word Undo transaction. The complete batch is converted before mutation, inserted as one payload, and rolled back if styling, OMath build-up, native count verification or required bounded OMML readback fails.",
       "inputSchema": {
         "properties": {
           "live_document_id": {
@@ -8006,8 +8074,11 @@
           "operations": {
             "items": {
               "additionalProperties": true,
+              "description": "Use {type,text,as_new_paragraph,style,formatting} for text or {type,value,input_format,display,verify_readback} for an equation.",
               "type": "object"
             },
+            "maxItems": 200,
+            "minItems": 1,
             "title": "Operations",
             "type": "array"
           },

@@ -151,9 +151,13 @@ binds that label to a fresh HMAC token and exact live version. An intervening
 manual action or a newer verified property change without its own Word Undo
 entry creates a hard barrier.
 
-The native bridge verifies OMath creation and final equation count, but does
-not claim semantic OMML AST readback. A build-up exception or count mismatch
-fails closed and rolls back. The in-process learning counters retain only
+The native bridge verifies OMath creation and final equation count. Sensitive
+equations additionally undergo bounded immediate `WordOpenXML` readback: DTDs
+and external resolution are prohibited, exactly one top-level OMath is required,
+and element/depth/character limits are enforced before canonical hashes, symbol
+counts and differential ancestry are compared. A build-up, parse, contract or
+placement mismatch fails closed and rolls back. Responses expose verification
+facts and hashes, never raw OMML. The in-process learning counters retain only
 input format and success/failure counts—not formula text, document content,
 names or paths.
 

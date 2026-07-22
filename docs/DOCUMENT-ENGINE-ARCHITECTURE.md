@@ -607,11 +607,15 @@ Export paths:
 
 - canonical AST -> OMML with OfficeMath placement validation — **not yet implemented**;
 - canonical AST -> UnicodeMath/LaTeX/MathML with explicit loss diagnostics;
-- canonical AST -> live Word equation, followed by `BuildUp` and structural inspection.
+- the separate native live adapter accepts bounded LaTeX, UnicodeMath, Presentation
+  MathML or OMML, emits Word linear math, runs `BuildUp`, and immediately verifies
+  sensitive result OMML — **initial structural implementation complete**.
 
-The renderer must distinguish `d x` as a differential from a generic superscripted or
-adjacent identifier. Visual screenshots alone are regression evidence, not the internal
-representation.
+The live adapter distinguishes an explicit differential from a generic adjacent
+identifier, canonicalizes it to U+2146 `ⅆ`, and wraps the complete integral operand in
+Word's invisible `〖…〗` group. Readback verifies that every differential remains inside
+`m:nary/m:e`; screenshots alone remain regression evidence, not the internal
+representation or mathematical-equivalence proof.
 
 ## Review and revisions engine
 

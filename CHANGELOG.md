@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+## 0.30.0 — 2026-07-22
+
+- Rebuilt live integral conversion around Word's actual UnicodeMath grammar. LaTeX
+  `\,d x`, `\mathrm{d}x`, `\operatorname{d}x` and `\dd x`, normal-variant MathML
+  `d`, native OMML normal `d`, and direct UnicodeMath `ⅆ` now converge on U+2146.
+  Integral operands containing differentials are wrapped in Word's invisible `〖…〗`
+  group, including nested `∫`, `∬` and `∭` forms, so `OMath.BuildUp()` cannot lift the
+  differential into an exponent or leave it outside `m:nary/m:e`.
+- Added a bounded native equation readback verifier. Structurally sensitive n-ary
+  operators, differentials, matrices, cases, equation arrays, accents, hbar and dagger
+  notation automatically read back the exact new OMath through `Range.WordOpenXML`.
+  The verifier securely reparses one equation, compares canonical SHA-256 contracts,
+  checks symbol counts and differential ancestry, returns no raw OMML, and rolls back
+  the complete Word Undo transaction on drift. `verify_readback=true` can extend the
+  same gate to otherwise low-risk equations.
+- Hardened secure MathML/OMML conversion for Strict OfficeMath namespaces, real Word
+  run/control formatting, omitted default integral characters and normal differential
+  runs. Word's matrix/cases marker expansion and combining accent characters now map to
+  the same canonical contract used by LaTeX input.
+- Made equation preflight token-lean by default. Compact responses omit converted
+  linear math, rule arrays and source markup, returning only bounded counts, flags and a
+  short fingerprint; exact linear output requires `response_mode="full"`. Raw OMML is
+  never returned by live verification.
+- Added precise lazy equation-item schemas and explicit failure for misleading format
+  aliases such as `source_format`; callers must use `input_format`. Fixed the direct
+  single-equation action so its advertised token-verified `cursor`, `selection` and
+  `document_end` targets are actually honored instead of always appending.
+- Verified the release checkpoint with 234 native engine tests, 120 native host tests
+  and 1273 Python/OOXML tests. Real Word MCP regression covered Gaussian, nested and
+  double integrals, Presentation MathML, OMML, a parenthesized matrix, cases and
+  combining accents with transactional rollback on the deliberately isolated failure.
+
 ## 0.29.0 — 2026-07-22
 
 - Added `WordPackageThreeWayMergePlanner`, a bounded deterministic merge over an

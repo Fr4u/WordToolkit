@@ -1,6 +1,6 @@
 {
   "name": "wordtoolkit",
-  "version": "0.29.0+codex.20260722030105",
+  "version": "0.30.0+codex.20260722041105",
   "description": "Token-lean native Microsoft Word automation with 14 core/gateway tools and lazy access to 73 native actions.",
   "author": {
     "name": "WordToolkit contributors"
@@ -77,6 +77,8 @@
       "LaTeX to Office Math",
       "UnicodeMath",
       "MathML and OMML",
+      "Bounded Native Equation Readback",
+      "Canonical Differential Placement",
       "Editable Office Math",
       "Same-Path Save",
       "Native PDF Export",

@@ -2197,19 +2197,27 @@ internal sealed partial class WordLiveService : IToolHandler
                         valid = true,
                         input_format = prepared.InputFormat,
                         word_linear = prepared.Value,
+                        word_linear_characters = prepared.Value.Length,
                         display = prepared.Display,
-                        native_readback_required = false,
+                        native_readback_required = prepared.ReadbackRequired,
+                        native_readback_enabled = prepared.VerifyReadback,
                         rules = new[]
-                        {
-                            prepared.InputFormat switch
                             {
-                                "latex" => "native_latex_to_unicodemath",
-                                "mathml" => "secure_mathml_to_unicodemath",
-                                "omml" => "secure_omml_to_unicodemath",
-                                _ => "native_unicodemath",
-                            },
-                            "single_com_omath_build_up",
-                        },
+                                prepared.InputFormat switch
+                                {
+                                    "latex" => "native_latex_to_unicodemath",
+                                    "mathml" => "secure_mathml_to_unicodemath",
+                                    "omml" => "secure_omml_to_unicodemath",
+                                    _ => "native_unicodemath",
+                                },
+                                "single_com_omath_build_up",
+                            }
+                            .Concat(
+                                prepared.VerifyReadback
+                                    ? new[] { "bounded_native_omml_readback" }
+                                    : Array.Empty<string>()
+                            )
+                            .ToArray(),
                         warnings = Array.Empty<string>(),
                     };
                 }
@@ -2484,6 +2492,9 @@ internal sealed partial class WordLiveService : IToolHandler
             arguments.Boolean("activate", true),
             arguments.NullableInt64("expected_version"),
             optimizeScreenUpdates: true,
+            arguments.String("target", "cursor"),
+            arguments.String("selection_token"),
+            arguments.Boolean("replace_selection", false),
             cancellationToken
         );
     }
@@ -2511,6 +2522,9 @@ internal sealed partial class WordLiveService : IToolHandler
             arguments.Boolean("activate", true),
             arguments.NullableInt64("expected_version"),
             optimizeScreenUpdates: true,
+            target: "document_end",
+            selectionToken: "",
+            replaceSelection: false,
             cancellationToken
         );
     }
@@ -2598,6 +2612,9 @@ internal sealed partial class WordLiveService : IToolHandler
             arguments.Boolean("activate", true),
             arguments.NullableInt64("expected_version"),
             arguments.Boolean("optimize_screen_updates", true),
+            target: "document_end",
+            selectionToken: "",
+            replaceSelection: false,
             cancellationToken
         );
     }
@@ -2608,6 +2625,9 @@ internal sealed partial class WordLiveService : IToolHandler
         bool activate,
         long? expectedVersion,
         bool optimizeScreenUpdates,
+        string target,
+        string selectionToken,
+        bool replaceSelection,
         CancellationToken cancellationToken
     )
     {
@@ -2623,7 +2643,15 @@ internal sealed partial class WordLiveService : IToolHandler
                 {
                     document.Activate();
                 }
-                var insertionStart = Math.Max(0, (int)document.Content.End - 1);
+                dynamic targetRange = ResolveInsertionRange(
+                    (object)application,
+                    (object)document,
+                    record,
+                    target,
+                    selectionToken,
+                    replaceSelection
+                );
+                var insertionStart = (int)targetRange.Start;
                 var pieces = new List<string>(operations.Count);
                 var segments = new List<(int Start, int End)>(operations.Count);
                 var offset = 0;
@@ -2665,7 +2693,6 @@ internal sealed partial class WordLiveService : IToolHandler
                     undoRecord = application.UndoRecord;
                     undoRecord.StartCustomRecord("WordToolkit: native mixed live batch");
                     undoStarted = true;
-                    dynamic targetRange = document.Range(insertionStart, insertionStart);
                     targetRange.Text = payload;
 
                     for (var index = 0; index < operations.Count; index++)
@@ -2715,6 +2742,14 @@ internal sealed partial class WordLiveService : IToolHandler
                         dynamic equation = added.OMaths.Item(1);
                         equation.BuildUp();
                         equation.Type = equationOperation.Display ? 0 : 1;
+                        EquationReadbackVerification? readback = null;
+                        if (equationOperation.VerifyReadback)
+                        {
+                            readback = EquationReadbackVerifier.Verify(
+                                (string?)equation.Range.WordOpenXML ?? "",
+                                equationOperation.Value
+                            );
+                        }
                         results[index] = new
                         {
                             type = "equation",
@@ -2724,7 +2759,20 @@ internal sealed partial class WordLiveService : IToolHandler
                                 display = equationOperation.Display,
                                 linear_input = equationOperation.Value,
                                 native_verified = true,
-                                readback_verified = false,
+                                readback_verified = readback is not null,
+                                readback_required = equationOperation.ReadbackRequired,
+                                readback = readback is null
+                                    ? null
+                                    : new
+                                    {
+                                        expected_contract_sha256 = readback.ExpectedContractSha256,
+                                        actual_contract_sha256 = readback.ActualContractSha256,
+                                        math_element_count = readback.MathElementCount,
+                                        nary_count = readback.NaryCount,
+                                        differential_count = readback.DifferentialCount,
+                                        differential_placement_verified = readback.DifferentialPlacementVerified,
+                                        raw_omml_returned = false,
+                                    },
                                 range = new
                                 {
                                     start = (int)equation.Range.Start,
@@ -3167,6 +3215,26 @@ internal sealed partial class WordLiveService : IToolHandler
         JsonElement arguments
     )
     {
+        foreach (var unsupportedAlias in new[]
+        {
+            "source_format",
+            "equation_source_format",
+            "format",
+        })
+        {
+            if (arguments.TryGetProperty(unsupportedAlias, out _))
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    $"Unknown equation field '{unsupportedAlias}'; use 'input_format'",
+                    new
+                    {
+                        unsupported_field = unsupportedAlias,
+                        accepted_field = "input_format",
+                    }
+                );
+            }
+        }
         var valueNode = arguments.Required("value");
         if (valueNode.ValueKind != JsonValueKind.String)
         {
@@ -3202,6 +3270,7 @@ internal sealed partial class WordLiveService : IToolHandler
             "mathml" or "omml" => MathMarkupToUnicodeMath.Convert(value, inputFormat),
             _ => value.Trim(),
         };
+        linear = WordLinearMathNormalizer.NormalizeForWord(linear);
         if (
             linear.Any(
                 character =>
@@ -3215,10 +3284,13 @@ internal sealed partial class WordLiveService : IToolHandler
                 "Equation input contains unsafe control characters"
             );
         }
+        var readbackRequired = EquationReadbackVerifier.RequiresReadback(linear);
         return new PreparedEquationOperation(
             linear,
             arguments.Boolean("display", true),
-            inputFormat
+            inputFormat,
+            arguments.Boolean("verify_readback", false) || readbackRequired,
+            readbackRequired
         );
     }
 
@@ -4535,7 +4607,9 @@ internal sealed partial class WordLiveService : IToolHandler
     private sealed record PreparedEquationOperation(
         string Linear,
         bool Display,
-        string InputFormat
+        string InputFormat,
+        bool VerifyReadback,
+        bool ReadbackRequired
     )
         : PreparedOperation(Linear, Display);
 

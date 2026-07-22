@@ -80,8 +80,9 @@ Large generated output is not sent as simulated keystrokes. `apply_live_word_ope
 6. assigns the payload once;
 7. applies formatting to tracked text ranges;
 8. creates equations in reverse range order so later range changes cannot invalidate earlier offsets;
-9. verifies the resulting native equation count;
-10. closes the Undo record or rolls back the whole transaction.
+9. reads back and verifies every structurally sensitive new OMath before commit;
+10. verifies the resulting native equation count;
+11. closes the Undo record or rolls back the whole transaction.
 
 This is the lowest-latency safe approximation of “model generation directly into Word”. Token-by-token COM writes would be visibly slower, produce a rotten Undo history and expose partially generated structure.
 
@@ -210,5 +211,7 @@ claim that every ribbon command is safe automation.
 - PDF export uses Word's native renderer. It is not an Undoable document mutation, and replacing a PDF requires `overwrite=true`.
 - LaTeX coverage is intentionally bounded; unsupported commands fail before mutation.
 - MathML and OMML are securely parsed and converted to Word linear math; source markup is not inserted verbatim or preserved byte-for-byte.
-- Equation verification currently confirms native OMath creation and count. Full semantic OMML AST readback is not claimed.
+- Sensitive equations receive bounded native OMML readback with canonical hash,
+  symbol-count and differential-placement checks. This is not a general
+  mathematical-equivalence proof or the full saved-package OfficeMath graph.
 - The local source tree still contains the previous Python implementation, but the installed plugin runtime does not.

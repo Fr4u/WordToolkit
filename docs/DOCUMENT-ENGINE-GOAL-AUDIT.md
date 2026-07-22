@@ -78,7 +78,7 @@ vendor claim is not implementation evidence.
 | TOC/TOF/TOT/captions | Partial foundation | TOC/TC/SEQ field classification and TOC bookmark-restriction edges now enter the reference graph; existing live actions/historical tests | Typed switch/options AST, caption and style dependencies, TOF/TOT distinction, backend-qualified field update, layout and round-trip tests |
 | Comments/threaded comments/revisions | Partial (typed read graph + bounded mutation) | Source-linked comment/thread/person graph and authorship-linked revision graph remain redacted; saved-package plan/apply selectively accepts or rejects supported wrappers, complete moves and property snapshots and handles numbering-change acceptance, inserted rows, cell-insertion acceptance and cell-deletion rejection by revision ID or author fingerprint, with exact inverse and SDK candidate validation; live review remains available | Remaining paragraph/table/numbering/custom-XML transforms, full reaction/comment mutation, merge and accept/reject proof across Word versions |
 | Content controls/custom XML | Partial | Content-control projection; unknown part retention | Binding graph, repeats, locks, data update and lossless custom XML edits |
-| Equations/OfficeMath | Partial (canonical read graph) | Source-linked graph covers all 19 standard OMML objects, argument roles, matrix rows/cells, runs/text, display paragraphs, main math defaults, Strict markup, story boundaries, invalid placement and preserved extensions; stable equation/node IDs; compact redacted lazy inspection; mature live insertion remains separate | Cross-format semantic AST, safe structural mutations, LaTeX/MathML/UnicodeMath/OMML round trips, mathematical-equivalence diagnostics and Word visual proof |
+| Equations/OfficeMath | Partial (strengthened read graph + live authoring gate) | Source-linked graph covers all 19 standard OMML objects, argument roles, matrix rows/cells, runs/text, display paragraphs, main math defaults, Strict markup, story boundaries, invalid placement and preserved extensions; stable equation/node IDs; compact redacted lazy inspection. The separate native live adapter securely converts LaTeX/UnicodeMath/MathML/OMML, canonicalizes and groups explicit differentials, and rolls back sensitive equations when bounded Word OMML readback changes the canonical contract or n-ary placement | Unified cross-format semantic AST, safe structural mutations, general loss-aware round trips, mathematical-equivalence diagnostics and versioned Word visual proof |
 | DrawingML/VML/images/text boxes | Partial (strengthened) | Drawing markers and opaque bytes; nested `w:txbxContent` is a source-linked semantic boundary with editable text; live image operations | Typed anchors/layout/wrap/group/geometry model and render corpus |
 | Charts/SmartArt/OLE/embedded packages | Not started | Opaque retention plus conservative patch-risk classification: OLE/embedded-package and ActiveX/control changes require an explicit active-content authorization; unclassified binaries use a separate gate | Typed inspection/edit where safe, extraction policy, rendering and deeper security analysis |
 | Citations/bibliography | Partial lexical foundation | CITATION/BIBLIOGRAPHY field classification and citation-key dependency edges | Bibliography source part, style/locale model, validation, rendering and reference updates |
@@ -133,7 +133,7 @@ it does not mean the engine understands or can edit it.
 | TOC | Partial foundation | TOC/TC fields and `\\b` bookmark dependencies are recognized; options/styles/result refresh and layout semantics remain |
 | footnotes | Partial | Story container/items/references and lossless text edits; separator and numbering semantics missing |
 | endnotes | Partial | Story container/items/references and lossless text edits; separator and numbering semantics missing |
-| OfficeMath / OMML | Partial (typed read graph) | All standard object families, roles, normalized properties, source anchors, settings, display/inline placement and malformed/extension diagnostics are modeled and paged; raw OMML and formula text are hidden by default | Cross-format semantic algebra, serializers, mutation/repair, equation numbering integration and Word round-trip/visual proof |
+| OfficeMath / OMML | Partial (typed read graph + bounded live verification) | All standard object families, roles, normalized properties, source anchors, settings, display/inline placement and malformed/extension diagnostics are modeled and paged; raw OMML and formula text are hidden by default. Live sensitive equations are read back under XML bounds and checked by canonical hash, symbol count and differential ancestry without returning OMML | Unified cross-format semantic algebra, serializers, mutation/repair, equation numbering integration, mathematical equivalence and broader Word-version round-trip/visual proof |
 | sections | Partial | Source-linked boundaries, break/page/margin/column/numbering properties and header/footer inheritance graph; structural edits missing |
 | headers | Partial (strengthened) | Related parts, text edits and effective default/first/even bindings across sections; link mutation and layout missing |
 | footers | Partial (strengthened) | Related parts, text edits and effective default/first/even bindings across sections; link mutation and layout missing |
@@ -246,24 +246,39 @@ mutation/repair/render execution required by the goal.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Unit/regression tests | Partial | 234 engine, 91 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
+| Unit/regression tests | Partial | 234 engine, 120 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
 | Property/fuzz testing | Partial | Deterministic malformed bytes and random opaque round-trip smoke | Continuous coverage-guided fuzzing, minimized corpus and resource assertions |
 | Fault injection | Not started | Validation/concurrency failure tests only | Every persistence/transaction phase, disk-full, denied, crash and race tests |
 | Preservation benchmark | Partial | Entry hashes and random no-op round trip | Public producer/feature corpus with untouched part/subtree metrics |
 | Performance benchmark | Not started for new engine | Existing native COM benchmark only | Parse/edit/save/render latency, allocation, peak memory, scaling and long run |
-| AI token benchmark | Partial (strengthened) | Lazy catalogue and bounded responses; earlier 83.5% schema reduction; field-heavy references and default equation summaries are regression-capped below 5000 serialized characters; equation text/raw OMML and reference dependency keys are hidden by default | Representative task suite against competitors with raw token logs |
+| AI token benchmark | Partial (strengthened) | Lazy catalogue and bounded responses; earlier 83.5% schema reduction; field-heavy references and default equation summaries are regression-capped below 5000 serialized characters. Compact live-equation preflight now omits converted linear math and rule arrays in favor of lengths, flags and a short fingerprint; live verification returns hashes/counts but never raw OMML | Representative task suite against competitors with raw token logs |
 | Visual regression | Not started for new engine | Historical screenshots and live acceptance | Versioned PDF/page/object baselines across rendering backends |
 | Cross-platform CI | Not started | Engine targets `net8.0`; current verification is Windows | Windows/Linux/macOS core tests and qualified backend matrix |
 | Public competitor benchmark | Not started | Research matrix only | Same fixtures, versions, commands, results, caveats and reproducible harness |
-| Release packaging | Partial (strengthened) | Versioned 0.29.0 self-contained Windows build succeeds under Windows PowerShell 5.1, contains the engine/runtime/manifest and zero Python files, and passes packaged lazy three-way merge plan plus create-new apply without starting Word. Sorted fixed-timestamp packaging produced the same ZIP twice on the release host; SHA-256 `4a27448049452fb52c97872caf118813b3b08867387697b34a9d49eaf06a9828` | Optional signing/provenance policy, cross-host reproducibility proof and published multi-platform core artifacts |
+| Release packaging | Partial (strengthened) | Versioned 0.30.0 self-contained Windows build succeeds under Windows PowerShell 5.1, contains the engine/runtime/manifest and zero Python files, and passes packaged compact equation preflight plus an eight-equation real-Word readback batch. Sorted fixed-timestamp packaging produced the same ZIP twice on the release host; SHA-256 `bb19ce8c268c5989156fc5fa852d6718ce513c02c898a398866442e19ee7dc17` | Optional signing/provenance policy, cross-host reproducibility proof and published multi-platform core artifacts |
 
 ## Current checkpoint evidence
 
 - `dotnet test native/WordToolkit.Engine.Tests` — 234 passed.
-- `dotnet test native/WordToolkit.Native.Tests` — 91 passed.
+- `dotnet test native/WordToolkit.Native.Tests` — 120 passed.
 - `.venv/Scripts/python -m pytest -q` — 1273 passed, 16 intentionally skipped.
+- Native MCP regression against real Word verified Gaussian, nested and double
+  integrals, Presentation MathML, OMML, a parenthesized matrix, cases and combining
+  accents. Every sensitive result returned matching canonical hashes; all
+  differentials remained in `m:nary/m:e`, raw OMML was absent, and the isolated accent
+  mismatch rolled back before its combining-character normalization was fixed.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
+- Packaged 0.30.0 compact equation preflight returned 339 serialized characters,
+  omitted converted linear math and required native readback. The packaged executable
+  then inserted eight sensitive equations through one real-Word transaction; every
+  native/canonical/readback check passed, all differential placements were verified and
+  raw OMML remained absent. Two Windows PowerShell 5.1 builds produced identical
+  35,810,117-byte ZIPs with SHA-256
+  `bb19ce8c268c5989156fc5fa852d6718ce513c02c898a398866442e19ee7dc17`.
+  A separate packaged live test left the Word cursor at offset zero, appended sentinel
+  text at document end, then proved that single-equation `target="cursor"` returned an
+  equation range beginning at zero under a fresh selection token.
 - Packaged 0.29.0 `plan_ooxml_merge` and `apply_ooxml_merge` were executed directly
   through the released native MCP executable against the 16-entry showcase package.
   The stateless plan produced deterministic `wtmerge_`/`wtmergeapply_` identities,

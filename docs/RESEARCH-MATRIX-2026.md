@@ -424,6 +424,14 @@ equation tree and asking Word to build it up. The engine must retain a canonical
 AST, validate operator/argument placement, serialize OMML deliberately, and verify the
 result through Word when authoritative fidelity is requested.
 
+The 0.30 live adapter closes that specific failure without pretending to solve general
+mathematical equivalence. Explicit LaTeX/MathML/OMML differentials converge on U+2146
+`ⅆ`; the complete integral operand is enclosed in Word's invisible `〖…〗` group before
+`BuildUp()`. Bounded immediate OMML readback then requires every differential text node
+to remain under `m:nary/m:e` and the canonical content hash and symbol counts to match.
+Real Word regression covers simple, Gaussian, nested and double integrals. The broader
+saved-package cross-format algebra and equation repair remain open work.
+
 ## What no surveyed solution gives us as one coherent contract
 
 No surveyed system, based on current evidence, combines all of the following:
