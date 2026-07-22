@@ -28,6 +28,8 @@
   filename); its final rerun reported no unresolved P0/P1. Two local self-contained
   builds produced identical 195-file, 85,107,806-byte trees and 36,189,483-byte ZIPs at
   SHA-256 `ff910c0c314ccb98b7f716f40cfa6e4580659b763ee3d657e138c1d6732b4632`.
+  Mandatory CI run `29967113037` passed all five jobs, and its hosted Windows ZIP
+  matched both local archives byte for byte at the same size and SHA-256.
   Through that packaged executable, CLI and MCP returned identical 6,827-character
   canonical data for the same real DOCX, global help returned zero, and the Word-process
   count stayed 0. Across 20 cold runs, inspection measured 265.965 ms p50 / 286.932 ms
