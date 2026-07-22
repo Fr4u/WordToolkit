@@ -164,6 +164,32 @@ public sealed class EquationReadbackVerifierTests
     }
 
     [Fact]
+    public void VerifiesSignificantWordMathSpacingOutsideQuotedText()
+    {
+        const string omml =
+            """
+            <m:oMath>
+              <m:r><m:t>x</m:t></m:r>
+              <m:r><m:t> </m:t></m:r>
+              <m:r><m:rPr><m:nor/></m:rPr><m:t>gdy</m:t></m:r>
+              <m:r><m:t> </m:t></m:r>
+              <m:r><m:t>y</m:t></m:r>
+            </m:oMath>
+            """;
+
+        var result = EquationReadbackVerifier.Verify(
+            Wrap(omml),
+            "x\u2003\"gdy\"\u2005y"
+        );
+
+        Assert.Equal(result.ExpectedContractSha256, result.ActualContractSha256);
+        var error = Assert.Throws<NativeToolException>(() =>
+            EquationReadbackVerifier.Verify(Wrap(omml), "x\"gdy\"\u2005y")
+        );
+        Assert.Equal("EQUATION_INVALID", error.ErrorCode);
+    }
+
+    [Fact]
     public void RejectsMultipleEquationsInOneReadbackRange()
     {
         var error = Assert.Throws<NativeToolException>(() =>
@@ -197,6 +223,8 @@ public sealed class EquationReadbackVerifierTests
     [InlineData("x⃗", true)]
     [InlineData("ℝ", true)]
     [InlineData("𝖠", true)]
+    [InlineData("x\u2003y", true)]
+    [InlineData("x\u2005y", true)]
     public void SelectsOnlyStructurallySensitiveEquationsForAutomaticReadback(
         string linear,
         bool expected

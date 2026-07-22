@@ -214,4 +214,47 @@ public sealed class WordPreflightServiceTests
         Assert.Equal("INVALID_INPUT", error.ErrorCode);
         Assert.Contains("input_format", error.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task EquationPreflightReportsNativeBoldRegionsWithoutLeakingMarkers()
+    {
+        await using var host = new LifecycleFakeHost();
+        var service = new WordLiveService(host);
+        using var arguments = JsonDocument.Parse(
+            """
+            {
+              "equations": [
+                {
+                  "value": "\\mathbf{x+\\boldsymbol{y}}",
+                  "input_format": "latex"
+                }
+              ]
+            }
+            """
+        );
+
+        var result = await service.CallAsync(
+            "preflight_live_word_equations",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var resultJson = JsonDocument.Parse(JsonSerializer.Serialize(result));
+        var equation = resultJson.RootElement.GetProperty("equations")[0];
+
+        Assert.Equal("x+y", equation.GetProperty("word_linear").GetString());
+        Assert.DoesNotContain(
+            '\uE100',
+            equation.GetProperty("word_linear").GetString() ?? ""
+        );
+        Assert.True(equation.GetProperty("native_style_rewrite_required").GetBoolean());
+        Assert.True(equation.GetProperty("native_readback_required").GetBoolean());
+        Assert.Equal(2, equation.GetProperty("formatting_region_count").GetInt32());
+        var regions = equation.GetProperty("formatting_regions");
+        Assert.Equal(1, regions.GetProperty("bold").GetInt32());
+        Assert.Equal(1, regions.GetProperty("bold_italic").GetInt32());
+        Assert.Contains(
+            equation.GetProperty("rules").EnumerateArray(),
+            rule => rule.GetString() == "verified_native_omml_style_rewrite"
+        );
+    }
 }

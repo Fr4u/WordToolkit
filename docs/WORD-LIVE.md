@@ -208,6 +208,26 @@ every differential must remain below the corresponding `m:nary/m:e`. A mismatch
 raises `EQUATION_INVALID`, rolls back the transaction and leaves the live version
 unchanged. `verify_readback=true` extends the gate to a low-risk equation.
 
+LaTeX `\mathbf{...}` and `\boldsymbol{...}` use a separate weight-preserving
+gate. Reserved private-use sentinels delimit the requested scopes only in the
+temporary linear payload and survive Word's `BuildUp()` across fractions,
+radicals, scripts and n-ary objects. A bounded internal rewrite removes all
+sentinels and applies native `m:sty="b"` or `m:sty="bi"` to the enclosed math
+runs. The same scope writes `m:ctrlPr/w:rPr` weight onto enclosing OfficeMath
+objects so structural glyphs such as fraction bars, radicals, delimiters and
+n-ary operators carry the requested weight too. Word then reads the equation
+back again; a style-placement hash, run and control counts, and the normal
+semantic contract must all agree. Direct per-character
+`Range.Font` mutation is not used because real Word testing showed that mixed
+bold/italic edits inside a built OMath can destabilize COM.
+
+For textual conditions such as
+`\begin{cases}x^2&\text{gdy }x\ge0\\-x&\text{gdy }x<0\end{cases}`,
+ordinary U+0020 is insufficient because Word drops it outside quoted math text.
+The converter emits bounded U+2003 case-column spacing and U+2005 text-boundary
+spacing instead. Those characters survive Word build-up and are significant in
+the semantic readback hash, so losing either one rolls the transaction back.
+
 This is structural preservation evidence, not a proof of mathematical
 equivalence. The response returns hashes, counts and verification flags, never
 raw OMML or the reconstructed formula.
@@ -455,6 +475,9 @@ Word linear form is needed for diagnosis.
   limited to the main document story.
 - Native math uses `OMaths.Add`, `BuildUp`, the explicit display/inline `Type`
   and an immediate `WordOpenXML` OMML parse.
+- Bold math uses only the bounded internal sentinel-to-`m:sty` and
+  sentinel-to-`m:ctrlPr/w:rPr` rewrite; every sentinel must disappear and both
+  style and semantic readback must pass.
 - Hbar and dagger inputs force readback. If the resulting native OMML lacks the
   required symbol, the complete mutation is rolled back.
 

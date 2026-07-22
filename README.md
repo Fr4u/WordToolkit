@@ -311,9 +311,20 @@ differential notation stays an ordinary identifier.
 `\mathcal`, `\mathfrak`, `\mathbb`, `\mathsf` and `\mathtt` are converted to
 the corresponding Unicode mathematical alphabet and reconstructed from Word's native
 `m:scr` run property during readback. Simple alphanumeric `\mathrm{...}` becomes an
-upright Word math-text run. `\mathbf` and `\boldsymbol` are rejected: the linear OMath
-build-up used by this runtime does not preserve their weight, so returning a plain
-letter would be a false success.
+upright Word math-text run. `\mathbf{...}` and `\boldsymbol{...}` preserve nested
+fractions, radicals, scripts and n-ary structures as native `m:sty="b"` and
+`m:sty="bi"` runs. Enclosing OfficeMath objects also receive native
+`m:ctrlPr/w:rPr` weight so fraction bars, radicals, delimiters and n-ary glyphs do
+not remain visually thin. The converter places private sentinels only in the temporary build
+payload, lets Word create the real OMath tree, removes every sentinel through a bounded
+internal OMML rewrite, reinserts one native equation and compares both semantic and
+style-contract hashes. A missing marker, changed style or extra equation rolls back the
+whole Word Undo transaction; sentinels and raw OMML are never returned.
+
+LaTeX text inside `cases` no longer relies on an ordinary space that Word silently
+discards. Case columns use an em space and trimmed `\text{... }` boundaries use a
+four-per-em space; both survive `BuildUp()`, save/reopen and PDF export and now enter
+the semantic readback contract.
 
 Malformed or unsupported LaTeX fails before Word changes. MathML and OMML are parsed with DTD and external entity resolution disabled, strict root/namespace checks, bounded depth and element counts, then converted before Word changes. Equation AST input remains unsupported. Structurally sensitive equations are immediately read back from Word as bounded OMML after `BuildUp()`. Canonical hashes, symbol counts and integral-owned differential placement must agree or the complete Undo transaction is rolled back. Differentials in derivatives are valid outside an integral. Compact responses return only verification facts and hashes; source text and raw OMML are not returned.
 
@@ -412,12 +423,12 @@ The cleaner constrains every target to the repository root. It preserves only th
 Version:
 
 ```text
-0.31.0+codex.20260722072340
+0.32.0+codex.20260722091136
 ```
 
 Windows x64 ZIP:
 
-[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.31.0/WordToolkit-0.31.0%2Bcodex.20260722072340-native-win-x64.zip)
+[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.32.0/WordToolkit-0.32.0%2Bcodex.20260722091136-native-win-x64.zip)
 
 SHA-256: `17ef223ddac5b9b8ba02c7b86c29089b2e76d8cc730cbee58f9aa0225d088f25`
 

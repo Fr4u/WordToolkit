@@ -1327,7 +1327,7 @@ try {
             live_document_id = $documentId
             equations = @(
                 @{
-                    value = "sum_(i=1)^n i^2=(n(n+1)(2n+1))/6"
+                    value = "∑_(i=1)^(n)▒i^(2)=(n(n+1)(2n+1))/(6)"
                     input_format = "unicodemath"
                     display = $true
                 },
@@ -1370,14 +1370,31 @@ try {
                     input_format = "latex"
                     display = $true
                     verify_readback = $true
+                },
+                @{
+                    value = "\mathbf{x+\boldsymbol{y}}"
+                    input_format = "latex"
+                    display = $true
+                },
+                @{
+                    value = "\boldsymbol{\frac{\alpha+\beta}{\gamma}}"
+                    input_format = "latex"
+                    display = $true
                 }
             )
             expected_version = $version
         }
     $version = [long]$equationBatch.live_version
     Assert-True `
-        -Condition ($equationBatch.equation_operation_count -eq 8) `
-        -Message "Native equation batch did not create all eight equations"
+        -Condition (
+            $equationBatch.equation_operation_count -eq 10 -and
+            $equationBatch.operations[8].equation.native_style_verified -and
+            $equationBatch.operations[8].equation.formatting.region_count -eq 2 -and
+            $equationBatch.operations[9].equation.native_style_verified -and
+            $equationBatch.operations[9].equation.formatting.bold_italic_run_count -ge 2 -and
+            $equationBatch.operations[9].equation.formatting.bold_italic_control_count -ge 1
+        ) `
+        -Message "Native equation batch did not preserve all ten equations and bold styles"
 
     $stage = "map every supported native Word structure collection"
     $structureMap = Invoke-TimedTool `

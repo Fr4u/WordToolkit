@@ -2196,11 +2196,18 @@ internal sealed partial class WordLiveService : IToolHandler
                         index,
                         valid = true,
                         input_format = prepared.InputFormat,
-                        word_linear = prepared.Value,
-                        word_linear_characters = prepared.Value.Length,
+                        word_linear = prepared.Linear,
+                        word_linear_characters = prepared.Linear.Length,
                         display = prepared.Display,
                         native_readback_required = prepared.ReadbackRequired,
                         native_readback_enabled = prepared.VerifyReadback,
+                        native_style_rewrite_required = prepared.HasFormatting,
+                        formatting_region_count = prepared.StyleCounts.Total,
+                        formatting_regions = new
+                        {
+                            bold = prepared.StyleCounts.Bold,
+                            bold_italic = prepared.StyleCounts.BoldItalic,
+                        },
                         rules = new[]
                             {
                                 prepared.InputFormat switch
@@ -2215,6 +2222,11 @@ internal sealed partial class WordLiveService : IToolHandler
                             .Concat(
                                 prepared.VerifyReadback
                                     ? new[] { "bounded_native_omml_readback" }
+                                    : Array.Empty<string>()
+                            )
+                            .Concat(
+                                prepared.HasFormatting
+                                    ? new[] { "verified_native_omml_style_rewrite" }
                                     : Array.Empty<string>()
                             )
                             .ToArray(),
@@ -2683,6 +2695,8 @@ internal sealed partial class WordLiveService : IToolHandler
                 var undoStarted = false;
                 bool? originalScreenUpdating = null;
                 var results = new object?[operations.Count];
+                var textRanges = new Dictionary<int, object>();
+                var builtEquations = new Dictionary<int, BuiltEquationResult>();
                 try
                 {
                     if (optimizeScreenUpdates)
@@ -2714,16 +2728,7 @@ internal sealed partial class WordLiveService : IToolHandler
                         {
                             ApplyFormatting(inserted, textOperation.Formatting.Value);
                         }
-                        results[index] = new
-                        {
-                            type = "text",
-                            range = new
-                            {
-                                start = (int)inserted.Start,
-                                end = (int)inserted.End,
-                            },
-                            style = textOperation.Style,
-                        };
+                        textRanges[index] = (object)inserted;
                     }
 
                     var equationIndexes = Enumerable.Range(0, operations.Count)
@@ -2741,45 +2746,62 @@ internal sealed partial class WordLiveService : IToolHandler
                         dynamic added = document.OMaths.Add(equationRange);
                         dynamic equation = added.OMaths.Item(1);
                         equation.BuildUp();
+                        EquationStyleRewriteResult? styleRewrite = null;
+                        EquationStyleVerification? styleVerification = null;
+                        string readbackXml = "";
+                        if (equationOperation.HasFormatting)
+                        {
+                            var equationStart = (int)equation.Range.Start;
+                            styleRewrite = EquationStyleRewriter.Rewrite(
+                                (string?)equation.Range.WordOpenXML ?? "",
+                                equationOperation.StyleCounts
+                            );
+                            dynamic rewriteRange = equation.Range.Duplicate;
+                            rewriteRange.InsertXML(styleRewrite.WordOpenXml);
+                            dynamic rewrittenEquations = rewriteRange.OMaths;
+                            if ((int)rewrittenEquations.Count != 1)
+                            {
+                                throw new NativeToolException(
+                                    "EQUATION_INVALID",
+                                    "Microsoft Word did not preserve exactly one styled native equation",
+                                    new
+                                    {
+                                        equation_count = (int)rewrittenEquations.Count,
+                                        equation_start = equationStart,
+                                    }
+                                );
+                            }
+                            equation = rewrittenEquations.Item(1);
+                        }
                         equation.Type = equationOperation.Display ? 0 : 1;
+                        if (styleRewrite is not null)
+                        {
+                            readbackXml = (string?)equation.Range.WordOpenXML ?? "";
+                            styleVerification = EquationStyleRewriter.Verify(
+                                readbackXml,
+                                styleRewrite
+                            );
+                        }
                         EquationReadbackVerification? readback = null;
                         if (equationOperation.VerifyReadback)
                         {
+                            if (readbackXml.Length == 0)
+                            {
+                                readbackXml =
+                                    (string?)equation.Range.WordOpenXML ?? "";
+                            }
                             readback = EquationReadbackVerifier.Verify(
-                                (string?)equation.Range.WordOpenXML ?? "",
-                                equationOperation.Value
+                                readbackXml,
+                                equationOperation.Linear
                             );
                         }
-                        results[index] = new
-                        {
-                            type = "equation",
-                            equation = new
-                            {
-                                input_format = equationOperation.InputFormat,
-                                display = equationOperation.Display,
-                                linear_input = equationOperation.Value,
-                                native_verified = true,
-                                readback_verified = readback is not null,
-                                readback_required = equationOperation.ReadbackRequired,
-                                readback = readback is null
-                                    ? null
-                                    : new
-                                    {
-                                        expected_contract_sha256 = readback.ExpectedContractSha256,
-                                        actual_contract_sha256 = readback.ActualContractSha256,
-                                        math_element_count = readback.MathElementCount,
-                                        nary_count = readback.NaryCount,
-                                        differential_count = readback.DifferentialCount,
-                                        differential_placement_verified = readback.DifferentialPlacementVerified,
-                                        raw_omml_returned = false,
-                                    },
-                                range = new
-                                {
-                                    start = (int)equation.Range.Start,
-                                    end = (int)equation.Range.End,
-                                },
-                            },
-                        };
+                        builtEquations[index] = new BuiltEquationResult(
+                            (object)equation,
+                            equationOperation,
+                            readback,
+                            styleRewrite,
+                            styleVerification
+                        );
                     }
                     var afterEquations = (int)document.OMaths.Count;
                     if (afterEquations != beforeEquations + equationIndexes.Length)
@@ -2794,6 +2816,78 @@ internal sealed partial class WordLiveService : IToolHandler
                                 expected = equationIndexes.Length,
                             }
                         );
+                    }
+                    for (var index = 0; index < operations.Count; index++)
+                    {
+                        if (operations[index] is PreparedTextOperation textOperation)
+                        {
+                            dynamic inserted = textRanges[index];
+                            results[index] = new
+                            {
+                                type = "text",
+                                range = new
+                                {
+                                    start = (int)inserted.Start,
+                                    end = (int)inserted.End,
+                                },
+                                style = textOperation.Style,
+                            };
+                            continue;
+                        }
+                        var built = builtEquations[index];
+                        dynamic finalEquation = built.Equation;
+                        var equationOperation = built.Operation;
+                        var readback = built.Readback;
+                        var styleRewrite = built.StyleRewrite;
+                        var styleVerification = built.StyleVerification;
+                        results[index] = new
+                        {
+                            type = "equation",
+                            equation = new
+                            {
+                                input_format = equationOperation.InputFormat,
+                                display = equationOperation.Display,
+                                linear_input = equationOperation.Linear,
+                                native_verified = true,
+                                readback_verified = readback is not null,
+                                readback_required = equationOperation.ReadbackRequired,
+                                native_style_verified = styleVerification is not null,
+                                formatting = styleVerification is null
+                                    ? null
+                                    : new
+                                    {
+                                        region_count = styleRewrite!.RegionCount,
+                                        bold_region_count = equationOperation.StyleCounts.Bold,
+                                        bold_italic_region_count = equationOperation.StyleCounts.BoldItalic,
+                                        styled_run_count = styleVerification.StyledRunCount,
+                                        bold_run_count = styleVerification.BoldRunCount,
+                                        bold_italic_run_count = styleVerification.BoldItalicRunCount,
+                                        bold_control_count = styleVerification.BoldControlCount,
+                                        bold_italic_control_count = styleVerification.BoldItalicControlCount,
+                                        expected_contract_sha256 = styleVerification.ExpectedContractSha256,
+                                        actual_contract_sha256 = styleVerification.ActualContractSha256,
+                                        internal_markers_returned = false,
+                                        raw_omml_returned = false,
+                                    },
+                                readback = readback is null
+                                    ? null
+                                    : new
+                                    {
+                                        expected_contract_sha256 = readback.ExpectedContractSha256,
+                                        actual_contract_sha256 = readback.ActualContractSha256,
+                                        math_element_count = readback.MathElementCount,
+                                        nary_count = readback.NaryCount,
+                                        differential_count = readback.DifferentialCount,
+                                        differential_placement_verified = readback.DifferentialPlacementVerified,
+                                        raw_omml_returned = false,
+                                    },
+                                range = new
+                                {
+                                    start = (int)finalEquation.Range.Start,
+                                    end = (int)finalEquation.Range.End,
+                                },
+                            },
+                        };
                     }
                     undoRecord.EndCustomRecord();
                     undoStarted = false;
@@ -3264,15 +3358,22 @@ internal sealed partial class WordLiveService : IToolHandler
                 "Equation length must be between 1 and 100,000 characters"
             );
         }
-        var linear = inputFormat switch
+        var conversion = inputFormat switch
         {
-            "latex" => LatexToUnicodeMath.Convert(value),
-            "mathml" or "omml" => MathMarkupToUnicodeMath.Convert(value, inputFormat),
-            _ => value.Trim(),
+            "latex" => LatexToUnicodeMath.ConvertPlan(value),
+            "mathml" or "omml" => EquationFormattingMarkers.Unstyled(
+                WordLinearMathNormalizer.NormalizeForWord(
+                    MathMarkupToUnicodeMath.Convert(value, inputFormat)
+                ),
+                inputFormat
+            ),
+            _ => EquationFormattingMarkers.Unstyled(
+                WordLinearMathNormalizer.NormalizeForWord(value.Trim()),
+                inputFormat
+            ),
         };
-        linear = WordLinearMathNormalizer.NormalizeForWord(linear);
         if (
-            linear.Any(
+            conversion.BuildLinear.Any(
                 character =>
                     (character < 32 && character is not ('\t' or '\n' or '\r'))
                     || character == 127
@@ -3284,13 +3385,17 @@ internal sealed partial class WordLiveService : IToolHandler
                 "Equation input contains unsafe control characters"
             );
         }
-        var readbackRequired = EquationReadbackVerifier.RequiresReadback(linear);
+        var readbackRequired =
+            conversion.HasFormatting
+            || EquationReadbackVerifier.RequiresReadback(conversion.Linear);
         return new PreparedEquationOperation(
-            linear,
+            conversion.Linear,
+            conversion.BuildLinear,
             arguments.Boolean("display", true),
             inputFormat,
             arguments.Boolean("verify_readback", false) || readbackRequired,
-            readbackRequired
+            readbackRequired,
+            conversion.StyleCounts
         );
     }
 
@@ -4606,12 +4711,25 @@ internal sealed partial class WordLiveService : IToolHandler
 
     private sealed record PreparedEquationOperation(
         string Linear,
+        string BuildLinear,
         bool Display,
         string InputFormat,
         bool VerifyReadback,
-        bool ReadbackRequired
+        bool ReadbackRequired,
+        EquationStyleCounts StyleCounts
     )
-        : PreparedOperation(Linear, Display);
+        : PreparedOperation(BuildLinear, Display)
+    {
+        internal bool HasFormatting => StyleCounts.Total > 0;
+    }
+
+    private sealed record BuiltEquationResult(
+        object Equation,
+        PreparedEquationOperation Operation,
+        EquationReadbackVerification? Readback,
+        EquationStyleRewriteResult? StyleRewrite,
+        EquationStyleVerification? StyleVerification
+    );
 
     private sealed record LiveMatch(
         int Start,

@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+## 0.32.0 — 2026-07-22
+
+- Added native editable `\mathbf{...}` and `\boldsymbol{...}` authoring without
+  per-character COM formatting. Balanced private build sentinels survive Word's
+  `BuildUp()`, are removed by a bounded internal OMML rewrite, and become native
+  `m:sty="b"` / `m:sty="bi"` runs plus matching `m:ctrlPr/w:rPr` weight on
+  fraction, radical, delimiter and n-ary controls.
+- Added independent semantic and style-placement contracts after reinsertion.
+  Marker loss, style drift, control-placement drift, malformed XML, an extra
+  equation or a changed formula now rolls back the complete Word Undo record.
+  Strict OfficeMath creates Strict wordprocessing control properties, and generated
+  `w:b` / `w:i` properties follow schema order.
+- Repaired visible text spacing in LaTeX `cases`. Word-discarded ordinary spaces are
+  replaced by U+2003 case-column and U+2005 text-boundary spacing; both survive
+  build-up, save/reopen and PDF rendering and are now significant in native readback.
+  The full-live UnicodeMath sample now uses a real canonical `∑` operator instead of
+  the literal word `sum`.
+- Kept AI responses bounded. Full preflight returns clean Word linear math without
+  internal sentinels; compact preflight and mutation responses expose only aggregate
+  style counts and verification facts. The complete packaged live gate remains at
+  339 serialized characters for compact equation preflight.
+- Verified 234 document-engine tests, 161 native-host tests and 1273 Python/OOXML
+  tests, plus the 48-action real-Word acceptance with 12 native equations, SDK
+  validation, save/reopen/reconnect and native PDF visual inspection. Two independent
+  package builds produced the same 36,975,454-byte ZIP with SHA-256
+  `dbe6a4553bcbcda1aeafcd366a240dc3c8d19b33f6ecd93bb13544c28bf6f71d`.
+
 ## 0.31.0 — 2026-07-22
 
 - Corrected native Word round trips for named functions and limit operators. OMML

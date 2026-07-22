@@ -14,6 +14,8 @@ internal static class LatexToUnicodeMath
     private const char EquationArrayMarker = '█';
     private const char CasesMarker = 'Ⓒ';
     private const char BelowMarker = '┬';
+    private const char CaseColumnSpace = WordMathSpacing.CaseColumn;
+    private const char TextBoundarySpace = WordMathSpacing.TextBoundary;
 
     private static readonly HashSet<char> NaryOperators =
     [
@@ -198,6 +200,11 @@ internal static class LatexToUnicodeMath
 
     public static string Convert(string source)
     {
+        return ConvertPlan(source).Linear;
+    }
+
+    internal static EquationConversionPlan ConvertPlan(string source)
+    {
         if (string.IsNullOrWhiteSpace(source))
         {
             throw Invalid("LaTeX equation input is empty");
@@ -209,20 +216,22 @@ internal static class LatexToUnicodeMath
                 "LaTeX equation exceeds 100,000 characters"
             );
         }
+        EquationFormattingMarkers.RejectReservedInput(source, "latex");
         var parser = new Parser(StripMathDelimiters(source));
         var converted = parser.ParseAll();
-        if (converted.Length == 0)
+        var plan = EquationFormattingMarkers.FromMarkedLinear(converted);
+        if (plan.Linear.Length == 0)
         {
             throw Invalid("LaTeX equation produced no Word math");
         }
-        if (converted.Length > 200_000)
+        if (plan.BuildLinear.Length > 200_000)
         {
             throw new NativeToolException(
                 "LIMIT_EXCEEDED",
                 "Converted Word equation exceeds 200,000 characters"
             );
         }
-        return converted;
+        return plan;
     }
 
     private static string StripMathDelimiters(string source)
@@ -297,6 +306,12 @@ internal static class LatexToUnicodeMath
                             "LaTeX comments are not accepted in live equations",
                             new { index = _index }
                         );
+                    }
+                    if (character is CaseColumnSpace or TextBoundarySpace)
+                    {
+                        _index++;
+                        output.Append(character);
+                        continue;
                     }
                     if (char.IsWhiteSpace(character))
                     {
@@ -545,12 +560,30 @@ internal static class LatexToUnicodeMath
             }
             if (command == "text")
             {
-                var text = ReadRequiredRawGroup(command)
+                var rawText = ReadRequiredRawGroup(command);
+                var hasLeadingSpace = rawText.Length > 0
+                    && char.IsWhiteSpace(rawText[0]);
+                var hasTrailingSpace = rawText.Length > 0
+                    && char.IsWhiteSpace(rawText[^1]);
+                var trimmedText = rawText.Trim();
+                if (trimmedText.Length == 0)
+                {
+                    return rawText.Length == 0
+                        ? "\"\""
+                        : TextBoundarySpace.ToString();
+                }
+                var text = trimmedText
                     .Replace("\\}", "}", StringComparison.Ordinal)
                     .Replace("\\{", "{", StringComparison.Ordinal)
                     .Replace("\\\\", "\\", StringComparison.Ordinal)
                     .Replace("\"", "\"\"", StringComparison.Ordinal);
-                return $"\"{text}\"";
+                return string.Concat(
+                    hasLeadingSpace ? TextBoundarySpace.ToString() : string.Empty,
+                    "\"",
+                    text,
+                    "\"",
+                    hasTrailingSpace ? TextBoundarySpace.ToString() : string.Empty
+                );
             }
             if (command == "operatorname")
             {
@@ -573,13 +606,11 @@ internal static class LatexToUnicodeMath
                 command
                     is "mathrm"
                     or "mathit"
-                    or "mathbf"
                     or "mathsf"
                     or "mathtt"
                     or "mathcal"
                     or "mathbb"
                     or "mathfrak"
-                    or "boldsymbol"
             )
             {
                 var body = ReadRequiredRawGroup(command);
@@ -594,12 +625,6 @@ internal static class LatexToUnicodeMath
                     return body.Trim() == "d"
                         ? WordLinearMathNormalizer.DifferentialD.ToString()
                         : RomanText(body, command);
-                }
-                if (command is "mathbf" or "boldsymbol")
-                {
-                    throw Invalid(
-                        $"\\{command} cannot be preserved by Word's linear OMath build-up; use explicit Word formatting after insertion"
-                    );
                 }
                 return command switch
                 {
@@ -625,6 +650,16 @@ internal static class LatexToUnicodeMath
                     ),
                     _ => body,
                 };
+            }
+            if (command is "mathbf" or "boldsymbol")
+            {
+                var body = ParseRequiredGroup(command);
+                return EquationFormattingMarkers.Wrap(
+                    command == "mathbf"
+                        ? EquationMathStyle.Bold
+                        : EquationMathStyle.BoldItalic,
+                    body
+                );
             }
             if (command is "displaystyle" or "textstyle")
             {
@@ -813,7 +848,12 @@ internal static class LatexToUnicodeMath
                     .Select(
                         row =>
                             new Parser(
-                                string.Join(" ", SplitTopLevel(row, rowSeparator: false))
+                                string.Join(
+                                    supported == "cases"
+                                        ? CaseColumnSpace.ToString()
+                                        : " ",
+                                    SplitTopLevel(row, rowSeparator: false)
+                                )
                             ).ParseAll()
                     )
                     .ToArray();
@@ -1038,7 +1078,10 @@ internal static class LatexToUnicodeMath
 
     private static void AppendSpace(StringBuilder output)
     {
-        if (output.Length > 0 && output[^1] != ' ')
+        if (
+            output.Length > 0
+            && output[^1] is not (' ' or CaseColumnSpace or TextBoundarySpace)
+        )
         {
             output.Append(' ');
         }
@@ -1046,6 +1089,22 @@ internal static class LatexToUnicodeMath
 
     private static void AppendAtom(StringBuilder output, string atom)
     {
+        if (
+            output.Length > 0
+            && output[^1] == ' '
+            && atom.Length > 0
+            && (
+                atom[0] == '"'
+                || (
+                    atom[0] == TextBoundarySpace
+                    && atom.Length > 1
+                    && atom[1] == '"'
+                )
+            )
+        )
+        {
+            output[^1] = TextBoundarySpace;
+        }
         if (
             output.Length > 0
             && output[^1] != ' '
@@ -1146,6 +1205,12 @@ internal static class LatexToUnicodeMath
         var pendingSpace = false;
         foreach (var character in value)
         {
+            if (character is CaseColumnSpace or TextBoundarySpace)
+            {
+                pendingSpace = false;
+                output.Append(character);
+                continue;
+            }
             if (char.IsWhiteSpace(character))
             {
                 pendingSpace = output.Length > 0;

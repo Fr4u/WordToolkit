@@ -41,6 +41,7 @@ internal static class ToolResponseCompactor
         var items = new JsonArray();
         var required = 0;
         var enabled = 0;
+        var styleRequired = 0;
         if (source["equations"] is JsonArray equations)
         {
             foreach (var node in equations)
@@ -76,12 +77,24 @@ internal static class ToolResponseCompactor
                 {
                     enabled++;
                 }
+                if (
+                    equation["native_style_rewrite_required"]?.GetValue<bool>() == true
+                )
+                {
+                    styleRequired++;
+                    item["native_style_rewrite_required"] = true;
+                    Copy(equation, item, "formatting_region_count");
+                }
                 items.Add(item);
             }
         }
         result["native_readback_required_count"] = required;
         result["native_readback_enabled_count"] = enabled;
         result["word_linear_returned"] = false;
+        if (styleRequired > 0)
+        {
+            result["native_style_rewrite_required_count"] = styleRequired;
+        }
         result["equations"] = items;
         return result;
     }
@@ -95,6 +108,33 @@ internal static class ToolResponseCompactor
         Copy(source, result, "text_operation_count");
         Copy(source, result, "equation_operation_count");
         result["native_verified"] = true;
+        if (source["operations"] is JsonArray operations)
+        {
+            var styleVerified = 0;
+            var formattingRegions = 0;
+            foreach (var operation in operations.OfType<JsonObject>())
+            {
+                if (
+                    operation["equation"] is not JsonObject equation
+                    || equation["native_style_verified"]?.GetValue<bool>() != true
+                )
+                {
+                    continue;
+                }
+                styleVerified++;
+                if (equation["formatting"] is JsonObject formatting)
+                {
+                    formattingRegions +=
+                        formatting["region_count"]?.GetValue<int>() ?? 0;
+                }
+            }
+            if (styleVerified > 0)
+            {
+                result["native_style_verified"] = true;
+                result["native_style_verified_count"] = styleVerified;
+                result["formatting_region_count"] = formattingRegions;
+            }
+        }
         if (source["document"] is JsonObject document)
         {
             result["document"] = CompactDocument(document);

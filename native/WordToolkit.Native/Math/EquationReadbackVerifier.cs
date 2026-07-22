@@ -53,6 +53,8 @@ internal static class EquationReadbackVerifier
         '\u0303',
         '\u0307',
         '\u0308',
+        WordMathSpacing.CaseColumn,
+        WordMathSpacing.TextBoundary,
     ];
 
     internal static bool RequiresReadback(string linear)
@@ -254,6 +256,11 @@ internal static class EquationReadbackVerifier
                     continue;
                 }
                 inQuotedText = !inQuotedText;
+                output.Append(character);
+                continue;
+            }
+            if (!inQuotedText && WordMathSpacing.IsSignificant(character))
+            {
                 output.Append(character);
                 continue;
             }

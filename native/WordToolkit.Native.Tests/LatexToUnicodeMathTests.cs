@@ -46,11 +46,17 @@ public sealed class LatexToUnicodeMathTests
         "Ⓒ(x+y=1@2x-y=0)"
     )]
     [InlineData(
+        @"\begin{cases}x^2&\text{gdy }x\ge0\\-x&\text{gdy }x<0\end{cases}",
+        "Ⓒ(x^(2)\u2003\"gdy\"\u2005x≥0@-x\u2003\"gdy\"\u2005x<0)"
+    )]
+    [InlineData(
         @"\begin{aligned}x+y&=1\\2x-y&=0\end{aligned}",
         "█(x+y =1@2x-y =0)"
     )]
     [InlineData(@"\vec{x}+\hat{y}+\bar{z}", "x⃗+ŷ+z̅")]
     [InlineData(@"\text{speed}+\operatorname{rank}(A)", @"""speed""+""rank""(A)")]
+    [InlineData(@"x \text{units}", "x\u2005\"units\"")]
+    [InlineData(@"\text{given }x", "\"given\"\u2005x")]
     [InlineData(@"\lim_{x\to 0}\sin x", "lim┬(x→ 0)⁡sin x")]
     [InlineData(@"\min_{x\in S}f(x)", @"""min""┬(x∈ S)⁡f(x)")]
     [InlineData(@"\max_{x\in S}f(x)", @"""max""┬(x∈ S)⁡f(x)")]
@@ -78,12 +84,42 @@ public sealed class LatexToUnicodeMathTests
     }
 
     [Theory]
+    [InlineData(@"\mathbf{x+y}", "x+y", 1, 0)]
+    [InlineData(@"\boldsymbol{\alpha+\frac{x}{y}}", "α+(x)/(y)", 0, 1)]
+    [InlineData(@"\mathbf{x+\boldsymbol{y}}", "x+y", 1, 1)]
+    public void PreservesNativeBoldMathAsAnInternalBuildPlan(
+        string latex,
+        string expected,
+        int bold,
+        int boldItalic
+    )
+    {
+        var plan = LatexToUnicodeMath.ConvertPlan(latex);
+
+        Assert.Equal(expected, plan.Linear);
+        Assert.Equal(expected, LatexToUnicodeMath.Convert(latex));
+        Assert.NotEqual(plan.Linear, plan.BuildLinear);
+        Assert.Equal(bold, plan.StyleCounts.Bold);
+        Assert.Equal(boldItalic, plan.StyleCounts.BoldItalic);
+        Assert.Equal(bold + boldItalic, plan.StyleCounts.Total);
+    }
+
+    [Fact]
+    public void RejectsReservedInternalFormattingMarkersFromLatexInput()
+    {
+        var error = Assert.Throws<NativeToolException>(() =>
+            LatexToUnicodeMath.Convert("x\uE100+y")
+        );
+
+        Assert.Equal("EQUATION_INVALID", error.ErrorCode);
+        Assert.Contains("reserved", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
     [InlineData(@"\unknown{x}")]
     [InlineData(@"\frac{x}")]
     [InlineData(@"{x")]
     [InlineData(@"x_")]
-    [InlineData(@"\mathbf{x}")]
-    [InlineData(@"\boldsymbol{x}")]
     [InlineData(@"\sum\nolimits_{i=1}^{n}i")]
     [InlineData(@"x\limits_0")]
     public void FailsClosedForUnsupportedOrMalformedLatex(string latex)

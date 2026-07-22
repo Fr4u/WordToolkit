@@ -781,7 +781,30 @@ internal static class MathMarkupToUnicodeMath
                 "Equation markup contains unsafe control characters"
             );
         }
-        return value.Trim();
+        return TrimInsignificantWhitespace(value);
+    }
+
+    private static string TrimInsignificantWhitespace(string value)
+    {
+        var start = 0;
+        while (
+            start < value.Length
+            && char.IsWhiteSpace(value[start])
+            && !WordMathSpacing.IsSignificant(value[start])
+        )
+        {
+            start++;
+        }
+        var end = value.Length;
+        while (
+            end > start
+            && char.IsWhiteSpace(value[end - 1])
+            && !WordMathSpacing.IsSignificant(value[end - 1])
+        )
+        {
+            end--;
+        }
+        return value[start..end];
     }
 
     private static void RequireDepth(int depth)
