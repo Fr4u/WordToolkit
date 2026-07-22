@@ -35,6 +35,7 @@ internal sealed class ToolCatalog
         "inspect_ooxml_settings",
         "inspect_ooxml_references",
         "inspect_ooxml_dependencies",
+        "lint_ooxml_document",
         "inspect_ooxml_equations",
         "inspect_ooxml_review",
         "inspect_ooxml_fonts",

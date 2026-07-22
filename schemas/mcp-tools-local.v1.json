@@ -5136,6 +5136,118 @@
       }
     },
     {
+      "name": "lint_ooxml_document",
+      "title": "Lint a saved Word document",
+      "description": "Run bounded, deterministic rule packs over a saved Word OOXML package without opening Word or following external targets. Returns stable finding IDs, optional exact source spans, explicit suppression accounting, and separate execution-completeness and document-coverage signals. Fix metadata is advisory only; this initial linter does not mutate or repair the package.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "findings", "rules"],
+            "default": "summary",
+            "description": "Return compact aggregate counts, a paged finding list, or the paged rule catalog."
+          },
+          "rule_pack": {
+            "type": "string",
+            "enum": ["all", "core", "styles", "accessibility", "security"],
+            "default": "all",
+            "description": "Evaluate every implemented rule pack or one exact pack."
+          },
+          "minimum_severity": {
+            "type": "string",
+            "enum": ["info", "warning", "error", "fatal"],
+            "default": "info"
+          },
+          "rule_id": {
+            "type": "string",
+            "pattern": "^WTL_[A-Z0-9_]+$",
+            "maxLength": 128,
+            "description": "Optional exact registered rule ID filter."
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "package",
+              "relationship",
+              "semantic",
+              "style",
+              "formatting",
+              "numbering",
+              "reference",
+              "theme",
+              "settings",
+              "font",
+              "accessibility",
+              "security"
+            ],
+            "description": "Optional exact finding or rule category filter."
+          },
+          "suppress_rule_ids": {
+            "type": "array",
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^WTL_[A-Z0-9_]+$",
+              "maxLength": 128
+            },
+            "description": "Reviewed registered rule IDs to suppress. Unknown IDs are rejected."
+          },
+          "suppress_finding_ids": {
+            "type": "array",
+            "maxItems": 256,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^wtlint_[0-9a-f]{24}$",
+              "maxLength": 31
+            },
+            "description": "Reviewed stable finding IDs to suppress for this exact package state."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9999,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded part URIs, semantic IDs, relationship IDs, XML paths, and byte spans."
+          },
+          "include_messages": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include bounded human-readable finding messages."
+          },
+          "include_fix": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include advisory fix safety and implementation metadata. No fix is executed."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "inspect_ooxml_equations",
       "title": "Inspect native Word equations",
       "description": "Inspect a source-linked canonical graph of native OfficeMath objects in a saved Word package without opening Word, converting the equations, or returning raw OMML. Understands all standard OMML object families, display paragraphs, matrix cells, argument roles, run properties, main math defaults, Strict markup, Word story boundaries, malformed structures, and preserved extension content. Text is fingerprinted and redacted unless an explicit bounded preview is requested.",

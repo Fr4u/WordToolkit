@@ -519,7 +519,8 @@ is not yet claimed; those cases remain whole-entry conflicts.
 All analysis consumes the same package and semantic graphs:
 
 - validator: OPC, XML, Open XML SDK, Word extensions, semantic cross-part rules;
-- linter: styles, direct-formatting drift, numbering, references, language, layout risk;
+- linter: implemented initial core/style/accessibility/security rule packs plus future
+  numbering-sequence, language, link-text and layout-risk coverage;
 - formatter: explicit policy-driven normalization with a preview;
 - optimizer: duplicate images/styles, dead relationships, package size, embedded data;
 - repair: diagnosed issue -> candidate fix -> risk -> evidence -> postcondition;
@@ -567,10 +568,44 @@ Lazy `inspect_ooxml_dependencies` exposes compact edge-kind counts, filtered nod
 edges, unresolved edges, issues and a bounded one-to-four-hop impact neighborhood. Keys
 that may contain part names, bookmark names, field targets or external addresses are
 fingerprinted and redacted by default. Source metadata is a separate opt-in. This is the
-common substrate for later linter, repair, optimizer, affected-node proof and query-plan
-joins; it is not yet any of those engines. Filtering and paging use one cancellable pass
+common substrate for the initial linter and later repair, optimizer, affected-node proof
+and query-plan joins; the dependency inspector itself is not any of those engines.
+Filtering and paging use one cancellable pass
 and retain only the requested page instead of materializing every matching response
 object; summary counts retain only one accumulator per fixed edge kind.
+
+### Initial document linter
+
+`WordDocumentLinter` is the first analysis engine consuming the shared package,
+semantic, dependency, style, numbering, reference, section, theme, settings and font
+graphs. Its 18 deterministic rules are divided into core, styles, accessibility and
+security packs. They surface existing graph diagnostics plus unbound section stories,
+unused styles, groups with equivalent fully modeled declared formatting, direct
+paragraph/run formatting, external relationships, directly hidden text, heading-level
+skips, missing drawing alternative text, unmarked multi-row table headers and a missing
+core document title.
+
+Every materialized finding has a stable rule ID, a package-state-bound `wtlint_` ID,
+severity, confidence, bounded evidence, a privacy-safe subject fingerprint and source
+provenance. Exact XML byte spans are returned where the source model can prove them,
+including relationship entries; source disclosure remains opt-in at MCP. Rule and
+finding suppressions are validated and counted. Finding, semantic-node and XML-source
+budgets are hard bounds, and every exhausted source budget becomes a visible coverage
+omission. `analysis_execution_complete` means the selected implementation ran without
+an omission. It is deliberately not the same as `document_coverage_complete`, which
+remains false while the dependency graph lists unmodeled domains.
+
+The linter applies a stricter dependency budget than the standalone graph inspector:
+100,000 nodes, 200,000 edges and 10,000 graph issues. Exceeding it fails with a typed
+package-limit result instead of letting the analysis inherit the standalone builder's
+million-node allocation ceiling. These are rejection bounds, not a performance claim;
+streaming and incremental lint remain unfinished.
+
+Lazy `lint_ooxml_document` exposes compact summary, paged findings and a paged rule
+catalog without starting Word, following an external target or returning document text.
+All current fix records are marked `implemented=false`, `review_required` and
+`requires_preview=true`. No linter finding is an executable repair, and the formatter,
+optimizer and general repair engine remain separate unfinished layers.
 
 ### Semantic comparison
 
@@ -734,6 +769,8 @@ The current native mapping is therefore:
 - story-aware field/bookmark/dependency inspection -> lazy `inspect_ooxml_references`;
 - cross-domain package/semantic/style/numbering/reference/section dependency inspection
   -> lazy `inspect_ooxml_dependencies`;
+- source-linked core/style/accessibility/security lint -> lazy
+  `lint_ooxml_document`;
 - source-linked comments/threads/people/revisions/moves/permissions -> lazy
   `inspect_ooxml_review`;
 - modeled paragraph/run formatting -> lazy `resolve_ooxml_formatting`;

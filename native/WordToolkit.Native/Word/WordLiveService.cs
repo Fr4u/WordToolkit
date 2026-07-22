@@ -160,6 +160,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "lint_ooxml_document" => LintPackageAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_ooxml_equations" => InspectPackageEquationsAsync(
                 arguments,
                 cancellationToken

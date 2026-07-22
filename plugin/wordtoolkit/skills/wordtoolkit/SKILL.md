@@ -95,6 +95,19 @@ an edge for drawings, charts, SmartArt, OLE, custom XML, bibliography, active co
 signatures, encryption or co-authoring is not proof that the dependency does not exist.
 This action never opens Word, executes a field, follows an external target, repairs a
 document or authorizes deleting an apparently unused node.
+Use lazy `lint_ooxml_document` for a bounded quality or safety audit of a saved package.
+Start with `view=summary` and one rule pack when the task is narrow; request paged
+`findings` only after the counts show relevant evidence. Keep `include_source=false`
+unless an exact part, XML ordinal, byte span or relationship ID will drive the next
+decision. The current core, styles, accessibility and security packs have stable
+`WTL_` rule IDs and package-bound `wtlint_` finding IDs. Suppress only a reviewed rule
+or finding ID. Keep fix metadata off unless a reviewed finding actually needs its
+safety/blocking evidence. Keep `analysis_execution_complete` separate from
+`document_coverage_complete`: an empty finding list is not a clean bill of health when
+coverage omissions or explicitly unmodeled domains remain. Fix metadata with
+`implemented=false` is evidence for a future repair, not permission to mutate XML or
+claim that the issue was repaired. This action never opens Word, follows an external
+target or changes the package.
 Use lazy `inspect_ooxml_equations` for equations already stored in a saved Word
 package. Start with `view=summary`; it returns structural counts and statuses without
 formula text or raw OMML. Use `view=equations` to obtain an exact equation ID, then
