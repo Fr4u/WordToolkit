@@ -40,6 +40,18 @@ previews short, and request properties or source provenance only when the next
 operation consumes them. The query covers the main body and related header,
 footer, footnote, endnote, comment and glossary stories; use `source_part_uri`
 when the edit must stay inside one story.
+Use strict structural predicates instead of fetching a tree for the model to walk.
+For a paragraph containing an equation, send
+`{"kinds":["paragraph"],"descendant":{"kinds":["equation"]}}`. For an
+equation anywhere inside a table cell, send
+`{"kinds":["equation"],"ancestor":{"kinds":["table_cell"]}}`. A related
+predicate may combine `kinds` and `property_equals`; all supplied conditions must
+hold on the same related node. `ancestor` and `descendant` never match the result
+node itself. They do not mean parent/child, adjacent sibling, or arbitrary graph
+reachability. Keep property comparisons exact and never request raw XML merely to
+reconstruct ancestry already represented by these predicates. Set `max_results` to
+the smallest useful page and use `text_preview_chars=0` when stable IDs and kinds are
+enough for the next operation.
 For two or more queries over the same unchanged package, first execute lazy
 `manage_ooxml_semantic_index` with `operation=create`. Reuse its
 `semantic_index_id` and exact `package_fingerprint` in every

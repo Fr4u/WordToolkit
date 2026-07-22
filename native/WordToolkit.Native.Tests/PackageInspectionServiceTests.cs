@@ -194,6 +194,175 @@ public sealed class PackageInspectionServiceTests
     }
 
     [Fact]
+    public async Task QuerySemanticsSupportsStrictStructuralRelationsWithoutStartingWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-query-relations-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "relations.docx");
+            CreatePackage(path);
+            var service = new WordLiveService(new NoInvokeHost());
+            using var paragraphArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                kinds = new[] { "paragraph" },
+                descendant = new { kinds = new[] { "equation" } },
+            }));
+            using var equationArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                kinds = new[] { "equation" },
+                ancestor = new { kinds = new[] { "paragraph" } },
+            }));
+
+            var paragraphObject = await service.CallAsync(
+                "query_ooxml_semantics",
+                paragraphArguments.RootElement,
+                CancellationToken.None
+            );
+            var equationObject = await service.CallAsync(
+                "query_ooxml_semantics",
+                equationArguments.RootElement,
+                CancellationToken.None
+            );
+            using var paragraphJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(paragraphObject)
+            );
+            using var equationJson = JsonDocument.Parse(JsonSerializer.Serialize(equationObject));
+
+            Assert.Equal(
+                "paragraph",
+                Assert.Single(
+                        paragraphJson.RootElement.GetProperty("matches").EnumerateArray()
+                    )
+                    .GetProperty("kind")
+                    .GetString()
+            );
+            Assert.Equal(
+                "equation",
+                Assert.Single(
+                        equationJson.RootElement.GetProperty("matches").EnumerateArray()
+                    )
+                    .GetProperty("kind")
+                    .GetString()
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task IndexedStructuralQueryNarrowsCandidatesAndRejectsMalformedRelations()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-indexed-relations-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "indexed-relations.docx");
+            CreatePackage(path);
+            var service = new WordLiveService(new NoInvokeHost());
+            using var createArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                operation = "create",
+                local_path = path,
+            }));
+            var createdObject = await service.CallAsync(
+                "manage_ooxml_semantic_index",
+                createArguments.RootElement,
+                CancellationToken.None
+            );
+            using var createdJson = JsonDocument.Parse(JsonSerializer.Serialize(createdObject));
+            var indexId = createdJson.RootElement.GetProperty("semantic_index_id").GetString();
+            var fingerprint = createdJson.RootElement
+                .GetProperty("package_fingerprint")
+                .GetString();
+            using var queryArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                semantic_index_id = indexId,
+                expected_package_fingerprint = fingerprint,
+                descendant = new { kinds = new[] { "equation" } },
+            }));
+
+            var queryObject = await service.CallAsync(
+                "query_ooxml_semantics",
+                queryArguments.RootElement,
+                CancellationToken.None
+            );
+            using var queryJson = JsonDocument.Parse(JsonSerializer.Serialize(queryObject));
+            var query = queryJson.RootElement;
+            Assert.True(query.GetProperty("semantic_index_used").GetBoolean());
+            Assert.Equal("descendant_relation", query.GetProperty("candidate_seed").GetString());
+            Assert.True(
+                query.GetProperty("scanned_node_count").GetInt32()
+                    < query.GetProperty("total_node_count").GetInt32()
+            );
+            Assert.Contains(
+                query.GetProperty("matches").EnumerateArray(),
+                match => match.GetProperty("kind").GetString() == "paragraph"
+            );
+            Assert.DoesNotContain(
+                query.GetProperty("matches").EnumerateArray(),
+                match => match.GetProperty("kind").GetString() == "equation"
+            );
+
+            using var emptyRelation = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                ancestor = new { },
+            }));
+            var emptyException = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "query_ooxml_semantics",
+                    emptyRelation.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("INVALID_INPUT", emptyException.ErrorCode);
+
+            using var unknownRelation = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                descendant = new { kind = "equation" },
+            }));
+            var unknownException = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "query_ooxml_semantics",
+                    unknownRelation.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("INVALID_INPUT", unknownException.ErrorCode);
+
+            using var releaseArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                operation = "release",
+                semantic_index_id = indexId,
+                expected_package_fingerprint = fingerprint,
+            }));
+            await service.CallAsync(
+                "manage_ooxml_semantic_index",
+                releaseArguments.RootElement,
+                CancellationToken.None
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task SemanticIndexCanBeCreatedQueriedInspectedAndReleasedWithoutStartingWord()
     {
         var directory = Path.Combine(

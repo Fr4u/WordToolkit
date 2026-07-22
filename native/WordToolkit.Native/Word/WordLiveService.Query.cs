@@ -252,6 +252,8 @@ internal sealed partial class WordLiveService
             TextScope = textScope,
             CaseSensitive = arguments.Boolean("case_sensitive", false),
             PropertyEquals = ParsePropertyEquals(arguments),
+            Ancestor = ParseRelatedPredicate(arguments, "ancestor"),
+            Descendant = ParseRelatedPredicate(arguments, "descendant"),
             WithinNodeId = OptionalString(arguments, "within_node_id") is { } nodeId
                 ? new SemanticNodeId(nodeId)
                 : null,
@@ -261,6 +263,41 @@ internal sealed partial class WordLiveService
             TextPreviewCharacters = (int)preview,
             IncludeProperties = arguments.Boolean("include_properties", false),
             IncludeSource = arguments.Boolean("include_source", false),
+        };
+    }
+
+    private static WordSemanticRelatedNodePredicate? ParseRelatedPredicate(
+        JsonElement arguments,
+        string name
+    )
+    {
+        if (!arguments.TryGetProperty(name, out var value))
+        {
+            return null;
+        }
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                $"{name} must be an object"
+            );
+        }
+
+        foreach (var property in value.EnumerateObject())
+        {
+            if (property.Name is not "kinds" and not "property_equals")
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    $"{name} contains an unknown predicate"
+                );
+            }
+        }
+
+        return new WordSemanticRelatedNodePredicate
+        {
+            Kinds = ParseSemanticKinds(value),
+            PropertyEquals = ParsePropertyEquals(value),
         };
     }
 

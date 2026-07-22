@@ -759,18 +759,25 @@ hybrid transaction based on capability and fidelity requirements.
 
 The first `document.query` slice is implemented as `WordSemanticQueryEngine` and the
 lazy native `query_ooxml_semantics` action. It filters semantic kinds, exact properties,
-source parts and a stable-node subtree; supports contains/equals/starts/ends text modes;
-and streams matching across text, field, tab and break node boundaries instead of
-flattening the document into one giant string. Results are source-ordered, offset-paged,
-preview-bounded, and omit properties and source provenance unless requested.
+source parts, a stable-node subtree, and strict ancestor/descendant predicates whose
+kind and exact-property constraints must hold on one related node. It supports
+contains/equals/starts/ends text modes and streams matching across text, field, tab and
+break node boundaries instead of flattening the document into one giant string.
+Relationship evaluation propagates matching ancestry and descendant presence through
+the semantic tree in linear time; it does not perform a per-candidate tree walk.
+Results are source-ordered, offset-paged, preview-bounded, and omit properties and
+source provenance unless requested.
 
 Repeated queries can now bind to a `WordSemanticIndex` created through lazy
 `manage_ooxml_semantic_index`. The immutable index stores postings for semantic kind,
 source part and every exact projected property value, chooses the smallest available
 posting as the candidate seed, and still re-evaluates all predicates before returning a
-match. A package fingerprint is mandatory when the handle is queried. Cache state is
-explicitly process-memory-only: four handles, 100,000 nodes per handle, 250,000 nodes in
-aggregate, and a 30-minute maximum TTL. Handles are random, inspectable and releasable;
+match. For a structural predicate it resolves related matches from those postings,
+performs one bounded tree propagation, and adds the resulting relationship positions to
+the same smallest-seed plan. A package fingerprint is mandatory when the handle is
+queried. Cache state is explicitly process-memory-only: four handles, 100,000 nodes per
+handle, 250,000 nodes in aggregate, and a 30-minute maximum TTL. Handles are random,
+inspectable and releasable;
 responses disclose counts and fingerprints but no raw document text. This removes
 repeated package projection and most irrelevant-node scans for an agent's multi-query
 session. It is not yet the durable encrypted/incremental external index required for a

@@ -54,7 +54,7 @@ vendor claim is not implementation evidence.
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
 | Compact inspect | Implemented (strengthened initial slice) | `inspect_ooxml_package`, `inspect_ooxml_semantics`, lazy `query_ooxml_semantics`, `manage_ooxml_semantic_index`, `inspect_ooxml_sections`, `inspect_ooxml_styles`, `inspect_ooxml_numbering`, `inspect_ooxml_theme`, `inspect_ooxml_settings`, `inspect_ooxml_fonts`, `inspect_ooxml_references`, `inspect_ooxml_dependencies` and filtered `resolve_ooxml_formatting`; projected-part inventory, privacy redaction, fingerprints, exact filters, per-field/item bounds and offset paging; field-heavy TOC fixtures enforce sub-5000-character default reference and dependency responses | Opaque continuation tokens, remaining auxiliary/versioned parts and a representative cross-action token benchmark suite |
-| Semantic query/search | Partial (indexed repeated-query slice) | Source-ordered kind/property/part/subtree selectors across main, header/footer, note, comment, glossary and text-box stories; streaming contains/equals/starts/ends matching crosses run/field/tab/break boundaries. Optional immutable indexes precompute kind, source-part and exact-property postings, select the smallest candidate seed and keep optional previews/properties/provenance bounded | Fields/math/metadata-aware predicates, structural relationship joins, aggregations, cost model and text postings |
+| Semantic query/search | Partial (indexed structural-query slice) | Source-ordered kind/property/part/subtree selectors across main, header/footer, note, comment, glossary and text-box stories; strict ancestor/descendant predicates combine related-node kinds with exact properties and are propagated in linear time. Streaming contains/equals/starts/ends matching crosses run/field/tab/break boundaries. Optional immutable indexes precompute kind, source-part and exact-property postings, derive structural-relation candidate sets, select the smallest seed and keep optional previews/properties/provenance bounded | Fields/math/metadata-aware predicates beyond existing node kinds/properties, parent/child and sibling axes, aggregations, cost model and text postings |
 | Document dependency graph | Partial (initial cross-domain spine) | Deterministic `wddn_` nodes and `wdde_` edges join OPC reachability, semantic containment, explicit paragraph/run/table styles, style inheritance/link/defaults, numbering instances/abstracts/levels/picture bullets, field/bookmark targets and section header/footer bindings. Missing and external targets remain explicit; every endpoint, input fingerprint and resource budget is checked. Lazy inspection redacts keys/source by default and provides bounded impact traversal | DrawingML/VML, charts/SmartArt, OLE, custom-XML bindings, citations/bibliography sources, macros/signatures/encryption, co-authoring sessions, semantic query joins, incremental invalidation and mutation-impact policies |
 | Indexing | Partial (bounded process-memory index) | `WordSemanticIndex` is package-fingerprint-bound and deterministically indexes up to 100,000 semantic nodes plus one million property occurrences. Lazy management creates/reuses, inspects, lists and explicitly releases random handles; the native cache is capped at four handles/250,000 nodes and a 30-minute TTL, returns no raw text and never persists. Indexed queries require the exact package fingerprint and report their candidate seed/scanned count | Durable encrypted external index, content-aware token/text postings, incremental invalidation, multi-document ranking and crash-safe lifecycle |
 | AI planner | Partial foundation (strengthened) | Deterministic bounded text plans, typed review-decision plans, exact package-patch plans and three-way merge plans report counts/impact without returning content. Merge exposes stable conflict IDs, explicit three-choice resolutions, independently authorized risk classes, exact identities and baseline/candidate validation; lazy stateless apply requires reviewed IDs and all source fingerprints | Natural-language intent -> evidence -> broader heterogeneous typed plan -> cost/risk -> richer permissions and approval policy |
@@ -247,7 +247,7 @@ mutation/repair/render execution required by the goal.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Unit/regression tests | Partial | 260 engine, 194 native and 1273 Python tests pass at the current checkpoint, with 16 intentional Python skips | Coverage for every required feature and published failure corpus |
+| Unit/regression tests | Partial | 262 engine, 196 native and 1273 Python tests pass at the current checkpoint, with 16 intentional Python skips | Coverage for every required feature and published failure corpus |
 | Property/fuzz testing | Partial | Deterministic malformed bytes and random opaque round-trip smoke | Continuous coverage-guided fuzzing, minimized corpus and resource assertions |
 | Fault injection | Not started | Validation/concurrency failure tests only | Every persistence/transaction phase, disk-full, denied, crash and race tests |
 | Preservation benchmark | Partial | Entry hashes and random no-op round trip | Public producer/feature corpus with untouched part/subtree metrics |
@@ -256,12 +256,12 @@ mutation/repair/render execution required by the goal.
 | Visual regression | Not started for new engine | Historical screenshots and live acceptance | Versioned PDF/page/object baselines across rendering backends |
 | Cross-platform CI | Partial | Mandatory Linux engine job plus clean hosted-Windows engine/native/package jobs; licensed Word gate remains separate | macOS core job, qualified backend matrix and routinely available self-hosted Word release evidence |
 | Public competitor benchmark | Not started | Research matrix only | Same fixtures, versions, commands, results, caveats and reproducible harness |
-| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF and normalizes Windows packaging onto Windows PowerShell 5.1. The current semantic-index checkpoint produced the same 195-file, 84,237,559-byte tree and 35,947,755-byte ZIP with SHA-256 `5c4b3ef4d420259463d2cca0e7ebef8d647781c541be761025861c1a73db004a` in two local builds and hosted Windows CI run `29920866791`. The preceding repair checkpoint matched hosted Windows CI exactly at SHA-256 `49aae752c5d2457d4474f63ff1142fe5909bac20cfdf7b534e97044dd3e29ca8`. The earlier exact 0.35 live package, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action real-Word gate; the later saved-package slices do not change live COM code | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
+| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF and normalizes Windows packaging onto Windows PowerShell 5.1. The current structural-query checkpoint produced the same 195-file, 84,250,176-byte tree and 35,951,915-byte ZIP with SHA-256 `f416bfbd8e37adcce2a3a88a97ad4f7e5b698001d9d9f2c4784b9e15715899fe` in two local builds; hosted comparison is pending. The preceding semantic-index checkpoint matched hosted Windows CI run `29920866791` exactly at SHA-256 `5c4b3ef4d420259463d2cca0e7ebef8d647781c541be761025861c1a73db004a`. The earlier exact 0.35 live package, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action real-Word gate; the later saved-package slices do not change live COM code | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
 
 ## Current checkpoint evidence
 
-- `dotnet test native/WordToolkit.Engine.Tests` — 260 passed.
-- `dotnet test native/WordToolkit.Native.Tests` — 194 passed.
+- `dotnet test native/WordToolkit.Engine.Tests` — 262 passed.
+- `dotnet test native/WordToolkit.Native.Tests` — 196 passed.
 - `.venv/Scripts/python -m pytest -q` — 1273 passed, 16 intentionally skipped.
 - Native MCP regression against real Word verified Gaussian, nested and double
   integrals, Presentation MathML, OMML, a parenthesized matrix, cases and combining
@@ -271,15 +271,20 @@ mutation/repair/render execution required by the goal.
   fixed.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
-- The current semantic-index checkpoint exposes 14 public tools and 78 lazy actions. Two
-  local builds and hosted Windows CI run `29920866791` produced the same 195-file,
-  84,237,559-byte tree and 35,947,755-byte ZIP
-  with SHA-256 `5c4b3ef4d420259463d2cca0e7ebef8d647781c541be761025861c1a73db004a`.
-  The packaged MCP discovered and inspected `manage_ooxml_semantic_index`, indexed the
-  142-node LibreOffice TOC fixture with 160 property occurrences, narrowed a paragraph
-  query to 13 candidate nodes, listed and released the handle, returned no raw text from
-  index management, left the source hash unchanged and did not alter the set of Word
-  processes. Full create/query/release JSON-RPC lines remained below 4,000 characters.
+- The current structural-query checkpoint exposes 14 public tools and 78 lazy actions.
+  Two local builds produced the same 195-file, 84,250,176-byte tree and 35,951,915-byte
+  ZIP with SHA-256
+  `f416bfbd8e37adcce2a3a88a97ad4f7e5b698001d9d9f2c4784b9e15715899fe`;
+  hosted artifact comparison is pending. The packaged MCP indexed a real 194-node
+  equation DOCX, used `descendant_relation` to scan 11 candidates, returned 5
+  paragraphs containing equations, explicitly released the handle, kept each complete
+  JSON-RPC response below 3,200 characters, left the source hash unchanged and did not
+  alter the Word process set.
+- The preceding semantic-index checkpoint matched hosted Windows CI run `29920866791`
+  exactly at SHA-256
+  `5c4b3ef4d420259463d2cca0e7ebef8d647781c541be761025861c1a73db004a`.
+  It indexed the 142-node LibreOffice TOC fixture with 160 property occurrences and
+  narrowed a paragraph query to 13 candidate nodes.
 - The preceding 0.35 repair checkpoint exposed 14 public tools and 77 lazy actions. Two
   local builds and hosted Windows CI produced the same 195-file, 84,193,862-byte tree and
   35,935,327-byte ZIP with SHA-256

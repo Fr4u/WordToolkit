@@ -3840,9 +3840,54 @@
     {
       "name": "query_ooxml_semantics",
       "title": "Query Word semantic nodes",
-      "description": "Query all projected Word stories by semantic node kind, bounded text predicate, exact properties, source part, or subtree. Use a process-memory semantic index for repeated queries with indexed candidate selection; otherwise query one saved package directly. Returns stable node IDs and compact previews without opening Word or returning raw XML.",
+      "description": "Query all projected Word stories by semantic node kind, bounded text predicate, exact properties, source part, subtree, or structural ancestor/descendant predicates. Use a process-memory semantic index for repeated queries with indexed candidate selection; otherwise query one saved package directly. Returns stable node IDs and compact previews without opening Word or returning raw XML.",
       "inputSchema": {
         "type": "object",
+        "$defs": {
+          "semantic_node_kind": {
+            "type": "string",
+            "enum": [
+              "document",
+              "body",
+              "paragraph",
+              "run",
+              "text",
+              "tab",
+              "break",
+              "table",
+              "table_row",
+              "table_cell",
+              "hyperlink",
+              "field",
+              "equation",
+              "equation_component",
+              "content_control",
+              "bookmark",
+              "bookmark_end",
+              "comment_anchor",
+              "revision",
+              "drawing",
+              "alternate_content",
+              "extension_island",
+              "header",
+              "footer",
+              "footnotes",
+              "footnote",
+              "endnotes",
+              "endnote",
+              "comments",
+              "comment",
+              "glossary_document",
+              "glossary_entry",
+              "text_box",
+              "header_reference",
+              "footer_reference",
+              "footnote_reference",
+              "endnote_reference",
+              "section"
+            ]
+          }
+        },
         "properties": {
           "local_path": {
             "type": "string",
@@ -3864,47 +3909,7 @@
             "maxItems": 38,
             "uniqueItems": true,
             "items": {
-              "type": "string",
-              "enum": [
-                "document",
-                "body",
-                "paragraph",
-                "run",
-                "text",
-                "tab",
-                "break",
-                "table",
-                "table_row",
-                "table_cell",
-                "hyperlink",
-                "field",
-                "equation",
-                "equation_component",
-                "content_control",
-                "bookmark",
-                "bookmark_end",
-                "comment_anchor",
-                "revision",
-                "drawing",
-                "alternate_content",
-                "extension_island",
-                "header",
-                "footer",
-                "footnotes",
-                "footnote",
-                "endnotes",
-                "endnote",
-                "comments",
-                "comment",
-                "glossary_document",
-                "glossary_entry",
-                "text_box",
-                "header_reference",
-                "footer_reference",
-                "footnote_reference",
-                "endnote_reference",
-                "section"
-              ]
+              "$ref": "#/$defs/semantic_node_kind"
             },
             "description": "Optional semantic node kinds. Omit to search every kind."
           },
@@ -3937,6 +3942,62 @@
               "maxLength": 1024
             },
             "description": "Optional exact semantic property predicates, for example {\"style_id\":\"Definition\"}."
+          },
+          "ancestor": {
+            "type": "object",
+            "properties": {
+              "kinds": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 38,
+                "uniqueItems": true,
+                "items": {
+                  "$ref": "#/$defs/semantic_node_kind"
+                },
+                "description": "Match when any strict ancestor has one of these semantic kinds."
+              },
+              "property_equals": {
+                "type": "object",
+                "minProperties": 1,
+                "maxProperties": 16,
+                "additionalProperties": {"type": "string", "maxLength": 1024},
+                "description": "Every exact property must occur on the same matching ancestor."
+              }
+            },
+            "anyOf": [
+              {"required": ["kinds"]},
+              {"required": ["property_equals"]}
+            ],
+            "additionalProperties": false,
+            "description": "Require at least one strict ancestor satisfying all supplied predicates. Use this to find equations inside tables, comments, revisions, headers, or other containers."
+          },
+          "descendant": {
+            "type": "object",
+            "properties": {
+              "kinds": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 38,
+                "uniqueItems": true,
+                "items": {
+                  "$ref": "#/$defs/semantic_node_kind"
+                },
+                "description": "Match when any strict descendant has one of these semantic kinds."
+              },
+              "property_equals": {
+                "type": "object",
+                "minProperties": 1,
+                "maxProperties": 16,
+                "additionalProperties": {"type": "string", "maxLength": 1024},
+                "description": "Every exact property must occur on the same matching descendant."
+              }
+            },
+            "anyOf": [
+              {"required": ["kinds"]},
+              {"required": ["property_equals"]}
+            ],
+            "additionalProperties": false,
+            "description": "Require at least one strict descendant satisfying all supplied predicates. Use {\"kinds\":[\"paragraph\"],\"descendant\":{\"kinds\":[\"equation\"]}} to select only paragraphs containing equations."
           },
           "within_node_id": {
             "type": "string",

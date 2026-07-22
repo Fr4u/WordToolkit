@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- Added strict `ancestor` and `descendant` predicates to saved-package semantic
+  queries. A related-node predicate combines semantic kinds and exact properties on
+  one node, excludes self, and is propagated through the tree in linear time. Indexed
+  queries resolve related matches from existing postings, add relationship positions
+  to the smallest-candidate plan, and still recheck every predicate. This selects such
+  objects as paragraphs containing equations and equations inside table cells without
+  returning raw XML or spending model tokens on tree traversal. The public and lazy
+  action counts remain unchanged.
+- Verified the structural-query slice with 262 document-engine tests, 196 native-host
+  tests, 1,273 Python/OOXML tests with 16 intentional skips, Ruff, scoped .NET
+  formatting and the standalone Open XML validator build. Two local self-contained
+  builds produced identical 195-file, 84,250,176-byte trees and 35,951,915-byte ZIPs
+  with SHA-256
+  `f416bfbd8e37adcce2a3a88a97ad4f7e5b698001d9d9f2c4784b9e15715899fe`.
+  The packaged MCP queried a real 194-node equation DOCX, selected 5 equation-bearing
+  paragraphs after scanning 11 candidates, released the index, kept every complete
+  JSON-RPC response below 3,200 characters, left the source unchanged and did not
+  alter the running Word process set. Hosted artifact comparison remains pending.
 - Added a bounded native semantic index for repeated AI queries. `WordSemanticIndex`
   precomputes source-ordered postings for node kind, source part and exact property
   values, then chooses the smallest posting as the candidate seed while rechecking every

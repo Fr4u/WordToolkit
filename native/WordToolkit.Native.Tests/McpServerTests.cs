@@ -265,26 +265,52 @@ public sealed class McpServerTests
     public void SemanticQuerySchemaCoversEveryEngineNodeKind()
     {
         var catalog = ToolCatalog.LoadNativeWordTools();
-        using var document = JsonDocument.Parse(
-            catalog.InspectAction("query_ooxml_semantics").ToJsonString()
+        var serialized = catalog
+            .InspectAction("query_ooxml_semantics")
+            .ToJsonString();
+        Assert.True(
+            serialized.Length < 6_000,
+            $"Semantic query schema is too large: {serialized.Length} characters"
         );
-        var kinds = document.RootElement
+        using var document = JsonDocument.Parse(serialized);
+        var properties = document.RootElement
             .GetProperty("tool")
             .GetProperty("inputSchema")
-            .GetProperty("properties")
-            .GetProperty("kinds")
-            .GetProperty("items")
+            .GetProperty("properties");
+        var inputSchema = document.RootElement
+            .GetProperty("tool")
+            .GetProperty("inputSchema");
+        var kinds = inputSchema
+            .GetProperty("$defs")
+            .GetProperty("semantic_node_kind")
             .GetProperty("enum")
             .EnumerateArray()
             .Select(item => item.GetString())
             .Order(StringComparer.Ordinal)
             .ToArray();
-        var expected = Enum.GetNames<WordSemanticNodeKind>()
+        var expectedKinds = Enum.GetNames<WordSemanticNodeKind>()
             .Select(ToSnakeCase)
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(expected, kinds);
+        Assert.Equal(expectedKinds, kinds);
+        foreach (var propertyName in new[] { "kinds", "ancestor", "descendant" })
+        {
+            var kindsSchema = properties.GetProperty(propertyName);
+            if (propertyName is not "kinds")
+            {
+                kindsSchema = kindsSchema.GetProperty("properties").GetProperty("kinds");
+            }
+            Assert.Equal(
+                "#/$defs/semantic_node_kind",
+                kindsSchema.GetProperty("items").GetProperty("$ref").GetString()
+            );
+            Assert.Equal(
+                expectedKinds.Length,
+                kindsSchema.GetProperty("maxItems").GetInt32()
+            );
+            Assert.True(kindsSchema.GetProperty("uniqueItems").GetBoolean());
+        }
     }
 
     private static string ToSnakeCase(string value)

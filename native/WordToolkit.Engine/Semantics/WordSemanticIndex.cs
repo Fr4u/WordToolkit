@@ -38,7 +38,11 @@ public sealed record WordSemanticIndexCandidateSet(
     IReadOnlyList<WordSemanticNode> Nodes,
     string Seed,
     int CandidateNodeCount
-);
+)
+{
+    internal WordSemanticRelationMatchSets Relations { get; init; } =
+        new(null, null);
+}
 
 public sealed class WordSemanticIndex
 {
@@ -252,6 +256,38 @@ public sealed class WordSemanticIndex
             seeds.Add(("subtree", scopedPositions));
         }
 
+        var ancestorMatches = query.Ancestor is null
+            ? null
+            : ResolveRelatedMatches(query.Ancestor, cancellationToken);
+        var descendantMatches = query.Descendant is null
+            ? null
+            : ResolveRelatedMatches(query.Descendant, cancellationToken);
+        var relations = WordSemanticRelationshipEvaluator.Resolve(
+            Document,
+            query,
+            ancestorMatches,
+            descendantMatches,
+            cancellationToken
+        );
+        if (relations.HasMatchingAncestor is not null)
+        {
+            seeds.Add(
+                (
+                    "ancestor_relation",
+                    RelationPositions(relations.HasMatchingAncestor)
+                )
+            );
+        }
+        if (relations.HasMatchingDescendant is not null)
+        {
+            seeds.Add(
+                (
+                    "descendant_relation",
+                    RelationPositions(relations.HasMatchingDescendant)
+                )
+            );
+        }
+
         var selected = seeds
             .OrderBy(seed => seed.Positions.Count)
             .ThenBy(seed => seed.Name, StringComparer.Ordinal)
@@ -267,8 +303,64 @@ public sealed class WordSemanticIndex
             new ReadOnlyCollection<WordSemanticNode>(candidateNodes),
             selected.Name ?? "all_nodes",
             candidateNodes.Length
-        );
+        )
+        {
+            Relations = relations,
+        };
     }
+
+    private IReadOnlyCollection<WordSemanticNode> ResolveRelatedMatches(
+        WordSemanticRelatedNodePredicate predicate,
+        CancellationToken cancellationToken
+    )
+    {
+        var seeds = new List<IReadOnlyList<int>>();
+        if (predicate.Kinds is not null)
+        {
+            seeds.Add(
+                predicate.Kinds
+                    .Distinct()
+                    .SelectMany(kind =>
+                        _kindPostings.TryGetValue(kind, out var postings)
+                            ? postings
+                            : []
+                    )
+                    .Order()
+                    .ToArray()
+            );
+        }
+        if (predicate.PropertyEquals is not null)
+        {
+            foreach (var property in predicate.PropertyEquals)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var key = new PropertyPostingKey(property.Key, property.Value);
+                seeds.Add(
+                    _propertyPostings.TryGetValue(key, out var postings)
+                        ? postings
+                        : []
+                );
+            }
+        }
+
+        var selected = seeds.OrderBy(seed => seed.Count).First();
+        var result = new List<WordSemanticNode>(selected.Count);
+        foreach (var position in selected)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var node = _nodes[position];
+            if (predicate.Matches(node))
+            {
+                result.Add(node);
+            }
+        }
+        return result;
+    }
+
+    private int[] RelationPositions(IReadOnlySet<SemanticNodeId> ids) => ids
+        .Select(id => _positions[id])
+        .Order()
+        .ToArray();
 
     private static void AddPosting<TKey>(
         Dictionary<TKey, List<int>> postings,

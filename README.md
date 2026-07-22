@@ -152,6 +152,14 @@ names, provider/user identifiers and move names are fingerprinted and redacted b
 default. Font hashes are opt-in metadata only. Protection is reported as an editing
 restriction, not misrepresented as document encryption.
 
+Saved-package semantic queries select source-ordered nodes by kind, bounded text,
+exact properties, source story, subtree, and strict ancestor/descendant predicates.
+This lets an agent ask directly for a paragraph containing an equation or an equation
+inside a table cell without downloading XML or walking the semantic tree in model
+context. Repeated queries can reuse a fingerprint-bound process-memory index; every
+indexed result is still checked against the full predicate and reports the candidate
+seed and scanned-node count.
+
 Saved-package dependency inspection joins OPC reachability, semantic containment across
 projected stories, explicit paragraph/run/table style use, style inheritance/defaults,
 numbering definitions and uses, field/bookmark targets, and section header/footer
