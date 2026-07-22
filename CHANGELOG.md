@@ -22,8 +22,9 @@
   returned no XML, left the source unchanged and did not alter the running Word process
   set. The selector used 77.53% fewer serialized command-input characters than the six
   exact commands on that fixture; the 200-target regression fixture reduced command
-  input from 19,014 to 186 characters (99.02%). Hosted artifact verification is pending
-  for this uncommitted checkpoint.
+  input from 19,014 to 186 characters (99.02%). All five jobs in mandatory CI run
+  `29928388511` passed, and its downloaded Windows ZIP matched both local archives
+  exactly in length and SHA-256.
 - Added lazy `plan_ooxml_semantic_edits` and `apply_ooxml_semantic_edits` as the first
   extensible high-level semantic mutation surface. The initial `set_style` command
   assigns existing compatible paragraph, character, or table styles to exact stable
