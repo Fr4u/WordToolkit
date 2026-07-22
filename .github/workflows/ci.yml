@@ -55,7 +55,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v8.3.2
         with:
           python-version: "3.12"
       - run: sudo apt-get update && sudo apt-get install -y libreoffice-writer poppler-utils fonts-dejavu-core fonts-liberation2
