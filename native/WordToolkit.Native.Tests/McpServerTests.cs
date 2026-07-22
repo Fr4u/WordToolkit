@@ -327,6 +327,24 @@ public sealed class McpServerTests
                 .GetString()
         );
         Assert.Equal(
+            "consolidate_style",
+            planDefinitions
+                .GetProperty("consolidate_style")
+                .GetProperty("properties")
+                .GetProperty("type")
+                .GetProperty("const")
+                .GetString()
+        );
+        Assert.Equal(
+            ["type", "source_style_id", "target_style_id"],
+            planDefinitions
+                .GetProperty("consolidate_style")
+                .GetProperty("required")
+                .EnumerateArray()
+                .Select(item => item.GetString()!)
+                .ToArray()
+        );
+        Assert.Equal(
             200,
             planDefinitions
                 .GetProperty("selected_style")
@@ -350,6 +368,7 @@ public sealed class McpServerTests
             [
                 "#/$defs/create_style",
                 "#/$defs/clone_style",
+                "#/$defs/consolidate_style",
                 "#/$defs/exact_style",
                 "#/$defs/selected_style",
             ],
@@ -374,14 +393,40 @@ public sealed class McpServerTests
         );
 
         var applyTool = apply.RootElement.GetProperty("tool");
+        var applySchema = applyTool.GetProperty("inputSchema");
         Assert.Equal(
             "^wseplan_[A-Za-z0-9_-]+$",
-            applyTool
-                .GetProperty("inputSchema")
+            applySchema
                 .GetProperty("properties")
                 .GetProperty("expected_plan_id")
                 .GetProperty("pattern")
                 .GetString()
+        );
+        Assert.Equal(
+            "consolidate_style",
+            applySchema
+                .GetProperty("$defs")
+                .GetProperty("consolidate_style")
+                .GetProperty("properties")
+                .GetProperty("type")
+                .GetProperty("const")
+                .GetString()
+        );
+        Assert.Equal(
+            planCommands
+                .GetProperty("items")
+                .GetProperty("oneOf")
+                .EnumerateArray()
+                .Select(item => item.GetProperty("$ref").GetString()!)
+                .ToArray(),
+            applySchema
+                .GetProperty("properties")
+                .GetProperty("commands")
+                .GetProperty("items")
+                .GetProperty("oneOf")
+                .EnumerateArray()
+                .Select(item => item.GetProperty("$ref").GetString()!)
+                .ToArray()
         );
         Assert.False(
             applyTool
@@ -403,8 +448,14 @@ public sealed class McpServerTests
             catalog.Tools,
             node => node?["name"]?.GetValue<string>() == "apply_ooxml_semantic_edits"
         );
-        Assert.True(planTool.GetRawText().Length < 4_500);
-        Assert.True(applyTool.GetRawText().Length < 4_500);
+        Assert.True(
+            planTool.GetRawText().Length < 4_500,
+            $"Plan semantic edit action is too large: {planTool.GetRawText().Length} characters"
+        );
+        Assert.True(
+            applyTool.GetRawText().Length < 4_500,
+            $"Apply semantic edit action is too large: {applyTool.GetRawText().Length} characters"
+        );
 
         var exactBulkInput = JsonSerializer.Serialize(new
         {

@@ -8,7 +8,7 @@ using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
 
-public abstract record WordStyleDefinitionCommand(string StyleId, string Name);
+public abstract record WordStyleDefinitionCommand;
 
 public sealed record WordStyleCreateCommand(
     string StyleId,
@@ -18,13 +18,18 @@ public sealed record WordStyleCreateCommand(
     string? NextStyleId = null,
     bool? QuickFormat = null,
     int? UiPriority = null
-) : WordStyleDefinitionCommand(StyleId, Name);
+) : WordStyleDefinitionCommand;
 
 public sealed record WordStyleCloneCommand(
     string SourceStyleId,
     string StyleId,
     string Name
-) : WordStyleDefinitionCommand(StyleId, Name);
+) : WordStyleDefinitionCommand;
+
+public sealed record WordStyleConsolidateCommand(
+    string SourceStyleId,
+    string TargetStyleId
+) : WordStyleDefinitionCommand;
 
 public sealed partial class WordSemanticTransactionPlanner
 {
@@ -70,27 +75,81 @@ public sealed partial class WordSemanticTransactionPlanner
             );
         }
 
-        var definitionDraft = BuildStyleDefinitionDraft(
-            package,
-            semanticDocument,
-            definitions,
-            cancellationToken
+        var indexed = definitions
+            .Select((command, index) => new IndexedStyleDefinitionCommand(index, command))
+            .ToArray();
+        var creations = indexed.Where(item =>
+            item.Command is WordStyleCreateCommand or WordStyleCloneCommand
+        ).ToArray();
+        var consolidations = indexed.Where(item =>
+            item.Command is WordStyleConsolidateCommand
+        ).ToArray();
+        if (creations.Length + consolidations.Length != definitions.Length)
+        {
+            throw new WordSemanticEditException(
+                "The semantic transaction contains an unsupported style-definition command."
+            );
+        }
+
+        var stages = new List<IReadOnlyList<WordPackagePartPayload>>();
+        var definitionOperations = new List<WordStyleDefinitionOperationPlan>(
+            definitions.Length
         );
-        var intermediate = MaterializeSnapshot(
-            package,
-            [definitionDraft.Payload],
-            cancellationToken
-        );
-        var intermediateSemantic = new WordSemanticProjector().Project(
-            intermediate,
-            cancellationToken
-        );
-        ValidateCreatedStyles(
-            intermediate,
-            intermediateSemantic,
-            definitionDraft.Operations,
-            cancellationToken
-        );
+        var intermediate = package;
+        var intermediateSemantic = semanticDocument;
+        if (creations.Length != 0)
+        {
+            var creationDraft = BuildStyleCreationDraft(
+                intermediate,
+                intermediateSemantic,
+                creations,
+                cancellationToken
+            );
+            stages.Add(creationDraft.Payloads);
+            definitionOperations.AddRange(creationDraft.Operations);
+            intermediate = MaterializeSnapshot(
+                intermediate,
+                creationDraft.Payloads,
+                cancellationToken
+            );
+            intermediateSemantic = new WordSemanticProjector().Project(
+                intermediate,
+                cancellationToken
+            );
+            ValidateCreatedStyles(
+                intermediate,
+                intermediateSemantic,
+                creationDraft.Operations,
+                cancellationToken
+            );
+        }
+
+        if (consolidations.Length != 0)
+        {
+            var consolidationDraft = BuildStyleConsolidationDraft(
+                intermediate,
+                intermediateSemantic,
+                consolidations,
+                cancellationToken
+            );
+            stages.Add(consolidationDraft.Payloads);
+            definitionOperations.AddRange(consolidationDraft.Operations);
+            intermediate = MaterializeSnapshot(
+                intermediate,
+                consolidationDraft.Payloads,
+                cancellationToken
+            );
+            intermediateSemantic = new WordSemanticProjector().Project(
+                intermediate,
+                cancellationToken
+            );
+            ValidateConsolidatedStyles(
+                intermediate,
+                intermediateSemantic,
+                consolidations,
+                cancellationToken
+            );
+        }
 
         WordSemanticTransactionPlan? assignmentPlan = null;
         if (assignments.Length != 0)
@@ -101,24 +160,10 @@ public sealed partial class WordSemanticTransactionPlanner
                 assignments,
                 cancellationToken
             );
+            stages.Add(assignmentPlan.PartPayloads.ToArray());
         }
 
-        var payloads = new Dictionary<string, WordPackagePartPayload>(StringComparer.Ordinal)
-        {
-            [definitionDraft.Payload.PartUri] = definitionDraft.Payload,
-        };
-        if (assignmentPlan is not null)
-        {
-            foreach (var payload in assignmentPlan.PartPayloads)
-            {
-                if (!payloads.TryAdd(payload.PartUri, payload))
-                {
-                    throw new WordSemanticEditException(
-                        $"Style definition and assignment edits collide in '{payload.PartUri}'."
-                    );
-                }
-            }
-        }
+        var payloads = ComposeSequentialStylePayloads(package, stages);
 
         var projectedEntries = payloads.Values.ToDictionary(
             payload => payload.EntryName,
@@ -142,14 +187,14 @@ public sealed partial class WordSemanticTransactionPlanner
             resultFingerprint,
             assignmentOperations,
             payloads,
-            definitionDraft.Operations
+            definitionOperations.OrderBy(operation => operation.Index).ToArray()
         );
     }
 
-    private StyleDefinitionDraft BuildStyleDefinitionDraft(
+    private StyleDefinitionDraft BuildStyleCreationDraft(
         OpcPackageSnapshot package,
         WordSemanticDocument semanticDocument,
-        IReadOnlyList<WordStyleDefinitionCommand> commands,
+        IReadOnlyList<IndexedStyleDefinitionCommand> commands,
         CancellationToken cancellationToken
     )
     {
@@ -207,13 +252,22 @@ public sealed partial class WordSemanticTransactionPlanner
             StringComparer.Ordinal
         );
         var newIds = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var command in commands)
+        foreach (var indexedCommand in commands)
         {
+            var command = indexedCommand.Command;
             ValidateDefinitionIdentity(command);
-            if (types.ContainsKey(command.StyleId) || !newIds.Add(command.StyleId))
+            var styleId = command switch
+            {
+                WordStyleCreateCommand create => create.StyleId,
+                WordStyleCloneCommand clone => clone.StyleId,
+                _ => throw new WordSemanticEditException(
+                    $"Unsupported style creation command '{command.GetType().Name}'."
+                ),
+            };
+            if (types.ContainsKey(styleId) || !newIds.Add(styleId))
             {
                 throw new WordSemanticEditException(
-                    $"Style ID '{command.StyleId}' already exists or is created more than once."
+                    $"Style ID '{styleId}' already exists or is created more than once."
                 );
             }
             var type = command switch
@@ -230,7 +284,7 @@ public sealed partial class WordSemanticTransactionPlanner
                     $"Unsupported style definition command '{command.GetType().Name}'."
                 ),
             };
-            types.Add(command.StyleId, type);
+            types.Add(styleId, type);
         }
 
         var fragments = new List<string>(commands.Count);
@@ -243,11 +297,13 @@ public sealed partial class WordSemanticTransactionPlanner
         for (var index = 0; index < commands.Count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var command = commands[index];
+            var indexedCommand = commands[index];
+            var command = indexedCommand.Command;
             XElement element;
             WordStyleType type;
             string kind;
             string? sourceStyleId;
+            string targetStyleId;
             switch (command)
             {
                 case WordStyleCreateCommand create:
@@ -256,6 +312,7 @@ public sealed partial class WordSemanticTransactionPlanner
                     type = create.StyleType;
                     kind = "create_style";
                     sourceStyleId = null;
+                    targetStyleId = create.StyleId;
                     break;
                 case WordStyleCloneCommand clone:
                     var sourceDefinition = graph.Styles.Single(style =>
@@ -274,6 +331,7 @@ public sealed partial class WordSemanticTransactionPlanner
                     type = sourceDefinition.Type;
                     kind = "clone_style";
                     sourceStyleId = clone.SourceStyleId;
+                    targetStyleId = clone.StyleId;
                     break;
                 default:
                     throw new WordSemanticEditException(
@@ -284,9 +342,9 @@ public sealed partial class WordSemanticTransactionPlanner
             fragments.Add(fragment);
             operations.Add(
                 new WordStyleDefinitionOperationPlan(
-                    index,
+                    indexedCommand.Index,
                     kind,
-                    command.StyleId,
+                    targetStyleId,
                     sourceStyleId,
                     type,
                     part.Uri,
@@ -323,22 +381,30 @@ public sealed partial class WordSemanticTransactionPlanner
             part.Entry.Content.ToArray(),
             changed
         );
-        return new StyleDefinitionDraft(payload, operations);
+        return new StyleDefinitionDraft([payload], operations);
     }
 
     private static void ValidateDefinitionIdentity(WordStyleDefinitionCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        ArgumentException.ThrowIfNullOrWhiteSpace(command.StyleId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(command.Name);
-        if (command.StyleId.Length > 253 || command.Name.Length > 253)
+        var identity = command switch
+        {
+            WordStyleCreateCommand create => (create.StyleId, create.Name),
+            WordStyleCloneCommand cloneCommand => (cloneCommand.StyleId, cloneCommand.Name),
+            _ => throw new WordSemanticEditException(
+                $"Unsupported style creation command '{command.GetType().Name}'."
+            ),
+        };
+        ArgumentException.ThrowIfNullOrWhiteSpace(identity.StyleId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(identity.Name);
+        if (identity.StyleId.Length > 253 || identity.Name.Length > 253)
         {
             throw new ArgumentException("Style IDs and names cannot exceed 253 characters.");
         }
         try
         {
-            XmlConvert.VerifyXmlChars(command.StyleId);
-            XmlConvert.VerifyXmlChars(command.Name);
+            XmlConvert.VerifyXmlChars(identity.StyleId);
+            XmlConvert.VerifyXmlChars(identity.Name);
         }
         catch (XmlException exception)
         {
@@ -654,6 +720,11 @@ public sealed partial class WordSemanticTransactionPlanner
                     AppendHashField(hash, clone.StyleId);
                     AppendHashField(hash, clone.Name);
                     break;
+                case WordStyleConsolidateCommand consolidate:
+                    AppendHashField(hash, "consolidate");
+                    AppendHashField(hash, consolidate.SourceStyleId);
+                    AppendHashField(hash, consolidate.TargetStyleId);
+                    break;
             }
         }
         foreach (var assignment in assignments)
@@ -682,7 +753,12 @@ public sealed partial class WordSemanticTransactionPlanner
     };
 
     private sealed record StyleDefinitionDraft(
-        WordPackagePartPayload Payload,
+        IReadOnlyList<WordPackagePartPayload> Payloads,
         IReadOnlyList<WordStyleDefinitionOperationPlan> Operations
+    );
+
+    private sealed record IndexedStyleDefinitionCommand(
+        int Index,
+        WordStyleDefinitionCommand Command
     );
 }

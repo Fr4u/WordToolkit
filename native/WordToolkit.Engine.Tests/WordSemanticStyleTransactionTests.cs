@@ -529,6 +529,390 @@ public sealed class WordSemanticStyleTransactionTests
         );
     }
 
+    [Fact]
+    public void ConsolidatesEquivalentLinkedStylesAcrossStoriesNumberingAndRevisions()
+    {
+        var stylesXml = ConsolidationStylesXml();
+        var documentXml = $"""
+            <w:document xmlns:w="{WordNamespace}"><w:body keep="yes">
+              <w:p><w:pPr><w:pStyle w:val="SourcePara"/><w:pPrChange w:id="1" w:author="a" w:date="2024-01-01T00:00:00Z"><w:pPr><w:pStyle w:val="SourcePara"/></w:pPr></w:pPrChange></w:pPr><w:r><w:rPr><w:rStyle w:val="SourceChar"/></w:rPr><w:t>body</w:t></w:r></w:p>
+              <w:tbl><w:tblPr><w:tblStyle w:val="KeepTable"/></w:tblPr><w:tr><w:tc><w:p/></w:tc></w:tr></w:tbl>
+            </w:body></w:document>
+            """;
+        var numberingXml = $"""
+            <w:numbering xmlns:w="{WordNamespace}">
+              <w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="singleLevel"/><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/><w:pStyle w:val="SourcePara"/><w:rPr><w:rStyle w:val="SourceChar"/></w:rPr></w:lvl></w:abstractNum>
+              <w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
+            </w:numbering>
+            """;
+        var headerXml = $"""
+            <w:hdr xmlns:w="{WordNamespace}"><w:p><w:pPr><w:pStyle w:val="SourcePara"/></w:pPr><w:r><w:t>header</w:t></w:r></w:p></w:hdr>
+            """;
+        var commentsXml = $"""
+            <w:comments xmlns:w="{WordNamespace}"><w:comment w:id="0" w:author="a" w:date="2024-01-01T00:00:00Z"><w:p><w:pPr><w:pStyle w:val="SourcePara"/></w:pPr><w:r><w:t>comment</w:t></w:r></w:p></w:comment></w:comments>
+            """;
+        var footnotesXml = $"""
+            <w:footnotes xmlns:w="{WordNamespace}"><w:footnote w:id="1"><w:p><w:pPr><w:pStyle w:val="SourcePara"/></w:pPr><w:r><w:t>note</w:t></w:r></w:p></w:footnote></w:footnotes>
+            """;
+        using var stream = BuildConsolidationPackage(
+            documentXml,
+            stylesXml,
+            numberingXml,
+            headerXml,
+            commentsXml,
+            footnotesXml
+        );
+        var reader = new OpcPackageReader();
+        var package = reader.Read(stream);
+        var semantic = new WordSemanticProjector().Project(package);
+        var commands = new WordStyleDefinitionCommand[]
+        {
+            new WordStyleConsolidateCommand("SourcePara", "TargetPara"),
+            new WordStyleConsolidateCommand("SourceChar", "TargetChar"),
+        };
+        var planner = new WordSemanticTransactionPlanner();
+
+        var plan = planner.PlanStyleEdits(
+            package,
+            semantic,
+            commands,
+            Array.Empty<WordStyleAssignmentCommand>()
+        );
+        var repeated = planner.PlanStyleEdits(
+            package,
+            semantic,
+            commands,
+            Array.Empty<WordStyleAssignmentCommand>()
+        );
+
+        Assert.Equal(plan.PlanId, repeated.PlanId);
+        Assert.Equal(2, plan.OperationCount);
+        Assert.Equal(6, plan.ChangedPartCount);
+        Assert.All(plan.DefinitionOperations, operation =>
+            Assert.Equal("consolidate_style", operation.Kind)
+        );
+        Assert.Equal(7, plan.DefinitionOperations[0].ReferenceUpdateCount);
+        Assert.Equal(3, plan.DefinitionOperations[1].ReferenceUpdateCount);
+
+        using var appliedStream = Serialize(plan.CreateMutation(package));
+        var applied = reader.Read(appliedStream);
+        Assert.Equal(plan.ResultPackageFingerprint, applied.Fingerprint);
+        var changedSemantic = new WordSemanticProjector().Project(applied);
+        var changedStyles = new WordStyleGraphBuilder().Build(applied, changedSemantic);
+        Assert.False(changedStyles.TryGetStyle("SourcePara", out _));
+        Assert.False(changedStyles.TryGetStyle("SourceChar", out _));
+        Assert.True(changedStyles.TryGetStyle("TargetPara", out _));
+        Assert.True(changedStyles.TryGetStyle("TargetChar", out _));
+        Assert.All(
+            changedSemantic.Nodes.Where(node =>
+                node.Properties.TryGetValue("style_id", out _)
+            ),
+            node => Assert.DoesNotContain(
+                node.Properties["style_id"],
+                new[] { "SourcePara", "SourceChar" }
+            )
+        );
+        Assert.Equal(
+            "TargetPara",
+            changedStyles.Styles.Single(style => style.StyleId == "DerivedPara")
+                .BasedOnStyleId
+        );
+        Assert.Equal(
+            "TargetChar",
+            changedStyles.Styles.Single(style => style.StyleId == "DerivedChar")
+                .BasedOnStyleId
+        );
+        foreach (
+            var partUri in new[]
+            {
+                "/word/document.xml",
+                "/word/styles.xml",
+                "/word/numbering.xml",
+                "/word/header1.xml",
+                "/word/comments.xml",
+                "/word/footnotes.xml",
+            }
+        )
+        {
+            var xml = Encoding.UTF8.GetString(applied.Parts[partUri].Entry.Content.Span);
+            Assert.DoesNotContain("SourcePara", xml, StringComparison.Ordinal);
+            Assert.DoesNotContain("SourceChar", xml, StringComparison.Ordinal);
+        }
+        Assert.Equal(
+            package.Parts["/custom/opaque.bin"].Entry.Sha256,
+            applied.Parts["/custom/opaque.bin"].Entry.Sha256
+        );
+
+        using var revertedStream = Serialize(plan.CreateInverseMutation(applied));
+        var reverted = reader.Read(revertedStream);
+        Assert.Equal(package.Fingerprint, reverted.Fingerprint);
+        foreach (var part in package.Parts.Values)
+        {
+            Assert.Equal(
+                part.Entry.Content.ToArray(),
+                reverted.Parts[part.Uri].Entry.Content.ToArray()
+            );
+        }
+    }
+
+    [Fact]
+    public void ComposesCloneConsolidationAndAssignmentAcrossTheSameParts()
+    {
+        var stylesXml = $"""
+            <w:styles xmlns:w="{WordNamespace}">
+              <w:style w:type="paragraph" w:styleId="Base"><w:name w:val="Base"/></w:style>
+              <w:style w:type="paragraph" w:styleId="Source" w:customStyle="1"><w:name w:val="Source"/><w:basedOn w:val="Base"/><w:next w:val="Source"/><w:qFormat/><w:rPr><w:b/></w:rPr></w:style>
+            </w:styles>
+            """;
+        var documentXml = $"""
+            <w:document xmlns:w="{WordNamespace}"><w:body><w:p><w:pPr><w:pStyle w:val="Source"/></w:pPr><w:r><w:t>old</w:t></w:r></w:p><w:p><w:r><w:t>new</w:t></w:r></w:p></w:body></w:document>
+            """;
+        using var stream = BuildPackage(documentXml, stylesXml);
+        var reader = new OpcPackageReader();
+        var package = reader.Read(stream);
+        var semantic = new WordSemanticProjector().Project(package);
+        var unstyled = semantic.Nodes.Where(node =>
+            node.Kind == WordSemanticNodeKind.Paragraph
+        ).Last();
+        var definitions = new WordStyleDefinitionCommand[]
+        {
+            new WordStyleCloneCommand("Source", "Target", "Target"),
+            new WordStyleConsolidateCommand("Source", "Target"),
+        };
+        var assignments = new[]
+        {
+            new WordStyleAssignmentCommand(
+                unstyled.Id,
+                "Target",
+                RequireNoExplicitStyle: true
+            ),
+        };
+
+        var plan = new WordSemanticTransactionPlanner().PlanStyleEdits(
+            package,
+            semantic,
+            definitions,
+            assignments
+        );
+
+        Assert.Equal(3, plan.OperationCount);
+        Assert.Equal(2, plan.ChangedPartCount);
+        Assert.Equal(
+            new[] { "clone_style", "consolidate_style" },
+            plan.DefinitionOperations.Select(operation => operation.Kind).ToArray()
+        );
+        using var appliedStream = Serialize(plan.CreateMutation(package));
+        var applied = reader.Read(appliedStream);
+        var changedSemantic = new WordSemanticProjector().Project(applied);
+        Assert.Equal(
+            2,
+            changedSemantic.Nodes.Count(node =>
+                node.Kind == WordSemanticNodeKind.Paragraph
+                && node.Properties.GetValueOrDefault("style_id") == "Target"
+            )
+        );
+        var graph = new WordStyleGraphBuilder().Build(applied, changedSemantic);
+        Assert.False(graph.TryGetStyle("Source", out _));
+        Assert.True(graph.TryGetStyle("Target", out _));
+
+        using var revertedStream = Serialize(plan.CreateInverseMutation(applied));
+        var reverted = reader.Read(revertedStream);
+        Assert.Equal(package.Fingerprint, reverted.Fingerprint);
+    }
+
+    [Fact]
+    public void RejectsUnsafeOrNonEquivalentStyleConsolidation()
+    {
+        var planner = new WordSemanticTransactionPlanner();
+        var baseDocument = $"""
+            <w:document xmlns:w="{WordNamespace}"><w:body><w:p><w:pPr><w:pStyle w:val="Source"/></w:pPr><w:r><w:t>x</w:t></w:r></w:p></w:body></w:document>
+            """;
+        var nonEquivalentStyles = $"""
+            <w:styles xmlns:w="{WordNamespace}">
+              <w:style w:type="paragraph" w:styleId="Source" w:customStyle="1"><w:name w:val="Source"/><w:rPr><w:b/></w:rPr></w:style>
+              <w:style w:type="paragraph" w:styleId="Target" w:customStyle="1"><w:name w:val="Target"/><w:rPr><w:i/></w:rPr></w:style>
+            </w:styles>
+            """;
+        using var nonEquivalentStream = BuildPackage(
+            baseDocument,
+            nonEquivalentStyles
+        );
+        var nonEquivalentPackage = new OpcPackageReader().Read(nonEquivalentStream);
+        var nonEquivalentSemantic = new WordSemanticProjector().Project(
+            nonEquivalentPackage
+        );
+        Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+            nonEquivalentPackage,
+            nonEquivalentSemantic,
+            [new WordStyleConsolidateCommand("Source", "Target")],
+            Array.Empty<WordStyleAssignmentCommand>()
+        ));
+
+        var builtInStyles = nonEquivalentStyles.Replace(
+            " w:customStyle=\"1\"",
+            string.Empty,
+            StringComparison.Ordinal
+        ).Replace("<w:i/>", "<w:b/>", StringComparison.Ordinal);
+        using var builtInStream = BuildPackage(baseDocument, builtInStyles);
+        var builtInPackage = new OpcPackageReader().Read(builtInStream);
+        var builtInSemantic = new WordSemanticProjector().Project(builtInPackage);
+        Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+            builtInPackage,
+            builtInSemantic,
+            [new WordStyleConsolidateCommand("Source", "Target")],
+            Array.Empty<WordStyleAssignmentCommand>()
+        ));
+
+        using var chainStream = BuildPackage(
+            baseDocument,
+            nonEquivalentStyles.Replace("<w:i/>", "<w:b/>", StringComparison.Ordinal)
+                .Replace("</w:styles>", "<w:style w:type=\"paragraph\" w:styleId=\"Third\" w:customStyle=\"1\"><w:name w:val=\"Third\"/><w:rPr><w:b/></w:rPr></w:style></w:styles>", StringComparison.Ordinal)
+        );
+        var chainPackage = new OpcPackageReader().Read(chainStream);
+        var chainSemantic = new WordSemanticProjector().Project(chainPackage);
+        Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+            chainPackage,
+            chainSemantic,
+            [
+                new WordStyleConsolidateCommand("Source", "Target"),
+                new WordStyleConsolidateCommand("Target", "Third"),
+            ],
+            Array.Empty<WordStyleAssignmentCommand>()
+        ));
+
+        var invalidNextStyles = $"""
+            <w:styles xmlns:w="{WordNamespace}">
+              <w:style w:type="character" w:styleId="SourceChar" w:customStyle="1"><w:name w:val="Source"/><w:next w:val="SourceChar"/><w:rPr><w:b/></w:rPr></w:style>
+              <w:style w:type="character" w:styleId="TargetChar" w:customStyle="1"><w:name w:val="Target"/><w:next w:val="TargetChar"/><w:rPr><w:b/></w:rPr></w:style>
+            </w:styles>
+            """;
+        using var invalidNextStream = BuildPackage(
+            $"<w:document xmlns:w='{WordNamespace}'><w:body><w:p/></w:body></w:document>",
+            invalidNextStyles
+        );
+        var invalidNextPackage = new OpcPackageReader().Read(invalidNextStream);
+        var invalidNextSemantic = new WordSemanticProjector().Project(
+            invalidNextPackage
+        );
+        Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+            invalidNextPackage,
+            invalidNextSemantic,
+            [new WordStyleConsolidateCommand("SourceChar", "TargetChar")],
+            Array.Empty<WordStyleAssignmentCommand>()
+        ));
+    }
+
+    [Fact]
+    public void RejectsOpaqueConsumersAndReferenceUpdateOverflow()
+    {
+        var styles = $"""
+            <w:styles xmlns:w="{WordNamespace}">
+              <w:style w:type="paragraph" w:styleId="Source" w:customStyle="1"><w:name w:val="Source name"/><w:rPr><w:b/></w:rPr></w:style>
+              <w:style w:type="paragraph" w:styleId="Target" w:customStyle="1"><w:name w:val="Target name"/><w:rPr><w:b/></w:rPr></w:style>
+            </w:styles>
+            """;
+        var fieldDocument = $"""
+            <w:document xmlns:w="{WordNamespace}"><w:body><w:p><w:fldSimple w:instr=" STYLEREF &quot;Source name&quot; "><w:r><w:t>x</w:t></w:r></w:fldSimple></w:p></w:body></w:document>
+            """;
+        using var fieldStream = BuildPackage(fieldDocument, styles);
+        var fieldPackage = new OpcPackageReader().Read(fieldStream);
+        var fieldSemantic = new WordSemanticProjector().Project(fieldPackage);
+        Assert.Throws<WordSemanticEditException>(() =>
+            new WordSemanticTransactionPlanner().PlanStyleEdits(
+                fieldPackage,
+                fieldSemantic,
+                [new WordStyleConsolidateCommand("Source", "Target")],
+                Array.Empty<WordStyleAssignmentCommand>()
+            )
+        );
+
+        var repeatedReferences = $"""
+            <w:document xmlns:w="{WordNamespace}"><w:body><w:p><w:pPr><w:pStyle w:val="Source"/></w:pPr></w:p><w:p><w:pPr><w:pStyle w:val="Source"/></w:pPr></w:p></w:body></w:document>
+            """;
+        using var limitStream = BuildPackage(repeatedReferences, styles);
+        var limitPackage = new OpcPackageReader().Read(limitStream);
+        var limitSemantic = new WordSemanticProjector().Project(limitPackage);
+        Assert.Throws<WordSemanticTransactionLimitException>(() =>
+            new WordSemanticTransactionPlanner(
+                new WordSemanticTransactionOptions { MaxStyleReferenceUpdates = 1 }
+            ).PlanStyleEdits(
+                limitPackage,
+                limitSemantic,
+                [new WordStyleConsolidateCommand("Source", "Target")],
+                Array.Empty<WordStyleAssignmentCommand>()
+            )
+        );
+
+        using var linkedTemplateStream = BuildPackage(
+            $"<w:document xmlns:w='{WordNamespace}'><w:body><w:p/></w:body></w:document>",
+            styles,
+            settingsXml: $"<w:settings xmlns:w='{WordNamespace}'><w:linkStyles/></w:settings>"
+        );
+        var linkedTemplatePackage = new OpcPackageReader().Read(linkedTemplateStream);
+        var linkedTemplateSemantic = new WordSemanticProjector().Project(
+            linkedTemplatePackage
+        );
+        Assert.Throws<WordSemanticEditException>(() =>
+            new WordSemanticTransactionPlanner().PlanStyleEdits(
+                linkedTemplatePackage,
+                linkedTemplateSemantic,
+                [new WordStyleConsolidateCommand("Source", "Target")],
+                Array.Empty<WordStyleAssignmentCommand>()
+            )
+        );
+
+        using var macroStream = BuildPackage(
+            $"<w:document xmlns:w='{WordNamespace}'><w:body><w:p/></w:body></w:document>",
+            styles,
+            vbaProject: [1, 2, 3]
+        );
+        var macroPackage = new OpcPackageReader().Read(macroStream);
+        var macroSemantic = new WordSemanticProjector().Project(macroPackage);
+        Assert.Throws<WordSemanticEditException>(() =>
+            new WordSemanticTransactionPlanner().PlanStyleEdits(
+                macroPackage,
+                macroSemantic,
+                [new WordStyleConsolidateCommand("Source", "Target")],
+                Array.Empty<WordStyleAssignmentCommand>()
+            )
+        );
+
+        using var altChunkStream = BuildPackage(
+            $"<w:document xmlns:w='{WordNamespace}'><w:body><w:altChunk/><w:p/></w:body></w:document>",
+            styles
+        );
+        var altChunkPackage = new OpcPackageReader().Read(altChunkStream);
+        var altChunkSemantic = new WordSemanticProjector().Project(altChunkPackage);
+        Assert.Throws<WordSemanticEditException>(() =>
+            new WordSemanticTransactionPlanner().PlanStyleEdits(
+                altChunkPackage,
+                altChunkSemantic,
+                [new WordStyleConsolidateCommand("Source", "Target")],
+                Array.Empty<WordStyleAssignmentCommand>()
+            )
+        );
+
+        using var unmodeledConsumerStream = BuildPackage(
+            $"<w:document xmlns:w='{WordNamespace}'><w:body><w:p/></w:body></w:document>",
+            styles,
+            unmodeledXml: $"<w:root xmlns:w='{WordNamespace}'><w:pStyle w:val='Source'/></w:root>"
+        );
+        var unmodeledConsumerPackage = new OpcPackageReader().Read(
+            unmodeledConsumerStream
+        );
+        var unmodeledConsumerSemantic = new WordSemanticProjector().Project(
+            unmodeledConsumerPackage
+        );
+        Assert.Throws<WordSemanticEditException>(() =>
+            new WordSemanticTransactionPlanner().PlanStyleEdits(
+                unmodeledConsumerPackage,
+                unmodeledConsumerSemantic,
+                [new WordStyleConsolidateCommand("Source", "Target")],
+                Array.Empty<WordStyleAssignmentCommand>()
+            )
+        );
+    }
+
     private static string StylesXml(bool includeBrokenStyle = false) => $"""
         <w:styles xmlns:w="{WordNamespace}">
           <w:style w:type="paragraph" w:styleId="OldPara"><w:name w:val="Old paragraph"/></w:style>
@@ -539,24 +923,103 @@ public sealed class WordSemanticStyleTransactionTests
         </w:styles>
         """;
 
+    private static string ConsolidationStylesXml() => $"""
+        <w:styles xmlns:w="{WordNamespace}" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
+          <w:style w:type="paragraph" w:styleId="BasePara"><w:name w:val="Base paragraph"/></w:style>
+          <w:style w:type="character" w:styleId="BaseChar"><w:name w:val="Base character"/></w:style>
+          <w:style w:type="paragraph" w:styleId="SourcePara" w:customStyle="1" mc:Ignorable="w14"><w:name w:val="Source paragraph"/><w:aliases w:val="Source alias"/><w:basedOn w:val="BasePara"/><w:next w:val="SourcePara"/><w:link w:val="SourceChar"/><w:qFormat/><w:rsid w:val="11111111"/><w14:opaque w14:val="same"/><w:pPr><w:keepNext/></w:pPr><w:rPr><w:b/></w:rPr></w:style>
+          <w:style w:type="paragraph" w:styleId="TargetPara" w:customStyle="1" mc:Ignorable="w14"><w:name w:val="Target paragraph"/><w:aliases w:val="Target alias"/><w:basedOn w:val="BasePara"/><w:next w:val="TargetPara"/><w:link w:val="TargetChar"/><w:qFormat/><w:rsid w:val="22222222"/><w14:opaque w14:val="same"/><w:pPr><w:keepNext/></w:pPr><w:rPr><w:b/></w:rPr></w:style>
+          <w:style w:type="character" w:styleId="SourceChar" w:customStyle="1"><w:name w:val="Source character"/><w:basedOn w:val="BaseChar"/><w:link w:val="SourcePara"/><w:rPr><w:i/></w:rPr></w:style>
+          <w:style w:type="character" w:styleId="TargetChar" w:customStyle="1"><w:name w:val="Target character"/><w:basedOn w:val="BaseChar"/><w:link w:val="TargetPara"/><w:rPr><w:i/></w:rPr></w:style>
+          <w:style w:type="paragraph" w:styleId="DerivedPara" w:customStyle="1"><w:name w:val="Derived paragraph"/><w:basedOn w:val="SourcePara"/></w:style>
+          <w:style w:type="character" w:styleId="DerivedChar" w:customStyle="1"><w:name w:val="Derived character"/><w:basedOn w:val="SourceChar"/></w:style>
+          <w:style w:type="table" w:styleId="KeepTable"><w:name w:val="Keep table"/></w:style>
+        </w:styles>
+        """;
+
+    private static MemoryStream BuildConsolidationPackage(
+        string documentXml,
+        string stylesXml,
+        string numberingXml,
+        string headerXml,
+        string commentsXml,
+        string footnotesXml
+    )
+    {
+        var contentTypes = """
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Default Extension="bin" ContentType="application/octet-stream"/>
+              <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+              <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+              <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+              <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
+              <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+              <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
+            </Types>
+            """;
+        var relationships = """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+              <Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+              <Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+              <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+              <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
+            </Relationships>
+            """;
+        var entries = new (string Name, byte[] Content)[]
+        {
+            ("[Content_Types].xml", Encoding.UTF8.GetBytes(contentTypes)),
+            ("_rels/.rels", Encoding.UTF8.GetBytes(RootRelationships())),
+            ("word/document.xml", Encoding.UTF8.GetBytes(documentXml)),
+            ("word/styles.xml", Encoding.UTF8.GetBytes(stylesXml)),
+            ("word/numbering.xml", Encoding.UTF8.GetBytes(numberingXml)),
+            ("word/header1.xml", Encoding.UTF8.GetBytes(headerXml)),
+            ("word/comments.xml", Encoding.UTF8.GetBytes(commentsXml)),
+            ("word/footnotes.xml", Encoding.UTF8.GetBytes(footnotesXml)),
+            ("word/_rels/document.xml.rels", Encoding.UTF8.GetBytes(relationships)),
+            ("custom/opaque.bin", new byte[] { 9, 7, 5, 3, 1 }),
+        };
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var (name, content) in entries)
+            {
+                var entry = archive.CreateEntry(name, CompressionLevel.Optimal);
+                using var entryStream = entry.Open();
+                entryStream.Write(content);
+            }
+        }
+        stream.Position = 0;
+        return stream;
+    }
+
     private static MemoryStream BuildPackage(
         string documentXml,
         string stylesXml,
         byte[]? opaque = null,
-        string? stylesWithEffectsXml = null
+        string? stylesWithEffectsXml = null,
+        string? settingsXml = null,
+        byte[]? vbaProject = null,
+        string? unmodeledXml = null
     )
     {
         var entries = new List<(string Name, byte[] Content)>
         {
             ("[Content_Types].xml", Encoding.UTF8.GetBytes(ContentTypes(
                 opaque is not null,
-                stylesWithEffectsXml is not null
+                stylesWithEffectsXml is not null,
+                settingsXml is not null,
+                vbaProject is not null
             ))),
             ("_rels/.rels", Encoding.UTF8.GetBytes(RootRelationships())),
             ("word/document.xml", Encoding.UTF8.GetBytes(documentXml)),
             ("word/styles.xml", Encoding.UTF8.GetBytes(stylesXml)),
             ("word/_rels/document.xml.rels", Encoding.UTF8.GetBytes(DocumentRelationships(
-                stylesWithEffectsXml is not null
+                stylesWithEffectsXml is not null,
+                settingsXml is not null,
+                vbaProject is not null
             ))),
         };
         if (opaque is not null)
@@ -569,6 +1032,18 @@ public sealed class WordSemanticStyleTransactionTests
                 "word/stylesWithEffects.xml",
                 Encoding.UTF8.GetBytes(stylesWithEffectsXml)
             ));
+        }
+        if (settingsXml is not null)
+        {
+            entries.Add(("word/settings.xml", Encoding.UTF8.GetBytes(settingsXml)));
+        }
+        if (vbaProject is not null)
+        {
+            entries.Add(("word/vbaProject.bin", vbaProject));
+        }
+        if (unmodeledXml is not null)
+        {
+            entries.Add(("custom/unmodeled.xml", Encoding.UTF8.GetBytes(unmodeledXml)));
         }
         var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
@@ -592,14 +1067,21 @@ public sealed class WordSemanticStyleTransactionTests
         return stream;
     }
 
-    private static string ContentTypes(bool includeOpaque, bool includeEffects = false) => $"""
+    private static string ContentTypes(
+        bool includeOpaque,
+        bool includeEffects = false,
+        bool includeSettings = false,
+        bool includeVbaProject = false
+    ) => $"""
         <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
           <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
           <Default Extension="xml" ContentType="application/xml" />
-          {(includeOpaque ? "<Default Extension=\"bin\" ContentType=\"application/octet-stream\" />" : string.Empty)}
+          {(includeOpaque || includeVbaProject ? "<Default Extension=\"bin\" ContentType=\"application/octet-stream\" />" : string.Empty)}
           <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml" />
           <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml" />
           {(includeEffects ? "<Override PartName=\"/word/stylesWithEffects.xml\" ContentType=\"application/vnd.ms-word.stylesWithEffects+xml\" />" : string.Empty)}
+          {(includeSettings ? "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\" />" : string.Empty)}
+          {(includeVbaProject ? "<Override PartName=\"/word/vbaProject.bin\" ContentType=\"application/vnd.ms-office.vbaProject\" />" : string.Empty)}
         </Types>
         """;
 
@@ -609,10 +1091,16 @@ public sealed class WordSemanticStyleTransactionTests
         </Relationships>
         """;
 
-    private static string DocumentRelationships(bool includeEffects = false) => $"""
+    private static string DocumentRelationships(
+        bool includeEffects = false,
+        bool includeSettings = false,
+        bool includeVbaProject = false
+    ) => $"""
         <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
           <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml" />
           {(includeEffects ? "<Relationship Id=\"rIdEffects\" Type=\"http://schemas.microsoft.com/office/2007/relationships/stylesWithEffects\" Target=\"stylesWithEffects.xml\" />" : string.Empty)}
+          {(includeSettings ? "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\" />" : string.Empty)}
+          {(includeVbaProject ? "<Relationship Id=\"rIdVba\" Type=\"http://schemas.microsoft.com/office/2006/relationships/vbaProject\" Target=\"vbaProject.bin\" />" : string.Empty)}
         </Relationships>
         """;
 }

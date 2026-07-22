@@ -5994,7 +5994,7 @@
     {
       "name": "plan_ooxml_semantic_edits",
       "title": "Plan typed Word semantic edits",
-      "description": "Plan a bounded atomic create/clone/assign style transaction for one saved-package fingerprint. Returns an intent-bound SDK-validated candidate without writing, opening Word, or exposing text/XML.",
+      "description": "Plan an atomic create/clone/consolidate/assign style transaction against one package fingerprint; returns an SDK-validated candidate without writing.",
       "inputSchema": {
         "type": "object",
         "$defs": {
@@ -6103,17 +6103,27 @@
             },
             "required": ["type", "source_style_id", "style_id", "name"],
             "additionalProperties": false
+          },
+          "consolidate_style": {
+            "type": "object",
+            "properties": {
+              "type": {"const": "consolidate_style"},
+              "source_style_id": {"$ref": "#/$defs/style_text"},
+              "target_style_id": {"$ref": "#/$defs/style_text"}
+            },
+            "required": ["type", "source_style_id", "target_style_id"],
+            "additionalProperties": false
           }
         },
         "properties": {
           "local_path": {
             "type": "string",
-            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+            "description": "Local DOCX, DOCM, DOTX or DOTM path."
           },
           "expected_package_fingerprint": {
             "type": "string",
             "pattern": "^[A-Fa-f0-9]{64}$",
-            "description": "Exact fingerprint returned by inspect/query. Planning fails if the package changed."
+            "description": "Exact prior inspection fingerprint; fails on drift."
           },
           "commands": {
             "type": "array",
@@ -6123,16 +6133,17 @@
               "oneOf": [
                 {"$ref": "#/$defs/create_style"},
                 {"$ref": "#/$defs/clone_style"},
+                {"$ref": "#/$defs/consolidate_style"},
                 {"$ref": "#/$defs/exact_style"},
                 {"$ref": "#/$defs/selected_style"}
               ]
             },
-            "description": "Create/clone styles and assign exact or selected nodes. At most 16 selectors and 200 resolved operations."
+            "description": "At most 16 selectors and 200 commands/resolved assignments."
           },
           "include_details": {
             "type": "boolean",
             "default": false,
-            "description": "Include bounded operation, style-value, source and changed-part evidence; never returns XML or document text."
+            "description": "Return bounded evidence; never XML or document text."
           }
         },
         "required": ["local_path", "expected_package_fingerprint", "commands"],
@@ -6148,7 +6159,7 @@
     {
       "name": "apply_ooxml_semantic_edits",
       "title": "Apply reviewed typed Word semantic edits",
-      "description": "Rebuild and atomically apply reviewed create/clone/assign style intent. Requires the source fingerprint and plan ID; blocks signatures, drift, unsafe styles and new SDK errors. Never opens Word.",
+      "description": "Atomically apply reviewed create/clone/consolidate/assign style intent; requires its fingerprint and plan ID and blocks unsafe drift.",
       "inputSchema": {
         "type": "object",
         "$defs": {
@@ -6257,12 +6268,22 @@
             },
             "required": ["type", "source_style_id", "style_id", "name"],
             "additionalProperties": false
+          },
+          "consolidate_style": {
+            "type": "object",
+            "properties": {
+              "type": {"const": "consolidate_style"},
+              "source_style_id": {"$ref": "#/$defs/style_text"},
+              "target_style_id": {"$ref": "#/$defs/style_text"}
+            },
+            "required": ["type", "source_style_id", "target_style_id"],
+            "additionalProperties": false
           }
         },
         "properties": {
           "local_path": {
             "type": "string",
-            "description": "Absolute or workspace-relative path to the existing local DOCX, DOCM, DOTX, or DOTM file modified in place."
+            "description": "Existing local DOCX, DOCM, DOTX or DOTM path."
           },
           "expected_package_fingerprint": {
             "type": "string",
@@ -6272,7 +6293,7 @@
             "type": "string",
             "pattern": "^wseplan_[A-Za-z0-9_-]+$",
             "maxLength": 128,
-            "description": "Plan ID returned by plan_ooxml_semantic_edits for the exact same commands."
+            "description": "Plan ID for the exact same commands."
           },
           "commands": {
             "type": "array",
@@ -6282,6 +6303,7 @@
               "oneOf": [
                 {"$ref": "#/$defs/create_style"},
                 {"$ref": "#/$defs/clone_style"},
+                {"$ref": "#/$defs/consolidate_style"},
                 {"$ref": "#/$defs/exact_style"},
                 {"$ref": "#/$defs/selected_style"}
               ]
@@ -6290,7 +6312,7 @@
           "keep_backup": {
             "type": "boolean",
             "default": true,
-            "description": "Retain the atomic writer's sibling recovery backup after success."
+            "description": "Keep the atomic writer's recovery backup."
           }
         },
         "required": [

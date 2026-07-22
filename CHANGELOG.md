@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Added fail-closed exact style consolidation to the typed saved-package semantic edit
+  actions. `consolidate_style` rewrites type-checked paragraph/run/table, style-graph and
+  numbering references, removes an explicitly selected canonical-equivalent custom
+  source definition and retains one predicted fingerprint plus exact inverse. Linked
+  paragraph/character pairs can be consolidated in one explicit batch; create/clone,
+  consolidation and assignment stages compose only through an exact byte chain. Built-in
+  or non-equivalent sources, chained targets, graph damage, unsafe `STYLEREF`, unmodeled
+  XML consumers, macros, `altChunk`, linked-template updates and `stylesWithEffects` fail
+  before mutation. Plan responses expose bounded consolidation/reference counts, accept
+  property-order-stable intent, return no XML/text and remain below the 4,500-character
+  lazy-schema ceiling.
+- Verified the consolidation slice with 278 document-engine tests, 206 native-host
+  tests, 1,273 Python/OOXML tests with 16 intentional skips, Ruff, scoped .NET formatting
+  and the standalone Open XML validator build. Two local self-contained builds produced
+  identical 195-file, 84,386,430-byte trees and 35,992,947-byte ZIPs with SHA-256
+  `c7f68a994a185b80e211a751a05881537f0d836c53e195107cd4ae2fd4d11a76`.
+  Through the packaged MCP, two clones and one server selector first created an exact
+  duplicate and assigned it to six Apache POI paragraphs. A 108-character consolidation
+  command then produced a 902-character compact plan, stable under JSON property order,
+  with six reference rewrites and no new SDK errors. Apply matched the predicted
+  fingerprint, changed only `word/document.xml` and `word/styles.xml`, retained a backup,
+  removed the source definition, left six target uses and zero source uses, returned no
+  XML and did not change the running Word process set.
 - Added atomic typed style-definition creation and cloning to the existing semantic edit
   actions. `create_style` emits a minimal custom paragraph, character, table or numbering
   definition with bounded inheritance/UI metadata; `clone_style` preserves an existing

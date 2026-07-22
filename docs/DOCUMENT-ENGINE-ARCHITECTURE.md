@@ -420,7 +420,7 @@ Package rollback remains independent, so a failure never calls broad `Undo()` ac
 unrelated user work.
 
 The first transaction slices are implemented for batches of text-leaf, typed style-
-definition creation/cloning, and style-assignment commands.
+definition creation/cloning/exact consolidation, and style-assignment commands.
 `WordSemanticTransactionPlanner` resolves every node against one package fingerprint,
 parses each affected part once, rejects duplicate targets, builds one ordered
 non-overlapping patch set per part, and returns a compact plan with operation counts,
@@ -438,10 +438,19 @@ UI-priority metadata. `clone_style` copies one existing definition including opa
 extension content, changes only its identity/name, removes `default` and `link`, marks it
 custom, and remaps a self-`next` reference. The intermediate package is reprojected and
 the new inheritance graph is required to resolve before any assignment is planned. A
-single final plan joins the styles-part payload and all document-part assignments, predicts
-one result fingerprint and retains one exact inverse. Missing sources, duplicate IDs,
-wrong-type references, cycles, malformed names, signatures, schema drift and
-`stylesWithEffects` packages fail closed. The mirror is blocked rather than silently
+`consolidate_style` takes an explicit custom, non-default source and same-type target.
+Their complete source definitions must be canonically identical after normalizing only
+the style ID, direct name/aliases/revision ID, self-`next` and same-batch relation IDs;
+all formatting, UI metadata, opaque elements, attributes, text, comments and processing
+instructions remain comparison-significant. Recognized `basedOn`, linked-style,
+numbering-style and paragraph/run/table references are type-checked and rewritten across
+projected stories, revision snapshots, `styles.xml` and `numbering.xml` before the source
+definition is removed. Multiple creation, consolidation and assignment stages compose
+only through an exact byte chain. A single final plan joins every payload, predicts one
+result fingerprint and retains one exact inverse. Missing sources, duplicate IDs,
+wrong-type references, cycles, graph damage, non-equivalence, unmodeled XML consumers,
+unsafe `STYLEREF`, macros, linked-template updates, `altChunk`, signatures, schema drift
+and `stylesWithEffects` packages fail closed. The mirror is blocked rather than silently
 letting `styles.xml` and `stylesWithEffects.xml` diverge.
 
 The typed `set_style` slice targets exact paragraph, run, or table node IDs. It accepts
@@ -452,8 +461,9 @@ are added as the first child through the lossless source model. Duplicate contai
 wrong-type or missing styles, broken inheritance, stale source identities, namespace
 prefix collisions, signed packages, plan drift, and new Open XML SDK errors fail closed.
 Creation does not accept arbitrary formatting-property payloads; cloning is the current
-lossless formatting-preservation path. Rename/delete/consolidation, linked-style pair
-maintenance, template alignment and conditional table styles remain future work.
+lossless formatting-preservation path. General rename/delete, fuzzy consolidation,
+automatic linked-style repair, template alignment and conditional table styles remain
+future work.
 
 Bulk assignment does not require the model to echo a list of node IDs. A bounded
 `set_style_where` command reuses the semantic query engine over the exact projected
@@ -942,10 +952,10 @@ No feature is “supported” until it passes the relevant gates:
 ### Phase 3 — safe edits
 
 - command schema, preconditions, plan/apply, inverse patches — **bounded multi-text plus
-  heterogeneous style create/clone/exact-or-selected assignment planning,
+  heterogeneous style create/clone/exact-consolidation/exact-or-selected assignment planning,
   package/node/part/property preconditions, one patch set per part, predicted result
   fingerprint and exact part-byte inverse implemented; arbitrary style formatting,
-  rename/delete/template alignment, broader commands, permissions, approval and semantic
+  rename/general delete/fuzzy repair/template alignment, broader commands, permissions, approval and semantic
   inverses remain**;
 - style and numbering resolvers;
 - fields/references and source-linked review read graph — **initial implementations

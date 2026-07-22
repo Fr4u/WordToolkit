@@ -285,7 +285,10 @@ For a saved-package style definition or assignment, use this strict lazy workflo
    either use `create_style` with a type plus optional `based_on_style_id`, `next_style_id`,
    quick-format flag and UI priority, or `clone_style` with one exact existing source ID.
    A clone preserves the source definition's modeled and opaque formatting but becomes
-   custom, non-default and unlinked. Do not send XML or formatting-property fragments.
+   custom, non-default and unlinked. To remove a proven exact duplicate, use
+   `consolidate_style` with explicit `source_style_id` and `target_style_id`; never infer
+   either ID from visible names and never use consolidation as fuzzy style matching. Do
+   not send XML or formatting-property fragments.
 3. Put definition commands and assignments in the same batch when the new style must be
    used immediately. Send exact nodes as `set_style`, or use `set_style_where` with a single
    `paragraph`/`run`/`table` kind, strict optional predicates, and an explicit
@@ -293,8 +296,9 @@ For a saved-package style definition or assignment, use this strict lazy workflo
    one current style, or `require_no_explicit_style=true` when every match must still
    have none. One batch resolves at most 200 operations and contains at most 16 selector
    commands.
-4. Review the deterministic `plan_id`, changed counts, candidate Open XML validation,
-   `can_apply`, and block reasons. Request details only to diagnose a block.
+4. Review the deterministic `plan_id`, changed counts, `style_consolidation_count`,
+   `style_reference_update_count`, candidate Open XML validation, `can_apply`, and block
+   reasons. Request details only to diagnose a block or audit one definition operation.
 5. Call `apply_ooxml_semantic_edits` with the identical commands, original fingerprint,
    and exact plan ID. Keep the recovery backup by default.
 
@@ -304,14 +308,20 @@ select “missing property” directly: `require_no_explicit_style` is a precond
 nodes selected by the other predicates, not a hidden absence filter.
 
 The current command family can create a minimal inherited paragraph, character, table,
-or numbering style, clone one existing definition, and assign compatible paragraph,
-character, or table styles. Creation does not accept arbitrary formatting properties;
-clone is the lossless path for retaining an existing definition's formatting. It does
-not rename, delete, consolidate, repair, infer, align to a template, maintain linked-style
-pairs, or implement conditional table-style semantics. Definition edits reject packages
-with `stylesWithEffects` until both parts can be mirrored safely. Planning writes nothing;
-apply blocks signatures, stale sources, changed intent, plan drift, invalid graphs and new
-Microsoft Open XML validation errors. Neither action opens Word or returns XML/document text.
+or numbering style, clone one existing definition, safely consolidate an explicit exact
+custom duplicate, and assign compatible paragraph, character, or table styles. Creation
+does not accept arbitrary formatting properties; clone is the lossless path for retaining
+an existing definition's formatting. Consolidation requires a custom non-default source,
+an existing same-type target and full canonical equivalence after identity normalization.
+It updates recognized references across projected stories, revisions, styles and numbering,
+then removes the source with an exact inverse. Linked paragraph/character pairs require one
+explicit equivalent batch. Non-equivalence, chains, existing style/numbering graph damage,
+unmodeled XML consumers, unsafe `STYLEREF`, macros, `altChunk`, automatic linked-template
+updates and `stylesWithEffects` all fail closed. The family still does not rename, perform
+general deletion or fuzzy repair, infer document roles, align to a template, or implement
+conditional table-style semantics. Planning writes nothing; apply blocks signatures, stale
+sources, changed intent, plan drift and new Microsoft Open XML validation errors. Neither
+action opens Word or returns XML/document text.
 
 1. `list_live_word_documents`.
 2. Use `start_word_application` only when Word is unavailable.

@@ -155,6 +155,12 @@ internal sealed partial class WordLiveService
             selector_command_count = context.SelectorResolutions.Count,
             selector_match_count = context.SelectorResolutions.Sum(item => item.MatchedNodeCount),
             style_definition_count = context.Plan.DefinitionOperations.Count,
+            style_consolidation_count = context.Plan.DefinitionOperations.Count(operation =>
+                operation.Kind == "consolidate_style"
+            ),
+            style_reference_update_count = context.Plan.DefinitionOperations.Sum(operation =>
+                operation.ReferenceUpdateCount
+            ),
             style_assignment_count = context.Plan.Operations.Count,
             operation_count = context.Plan.OperationCount,
             changed_operation_count = context.Plan.ChangedOperationCount,
@@ -203,6 +209,7 @@ internal sealed partial class WordLiveService
                     style_type = operation.StyleType.ToString().ToLowerInvariant(),
                     source_part_uri = BoundForResponse(operation.SourcePartUri, 512),
                     source_element_ordinal = operation.SourceElementOrdinal,
+                    reference_update_count = operation.ReferenceUpdateCount,
                     xml_byte_delta = operation.XmlByteDelta,
                     has_change = operation.HasChange,
                 }).ToArray()
@@ -360,10 +367,18 @@ internal sealed partial class WordLiveService
                         intentFields
                     );
                     break;
+                case "consolidate_style":
+                    ParseConsolidateStyleCommand(
+                        item,
+                        commandIndex,
+                        definitions,
+                        intentFields
+                    );
+                    break;
                 default:
                     throw new NativeToolException(
                         "INVALID_INPUT",
-                        "Semantic edit command type must be create_style, clone_style, set_style, or set_style_where"
+                        "Semantic edit command type must be create_style, clone_style, consolidate_style, set_style, or set_style_where"
                     );
             }
 
@@ -479,6 +494,30 @@ internal sealed partial class WordLiveService
             null,
             null,
             sourceStyleId
+        );
+    }
+
+    private static void ParseConsolidateStyleCommand(
+        JsonElement item,
+        int commandIndex,
+        ICollection<WordStyleDefinitionCommand> result,
+        ICollection<string> intentFields
+    )
+    {
+        ValidateCommandProperties(
+            item,
+            ["type", "source_style_id", "target_style_id"]
+        );
+        _ = item.Required("source_style_id");
+        _ = item.Required("target_style_id");
+        var sourceStyleId = RequiredBoundedStyleText(item, "source_style_id");
+        var targetStyleId = RequiredBoundedStyleText(item, "target_style_id");
+        result.Add(new WordStyleConsolidateCommand(sourceStyleId, targetStyleId));
+        AddStyleConsolidationIntent(
+            intentFields,
+            commandIndex,
+            sourceStyleId,
+            targetStyleId
         );
     }
 
@@ -935,6 +974,19 @@ internal sealed partial class WordLiveService
             uiPriority?.ToString(System.Globalization.CultureInfo.InvariantCulture)
         );
         AddNullableIntent(fields, sourceStyleId);
+    }
+
+    private static void AddStyleConsolidationIntent(
+        ICollection<string> fields,
+        int commandIndex,
+        string sourceStyleId,
+        string targetStyleId
+    )
+    {
+        fields.Add(commandIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        fields.Add("consolidate_style");
+        fields.Add(sourceStyleId);
+        fields.Add(targetStyleId);
     }
 
     private static void AddQueryIntent(

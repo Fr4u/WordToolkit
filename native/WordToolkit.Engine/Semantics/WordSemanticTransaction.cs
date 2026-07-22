@@ -17,6 +17,8 @@ public sealed record WordSemanticTransactionOptions
 
     public long MaxTotalStyleIdCharacters { get; init; } = 1_000_000;
 
+    public int MaxStyleReferenceUpdates { get; init; } = 250_000;
+
     internal void Validate()
     {
         if (MaxCommands <= 0)
@@ -32,6 +34,11 @@ public sealed record WordSemanticTransactionOptions
         if (MaxTotalStyleIdCharacters <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(MaxTotalStyleIdCharacters));
+        }
+
+        if (MaxStyleReferenceUpdates <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxStyleReferenceUpdates));
         }
     }
 }
@@ -73,7 +80,8 @@ public sealed record WordStyleDefinitionOperationPlan(
     string SourcePartUri,
     int SourceElementOrdinal,
     int XmlByteDelta,
-    bool HasChange
+    bool HasChange,
+    int ReferenceUpdateCount = 0
 );
 
 public sealed record WordSemanticPartChange(

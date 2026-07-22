@@ -11,12 +11,23 @@ WordToolkit deliberately avoids claiming complete Microsoft Word parity.
 - Semantic indexing is currently a bounded single-process acceleration layer, not a durable search database. A handle covers one immutable package fingerprint, at most 100,000 nodes and one million property occurrences; the runtime keeps no more than four handles or 250,000 cached nodes, expires them within 30 minutes and loses them on restart. It indexes exact kind/part/property postings and can derive strict ancestor/descendant candidate sets with one tree propagation, but it has no full-text tokens, durable relationship postings, embeddings or multi-document ranking. Parent/child, sibling and arbitrary dependency-graph axes are not query predicates. Raw document text stays in process memory as part of the semantic projection and is never returned by index management, but it is not encrypted in memory. Callers should release handles as soon as repeated queries finish.
 - Saved-package semantic style mutation can create a minimal inherited paragraph,
   character, table or numbering style, losslessly clone one existing definition, and
+  consolidate an explicitly selected custom, non-default source into an existing
+  same-type target when their complete canonical definitions are identical after only
+  identity and same-batch relation normalization. Consolidation updates recognized
+  references in projected stories, revision snapshots, `styles.xml` and `numbering.xml`,
+  deletes the source definition and retains an exact inverse. It is deliberately not a
+  fuzzy duplicate merger: existing style/numbering graph issues, non-equivalence,
+  chained targets, `stylesWithEffects`, macros, `altChunk`, automatic linked-template
+  updates, dynamic/ambiguous/source-addressing `STYLEREF`, malformed unmodeled XML and
+  explicit source references in unmodeled XML all block the plan. Linked paragraph and
+  character styles require one explicit equivalent-pair batch.
+  The same command family can
   assign a compatible inheritance-resolvable paragraph/character/table style to exact or
   selected semantic nodes in the same atomic transaction. `create_style` does not accept
   arbitrary formatting blocks; `clone_style` preserves source formatting and opaque
   extensions but deliberately strips default and linked-style identity. The engine does
-  not rename, delete, consolidate, repair, maintain linked pairs, or align definitions to
-  templates; infer domain labels such as APA/IEEE; model conditional table-style
+  not rename, generally delete, fuzzily repair, or align definitions to templates; infer
+  domain labels such as APA/IEEE; model conditional table-style
   rendering; or enforce document protection/permission semantics. Definition edits fail
   closed when `stylesWithEffects.xml` exists because mirrored mutation is not implemented.
   Planning and apply are bounded to 200 resolved operations and block signatures and new
