@@ -16,27 +16,80 @@ internal sealed partial class WordLiveService
                 StringComparer.Ordinal
             );
 
-    private static Task<object> QueryPackageSemanticsAsync(
+    private Task<object> QueryPackageSemanticsAsync(
         JsonElement arguments,
         CancellationToken cancellationToken
     )
     {
         var started = Stopwatch.GetTimestamp();
         cancellationToken.ThrowIfCancellationRequested();
-        var path = ResolveInspectablePackagePath(arguments);
         try
         {
             var query = ParseSemanticQuery(arguments);
-            var package = new OpcPackageReader().Read(path, cancellationToken);
-            var document = new WordSemanticProjector().Project(
-                package,
-                cancellationToken
-            );
-            var result = new WordSemanticQueryEngine().Query(
-                document,
-                query,
-                cancellationToken
-            );
+            var semanticIndexId = OptionalString(arguments, "semantic_index_id");
+            WordSemanticQueryResult result;
+            string fileName;
+            if (semanticIndexId is not null)
+            {
+                if (arguments.TryGetProperty("local_path", out _))
+                {
+                    throw new NativeToolException(
+                        "INVALID_INPUT",
+                        "Use exactly one of local_path or semantic_index_id"
+                    );
+                }
+                var expectedFingerprint = RequiredSha256(
+                    arguments,
+                    "expected_package_fingerprint"
+                );
+                var entry = GetSemanticIndex(RequiredSemanticIndexId(arguments));
+                if (!string.Equals(
+                        expectedFingerprint,
+                        entry.Index.PackageFingerprint,
+                        StringComparison.OrdinalIgnoreCase
+                    ))
+                {
+                    throw new NativeToolException(
+                        "VERSION_CONFLICT",
+                        "The semantic index does not match expected_package_fingerprint"
+                    );
+                }
+                result = new WordSemanticQueryEngine().Query(
+                    entry.Index,
+                    query,
+                    cancellationToken
+                );
+                fileName = entry.FileName;
+            }
+            else
+            {
+                if (!arguments.TryGetProperty("local_path", out _))
+                {
+                    throw new NativeToolException(
+                        "INVALID_INPUT",
+                        "Use exactly one of local_path or semantic_index_id"
+                    );
+                }
+                if (arguments.TryGetProperty("expected_package_fingerprint", out _))
+                {
+                    throw new NativeToolException(
+                        "INVALID_INPUT",
+                        "expected_package_fingerprint is only valid with semantic_index_id"
+                    );
+                }
+                var path = ResolveInspectablePackagePath(arguments);
+                var package = new OpcPackageReader().Read(path, cancellationToken);
+                var document = new WordSemanticProjector().Project(
+                    package,
+                    cancellationToken
+                );
+                result = new WordSemanticQueryEngine().Query(
+                    document,
+                    query,
+                    cancellationToken
+                );
+                fileName = Path.GetFileName(path);
+            }
             var matches = result.Matches.Select(match => new
             {
                 node_id = match.NodeId.Value,
@@ -58,8 +111,13 @@ internal sealed partial class WordLiveService
             }).ToArray();
             return Task.FromResult<object>(new
             {
-                file_name = Path.GetFileName(path),
+                file_name = fileName,
                 package_fingerprint = result.PackageFingerprint,
+                semantic_index_used = result.SemanticIndexUsed,
+                semantic_index_id = semanticIndexId,
+                semantic_index_fingerprint = result.SemanticIndexFingerprint,
+                candidate_seed = result.CandidateSeed,
+                total_node_count = result.TotalNodeCount,
                 scanned_node_count = result.ScannedNodeCount,
                 matched_node_count = result.MatchedNodeCount,
                 offset = result.Offset,

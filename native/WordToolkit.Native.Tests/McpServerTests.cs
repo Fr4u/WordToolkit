@@ -102,6 +102,7 @@ public sealed class McpServerTests
             var lazyAction in new[]
             {
                 "query_ooxml_semantics",
+                "manage_ooxml_semantic_index",
                 "compare_ooxml_semantics",
                 "plan_ooxml_patch",
                 "create_ooxml_patch",
@@ -166,7 +167,7 @@ public sealed class McpServerTests
         ) + "\n";
         var output = new StringWriter();
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(77, catalog.ActionCount);
+        Assert.Equal(78, catalog.ActionCount);
         var server = new McpServer(
             new StringReader(input),
             output,

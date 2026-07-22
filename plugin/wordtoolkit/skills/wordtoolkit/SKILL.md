@@ -1,6 +1,6 @@
 ---
 name: wordtoolkit
-description: Control real Microsoft Word and inspect, compare, patch, or three-way merge saved Word OOXML packages through a token-lean native .NET bridge. Use for live documents, package/semantic inspection, fields, bookmarks, reference dependencies, semantic selectors, formatting, equations, review, structures, export, save, close, and validation.
+description: Control real Microsoft Word and inspect, index, query, compare, patch, or three-way merge saved Word OOXML packages through a token-lean native .NET bridge. Use for live documents, package/semantic inspection, fields, bookmarks, reference dependencies, semantic selectors, formatting, equations, review, structures, export, save, close, and validation.
 ---
 
 # WordToolkit
@@ -40,6 +40,16 @@ previews short, and request properties or source provenance only when the next
 operation consumes them. The query covers the main body and related header,
 footer, footnote, endnote, comment and glossary stories; use `source_part_uri`
 when the edit must stay inside one story.
+For two or more queries over the same unchanged package, first execute lazy
+`manage_ooxml_semantic_index` with `operation=create`. Reuse its
+`semantic_index_id` and exact `package_fingerprint` in every
+`query_ooxml_semantics` call, then release the handle immediately with
+`operation=release`. The index exists only in native process memory, holds at
+most 100,000 semantic nodes, expires within 30 minutes, and never survives a
+runtime restart. At most four indexes and 250,000 total cached nodes are
+allowed. Do not create an index for a single query or assume it tracks file
+changes; create returns the same handle only when the path and package
+fingerprint are unchanged.
 Use lazy `inspect_ooxml_sections` instead of inferring section ownership from
 part filenames. Its effective mode resolves default, first-page and even-page
 header/footer display targets; request full bindings only when relationship

@@ -20,6 +20,7 @@ internal sealed class ToolCatalog
         "inspect_ooxml_package",
         "inspect_ooxml_semantics",
         "query_ooxml_semantics",
+        "manage_ooxml_semantic_index",
         "compare_ooxml_semantics",
         "plan_ooxml_patch",
         "create_ooxml_patch",

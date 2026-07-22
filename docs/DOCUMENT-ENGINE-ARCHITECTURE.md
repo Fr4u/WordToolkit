@@ -762,13 +762,24 @@ lazy native `query_ooxml_semantics` action. It filters semantic kinds, exact pro
 source parts and a stable-node subtree; supports contains/equals/starts/ends text modes;
 and streams matching across text, field, tab and break node boundaries instead of
 flattening the document into one giant string. Results are source-ordered, offset-paged,
-preview-bounded, and omit properties and source provenance unless requested. This is
-still an in-memory scan of the main-part graph, not the incremental privacy-controlled
-index required later.
+preview-bounded, and omit properties and source provenance unless requested.
+
+Repeated queries can now bind to a `WordSemanticIndex` created through lazy
+`manage_ooxml_semantic_index`. The immutable index stores postings for semantic kind,
+source part and every exact projected property value, chooses the smallest available
+posting as the candidate seed, and still re-evaluates all predicates before returning a
+match. A package fingerprint is mandatory when the handle is queried. Cache state is
+explicitly process-memory-only: four handles, 100,000 nodes per handle, 250,000 nodes in
+aggregate, and a 30-minute maximum TTL. Handles are random, inspectable and releasable;
+responses disclose counts and fingerprints but no raw document text. This removes
+repeated package projection and most irrelevant-node scans for an agent's multi-query
+session. It is not yet the durable encrypted/incremental external index required for a
+large repository of documents.
 
 The current native mapping is therefore:
 
-- `document.query` -> lazy `query_ooxml_semantics`;
+- `document.query` -> lazy `query_ooxml_semantics`, optionally over a handle from
+  `manage_ooxml_semantic_index`;
 - style-map inspection -> lazy `inspect_ooxml_styles`;
 - numbering inventory/effective-level resolution -> lazy `inspect_ooxml_numbering`;
 - theme color/font/format inspection -> lazy `inspect_ooxml_theme`;

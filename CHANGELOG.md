@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- Added a bounded native semantic index for repeated AI queries. `WordSemanticIndex`
+  precomputes source-ordered postings for node kind, source part and exact property
+  values, then chooses the smallest posting as the candidate seed while rechecking every
+  predicate. Lazy `manage_ooxml_semantic_index` creates/reuses, inspects, lists and
+  releases package-fingerprint-bound handles; `query_ooxml_semantics` can consume one
+  only with the exact package fingerprint and reports index use, candidate seed and scan
+  counts. Indexes stay only in process memory, return no raw text, expire within 30
+  minutes and are capped at four handles, 100,000 nodes each and 250,000 cached nodes.
+  The public catalog remains 14 tools and grows to 78 lazy actions.
+- Verified the semantic-index slice with 260 document-engine tests, 194 native-host
+  tests, 1,273 Python/OOXML tests with 16 intentional skips, Ruff, scoped .NET formatting
+  and the standalone Open XML validator build. Two local self-contained builds produced
+  identical 195-file, 84,237,559-byte trees and 35,947,755-byte ZIPs with SHA-256
+  `5c4b3ef4d420259463d2cca0e7ebef8d647781c541be761025861c1a73db004a`.
+  The packaged MCP indexed the 142-node LibreOffice TOC fixture, reduced a paragraph
+  query to 13 candidates, explicitly released the handle, returned no raw index text,
+  left the source unchanged and did not change the running Word process set.
+
 - Verification checkpoint: 245 document-engine tests, 185 native-host tests, 1,273
   Python/OOXML tests with 16 intentional skips, Ruff and every mandatory GitHub job pass.
   A fresh local checkout and two hosted Windows builds produced the same 35,886,733-byte

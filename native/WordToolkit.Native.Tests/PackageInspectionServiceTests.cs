@@ -194,6 +194,181 @@ public sealed class PackageInspectionServiceTests
     }
 
     [Fact]
+    public async Task SemanticIndexCanBeCreatedQueriedInspectedAndReleasedWithoutStartingWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-semantic-index-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "indexed.docx");
+            CreatePackage(path);
+            var service = new WordLiveService(new NoInvokeHost());
+            using var createArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                operation = "create",
+                local_path = path,
+                ttl_seconds = 300,
+            }));
+
+            var createdObject = await service.CallAsync(
+                "manage_ooxml_semantic_index",
+                createArguments.RootElement,
+                CancellationToken.None
+            );
+            using var createdJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(createdObject)
+            );
+            var created = createdJson.RootElement;
+            var indexId = created.GetProperty("semantic_index_id").GetString();
+            var fingerprint = created.GetProperty("package_fingerprint").GetString();
+            Assert.StartsWith("wsi_", indexId, StringComparison.Ordinal);
+            Assert.Equal("process_memory_only", created.GetProperty("persistence").GetString());
+            Assert.False(created.GetProperty("raw_text_returned").GetBoolean());
+            Assert.False(created.GetProperty("word_opened").GetBoolean());
+
+            using var queryArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                semantic_index_id = indexId,
+                expected_package_fingerprint = fingerprint,
+                kinds = new[] { "text" },
+                text = "hello",
+                include_source = true,
+            }));
+            var queryObject = await service.CallAsync(
+                "query_ooxml_semantics",
+                queryArguments.RootElement,
+                CancellationToken.None
+            );
+            using var queryJson = JsonDocument.Parse(JsonSerializer.Serialize(queryObject));
+            var query = queryJson.RootElement;
+            Assert.True(query.GetProperty("semantic_index_used").GetBoolean());
+            Assert.Equal(indexId, query.GetProperty("semantic_index_id").GetString());
+            Assert.Equal("kind", query.GetProperty("candidate_seed").GetString());
+            Assert.True(
+                query.GetProperty("scanned_node_count").GetInt32()
+                    < query.GetProperty("total_node_count").GetInt32()
+            );
+            Assert.Single(query.GetProperty("matches").EnumerateArray());
+
+            using var inspectArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                operation = "inspect",
+                semantic_index_id = indexId,
+                expected_package_fingerprint = fingerprint,
+            }));
+            var inspectedObject = await service.CallAsync(
+                "manage_ooxml_semantic_index",
+                inspectArguments.RootElement,
+                CancellationToken.None
+            );
+            using var inspectedJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(inspectedObject)
+            );
+            Assert.Equal(
+                created.GetProperty("semantic_index_fingerprint").GetString(),
+                inspectedJson.RootElement
+                    .GetProperty("semantic_index_fingerprint")
+                    .GetString()
+            );
+
+            using var releaseArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                operation = "release",
+                semantic_index_id = indexId,
+                expected_package_fingerprint = fingerprint,
+            }));
+            var releasedObject = await service.CallAsync(
+                "manage_ooxml_semantic_index",
+                releaseArguments.RootElement,
+                CancellationToken.None
+            );
+            using var releasedJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(releasedObject)
+            );
+            Assert.True(releasedJson.RootElement.GetProperty("released").GetBoolean());
+
+            var exception = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "query_ooxml_semantics",
+                    queryArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("INDEX_NOT_FOUND", exception.ErrorCode);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SemanticIndexReusesAnUnchangedPackageAndRejectsStaleFingerprint()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-semantic-index-reuse-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "reuse.docx");
+            CreatePackage(path);
+            var service = new WordLiveService(new NoInvokeHost());
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                operation = "create",
+                local_path = path,
+            }));
+
+            var firstObject = await service.CallAsync(
+                "manage_ooxml_semantic_index",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            var secondObject = await service.CallAsync(
+                "manage_ooxml_semantic_index",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            using var firstJson = JsonDocument.Parse(JsonSerializer.Serialize(firstObject));
+            using var secondJson = JsonDocument.Parse(JsonSerializer.Serialize(secondObject));
+            Assert.Equal(
+                firstJson.RootElement.GetProperty("semantic_index_id").GetString(),
+                secondJson.RootElement.GetProperty("semantic_index_id").GetString()
+            );
+            Assert.False(firstJson.RootElement.GetProperty("cache_hit").GetBoolean());
+            Assert.True(secondJson.RootElement.GetProperty("cache_hit").GetBoolean());
+
+            using var staleQuery = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                semantic_index_id = firstJson.RootElement
+                    .GetProperty("semantic_index_id")
+                    .GetString(),
+                expected_package_fingerprint = new string('0', 64),
+                kinds = new[] { "text" },
+            }));
+            var exception = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "query_ooxml_semantics",
+                    staleQuery.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("VERSION_CONFLICT", exception.ErrorCode);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task QueryPlanAndApplyCanTargetAHeaderStoryWithoutStartingWord()
     {
         var directory = Path.Combine(

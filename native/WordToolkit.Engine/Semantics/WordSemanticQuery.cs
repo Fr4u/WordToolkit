@@ -143,13 +143,18 @@ public sealed class WordSemanticQueryResult
 {
     internal WordSemanticQueryResult(
         string packageFingerprint,
+        int totalNodeCount,
         int scannedNodeCount,
         int matchedNodeCount,
         int offset,
-        IReadOnlyList<WordSemanticQueryMatch> matches
+        IReadOnlyList<WordSemanticQueryMatch> matches,
+        bool semanticIndexUsed,
+        string candidateSeed,
+        string? semanticIndexFingerprint
     )
     {
         PackageFingerprint = packageFingerprint;
+        TotalNodeCount = totalNodeCount;
         ScannedNodeCount = scannedNodeCount;
         MatchedNodeCount = matchedNodeCount;
         Offset = offset;
@@ -158,9 +163,14 @@ public sealed class WordSemanticQueryResult
         NextOffset = consumed < matchedNodeCount
             ? (int)consumed
             : null;
+        SemanticIndexUsed = semanticIndexUsed;
+        CandidateSeed = candidateSeed;
+        SemanticIndexFingerprint = semanticIndexFingerprint;
     }
 
     public string PackageFingerprint { get; }
+
+    public int TotalNodeCount { get; }
 
     public int ScannedNodeCount { get; }
 
@@ -173,6 +183,12 @@ public sealed class WordSemanticQueryResult
     public int? NextOffset { get; }
 
     public IReadOnlyList<WordSemanticQueryMatch> Matches { get; }
+
+    public bool SemanticIndexUsed { get; }
+
+    public string CandidateSeed { get; }
+
+    public string? SemanticIndexFingerprint { get; }
 }
 
 public sealed class WordSemanticQueryEngine
@@ -188,6 +204,49 @@ public sealed class WordSemanticQueryEngine
         query.Validate();
         cancellationToken.ThrowIfCancellationRequested();
         var candidates = ResolveScope(document, query.WithinNodeId);
+        return QueryCore(
+            document,
+            query,
+            candidates,
+            semanticIndexUsed: false,
+            candidateSeed: query.WithinNodeId is null ? "all_nodes" : "subtree",
+            semanticIndexFingerprint: null,
+            cancellationToken
+        );
+    }
+
+    public WordSemanticQueryResult Query(
+        WordSemanticIndex index,
+        WordSemanticQuery query,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(query);
+        query.Validate();
+        cancellationToken.ThrowIfCancellationRequested();
+        var candidates = index.ResolveCandidates(query, cancellationToken);
+        return QueryCore(
+            index.Document,
+            query,
+            candidates.Nodes,
+            semanticIndexUsed: true,
+            candidateSeed: candidates.Seed,
+            semanticIndexFingerprint: index.IndexFingerprint,
+            cancellationToken
+        );
+    }
+
+    private static WordSemanticQueryResult QueryCore(
+        WordSemanticDocument document,
+        WordSemanticQuery query,
+        IEnumerable<WordSemanticNode> candidates,
+        bool semanticIndexUsed,
+        string candidateSeed,
+        string? semanticIndexFingerprint,
+        CancellationToken cancellationToken
+    )
+    {
         var kinds = query.Kinds is null
             ? null
             : new HashSet<WordSemanticNodeKind>(query.Kinds);
@@ -246,10 +305,14 @@ public sealed class WordSemanticQueryEngine
 
         return new WordSemanticQueryResult(
             document.PackageFingerprint,
+            document.NodeCount,
             scanned,
             matched,
             query.Offset,
-            page
+            page,
+            semanticIndexUsed,
+            candidateSeed,
+            semanticIndexFingerprint
         );
     }
 

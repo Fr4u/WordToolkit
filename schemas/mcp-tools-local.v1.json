@@ -3840,13 +3840,23 @@
     {
       "name": "query_ooxml_semantics",
       "title": "Query Word semantic nodes",
-      "description": "Query all projected text-bearing stories in a saved Word OOXML package by semantic node kind, bounded text predicate, exact semantic properties, source part, or subtree. Returns paged stable node IDs and compact previews without opening Word or returning raw XML.",
+      "description": "Query all projected Word stories by semantic node kind, bounded text predicate, exact properties, source part, or subtree. Use a process-memory semantic index for repeated queries with indexed candidate selection; otherwise query one saved package directly. Returns stable node IDs and compact previews without opening Word or returning raw XML.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "local_path": {
             "type": "string",
-            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+            "description": "Absolute or workspace-relative path to one local DOCX, DOCM, DOTX, or DOTM. Use this or semantic_index_id, never both."
+          },
+          "semantic_index_id": {
+            "type": "string",
+            "pattern": "^wsi_[0-9a-f]{32}$",
+            "description": "Unexpired process-memory handle returned by manage_ooxml_semantic_index."
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$",
+            "description": "Required with semantic_index_id so a stale or mistaken handle cannot silently answer for another package."
           },
           "kinds": {
             "type": "array",
@@ -3965,13 +3975,109 @@
             "description": "Include source part, normalized XML path, and lexical element ordinal."
           }
         },
-        "required": ["local_path"],
+        "oneOf": [
+          {
+            "required": ["local_path"],
+            "not": {
+              "anyOf": [
+                {"required": ["semantic_index_id"]},
+                {"required": ["expected_package_fingerprint"]}
+              ]
+            }
+          },
+          {
+            "required": ["semantic_index_id", "expected_package_fingerprint"],
+            "not": {"required": ["local_path"]}
+          }
+        ],
         "additionalProperties": false
       },
       "annotations": {
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "manage_ooxml_semantic_index",
+      "title": "Manage a bounded in-memory Word semantic index",
+      "description": "Create, inspect, list, or explicitly release a short-lived semantic index for repeated AI queries over one saved Word package. The index stores the immutable semantic projection only in this native process, is fingerprint-bound, expires after at most 30 minutes, never returns raw document text, never persists index data, and never opens Word.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": ["create", "inspect", "list", "release"],
+            "description": "Create or reuse an unchanged package index, inspect one handle, list compact active handles, or release one immediately."
+          },
+          "local_path": {
+            "type": "string",
+            "description": "Saved DOCX, DOCM, DOTX, or DOTM path. Required only for create."
+          },
+          "semantic_index_id": {
+            "type": "string",
+            "pattern": "^wsi_[0-9a-f]{32}$",
+            "description": "Process-memory handle required for inspect and release."
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$",
+            "description": "Optional on create and inspect/release; rejects a stale or mistaken package identity."
+          },
+          "ttl_seconds": {
+            "type": "integer",
+            "minimum": 30,
+            "maximum": 1800,
+            "default": 300,
+            "description": "Create-only lifetime. Recreating an unchanged path and fingerprint reuses the handle and refreshes expiry."
+          }
+        },
+        "required": ["operation"],
+        "oneOf": [
+          {
+            "properties": {"operation": {"const": "create"}},
+            "required": ["local_path"],
+            "not": {"required": ["semantic_index_id"]}
+          },
+          {
+            "properties": {"operation": {"const": "inspect"}},
+            "required": ["semantic_index_id"],
+            "not": {
+              "anyOf": [
+                {"required": ["local_path"]},
+                {"required": ["ttl_seconds"]}
+              ]
+            }
+          },
+          {
+            "properties": {"operation": {"const": "list"}},
+            "not": {
+              "anyOf": [
+                {"required": ["local_path"]},
+                {"required": ["semantic_index_id"]},
+                {"required": ["expected_package_fingerprint"]},
+                {"required": ["ttl_seconds"]}
+              ]
+            }
+          },
+          {
+            "properties": {"operation": {"const": "release"}},
+            "required": ["semantic_index_id"],
+            "not": {
+              "anyOf": [
+                {"required": ["local_path"]},
+                {"required": ["ttl_seconds"]}
+              ]
+            }
+          }
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
         "openWorldHint": false
       }
     },

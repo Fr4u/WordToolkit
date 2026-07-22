@@ -23,6 +23,9 @@ internal sealed partial class WordLiveService : IToolHandler
     private const int WordFormatDocumentDefault = 16;
     private const int WordExportFormatPdf = 17;
     private const int OfficeAutomationSecurityForceDisable = 3;
+    private const int MaxSemanticIndexEntries = 4;
+    private const int MaxSemanticIndexNodesPerEntry = 100_000;
+    private const int MaxSemanticIndexCachedNodes = 250_000;
     private static readonly HashSet<string> OpenableDocumentExtensions = new(
         [
             ".doc",
@@ -63,6 +66,8 @@ internal sealed partial class WordLiveService : IToolHandler
     private readonly ConcurrentDictionary<string, SelectionGrant> _selectionGrants = new();
     private readonly ConcurrentDictionary<string, UndoGrant> _undoGrants = new();
     private readonly ConcurrentDictionary<string, RangeGrant> _rangeGrants = new();
+    private readonly ConcurrentDictionary<string, CachedSemanticIndex> _semanticIndexes = new();
+    private readonly object _semanticIndexGate = new();
 
     public WordLiveService(IWordComHost host)
     {
@@ -97,6 +102,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 cancellationToken
             ),
             "query_ooxml_semantics" => QueryPackageSemanticsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "manage_ooxml_semantic_index" => ManagePackageSemanticIndexAsync(
                 arguments,
                 cancellationToken
             ),

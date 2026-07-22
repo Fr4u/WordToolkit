@@ -46,7 +46,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 48 tested Word Live actions plus 29 standalone,
+The runtime implements 48 tested Word Live actions plus 30 standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus three token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -68,6 +68,7 @@ connect_live_word_document
 inspect_ooxml_package
 inspect_ooxml_semantics
 query_ooxml_semantics
+manage_ooxml_semantic_index
 compare_ooxml_semantics
 plan_ooxml_patch
 create_ooxml_patch
@@ -444,7 +445,7 @@ pwsh -File native/scripts/live-acceptance.ps1 `
 
 Every test mutation is tracked, verified and undone. The script fails if cleanup leaves any outstanding WordToolkit operation.
 
-Run the complete packaged 14-tool/77-action live acceptance gate:
+Run the complete packaged 14-tool/78-action live acceptance gate:
 
 ```powershell
 pwsh -NoProfile -File native/scripts/live-full-capabilities-timed.ps1 `
