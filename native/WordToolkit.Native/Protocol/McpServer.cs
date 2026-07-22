@@ -8,14 +8,13 @@ namespace WordToolkit.Native.Protocol;
 
 internal sealed class McpServer
 {
-    private const string ProtocolVersion = "2025-06-18";
     private static readonly string ServerVersion =
         typeof(McpServer).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
             ?.InformationalVersion.Split('+', 2)[0]
         ?? "0.0.0";
     internal const int DefaultMaxMessageCharacters = 8 * 1024 * 1024;
-    private const int MaxConcurrentRequests = 64;
+    internal const int MaxConcurrentRequests = 64;
     private readonly TextReader _input;
     private readonly TextWriter _output;
     private readonly ToolCatalog _catalog;
@@ -208,7 +207,7 @@ internal sealed class McpServer
                 id,
                 new JsonObject
                 {
-                    ["protocolVersion"] = ProtocolVersion,
+                    ["protocolVersion"] = _catalog.McpProtocolVersion,
                     ["capabilities"] = new JsonObject
                     {
                         ["tools"] = new JsonObject { ["listChanged"] = false },
@@ -283,6 +282,17 @@ internal sealed class McpServer
         );
         try
         {
+            if (ToolCatalog.IsCapabilitiesGateway(name))
+            {
+                return RpcResult(
+                    id,
+                    ToolResult(
+                        ok: true,
+                        _catalog.GetCapabilities(argumentsDocument.RootElement),
+                        error: null
+                    )
+                );
+            }
             if (ToolCatalog.IsSearchGateway(name))
             {
                 var root = argumentsDocument.RootElement;

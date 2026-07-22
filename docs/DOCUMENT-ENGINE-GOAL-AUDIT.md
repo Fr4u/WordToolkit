@@ -105,7 +105,7 @@ vendor claim is not implementation evidence.
 |---|---|---|---|
 | Plugin architecture | Not started | Architecture interfaces listed | Versioned registrations, permissions, resource limits and compatibility tests |
 | Storage/cloud adapters | Not started | Local file/stream only | Flat OPC, Graph/Drive versioned upload, cache and remote authorization boundaries |
-| Capability negotiation | Partial | Lazy action catalogue and Word COM member capabilities | Unified backend/document/feature matrix with runtime probes |
+| Capability negotiation | Partial (versioned discovery slice implemented) | `get_wordtoolkit_capabilities` and the native `capabilities` CLI return one schema-versioned, hashed, paged contract for 84 actions without opening Word; Word COM member capabilities remain separate | Add normalized permissions/reversibility/output schemas and a unified backend/document/feature matrix with runtime probes |
 | Telemetry | Not started in engine | Existing runtime performance fields only | Privacy-safe sinks, opt-in controls, retention and failure diagnostics |
 | Observability/audit log | Not started | Mutation results only | Correlation, command evidence, hashes without content, recovery references |
 
@@ -271,7 +271,19 @@ mutation/repair/render execution required by the goal.
   fixed.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
-- The current development head exposes 14 public tools and 84 lazy actions. Two local
+- The current development head exposes 15 public tools and 84 lazy actions. The new
+  read-only capability gateway and CLI share one vendor-neutral manifest generated from
+  the embedded action schema. It retains the schema/MCP/compatibility header, reports
+  deterministic source and native-action hashes, pages effect summaries, publishes hard
+  limits and exposes missing permissions/reversibility/output-version coverage as zero
+  instead of inventing it. It does not open Word or read a document.
+  Local proof covers 340 engine tests, 239 native tests and the complete 1,273-test
+  Python/OOXML suite. Two self-contained builds produced the same 195-file,
+  36,179,845-byte ZIP at SHA-256
+  `1ebf765215f58ca22de6204a382dcedd83ec9e51dae15a9ba1c47509b237627f`.
+  The packaged CLI/MCP payloads matched, the retrievable Draft 2020-12 schema validated,
+  and discovery changed neither the zero Word-process count nor the document state.
+- The preceding table checkpoint exposed 14 public tools and 84 lazy actions. Two local
   builds produced the same 195-file, 85,056,480-byte tree and 36,172,619-byte ZIP with
   SHA-256
   `910a1cece37397f61568ea0a230fe663fdf54d834d8a8d367fa56b37ddfe1c13`.

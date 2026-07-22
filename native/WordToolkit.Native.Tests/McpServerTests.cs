@@ -54,7 +54,7 @@ public sealed class McpServerTests
         var tools = responses[1].RootElement
             .GetProperty("result")
             .GetProperty("tools");
-        Assert.Equal(14, tools.GetArrayLength());
+        Assert.Equal(15, tools.GetArrayLength());
         Assert.Contains(
             tools.EnumerateArray(),
             tool => tool.GetProperty("name").GetString() == "apply_live_word_operations"
@@ -74,6 +74,10 @@ public sealed class McpServerTests
         Assert.Contains(
             tools.EnumerateArray(),
             tool => tool.GetProperty("name").GetString() == "execute_wordtoolkit_action"
+        );
+        Assert.Contains(
+            tools.EnumerateArray(),
+            tool => tool.GetProperty("name").GetString() == "get_wordtoolkit_capabilities"
         );
         foreach (
             var required in new[]

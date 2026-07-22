@@ -9,6 +9,12 @@
 - Native MCP host: `WordToolkit.Native.Tests` covers the compact/lazy tool catalog,
   input validation, response compaction, cancellation and service contracts without
   starting Microsoft Word.
+- AI capability contract: native tests verify the embedded schema/MCP/compatibility
+  header, deterministic 64-hex digests, sorted paging, exact CLI/MCP data parity,
+  JSON round-trip, fail-closed malformed/unknown input, sub-10,000-character default
+  pages, exact retrievable Draft 2020-12 schema bytes/hash, preservation of legitimate
+  input properties named `title`, and a handler trap proving discovery cannot reach
+  Word or document content.
 - Classic charts: the engine uses a real LibreOffice chart plus synthetic Strict,
   malformed, external-target and resource-limit packages to verify series, axes,
   caches and related parts. Native tests prove that default and complete MCP envelopes

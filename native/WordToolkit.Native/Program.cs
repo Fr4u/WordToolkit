@@ -28,10 +28,15 @@ internal static class Program
             return result.Passed ? 0 : 2;
         }
 
+        if (args.Length >= 1 && args[0] == "capabilities")
+        {
+            return CapabilityCli.Run(args[1..], Console.Out, Console.Error);
+        }
+
         if (args.Length != 0)
         {
             Console.Error.WriteLine(
-                "usage: wordtoolkit-native [--create-test-document <path> | --benchmark-active-word]"
+                "usage: wordtoolkit-native [capabilities [--schema | [--query <text>] [--offset <n>] [--limit <n>]] [--format json] | --create-test-document <path> | --benchmark-active-word]"
             );
             return 64;
         }

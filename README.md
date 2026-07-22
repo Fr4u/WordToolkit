@@ -48,14 +48,36 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 The runtime implements 48 tested Word Live actions plus 36 standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
-only 11 common actions plus three token-lean gateways. Rare schemas are
+only 11 common actions plus four token-lean gateways. Rare schemas are
 searched and loaded one at a time:
 
 ```text
 search_wordtoolkit_actions
 inspect_wordtoolkit_action
 execute_wordtoolkit_action
+get_wordtoolkit_capabilities
 ```
+
+`get_wordtoolkit_capabilities` is the vendor-neutral discovery entry point. It
+returns the runtime, MCP and schema versions, deterministic contract hashes,
+operation counts, explicit metadata-coverage gaps, security behavior, limits and
+bounded operation summaries without opening Word or reading a document. The same
+payload is available outside MCP:
+
+```powershell
+wordtoolkit-native capabilities --query patch --limit 8 --format json
+wordtoolkit-native capabilities --schema --format json
+```
+
+The schema form returns the exact embedded JSON Schema text plus its verifiable hash;
+the installed client therefore does not need repository access. The default manifest
+page is 12 operations and the hard page ceiling is 32. Full input
+schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
+not flatten the 84-action schema set into model context. The normative shape is
+checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
+and the runtime reports its SHA-256. See
+[`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
+compatibility rules.
 
 The complete lazy action set is:
 

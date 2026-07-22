@@ -116,8 +116,8 @@ try {
             }
         })
     $tools = Invoke-Mcp -Method "tools/list" -Params @{}
-    if ($tools.result.tools.Count -ne 14) {
-        throw "Expected 14 exposed tools, got $($tools.result.tools.Count)"
+    if ($tools.result.tools.Count -ne 15) {
+        throw "Expected 15 exposed tools, got $($tools.result.tools.Count)"
     }
     $report.exposed_tool_count = $tools.result.tools.Count
     $report.available_action_count = 84

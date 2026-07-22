@@ -4,127 +4,49 @@ using System.Text.Json.Nodes;
 
 namespace WordToolkit.Native.Protocol;
 
-internal sealed class ToolCatalog
+internal sealed partial class ToolCatalog
 {
+    private const string CapabilitiesName = "get_wordtoolkit_capabilities";
     private const string InspectActionName = "inspect_wordtoolkit_action";
     private const string ExecuteActionName = "execute_wordtoolkit_action";
     private const string SearchActionsName = "search_wordtoolkit_actions";
 
-    private static readonly HashSet<string> NativeToolNames =
-    [
-        "list_live_word_documents",
-        "start_word_application",
-        "create_live_word_document",
-        "open_live_word_document",
-        "connect_live_word_document",
-        "inspect_ooxml_package",
-        "inspect_ooxml_semantics",
-        "query_ooxml_semantics",
-        "manage_ooxml_semantic_index",
-        "compare_ooxml_semantics",
-        "plan_ooxml_patch",
-        "create_ooxml_patch",
-        "inspect_ooxml_patch",
-        "plan_ooxml_patch_apply",
-        "apply_ooxml_patch",
-        "plan_ooxml_merge",
-        "apply_ooxml_merge",
-        "inspect_ooxml_sections",
-        "inspect_ooxml_styles",
-        "inspect_ooxml_numbering",
-        "inspect_ooxml_theme",
-        "inspect_ooxml_settings",
-        "inspect_ooxml_references",
-        "inspect_ooxml_dependencies",
-        "inspect_ooxml_charts",
-        "inspect_ooxml_content_controls",
-        "inspect_ooxml_tables",
-        "inspect_ooxml_markup_compatibility",
-        "lint_ooxml_document",
-        "plan_ooxml_lint_repair",
-        "apply_ooxml_lint_repair",
-        "inspect_ooxml_equations",
-        "inspect_ooxml_review",
-        "inspect_ooxml_fonts",
-        "resolve_ooxml_formatting",
-        "plan_ooxml_text_edits",
-        "apply_ooxml_text_edits",
-        "plan_ooxml_semantic_edits",
-        "apply_ooxml_semantic_edits",
-        "plan_ooxml_review_decisions",
-        "apply_ooxml_review_decisions",
-        "inspect_live_word_document",
-        "map_live_word_structures",
-        "inspect_live_word_structure_items",
-        "inspect_live_word_equation_learning",
-        "inspect_live_word_structure_learning",
-        "inspect_live_word_object_model_types",
-        "inspect_live_word_object_model_members",
-        "inspect_live_word_member_capabilities",
-        "preflight_live_word_member_operations",
-        "execute_live_word_member_operations",
-        "find_live_word_text",
-        "replace_live_word_text",
-        "inspect_live_word_review",
-        "manage_live_word_review",
-        "diagnose_live_word_layout",
-        "get_live_word_selection",
-        "inspect_live_word_undo",
-        "undo_live_word_operation",
-        "insert_live_word_text",
-        "format_live_word_selection",
-        "insert_live_word_table",
-        "preflight_live_word_table_formulas",
-        "insert_live_word_table_formulas",
-        "update_live_word_table_fields",
-        "insert_live_word_list",
-        "preflight_live_word_bookmarks",
-        "insert_live_word_bookmarks",
-        "preflight_live_word_fields",
-        "insert_live_word_fields",
-        "insert_live_word_image",
-        "insert_live_word_comment",
-        "insert_live_word_note",
-        "set_live_word_header_footer",
-        "insert_live_word_equation",
-        "insert_live_word_equations_batch",
-        "preflight_live_word_equations",
-        "apply_live_word_operations",
-        "validate_live_word_document",
-        "export_live_word_pdf",
-        "save_live_word_document",
-        "close_live_word_document",
-        "quit_word_application",
-        "disconnect_live_word_document",
-    ];
-
-    private static readonly HashSet<string> CoreToolNames =
-    [
-        "list_live_word_documents",
-        "start_word_application",
-        "create_live_word_document",
-        "open_live_word_document",
-        "connect_live_word_document",
-        "inspect_ooxml_package",
-        "inspect_live_word_document",
-        "get_live_word_selection",
-        "apply_live_word_operations",
-        "save_live_word_document",
-        "disconnect_live_word_document",
-    ];
-
     private readonly IReadOnlyDictionary<string, JsonObject> _allTools;
+    private readonly IReadOnlySet<string> _coreToolNames;
+    private readonly string _capabilitySchemaJson;
 
     public JsonArray Tools { get; }
     public int ActionCount => _allTools.Count;
+    public string SchemaVersion { get; }
+    public string McpProtocolVersion { get; }
+    public string CompatibilityPolicy { get; }
+    public string Transport { get; }
+    public string SourceSchemaSha256 { get; }
+    public string CapabilitySchemaSha256 { get; }
 
     private ToolCatalog(
         JsonArray tools,
-        IReadOnlyDictionary<string, JsonObject> allTools
+        IReadOnlyDictionary<string, JsonObject> allTools,
+        IReadOnlySet<string> coreToolNames,
+        string schemaVersion,
+        string mcpProtocolVersion,
+        string compatibilityPolicy,
+        string transport,
+        string sourceSchemaSha256,
+        string capabilitySchemaSha256,
+        string capabilitySchemaJson
     )
     {
         Tools = tools;
         _allTools = allTools;
+        _coreToolNames = coreToolNames;
+        SchemaVersion = schemaVersion;
+        McpProtocolVersion = mcpProtocolVersion;
+        CompatibilityPolicy = compatibilityPolicy;
+        Transport = transport;
+        SourceSchemaSha256 = sourceSchemaSha256;
+        CapabilitySchemaSha256 = capabilitySchemaSha256;
+        _capabilitySchemaJson = capabilitySchemaJson;
     }
 
     public static ToolCatalog LoadNativeWordTools()
@@ -137,8 +59,44 @@ internal sealed class ToolCatalog
         using var stream = assembly.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException("Embedded MCP tool schema is missing");
         using var reader = new StreamReader(stream);
-        var root = JsonNode.Parse(reader.ReadToEnd())?.AsObject()
+        var schemaJson = reader.ReadToEnd();
+        var capabilitySchemaJson = ReadEmbeddedResource(
+            assembly,
+            "Schemas.wordtoolkit-capabilities.v1.schema.json",
+            "Embedded capability manifest schema is missing"
+        );
+        return LoadNativeWordTools(schemaJson, capabilitySchemaJson);
+    }
+
+    internal static ToolCatalog LoadNativeWordTools(
+        string schemaJson,
+        string capabilitySchemaJson
+    )
+    {
+        var root = JsonNode.Parse(schemaJson)?.AsObject()
             ?? throw new InvalidOperationException("Embedded MCP tool schema is invalid");
+        var schemaVersion = RequiredContractString(root, "schema_version");
+        var mcpProtocolVersion = RequiredContractString(root, "mcp_protocol");
+        var compatibilityPolicy = RequiredContractString(root, "compatibility_policy");
+        var transport = RequiredContractString(root, "transport");
+        var nativeRuntime = root["native_runtime"]?.AsObject()
+            ?? throw new InvalidOperationException(
+                "Embedded MCP schema is missing the native runtime registry"
+            );
+        var nativeToolOrder = ReadActionList(nativeRuntime, "actions");
+        var coreToolOrder = ReadActionList(nativeRuntime, "core_actions");
+        var nativeToolNames = nativeToolOrder.ToHashSet(StringComparer.Ordinal);
+        var coreToolNames = coreToolOrder.ToHashSet(StringComparer.Ordinal);
+        if (!coreToolNames.IsSubsetOf(nativeToolNames))
+        {
+            throw new InvalidOperationException(
+                "Every native core action must also be present in the native action registry"
+            );
+        }
+        _ = JsonNode.Parse(capabilitySchemaJson)?.AsObject()
+            ?? throw new InvalidOperationException(
+                "Embedded capability manifest schema is invalid"
+            );
         var tools = root["tools"]?.AsArray()
             ?? throw new InvalidOperationException("Embedded MCP tool list is missing");
         var allTools = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
@@ -146,27 +104,44 @@ internal sealed class ToolCatalog
         {
             var tool = node?.AsObject();
             var name = tool?["name"]?.GetValue<string>();
-            if (name is not null && NativeToolNames.Contains(name))
+            if (name is not null && nativeToolNames.Contains(name))
             {
-                allTools[name] = CompactSchema(tool!);
+                if (!allTools.TryAdd(name, CompactSchema(tool!)))
+                {
+                    throw new InvalidOperationException(
+                        $"Embedded MCP tool list contains duplicate native action '{name}'"
+                    );
+                }
             }
         }
-        if (allTools.Count != NativeToolNames.Count)
+        if (allTools.Count != nativeToolNames.Count)
         {
             throw new InvalidOperationException(
-                $"Native tool schema mismatch: expected {NativeToolNames.Count}, found {allTools.Count}"
+                $"Native tool schema mismatch: expected {nativeToolNames.Count}, found {allTools.Count}"
             );
         }
 
         var exposed = new JsonArray();
-        foreach (var name in CoreToolNames)
+        foreach (var name in coreToolOrder)
         {
             exposed.Add(allTools[name].DeepClone());
         }
         exposed.Add(SearchActionsTool());
         exposed.Add(InspectActionTool());
         exposed.Add(ExecuteActionTool());
-        return new ToolCatalog(exposed, allTools);
+        exposed.Add(CapabilitiesTool());
+        return new ToolCatalog(
+            exposed,
+            allTools,
+            coreToolNames,
+            schemaVersion,
+            mcpProtocolVersion,
+            compatibilityPolicy,
+            transport,
+            Sha256Hex(schemaJson),
+            Sha256Hex(capabilitySchemaJson),
+            capabilitySchemaJson
+        );
     }
 
     public bool IsAction(string name) => _allTools.ContainsKey(name);
@@ -257,6 +232,9 @@ internal sealed class ToolCatalog
     public static bool IsExecuteGateway(string name) =>
         string.Equals(name, ExecuteActionName, StringComparison.Ordinal);
 
+    public static bool IsCapabilitiesGateway(string name) =>
+        string.Equals(name, CapabilitiesName, StringComparison.Ordinal);
+
     private static JsonObject CompactSchema(JsonObject source)
     {
         var compact = source.DeepClone().AsObject();
@@ -266,12 +244,26 @@ internal sealed class ToolCatalog
 
     private static void RemovePresentationMetadata(JsonNode? node)
     {
+        RemovePresentationMetadata(node, preserveMapKeys: false);
+    }
+
+    private static void RemovePresentationMetadata(
+        JsonNode? node,
+        bool preserveMapKeys
+    )
+    {
         if (node is JsonObject obj)
         {
-            obj.Remove("title");
+            if (!preserveMapKeys)
+            {
+                obj.Remove("title");
+            }
             foreach (var child in obj.ToArray())
             {
-                RemovePresentationMetadata(child.Value);
+                RemovePresentationMetadata(
+                    child.Value,
+                    child.Key is "properties" or "patternProperties" or "$defs" or "dependentSchemas"
+                );
             }
         }
         else if (node is JsonArray array)
@@ -330,6 +322,14 @@ internal sealed class ToolCatalog
                     {
                         ["type"] = "string",
                         ["description"] = "Capability keywords, for example image or review.",
+                    },
+                    ["view"] = new JsonObject
+                    {
+                        ["type"] = "string",
+                        ["enum"] = new JsonArray("manifest", "schema"),
+                        ["default"] = "manifest",
+                        ["description"] =
+                            "Return a manifest page or the exact embedded capability JSON Schema text.",
                     },
                     ["max_results"] = new JsonObject
                     {
@@ -392,6 +392,105 @@ internal sealed class ToolCatalog
                 ["openWorldHint"] = false,
             },
         };
+    }
+
+    private static JsonObject CapabilitiesTool()
+    {
+        return new JsonObject
+        {
+            ["name"] = CapabilitiesName,
+            ["description"] =
+                "Negotiate the versioned WordToolkit capability contract without opening Word or reading a document. Returns bounded operation summaries or the exact embedded normative JSON Schema; inspect one action separately for its full input schema.",
+            ["inputSchema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["query"] = new JsonObject
+                    {
+                        ["type"] = "string",
+                        ["maxLength"] = CapabilityManifest.MaxQueryCharacters,
+                        ["description"] = "Optional case-insensitive operation-name or description filter.",
+                    },
+                    ["offset"] = new JsonObject
+                    {
+                        ["type"] = "integer",
+                        ["minimum"] = 0,
+                        ["default"] = 0,
+                    },
+                    ["limit"] = new JsonObject
+                    {
+                        ["type"] = "integer",
+                        ["minimum"] = 1,
+                        ["maximum"] = CapabilityManifest.MaxPageSize,
+                        ["default"] = CapabilityManifest.DefaultPageSize,
+                    },
+                },
+                ["additionalProperties"] = false,
+            },
+            ["annotations"] = new JsonObject
+            {
+                ["readOnlyHint"] = true,
+                ["destructiveHint"] = false,
+                ["idempotentHint"] = true,
+                ["openWorldHint"] = false,
+            },
+        };
+    }
+
+    private static string RequiredContractString(JsonObject root, string name)
+    {
+        var value = root[name]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException(
+                $"Embedded MCP tool schema is missing required contract field '{name}'"
+            );
+        }
+        return value;
+    }
+
+    private static IReadOnlyList<string> ReadActionList(JsonObject root, string name)
+    {
+        var array = root[name]?.AsArray()
+            ?? throw new InvalidOperationException(
+                $"Embedded MCP schema is missing native runtime field '{name}'"
+            );
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var result = new List<string>(array.Count);
+        foreach (var node in array)
+        {
+            var value = node?.GetValue<string>();
+            if (string.IsNullOrWhiteSpace(value) || !seen.Add(value))
+            {
+                throw new InvalidOperationException(
+                    $"Embedded MCP native runtime field '{name}' contains an invalid or duplicate action"
+                );
+            }
+            result.Add(value);
+        }
+        if (result.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Embedded MCP native runtime field '{name}' must not be empty"
+            );
+        }
+        return result;
+    }
+
+    private static string ReadEmbeddedResource(
+        Assembly assembly,
+        string suffix,
+        string missingMessage
+    )
+    {
+        var resourceName = assembly
+            .GetManifestResourceNames()
+            .Single(name => name.EndsWith(suffix, StringComparison.Ordinal));
+        using var stream = assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException(missingMessage);
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
     }
 
     private static string FirstSentence(string value)

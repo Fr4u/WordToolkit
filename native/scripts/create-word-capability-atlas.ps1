@@ -427,8 +427,8 @@ try {
     $stage = "verify token-lean public tool surface"
     $catalog = Invoke-Mcp -Method "tools/list" -Params @{}
     Assert-True `
-        -Condition ($catalog.result.tools.Count -eq 14) `
-        -Message "Expected 14 exposed tools"
+        -Condition ($catalog.result.tools.Count -eq 15) `
+        -Message "Expected 15 exposed tools"
 
     $stage = "list documents"
     $listed = Invoke-Tool -Name "list_live_word_documents" -Arguments @{}
@@ -1950,7 +1950,7 @@ Audyt natywny: katalog zainstalowanego Worda wykrył $($types.stats.type_count) 
     $report.total_seconds = [Math]::Round($totalWatch.Elapsed.TotalSeconds, 3)
     $report.total_mcp_requests = $requestId
     $report.tool_calls = $toolCalls
-    $report.exposed_tool_count = 14
+    $report.exposed_tool_count = 15
     $report.available_action_count = 84
     $report.object_model_types = $types.stats.type_count
     $report.object_model_members = $types.stats.member_count

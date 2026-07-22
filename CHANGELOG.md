@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- Added a vendor-neutral, schema-versioned capability manifest shared by the native MCP
+  `get_wordtoolkit_capabilities` gateway and `wordtoolkit-native capabilities` CLI.
+  It preserves the embedded schema/MCP/compatibility header, publishes deterministic
+  source, action-contract and capability-schema SHA-256 values, pages sorted summaries
+  for all 84 actions, reports effect hints, hard limits and explicit metadata-coverage
+  gaps, and exposes operation-specific format support without opening Word, reading a
+  document or using the network. Native/core membership now comes from the embedded
+  schema's `native_runtime` registry instead of duplicate C# lists. The normative JSON
+  Schema is checked in, embedded and retrievable byte-for-byte through MCP
+  `view=schema` or CLI `--schema`; its advertised hash is therefore independently
+  verifiable. Fixed schema compaction so legitimate input properties named `title`
+  survive while presentation annotations are still removed;
+  malformed, unbounded and unknown input fails closed. The public MCP surface is now 15
+  tools while full action schemas remain lazy.
+- Verified the capability-contract slice with 340 document-engine tests, 239 native-host
+  tests, 1,273 Python/OOXML tests with 16 intentional skips, Ruff, schema-export drift
+  checks, Draft 2020-12 validation and an independent red-team. The red-team found and
+  closed two P1 defects: schema compaction had removed the real image `title` input, and
+  an installed client could not retrieve the schema whose hash it was asked to trust.
+  Two local self-contained builds produced identical 195-file, 85,083,230-byte trees
+  and 36,179,845-byte ZIPs at SHA-256
+  `1ebf765215f58ca22de6204a382dcedd83ec9e51dae15a9ba1c47509b237627f`.
+  Through the exact packaged executable, CLI and MCP returned byte-equivalent canonical
+  manifest/schema data; the schema hash validated, the image schema retained all 13
+  properties, no Word process appeared and the package contained zero Python files.
+  The 15-tool catalogue is 8,885 compact characters versus 8,172 without the capability
+  gateway; the default 12-operation manifest is 5,359 and the opt-in schema view 6,769.
+  Across 20 cold process runs, CLI manifest discovery measured 107.350 ms p50 / 121.159
+  ms p95, MCP discovery 157.168 / 176.796 ms and CLI schema retrieval 86.148 / 94.272
+  ms. The public release remains 0.34.0.
+
 - Added a bounded, source-linked logical table graph and lazy
   `inspect_ooxml_tables` action. Transitional and Strict WordprocessingML tables now
   expose declared grids, physical-to-logical cell placement, row skips, `gridSpan`,

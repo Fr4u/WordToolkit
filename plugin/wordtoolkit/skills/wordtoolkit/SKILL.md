@@ -11,6 +11,14 @@ it. If the exact action name is already known, skip search. Keep
 `response_mode=compact`; request `full` only when omitted details are required
 for the next operation.
 
+When runtime/schema compatibility, supported operation discovery, effect hints or
+hard limits matter, call `get_wordtoolkit_capabilities` first. Filter and page its
+bounded summaries; do not fetch all action schemas. This call opens no Word instance,
+reads no document and returns no document content. Use the reported contract and schema
+hashes to detect drift, then inspect only the selected action.
+If a client must validate the response shape, request
+`get_wordtoolkit_capabilities` with `view=schema`; do not infer a schema from the hash.
+
 ## Token discipline
 
 - Generate a coherent document section in the model, then send one

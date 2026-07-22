@@ -91,7 +91,8 @@ $exposedTools = @(
     "disconnect_live_word_document",
     "search_wordtoolkit_actions",
     "inspect_wordtoolkit_action",
-    "execute_wordtoolkit_action"
+    "execute_wordtoolkit_action",
+    "get_wordtoolkit_capabilities"
 )
 $catalogNames = @()
 
@@ -359,12 +360,12 @@ try {
             }
         })
 
-    $stage = "verify the token-lean 14-tool catalog and lazy live actions"
+    $stage = "verify the token-lean 15-tool catalog and lazy live actions"
     $catalog = Invoke-Mcp -Method "tools/list" -Params @{}
     $script:catalogNames = @($catalog.result.tools | ForEach-Object { $_.name })
     Assert-True `
-        -Condition ($script:catalogNames.Count -eq 14) `
-        -Message "Expected 14 exposed tools, got $($script:catalogNames.Count)"
+        -Condition ($script:catalogNames.Count -eq 15) `
+        -Message "Expected 15 exposed tools, got $($script:catalogNames.Count)"
     foreach ($name in $exposedTools) {
         Assert-True `
             -Condition ($script:catalogNames -contains $name) `

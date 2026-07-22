@@ -5,15 +5,16 @@
 The local plugin is the default path for one machine. It uses MCP STDIO and
 does not expose a listening port.
 
-1. Install `uv`.
-2. Run `uv run python scripts/build_local_plugin.py --build-validator`.
+1. Install the pinned .NET SDK from `global.json` for a source build.
+2. Run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build_native_plugin.ps1`.
 3. Install `dist/wordtoolkit` through a local Codex marketplace.
 4. Start a new Codex task so the new skill and MCP server are discovered.
 
-On first launch, `uv` creates the pinned runtime environment under the plugin's
-`runtime/` directory. Document sessions and exported artifacts live beneath
-the user's local application-data directory. Local input accepts an absolute
-path or `file://` URI. Local output is returned as an MCP resource link.
+The built plugin contains a self-contained `runtime/win-x64/wordtoolkit-native.exe`.
+It does not contain or launch Python, `uv`, a virtual environment or a per-call helper
+process. Document sessions are owned by the native process and the attached Word
+application. Saved-package actions accept explicit local paths according to their
+individual schemas.
 
 `local_stdio` is deliberately rejected by the HTTP application. It is a
 single-user trust boundary for the local Codex host, not an authentication

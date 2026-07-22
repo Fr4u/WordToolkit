@@ -892,6 +892,28 @@ of tools wastes schema tokens and makes planning brittle. The target gateways ar
 - `document.render`: capability-qualified preview/verification;
 - `document.capabilities`: lazy schema fragments and backend probes.
 
+The first transport-neutral `document.capabilities` slice is implemented as
+`get_wordtoolkit_capabilities` and the native `capabilities --format json` CLI. Both
+call the same generator over the embedded local action schema. Native and core action
+membership is also loaded from that schema's `native_runtime` registry instead of a
+second C# list. The manifest retains the
+contract, MCP and runtime versions; publishes deterministic source/action/schema hashes;
+reports hard request, active-request, query and page limits; and returns at most 32 sorted
+operation summaries containing exposure, an input-schema hash and the four MCP effect
+hints. The default page is 12. It never opens Word, reads a package, returns document
+content or accesses the network.
+
+The same gateway accepts `view=schema`, while the CLI accepts `--schema`, to return the
+exact embedded normative JSON Schema string and its UTF-8 SHA-256. This keeps the
+default catalogue small without handing independent clients an unverifiable digest.
+
+This is deliberately honest about what is still absent. `metadata_coverage` reports
+zero explicit output schemas, permissions, reversibility records and per-operation
+versions until those become canonical source data. Those fields are not inferred from
+operation names. Format support is labelled operation-specific, and full input schemas
+remain behind `inspect_wordtoolkit_action`. The normative JSON shape is
+`schemas/wordtoolkit-capabilities.v1.schema.json`; the runtime embeds and hashes it.
+
 Responses default to summaries and stable handles. Raw XML, full text, binary payloads,
 style tables, and object-model catalogues are fetched only on demand. The planner reports
 estimated input/output token cost and can choose between live Word, direct OOXML, or a
@@ -925,6 +947,8 @@ large repository of documents.
 
 The current native mapping is therefore:
 
+- `document.capabilities` -> core `get_wordtoolkit_capabilities` or native
+  `capabilities --format json`, with identical canonical data;
 - `document.query` -> lazy `query_ooxml_semantics`, optionally over a handle from
   `manage_ooxml_semantic_index`;
 - style-map inspection -> lazy `inspect_ooxml_styles`;
