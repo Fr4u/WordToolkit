@@ -256,7 +256,7 @@ mutation/repair/render execution required by the goal.
 | Visual regression | Not started for new engine | Historical screenshots and live acceptance | Versioned PDF/page/object baselines across rendering backends |
 | Cross-platform CI | Partial | Mandatory Linux engine job plus clean hosted-Windows engine/native/package jobs; licensed Word gate remains separate | macOS core job, qualified backend matrix and routinely available self-hosted Word release evidence |
 | Public competitor benchmark | Not started | Research matrix only | Same fixtures, versions, commands, results, caveats and reproducible harness |
-| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF and normalizes Windows packaging onto Windows PowerShell 5.1. The current structural-query checkpoint produced the same 195-file, 84,250,176-byte tree and 35,951,915-byte ZIP with SHA-256 `f416bfbd8e37adcce2a3a88a97ad4f7e5b698001d9d9f2c4784b9e15715899fe` in two local builds; hosted comparison is pending. The preceding semantic-index checkpoint matched hosted Windows CI run `29920866791` exactly at SHA-256 `5c4b3ef4d420259463d2cca0e7ebef8d647781c541be761025861c1a73db004a`. The earlier exact 0.35 live package, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action real-Word gate; the later saved-package slices do not change live COM code | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
+| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF and normalizes Windows packaging onto Windows PowerShell 5.1. The current structural-query checkpoint produced the same 195-file, 84,250,176-byte tree and 35,951,915-byte ZIP with SHA-256 `f416bfbd8e37adcce2a3a88a97ad4f7e5b698001d9d9f2c4784b9e15715899fe` in two local builds and hosted Windows CI run `29923044649`. The preceding semantic-index checkpoint matched hosted Windows CI run `29920866791` exactly at SHA-256 `5c4b3ef4d420259463d2cca0e7ebef8d647781c541be761025861c1a73db004a`. The earlier exact 0.35 live package, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action real-Word gate; the later saved-package slices do not change live COM code | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
 
 ## Current checkpoint evidence
 
@@ -274,8 +274,9 @@ mutation/repair/render execution required by the goal.
 - The current structural-query checkpoint exposes 14 public tools and 78 lazy actions.
   Two local builds produced the same 195-file, 84,250,176-byte tree and 35,951,915-byte
   ZIP with SHA-256
-  `f416bfbd8e37adcce2a3a88a97ad4f7e5b698001d9d9f2c4784b9e15715899fe`;
-  hosted artifact comparison is pending. The packaged MCP indexed a real 194-node
+  `f416bfbd8e37adcce2a3a88a97ad4f7e5b698001d9d9f2c4784b9e15715899fe`.
+  The artifact downloaded from mandatory CI run `29923044649` matched exactly and all
+  five jobs passed. The packaged MCP indexed a real 194-node
   equation DOCX, used `descendant_relation` to scan 11 candidates, returned 5
   paragraphs containing equations, explicitly released the handle, kept each complete
   JSON-RPC response below 3,200 characters, left the source hash unchanged and did not

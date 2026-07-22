@@ -19,7 +19,8 @@
   The packaged MCP queried a real 194-node equation DOCX, selected 5 equation-bearing
   paragraphs after scanning 11 candidates, released the index, kept every complete
   JSON-RPC response below 3,200 characters, left the source unchanged and did not
-  alter the running Word process set. Hosted artifact comparison remains pending.
+  alter the running Word process set. The downloaded artifact from mandatory CI run
+  `29923044649` matched the local ZIP exactly, and all five jobs passed.
 - Added a bounded native semantic index for repeated AI queries. `WordSemanticIndex`
   precomputes source-ordered postings for node kind, source part and exact property
   values, then chooses the smallest posting as the candidate seed while rechecking every
