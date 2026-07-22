@@ -117,7 +117,15 @@ $startInfo.StandardOutputEncoding = $utf8NoBom
 $startInfo.StandardErrorEncoding = $utf8NoBom
 $process = [Diagnostics.Process]::new()
 $process.StartInfo = $startInfo
-[void]$process.Start()
+$previousInputEncoding = [Console]::InputEncoding
+[Console]::InputEncoding = [Text.Encoding]::ASCII
+try {
+    [void]$process.Start()
+    $mcpInput = $process.StandardInput
+}
+finally {
+    [Console]::InputEncoding = $previousInputEncoding
+}
 
 $requestId = 0
 function Invoke-Mcp {
@@ -142,8 +150,8 @@ function Invoke-Mcp {
         '[^\u0000-\u007F]',
         { param($match) '\u{0:x4}' -f [int][char]$match.Value }
     )
-    $process.StandardInput.WriteLine($request)
-    $process.StandardInput.Flush()
+    $mcpInput.WriteLine($request)
+    $mcpInput.Flush()
     $line = $process.StandardOutput.ReadLine()
     if (-not $line) {
         throw "Native MCP exited: $($process.StandardError.ReadToEnd())"
@@ -1820,7 +1828,7 @@ finally {
         }
     }
 
-    $process.StandardInput.Close()
+    $mcpInput.Close()
     if (-not $process.WaitForExit(5000)) {
         $process.Kill()
     }
