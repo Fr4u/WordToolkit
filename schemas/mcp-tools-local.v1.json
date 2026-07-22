@@ -5994,7 +5994,7 @@
     {
       "name": "plan_ooxml_semantic_edits",
       "title": "Plan typed Word semantic edits",
-      "description": "Plan an atomic create/clone/consolidate/assign style transaction against one package fingerprint; returns an SDK-validated candidate without writing.",
+      "description": "Plan and SDK-validate one fingerprint-bound style transaction without writing.",
       "inputSchema": {
         "type": "object",
         "$defs": {
@@ -6112,6 +6112,15 @@
               "target_style_id": {"$ref": "#/$defs/style_text"}
             },
             "required": ["type", "source_style_id", "target_style_id"],
+            "additionalProperties": false
+          },
+          "delete_unused_style": {
+            "type": "object",
+            "properties": {
+              "type": {"const": "delete_unused_style"},
+              "style_id": {"$ref": "#/$defs/style_text"}
+            },
+            "required": ["type", "style_id"],
             "additionalProperties": false
           }
         },
@@ -6134,11 +6143,12 @@
                 {"$ref": "#/$defs/create_style"},
                 {"$ref": "#/$defs/clone_style"},
                 {"$ref": "#/$defs/consolidate_style"},
+                {"$ref": "#/$defs/delete_unused_style"},
                 {"$ref": "#/$defs/exact_style"},
                 {"$ref": "#/$defs/selected_style"}
               ]
             },
-            "description": "At most 16 selectors and 200 commands/resolved assignments."
+            "description": "At most 16 selectors and 200 operations."
           },
           "include_details": {
             "type": "boolean",
@@ -6159,7 +6169,7 @@
     {
       "name": "apply_ooxml_semantic_edits",
       "title": "Apply reviewed typed Word semantic edits",
-      "description": "Atomically apply reviewed create/clone/consolidate/assign style intent; requires its fingerprint and plan ID and blocks unsafe drift.",
+      "description": "Apply reviewed style intent under its fingerprint and plan ID.",
       "inputSchema": {
         "type": "object",
         "$defs": {
@@ -6278,12 +6288,21 @@
             },
             "required": ["type", "source_style_id", "target_style_id"],
             "additionalProperties": false
+          },
+          "delete_unused_style": {
+            "type": "object",
+            "properties": {
+              "type": {"const": "delete_unused_style"},
+              "style_id": {"$ref": "#/$defs/style_text"}
+            },
+            "required": ["type", "style_id"],
+            "additionalProperties": false
           }
         },
         "properties": {
           "local_path": {
             "type": "string",
-            "description": "Existing local DOCX, DOCM, DOTX or DOTM path."
+            "description": "Existing local Word package path."
           },
           "expected_package_fingerprint": {
             "type": "string",
@@ -6304,6 +6323,7 @@
                 {"$ref": "#/$defs/create_style"},
                 {"$ref": "#/$defs/clone_style"},
                 {"$ref": "#/$defs/consolidate_style"},
+                {"$ref": "#/$defs/delete_unused_style"},
                 {"$ref": "#/$defs/exact_style"},
                 {"$ref": "#/$defs/selected_style"}
               ]

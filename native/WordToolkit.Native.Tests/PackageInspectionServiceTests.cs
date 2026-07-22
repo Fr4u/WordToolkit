@@ -2064,6 +2064,159 @@ public sealed class PackageInspectionServiceTests
     }
 
     [Fact]
+    public async Task SemanticUnusedStyleDeletionPlansAndAppliesValidatedRemovalWithoutWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-unused-style-deletion-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "delete-unused.docx");
+            CreatePackage(
+                path,
+                stylesXml: SemanticUnusedStyleDeletionStylesXml(),
+                paragraphPropertiesXml: "<w:pPr><w:pStyle w:val=\"Base\"/></w:pPr>"
+            );
+            var beforeBytes = File.ReadAllBytes(path);
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var beforeHashes = before.Entries.ToDictionary(
+                entry => entry.Name,
+                entry => entry.Sha256,
+                StringComparer.Ordinal
+            );
+
+            static object[] Commands(bool reordered) => reordered
+                ?
+                [
+                    new Dictionary<string, object?>
+                    {
+                        ["style_id"] = "Unused",
+                        ["type"] = "delete_unused_style",
+                    },
+                ]
+                :
+                [
+                    new Dictionary<string, object?>
+                    {
+                        ["type"] = "delete_unused_style",
+                        ["style_id"] = "Unused",
+                    },
+                ];
+
+            var service = new WordLiveService(new NoInvokeHost());
+            using var planArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                commands = Commands(false),
+                include_details = true,
+            }));
+            using var reorderedArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                commands = Commands(true),
+            }));
+            var plannedObject = await service.CallAsync(
+                "plan_ooxml_semantic_edits",
+                planArguments.RootElement,
+                CancellationToken.None
+            );
+            var reorderedObject = await service.CallAsync(
+                "plan_ooxml_semantic_edits",
+                reorderedArguments.RootElement,
+                CancellationToken.None
+            );
+            using var plannedJson = JsonDocument.Parse(JsonSerializer.Serialize(plannedObject));
+            using var reorderedJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(reorderedObject)
+            );
+            var planned = plannedJson.RootElement;
+            var planId = planned.GetProperty("plan_id").GetString()!;
+
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.Equal(planId, reorderedJson.RootElement.GetProperty("plan_id").GetString());
+            Assert.Equal(1, planned.GetProperty("style_definition_count").GetInt32());
+            Assert.Equal(0, planned.GetProperty("style_consolidation_count").GetInt32());
+            Assert.Equal(1, planned.GetProperty("style_deletion_count").GetInt32());
+            Assert.Equal(0, planned.GetProperty("style_reference_update_count").GetInt32());
+            Assert.Equal(1, planned.GetProperty("operation_count").GetInt32());
+            Assert.Equal(1, planned.GetProperty("changed_part_count").GetInt32());
+            Assert.True(planned.GetProperty("can_apply").GetBoolean(), planned.GetRawText());
+            Assert.True(
+                planned.GetProperty("candidate_validation")
+                    .GetProperty("no_new_errors")
+                    .GetBoolean()
+            );
+            var operation = Assert.Single(
+                planned.GetProperty("style_definition_operations").EnumerateArray()
+            );
+            Assert.Equal("delete_unused_style", operation.GetProperty("kind").GetString());
+            Assert.Equal("Unused", operation.GetProperty("style_id").GetString());
+            Assert.True(operation.GetProperty("xml_byte_delta").GetInt32() < 0);
+
+            using var applyArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                expected_plan_id = planId,
+                commands = Commands(true),
+                keep_backup = true,
+            }));
+            var appliedObject = await service.CallAsync(
+                "apply_ooxml_semantic_edits",
+                applyArguments.RootElement,
+                CancellationToken.None
+            );
+            using var appliedJson = JsonDocument.Parse(JsonSerializer.Serialize(appliedObject));
+            var applied = appliedJson.RootElement;
+
+            Assert.True(applied.GetProperty("applied").GetBoolean());
+            Assert.Equal(
+                planned.GetProperty("result_package_fingerprint").GetString(),
+                applied.GetProperty("package_fingerprint").GetString()
+            );
+            Assert.Equal(
+                ["word/styles.xml"],
+                applied.GetProperty("changed_entry_names")
+                    .EnumerateArray()
+                    .Select(item => item.GetString()!)
+                    .ToArray()
+            );
+            Assert.Equal(
+                beforeBytes,
+                File.ReadAllBytes(applied.GetProperty("backup_path").GetString()!)
+            );
+
+            var after = reader.Read(path);
+            var afterSemantic = new WordSemanticProjector().Project(after);
+            var styles = new WordStyleGraphBuilder().Build(after, afterSemantic);
+            Assert.False(styles.TryGetStyle("Unused", out _));
+            Assert.True(styles.TryGetStyle("Base", out _));
+            Assert.True(styles.TryGetStyle("Keep", out _));
+            Assert.Equal(
+                "Base",
+                afterSemantic.Nodes.Single(node =>
+                    node.Kind == WordSemanticNodeKind.Paragraph
+                ).Properties["style_id"]
+            );
+            Assert.All(after.Entries.Where(entry => entry.Name != "word/styles.xml"), entry =>
+                Assert.Equal(beforeHashes[entry.Name], entry.Sha256)
+            );
+            Assert.False(applied.GetProperty("raw_xml_returned").GetBoolean());
+            Assert.False(applied.GetProperty("word_opened").GetBoolean());
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task SemanticStyleApplyRejectsSignedPackageAndLeavesItUntouched()
     {
         var directory = Path.Combine(
@@ -2242,6 +2395,36 @@ public sealed class PackageInspectionServiceTests
                 },
             ]);
             Assert.Equal("INVALID_INPUT", unknownConsolidationProperty.ErrorCode);
+
+            var missingDeletionStyle = await RejectPlanAsync(
+            [
+                new
+                {
+                    type = "delete_unused_style",
+                },
+            ]);
+            Assert.Equal("INVALID_INPUT", missingDeletionStyle.ErrorCode);
+
+            var unsafeBuiltInDeletion = await RejectPlanAsync(
+            [
+                new
+                {
+                    type = "delete_unused_style",
+                    style_id = "OldPara",
+                },
+            ]);
+            Assert.Equal("UNSAFE_EDIT", unsafeBuiltInDeletion.ErrorCode);
+
+            var unknownDeletionProperty = await RejectPlanAsync(
+            [
+                new
+                {
+                    type = "delete_unused_style",
+                    style_id = "OldPara",
+                    force = true,
+                },
+            ]);
+            Assert.Equal("INVALID_INPUT", unknownDeletionProperty.ErrorCode);
 
             using var duplicateArguments = JsonDocument.Parse(
                 $$"""
@@ -3420,6 +3603,15 @@ public sealed class PackageInspectionServiceTests
           <w:style w:type="paragraph" w:styleId="Source" w:customStyle="1"><w:name w:val="Source name"/><w:aliases w:val="Source alias"/><w:basedOn w:val="Base"/><w:next w:val="Source"/><w:qFormat/><w:rsid w:val="11111111"/><w:pPr><w:keepNext/></w:pPr><w:rPr><w:b/></w:rPr></w:style>
           <w:style w:type="paragraph" w:styleId="Target" w:customStyle="1"><w:name w:val="Target name"/><w:aliases w:val="Target alias"/><w:basedOn w:val="Base"/><w:next w:val="Target"/><w:qFormat/><w:rsid w:val="22222222"/><w:pPr><w:keepNext/></w:pPr><w:rPr><w:b/></w:rPr></w:style>
           <w:style w:type="paragraph" w:styleId="Derived" w:customStyle="1"><w:name w:val="Derived"/><w:basedOn w:val="Source"/></w:style>
+        </w:styles>
+        """;
+
+    private static string SemanticUnusedStyleDeletionStylesXml() =>
+        """
+        <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
+          <w:style w:type="paragraph" w:default="1" w:styleId="Base"><w:name w:val="Base"/></w:style>
+          <w:style w:type="paragraph" w:styleId="Unused" w:customStyle="1"><w:name w:val="Unused"/><w:basedOn w:val="Base"/><w14:opaque w14:val="remove-with-style"/><w:pPr><w:keepNext/></w:pPr><w:rPr><w:b/></w:rPr></w:style>
+          <w:style w:type="character" w:styleId="Keep" w:customStyle="1"><w:name w:val="Keep"/></w:style>
         </w:styles>
         """;
 

@@ -158,6 +158,9 @@ internal sealed partial class WordLiveService
             style_consolidation_count = context.Plan.DefinitionOperations.Count(operation =>
                 operation.Kind == "consolidate_style"
             ),
+            style_deletion_count = context.Plan.DefinitionOperations.Count(operation =>
+                operation.Kind == "delete_unused_style"
+            ),
             style_reference_update_count = context.Plan.DefinitionOperations.Sum(operation =>
                 operation.ReferenceUpdateCount
             ),
@@ -375,10 +378,18 @@ internal sealed partial class WordLiveService
                         intentFields
                     );
                     break;
+                case "delete_unused_style":
+                    ParseDeleteUnusedStyleCommand(
+                        item,
+                        commandIndex,
+                        definitions,
+                        intentFields
+                    );
+                    break;
                 default:
                     throw new NativeToolException(
                         "INVALID_INPUT",
-                        "Semantic edit command type must be create_style, clone_style, consolidate_style, set_style, or set_style_where"
+                        "Semantic edit command type must be create_style, clone_style, consolidate_style, delete_unused_style, set_style, or set_style_where"
                     );
             }
 
@@ -519,6 +530,20 @@ internal sealed partial class WordLiveService
             sourceStyleId,
             targetStyleId
         );
+    }
+
+    private static void ParseDeleteUnusedStyleCommand(
+        JsonElement item,
+        int commandIndex,
+        ICollection<WordStyleDefinitionCommand> result,
+        ICollection<string> intentFields
+    )
+    {
+        ValidateCommandProperties(item, ["type", "style_id"]);
+        _ = item.Required("style_id");
+        var styleId = RequiredBoundedStyleText(item, "style_id");
+        result.Add(new WordStyleDeleteUnusedCommand(styleId));
+        AddStyleDeletionIntent(intentFields, commandIndex, styleId);
     }
 
     private static string RequiredBoundedStyleText(JsonElement item, string name)
@@ -987,6 +1012,17 @@ internal sealed partial class WordLiveService
         fields.Add("consolidate_style");
         fields.Add(sourceStyleId);
         fields.Add(targetStyleId);
+    }
+
+    private static void AddStyleDeletionIntent(
+        ICollection<string> fields,
+        int commandIndex,
+        string styleId
+    )
+    {
+        fields.Add(commandIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        fields.Add("delete_unused_style");
+        fields.Add(styleId);
     }
 
     private static void AddQueryIntent(

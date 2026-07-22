@@ -420,7 +420,8 @@ Package rollback remains independent, so a failure never calls broad `Undo()` ac
 unrelated user work.
 
 The first transaction slices are implemented for batches of text-leaf, typed style-
-definition creation/cloning/exact consolidation, and style-assignment commands.
+definition creation/cloning/exact consolidation/proven-unused deletion, and style-
+assignment commands.
 `WordSemanticTransactionPlanner` resolves every node against one package fingerprint,
 parses each affected part once, rejects duplicate targets, builds one ordered
 non-overlapping patch set per part, and returns a compact plan with operation counts,
@@ -444,12 +445,16 @@ the style ID, direct name/aliases/revision ID, self-`next` and same-batch relati
 all formatting, UI metadata, opaque elements, attributes, text, comments and processing
 instructions remain comparison-significant. Recognized `basedOn`, linked-style,
 numbering-style and paragraph/run/table references are type-checked and rewritten across
-projected stories, revision snapshots, `styles.xml` and `numbering.xml` before the source
-definition is removed. Multiple creation, consolidation and assignment stages compose
+projected stories, revision snapshots, glossary metadata, `styles.xml` and `numbering.xml`
+before the source definition is removed. `delete_unused_style` takes only an explicit
+custom, non-default style ID. It removes the exact definition span only after proving that
+no surviving semantic, style, numbering, glossary, latent-style, `STYLEREF` or unmodeled
+XML consumer refers to it. A single deletion batch may describe a closed graph of mutually
+dependent unused styles. Multiple creation, consolidation, deletion and assignment stages compose
 only through an exact byte chain. A single final plan joins every payload, predicts one
 result fingerprint and retains one exact inverse. Missing sources, duplicate IDs,
 wrong-type references, cycles, graph damage, non-equivalence, unmodeled XML consumers,
-unsafe `STYLEREF`, macros, linked-template updates, `altChunk`, signatures, schema drift
+matching latent-style exceptions, unsafe `STYLEREF`, macros, linked-template updates, `altChunk`, signatures, schema drift
 and `stylesWithEffects` packages fail closed. The mirror is blocked rather than silently
 letting `styles.xml` and `stylesWithEffects.xml` diverge.
 
@@ -461,7 +466,8 @@ are added as the first child through the lossless source model. Duplicate contai
 wrong-type or missing styles, broken inheritance, stale source identities, namespace
 prefix collisions, signed packages, plan drift, and new Open XML SDK errors fail closed.
 Creation does not accept arbitrary formatting-property payloads; cloning is the current
-lossless formatting-preservation path. General rename/delete, fuzzy consolidation,
+lossless formatting-preservation path. General rename, deletion of referenced or built-in
+definitions, fuzzy consolidation,
 automatic linked-style repair, template alignment and conditional table styles remain
 future work.
 
@@ -654,15 +660,18 @@ Lazy `lint_ooxml_document` exposes compact summary, paged findings and a paged r
 catalog without starting Word, following an external target or returning document text.
 Every fix remains `review_required` and `requires_preview=true`. Only the exact finding
 for one existing, unambiguous, empty and lexically safe `dc:title` is currently marked
-`implemented=true`. `plan_ooxml_lint_repair` re-runs the relevant lint pass against the
+`implemented=true`. An unused-style finding advertises the separate
+`delete_unused_style` command but remains `implemented=false`; lint evidence alone never
+authorizes mutation, and the semantic planner re-proves the stricter consumer gates.
+`plan_ooxml_lint_repair` re-runs the relevant lint pass against the
 expected package fingerprint, binds the finding to its XML element, creates a lossless
 single-part candidate and proves that the title finding disappears. The native layer
 adds baseline-versus-candidate Open XML validation and binds the reviewed plan to a new
 same-extension output path. `apply_ooxml_lint_repair` rebuilds that exact plan, blocks
 signed packages and validation drift, and atomically creates the new file without
 opening Word or overwriting anything. Missing, duplicate or mixed-markup title elements
-and every other repair kind fail closed. The formatter, optimizer and general repair
-engine remain unfinished layers.
+and every other finding-bound repair kind fail closed. The formatter and general repair
+engine remain unfinished; the optimizer currently contains only the strict style slices.
 
 ### Semantic comparison
 
@@ -952,10 +961,10 @@ No feature is “supported” until it passes the relevant gates:
 ### Phase 3 — safe edits
 
 - command schema, preconditions, plan/apply, inverse patches — **bounded multi-text plus
-  heterogeneous style create/clone/exact-consolidation/exact-or-selected assignment planning,
+  heterogeneous style create/clone/exact-consolidation/proven-unused deletion/exact-or-selected assignment planning,
   package/node/part/property preconditions, one patch set per part, predicted result
   fingerprint and exact part-byte inverse implemented; arbitrary style formatting,
-  rename/general delete/fuzzy repair/template alignment, broader commands, permissions, approval and semantic
+  rename/referenced-or-built-in delete/fuzzy repair/template alignment, broader commands, permissions, approval and semantic
   inverses remain**;
 - style and numbering resolvers;
 - fields/references and source-linked review read graph — **initial implementations

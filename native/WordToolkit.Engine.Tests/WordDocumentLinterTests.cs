@@ -29,7 +29,12 @@ public sealed class WordDocumentLinterTests
         Assert.True(first.Coverage.ExecutionComplete);
         Assert.False(first.Coverage.DocumentCoverageComplete);
         Assert.NotEmpty(first.Coverage.ExplicitlyUnmodeledDomains);
-        Assert.Contains(first.Findings, item => item.RuleId == "WTL_STYLE_UNUSED");
+        Assert.Contains(
+            first.Findings,
+            item => item.RuleId == "WTL_STYLE_UNUSED"
+                && item.Fix.Kind == "delete_unused_style"
+                && !item.Fix.IsImplemented
+        );
         Assert.Contains(
             first.Findings,
             item => item.RuleId == "WTL_STYLE_EQUIVALENT_FORMATTING"

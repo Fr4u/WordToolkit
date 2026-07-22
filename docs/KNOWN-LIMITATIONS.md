@@ -7,27 +7,31 @@ WordToolkit deliberately avoids claiming complete Microsoft Word parity.
 - Equation numbering uses a `SEQ Equation` field and bookmark with a separate numbering paragraph. Complex journal-specific tab-stop/equation-table layouts need a template-specific extension.
 - The saved-package engine now pairs bookmarks and parses nested complex/simple fields into a read-only dependency graph, but it does not evaluate or refresh them. Word/LibreOffice remains authoritative for TOC, PAGE, NUMPAGES, REF and other field results; cached values may be stale before an office application refreshes them. TOC/TOF/TOT option semantics, captions, element hyperlinks, citations/bibliography sources and safe field-range edits are not complete. Word Live allowlisted fields are immediately updated, but pagination-dependent values can still change when layout, printers or later content changes.
 - The unified saved-package dependency graph currently joins OPC relationships and reachability, projected semantic containment, styles, numbering, field/bookmark targets and section header/footer bindings. It does not yet type DrawingML/VML layout, charts, SmartArt, OLE, custom-XML bindings, bibliography-source parts, macros, signatures, encryption or co-authoring sessions. An absent edge in one of those domains is missing coverage, not proof that no dependency exists. The graph is read-only and does not itself repair, optimize or authorize a deletion.
-- The native saved-package linter is an initial 18-rule layer, not Word's complete Accessibility Checker, security scanner or document-quality oracle. It covers bounded core/style/accessibility/security evidence and reports explicit unmodeled domains, but it does not yet understand full numbering sequence behavior, language, reading order, link quality, contrast, chart/SmartArt semantics, macros, signatures, encryption, co-authoring or every Word extension. It still materializes the typed graphs; its stricter 100,000-node/200,000-edge dependency ceilings reject oversized analyses but do not remove the underlying allocation debt. Linting itself is read-only. The only executable repair is a reviewed replacement of exactly one existing, empty, lexically safe `dc:title`; missing/duplicate/mixed-markup title elements and every other finding fail closed. Apply blocks signed packages and new Open XML validation errors and only creates a new same-extension output file.
+- The native saved-package linter is an initial 18-rule layer, not Word's complete Accessibility Checker, security scanner or document-quality oracle. It covers bounded core/style/accessibility/security evidence and reports explicit unmodeled domains, but it does not yet understand full numbering sequence behavior, language, reading order, link quality, contrast, chart/SmartArt semantics, macros, signatures, encryption, co-authoring or every Word extension. It still materializes the typed graphs; its stricter 100,000-node/200,000-edge dependency ceilings reject oversized analyses but do not remove the underlying allocation debt. Linting itself is read-only. The only finding-bound executable repair is a reviewed replacement of exactly one existing, empty, lexically safe `dc:title`; missing/duplicate/mixed-markup title elements and every other finding fail closed. An unused-style finding names `delete_unused_style` but remains `implemented=false`; the separate semantic command re-proves deletion safety and is not authorized by the finding alone. Lint-repair apply blocks signed packages and new Open XML validation errors and only creates a new same-extension output file.
 - Semantic indexing is currently a bounded single-process acceleration layer, not a durable search database. A handle covers one immutable package fingerprint, at most 100,000 nodes and one million property occurrences; the runtime keeps no more than four handles or 250,000 cached nodes, expires them within 30 minutes and loses them on restart. It indexes exact kind/part/property postings and can derive strict ancestor/descendant candidate sets with one tree propagation, but it has no full-text tokens, durable relationship postings, embeddings or multi-document ranking. Parent/child, sibling and arbitrary dependency-graph axes are not query predicates. Raw document text stays in process memory as part of the semantic projection and is never returned by index management, but it is not encrypted in memory. Callers should release handles as soon as repeated queries finish.
 - Saved-package semantic style mutation can create a minimal inherited paragraph,
-  character, table or numbering style, losslessly clone one existing definition, and
+  character, table or numbering style, losslessly clone one existing definition,
   consolidate an explicitly selected custom, non-default source into an existing
   same-type target when their complete canonical definitions are identical after only
   identity and same-batch relation normalization. Consolidation updates recognized
-  references in projected stories, revision snapshots, `styles.xml` and `numbering.xml`,
-  deletes the source definition and retains an exact inverse. It is deliberately not a
+  references in projected stories, revision snapshots, glossary metadata, `styles.xml`
+  and `numbering.xml`, deletes the source definition and retains an exact inverse. The
+  explicit `delete_unused_style` command can remove a custom, non-default definition, or
+  a closed batch of mutually dependent definitions, only when no surviving modeled or
+  unmodeled consumer refers to it. Both operations are deliberately not a
   fuzzy duplicate merger: existing style/numbering graph issues, non-equivalence,
   chained targets, `stylesWithEffects`, macros, `altChunk`, automatic linked-template
-  updates, dynamic/ambiguous/source-addressing `STYLEREF`, malformed unmodeled XML and
-  explicit source references in unmodeled XML all block the plan. Linked paragraph and
+  updates, matching latent-style exceptions, dynamic/ambiguous/source-addressing
+  `STYLEREF`, malformed unmodeled XML and explicit source references in unmodeled XML all
+  block the plan. Linked paragraph and
   character styles require one explicit equivalent-pair batch.
   The same command family can
   assign a compatible inheritance-resolvable paragraph/character/table style to exact or
   selected semantic nodes in the same atomic transaction. `create_style` does not accept
   arbitrary formatting blocks; `clone_style` preserves source formatting and opaque
   extensions but deliberately strips default and linked-style identity. The engine does
-  not rename, generally delete, fuzzily repair, or align definitions to templates; infer
-  domain labels such as APA/IEEE; model conditional table-style
+  not rename, delete referenced or built-in definitions, fuzzily repair, or align
+  definitions to templates; infer domain labels such as APA/IEEE; model conditional table-style
   rendering; or enforce document protection/permission semantics. Definition edits fail
   closed when `stylesWithEffects.xml` exists because mirrored mutation is not implemented.
   Planning and apply are bounded to 200 resolved operations and block signatures and new

@@ -2,14 +2,39 @@
 
 ## Unreleased
 
+- Added fail-closed unused-style deletion to the typed saved-package semantic edit
+  actions. `delete_unused_style` removes only an explicitly selected custom, non-default
+  definition after proving that no surviving semantic, revision, style, numbering,
+  glossary, latent-style, `STYLEREF` or unmodeled XML consumer refers to it. One explicit
+  batch may remove a closed graph of mutually dependent unused styles. The operation
+  removes only exact `styles.xml` byte spans, participates in the same deterministic
+  fingerprint-bound create/consolidate/delete/assign transaction, retains an exact
+  inverse and reports a bounded deletion count without returning document content.
+  Built-in/default styles, retained references, graph damage, macros, `altChunk`, linked
+  templates, `stylesWithEffects`, signatures and schema regressions fail before mutation.
+- Verified the deletion slice with 280 document-engine tests, 207 native-host tests,
+  1,273 Python/OOXML tests with 16 intentional skips, Ruff, scoped .NET formatting,
+  schema-export drift checks and the standalone Open XML validator build. Two local
+  self-contained builds produced identical 195-file, 84,397,476-byte trees and
+  35,995,361-byte ZIPs with SHA-256
+  `417af08694ba33cd7c6fedc6ad06a6e2baf00b51f0f2af76c34d703b3976f9b6`.
+  Through that packaged MCP, a clone first created one unused custom style. Its
+  55-character deletion command produced a 934-character compact plan stable under JSON
+  property order, with one negative byte delta and no new SDK errors. Apply matched the
+  predicted fingerprint, changed only `word/styles.xml`, retained an exact pre-apply
+  backup, removed the style, preserved every original ZIP-entry payload, returned no XML
+  and did not change the running Word process set. A packaged attempt to delete the
+  default `Standard` style failed closed and left the file byte-identical.
 - Added fail-closed exact style consolidation to the typed saved-package semantic edit
-  actions. `consolidate_style` rewrites type-checked paragraph/run/table, style-graph and
-  numbering references, removes an explicitly selected canonical-equivalent custom
-  source definition and retains one predicted fingerprint plus exact inverse. Linked
+  actions. `consolidate_style` rewrites type-checked paragraph/run/table, glossary,
+  style-graph and numbering references, removes an explicitly selected
+  canonical-equivalent custom source definition and retains one predicted fingerprint
+  plus exact inverse. Linked
   paragraph/character pairs can be consolidated in one explicit batch; create/clone,
   consolidation and assignment stages compose only through an exact byte chain. Built-in
-  or non-equivalent sources, chained targets, graph damage, unsafe `STYLEREF`, unmodeled
-  XML consumers, macros, `altChunk`, linked-template updates and `stylesWithEffects` fail
+  or non-equivalent sources, chained targets, graph damage, matching latent-style
+  exceptions, unsafe `STYLEREF`, unmodeled XML consumers, macros, `altChunk`,
+  linked-template updates and `stylesWithEffects` fail
   before mutation. Plan responses expose bounded consolidation/reference counts, accept
   property-order-stable intent, return no XML/text and remain below the 4,500-character
   lazy-schema ceiling.

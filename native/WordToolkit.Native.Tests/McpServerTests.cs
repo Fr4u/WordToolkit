@@ -345,6 +345,24 @@ public sealed class McpServerTests
                 .ToArray()
         );
         Assert.Equal(
+            "delete_unused_style",
+            planDefinitions
+                .GetProperty("delete_unused_style")
+                .GetProperty("properties")
+                .GetProperty("type")
+                .GetProperty("const")
+                .GetString()
+        );
+        Assert.Equal(
+            ["type", "style_id"],
+            planDefinitions
+                .GetProperty("delete_unused_style")
+                .GetProperty("required")
+                .EnumerateArray()
+                .Select(item => item.GetString()!)
+                .ToArray()
+        );
+        Assert.Equal(
             200,
             planDefinitions
                 .GetProperty("selected_style")
@@ -369,6 +387,7 @@ public sealed class McpServerTests
                 "#/$defs/create_style",
                 "#/$defs/clone_style",
                 "#/$defs/consolidate_style",
+                "#/$defs/delete_unused_style",
                 "#/$defs/exact_style",
                 "#/$defs/selected_style",
             ],

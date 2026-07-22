@@ -1197,7 +1197,7 @@ public sealed class WordDocumentLinter
                     null,
                     null
                 ),
-                ManualFix("remove_unused_style")
+                ManualFix("delete_unused_style")
             );
         }
     }

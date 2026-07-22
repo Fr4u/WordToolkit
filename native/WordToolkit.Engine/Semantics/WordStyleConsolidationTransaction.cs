@@ -17,6 +17,7 @@ public sealed partial class WordSemanticTransactionPlanner
             "numStyleLink",
             "pStyle",
             "rStyle",
+            "style",
             "styleLink",
             "tblStyle",
         };
@@ -70,11 +71,11 @@ public sealed partial class WordSemanticTransactionPlanner
                 "Style consolidation requires a numbering graph with no existing issues."
             );
         }
-        ValidateStyleConsolidationEnvironment(
+        ValidateStyleRemovalEnvironment(
             package,
             semanticDocument,
             graph,
-            commands,
+            commands.Select(command => command.SourceStyleId),
             cancellationToken
         );
 
@@ -352,11 +353,11 @@ public sealed partial class WordSemanticTransactionPlanner
         return new StyleDefinitionDraft(payloads.Values.ToArray(), operations);
     }
 
-    private static void ValidateStyleConsolidationEnvironment(
+    private static void ValidateStyleRemovalEnvironment(
         OpcPackageSnapshot package,
         WordSemanticDocument semanticDocument,
         WordStyleGraph graph,
-        IReadOnlyList<WordStyleConsolidateCommand> commands,
+        IEnumerable<string> sourceStyleIds,
         CancellationToken cancellationToken
     )
     {
@@ -373,7 +374,7 @@ public sealed partial class WordSemanticTransactionPlanner
         ))
         {
             throw new WordSemanticEditException(
-                "Style consolidation is blocked for macro-enabled packages because VBA style consumers are not modeled."
+                "Style removal is blocked for macro-enabled packages because VBA style consumers are not modeled."
             );
         }
 
@@ -389,14 +390,14 @@ public sealed partial class WordSemanticTransactionPlanner
         )
         {
             throw new WordSemanticEditException(
-                "Style consolidation is blocked while automatic linked-template style updates are enabled."
+                "Style removal is blocked while automatic linked-template style updates are enabled."
             );
         }
 
         var identities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var command in commands)
+        foreach (var sourceStyleId in sourceStyleIds)
         {
-            if (!graph.TryGetStyle(command.SourceStyleId, out var source) || source is null)
+            if (!graph.TryGetStyle(sourceStyleId, out var source) || source is null)
             {
                 continue;
             }
@@ -410,6 +411,16 @@ public sealed partial class WordSemanticTransactionPlanner
                 identities.Add(alias);
             }
         }
+        if (
+            graph.LatentStyles?.Exceptions.Any(exception =>
+                identities.Contains(exception.Name)
+            ) == true
+        )
+        {
+            throw new WordSemanticEditException(
+                "Style removal is blocked because latent-style behavior addresses a source style name or alias."
+            );
+        }
         var references = new WordReferenceGraphBuilder().Build(
             package,
             semanticDocument,
@@ -422,7 +433,7 @@ public sealed partial class WordSemanticTransactionPlanner
             if (!field.InstructionParseComplete || field.HasDynamicInstruction)
             {
                 throw new WordSemanticEditException(
-                    "Style consolidation is blocked by a dynamic or incompletely parsed STYLEREF field."
+                    "Style removal is blocked by a dynamic or incompletely parsed STYLEREF field."
                 );
             }
             var targets = references.Edges.Where(edge =>
@@ -432,13 +443,13 @@ public sealed partial class WordSemanticTransactionPlanner
             if (targets.Length != 1)
             {
                 throw new WordSemanticEditException(
-                    "Style consolidation is blocked by an ambiguous STYLEREF field."
+                    "Style removal is blocked by an ambiguous STYLEREF field."
                 );
             }
             if (identities.Contains(targets[0]))
             {
                 throw new WordSemanticEditException(
-                    "Style consolidation is blocked because STYLEREF addresses a source style by ID, name, or alias."
+                    "Style removal is blocked because STYLEREF addresses a source style by ID, name, or alias."
                 );
             }
         }
@@ -708,6 +719,7 @@ public sealed partial class WordSemanticTransactionPlanner
     {
         "pStyle" => WordStyleType.Paragraph,
         "rStyle" => WordStyleType.Character,
+        "style" => ExpectedGlossaryStyleType(source, element),
         "tblStyle" => WordStyleType.Table,
         "next" => ExpectedNextStyleType(graph, source, element),
         "numStyleLink" or "styleLink" when string.Equals(
@@ -728,6 +740,27 @@ public sealed partial class WordSemanticTransactionPlanner
             $"Style reference w:{element.LocalName} appears outside its modeled OOXML context."
         ),
     };
+
+    private static WordStyleType ExpectedGlossaryStyleType(
+        LosslessXmlDocument source,
+        XmlSourceElement element
+    )
+    {
+        if (element.ParentOrdinal is not { } parentOrdinal)
+        {
+            throw new WordSemanticEditException(
+                "A w:style reference has no modeled glossary-property parent."
+            );
+        }
+        var parent = source.GetElement(parentOrdinal);
+        if (!IsWordNamespace(parent.NamespaceUri) || parent.LocalName != "docPartPr")
+        {
+            throw new WordSemanticEditException(
+                "A w:style reference appears outside glossary document-part properties."
+            );
+        }
+        return WordStyleType.Paragraph;
+    }
 
     private static WordStyleType ExpectedNextStyleType(
         WordStyleGraph graph,

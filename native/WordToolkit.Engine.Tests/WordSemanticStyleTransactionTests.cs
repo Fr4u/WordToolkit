@@ -554,13 +554,17 @@ public sealed class WordSemanticStyleTransactionTests
         var footnotesXml = $"""
             <w:footnotes xmlns:w="{WordNamespace}"><w:footnote w:id="1"><w:p><w:pPr><w:pStyle w:val="SourcePara"/></w:pPr><w:r><w:t>note</w:t></w:r></w:p></w:footnote></w:footnotes>
             """;
+        var glossaryXml = $"""
+            <w:glossaryDocument xmlns:w="{WordNamespace}"><w:docParts><w:docPart><w:docPartPr><w:name w:val="entry"/><w:style w:val="SourcePara"/></w:docPartPr><w:docPartBody><w:p><w:r><w:t>entry</w:t></w:r></w:p></w:docPartBody></w:docPart></w:docParts></w:glossaryDocument>
+            """;
         using var stream = BuildConsolidationPackage(
             documentXml,
             stylesXml,
             numberingXml,
             headerXml,
             commentsXml,
-            footnotesXml
+            footnotesXml,
+            glossaryXml
         );
         var reader = new OpcPackageReader();
         var package = reader.Read(stream);
@@ -587,11 +591,11 @@ public sealed class WordSemanticStyleTransactionTests
 
         Assert.Equal(plan.PlanId, repeated.PlanId);
         Assert.Equal(2, plan.OperationCount);
-        Assert.Equal(6, plan.ChangedPartCount);
+        Assert.Equal(7, plan.ChangedPartCount);
         Assert.All(plan.DefinitionOperations, operation =>
             Assert.Equal("consolidate_style", operation.Kind)
         );
-        Assert.Equal(7, plan.DefinitionOperations[0].ReferenceUpdateCount);
+        Assert.Equal(8, plan.DefinitionOperations[0].ReferenceUpdateCount);
         Assert.Equal(3, plan.DefinitionOperations[1].ReferenceUpdateCount);
 
         using var appliedStream = Serialize(plan.CreateMutation(package));
@@ -631,6 +635,7 @@ public sealed class WordSemanticStyleTransactionTests
                 "/word/header1.xml",
                 "/word/comments.xml",
                 "/word/footnotes.xml",
+                "/word/glossary/document.xml",
             }
         )
         {
@@ -826,6 +831,26 @@ public sealed class WordSemanticStyleTransactionTests
             )
         );
 
+        var latentStyles = styles.Replace(
+            $"<w:styles xmlns:w=\"{WordNamespace}\">",
+            $"<w:styles xmlns:w=\"{WordNamespace}\"><w:latentStyles><w:lsdException w:name=\"Source name\"/></w:latentStyles>",
+            StringComparison.Ordinal
+        );
+        using var latentStream = BuildPackage(
+            $"<w:document xmlns:w='{WordNamespace}'><w:body><w:p/></w:body></w:document>",
+            latentStyles
+        );
+        var latentPackage = new OpcPackageReader().Read(latentStream);
+        var latentSemantic = new WordSemanticProjector().Project(latentPackage);
+        Assert.Throws<WordSemanticEditException>(() =>
+            new WordSemanticTransactionPlanner().PlanStyleEdits(
+                latentPackage,
+                latentSemantic,
+                [new WordStyleConsolidateCommand("Source", "Target")],
+                Array.Empty<WordStyleAssignmentCommand>()
+            )
+        );
+
         var repeatedReferences = $"""
             <w:document xmlns:w="{WordNamespace}"><w:body><w:p><w:pPr><w:pStyle w:val="Source"/></w:pPr></w:p><w:p><w:pPr><w:pStyle w:val="Source"/></w:pPr></w:p></w:body></w:document>
             """;
@@ -913,6 +938,154 @@ public sealed class WordSemanticStyleTransactionTests
         );
     }
 
+    [Fact]
+    public void DeletesAClosedUnusedCustomStyleSubgraphWithAnExactInverse()
+    {
+        var stylesXml = $"""
+            <w:styles xmlns:w="{WordNamespace}" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
+              <w:style w:type="paragraph" w:default="1" w:styleId="Base"><w:name w:val="Base"/></w:style>
+              <w:style w:type="paragraph" w:styleId="UnusedParent" w:customStyle="1"><w:name w:val="Unused parent"/><w:basedOn w:val="Base"/><w:next w:val="UnusedParent"/><w14:opaque w14:val="keep-until-delete"/><w:rPr><w:b/></w:rPr></w:style>
+              <w:style w:type="paragraph" w:styleId="UnusedChild" w:customStyle="1"><w:name w:val="Unused child"/><w:basedOn w:val="UnusedParent"/><w:rPr><w:i/></w:rPr></w:style>
+              <w:style w:type="character" w:styleId="KeepChar" w:customStyle="1"><w:name w:val="Keep character"/></w:style>
+            </w:styles>
+            """;
+        var documentXml = $"""
+            <w:document xmlns:w="{WordNamespace}"><w:body><w:p><w:pPr><w:pStyle w:val="Base"/></w:pPr><w:r><w:rPr><w:rStyle w:val="KeepChar"/></w:rPr><w:t>kept</w:t></w:r></w:p></w:body></w:document>
+            """;
+        using var stream = BuildPackage(documentXml, stylesXml, opaque: [4, 3, 2, 1]);
+        var reader = new OpcPackageReader();
+        var package = reader.Read(stream);
+        var semantic = new WordSemanticProjector().Project(package);
+        var commands = new WordStyleDefinitionCommand[]
+        {
+            new WordStyleDeleteUnusedCommand("UnusedChild"),
+            new WordStyleDeleteUnusedCommand("UnusedParent"),
+        };
+
+        var plan = new WordSemanticTransactionPlanner().PlanStyleEdits(
+            package,
+            semantic,
+            commands,
+            Array.Empty<WordStyleAssignmentCommand>()
+        );
+        var repeated = new WordSemanticTransactionPlanner().PlanStyleEdits(
+            package,
+            semantic,
+            commands,
+            Array.Empty<WordStyleAssignmentCommand>()
+        );
+
+        Assert.Equal(plan.PlanId, repeated.PlanId);
+        Assert.Equal(2, plan.OperationCount);
+        Assert.Equal(1, plan.ChangedPartCount);
+        Assert.All(plan.DefinitionOperations, operation =>
+        {
+            Assert.Equal("delete_unused_style", operation.Kind);
+            Assert.True(operation.XmlByteDelta < 0);
+            Assert.Equal(0, operation.ReferenceUpdateCount);
+        });
+
+        using var appliedStream = Serialize(plan.CreateMutation(package));
+        var applied = reader.Read(appliedStream);
+        Assert.Equal(plan.ResultPackageFingerprint, applied.Fingerprint);
+        var changedSemantic = new WordSemanticProjector().Project(applied);
+        var graph = new WordStyleGraphBuilder().Build(applied, changedSemantic);
+        Assert.False(graph.TryGetStyle("UnusedChild", out _));
+        Assert.False(graph.TryGetStyle("UnusedParent", out _));
+        Assert.True(graph.TryGetStyle("Base", out _));
+        Assert.True(graph.TryGetStyle("KeepChar", out _));
+        Assert.Equal(
+            package.Parts["/custom/opaque.bin"].Entry.Sha256,
+            applied.Parts["/custom/opaque.bin"].Entry.Sha256
+        );
+
+        using var revertedStream = Serialize(plan.CreateInverseMutation(applied));
+        var reverted = reader.Read(revertedStream);
+        Assert.Equal(package.Fingerprint, reverted.Fingerprint);
+        foreach (var part in package.Parts.Values)
+        {
+            Assert.Equal(
+                part.Entry.Content.ToArray(),
+                reverted.Parts[part.Uri].Entry.Content.ToArray()
+            );
+        }
+    }
+
+    [Fact]
+    public void RejectsReferencedBuiltInDuplicateAndCrossStageStyleDeletion()
+    {
+        var planner = new WordSemanticTransactionPlanner();
+        var styles = $"""
+            <w:styles xmlns:w="{WordNamespace}">
+              <w:style w:type="paragraph" w:default="1" w:styleId="Base"><w:name w:val="Base"/></w:style>
+              <w:style w:type="paragraph" w:styleId="Source" w:customStyle="1"><w:name w:val="Source name"/><w:rPr><w:b/></w:rPr></w:style>
+              <w:style w:type="paragraph" w:styleId="Target" w:customStyle="1"><w:name w:val="Target name"/><w:rPr><w:b/></w:rPr></w:style>
+              <w:style w:type="paragraph" w:styleId="Dependent" w:customStyle="1"><w:name w:val="Dependent"/><w:basedOn w:val="Source"/></w:style>
+            </w:styles>
+            """;
+        var document = $"<w:document xmlns:w='{WordNamespace}'><w:body><w:p/></w:body></w:document>";
+        using var referencedStream = BuildPackage(document, styles);
+        var referencedPackage = new OpcPackageReader().Read(referencedStream);
+        var referencedSemantic = new WordSemanticProjector().Project(referencedPackage);
+        Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+            referencedPackage,
+            referencedSemantic,
+            [new WordStyleDeleteUnusedCommand("Source")],
+            Array.Empty<WordStyleAssignmentCommand>()
+        ));
+        Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+            referencedPackage,
+            referencedSemantic,
+            [new WordStyleDeleteUnusedCommand("Base")],
+            Array.Empty<WordStyleAssignmentCommand>()
+        ));
+        Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+            referencedPackage,
+            referencedSemantic,
+            [
+                new WordStyleDeleteUnusedCommand("Target"),
+                new WordStyleDeleteUnusedCommand("Target"),
+            ],
+            Array.Empty<WordStyleAssignmentCommand>()
+        ));
+        Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+            referencedPackage,
+            referencedSemantic,
+            [
+                new WordStyleCloneCommand("Target", "Fresh", "Fresh"),
+                new WordStyleDeleteUnusedCommand("Fresh"),
+            ],
+            Array.Empty<WordStyleAssignmentCommand>()
+        ));
+        Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+            referencedPackage,
+            referencedSemantic,
+            [
+                new WordStyleConsolidateCommand("Source", "Target"),
+                new WordStyleDeleteUnusedCommand("Target"),
+            ],
+            Array.Empty<WordStyleAssignmentCommand>()
+        ));
+
+        var usedDocument = $"<w:document xmlns:w='{WordNamespace}'><w:body><w:p><w:pPr><w:pStyle w:val='Target'/></w:pPr></w:p></w:body></w:document>";
+        using var usedStream = BuildPackage(
+            usedDocument,
+            styles.Replace(
+                "<w:basedOn w:val=\"Source\"/>",
+                "<w:basedOn w:val=\"Base\"/>",
+                StringComparison.Ordinal
+            )
+        );
+        var usedPackage = new OpcPackageReader().Read(usedStream);
+        var usedSemantic = new WordSemanticProjector().Project(usedPackage);
+        Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+            usedPackage,
+            usedSemantic,
+            [new WordStyleDeleteUnusedCommand("Target")],
+            Array.Empty<WordStyleAssignmentCommand>()
+        ));
+    }
+
     private static string StylesXml(bool includeBrokenStyle = false) => $"""
         <w:styles xmlns:w="{WordNamespace}">
           <w:style w:type="paragraph" w:styleId="OldPara"><w:name w:val="Old paragraph"/></w:style>
@@ -943,7 +1116,8 @@ public sealed class WordSemanticStyleTransactionTests
         string numberingXml,
         string headerXml,
         string commentsXml,
-        string footnotesXml
+        string footnotesXml,
+        string glossaryXml
     )
     {
         var contentTypes = """
@@ -957,6 +1131,7 @@ public sealed class WordSemanticStyleTransactionTests
               <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>
               <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
               <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
+              <Override PartName="/word/glossary/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml"/>
             </Types>
             """;
         var relationships = """
@@ -966,6 +1141,7 @@ public sealed class WordSemanticStyleTransactionTests
               <Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
               <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
               <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
+              <Relationship Id="rIdGlossary" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument" Target="glossary/document.xml"/>
             </Relationships>
             """;
         var entries = new (string Name, byte[] Content)[]
@@ -978,6 +1154,7 @@ public sealed class WordSemanticStyleTransactionTests
             ("word/header1.xml", Encoding.UTF8.GetBytes(headerXml)),
             ("word/comments.xml", Encoding.UTF8.GetBytes(commentsXml)),
             ("word/footnotes.xml", Encoding.UTF8.GetBytes(footnotesXml)),
+            ("word/glossary/document.xml", Encoding.UTF8.GetBytes(glossaryXml)),
             ("word/_rels/document.xml.rels", Encoding.UTF8.GetBytes(relationships)),
             ("custom/opaque.bin", new byte[] { 9, 7, 5, 3, 1 }),
         };
