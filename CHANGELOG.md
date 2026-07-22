@@ -23,7 +23,9 @@
   `word/styles.xml`, retained a byte-exact pre-apply backup, preserved the stable style
   ID and every original non-style ZIP-entry payload, returned no XML, used no Python and
   did not open Word. A packaged attempt to rename the default `Standard` style failed
-  closed and left the file byte-identical.
+  closed and left the file byte-identical. All five jobs in mandatory CI run
+  `29942107590` passed, and its hosted Windows artifact matched the local ZIP and
+  expanded tree byte for byte at the same counts, sizes and SHA-256.
 - Added fail-closed unused-style deletion to the typed saved-package semantic edit
   actions. `delete_unused_style` removes only an explicitly selected custom, non-default
   definition after proving that no surviving semantic, revision, style, numbering,
