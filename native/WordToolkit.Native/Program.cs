@@ -7,6 +7,9 @@ namespace WordToolkit.Native;
 
 internal static class Program
 {
+    private const string Usage =
+        "usage: wordtoolkit-native [capabilities [--schema | [--query <text>] [--offset <n>] [--limit <n>]] [--format json] | inspect-package <path> [--include-details] [--max-items <1..200>] [--format json] | --create-test-document <path> | --benchmark-active-word]";
+
     public static async Task<int> Main(string[] args)
     {
         Console.InputEncoding = System.Text.Encoding.UTF8;
@@ -33,11 +36,20 @@ internal static class Program
             return CapabilityCli.Run(args[1..], Console.Out, Console.Error);
         }
 
+        if (args.Length >= 1 && args[0] == "inspect-package")
+        {
+            return InspectPackageCli.Run(args[1..], Console.Out, Console.Error);
+        }
+
+        if (args.Length == 1 && args[0] is "--help" or "-h")
+        {
+            Console.Out.WriteLine(Usage);
+            return 0;
+        }
+
         if (args.Length != 0)
         {
-            Console.Error.WriteLine(
-                "usage: wordtoolkit-native [capabilities [--schema | [--query <text>] [--offset <n>] [--limit <n>]] [--format json] | --create-test-document <path> | --benchmark-active-word]"
-            );
+            Console.Error.WriteLine(Usage);
             return 64;
         }
 

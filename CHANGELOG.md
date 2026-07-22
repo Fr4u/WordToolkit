@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+- Added the first public transport-neutral operation,
+  `wordtoolkit.inspect_ooxml_package/1.0`, to `WordToolkit.Engine`. Typed file and
+  seekable-stream requests, results and stable errors now feed the .NET SDK surface,
+  `wordtoolkit-native inspect-package` and the existing MCP action through one bounded
+  implementation. A public canonical JSON codec gives SDK, CLI and compact MCP data the
+  same `snake_case` shape and null policy; legacy MCP runtime/timing fields remain only
+  at the adapter edge. The CLI emits success JSON on stdout, failure JSON on stderr and
+  stable sysexits-style codes without constructing the Word COM host.
+- Tightened Word-package identity from an unsafe `/officeDocument` suffix test to exact
+  Transitional/Strict relationship URIs, one internal resolved main part, one of four
+  extension-compatible Word main content types and a Transitional or Strict
+  `w:document` root with exactly one direct `w:body`. Inspection and semantic
+  projection share these rules, so a valid OPC ZIP with
+  `urn:evil/officeDocument` is no longer reported as a valid Word document. New
+  regression tests prove read-only file hashes, stream-position restoration, external
+  target redaction, default diagnostic-location redaction, false-Word rejection, ZIP
+  limits, million-character/path-like stream labels, closed MCP arguments, canonical
+  SDK/CLI/MCP parity and stable error codes without invoking or launching Word.
+- Verified this operation slice with 357 engine tests, 243 native-host tests, 1,273
+  Python/OOXML tests with 16 intentional skips, Ruff, active-service mypy, schema export,
+  JSON/PowerShell parsing and an independent red-team. The review found and closed two
+  initial P1 defects (false Word identity and MCP response compatibility), then two
+  adversarial P1 defects (missing `w:body`/extension checks and an unbounded stream
+  filename); its final rerun reported no unresolved P0/P1. Two local self-contained
+  builds produced identical 195-file, 85,107,806-byte trees and 36,189,483-byte ZIPs at
+  SHA-256 `ff910c0c314ccb98b7f716f40cfa6e4580659b763ee3d657e138c1d6732b4632`.
+  Through that packaged executable, CLI and MCP returned identical 6,827-character
+  canonical data for the same real DOCX, global help returned zero, and the Word-process
+  count stayed 0. Across 20 cold runs, inspection measured 265.965 ms p50 / 286.932 ms
+  p95 through CLI and 321.721 / 348.233 ms through MCP on the local Windows x64 host.
 - Added a vendor-neutral, schema-versioned capability manifest shared by the native MCP
   `get_wordtoolkit_capabilities` gateway and `wordtoolkit-native capabilities` CLI.
   It preserves the embedded schema/MCP/compatibility header, publishes deterministic

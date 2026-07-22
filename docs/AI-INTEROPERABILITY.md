@@ -13,6 +13,28 @@ a second hard-coded catalogue. The contract is discovery-only. It
 does not open Microsoft Word, inspect a file, return document content, invoke an action
 handler or contact a network service.
 
+The first executable contract shared by SDK, CLI and MCP is
+`wordtoolkit.inspect_ooxml_package/1.0`. The public .NET operation lives in
+`WordToolkit.Engine.Operations`; `wordtoolkit-native inspect-package` and MCP call the
+same code. `WordToolkitOperationJson` defines the canonical `snake_case` representation
+and omission of null values, so transport adapters do not invent their own success
+shape. Stable operation errors expose `code`, `message`, optional `reason` and
+`retryable`; CLI adds a process exit class and MCP retains its standard tool envelope.
+
+The operation reads only `.docx`, `.docm`, `.dotx` and `.dotm`, enforces bounded OPC/XML
+parsing, restores caller stream position, does not mutate a file, does not fetch external
+relationships and returns neither the local path nor external targets. `valid_word_package`
+requires exact Transitional/Strict relationship and document-root semantics, exactly
+one direct `w:body`, and extension/content-type agreement; a suffix
+look-alike or empty document root is rejected. Stream labels are portable leaf names,
+reject volume/path syntax and are capped at 512 characters, while MCP rejects fields
+outside the closed input schema. Default
+diagnostic items expose stable codes and severities but
+redact package part names and relationship IDs; bounded locations require the explicit
+`include_details` opt-in. Full MCP mode keeps legacy runtime timing outside canonical data
+for compatibility. An explicit JSON output schema is not yet present in the source
+catalogue; the typed .NET result and codec do not erase that remaining manifest gap.
+
 ## Version and compatibility
 
 The response identifies:
@@ -100,6 +122,7 @@ CLI:
 ```powershell
 wordtoolkit-native capabilities --query review --limit 4 --format json
 wordtoolkit-native capabilities --schema --format json
+wordtoolkit-native inspect-package .\input.docx --include-details --format json
 ```
 
 The CLI prints the canonical manifest data to standard output. Usage and validation
@@ -115,3 +138,10 @@ COM host.
 - `native/WordToolkit.Native.Tests/CapabilityManifestTests.cs` proves deterministic
   hashes, paging, schema coverage, JSON round-trip, CLI parity, input bounds and the
   no-document-handler security boundary.
+- `native/WordToolkit.Engine.Tests/InspectWordPackageOperationTests.cs` proves typed
+  path/stream parity, canonical JSON round-trip, read-only behavior, identity checks,
+  bounded-package failures, hostile names, extension/content-type checks,
+  default diagnostic redaction and stream/cancellation semantics.
+- `native/WordToolkit.Native.Tests/InspectPackageCliTests.cs` proves byte-normalized
+  SDK/CLI/MCP success parity, closed MCP arguments, stable error codes and the
+  no-Word-invocation boundary.

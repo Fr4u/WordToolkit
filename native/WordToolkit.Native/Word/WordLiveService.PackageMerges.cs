@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using WordToolkit.Engine.Operations;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Semantics;
 using WordToolkit.Native.Protocol;
@@ -638,7 +639,7 @@ internal sealed partial class WordLiveService
                 "output_path is not a valid filesystem path"
             );
         }
-        if (!InspectablePackageExtensions.Contains(Path.GetExtension(path)))
+        if (!InspectWordPackageContract.IsSupportedFileName(path))
         {
             throw new NativeToolException(
                 "INVALID_INPUT",

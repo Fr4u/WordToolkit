@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using WordToolkit.Engine.Operations;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Semantics;
 using WordToolkit.Native.Protocol;
@@ -643,7 +644,7 @@ internal sealed partial class WordLiveService
                 $"The package supplied as {argumentName} does not exist"
             );
         }
-        if (!InspectablePackageExtensions.Contains(Path.GetExtension(path)))
+        if (!InspectWordPackageContract.IsSupportedFileName(path))
         {
             throw new NativeToolException(
                 "INVALID_INPUT",

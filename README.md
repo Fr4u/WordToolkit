@@ -37,6 +37,8 @@ Tests were run against real Microsoft Word 16.0 on 2026-07-20.
 | Old Python bridge | 100 text operations, 48,800 characters | 751.658 ms |
 | Native .NET bridge | 100 text operations, 48,800 characters | 259.455–268.126 ms |
 | Packaged self-contained MCP startup | process start through `initialize` | 106.767 ms |
+| Packaged saved-package inspection CLI | 20 cold processes, `real_contract.docx` | p50 265.965 ms / p95 286.932 ms |
+| Packaged saved-package inspection MCP | 20 cold processes, same file and operation | p50 321.721 ms / p95 348.233 ms |
 | Native LaTeX equation in real Word | fraction, root, scripts and sum | about 100–158 ms |
 | Full 48-tool real-Word acceptance | 71 MCP requests, save/validate/PDF/reopen/reconnect | 24.492–24.691 s |
 
@@ -78,6 +80,38 @@ checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordto
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
 compatibility rules.
+
+The first public operation shared by the cross-platform .NET engine, CLI and MCP is
+saved-package inspection. It does not create a Word COM host in SDK/CLI use, does not
+launch Microsoft Word, does not mutate the input and never follows an external
+relationship:
+
+```powershell
+wordtoolkit-native inspect-package .\input.docx --include-details --max-items 40 --format json
+```
+
+Successful data is the versioned
+`wordtoolkit.inspect_ooxml_package/1.0` contract on stdout. Failures are JSON on stderr;
+the stable exit classes are 64 (invalid input), 65 (invalid or safety-limited package),
+66 (not found), 74 (I/O), 77 (access denied) and 70 (unexpected internal failure).
+The same operation is available to .NET callers without the Windows host:
+
+```csharp
+using WordToolkit.Engine.Operations;
+
+var result = new InspectWordPackageOperation().Execute(
+    new InspectWordPackageRequest("input.docx", IncludeDetails: true)
+);
+Console.WriteLine(WordToolkitOperationJson.Serialize(result));
+```
+
+Stream labels are portable leaf names capped at 512 characters, and Word validity additionally
+requires the filename extension to agree with the main content type. MCP rejects unknown
+arguments instead of silently ignoring misspelled closed-schema fields.
+`WordToolkitOperationJson` is the public canonical JSON codec used by both adapters;
+SDK, CLI and compact MCP data therefore share `snake_case`, null handling and field
+order. Full MCP responses retain legacy runtime timing fields only in the transport
+adapter; those fields are deliberately absent from deterministic operation data.
 
 The complete lazy action set is:
 

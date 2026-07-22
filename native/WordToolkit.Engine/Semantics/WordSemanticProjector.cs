@@ -46,9 +46,8 @@ public sealed class WordSemanticProjector
             .Where(relationship =>
                 relationship.SourcePartUri == "/"
                 && relationship.TargetMode == OpcRelationshipTargetMode.Internal
-                && relationship.Type.EndsWith(
-                    "/officeDocument",
-                    StringComparison.Ordinal
+                && WordPackageConformance.IsOfficeDocumentRelationshipType(
+                    relationship.Type
                 )
             )
             .ToArray();
@@ -74,7 +73,7 @@ public sealed class WordSemanticProjector
             );
         }
 
-        if (!IsWordMainContentType(mainPart.ContentType))
+        if (!WordPackageConformance.IsWordMainContentType(mainPart.ContentType))
         {
             throw new WordSemanticProjectionException(
                 $"Main part content type '{mainPart.ContentType ?? "(missing)"}' is not a Word main-document type."
@@ -87,8 +86,7 @@ public sealed class WordSemanticProjector
         var documentElement = xml.Root;
         if (
             documentElement is null
-            || !IsWordNamespace(documentElement.Name.NamespaceName)
-            || documentElement.Name.LocalName != "document"
+            || !WordPackageConformance.HasWordDocumentRoot(sourceDocument)
         )
         {
             throw new WordSemanticProjectionException(
@@ -1032,14 +1030,6 @@ public sealed class WordSemanticProjector
     private static bool IsDrawingNamespace(string namespaceName) =>
         namespaceName.Contains("/drawingml/", StringComparison.Ordinal)
         || namespaceName.EndsWith("/wordprocessingDrawing", StringComparison.Ordinal);
-
-    private static bool IsWordMainContentType(string? contentType) =>
-        contentType is not null
-        && contentType.EndsWith(".main+xml", StringComparison.OrdinalIgnoreCase)
-        && (
-            contentType.Contains("wordprocessingml", StringComparison.OrdinalIgnoreCase)
-            || contentType.Contains("ms-word", StringComparison.OrdinalIgnoreCase)
-        );
 
     private static string? RelationshipId(XElement element) =>
         element.Attribute(XName.Get("id", RelationshipsTransitionalNamespace))?.Value

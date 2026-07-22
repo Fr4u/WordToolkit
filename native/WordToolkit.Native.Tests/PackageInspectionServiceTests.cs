@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using WordToolkit.Engine.Operations;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Semantics;
 using WordToolkit.Native.Protocol;
@@ -37,9 +38,18 @@ public sealed class PackageInspectionServiceTests
                 arguments.RootElement,
                 CancellationToken.None
             );
-            using var json = JsonDocument.Parse(JsonSerializer.Serialize(result));
+            using var json = JsonDocument.Parse(
+                JsonSerializer.Serialize(result, JsonDefaults.Compact)
+            );
             var root = json.RootElement;
 
+            Assert.Equal(
+                InspectWordPackageContract.Contract,
+                root.GetProperty("operation_contract").GetString()
+            );
+            Assert.Equal("dotnet-native", root.GetProperty("runtime").GetString());
+            Assert.False(root.GetProperty("python_used").GetBoolean());
+            Assert.True(root.GetProperty("performance").TryGetProperty("total_ms", out _));
             Assert.True(root.GetProperty("structurally_valid").GetBoolean());
             Assert.True(root.GetProperty("word_document_detected").GetBoolean());
             Assert.True(root.GetProperty("valid_word_package").GetBoolean());

@@ -16,6 +16,16 @@ process. Document sessions are owned by the native process and the attached Word
 application. Saved-package actions accept explicit local paths according to their
 individual schemas.
 
+The executable is also a non-interactive automation CLI. Saved-package inspection uses
+the cross-platform engine directly and exits before constructing the Word COM host:
+
+```powershell
+runtime\win-x64\wordtoolkit-native.exe inspect-package C:\docs\input.docx --format json
+```
+
+Success is JSON on stdout. Operation and parser failures are JSON on stderr with stable
+nonzero exit classes; `inspect-package --help` and top-level `--help` return zero.
+
 `local_stdio` is deliberately rejected by the HTTP application. It is a
 single-user trust boundary for the local Codex host, not an authentication
 mode for a network service.
@@ -82,9 +92,9 @@ No mobile step depends on `C:\...`, a local STDIO server or server filesystem pa
 ## Codex plugin installation
 
 The checked-in `plugin/wordtoolkit/.mcp.json` is the local STDIO configuration.
-Build the self-contained plugin directory with `scripts/build_local_plugin.py`
-before installing it. The included skill instructs Codex to use
-open/inspect/small-edit/validate/render/export sequencing.
+Build the self-contained plugin directory with `scripts/build_native_plugin.ps1`
+before installing it. The included skill instructs Codex to discover capabilities, then
+use open/inspect/small-edit/validate/render/export sequencing.
 
 For a remote deployment, configure the deployed HTTPS MCP endpoint separately
 in Codex or publish a remote plugin variant. Never put OAuth secrets in the

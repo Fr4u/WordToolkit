@@ -907,6 +907,26 @@ The same gateway accepts `view=schema`, while the CLI accepts `--schema`, to ret
 exact embedded normative JSON Schema string and its UTF-8 SHA-256. This keeps the
 default catalogue small without handing independent clients an unverifiable digest.
 
+The first transport-neutral executable operation is now
+`wordtoolkit.inspect_ooxml_package/1.0`. `WordToolkit.Engine.Operations` owns its typed
+request, deterministic result, bounded file/seekable-stream execution, stable error
+codes and canonical `snake_case` JSON codec. `wordtoolkit-native inspect-package` and
+the existing MCP action are thin adapters over that operation. The SDK/CLI path never
+constructs the COM host; the MCP host exists for the wider live-action surface, but this
+operation does not invoke it or launch Word. Legacy MCP runtime/timing fields remain at
+the adapter edge and are stripped from compact canonical data.
+
+Inspection and semantic projection now share exact Word-package identity rules:
+Transitional or Strict `officeDocument` relationship, one internal resolved main part,
+one of the four extension-compatible Word main content types, and a Transitional or
+Strict `w:document` root with exactly one direct `w:body`. A structurally valid OPC
+archive with a look-alike relationship URI, empty root or generic XML main part is not
+reported as a valid Word package.
+
+This is one proved migration seam, not a claim that all 84 actions already have public
+SDK operations. Per-operation JSON output schemas, a generic dispatcher and the
+remaining operation migrations are still open work.
+
 This is deliberately honest about what is still absent. `metadata_coverage` reports
 zero explicit output schemas, permissions, reversibility records and per-operation
 versions until those become canonical source data. Those fields are not inferred from

@@ -106,6 +106,7 @@ vendor claim is not implementation evidence.
 | Plugin architecture | Not started | Architecture interfaces listed | Versioned registrations, permissions, resource limits and compatibility tests |
 | Storage/cloud adapters | Not started | Local file/stream only | Flat OPC, Graph/Drive versioned upload, cache and remote authorization boundaries |
 | Capability negotiation | Partial (versioned discovery slice implemented) | `get_wordtoolkit_capabilities` and the native `capabilities` CLI return one schema-versioned, hashed, paged contract for 84 actions without opening Word; Word COM member capabilities remain separate | Add normalized permissions/reversibility/output schemas and a unified backend/document/feature matrix with runtime probes |
+| Public SDK/CLI/MCP operation convergence | Partial (first vertical slice) | `wordtoolkit.inspect_ooxml_package/1.0` owns typed request/result/error/JSON contracts in `WordToolkit.Engine`; file and stream SDK, non-interactive CLI and MCP return identical canonical success data, preserve legacy MCP-only telemetry and never invoke Word | Migrate remaining operations behind the same application boundary; add explicit output schemas and language packages generated from canonical contracts |
 | Telemetry | Not started in engine | Existing runtime performance fields only | Privacy-safe sinks, opt-in controls, retention and failure diagnostics |
 | Observability/audit log | Not started | Mutation results only | Correlation, command evidence, hashes without content, recovery references |
 
@@ -247,7 +248,7 @@ mutation/repair/render execution required by the goal.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Unit/regression tests | Partial | 340 engine, 228 native and 1273 Python tests pass at the current checkpoint, with 16 intentional Python skips | Coverage for every required feature and published failure corpus |
+| Unit/regression tests | Partial | 357 engine, 243 native and 1273 Python tests pass at the current checkpoint, with 16 intentional Python skips | Coverage for every required feature and published failure corpus |
 | Property/fuzz testing | Partial | Deterministic malformed bytes and random opaque round-trip smoke | Continuous coverage-guided fuzzing, minimized corpus and resource assertions |
 | Fault injection | Not started | Validation/concurrency failure tests only | Every persistence/transaction phase, disk-full, denied, crash and race tests |
 | Preservation benchmark | Partial | Entry hashes and random no-op round trip | Public producer/feature corpus with untouched part/subtree metrics |
@@ -256,13 +257,20 @@ mutation/repair/render execution required by the goal.
 | Visual regression | Not started for new engine | Historical screenshots and live acceptance | Versioned PDF/page/object baselines across rendering backends |
 | Cross-platform CI | Partial | Mandatory Linux engine job plus clean hosted-Windows engine/native/package jobs; licensed Word gate remains separate | macOS core job, qualified backend matrix and routinely available self-hosted Word release evidence |
 | Public competitor benchmark | Not started | Research matrix only | Same fixtures, versions, commands, results, caveats and reproducible harness |
-| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF and normalizes Windows packaging onto Windows PowerShell 5.1. The current table checkpoint produced the same 195-file, 85,056,480-byte tree and 36,172,619-byte ZIP in two local builds and mandatory CI run `29959678412`; the downloaded hosted artifact matched both local ZIPs and expanded trees byte for byte at SHA-256 `910a1cece37397f61568ea0a230fe663fdf54d834d8a8d367fa56b37ddfe1c13`. The preceding content-control checkpoint matched mandatory CI run `29956272868` at SHA-256 `dcaa12c58eed3b1b03f10c6772083a934c62e84f4615e738bee975f37fc7d471`. The earlier exact 0.35 live package, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action real-Word gate; later saved-package slices do not change live COM code | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
+| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF and normalizes Windows packaging onto Windows PowerShell 5.1. The current operation checkpoint produced the same 195-file, 85,107,806-byte tree and 36,189,483-byte ZIP in two local builds at SHA-256 `ff910c0c314ccb98b7f716f40cfa6e4580659b763ee3d657e138c1d6732b4632`; hosted CI comparison is pending. The table checkpoint matched mandatory CI run `29959678412` at SHA-256 `910a1cece37397f61568ea0a230fe663fdf54d834d8a8d367fa56b37ddfe1c13`. The preceding content-control checkpoint matched mandatory CI run `29956272868` at SHA-256 `dcaa12c58eed3b1b03f10c6772083a934c62e84f4615e738bee975f37fc7d471`. The earlier exact 0.35 live package, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action real-Word gate; later saved-package slices do not change live COM code | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
 
 ## Current checkpoint evidence
 
-- `dotnet test native/WordToolkit.Engine.Tests` — 340 passed.
-- `dotnet test native/WordToolkit.Native.Tests` — 228 passed.
+- `dotnet test native/WordToolkit.Engine.Tests` — 357 passed.
+- `dotnet test native/WordToolkit.Native.Tests` — 243 passed.
 - `.venv/Scripts/python -m pytest -q` — 1273 passed, 16 intentionally skipped.
+- The current `wordtoolkit.inspect_ooxml_package/1.0` checkpoint exposes the same typed,
+  canonical result through SDK, CLI and MCP. Local proof covers 357 engine and 243 native
+  tests, exact CLI/MCP data parity on a real fixture, two byte-identical packaged builds,
+  stable error classes, read-only file hashes, no Word invocation and an independent
+  red-team with no unresolved P0/P1. The packaged 6,827-character result measured
+  265.965/286.932 ms CLI p50/p95 and 321.721/348.233 ms MCP p50/p95 across 20 cold runs;
+  the Word-process count remained zero.
 - Native MCP regression against real Word verified Gaussian, nested and double
   integrals, Presentation MathML, OMML, a parenthesized matrix, cases and combining
   accents. Every sensitive result returned matching canonical hashes; all
