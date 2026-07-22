@@ -1,6 +1,6 @@
 # MCP tool catalog
 
-The machine-readable source of truth is `schemas/mcp-tools.v1.json`. Every tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.
+The remote Python service source of truth is `schemas/mcp-tools.v1.json`. The native Windows plugin has a separate, deliberately hand-reviewed source in `schemas/mcp-tools-local.v1.json`; `WordToolkit.Native.Tests` validates that catalog and this exporter never overwrites it. Every exported remote tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.
 
 | Tool | Read only | Destructive | Idempotent | File inputs |
 |---|---:|---:|---:|---|

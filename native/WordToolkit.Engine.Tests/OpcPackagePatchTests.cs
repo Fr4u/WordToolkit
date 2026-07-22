@@ -8,6 +8,17 @@ namespace WordToolkit.Engine.Tests;
 public sealed class OpcPackagePatchTests
 {
     [Fact]
+    public void DefaultLimitsReflectMeasuredInMemoryRisk()
+    {
+        var limits = OpcPackagePatchLimits.Default;
+
+        Assert.Equal(128L * 1024 * 1024, limits.MaxPayloadBytes);
+        Assert.Equal(64L * 1024 * 1024, limits.MaxPayloadBytesPerBlob);
+        Assert.Equal(4L * 1024 * 1024, limits.MaxManifestBytes);
+        Assert.Equal(100, limits.MaxCompressionRatio);
+    }
+
+    [Fact]
     public void CreatesContentExactPatchAcrossAddReplaceAndDelete()
     {
         using var beforeStream = BuildPackage(new Dictionary<string, byte[]>

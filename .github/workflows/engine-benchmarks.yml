@@ -1,0 +1,49 @@
+name: document-engine-benchmarks
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "smoke runs 10k/100k; scale adds 500k/999k graph targets and larger patches"
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - scale
+  schedule:
+    - cron: "31 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Build benchmark harness
+        run: dotnet build native/WordToolkit.Engine.Benchmarks/WordToolkit.Engine.Benchmarks.csproj -c Release
+      - name: Run smoke scale points
+        run: |
+          mkdir -p artifacts/benchmarks
+          dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- graph --target-nodes 10000 --output artifacts/benchmarks/graph-10k.json
+          dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- graph --target-nodes 100000 --output artifacts/benchmarks/graph-100k.json
+          dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- patch --payload-mib 16 --parts 16 --output artifacts/benchmarks/patch-16mib.json
+          dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- patch --payload-mib 64 --parts 64 --output artifacts/benchmarks/patch-64mib.json
+      - name: Run high scale points
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.profile == 'scale' }}
+        run: |
+          dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- graph --target-nodes 500000 --output artifacts/benchmarks/graph-500k.json
+          dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- graph --target-nodes 999000 --output artifacts/benchmarks/graph-999k.json
+          dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- patch --payload-mib 128 --parts 128 --output artifacts/benchmarks/patch-128mib.json
+          dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- patch --payload-mib 200 --parts 200 --output artifacts/benchmarks/patch-200mib.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wordtoolkit-engine-benchmarks-${{ github.sha }}
+          path: artifacts/benchmarks/*.json
+          if-no-files-found: error
+          retention-days: 90

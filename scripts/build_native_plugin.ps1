@@ -10,6 +10,16 @@ $dist = [IO.Path]::GetFullPath((Join-Path $root "dist"))
 $pluginSource = Join-Path $root "plugin\wordtoolkit"
 $manifestPath = Join-Path $pluginSource ".codex-plugin\plugin.json"
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+$versionPropsPath = Join-Path $root "native\Directory.Build.props"
+[xml]$versionProps = Get-Content -LiteralPath $versionPropsPath -Raw
+$runtimeVersion = [string]$versionProps.Project.PropertyGroup.WordToolkitVersion
+$pluginBaseVersion = ([string]$manifest.version -split '\+', 2)[0]
+if (-not $runtimeVersion -or $pluginBaseVersion -ne $runtimeVersion) {
+    throw (
+        "Version drift: plugin manifest '$pluginBaseVersion' does not match " +
+        "native runtime '$runtimeVersion'"
+    )
+}
 if (-not $Output) {
     $Output = Join-Path $dist "wordtoolkit"
 }

@@ -9,6 +9,7 @@ internal sealed class WordComHost : IWordComHost
     private readonly BlockingCollection<WorkItem> _queue = new();
     private readonly Thread _thread;
     private object? _application;
+    private int _recoveryRequired;
     private bool _disposed;
 
     public WordComHost()
@@ -30,6 +31,10 @@ internal sealed class WordComHost : IWordComHost
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         cancellationToken.ThrowIfCancellationRequested();
+        if (Volatile.Read(ref _recoveryRequired) != 0)
+        {
+            throw RecoveryRequired();
+        }
         var completion = new TaskCompletionSource<object?>(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
@@ -40,8 +45,23 @@ internal sealed class WordComHost : IWordComHost
             launchIfMissing
         );
         _queue.Add(item, cancellationToken);
-        var result = await completion.Task.WaitAsync(cancellationToken);
-        return (T)result!;
+        try
+        {
+            var result = await completion.Task.WaitAsync(cancellationToken);
+            return (T)result!;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (item.TryMarkAbandonedWhileExecuting())
+            {
+                Volatile.Write(ref _recoveryRequired, 1);
+                Console.Error.WriteLine(
+                    "WordToolkit.Native cancelled an active COM request; "
+                        + "restart only the WordToolkit runtime if Word does not return."
+                );
+            }
+            throw;
+        }
     }
 
     private void Run()
@@ -81,8 +101,14 @@ internal sealed class WordComHost : IWordComHost
 
     private void Execute(WorkItem item)
     {
+        item.MarkStarted();
         try
         {
+            if (item.CancellationToken.IsCancellationRequested)
+            {
+                item.Completion.TrySetCanceled(item.CancellationToken);
+                return;
+            }
             var application = GetApplication(item.LaunchIfMissing);
             item.Completion.TrySetResult(item.Operation(application));
         }
@@ -103,6 +129,29 @@ internal sealed class WordComHost : IWordComHost
         {
             item.Completion.TrySetException(MapException(exception));
         }
+        finally
+        {
+            if (item.MarkCompletedAndWasAbandoned())
+            {
+                ResetApplication();
+                Volatile.Write(ref _recoveryRequired, 0);
+            }
+        }
+    }
+
+    private static NativeToolException RecoveryRequired()
+    {
+        return new NativeToolException(
+            "WORD_HOST_RECOVERY_REQUIRED",
+            "A cancelled Microsoft Word COM call has not returned",
+            new
+            {
+                recovery = "restart_wordtoolkit_runtime",
+                terminate_word_process = false,
+                reconnect_and_reinspect = true,
+            },
+            retryable: true
+        );
     }
 
     private dynamic GetApplication(bool launchIfMissing)
@@ -232,12 +281,70 @@ internal sealed class WordComHost : IWordComHost
         return ValueTask.CompletedTask;
     }
 
-    private sealed record WorkItem(
-        Func<dynamic, object?> Operation,
-        TaskCompletionSource<object?> Completion,
-        CancellationToken CancellationToken,
-        bool LaunchIfMissing
-    );
+    private sealed class WorkItem
+    {
+        private readonly object _stateGate = new();
+        private WorkState _state;
+        private bool _abandoned;
+
+        public WorkItem(
+            Func<dynamic, object?> operation,
+            TaskCompletionSource<object?> completion,
+            CancellationToken cancellationToken,
+            bool launchIfMissing
+        )
+        {
+            Operation = operation;
+            Completion = completion;
+            CancellationToken = cancellationToken;
+            LaunchIfMissing = launchIfMissing;
+        }
+
+        public Func<dynamic, object?> Operation { get; }
+
+        public TaskCompletionSource<object?> Completion { get; }
+
+        public CancellationToken CancellationToken { get; }
+
+        public bool LaunchIfMissing { get; }
+
+        public void MarkStarted()
+        {
+            lock (_stateGate)
+            {
+                _state = WorkState.Executing;
+            }
+        }
+
+        public bool TryMarkAbandonedWhileExecuting()
+        {
+            lock (_stateGate)
+            {
+                if (_state != WorkState.Executing)
+                {
+                    return false;
+                }
+                _abandoned = true;
+                return true;
+            }
+        }
+
+        public bool MarkCompletedAndWasAbandoned()
+        {
+            lock (_stateGate)
+            {
+                _state = WorkState.Completed;
+                return _abandoned;
+            }
+        }
+
+        private enum WorkState
+        {
+            Queued,
+            Executing,
+            Completed,
+        }
+    }
 
     private static class NativeMethods
     {

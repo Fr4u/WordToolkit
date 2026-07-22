@@ -44,7 +44,7 @@ public sealed class McpServerTests
                 .GetString()
         );
         Assert.Equal(
-            "0.34.0",
+            "0.35.0",
             responses[0].RootElement
                 .GetProperty("result")
                 .GetProperty("serverInfo")
@@ -339,6 +339,92 @@ public sealed class McpServerTests
         );
     }
 
+    [Fact]
+    public async Task OversizedMessageIsDrainedAndTheNextRequestStillRuns()
+    {
+        var input = new string('x', 256)
+            + "\n"
+            + """{"jsonrpc":"2.0","id":9,"method":"ping"}"""
+            + "\n";
+        var output = new StringWriter();
+        var server = new McpServer(
+            new StringReader(input),
+            output,
+            ToolCatalog.LoadNativeWordTools(),
+            new FakeToolHandler(),
+            maxMessageCharacters: 128
+        );
+
+        await server.RunAsync();
+
+        var responses = output
+            .ToString()
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => JsonDocument.Parse(line))
+            .ToArray();
+        Assert.Equal(2, responses.Length);
+        Assert.Equal(
+            -32600,
+            responses.Single(response => response.RootElement.GetProperty("id").ValueKind == JsonValueKind.Null)
+                .RootElement.GetProperty("error").GetProperty("code").GetInt32()
+        );
+        Assert.Equal(
+            JsonValueKind.Object,
+            responses.Single(response =>
+                response.RootElement.GetProperty("id").ValueKind == JsonValueKind.Number
+                && response.RootElement.GetProperty("id").GetInt32() == 9
+            )
+                .RootElement.GetProperty("result").ValueKind
+        );
+        foreach (var response in responses)
+        {
+            response.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task CancellationNotificationCancelsOnlyItsActiveRequest()
+    {
+        var input = string.Join(
+            "\n",
+            """{"jsonrpc":"2.0","id":"slow","method":"tools/call","params":{"name":"list_live_word_documents","arguments":{}}}""",
+            """{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"slow","reason":"client timeout"}}""",
+            """{"jsonrpc":"2.0","id":"alive","method":"ping"}"""
+        ) + "\n";
+        var output = new StringWriter();
+        var server = new McpServer(
+            new StringReader(input),
+            output,
+            ToolCatalog.LoadNativeWordTools(),
+            new CancellationAwareToolHandler()
+        );
+
+        await server.RunAsync();
+
+        var responses = output
+            .ToString()
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => JsonDocument.Parse(line))
+            .ToArray();
+        Assert.Equal(2, responses.Length);
+        var cancelled = responses.Single(response =>
+            response.RootElement.GetProperty("id").GetString() == "slow"
+        );
+        Assert.Equal(
+            -32800,
+            cancelled.RootElement.GetProperty("error").GetProperty("code").GetInt32()
+        );
+        Assert.Contains(
+            responses,
+            response => response.RootElement.GetProperty("id").GetString() == "alive"
+                && response.RootElement.TryGetProperty("result", out _)
+        );
+        foreach (var response in responses)
+        {
+            response.Dispose();
+        }
+    }
+
     private sealed class FakeToolHandler : IToolHandler
     {
         public Task<object> CallAsync(
@@ -425,6 +511,19 @@ public sealed class McpServerTests
                     name,
                 }
             );
+        }
+    }
+
+    private sealed class CancellationAwareToolHandler : IToolHandler
+    {
+        public async Task<object> CallAsync(
+            string name,
+            JsonElement arguments,
+            CancellationToken cancellationToken
+        )
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return new { name };
         }
     }
 }

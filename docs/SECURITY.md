@@ -1,8 +1,29 @@
 # Security model
 
+WordToolkit has two different deployment surfaces. The personal Codex plugin is a
+local Windows process speaking line-delimited MCP over standard input/output and using
+Word COM. The retained Python service is a remote HTTP/container deployment with OAuth,
+uploads and rendering. Controls that belong to one surface do not magically protect the
+other.
+
 ## Trust boundaries
 
-Untrusted inputs are OAuth tokens, MCP JSON, file URLs supplied by ChatGPT, ZIP metadata, XML, relationships, image bytes, Markdown and renderer inputs. The service trusts only its configuration, immutable container image, configured identity provider and files it has produced inside the session root.
+Untrusted inputs are OAuth tokens, MCP JSON, file URLs supplied by ChatGPT, ZIP metadata, XML, relationships, image bytes, Markdown and renderer inputs. The remote service trusts only its configuration, immutable container image, configured identity provider and files it has produced inside the session root. The local plugin additionally trusts its installed runtime and explicit user-selected local paths; document contents and MCP arguments remain untrusted.
+
+## Local native MCP and COM boundary
+
+The local server accepts one JSON-RPC message per line, capped at 8 MiB. It drains an
+oversized line, returns a bounded protocol error and continues at the next message.
+Active request IDs are unique, capped at 64 and have independent cancellation tokens;
+`notifications/cancelled` and `$/cancelRequest` cancel only the named request.
+
+Cancellation cannot safely interrupt an arbitrary COM call already executing inside
+Microsoft Word. Queued calls observe cancellation before starting. If an executing call
+is cancelled, the host refuses new Word work until it returns and resets its COM proxy.
+If it remains hung, the supervisor must terminate and restart only
+`wordtoolkit-native.exe`; it must never kill `WINWORD.EXE`. After restart, callers must
+reconnect and re-inspect the document because the abandoned operation may have completed
+inside Word. See [MCP cancellation and recovery](MCP-RECOVERY.md).
 
 ## Authentication and authorization
 
@@ -41,7 +62,34 @@ LibreOffice receives fixed argv with `shell=False`, a one-use profile, bounded r
 
 ## Data lifecycle and logging
 
-Content is stored only under the configured ephemeral root. Sessions default to one hour and artifacts to one hour. Exported artifacts are copied out of the working session so closing a draft does not invalidate an unexpired download. A cleanup task closes documents and deletes expired files. Responses contain operation/error classes but never renderer stderr, document text, bearer tokens, file URLs, XML or local paths. Signed artifacts are private/no-store and expire.
+Remote-service content is stored only under the configured ephemeral root. Sessions default to one hour and artifacts to one hour. Exported artifacts are copied out of the working session so closing a draft does not invalidate an unexpired download. A cleanup task closes documents and deletes expired files. Responses contain operation/error classes but never renderer stderr, document text, bearer tokens, file URLs, XML or local paths. Authenticated download URLs are private/no-store and expire.
+
+## `.wtpatch` confidentiality and authenticity
+
+Version-1 raw `.wtpatch` files contain deduplicated exact before and after OPC-entry
+payloads. In the worst case they carry nearly the whole document twice. They are local
+recovery/change-transfer artifacts, not safe public diffs. Hashes and canonical IDs
+detect accidental corruption and internal substitution, but they do not authenticate an
+author. Protect raw patches with the same access controls, storage encryption, retention
+and deletion policy as the source DOCX, and do not accept one from an untrusted party
+merely because its hashes validate.
+
+The optional engine-level patch envelope supports AES-256-GCM with a fresh 96-bit nonce,
+a 128-bit authentication tag and canonical metadata as associated data. Optional
+ECDSA-SHA256 signs the metadata, tag and payload and binds a restricted signer key ID.
+Reading a signed envelope fails unless a verifier is supplied; an expected signer ID can
+also be mandatory. Reading encrypted data requires an exact 32-byte key. Keys remain
+caller-owned and are never serialized into the envelope. The current MCP surface does
+not provision those keys, and the engine does not pretend that a key ID alone establishes
+trust. A deployment must bind key IDs to independently trusted public keys and protect
+private/encryption keys outside prompts, logs and document storage.
+
+The codec currently materializes payloads in memory. Measured defaults permit 128 MiB
+total, 64 MiB per blob, a 4 MiB manifest and a 100:1 compression ratio. These are hard
+rejection ceilings, not proof that such an input is operationally safe. An explicit
+custom limit can be higher, but it must be backed by workload-specific memory evidence.
+The envelope also materializes its serialized patch and AES-GCM payload; it improves
+confidentiality/authenticity, not memory scaling.
 
 The in-memory session registry makes this release a single-instance service. Do not run multiple replicas without a shared encrypted object store, distributed locks and shared metadata. The supplied hosting profiles deliberately use one instance.
 
@@ -188,6 +236,7 @@ Errors use stable codes and never expose tracebacks or local paths. Unsafe/inval
 - Set one instance until a distributed session backend exists.
 - Mount only a bounded ephemeral disk; monitor quota and cleanup.
 - Restrict outbound egress and inbound traffic to HTTPS.
-- Run container and dependency scanning in CI.
+- Add container and dependency scanning before a public remote deployment. The current
+  CI builds the container but does not yet claim a vulnerability scan.
 - Run the Microsoft Word interoperability workflow on a licensed self-hosted Windows runner before a release.
 - Verify retention and deletion against organizational policy.

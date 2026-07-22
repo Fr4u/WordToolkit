@@ -1,0 +1,40 @@
+{
+  "schema": "wordtoolkit-engine-benchmark-v1",
+  "scenario": "wtpatch_materialization",
+  "utc": "2026-07-22T09:45:22.0424858+00:00",
+  "runtime": ".NET 8.0.26",
+  "operating_system": "Microsoft Windows 10.0.19045",
+  "architecture": "X64",
+  "engine_version": "0.34.0",
+  "processor_count": 12,
+  "server_gc": false,
+  "measurements": {
+    "source_payload_mib_per_package": 200,
+    "changed_parts": 200,
+    "configured_max_patch_payload_bytes": 420478976,
+    "before_package_bytes": 209743799,
+    "after_package_bytes": 209743799,
+    "patch_operations": 200,
+    "patch_payloads": 400,
+    "patch_payload_bytes": 419430400,
+    "artifact_bytes": 419674355,
+    "decoded_payload_bytes": 419430400,
+    "timings_ms": {
+      "generate": 1024.2287,
+      "package_read": 1901.8089,
+      "patch_create": 149.9746,
+      "patch_write": 11656.4277,
+      "patch_read": 1904.2435,
+      "measured_total": 15612.4547
+    },
+    "memory": {
+      "baseline_managed_bytes": 102880,
+      "final_managed_bytes": 1800665448,
+      "retained_managed_delta_bytes": 1800562568,
+      "allocated_delta_bytes": 2342907576,
+      "baseline_working_set_bytes": 26144768,
+      "final_working_set_bytes": 2262900736,
+      "process_peak_working_set_bytes": 2262904832
+    }
+  }
+}

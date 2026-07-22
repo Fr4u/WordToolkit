@@ -3,6 +3,12 @@
 ## Test layers
 
 - Unit: canonical equation parsers/writers, error contracts and security primitives.
+- Native document engine: the cross-platform `WordToolkit.Engine.Tests` suite covers
+  bounded OPC parsing, typed semantic graphs, source spans, diff/patch/merge planning,
+  review decisions, formatting resolution and deterministic identities.
+- Native MCP host: `WordToolkit.Native.Tests` covers the compact/lazy tool catalog,
+  input validation, response compaction, cancellation and service contracts without
+  starting Microsoft Word.
 - Round-trip: LaTeX/UnicodeMath/MathML/AST → OMML → DOCX → reopened OMML with semantic AST comparison.
 - Integration: create/open/edit/save, package validation, Streamable HTTP initialization and bearer rejection.
 - Regression: the vendored `docx-mcp` test corpus covers styles, tables, notes, comments, revisions, fields, raw parts, images, sections, headers/footers and security behavior. Native saved-package review tests additionally exercise modern comment threads/durable IDs/reactions/people, malformed anchors, nested/property revisions, named moves, permission ranges, redaction, paging and real WordToolkit/Mammoth/Pandoc/Apache POI fixtures.
@@ -12,7 +18,10 @@
   module; `tests/test_clean_workspace.py` proves cleanup keeps only the current
   release and never removes `.venv` without an explicit flag.
 - Advanced acceptance: `scripts/advanced_torture_test.py` builds a nine-page, four-section OPC/OOXML torture document, reopens it, verifies protected parts byte-for-byte, checks 17 native equations semantically in every export format, validates package/accessibility/layout, renders PDF/PNG and rejects blank, sparse, clipped or corrupt previews.
-- Word interoperability: `scripts/word_interop.ps1` opens/saves generated documents through Word COM on a licensed self-hosted Windows runner.
+- Word interoperability: `native/scripts/live-full-capabilities-timed.ps1` exercises
+  every installed live action through the packaged native runtime on a licensed
+  self-hosted Windows runner. It preserves a pre-existing user Word process and closes
+  only its explicitly disposable acceptance document.
 - Word Live competitor-gap acceptance: `scripts/real_word_live_gap_test.py`
   creates one disposable Word 16.0 document, then exercises native Find,
   transactional replacement, comment add/reply/resolve, Track Changes,
@@ -27,6 +36,8 @@
 Run locally:
 
 ```bash
+dotnet test native/WordToolkit.Engine.Tests/WordToolkit.Engine.Tests.csproj -c Release
+dotnet test native/WordToolkit.Native.Tests/WordToolkit.Native.Tests.csproj -c Release
 uv sync --extra dev
 pytest -ra
 ruff check src/wordtoolkit scripts tests/test_*.py
@@ -36,21 +47,34 @@ python scripts/real_word_live_gap_test.py
 python scripts/export_tool_schemas.py
 ```
 
+On Windows, build the same native ZIP uploaded by CI. The script runs both .NET test
+suites before publishing unless `-SkipTests` is explicitly supplied:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build_native_plugin.ps1
+```
+
 The Docker image builds the Microsoft Open XML SDK validator. A Python-only run records that validator as unavailable rather than pretending it ran.
 
 ## Release gates
 
-1. All non-optional unit/integration/regression tests pass.
+1. `WordToolkit.Engine.Tests` and `WordToolkit.Native.Tests` pass, and the Windows CI
+   job builds and uploads the final distributable ZIP from the same commit.
 2. No DOCX export has `validation.valid=false`.
 3. Round-trip preservation has no missing or unexpectedly changed unmodified parts.
 4. Both basic samples and the advanced acceptance document render to PDF and PNG with no visual warning; every advanced page is decoded and manually reviewed before release.
 5. MCP schema export contains every required tool and file-input metadata.
 6. Plugin manifest validates.
 7. Container health and unauthenticated MCP rejection are verified.
-8. For production, the Windows/Word workflow passes before claiming Microsoft Word interoperability.
+8. Before publishing a release, the tag/manual Windows/Word workflow passes its full
+   48-action live gate on the exact packaged runtime. A sample open/resave is not a
+   substitute for this evidence.
 9. The tested plugin directory remains free of `.venv`, `__pycache__` and
    `.pyc`; after installation, the runtime's editable path resolves to the
    installed cache rather than the build directory.
+10. Large dependency graphs and `.wtpatch` inputs are claimed only up to a checked-in
+    benchmark result reporting elapsed time and peak memory. The configured rejection
+    ceilings alone are not performance evidence.
 
 ## Interpreting visual results
 

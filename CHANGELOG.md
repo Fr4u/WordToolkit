@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+- Verification checkpoint: 245 document-engine tests, 185 native-host tests, 1,273
+  Python/OOXML tests with 16 intentional skips, Ruff, a clean native package build and
+  packaged-runtime initialization all pass without touching the user's Word session.
+
+- Made the document-engine and native .NET test suites mandatory CI inputs and added a
+  clean Windows job that builds the exact distributable plugin ZIP. Tag builds on the
+  licensed self-hosted Word runner now execute the full 48-action live acceptance gate.
+- Bounded line-delimited MCP input at 8 MiB, added per-request cancellation tokens,
+  active request IDs, synchronized concurrent responses and MCP cancellation
+  notifications. A cancelled in-flight COM call now blocks new Word work until it
+  returns and directs supervisors to restart only the WordToolkit runtime if it hangs.
+- Centralized the native base version in `native/Directory.Build.props`; package builds
+  fail when it drifts from the plugin manifest. Corrected stale 0.30/0.33 README claims.
+- Stopped the legacy Python schema exporter from overwriting the native MCP catalog.
+  CI now rejects generated remote-schema/documentation drift, while native catalog
+  coverage remains enforced by `WordToolkit.Native.Tests`.
+- Documented that version-1 `.wtpatch` files contain full confidential payloads, are
+  materialized in memory and currently have no trusted signature or encryption envelope.
+- Added a reproducible engine benchmark harness, scheduled/manual benchmark workflow and
+  checked-in Windows x64 baseline. Roughly one million dependency nodes peaked at
+  4,173.1 MiB in 38.56 seconds; a 400 MiB patch payload peaked at 2,158.1 MiB in
+  15.61 seconds. These expose the current allocation debt instead of hiding it behind
+  permissive safety ceilings.
+- Reduced default `.wtpatch` limits after measurement: 128 MiB aggregate payload,
+  64 MiB per blob, 4 MiB manifest and 100:1 compression ratio. Higher limits now require
+  an explicit caller configuration rather than silently consuming multi-gigabyte memory.
+- Added an optional authenticated patch envelope in the engine. AES-256-GCM uses a fresh
+  nonce and binds canonical metadata as associated data; ECDSA-SHA256 signs metadata,
+  tag and payload and binds a restricted signer key ID. Wrong keys, tampering, missing
+  verifiers and unexpected signer identities fail closed. Raw `.wtpatch` remains
+  unencrypted by default, and MCP key provisioning is still deliberately absent.
+
 ## 0.34.0 — 2026-07-22
 
 - Added the initial unified `WordDependencyGraph`. Deterministic `wddn_` nodes and

@@ -1,6 +1,8 @@
 # WordToolkit Native
 
-WordToolkit 0.33 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference, canonical OfficeMath and review/revision graphs, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text and tracked-review structures to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
+WordToolkit 0.35 (development line) is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference, canonical OfficeMath and review/revision graphs, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text and tracked-review structures to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
+
+This is an advanced but experimental OOXML engine, not a verified claim of market leadership or complete Microsoft Word equivalence. Unsupported domains and release evidence are listed explicitly in [Known limitations](docs/KNOWN-LIMITATIONS.md) and [Testing](docs/TESTING.md).
 
 The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtual environment, an interpreter bootstrap, or a per-call helper process. Its MCP command points directly to:
 
@@ -8,7 +10,7 @@ The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtua
 ./runtime/win-x64/wordtoolkit-native.exe
 ```
 
-The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.30 local plugin, does not participate in its startup, and is not required at runtime.
+The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.35 local plugin, does not participate in its startup, and is not required at runtime.
 
 ## Why the runtime was replaced
 
@@ -179,6 +181,16 @@ order, hash/length drift, excessive expansion and compression bombs. This preser
 entry names and payload bytes exactly. ZIP compression, timestamps and container record
 layout are deterministic serializer output, not byte-identical copies of either source
 archive.
+
+Version-1 raw `.wtpatch` files are **confidential recovery artifacts**, not lightweight
+or public diffs. They may contain enough before/after payload data to reconstruct
+sensitive document content and are materialized in memory. Their internal hashes detect
+corruption but do not authenticate an author. The engine's optional
+`OpcPackagePatchEnvelopeCodec` can wrap a patch with AES-256-GCM encryption and/or an
+ECDSA-SHA256 signature bound to a caller-managed signer key ID. Raw patches remain
+unencrypted by default; key provisioning and MCP exposure are deliberately separate from
+the artifact format. Store every unencrypted patch with the same controls as the source
+DOCX.
 
 The strict lazy workflow is `plan_ooxml_patch` -> `create_ooxml_patch` ->
 `plan_ooxml_patch_apply` -> `apply_ooxml_patch`; `inspect_ooxml_patch` validates an
@@ -441,7 +453,10 @@ python scripts/clean_workspace.py --apply
 
 The cleaner constrains every target to the repository root. It preserves only the current native plugin directory, current native ZIP and `dist/.gitignore`, and removes stale releases, failed publish experiments, test output and native `bin`/`obj` directories.
 
-## Current artifact
+## Latest published artifact
+
+The development manifest/runtime is 0.35.0. The latest immutable public release remains
+0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:
 

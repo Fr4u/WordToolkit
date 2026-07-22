@@ -1,15 +1,42 @@
 name: microsoft-word-interop
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: word-interop-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   word:
     runs-on: [self-hosted, windows, word]
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - name: Open and resave samples in Microsoft Word
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Build and test the exact native plugin package
+        shell: powershell
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build_native_plugin.ps1
+      - name: Exercise every installed live Word action
         shell: powershell
         run: |
-          ./scripts/word_interop.ps1 -InputDirectory examples/generated
-          ./scripts/word_interop.ps1 -InputDirectory examples/advanced
+          $runtime = "dist\wordtoolkit\runtime\win-x64\wordtoolkit-native.exe"
+          ./native/scripts/live-full-capabilities-timed.ps1 `
+            -RuntimeExecutable $runtime |
+            Tee-Object -FilePath "dist\word-live-acceptance.json"
+      - name: Upload package and live acceptance evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: wordtoolkit-word-release-gate-${{ github.sha }}
+          path: |
+            dist/WordToolkit-*-native-win-x64.zip
+            dist/word-live-acceptance.json
+          if-no-files-found: error
+          retention-days: 30

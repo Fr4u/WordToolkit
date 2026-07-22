@@ -7,7 +7,6 @@ from pathlib import Path
 
 from wordtoolkit.config import Settings
 from wordtoolkit.server.app import build_app
-from wordtoolkit.server.stdio import build_stdio_server
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -15,13 +14,6 @@ ROOT = Path(__file__).resolve().parents[1]
 async def main() -> None:
     app = build_app(Settings(storage_root=ROOT / ".schema-storage"))
     tools = await app.state.wordtoolkit_mcp.list_tools()
-    local_tools = await build_stdio_server(
-        Settings(
-            auth_mode="local_stdio",
-            storage_root=ROOT / ".schema-storage-local",
-            public_base_url="http://127.0.0.1",
-        )
-    ).list_tools()
     payload = {
         "schema_version": "1.0.0",
         "mcp_protocol": "2025-06-18",
@@ -33,22 +25,10 @@ async def main() -> None:
     (schema_dir / "mcp-tools.v1.json").write_text(
         json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
-    local_payload = {
-        **payload,
-        "transport": "local_stdio",
-        "tools": [
-            tool.model_dump(mode="json", by_alias=True, exclude_none=True) for tool in local_tools
-        ],
-    }
-    (schema_dir / "mcp-tools-local.v1.json").write_text(
-        json.dumps(local_payload, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-
     lines = [
         "# MCP tool catalog",
         "",
-        "The machine-readable source of truth is `schemas/mcp-tools.v1.json`. Every tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.",
+        "The remote Python service source of truth is `schemas/mcp-tools.v1.json`. The native Windows plugin has a separate, deliberately hand-reviewed source in `schemas/mcp-tools-local.v1.json`; `WordToolkit.Native.Tests` validates that catalog and this exporter never overwrites it. Every exported remote tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.",
         "",
         "| Tool | Read only | Destructive | Idempotent | File inputs |",
         "|---|---:|---:|---:|---|",
@@ -79,7 +59,10 @@ async def main() -> None:
     docs = ROOT / "docs"
     docs.mkdir(exist_ok=True)
     (docs / "TOOL-CATALOG.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"exported {len(tools)} remote tools and {len(local_tools)} local tools")
+    print(
+        f"exported {len(tools)} remote tools; "
+        "native local schema is validated by WordToolkit.Native.Tests"
+    )
 
 
 if __name__ == "__main__":

@@ -21,13 +21,13 @@ public sealed record OpcPackagePatchLimits
 
     public int MaxPayloads { get; init; } = 40_000;
 
-    public long MaxPayloadBytes { get; init; } = 512L * 1024 * 1024;
+    public long MaxPayloadBytes { get; init; } = 128L * 1024 * 1024;
 
-    public long MaxPayloadBytesPerBlob { get; init; } = 128L * 1024 * 1024;
+    public long MaxPayloadBytesPerBlob { get; init; } = 64L * 1024 * 1024;
 
-    public long MaxManifestBytes { get; init; } = 16L * 1024 * 1024;
+    public long MaxManifestBytes { get; init; } = 4L * 1024 * 1024;
 
-    public double MaxCompressionRatio { get; init; } = 1_000;
+    public double MaxCompressionRatio { get; init; } = 100;
 
     internal void Validate()
     {
