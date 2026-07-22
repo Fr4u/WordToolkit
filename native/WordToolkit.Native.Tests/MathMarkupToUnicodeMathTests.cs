@@ -262,7 +262,7 @@ public sealed class MathMarkupToUnicodeMathTests
             """
             <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
               <m:limLow>
-                <m:e><m:r><m:rPr><m:nor/></m:rPr><m:t>min</m:t></m:r></m:e>
+                <m:e><m:r><m:rPr><m:nor/><m:sty m:val="p"/></m:rPr><m:t>min</m:t></m:r></m:e>
                 <m:lim><m:r><m:t>x</m:t></m:r></m:lim>
               </m:limLow>
             </m:oMath>
@@ -296,6 +296,168 @@ public sealed class MathMarkupToUnicodeMathTests
             "ℱℓ+ℜℑ+ℝℂ+𝖠+𝚡",
             MathMarkupToUnicodeMath.Convert(source, "omml")
         );
+    }
+
+    [Fact]
+    public void PreservesAllFourMathMlMathStylesInTheNativeBuildPlan()
+    {
+        const string source =
+            """
+            <math xmlns="http://www.w3.org/1998/Math/MathML">
+              <mi mathvariant="normal">a</mi>
+              <mi mathvariant="bold">b</mi>
+              <mi mathvariant="italic">c</mi>
+              <mi mathvariant="bold-italic">d</mi>
+            </math>
+            """;
+
+        var plan = MathMarkupToUnicodeMath.ConvertPlan(source, "mathml");
+
+        Assert.Equal("abcd", plan.Linear);
+        Assert.NotEqual(plan.Linear, plan.BuildLinear);
+        Assert.Equal(1, plan.StyleCounts.Plain);
+        Assert.Equal(1, plan.StyleCounts.Bold);
+        Assert.Equal(1, plan.StyleCounts.Italic);
+        Assert.Equal(1, plan.StyleCounts.BoldItalic);
+        Assert.Equal(4, plan.StyleCounts.RunsAndControls);
+        Assert.Equal(0, plan.StyleCounts.RunsOnly);
+        Assert.Equal(0, plan.StyleCounts.FirstControl);
+    }
+
+    [Fact]
+    public void ResolvesMathMlMstyleInheritanceAndTokenOverrides()
+    {
+        const string source =
+            """
+            <math xmlns="http://www.w3.org/1998/Math/MathML">
+              <mstyle mathvariant="bold">
+                <mfrac>
+                  <mi>x</mi>
+                  <mi mathvariant="italic">y</mi>
+                </mfrac>
+              </mstyle>
+            </math>
+            """;
+
+        var plan = MathMarkupToUnicodeMath.ConvertPlan(source, "mathml");
+
+        Assert.Equal("(x)/(y)", plan.Linear);
+        Assert.Equal(1, plan.StyleCounts.Bold);
+        Assert.Equal(1, plan.StyleCounts.Italic);
+        Assert.Equal(2, plan.StyleCounts.Total);
+    }
+
+    [Fact]
+    public void PreservesMathMlAlphabetAndWeightCombinationsWithoutFlatteningThem()
+    {
+        const string source =
+            """
+            <math xmlns="http://www.w3.org/1998/Math/MathML">
+              <mi mathvariant="double-struck">R</mi>
+              <mo>+</mo>
+              <mi mathvariant="bold-fraktur">A</mi>
+              <mo>+</mo>
+              <mi mathvariant="sans-serif-bold-italic">x</mi>
+            </math>
+            """;
+
+        var plan = MathMarkupToUnicodeMath.ConvertPlan(source, "mathml");
+
+        Assert.Equal("ℝ+𝔄+𝗑", plan.Linear);
+        Assert.Equal(1, plan.StyleCounts.Plain);
+        Assert.Equal(1, plan.StyleCounts.Bold);
+        Assert.Equal(1, plan.StyleCounts.BoldItalic);
+    }
+
+    [Fact]
+    public void PreservesOmmlRunAndControlStylesAsSeparateScopes()
+    {
+        const string source =
+            """
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
+                     xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <m:f>
+                <m:fPr><m:ctrlPr><w:rPr><w:i/></w:rPr></m:ctrlPr></m:fPr>
+                <m:num>
+                  <m:r><m:rPr><m:sty m:val="p"/></m:rPr><m:t>a</m:t></m:r>
+                  <m:r><m:rPr><m:sty m:val="b"/></m:rPr><m:t>b</m:t></m:r>
+                </m:num>
+                <m:den>
+                  <m:r><m:rPr><m:sty m:val="i"/></m:rPr><m:t>c</m:t></m:r>
+                  <m:r><m:rPr><m:sty m:val="bi"/></m:rPr><m:t>d</m:t></m:r>
+                </m:den>
+              </m:f>
+            </m:oMath>
+            """;
+
+        var plan = MathMarkupToUnicodeMath.ConvertPlan(source, "omml");
+
+        Assert.Equal("(ab)/(cd)", plan.Linear);
+        Assert.Equal(1, plan.StyleCounts.PlainRunsOnly);
+        Assert.Equal(1, plan.StyleCounts.BoldRunsOnly);
+        Assert.Equal(1, plan.StyleCounts.ItalicRunsOnly);
+        Assert.Equal(1, plan.StyleCounts.BoldItalicRunsOnly);
+        Assert.Equal(1, plan.StyleCounts.ItalicFirstControl);
+        Assert.Equal(5, plan.StyleCounts.Total);
+    }
+
+    [Fact]
+    public void PreservesStrictOmmlPlainAndItalicRunStyles()
+    {
+        const string source =
+            """
+            <m:oMath xmlns:m="http://purl.oclc.org/ooxml/officeDocument/math">
+              <m:r><m:rPr><m:sty m:val="p"/></m:rPr><m:t>x</m:t></m:r>
+              <m:r><m:rPr><m:sty m:val="i"/></m:rPr><m:t>y</m:t></m:r>
+            </m:oMath>
+            """;
+
+        var plan = MathMarkupToUnicodeMath.ConvertPlan(source, "omml");
+
+        Assert.Equal("xy", plan.Linear);
+        Assert.Equal(1, plan.StyleCounts.PlainRunsOnly);
+        Assert.Equal(1, plan.StyleCounts.ItalicRunsOnly);
+    }
+
+    [Theory]
+    [InlineData("initial")]
+    [InlineData("tailed")]
+    [InlineData("looped")]
+    [InlineData("stretched")]
+    [InlineData("invented")]
+    public void RejectsMathMlVariantsThatCannotBePreservedLosslessly(string variant)
+    {
+        var source =
+            $"<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mi mathvariant=\"{variant}\">x</mi></math>";
+
+        var error = Assert.Throws<NativeToolException>(() =>
+            MathMarkupToUnicodeMath.ConvertPlan(source, "mathml")
+        );
+
+        Assert.Equal("EQUATION_INVALID", error.ErrorCode);
+        Assert.Contains("losslessly", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void RejectsInvalidOmmlStylesAndReservedMarkerInjection()
+    {
+        const string invalidStyle =
+            """
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:r><m:rPr><m:sty m:val="heavy"/></m:rPr><m:t>x</m:t></m:r>
+            </m:oMath>
+            """;
+        var styleError = Assert.Throws<NativeToolException>(() =>
+            MathMarkupToUnicodeMath.ConvertPlan(invalidStyle, "omml")
+        );
+        Assert.Equal("EQUATION_INVALID", styleError.ErrorCode);
+
+        const string injected =
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mi>x\uE100y</mi></math>";
+        var markerError = Assert.Throws<NativeToolException>(() =>
+            MathMarkupToUnicodeMath.ConvertPlan(injected, "mathml")
+        );
+        Assert.Equal("EQUATION_INVALID", markerError.ErrorCode);
     }
 
     [Fact]

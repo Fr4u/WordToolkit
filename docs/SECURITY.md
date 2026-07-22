@@ -162,15 +162,19 @@ expose verification facts and hashes, never raw OMML. The in-process learning co
 retain only input format and success/failure counts—not formula text, document content,
 names or paths.
 
-Bold equation scopes reserve four private-use sentinels that are rejected in
-caller-supplied LaTeX and UnicodeMath. They exist only in the temporary Word build
+Equation style scopes reserve 24 private-use sentinels that are rejected in every
+caller-supplied equation format. They exist only in the temporary Word build
 payload. The bounded readback rewriter requires balanced, ordered markers inside
-exactly one OMath, removes them all, applies only native `m:sty="b"` or `m:sty="bi"`
-to math runs and matching `m:ctrlPr/w:rPr` weight to enclosing structural controls,
+exactly one OMath, removes them all, applies only native `m:sty="p"`, `m:sty="b"`,
+`m:sty="i"` or `m:sty="bi"` to math runs and matching `m:ctrlPr/w:rPr` bold/italic
+properties to explicitly targeted structural controls,
 reinserts the same one-equation range and compares a second style-contract hash over
 both run and control placement. Marker loss, marker leakage, changed weight, malformed
 XML or equation-count drift raises `EQUATION_INVALID` and rolls back the complete Undo
-record.
+record. The hash treats Word's documented implicit italic/roman defaults and equivalent
+adjacent-run coalescing as canonical, but it retains normal-text/literal flags, script,
+effective style, text and structural-control ordering. Failure diagnostics contain no
+formula text or raw OMML.
 
 ## Failure behavior
 

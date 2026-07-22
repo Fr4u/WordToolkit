@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+## 0.33.0 — 2026-07-22
+
+- Added loss-aware native style preservation for Presentation MathML and OMML. MathML
+  resolves inherited `mathvariant` values on `math`/`mstyle`, token overrides, all four
+  weight/slant styles and ten representable mathematical alphabets. OMML preserves all
+  four `m:sty` values (`p`, `b`, `i`, `bi`) separately from `m:ctrlPr/w:rPr` bold and
+  italic properties for recognized structural controls. The full 19-name control
+  property vocabulary is known; unsupported OMML structures still fail instead of
+  being flattened under a broad support claim.
+- Expanded the private build protocol from four to 24 stable, reserved sentinels so
+  run-only, run-and-control and first-control scopes remain distinct. Marker injection,
+  imbalance, unsupported placement and contextual Arabic MathML variants that cannot
+  survive the linear Word path fail before mutation instead of silently flattening.
+- Made native style readback semantic instead of byte-fragile. The verifier normalizes
+  Word's documented default `m:sty="i"` and `m:scr="roman"`, coalesces only adjacent
+  sibling runs with identical effective properties, and still hashes text, normal/literal
+  flags, mathematical script, run style and structural-control placement. Diagnostics
+  expose bounded property traces without formula text or raw OMML.
+- Extended the complete real-Word gate with normal, bold, italic and bold-italic MathML
+  tokens, all ten representable mathematical alphabets and separate OMML run/control
+  scopes. The packaged Release runtime completed
+  122 MCP requests, all 48 live actions, 12 editable equations, save/reopen/reconnect,
+  Open XML validation and a 166,347-byte PDF while preserving the pre-existing Word
+  process and closing only its own acceptance document.
+- Verified 234 document-engine tests, 179 native-host tests, Ruff, mypy and 1273
+  Python/OOXML tests with 16 intentional skips.
+- Built the self-contained Windows x64 plugin twice from independent output
+  directories. Both 195-file archives were byte-identical at 36,989,699 bytes with
+  SHA-256 `8a64ed4f9b69b80f338de5c30bc687852bf29d24bddcb9b99eb078d15e06d1b1`;
+  the runtime executable SHA-256 is
+  `dd5bf30493826db37d43b027928a7f9b9a881b070264b18b6824c80ad15440db`.
+
 ## 0.32.0 — 2026-07-22
 
 - Added native editable `\mathbf{...}` and `\boldsymbol{...}` authoring without

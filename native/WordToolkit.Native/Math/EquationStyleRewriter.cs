@@ -11,9 +11,13 @@ internal sealed record EquationStyleRewriteResult(
     string StyleContractSha256,
     int RegionCount,
     int StyledRunCount,
+    int PlainRunCount,
     int BoldRunCount,
+    int ItalicRunCount,
     int BoldItalicRunCount,
+    int PlainControlCount,
     int BoldControlCount,
+    int ItalicControlCount,
     int BoldItalicControlCount
 );
 
@@ -21,9 +25,13 @@ internal sealed record EquationStyleVerification(
     string ExpectedContractSha256,
     string ActualContractSha256,
     int StyledRunCount,
+    int PlainRunCount,
     int BoldRunCount,
+    int ItalicRunCount,
     int BoldItalicRunCount,
+    int PlainControlCount,
     int BoldControlCount,
+    int ItalicControlCount,
     int BoldItalicControlCount
 );
 
@@ -77,11 +85,12 @@ internal static class EquationStyleRewriter
         var document = Parse(wordOpenXml);
         var equation = SingleEquation(document);
         var controlCounts = RewriteControlStyles(equation);
-        var stack = new Stack<EquationMathStyle>();
-        var observedBold = 0;
-        var observedBoldItalic = 0;
+        var stack = new Stack<EquationStyleRegion>();
+        var observedRegions = new List<EquationStyleRegion>();
         var styledRuns = 0;
+        var plainRuns = 0;
         var boldRuns = 0;
+        var italicRuns = 0;
         var boldItalicRuns = 0;
 
         foreach (var run in equation.Descendants().Where(IsMathRun).ToArray())
@@ -92,10 +101,17 @@ internal static class EquationStyleRewriter
             );
             if (!containsMarker)
             {
-                if (stack.TryPeek(out var active) && textElements.Length > 0)
+                if (TryActiveRunStyle(stack, out var active) && textElements.Length > 0)
                 {
                     ApplyStyle(run, active);
-                    CountRun(active, ref styledRuns, ref boldRuns, ref boldItalicRuns);
+                    CountRun(
+                        active,
+                        ref styledRuns,
+                        ref plainRuns,
+                        ref boldRuns,
+                        ref italicRuns,
+                        ref boldItalicRuns
+                    );
                 }
                 continue;
             }
@@ -127,13 +143,15 @@ internal static class EquationStyleRewriter
                 {
                     var replacement = new XElement(run);
                     replacement.Elements().Single(IsMathText).Value = text[segmentStart..index];
-                    if (stack.TryPeek(out var active))
+                    if (TryActiveRunStyle(stack, out var active))
                     {
                         ApplyStyle(replacement, active);
                         CountRun(
                             active,
                             ref styledRuns,
+                            ref plainRuns,
                             ref boldRuns,
+                            ref italicRuns,
                             ref boldItalicRuns
                         );
                     }
@@ -146,14 +164,7 @@ internal static class EquationStyleRewriter
                 if (EquationFormattingMarkers.TryStart(text[index], out var started))
                 {
                     stack.Push(started);
-                    if (started == EquationMathStyle.Bold)
-                    {
-                        observedBold++;
-                    }
-                    else
-                    {
-                        observedBoldItalic++;
-                    }
+                    observedRegions.Add(started);
                 }
                 else if (EquationFormattingMarkers.TryEnd(text[index], out var ended))
                 {
@@ -173,17 +184,27 @@ internal static class EquationStyleRewriter
         {
             throw Invalid("Microsoft Word dropped an equation formatting end marker");
         }
-        var observed = new EquationStyleCounts(observedBold, observedBoldItalic);
+        var observed = EquationStyleCounts.From(observedRegions);
         if (observed != expectedCounts)
         {
             throw Invalid(
                 "Microsoft Word changed the equation formatting marker count",
                 new
                 {
+                    expected_plain_regions = expectedCounts.Plain,
+                    actual_plain_regions = observed.Plain,
                     expected_bold_regions = expectedCounts.Bold,
                     actual_bold_regions = observed.Bold,
+                    expected_italic_regions = expectedCounts.Italic,
+                    actual_italic_regions = observed.Italic,
                     expected_bold_italic_regions = expectedCounts.BoldItalic,
                     actual_bold_italic_regions = observed.BoldItalic,
+                    expected_runs_and_controls_regions = expectedCounts.RunsAndControls,
+                    actual_runs_and_controls_regions = observed.RunsAndControls,
+                    expected_runs_only_regions = expectedCounts.RunsOnly,
+                    actual_runs_only_regions = observed.RunsOnly,
+                    expected_first_control_regions = expectedCounts.FirstControl,
+                    actual_first_control_regions = observed.FirstControl,
                 }
             );
         }
@@ -201,9 +222,13 @@ internal static class EquationStyleRewriter
             Hash(contract),
             expectedCounts.Total,
             styledRuns,
+            plainRuns,
             boldRuns,
+            italicRuns,
             boldItalicRuns,
+            controlCounts.Plain,
             controlCounts.Bold,
+            controlCounts.Italic,
             controlCounts.BoldItalic
         );
     }
@@ -224,31 +249,54 @@ internal static class EquationStyleRewriter
             throw Invalid("An internal equation formatting marker survived Word readback");
         }
         var runs = equation.Descendants().Where(IsMathRun).ToArray();
-        var bold = runs.Count(run => ReadStyle(run) == "b");
-        var boldItalic = runs.Count(run => ReadStyle(run) == "bi");
+        var explicitPlain = runs.Count(run => ReadExplicitStyle(run) == "p");
+        var explicitBold = runs.Count(run => ReadExplicitStyle(run) == "b");
+        var explicitItalic = runs.Count(run => ReadExplicitStyle(run) == "i");
+        var explicitBoldItalic = runs.Count(run => ReadExplicitStyle(run) == "bi");
+        var effectivePlain = runs.Count(run => ReadEffectiveStyle(run) == "p");
+        var effectiveBold = runs.Count(run => ReadEffectiveStyle(run) == "b");
+        var effectiveItalic = runs.Count(run => ReadEffectiveStyle(run) == "i");
+        var effectiveBoldItalic = runs.Count(run => ReadEffectiveStyle(run) == "bi");
         var controls = equation.Descendants()
             .Where(IsControllableMathObject)
             .Select(ReadControlStyle)
             .ToArray();
+        var plainControls = controls.Count(style => style == "p");
         var boldControls = controls.Count(style => style == "b");
+        var italicControls = controls.Count(style => style == "i");
         var boldItalicControls = controls.Count(style => style == "bi");
         var directText = runs.SelectMany(run => run.Elements().Where(IsMathText)).ToArray();
         var descendantText = equation.Descendants().Where(IsMathText).ToArray();
         var actualHash = Hash(StyleContract(equation));
         if (!string.Equals(expected.StyleContractSha256, actualHash, StringComparison.Ordinal))
         {
+            var expectedEquation = SingleEquation(Parse(expected.WordOpenXml));
             throw Invalid(
                 "Microsoft Word changed native equation style placement during reinsertion",
                 new
                 {
                     expected_style_contract_sha256 = expected.StyleContractSha256,
                     actual_style_contract_sha256 = actualHash,
+                    expected_style_trace = StyleTrace(expectedEquation),
+                    actual_style_trace = StyleTrace(equation),
+                    expected_plain_run_count = expected.PlainRunCount,
+                    actual_explicit_plain_run_count = explicitPlain,
+                    actual_effective_plain_run_count = effectivePlain,
                     expected_bold_run_count = expected.BoldRunCount,
-                    actual_bold_run_count = bold,
+                    actual_explicit_bold_run_count = explicitBold,
+                    actual_effective_bold_run_count = effectiveBold,
+                    expected_italic_run_count = expected.ItalicRunCount,
+                    actual_explicit_italic_run_count = explicitItalic,
+                    actual_effective_italic_run_count = effectiveItalic,
                     expected_bold_italic_run_count = expected.BoldItalicRunCount,
-                    actual_bold_italic_run_count = boldItalic,
+                    actual_explicit_bold_italic_run_count = explicitBoldItalic,
+                    actual_effective_bold_italic_run_count = effectiveBoldItalic,
+                    expected_plain_control_count = expected.PlainControlCount,
+                    actual_plain_control_count = plainControls,
                     expected_bold_control_count = expected.BoldControlCount,
                     actual_bold_control_count = boldControls,
+                    expected_italic_control_count = expected.ItalicControlCount,
+                    actual_italic_control_count = italicControls,
                     expected_bold_italic_control_count = expected.BoldItalicControlCount,
                     actual_bold_italic_control_count = boldItalicControls,
                     actual_math_run_count = runs.Length,
@@ -263,11 +311,15 @@ internal static class EquationStyleRewriter
         return new EquationStyleVerification(
             expected.StyleContractSha256,
             actualHash,
-            bold + boldItalic,
-            bold,
-            boldItalic,
-            boldControls,
-            boldItalicControls
+            expected.StyledRunCount,
+            expected.PlainRunCount,
+            expected.BoldRunCount,
+            expected.ItalicRunCount,
+            expected.BoldItalicRunCount,
+            expected.PlainControlCount,
+            expected.BoldControlCount,
+            expected.ItalicControlCount,
+            expected.BoldItalicControlCount
         );
     }
 
@@ -362,7 +414,7 @@ internal static class EquationStyleRewriter
             properties = new XElement(math + "rPr");
             run.AddFirst(properties);
         }
-        var value = style == EquationMathStyle.Bold ? "b" : "bi";
+        var value = StyleValue(style);
         var styleElement = properties.Elements()
             .FirstOrDefault(element =>
                 element.Name.Namespace == math && element.Name.LocalName == "sty"
@@ -384,10 +436,12 @@ internal static class EquationStyleRewriter
         styleElement.SetAttributeValue(math + "val", value);
     }
 
-    private static (int Bold, int BoldItalic) RewriteControlStyles(XElement equation)
+    private static AppliedStyleCounts RewriteControlStyles(XElement equation)
     {
-        var stack = new Stack<EquationMathStyle>();
+        var stack = new Stack<ControlRegionState>();
+        var plain = 0;
         var bold = 0;
+        var italic = 0;
         var boldItalic = 0;
         foreach (var element in equation.DescendantNodes().OfType<XElement>())
         {
@@ -397,14 +451,30 @@ internal static class EquationStyleRewriter
                 {
                     if (EquationFormattingMarkers.TryStart(character, out var started))
                     {
-                        stack.Push(started);
+                        stack.Push(new ControlRegionState(started));
                     }
                     else if (EquationFormattingMarkers.TryEnd(character, out var ended))
                     {
-                        if (stack.Count == 0 || stack.Pop() != ended)
+                        if (stack.Count == 0)
                         {
                             throw Invalid(
                                 "Microsoft Word changed the equation formatting marker order"
+                            );
+                        }
+                        var closed = stack.Pop();
+                        if (closed.Region != ended)
+                        {
+                            throw Invalid(
+                                "Microsoft Word changed the equation formatting marker order"
+                            );
+                        }
+                        if (
+                            closed.Region.Target == EquationStyleTarget.FirstControl
+                            && !closed.FirstControlApplied
+                        )
+                        {
+                            throw Invalid(
+                                "Microsoft Word did not bind a control-only style marker to a math object"
                             );
                         }
                     }
@@ -412,18 +482,25 @@ internal static class EquationStyleRewriter
                 continue;
             }
             if (
-                stack.TryPeek(out var active)
-                && IsControllableMathObject(element)
+                IsControllableMathObject(element)
+                && TryActiveControlStyle(stack, out var active)
             )
             {
                 ApplyControlStyle(element, active);
-                if (active == EquationMathStyle.Bold)
+                switch (active)
                 {
-                    bold++;
-                }
-                else
-                {
-                    boldItalic++;
+                    case EquationMathStyle.Plain:
+                        plain++;
+                        break;
+                    case EquationMathStyle.Bold:
+                        bold++;
+                        break;
+                    case EquationMathStyle.Italic:
+                        italic++;
+                        break;
+                    case EquationMathStyle.BoldItalic:
+                        boldItalic++;
+                        break;
                 }
             }
         }
@@ -431,7 +508,7 @@ internal static class EquationStyleRewriter
         {
             throw Invalid("Microsoft Word dropped an equation formatting end marker");
         }
-        return (bold, boldItalic);
+        return new AppliedStyleCounts(plain, bold, italic, boldItalic);
     }
 
     private static void ApplyControlStyle(XElement element, EquationMathStyle style)
@@ -463,11 +540,15 @@ internal static class EquationStyleRewriter
             control.Add(runProperties);
         }
         var wordNamespace = runProperties.Name.Namespace;
-        SetOnOff(runProperties, wordNamespace + "b", enabled: true);
+        SetOnOff(
+            runProperties,
+            wordNamespace + "b",
+            enabled: style is EquationMathStyle.Bold or EquationMathStyle.BoldItalic
+        );
         SetOnOff(
             runProperties,
             wordNamespace + "i",
-            enabled: style == EquationMathStyle.BoldItalic
+            enabled: style is EquationMathStyle.Italic or EquationMathStyle.BoldItalic
         );
     }
 
@@ -477,11 +558,6 @@ internal static class EquationStyleRewriter
         foreach (var duplicate in values.Skip(1))
         {
             duplicate.Remove();
-        }
-        if (!enabled)
-        {
-            values.FirstOrDefault()?.Remove();
-            return;
         }
         var value = values.FirstOrDefault();
         if (value is null)
@@ -501,7 +577,6 @@ internal static class EquationStyleRewriter
             {
                 following.AddBeforeSelf(value);
             }
-            return;
         }
         foreach (var attribute in value.Attributes().Where(attribute =>
             attribute.Name.LocalName == "val"
@@ -509,11 +584,16 @@ internal static class EquationStyleRewriter
         {
             attribute.Remove();
         }
+        if (!enabled)
+        {
+            value.SetAttributeValue(name.Namespace + "val", "0");
+        }
     }
 
     private static string StyleContract(XElement equation)
     {
         var output = new StringBuilder();
+        var consumedRuns = new HashSet<XElement>();
         foreach (var element in equation.Descendants())
         {
             if (IsControllableMathObject(element))
@@ -534,20 +614,144 @@ internal static class EquationStyleRewriter
             {
                 continue;
             }
-            var run = element;
-            var text = string.Concat(run.Elements().Where(IsMathText).Select(item => item.Value));
-            if (text.Length == 0)
+            if (!consumedRuns.Add(element))
             {
                 continue;
             }
-            var style = ReadStyle(run);
-            output.Append('R').Append(style.Length).Append(':').Append(style);
-            output.Append(':').Append(text.Length).Append(':').Append(text).Append(';');
+            var block = new List<XElement> { element };
+            var cursor = element;
+            while (cursor.ElementsAfterSelf().FirstOrDefault() is { } following)
+            {
+                if (!IsMathRun(following))
+                {
+                    break;
+                }
+                block.Add(following);
+                consumedRuns.Add(following);
+                cursor = following;
+            }
+            AppendCanonicalRunBlock(output, block);
         }
         return output.ToString();
     }
 
-    private static string ReadStyle(XElement run)
+    private static void AppendCanonicalRunBlock(
+        StringBuilder output,
+        IReadOnlyList<XElement> runs
+    )
+    {
+        RunSemantics? active = null;
+        var text = new StringBuilder();
+        foreach (var run in runs)
+        {
+            var runText = string.Concat(
+                run.Elements().Where(IsMathText).Select(item => item.Value)
+            );
+            if (runText.Length == 0)
+            {
+                continue;
+            }
+            var semantics = new RunSemantics(
+                ReadEffectiveStyle(run),
+                ReadEffectiveScript(run),
+                ReadMathRunOnOff(run, "nor"),
+                ReadMathRunOnOff(run, "lit")
+            );
+            if (active is not null && active.Value != semantics)
+            {
+                AppendCanonicalRun(output, active.Value, text.ToString());
+                text.Clear();
+            }
+            active = semantics;
+            text.Append(runText);
+        }
+        if (active is not null)
+        {
+            AppendCanonicalRun(output, active.Value, text.ToString());
+        }
+    }
+
+    private static void AppendCanonicalRun(
+        StringBuilder output,
+        RunSemantics semantics,
+        string text
+    )
+    {
+        output.Append('R').Append(semantics.Style.Length).Append(':').Append(semantics.Style);
+        output.Append(':').Append(semantics.Script.Length).Append(':').Append(semantics.Script);
+        output.Append(':').Append(semantics.NormalText ? '1' : '0');
+        output.Append(':').Append(semantics.Literal ? '1' : '0');
+        output.Append(':').Append(text.Length).Append(':').Append(text).Append(';');
+    }
+
+    private static string StyleTrace(XElement equation)
+    {
+        var output = new StringBuilder();
+        var runIndex = 0;
+        var controlIndex = 0;
+        foreach (var element in equation.Descendants())
+        {
+            if (IsControllableMathObject(element))
+            {
+                if (controlIndex < 64)
+                {
+                    var style = ReadControlStyle(element);
+                    output.Append('C')
+                        .Append(controlIndex)
+                        .Append('[')
+                        .Append(element.Name.LocalName)
+                        .Append(",sty=")
+                        .Append(style.Length == 0 ? "default" : style)
+                        .Append("];");
+                }
+                controlIndex++;
+                continue;
+            }
+            if (!IsMathRun(element))
+            {
+                continue;
+            }
+            var textLength = element.Elements().Where(IsMathText).Sum(item => item.Value.Length);
+            if (textLength == 0)
+            {
+                continue;
+            }
+            if (runIndex < 64)
+            {
+                var explicitStyle = ReadExplicitStyle(element);
+                var explicitScript = ReadExplicitScript(element);
+                output.Append('R')
+                    .Append(runIndex)
+                    .Append("[chars=")
+                    .Append(textLength)
+                    .Append(",sty=")
+                    .Append(ReadEffectiveStyle(element))
+                    .Append(",styXml=")
+                    .Append(explicitStyle.Length == 0 ? "default" : explicitStyle)
+                    .Append(",scr=")
+                    .Append(ReadEffectiveScript(element))
+                    .Append(",scrXml=")
+                    .Append(explicitScript.Length == 0 ? "default" : explicitScript)
+                    .Append(",nor=")
+                    .Append(ReadMathRunOnOff(element, "nor") ? '1' : '0')
+                    .Append(",lit=")
+                    .Append(ReadMathRunOnOff(element, "lit") ? '1' : '0')
+                    .Append("];");
+            }
+            runIndex++;
+        }
+        if (runIndex > 64 || controlIndex > 64)
+        {
+            output.Append("truncated:runs=")
+                .Append(runIndex)
+                .Append(",controls=")
+                .Append(controlIndex)
+                .Append(';');
+        }
+        return output.ToString();
+    }
+
+    private static string ReadExplicitStyle(XElement run)
     {
         var math = run.Name.Namespace;
         return run.Elements()
@@ -564,6 +768,51 @@ internal static class EquationStyleRewriter
                 )
                 ?.Value
             ?? "";
+    }
+
+    private static string ReadEffectiveStyle(XElement run)
+    {
+        var explicitStyle = ReadExplicitStyle(run);
+        return explicitStyle.Length == 0 ? "i" : explicitStyle;
+    }
+
+    private static string ReadEffectiveScript(XElement run)
+    {
+        var explicitScript = ReadExplicitScript(run);
+        return explicitScript.Length == 0 ? "roman" : explicitScript;
+    }
+
+    private static string ReadExplicitScript(XElement run)
+    {
+        var math = run.Name.Namespace;
+        return run.Elements()
+                .FirstOrDefault(element =>
+                    element.Name.Namespace == math && element.Name.LocalName == "rPr"
+                )
+                ?.Elements()
+                .FirstOrDefault(element =>
+                    element.Name.Namespace == math && element.Name.LocalName == "scr"
+                )
+                ?.Attributes()
+                .FirstOrDefault(attribute =>
+                    attribute.Name.Namespace == math && attribute.Name.LocalName == "val"
+                )
+                ?.Value
+            ?? "";
+    }
+
+    private static bool ReadMathRunOnOff(XElement run, string propertyName)
+    {
+        var math = run.Name.Namespace;
+        var property = run.Elements()
+            .FirstOrDefault(element =>
+                element.Name.Namespace == math && element.Name.LocalName == "rPr"
+            )
+            ?.Elements()
+            .FirstOrDefault(element =>
+                element.Name.Namespace == math && element.Name.LocalName == propertyName
+            );
+        return IsOn(property);
     }
 
     private static string ReadControlStyle(XElement element)
@@ -583,11 +832,14 @@ internal static class EquationStyleRewriter
         }
         var word = runProperties.Name.Namespace;
         var bold = IsOn(runProperties.Element(word + "b"));
-        if (!bold)
+        var italic = IsOn(runProperties.Element(word + "i"));
+        return (bold, italic) switch
         {
-            return "";
-        }
-        return IsOn(runProperties.Element(word + "i")) ? "bi" : "b";
+            (false, false) => "p",
+            (true, false) => "b",
+            (false, true) => "i",
+            _ => "bi",
+        };
     }
 
     private static bool IsOn(XElement? element)
@@ -617,20 +869,103 @@ internal static class EquationStyleRewriter
     private static void CountRun(
         EquationMathStyle style,
         ref int styled,
+        ref int plain,
         ref int bold,
+        ref int italic,
         ref int boldItalic
     )
     {
         styled++;
-        if (style == EquationMathStyle.Bold)
+        switch (style)
         {
-            bold++;
-        }
-        else
-        {
-            boldItalic++;
+            case EquationMathStyle.Plain:
+                plain++;
+                break;
+            case EquationMathStyle.Bold:
+                bold++;
+                break;
+            case EquationMathStyle.Italic:
+                italic++;
+                break;
+            case EquationMathStyle.BoldItalic:
+                boldItalic++;
+                break;
         }
     }
+
+    private static bool TryActiveRunStyle(
+        IEnumerable<EquationStyleRegion> stack,
+        out EquationMathStyle style
+    )
+    {
+        foreach (var region in stack)
+        {
+            if (region.AppliesToRuns)
+            {
+                style = region.Style;
+                return true;
+            }
+        }
+        style = default;
+        return false;
+    }
+
+    private static bool TryActiveControlStyle(
+        IEnumerable<ControlRegionState> stack,
+        out EquationMathStyle style
+    )
+    {
+        foreach (var state in stack)
+        {
+            if (!state.Region.AppliesToControls)
+            {
+                continue;
+            }
+            if (state.Region.Target == EquationStyleTarget.FirstControl)
+            {
+                if (state.FirstControlApplied)
+                {
+                    continue;
+                }
+                state.FirstControlApplied = true;
+            }
+            style = state.Region.Style;
+            return true;
+        }
+        style = default;
+        return false;
+    }
+
+    private static string StyleValue(EquationMathStyle style) =>
+        style switch
+        {
+            EquationMathStyle.Plain => "p",
+            EquationMathStyle.Bold => "b",
+            EquationMathStyle.Italic => "i",
+            EquationMathStyle.BoldItalic => "bi",
+            _ => throw Invalid("Equation style is not supported"),
+        };
+
+    private sealed class ControlRegionState(EquationStyleRegion region)
+    {
+        internal EquationStyleRegion Region { get; } = region;
+
+        internal bool FirstControlApplied { get; set; }
+    }
+
+    private readonly record struct AppliedStyleCounts(
+        int Plain,
+        int Bold,
+        int Italic,
+        int BoldItalic
+    );
+
+    private readonly record struct RunSemantics(
+        string Style,
+        string Script,
+        bool NormalText,
+        bool Literal
+    );
 
     private static bool IsMathRun(XElement element) =>
         IsMathElement(element) && element.Name.LocalName == "r";

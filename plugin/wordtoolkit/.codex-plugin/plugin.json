@@ -1,6 +1,6 @@
 {
   "name": "wordtoolkit",
-  "version": "0.32.0+codex.20260722091136",
+  "version": "0.33.0+codex.20260722100256",
   "description": "Token-lean native Microsoft Word automation with 14 core/gateway tools and lazy access to 73 native actions.",
   "author": {
     "name": "WordToolkit contributors"
@@ -28,7 +28,7 @@
   "interface": {
     "displayName": "WordToolkit",
     "shortDescription": "Token-lean automation for real Word.",
-    "longDescription": "WordToolkit controls the real Microsoft Word application through one persistent native .NET COM STA thread. A small 14-tool MCP surface covers the common lifecycle and batch path; search, inspect and execute gateways load any of 73 native actions only when needed. Compact responses omit echoed input and diagnostics by default. The full action set covers saved-package graphs, semantics, semantic comparison, deterministic reversible OPC patch artifacts, guarded three-way package merge, sections, styles, numbering, themes, settings, fonts, fields/bookmarks/reference dependencies, canonical OfficeMath, comments/threads/people/revisions/moves/permissions, modeled effective formatting, guarded text edits and lossless tracked-revision decisions plus live formatting, Find/replace, review, tables, formulas, lists, bookmarks, fields, images, notes, headers/footers, editable Office Math, verified native bold equation scopes, structures, layout, Undo, PDF and Open XML validation. Patch and merge application uses exact fingerprints, destination-bound plans, result-type/extension checks, baseline-aware validation and independent active-content/signature/external-link/binary/error authorizations. Patch replacement is atomic with a recovery backup; merge creates a new file and never overwrites. The installed Word object model remains policy-gated; macros, DDE, unsafe raw COM paths and external effects fail closed. The package contains no Python runtime.",
+    "longDescription": "WordToolkit controls the real Microsoft Word application through one persistent native .NET COM STA thread. A small 14-tool MCP surface covers the common lifecycle and batch path; search, inspect and execute gateways load any of 73 native actions only when needed. Compact responses omit echoed input and diagnostics by default. The full action set covers saved-package graphs, semantics, semantic comparison, deterministic reversible OPC patch artifacts, guarded three-way package merge, sections, styles, numbering, themes, settings, fonts, fields/bookmarks/reference dependencies, canonical OfficeMath, comments/threads/people/revisions/moves/permissions, modeled effective formatting, guarded text edits and lossless tracked-revision decisions plus live formatting, Find/replace, review, tables, formulas, lists, bookmarks, fields, images, notes, headers/footers, editable Office Math, verified native plain/bold/italic/bold-italic MathML and OMML equation scopes, structures, layout, Undo, PDF and Open XML validation. Patch and merge application uses exact fingerprints, destination-bound plans, result-type/extension checks, baseline-aware validation and independent active-content/signature/external-link/binary/error authorizations. Patch replacement is atomic with a recovery backup; merge creates a new file and never overwrites. The installed Word object model remains policy-gated; macros, DDE, unsafe raw COM paths and external effects fail closed. The package contains no Python runtime.",
     "developerName": "WordToolkit contributors",
     "category": "Productivity",
     "capabilities": [
@@ -78,7 +78,7 @@
       "UnicodeMath",
       "MathML and OMML",
       "Bounded Native Equation Readback",
-      "Verified Native Bold Math",
+      "Verified Native Math Styles",
       "Word-Surviving Cases Spacing",
       "Canonical Differential Placement",
       "Editable Office Math",

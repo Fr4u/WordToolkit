@@ -184,6 +184,135 @@ public sealed class EquationStyleRewriterTests
     }
 
     [Fact]
+    public void RewritesPlainBoldItalicAndBoldItalicRunScopes()
+    {
+        var marked = string.Concat(
+            EquationFormattingMarkers.Wrap(
+                EquationMathStyle.Plain,
+                EquationStyleTarget.RunsOnly,
+                "a"
+            ),
+            EquationFormattingMarkers.Wrap(
+                EquationMathStyle.Bold,
+                EquationStyleTarget.RunsOnly,
+                "b"
+            ),
+            EquationFormattingMarkers.Wrap(
+                EquationMathStyle.Italic,
+                EquationStyleTarget.RunsOnly,
+                "c"
+            ),
+            EquationFormattingMarkers.Wrap(
+                EquationMathStyle.BoldItalic,
+                EquationStyleTarget.RunsOnly,
+                "d"
+            )
+        );
+        var plan = EquationFormattingMarkers.FromMarkedLinear(marked);
+        var source =
+            $"""
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:r><m:t>{marked}</m:t></m:r>
+            </m:oMath>
+            """;
+
+        var result = EquationStyleRewriter.Rewrite(source, plan.StyleCounts);
+        var document = XDocument.Parse(result.WordOpenXml);
+        XNamespace math = MathNamespace;
+        var styles = document.Descendants(math + "r")
+            .Where(run => run.Element(math + "t")?.Value.Length > 0)
+            .ToDictionary(
+                run => run.Element(math + "t")!.Value,
+                run => run.Element(math + "rPr")!
+                    .Element(math + "sty")!
+                    .Attribute(math + "val")!
+                    .Value
+            );
+
+        Assert.Equal("p", styles["a"]);
+        Assert.Equal("b", styles["b"]);
+        Assert.Equal("i", styles["c"]);
+        Assert.Equal("bi", styles["d"]);
+        Assert.Equal(1, result.PlainRunCount);
+        Assert.Equal(1, result.BoldRunCount);
+        Assert.Equal(1, result.ItalicRunCount);
+        Assert.Equal(1, result.BoldItalicRunCount);
+        var verification = EquationStyleRewriter.Verify(result.WordOpenXml, result);
+        Assert.Equal(4, verification.StyledRunCount);
+    }
+
+    [Fact]
+    public void AppliesAControlOnlyItalicScopeToOneFractionWithoutStylingItsChildren()
+    {
+        var marked = EquationFormattingMarkers.Wrap(
+            EquationMathStyle.Italic,
+            EquationStyleTarget.FirstControl,
+            "(x)/(y)"
+        );
+        var plan = EquationFormattingMarkers.FromMarkedLinear(marked);
+        var start = marked[0];
+        var end = marked[^1];
+        var source =
+            $"""
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"
+                     xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <m:r><m:t>{start}</m:t></m:r>
+              <m:f>
+                <m:num><m:r><m:t>x</m:t></m:r></m:num>
+                <m:den><m:r><m:t>y</m:t></m:r></m:den>
+              </m:f>
+              <m:r><m:t>{end}</m:t></m:r>
+            </m:oMath>
+            """;
+
+        var result = EquationStyleRewriter.Rewrite(source, plan.StyleCounts);
+        var document = XDocument.Parse(result.WordOpenXml);
+        XNamespace math = MathNamespace;
+        XNamespace word =
+            "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        var control = document.Descendants(math + "fPr")
+            .Single()
+            .Element(math + "ctrlPr")!
+            .Element(word + "rPr")!;
+
+        Assert.Equal("0", control.Element(word + "b")!.Attribute(word + "val")!.Value);
+        Assert.NotNull(control.Element(word + "i"));
+        Assert.All(
+            document.Descendants(math + "r")
+                .Where(run => run.Element(math + "t")?.Value is "x" or "y"),
+            run => Assert.Null(run.Element(math + "rPr")?.Element(math + "sty"))
+        );
+        Assert.Equal(0, result.StyledRunCount);
+        Assert.Equal(1, result.ItalicControlCount);
+        var verification = EquationStyleRewriter.Verify(result.WordOpenXml, result);
+        Assert.Equal(1, verification.ItalicControlCount);
+    }
+
+    [Fact]
+    public void FailsClosedWhenAControlOnlyScopeDoesNotBindToAControl()
+    {
+        var marked = EquationFormattingMarkers.Wrap(
+            EquationMathStyle.Plain,
+            EquationStyleTarget.FirstControl,
+            "x"
+        );
+        var plan = EquationFormattingMarkers.FromMarkedLinear(marked);
+        var source =
+            $"""
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:r><m:t>{marked}</m:t></m:r>
+            </m:oMath>
+            """;
+
+        var error = Assert.Throws<NativeToolException>(() =>
+            EquationStyleRewriter.Rewrite(source, plan.StyleCounts)
+        );
+
+        Assert.Equal("EQUATION_INVALID", error.ErrorCode);
+        Assert.Contains("control-only", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void FailsClosedWhenAStyleMarkerOrReadbackStyleIsChanged()
     {
         var missingEnd = NestedFractionWordOpenXml.Replace("", "", StringComparison.Ordinal);
@@ -208,6 +337,125 @@ public sealed class EquationStyleRewriterTests
             EquationStyleRewriter.Verify(changed, result)
         );
         Assert.Equal("EQUATION_INVALID", styleError.ErrorCode);
+    }
+
+    [Fact]
+    public void AcceptsWordsDefaultEquivalentItalicAndRomanCanonicalization()
+    {
+        var marked = EquationFormattingMarkers.Wrap(
+            EquationMathStyle.Italic,
+            EquationStyleTarget.RunsOnly,
+            "x"
+        );
+        var plan = EquationFormattingMarkers.FromMarkedLinear(marked);
+        var source =
+            $"""
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:r><m:rPr><m:scr m:val="roman"/></m:rPr><m:t>{marked}</m:t></m:r>
+            </m:oMath>
+            """;
+
+        var result = EquationStyleRewriter.Rewrite(source, plan.StyleCounts);
+        var canonicalized = result.WordOpenXml
+            .Replace("<m:sty m:val=\"i\" />", "", StringComparison.Ordinal)
+            .Replace("<m:scr m:val=\"roman\" />", "", StringComparison.Ordinal);
+
+        Assert.NotEqual(result.WordOpenXml, canonicalized);
+        var verification = EquationStyleRewriter.Verify(canonicalized, result);
+        Assert.Equal(1, verification.StyledRunCount);
+        Assert.Equal(1, verification.ItalicRunCount);
+        Assert.Equal(
+            verification.ExpectedContractSha256,
+            verification.ActualContractSha256
+        );
+    }
+
+    [Fact]
+    public void AcceptsReadbackCoalescingOfAdjacentSemanticallyEqualRuns()
+    {
+        var marked = string.Concat(
+            EquationFormattingMarkers.Wrap(
+                EquationMathStyle.Plain,
+                EquationStyleTarget.RunsOnly,
+                "a"
+            ),
+            "+",
+            EquationFormattingMarkers.Wrap(
+                EquationMathStyle.Bold,
+                EquationStyleTarget.RunsOnly,
+                "b"
+            ),
+            "+",
+            EquationFormattingMarkers.Wrap(
+                EquationMathStyle.Italic,
+                EquationStyleTarget.RunsOnly,
+                "c"
+            ),
+            "+",
+            EquationFormattingMarkers.Wrap(
+                EquationMathStyle.BoldItalic,
+                EquationStyleTarget.RunsOnly,
+                "d"
+            )
+        );
+        var plan = EquationFormattingMarkers.FromMarkedLinear(marked);
+        var source =
+            $"""
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:r><m:t>{marked}</m:t></m:r>
+            </m:oMath>
+            """;
+
+        var result = EquationStyleRewriter.Rewrite(source, plan.StyleCounts);
+        var document = XDocument.Parse(result.WordOpenXml);
+        XNamespace math = MathNamespace;
+        var runs = document.Descendants(math + "r")
+            .Where(run => run.Element(math + "t")?.Value.Length > 0)
+            .ToArray();
+        var middle = runs.Skip(3).Take(3).ToArray();
+        Assert.Equal(["+", "c", "+"], middle.Select(run => run.Element(math + "t")!.Value));
+        middle[0].Element(math + "t")!.Value = "+c+";
+        middle[0].Element(math + "rPr")?.Remove();
+        middle[1].Remove();
+        middle[2].Remove();
+
+        var verification = EquationStyleRewriter.Verify(
+            document.ToString(SaveOptions.DisableFormatting),
+            result
+        );
+        Assert.Equal(4, verification.StyledRunCount);
+        Assert.Equal(1, verification.ItalicRunCount);
+        Assert.Equal(
+            verification.ExpectedContractSha256,
+            verification.ActualContractSha256
+        );
+    }
+
+    [Fact]
+    public void DetectsLossOfNormalTextSemanticsDuringReadback()
+    {
+        var marked = EquationFormattingMarkers.Wrap(
+            EquationMathStyle.Bold,
+            EquationStyleTarget.RunsOnly,
+            "x"
+        );
+        var plan = EquationFormattingMarkers.FromMarkedLinear(marked);
+        var source =
+            $"""
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:r><m:t>{marked}</m:t></m:r>
+              <m:r><m:rPr><m:nor/></m:rPr><m:t>text</m:t></m:r>
+            </m:oMath>
+            """;
+
+        var result = EquationStyleRewriter.Rewrite(source, plan.StyleCounts);
+        var changed = result.WordOpenXml.Replace("<m:nor />", "", StringComparison.Ordinal);
+
+        Assert.NotEqual(result.WordOpenXml, changed);
+        var error = Assert.Throws<NativeToolException>(() =>
+            EquationStyleRewriter.Verify(changed, result)
+        );
+        Assert.Equal("EQUATION_INVALID", error.ErrorCode);
     }
 
     [Fact]

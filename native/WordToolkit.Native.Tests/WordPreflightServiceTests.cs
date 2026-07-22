@@ -1,4 +1,5 @@
 using System.Text.Json;
+using WordToolkit.Native.Equations;
 using WordToolkit.Native.Protocol;
 using WordToolkit.Native.Word;
 
@@ -256,5 +257,58 @@ public sealed class WordPreflightServiceTests
             equation.GetProperty("rules").EnumerateArray(),
             rule => rule.GetString() == "verified_native_omml_style_rewrite"
         );
+    }
+
+    [Fact]
+    public async Task EquationPreflightCarriesMathMlAndOmmlStyleScopesWithoutLeakingMarkers()
+    {
+        await using var host = new LifecycleFakeHost();
+        var service = new WordLiveService(host);
+        using var arguments = JsonDocument.Parse(
+            """
+            {
+              "equations": [
+                {
+                  "value": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mi mathvariant=\"normal\">a</mi><mi mathvariant=\"bold\">b</mi><mi mathvariant=\"italic\">c</mi><mi mathvariant=\"bold-italic\">d</mi></math>",
+                  "input_format": "mathml"
+                },
+                {
+                  "value": "<m:oMath xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\" xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><m:f><m:fPr><m:ctrlPr><w:rPr><w:i/></w:rPr></m:ctrlPr></m:fPr><m:num><m:r><m:rPr><m:sty m:val=\"p\"/></m:rPr><m:t>x</m:t></m:r></m:num><m:den><m:r><m:rPr><m:sty m:val=\"bi\"/></m:rPr><m:t>y</m:t></m:r></m:den></m:f></m:oMath>",
+                  "input_format": "omml"
+                }
+              ]
+            }
+            """
+        );
+
+        var result = await service.CallAsync(
+            "preflight_live_word_equations",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var resultJson = JsonDocument.Parse(JsonSerializer.Serialize(result));
+        var mathml = resultJson.RootElement.GetProperty("equations")[0];
+        var omml = resultJson.RootElement.GetProperty("equations")[1];
+
+        Assert.Equal("abcd", mathml.GetProperty("word_linear").GetString());
+        Assert.Equal(4, mathml.GetProperty("formatting_region_count").GetInt32());
+        Assert.Equal(
+            1,
+            mathml.GetProperty("formatting_regions").GetProperty("plain").GetInt32()
+        );
+        Assert.Equal(
+            1,
+            mathml.GetProperty("formatting_regions").GetProperty("italic").GetInt32()
+        );
+        Assert.Equal("(x)/(y)", omml.GetProperty("word_linear").GetString());
+        Assert.Equal(
+            1,
+            omml.GetProperty("formatting_regions").GetProperty("first_control").GetInt32()
+        );
+        Assert.DoesNotContain(
+            omml.GetProperty("word_linear").GetString() ?? "",
+            character => EquationFormattingMarkers.IsReserved(character)
+        );
+        Assert.True(omml.GetProperty("native_readback_required").GetBoolean());
     }
 }

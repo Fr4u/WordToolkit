@@ -1233,10 +1233,10 @@ try {
     }
 
     $mathMl = @'
-<math xmlns="http://www.w3.org/1998/Math/MathML"><mfrac><mn>1</mn><mrow><mi>x</mi><mo>+</mo><mn>1</mn></mrow></mfrac></math>
+<math xmlns="http://www.w3.org/1998/Math/MathML"><mi mathvariant="normal">a</mi><mo>+</mo><mi mathvariant="bold">b</mi><mo>+</mo><mi mathvariant="italic">c</mi><mo>+</mo><mi mathvariant="bold-italic">d</mi><mo>+</mo><mi mathvariant="double-struck">R</mi><mo>+</mo><mi mathvariant="script">A</mi><mo>+</mo><mi mathvariant="bold-script">B</mi><mo>+</mo><mi mathvariant="fraktur">C</mi><mo>+</mo><mi mathvariant="bold-fraktur">D</mi><mo>+</mo><mi mathvariant="sans-serif">E</mi><mo>+</mo><mi mathvariant="bold-sans-serif">F</mi><mo>+</mo><mi mathvariant="sans-serif-italic">G</mi><mo>+</mo><mi mathvariant="sans-serif-bold-italic">H</mi><mo>+</mo><mi mathvariant="monospace">I</mi></math>
 '@
     $omml = @'
-<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:deg/><m:e><m:r><m:t>x+1</m:t></m:r></m:e></m:rad></m:oMath>
+<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><m:f><m:fPr><m:ctrlPr><w:rPr><w:i/></w:rPr></m:ctrlPr></m:fPr><m:num><m:r><m:rPr><m:sty m:val="p"/></m:rPr><m:t>x</m:t></m:r><m:r><m:rPr><m:sty m:val="b"/></m:rPr><m:t>u</m:t></m:r></m:num><m:den><m:r><m:rPr><m:sty m:val="i"/></m:rPr><m:t>y</m:t></m:r><m:r><m:rPr><m:sty m:val="bi"/></m:rPr><m:t>v</m:t></m:r></m:den></m:f></m:oMath>
 '@
 
     $stage = "verify compact lazy equation preflight"
@@ -1300,8 +1300,18 @@ try {
             )
         }
     Assert-True `
-        -Condition ($preflight.valid -and $preflight.equation_count -eq 4) `
-        -Message "Equation preflight failed for one of the four formats"
+        -Condition (
+            $preflight.valid -and
+            $preflight.equation_count -eq 4 -and
+            $preflight.equations[2].formatting_region_count -eq 14 -and
+            $preflight.equations[2].formatting_regions.plain -eq 6 -and
+            $preflight.equations[2].formatting_regions.bold -eq 4 -and
+            $preflight.equations[2].formatting_regions.italic -eq 2 -and
+            $preflight.equations[2].formatting_regions.bold_italic -eq 2 -and
+            $preflight.equations[3].formatting_region_count -eq 5 -and
+            $preflight.equations[3].formatting_regions.first_control -eq 1
+        ) `
+        -Message "Equation preflight lost MathML or OMML native style scopes"
 
     $stage = "insert one native LaTeX equation"
     $singleEquation = Invoke-TimedTool `
@@ -1388,13 +1398,25 @@ try {
     Assert-True `
         -Condition (
             $equationBatch.equation_operation_count -eq 10 -and
+            $equationBatch.operations[1].equation.native_style_verified -and
+            $equationBatch.operations[1].equation.formatting.region_count -eq 14 -and
+            $equationBatch.operations[1].equation.formatting.plain_run_count -ge 6 -and
+            $equationBatch.operations[1].equation.formatting.bold_run_count -ge 4 -and
+            $equationBatch.operations[1].equation.formatting.italic_run_count -ge 2 -and
+            $equationBatch.operations[1].equation.formatting.bold_italic_run_count -ge 2 -and
+            $equationBatch.operations[2].equation.native_style_verified -and
+            $equationBatch.operations[2].equation.formatting.plain_run_count -ge 1 -and
+            $equationBatch.operations[2].equation.formatting.bold_run_count -ge 1 -and
+            $equationBatch.operations[2].equation.formatting.italic_run_count -ge 1 -and
+            $equationBatch.operations[2].equation.formatting.bold_italic_run_count -ge 1 -and
+            $equationBatch.operations[2].equation.formatting.italic_control_count -ge 1 -and
             $equationBatch.operations[8].equation.native_style_verified -and
             $equationBatch.operations[8].equation.formatting.region_count -eq 2 -and
             $equationBatch.operations[9].equation.native_style_verified -and
             $equationBatch.operations[9].equation.formatting.bold_italic_run_count -ge 2 -and
             $equationBatch.operations[9].equation.formatting.bold_italic_control_count -ge 1
         ) `
-        -Message "Native equation batch did not preserve all ten equations and bold styles"
+        -Message "Native equation batch lost MathML, OMML or LaTeX equation styles"
 
     $stage = "map every supported native Word structure collection"
     $structureMap = Invoke-TimedTool `

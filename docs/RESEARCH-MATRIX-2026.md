@@ -404,6 +404,29 @@ enumerates the typed vocabulary. The current MathML page gives an explicit
 Presentation-MathML-to-OMML mapping. These are stronger sources for the object map than
 reverse-engineering whatever one Word build happens to emit.
 
+The interoperability notes settle two readback ambiguities that otherwise look like
+corruption. Microsoft documents that Word's default
+[`m:sty` is italic](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oe376/7022fc09-f507-4341-a711-9ad2e0221434)
+and its default
+[`m:scr` is roman](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oe376/e555991c-eb42-4af8-b206-028eb7ebb6a2).
+Word may therefore remove explicit default-valued elements or merge adjacent runs with
+the same effective properties without changing the equation. The native style contract
+normalizes only those documented defaults and equivalent sibling-run boundaries; it
+still includes effective style, mathematical script, normal/literal flags, text and
+structural-control placement. The Open XML SDK's
+[`StyleValues`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.math.stylevalues?view=openxml-3.0.1)
+enumeration confirms the complete OfficeMath run vocabulary: plain, bold, italic and
+bold-italic.
+
+MathML has a different default rule: token elements are upright except a
+single-character `mi`, which is italic. Microsoft 365's current
+[MathML support table](https://learn.microsoft.com/en-us/office/math/mathml)
+also lists all 18 MathML 3 `mathvariant` values and their Word mappings. The native
+converter preserves the four weight/slant styles and ten mathematical-alphabet variants
+that can be represented through Word linear math plus verified OMML. The four contextual
+Arabic forms (`initial`, `tailed`, `looped`, `stretched`) remain explicit loss errors;
+claiming support by emitting the unchanged token would be a lie.
+
 The repository scan found 28 real `m:oMath` equations across five local DOCX files and
 1,421 math-namespace elements across 55 packages. The three tracked equation documents
 contain 23 equations: 17 in the advanced torture document, five in the dedicated

@@ -208,18 +208,28 @@ every differential must remain below the corresponding `m:nary/m:e`. A mismatch
 raises `EQUATION_INVALID`, rolls back the transaction and leaves the live version
 unchanged. `verify_readback=true` extends the gate to a low-risk equation.
 
-LaTeX `\mathbf{...}` and `\boldsymbol{...}` use a separate weight-preserving
-gate. Reserved private-use sentinels delimit the requested scopes only in the
+LaTeX `\mathbf{...}` and `\boldsymbol{...}`, Presentation MathML `mathvariant`
+and OMML run/control properties use a separate style-preserving gate. Reserved
+private-use sentinels delimit the requested scopes only in the
 temporary linear payload and survive Word's `BuildUp()` across fractions,
 radicals, scripts and n-ary objects. A bounded internal rewrite removes all
-sentinels and applies native `m:sty="b"` or `m:sty="bi"` to the enclosed math
-runs. The same scope writes `m:ctrlPr/w:rPr` weight onto enclosing OfficeMath
+sentinels and applies native `m:sty="p"`, `m:sty="b"`, `m:sty="i"` or
+`m:sty="bi"` to the enclosed math runs. Separate scopes write `m:ctrlPr/w:rPr`
+bold/italic properties onto the intended OfficeMath
 objects so structural glyphs such as fraction bars, radicals, delimiters and
-n-ary operators carry the requested weight too. Word then reads the equation
-back again; a style-placement hash, run and control counts, and the normal
-semantic contract must all agree. Direct per-character
+n-ary operators carry the requested style too. Word then reads the equation back
+again; a style-placement hash, run and control counts, and the normal semantic
+contract must all agree. Readback normalizes Word's documented default italic/roman
+run properties and arbitrary coalescing of adjacent sibling runs only when every
+effective property is identical. Direct per-character
 `Range.Font` mutation is not used because real Word testing showed that mixed
 bold/italic edits inside a built OMath can destabilize COM.
+
+MathML inheritance is resolved from `math` and `mstyle`, then overridden at the token.
+The fourteen variants representable by native Word styles or mathematical alphabets
+are preserved. The contextual Arabic `initial`, `tailed`, `looped` and `stretched`
+variants fail with `EQUATION_INVALID` because silently turning them into ordinary
+Latin/Arabic text would be data loss.
 
 For textual conditions such as
 `\begin{cases}x^2&\text{gdy }x\ge0\\-x&\text{gdy }x<0\end{cases}`,

@@ -244,8 +244,13 @@ accepted. Use the exact field name `input_format`, never `source_format`.
 WordToolkit canonicalizes the differential and groups the complete n-ary operand.
 Use `\left\|u\right\|` for a norm. `\mathcal`, `\mathfrak`, `\mathbb`,
 `\mathsf`, `\mathtt`, and simple alphanumeric `\mathrm` preserve their native Word
-math alphabet. Do not emit `\mathbf` or `\boldsymbol`: this linear OMath path cannot
-preserve their weight and the converter rejects them instead of silently degrading.
+math alphabet. `\mathbf{...}` and `\boldsymbol{...}` preserve their native bold or
+bold-italic weight across nested fractions, radicals, scripts, delimiters and n-ary
+objects. Presentation MathML preserves inherited or token-level `mathvariant` and OMML
+preserves all four `m:sty` values (`p`, `b`, `i`, `bi`) plus structural-control bold and
+italic properties. Contextual Arabic `initial`, `tailed`, `looped` and `stretched`
+MathML variants fail closed because this linear Word path cannot represent them
+losslessly.
 Sensitive equations force bounded OMML readback and rollback on structural drift;
 only differentials belonging to integral operands are required to remain under the
 matching n-ary body, so ordinary derivative notation remains valid. Raw OMML is never

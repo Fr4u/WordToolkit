@@ -39,7 +39,34 @@ internal static class MathMarkupToUnicodeMath
     private const int MaximumElements = 10_000;
     private const int MaximumOutputLength = 100_000;
 
-    public static string Convert(string source, string inputFormat)
+    private static readonly IReadOnlyDictionary<string, string> OmmlControlProperties =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["acc"] = "accPr",
+            ["bar"] = "barPr",
+            ["borderBox"] = "borderBoxPr",
+            ["box"] = "boxPr",
+            ["d"] = "dPr",
+            ["eqArr"] = "eqArrPr",
+            ["f"] = "fPr",
+            ["func"] = "funcPr",
+            ["groupChr"] = "groupChrPr",
+            ["limLow"] = "limLowPr",
+            ["limUpp"] = "limUppPr",
+            ["m"] = "mPr",
+            ["nary"] = "naryPr",
+            ["phant"] = "phantPr",
+            ["rad"] = "radPr",
+            ["sPre"] = "sPrePr",
+            ["sSub"] = "sSubPr",
+            ["sSubSup"] = "sSubSupPr",
+            ["sSup"] = "sSupPr",
+        };
+
+    public static string Convert(string source, string inputFormat) =>
+        ConvertPlan(source, inputFormat).Linear;
+
+    internal static EquationConversionPlan ConvertPlan(string source, string inputFormat)
     {
         if (source.Length is < 1 or > MaximumOutputLength)
         {
@@ -48,6 +75,7 @@ internal static class MathMarkupToUnicodeMath
                 "MathML or OMML length must be between 1 and 100,000 characters"
             );
         }
+        EquationFormattingMarkers.RejectReservedInput(source, inputFormat);
 
         var root = ParseSecurely(source);
         var elements = root.DescendantsAndSelf().Take(MaximumElements + 1).Count();
@@ -83,7 +111,7 @@ internal static class MathMarkupToUnicodeMath
                 "Converted Word linear math exceeds 100,000 characters"
             );
         }
-        return result;
+        return EquationFormattingMarkers.FromMarkedLinear(result);
     }
 
     private static XElement ParseSecurely(string source)
@@ -145,6 +173,7 @@ internal static class MathMarkupToUnicodeMath
                 );
             }
         }
+        AnnotateMathMlVariants(root);
         return MathMlNode(root, 0);
     }
 
@@ -160,8 +189,9 @@ internal static class MathMarkupToUnicodeMath
             "annotation" or "annotation-xml" or "mspace" or "none" or "maligngroup"
                 or "malignmark" => "",
             "mi" => ConvertMathMlIdentifier(element),
-            "mn" or "mo" => CleanLeaf(element.Value),
-            "mtext" => WordText(element.Value),
+            "mn" => ConvertMathMlToken(element, isIdentifier: false, asText: false),
+            "mo" => ConvertMathMlToken(element, isIdentifier: false, asText: false),
+            "mtext" => ConvertMathMlToken(element, isIdentifier: false, asText: true),
             "mfrac" => BinaryMathMl(
                 children,
                 depth,
@@ -229,15 +259,133 @@ internal static class MathMarkupToUnicodeMath
     private static string ConvertMathMlIdentifier(XElement element)
     {
         var value = CleanLeaf(element.Value);
-        return value == "d"
-            && string.Equals(
-                element.Attribute("mathvariant")?.Value,
-                "normal",
-                StringComparison.OrdinalIgnoreCase
-            )
-            ? WordLinearMathNormalizer.DifferentialD.ToString()
-            : value;
+        var variant = element.Annotation<MathMlVariantDirective>();
+        if (value == "d" && variant?.Name == "normal")
+        {
+            return WordLinearMathNormalizer.DifferentialD.ToString();
+        }
+        return ApplyMathMlVariant(element, value, isIdentifier: true, asText: false);
     }
+
+    private static string ConvertMathMlToken(
+        XElement element,
+        bool isIdentifier,
+        bool asText
+    ) =>
+        ApplyMathMlVariant(
+            element,
+            CleanLeaf(element.Value),
+            isIdentifier,
+            asText
+        );
+
+    private static string ApplyMathMlVariant(
+        XElement element,
+        string value,
+        bool isIdentifier,
+        bool asText
+    )
+    {
+        if (value.Length == 0)
+        {
+            return "";
+        }
+        var directive = element.Annotation<MathMlVariantDirective>();
+        if (directive is null)
+        {
+            var rendered = asText ? WordText(value) : value;
+            return isIdentifier && value.EnumerateRunes().Count() != 1
+                ? EquationFormattingMarkers.Wrap(
+                    EquationMathStyle.Plain,
+                    EquationStyleTarget.RunsOnly,
+                    rendered
+                )
+                : rendered;
+        }
+
+        var plan = MathMlVariantPlan(directive.Name);
+        var converted = plan.Alphabet is null
+            ? value
+            : MathAlphabetMapper.Apply(value, plan.Alphabet.Value);
+        var linear = asText ? WordText(converted) : converted;
+        return EquationFormattingMarkers.Wrap(
+            plan.Style,
+            EquationStyleTarget.RunsAndControls,
+            linear
+        );
+    }
+
+    private static void AnnotateMathMlVariants(XElement root) =>
+        AnnotateMathMlVariants(root, inheritedVariant: null);
+
+    private static void AnnotateMathMlVariants(
+        XElement element,
+        string? inheritedVariant
+    )
+    {
+        var name = element.Name.LocalName;
+        var attribute = element.Attribute("mathvariant");
+        if (
+            attribute is not null
+            && name is not ("math" or "mstyle" or "mi" or "mn" or "mo" or "mtext")
+        )
+        {
+            throw new NativeToolException(
+                "EQUATION_INVALID",
+                "MathML mathvariant is present on an unsupported element",
+                new { element = name }
+            );
+        }
+
+        var own = attribute is null ? null : NormalizeMathMlVariant(attribute.Value);
+        var descendantDefault = name is "math" or "mstyle"
+            ? own ?? inheritedVariant
+            : inheritedVariant;
+        if (name is "mi" or "mn" or "mo" or "mtext")
+        {
+            var resolved = own ?? inheritedVariant;
+            if (resolved is not null)
+            {
+                element.AddAnnotation(new MathMlVariantDirective(resolved));
+            }
+        }
+        foreach (var child in element.Elements())
+        {
+            AnnotateMathMlVariants(child, descendantDefault);
+        }
+    }
+
+    private static string NormalizeMathMlVariant(string value)
+    {
+        var normalized = value.Trim().ToLowerInvariant();
+        _ = MathMlVariantPlan(normalized);
+        return normalized;
+    }
+
+    private static MathMlStylePlan MathMlVariantPlan(string variant) =>
+        variant switch
+        {
+            "normal" => new(null, EquationMathStyle.Plain),
+            "bold" => new(null, EquationMathStyle.Bold),
+            "italic" => new(null, EquationMathStyle.Italic),
+            "bold-italic" => new(null, EquationMathStyle.BoldItalic),
+            "double-struck" => new(MathAlphabetStyle.DoubleStruck, EquationMathStyle.Plain),
+            "script" => new(MathAlphabetStyle.Script, EquationMathStyle.Plain),
+            "bold-script" => new(MathAlphabetStyle.Script, EquationMathStyle.Bold),
+            "fraktur" => new(MathAlphabetStyle.Fraktur, EquationMathStyle.Plain),
+            "bold-fraktur" => new(MathAlphabetStyle.Fraktur, EquationMathStyle.Bold),
+            "sans-serif" => new(MathAlphabetStyle.SansSerif, EquationMathStyle.Plain),
+            "bold-sans-serif" => new(MathAlphabetStyle.SansSerif, EquationMathStyle.Bold),
+            "sans-serif-italic" => new(MathAlphabetStyle.SansSerif, EquationMathStyle.Italic),
+            "sans-serif-bold-italic" =>
+                new(MathAlphabetStyle.SansSerif, EquationMathStyle.BoldItalic),
+            "monospace" => new(MathAlphabetStyle.Monospace, EquationMathStyle.Plain),
+            _ => throw new NativeToolException(
+                "EQUATION_INVALID",
+                "MathML mathvariant cannot be represented losslessly by the native Word equation engine",
+                new { mathvariant = variant }
+            ),
+        };
 
     private static string MathMlSequence(IEnumerable<XElement> children, int depth)
     {
@@ -454,7 +602,7 @@ internal static class MathMarkupToUnicodeMath
     )
     {
         RequireDepth(depth);
-        return element.Name.LocalName switch
+        var result = element.Name.LocalName switch
         {
             "oMath" or "oMathPara" or "e" or "num" or "den" or "sub" or "sup"
                 or "deg" or "fName" or "lim" => OmmlSequence(
@@ -489,6 +637,7 @@ internal static class MathMarkupToUnicodeMath
                 $"Unsupported OMML element: {element.Name.LocalName}"
             ),
         };
+        return ApplyOmmlControlStyle(element, result);
     }
 
     private static string ConvertOmmlRun(
@@ -507,20 +656,127 @@ internal static class MathMarkupToUnicodeMath
             || normalizeDifferential && normal && text == "d"
         )
         {
-            return WordLinearMathNormalizer.DifferentialD.ToString();
+            return ApplyOmmlRunStyle(
+                element,
+                WordLinearMathNormalizer.DifferentialD.ToString()
+            );
         }
         if (normal)
         {
-            return WordText(text);
+            return ApplyOmmlRunStyle(element, WordText(text));
         }
         var clean = CleanLeaf(text);
         var scriptElement = element.Descendants()
             .FirstOrDefault(item => IsOfficeMathElement(item, "scr"));
         var script = scriptElement is null ? "" : ReadVal(scriptElement, "");
-        return MathAlphabetMapper.TryFromOmmlScript(clean, script, out var styled)
+        var converted = MathAlphabetMapper.TryFromOmmlScript(clean, script, out var styled)
             ? styled
             : clean;
+        return ApplyOmmlRunStyle(element, converted);
     }
+
+    private static string ApplyOmmlRunStyle(XElement run, string linear)
+    {
+        var properties = Child(run, "rPr");
+        var styleElement = properties is null ? null : Child(properties, "sty");
+        if (styleElement is null || linear.Length == 0)
+        {
+            return linear;
+        }
+        var style = ParseOmmlStyle(ReadVal(styleElement, ""), "m:sty");
+        return EquationFormattingMarkers.Wrap(
+            style,
+            EquationStyleTarget.RunsOnly,
+            linear
+        );
+    }
+
+    private static string ApplyOmmlControlStyle(XElement element, string linear)
+    {
+        if (
+            linear.Length == 0
+            || !OmmlControlProperties.TryGetValue(
+                element.Name.LocalName,
+                out var propertyName
+            )
+        )
+        {
+            return linear;
+        }
+        var properties = Child(element, propertyName);
+        var control = properties is null ? null : Child(properties, "ctrlPr");
+        var runProperties = control?.Elements()
+            .FirstOrDefault(item =>
+                item.Name.LocalName == "rPr"
+                && IsWordprocessingNamespace(item.Name.NamespaceName)
+            );
+        if (runProperties is null)
+        {
+            return linear;
+        }
+        var bold = ReadWordToggle(runProperties, "b");
+        var italic = ReadWordToggle(runProperties, "i");
+        if (bold is null && italic is null)
+        {
+            return linear;
+        }
+        var style = (bold ?? false, italic ?? false) switch
+        {
+            (false, false) => EquationMathStyle.Plain,
+            (true, false) => EquationMathStyle.Bold,
+            (false, true) => EquationMathStyle.Italic,
+            _ => EquationMathStyle.BoldItalic,
+        };
+        return EquationFormattingMarkers.Wrap(
+            style,
+            EquationStyleTarget.FirstControl,
+            linear
+        );
+    }
+
+    private static bool? ReadWordToggle(XElement properties, string localName)
+    {
+        var element = properties.Elements()
+            .FirstOrDefault(item =>
+                item.Name.LocalName == localName
+                && IsWordprocessingNamespace(item.Name.NamespaceName)
+            );
+        if (element is null)
+        {
+            return null;
+        }
+        var value = element.Attributes()
+            .FirstOrDefault(attribute => attribute.Name.LocalName == "val")
+            ?.Value;
+        if (value is null)
+        {
+            return true;
+        }
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "1" or "true" or "on" or "yes" => true,
+            "0" or "false" or "off" or "no" => false,
+            _ => throw new NativeToolException(
+                "EQUATION_INVALID",
+                "OMML control formatting contains an invalid on/off value",
+                new { property = localName, value }
+            ),
+        };
+    }
+
+    private static EquationMathStyle ParseOmmlStyle(string value, string property) =>
+        value.Trim().ToLowerInvariant() switch
+        {
+            "p" => EquationMathStyle.Plain,
+            "b" => EquationMathStyle.Bold,
+            "i" => EquationMathStyle.Italic,
+            "bi" => EquationMathStyle.BoldItalic,
+            _ => throw new NativeToolException(
+                "EQUATION_INVALID",
+                "OMML contains an unsupported mathematical style value",
+                new { property, value }
+            ),
+        };
 
     private static string ConvertOmmlRadical(XElement element, int depth)
     {
@@ -720,7 +976,7 @@ internal static class MathMarkupToUnicodeMath
 
     private static string ParenthesizeBase(string value)
     {
-        return value.Length == 1 ? value : $"({value})";
+        return WithoutFormattingMarkers(value).Length == 1 ? value : $"({value})";
     }
 
     private static string LimitBase(string value) =>
@@ -749,16 +1005,28 @@ internal static class MathMarkupToUnicodeMath
 
     private static bool IsSimpleName(string value)
     {
-        if (value.Length == 0)
+        var visible = WithoutFormattingMarkers(value);
+        if (visible.Length == 0)
         {
             return false;
         }
-        var candidate = value;
-        if (value.Length >= 2 && value[0] == '"' && value[^1] == '"')
+        var candidate = visible;
+        if (visible.Length >= 2 && visible[0] == '"' && visible[^1] == '"')
         {
-            candidate = value[1..^1];
+            candidate = visible[1..^1];
         }
         return candidate.Length > 0 && candidate.All(char.IsLetterOrDigit);
+    }
+
+    private static string WithoutFormattingMarkers(string value)
+    {
+        if (!value.Any(EquationFormattingMarkers.IsReserved))
+        {
+            return value;
+        }
+        return string.Concat(value.Where(character =>
+            !EquationFormattingMarkers.IsReserved(character)
+        ));
     }
 
     private static string WordText(string value)
@@ -830,4 +1098,11 @@ internal static class MathMarkupToUnicodeMath
             new { expected, actual }
         );
     }
+
+    private sealed record MathMlVariantDirective(string Name);
+
+    private readonly record struct MathMlStylePlan(
+        MathAlphabetStyle? Alphabet,
+        EquationMathStyle Style
+    );
 }

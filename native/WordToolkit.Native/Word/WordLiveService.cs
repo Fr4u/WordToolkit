@@ -2205,8 +2205,13 @@ internal sealed partial class WordLiveService : IToolHandler
                         formatting_region_count = prepared.StyleCounts.Total,
                         formatting_regions = new
                         {
+                            plain = prepared.StyleCounts.Plain,
                             bold = prepared.StyleCounts.Bold,
+                            italic = prepared.StyleCounts.Italic,
                             bold_italic = prepared.StyleCounts.BoldItalic,
+                            runs_and_controls = prepared.StyleCounts.RunsAndControls,
+                            runs_only = prepared.StyleCounts.RunsOnly,
+                            first_control = prepared.StyleCounts.FirstControl,
                         },
                         rules = new[]
                             {
@@ -2857,12 +2862,18 @@ internal sealed partial class WordLiveService : IToolHandler
                                     : new
                                     {
                                         region_count = styleRewrite!.RegionCount,
+                                        plain_region_count = equationOperation.StyleCounts.Plain,
                                         bold_region_count = equationOperation.StyleCounts.Bold,
+                                        italic_region_count = equationOperation.StyleCounts.Italic,
                                         bold_italic_region_count = equationOperation.StyleCounts.BoldItalic,
                                         styled_run_count = styleVerification.StyledRunCount,
+                                        plain_run_count = styleVerification.PlainRunCount,
                                         bold_run_count = styleVerification.BoldRunCount,
+                                        italic_run_count = styleVerification.ItalicRunCount,
                                         bold_italic_run_count = styleVerification.BoldItalicRunCount,
+                                        plain_control_count = styleVerification.PlainControlCount,
                                         bold_control_count = styleVerification.BoldControlCount,
+                                        italic_control_count = styleVerification.ItalicControlCount,
                                         bold_italic_control_count = styleVerification.BoldItalicControlCount,
                                         expected_contract_sha256 = styleVerification.ExpectedContractSha256,
                                         actual_contract_sha256 = styleVerification.ActualContractSha256,
@@ -3361,10 +3372,8 @@ internal sealed partial class WordLiveService : IToolHandler
         var conversion = inputFormat switch
         {
             "latex" => LatexToUnicodeMath.ConvertPlan(value),
-            "mathml" or "omml" => EquationFormattingMarkers.Unstyled(
-                WordLinearMathNormalizer.NormalizeForWord(
-                    MathMarkupToUnicodeMath.Convert(value, inputFormat)
-                ),
+            "mathml" or "omml" => MathMarkupToUnicodeMath.ConvertPlan(
+                value,
                 inputFormat
             ),
             _ => EquationFormattingMarkers.Unstyled(

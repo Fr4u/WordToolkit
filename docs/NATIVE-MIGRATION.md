@@ -211,6 +211,11 @@ claim that every ribbon command is safe automation.
 - PDF export uses Word's native renderer. It is not an Undoable document mutation, and replacing a PDF requires `overwrite=true`.
 - LaTeX coverage is intentionally bounded; unsupported commands fail before mutation.
 - MathML and OMML are securely parsed and converted to Word linear math; source markup is not inserted verbatim or preserved byte-for-byte.
+- Presentation MathML preserves inherited/token-level `mathvariant` for all four
+  OfficeMath styles and ten mathematical alphabets that this Word path can represent;
+  contextual Arabic `initial`, `tailed`, `looped` and `stretched` fail loss-aware.
+- OMML preserves `m:sty` plain/bold/italic/bold-italic run scopes independently from
+  `m:ctrlPr/w:rPr` bold/italic structural-control properties.
 - Sensitive equations receive bounded native OMML readback with canonical hash,
   symbol-count and differential-placement checks. This is not a general
   mathematical-equivalence proof or the full saved-package OfficeMath graph.

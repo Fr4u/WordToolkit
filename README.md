@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-WordToolkit 0.30 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference, canonical OfficeMath and review/revision graphs, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text and tracked-review structures to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
+WordToolkit 0.33 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference, canonical OfficeMath and review/revision graphs, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text and tracked-review structures to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
 
 The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtual environment, an interpreter bootstrap, or a per-call helper process. Its MCP command points directly to:
 
@@ -321,6 +321,18 @@ internal OMML rewrite, reinserts one native equation and compares both semantic 
 style-contract hashes. A missing marker, changed style or extra equation rolls back the
 whole Word Undo transaction; sentinels and raw OMML are never returned.
 
+Presentation MathML now retains inherited `mathvariant` values from `math` and
+`mstyle`, token overrides and the fourteen variants that this native Word path can
+represent without loss. OMML retains every OfficeMath run style—plain, bold, italic
+and bold-italic—and independently carries bold/italic control properties onto the
+first matching fraction, radical, delimiter, n-ary or other standard math object.
+Word is allowed to omit its default `m:sty="i"` and `m:scr="roman"` or merge adjacent
+semantically identical runs; readback compares the normalized meaning, not incidental
+XML segmentation. Normal-text and literal flags, style/script changes, control drift,
+formula changes and marker leakage still fail closed. MathML `initial`, `tailed`,
+`looped` and `stretched` remain rejected with an explicit loss diagnostic because the
+linear Word route cannot preserve those contextual Arabic forms.
+
 LaTeX text inside `cases` no longer relies on an ordinary space that Word silently
 discards. Case columns use an em space and trimmed `\text{... }` boundaries use a
 four-per-em space; both survive `BuildUp()`, save/reopen and PDF export and now enter
@@ -423,14 +435,14 @@ The cleaner constrains every target to the repository root. It preserves only th
 Version:
 
 ```text
-0.32.0+codex.20260722091136
+0.33.0+codex.20260722100256
 ```
 
 Windows x64 ZIP:
 
-[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.32.0/WordToolkit-0.32.0%2Bcodex.20260722091136-native-win-x64.zip)
+[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.33.0/WordToolkit-0.33.0%2Bcodex.20260722100256-native-win-x64.zip)
 
-SHA-256: `17ef223ddac5b9b8ba02c7b86c29089b2e76d8cc730cbee58f9aa0225d088f25`
+SHA-256: `8a64ed4f9b69b80f338de5c30bc687852bf29d24bddcb9b99eb078d15e06d1b1`
 
 Live demonstration document:
 
