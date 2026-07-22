@@ -37,6 +37,10 @@ engine objective is complete.
   manifest and a 100:1 compression ratio. Higher values require explicit configuration.
 - Raw patch confidentiality is documented. An optional engine envelope adds
   AES-256-GCM and ECDSA-SHA256 with caller-managed keys and signer identity pinning.
+- GitHub branch protection now guards `main`: updates require a pull request, all five
+  normal CI jobs, one approving review from someone other than the last pusher,
+  dismissal of stale approvals and resolution of review conversations. Administrators
+  are subject to the same policy; force pushes and branch deletion are disabled.
 - `README.md`, `TESTING.md`, `SECURITY.md` and `KNOWN-LIMITATIONS.md` now agree on review
   mutation support, CI coverage, patch risk, MCP cancellation and scale evidence.
 
@@ -66,8 +70,9 @@ engine objective is complete.
 - Register a licensed `[self-hosted, windows, word]` GitHub runner before relying on the
   tag workflow. The exact 0.35 package passed the full gate locally, but the repository
   currently has no registered self-hosted runner to execute that workflow on a release.
-- Protect `main` with the mandatory checks and review policy before calling it a release
-  branch. It is currently unprotected.
+- Keep the new `main` protection policy intact and verify its required check names if a
+  workflow job is renamed. Protection closes the bypass, but it does not supply the
+  still-missing independent reviewer or licensed Word runner.
 - The historical cumulative PR cannot honestly be made small after the fact. Merge it as
   a reviewed baseline or close it; all work after that baseline must use narrow PRs.
 - The patch envelope exists at engine level. MCP secret-store provisioning remains
