@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-WordToolkit 0.35 (development line) is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference, canonical OfficeMath and review/revision graphs, lint a saved package with deterministic source-linked rule packs, plan and apply the first source-bound lint repair, assign existing compatible styles through typed semantic commands, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text, paragraph/run/table style references, tracked-review structures and one existing empty core-title element to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
+WordToolkit 0.35 (development line) is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference, canonical OfficeMath and review/revision graphs, lint a saved package with deterministic source-linked rule packs, plan and apply the first source-bound lint repair, create or clone typed style definitions and assign them through one semantic transaction, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text, style definitions, paragraph/run/table style references, tracked-review structures and one existing empty core-title element to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
 
 This is an advanced but experimental OOXML engine, not a verified claim of market leadership or complete Microsoft Word equivalence. Unsupported domains and release evidence are listed explicitly in [Known limitations](docs/KNOWN-LIMITATIONS.md) and [Testing](docs/TESTING.md).
 
@@ -162,8 +162,13 @@ context. Repeated queries can reuse a fingerprint-bound process-memory index; ev
 indexed result is still checked against the full predicate and reports the candidate
 seed and scanned-node count.
 
-Saved-package semantic style edits are typed, bounded, and stateless. Exact `set_style`
-commands consume stable paragraph, run, or table IDs. Token-lean `set_style_where`
+Saved-package semantic style edits are typed, bounded, stateless and heterogeneous.
+`create_style` adds a minimal custom paragraph, character, table or numbering definition
+with optional `basedOn`, paragraph `next`, quick-format and UI-priority metadata.
+`clone_style` copies an existing definition, including opaque extension formatting, under
+a new ID/name while removing default and linked-style identity. The same atomic plan can
+then assign the new style. Exact `set_style` commands consume stable paragraph, run, or
+table IDs. Token-lean `set_style_where`
 commands instead resolve all nodes server-side from one strict kind plus optional bounded
 text, exact-property, ancestor/descendant, subtree and source-story predicates. Every
 selector declares `max_matches`, rejects zero or excessive matches, and is bound
@@ -174,9 +179,12 @@ must already exist, match paragraph/character/table type, and have a resolvable
 inheritance chain. Planning losslessly constructs and Microsoft-SDK-validates the exact
 candidate without writing or returning XML. Apply must reproduce the same intent-bound
 plan, rejects signed/stale packages and new schema errors, writes atomically, and keeps a
-recovery backup by default. This slice assigns style references; it does not create,
-rename, delete, copy, repair, or align style definitions, infer “APA”/“IEEE” semantics,
-select a missing property directly, or model conditional table-style rendering.
+recovery backup by default. Creation does not accept arbitrary formatting blocks; clone
+is the path for preserving an existing style's modeled and unmodeled formatting. This
+slice does not rename, delete, consolidate, repair, or align definitions to templates,
+maintain linked-style pairs, infer “APA”/“IEEE” semantics, select a missing property
+directly, or model conditional table-style rendering. Packages containing a
+`stylesWithEffects` mirror fail closed until both style parts can be updated together.
 
 Saved-package dependency inspection joins OPC reachability, semantic containment across
 projected stories, explicit paragraph/run/table style use, style inheritance/defaults,

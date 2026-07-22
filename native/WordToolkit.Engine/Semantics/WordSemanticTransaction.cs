@@ -64,6 +64,18 @@ public sealed record WordSemanticOperationPlan(
     string? AfterValue = null
 );
 
+public sealed record WordStyleDefinitionOperationPlan(
+    int Index,
+    string Kind,
+    string StyleId,
+    string? SourceStyleId,
+    WordStyleType StyleType,
+    string SourcePartUri,
+    int SourceElementOrdinal,
+    int XmlByteDelta,
+    bool HasChange
+);
+
 public sealed record WordSemanticPartChange(
     string PartUri,
     string EntryName,
@@ -82,13 +94,17 @@ public sealed class WordSemanticTransactionPlan
         string basePackageFingerprint,
         string resultPackageFingerprint,
         IReadOnlyList<WordSemanticOperationPlan> operations,
-        IReadOnlyDictionary<string, WordPackagePartPayload> parts
+        IReadOnlyDictionary<string, WordPackagePartPayload> parts,
+        IReadOnlyList<WordStyleDefinitionOperationPlan>? definitionOperations = null
     )
     {
         PlanId = planId;
         BasePackageFingerprint = basePackageFingerprint;
         ResultPackageFingerprint = resultPackageFingerprint;
         Operations = new ReadOnlyCollection<WordSemanticOperationPlan>(operations.ToArray());
+        DefinitionOperations = new ReadOnlyCollection<WordStyleDefinitionOperationPlan>(
+            (definitionOperations ?? Array.Empty<WordStyleDefinitionOperationPlan>()).ToArray()
+        );
         _transaction = new WordPackageTransactionCore(
             basePackageFingerprint,
             resultPackageFingerprint,
@@ -117,19 +133,25 @@ public sealed class WordSemanticTransactionPlan
 
     public IReadOnlyList<WordSemanticOperationPlan> Operations { get; }
 
+    public IReadOnlyList<WordStyleDefinitionOperationPlan> DefinitionOperations { get; }
+
     public IReadOnlyList<WordSemanticPartChange> ChangedParts { get; }
 
     public bool HasChanges => _transaction.HasChanges;
 
-    public int OperationCount => Operations.Count;
+    public int OperationCount => Operations.Count + DefinitionOperations.Count;
 
     public int ChangedPartCount => ChangedParts.Count;
 
-    public int ChangedOperationCount => Operations.Count(operation => operation.HasChange);
+    public int ChangedOperationCount =>
+        Operations.Count(operation => operation.HasChange)
+        + DefinitionOperations.Count(operation => operation.HasChange);
 
     public long TotalXmlByteDelta => ChangedParts.Sum(part =>
         (long)part.AfterBytes - part.BeforeBytes
     );
+
+    internal IEnumerable<WordPackagePartPayload> PartPayloads => _transaction.Parts;
 
     public OpcPackageMutationBuilder CreateMutation(OpcPackageSnapshot currentSnapshot)
         => _transaction.CreateMutation(currentSnapshot);
@@ -140,7 +162,7 @@ public sealed class WordSemanticTransactionPlan
         => _transaction.CreateInverseMutation(appliedSnapshot);
 }
 
-public sealed class WordSemanticTransactionPlanner
+public sealed partial class WordSemanticTransactionPlanner
 {
     private readonly WordSemanticTransactionOptions _options;
     private readonly LosslessXmlOptions _xmlOptions;

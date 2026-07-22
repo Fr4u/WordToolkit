@@ -5994,7 +5994,7 @@
     {
       "name": "plan_ooxml_semantic_edits",
       "title": "Plan typed Word semantic edits",
-      "description": "Plan a bounded batch of high-level semantic edits against one saved-package fingerprint. Assign an existing compatible paragraph, character, or table style either to exact stable node IDs or to all nodes resolved by one strict server-side selector. The deterministic intent-bound lossless plan predicts and Microsoft-SDK-validates the exact candidate, writes nothing, opens no Word process, exposes no text/XML, and retains no server-side plan state.",
+      "description": "Plan a bounded atomic create/clone/assign style transaction for one saved-package fingerprint. Returns an intent-bound SDK-validated candidate without writing, opening Word, or exposing text/XML.",
       "inputSchema": {
         "type": "object",
         "$defs": {
@@ -6004,6 +6004,7 @@
             "maxProperties": 16,
             "additionalProperties": {"type": "string", "maxLength": 1024}
           },
+          "style_text": {"type": "string", "minLength": 1, "maxLength": 253},
           "related": {
             "type": "object",
             "properties": {
@@ -6049,8 +6050,8 @@
                 "pattern": "^wdn_[A-Za-z0-9_-]+$",
                 "maxLength": 128
               },
-              "style_id": {"type": "string", "minLength": 1, "maxLength": 253},
-              "expected_style_id": {"type": "string", "minLength": 1, "maxLength": 253},
+              "style_id": {"$ref": "#/$defs/style_text"},
+              "expected_style_id": {"$ref": "#/$defs/style_text"},
               "require_no_explicit_style": {"type": "boolean", "default": false}
             },
             "required": ["type", "node_id", "style_id"],
@@ -6065,8 +6066,8 @@
             "properties": {
               "type": {"const": "set_style_where"},
               "selector": {"$ref": "#/$defs/selector"},
-              "style_id": {"type": "string", "minLength": 1, "maxLength": 253},
-              "expected_style_id": {"type": "string", "minLength": 1, "maxLength": 253},
+              "style_id": {"$ref": "#/$defs/style_text"},
+              "expected_style_id": {"$ref": "#/$defs/style_text"},
               "require_no_explicit_style": {"type": "boolean", "default": false},
               "max_matches": {"type": "integer", "minimum": 1, "maximum": 200}
             },
@@ -6075,6 +6076,32 @@
               "properties": {"require_no_explicit_style": {"const": true}},
               "required": ["require_no_explicit_style", "expected_style_id"]
             },
+            "additionalProperties": false
+          },
+          "create_style": {
+            "type": "object",
+            "properties": {
+              "type": {"const": "create_style"},
+              "style_id": {"$ref": "#/$defs/style_text"},
+              "name": {"$ref": "#/$defs/style_text"},
+              "style_type": {"enum": ["paragraph", "character", "table", "numbering"]},
+              "based_on_style_id": {"$ref": "#/$defs/style_text"},
+              "next_style_id": {"$ref": "#/$defs/style_text"},
+              "quick_format": {"type": "boolean"},
+              "ui_priority": {"type": "integer", "minimum": 0, "maximum": 2147483647}
+            },
+            "required": ["type", "style_id", "name", "style_type"],
+            "additionalProperties": false
+          },
+          "clone_style": {
+            "type": "object",
+            "properties": {
+              "type": {"const": "clone_style"},
+              "source_style_id": {"$ref": "#/$defs/style_text"},
+              "style_id": {"$ref": "#/$defs/style_text"},
+              "name": {"$ref": "#/$defs/style_text"}
+            },
+            "required": ["type", "source_style_id", "style_id", "name"],
             "additionalProperties": false
           }
         },
@@ -6094,11 +6121,13 @@
             "maxItems": 200,
             "items": {
               "oneOf": [
+                {"$ref": "#/$defs/create_style"},
+                {"$ref": "#/$defs/clone_style"},
                 {"$ref": "#/$defs/exact_style"},
                 {"$ref": "#/$defs/selected_style"}
               ]
             },
-            "description": "At most 16 selector commands and at most 200 resolved operations are accepted. set_style_where rejects zero matches and requires an explicit max_matches ceiling."
+            "description": "Create/clone styles and assign exact or selected nodes. At most 16 selectors and 200 resolved operations."
           },
           "include_details": {
             "type": "boolean",
@@ -6119,7 +6148,7 @@
     {
       "name": "apply_ooxml_semantic_edits",
       "title": "Apply reviewed typed Word semantic edits",
-      "description": "Rebuild and atomically apply an already reviewed typed semantic-edit plan to one saved Word package. Requires the exact source fingerprint, intent-bound plan ID and semantically identical exact-node or selector commands; rejects changed selection intent, signatures, stale sources, plan drift, unsafe styles and new Microsoft Open XML schema errors. The transaction can retain a sibling recovery backup and never opens Word.",
+      "description": "Rebuild and atomically apply reviewed create/clone/assign style intent. Requires the source fingerprint and plan ID; blocks signatures, drift, unsafe styles and new SDK errors. Never opens Word.",
       "inputSchema": {
         "type": "object",
         "$defs": {
@@ -6129,6 +6158,7 @@
             "maxProperties": 16,
             "additionalProperties": {"type": "string", "maxLength": 1024}
           },
+          "style_text": {"type": "string", "minLength": 1, "maxLength": 253},
           "related": {
             "type": "object",
             "properties": {
@@ -6174,8 +6204,8 @@
                 "pattern": "^wdn_[A-Za-z0-9_-]+$",
                 "maxLength": 128
               },
-              "style_id": {"type": "string", "minLength": 1, "maxLength": 253},
-              "expected_style_id": {"type": "string", "minLength": 1, "maxLength": 253},
+              "style_id": {"$ref": "#/$defs/style_text"},
+              "expected_style_id": {"$ref": "#/$defs/style_text"},
               "require_no_explicit_style": {"type": "boolean", "default": false}
             },
             "required": ["type", "node_id", "style_id"],
@@ -6190,8 +6220,8 @@
             "properties": {
               "type": {"const": "set_style_where"},
               "selector": {"$ref": "#/$defs/selector"},
-              "style_id": {"type": "string", "minLength": 1, "maxLength": 253},
-              "expected_style_id": {"type": "string", "minLength": 1, "maxLength": 253},
+              "style_id": {"$ref": "#/$defs/style_text"},
+              "expected_style_id": {"$ref": "#/$defs/style_text"},
               "require_no_explicit_style": {"type": "boolean", "default": false},
               "max_matches": {"type": "integer", "minimum": 1, "maximum": 200}
             },
@@ -6200,6 +6230,32 @@
               "properties": {"require_no_explicit_style": {"const": true}},
               "required": ["require_no_explicit_style", "expected_style_id"]
             },
+            "additionalProperties": false
+          },
+          "create_style": {
+            "type": "object",
+            "properties": {
+              "type": {"const": "create_style"},
+              "style_id": {"$ref": "#/$defs/style_text"},
+              "name": {"$ref": "#/$defs/style_text"},
+              "style_type": {"enum": ["paragraph", "character", "table", "numbering"]},
+              "based_on_style_id": {"$ref": "#/$defs/style_text"},
+              "next_style_id": {"$ref": "#/$defs/style_text"},
+              "quick_format": {"type": "boolean"},
+              "ui_priority": {"type": "integer", "minimum": 0, "maximum": 2147483647}
+            },
+            "required": ["type", "style_id", "name", "style_type"],
+            "additionalProperties": false
+          },
+          "clone_style": {
+            "type": "object",
+            "properties": {
+              "type": {"const": "clone_style"},
+              "source_style_id": {"$ref": "#/$defs/style_text"},
+              "style_id": {"$ref": "#/$defs/style_text"},
+              "name": {"$ref": "#/$defs/style_text"}
+            },
+            "required": ["type", "source_style_id", "style_id", "name"],
             "additionalProperties": false
           }
         },
@@ -6224,6 +6280,8 @@
             "maxItems": 200,
             "items": {
               "oneOf": [
+                {"$ref": "#/$defs/create_style"},
+                {"$ref": "#/$defs/clone_style"},
                 {"$ref": "#/$defs/exact_style"},
                 {"$ref": "#/$defs/selected_style"}
               ]

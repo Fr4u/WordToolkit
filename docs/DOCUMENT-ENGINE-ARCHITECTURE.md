@@ -419,8 +419,8 @@ Live Word commands use Word's custom undo record only for the scoped live mutati
 Package rollback remains independent, so a failure never calls broad `Undo()` across
 unrelated user work.
 
-The first transaction slices are implemented for batches of text-leaf and existing-style
-assignment commands.
+The first transaction slices are implemented for batches of text-leaf, typed style-
+definition creation/cloning, and style-assignment commands.
 `WordSemanticTransactionPlanner` resolves every node against one package fingerprint,
 parses each affected part once, rejects duplicate targets, builds one ordered
 non-overlapping patch set per part, and returns a compact plan with operation counts,
@@ -431,6 +431,19 @@ exact part-byte inverse only while the applied package still matches that predic
 fingerprint. Neither forward nor inverse writes a file; atomic persistence remains a
 separate gated step.
 
+The style-definition slice inserts new custom definitions into the exact existing
+`styles.xml` root without reserializing any prior byte. `create_style` emits a minimal
+typed definition with optional same-type `basedOn`, paragraph `next`, quick-format and
+UI-priority metadata. `clone_style` copies one existing definition including opaque
+extension content, changes only its identity/name, removes `default` and `link`, marks it
+custom, and remaps a self-`next` reference. The intermediate package is reprojected and
+the new inheritance graph is required to resolve before any assignment is planned. A
+single final plan joins the styles-part payload and all document-part assignments, predicts
+one result fingerprint and retains one exact inverse. Missing sources, duplicate IDs,
+wrong-type references, cycles, malformed names, signatures, schema drift and
+`stylesWithEffects` packages fail closed. The mirror is blocked rather than silently
+letting `styles.xml` and `stylesWithEffects.xml` diverge.
+
 The typed `set_style` slice targets exact paragraph, run, or table node IDs. It accepts
 an exact current-style precondition or an explicit absence precondition, requires an
 existing compatible paragraph/character/table style with a resolvable `basedOn` chain,
@@ -438,9 +451,9 @@ and inserts or updates only `pStyle`, `rStyle`, or `tblStyle`. Missing property 
 are added as the first child through the lossless source model. Duplicate containers,
 wrong-type or missing styles, broken inheritance, stale source identities, namespace
 prefix collisions, signed packages, plan drift, and new Open XML SDK errors fail closed.
-The planner does not create or modify `styles.xml`; style definition lifecycle, template
-alignment, conditional table styles, and heterogeneous command families remain future
-work.
+Creation does not accept arbitrary formatting-property payloads; cloning is the current
+lossless formatting-preservation path. Rename/delete/consolidation, linked-style pair
+maintenance, template alignment and conditional table styles remain future work.
 
 Bulk assignment does not require the model to echo a list of node IDs. A bounded
 `set_style_where` command reuses the semantic query engine over the exact projected
@@ -454,9 +467,9 @@ selection intent cannot replay an old approval. Selector expansion returns only 
 and query-plan evidence unless operation details are explicitly requested.
 
 The native MCP exposes this slice without retaining a server-side plan cache. A client
-first calls lazy `plan_ooxml_text_edits` with the inspected package fingerprint and
+first calls lazy `plan_ooxml_semantic_edits` with the inspected package fingerprint and
 commands. To commit, it resubmits the same bounded commands to lazy
-`apply_ooxml_text_edits` together with the returned deterministic plan ID. Apply
+`apply_ooxml_semantic_edits` together with the returned deterministic plan ID. Apply
 rebuilds the plan from the current file, rejects any fingerprint or plan mismatch, then
 uses the version-checked atomic writer. The candidate must also match the plan's
 predicted result fingerprint before replacement. A recovery backup is retained by
@@ -928,11 +941,12 @@ No feature is “supported” until it passes the relevant gates:
 
 ### Phase 3 — safe edits
 
-- command schema, preconditions, plan/apply, inverse patches — **bounded multi-text and
-  existing paragraph/run/table style-assignment planning, package/node/part/property
-  preconditions, one patch set per part, predicted result fingerprint and exact part-byte
-  inverse implemented; broader heterogeneous commands, style-definition lifecycle,
-  permissions, approval and semantic inverses remain**;
+- command schema, preconditions, plan/apply, inverse patches — **bounded multi-text plus
+  heterogeneous style create/clone/exact-or-selected assignment planning,
+  package/node/part/property preconditions, one patch set per part, predicted result
+  fingerprint and exact part-byte inverse implemented; arbitrary style formatting,
+  rename/delete/template alignment, broader commands, permissions, approval and semantic
+  inverses remain**;
 - style and numbering resolvers;
 - fields/references and source-linked review read graph — **initial implementations
   complete; mutation/evaluation layers remain**;

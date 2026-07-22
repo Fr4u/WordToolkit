@@ -298,6 +298,35 @@ public sealed class McpServerTests
                 .GetString()
         );
         Assert.Equal(
+            "create_style",
+            planDefinitions
+                .GetProperty("create_style")
+                .GetProperty("properties")
+                .GetProperty("type")
+                .GetProperty("const")
+                .GetString()
+        );
+        Assert.Equal(
+            ["paragraph", "character", "table", "numbering"],
+            planDefinitions
+                .GetProperty("create_style")
+                .GetProperty("properties")
+                .GetProperty("style_type")
+                .GetProperty("enum")
+                .EnumerateArray()
+                .Select(item => item.GetString()!)
+                .ToArray()
+        );
+        Assert.Equal(
+            "clone_style",
+            planDefinitions
+                .GetProperty("clone_style")
+                .GetProperty("properties")
+                .GetProperty("type")
+                .GetProperty("const")
+                .GetString()
+        );
+        Assert.Equal(
             200,
             planDefinitions
                 .GetProperty("selected_style")
@@ -318,7 +347,12 @@ public sealed class McpServerTests
                 .ToArray()
         );
         Assert.Equal(
-            ["#/$defs/exact_style", "#/$defs/selected_style"],
+            [
+                "#/$defs/create_style",
+                "#/$defs/clone_style",
+                "#/$defs/exact_style",
+                "#/$defs/selected_style",
+            ],
             planCommands
                 .GetProperty("items")
                 .GetProperty("oneOf")

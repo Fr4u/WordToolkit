@@ -9,13 +9,18 @@ WordToolkit deliberately avoids claiming complete Microsoft Word parity.
 - The unified saved-package dependency graph currently joins OPC relationships and reachability, projected semantic containment, styles, numbering, field/bookmark targets and section header/footer bindings. It does not yet type DrawingML/VML layout, charts, SmartArt, OLE, custom-XML bindings, bibliography-source parts, macros, signatures, encryption or co-authoring sessions. An absent edge in one of those domains is missing coverage, not proof that no dependency exists. The graph is read-only and does not itself repair, optimize or authorize a deletion.
 - The native saved-package linter is an initial 18-rule layer, not Word's complete Accessibility Checker, security scanner or document-quality oracle. It covers bounded core/style/accessibility/security evidence and reports explicit unmodeled domains, but it does not yet understand full numbering sequence behavior, language, reading order, link quality, contrast, chart/SmartArt semantics, macros, signatures, encryption, co-authoring or every Word extension. It still materializes the typed graphs; its stricter 100,000-node/200,000-edge dependency ceilings reject oversized analyses but do not remove the underlying allocation debt. Linting itself is read-only. The only executable repair is a reviewed replacement of exactly one existing, empty, lexically safe `dc:title`; missing/duplicate/mixed-markup title elements and every other finding fail closed. Apply blocks signed packages and new Open XML validation errors and only creates a new same-extension output file.
 - Semantic indexing is currently a bounded single-process acceleration layer, not a durable search database. A handle covers one immutable package fingerprint, at most 100,000 nodes and one million property occurrences; the runtime keeps no more than four handles or 250,000 cached nodes, expires them within 30 minutes and loses them on restart. It indexes exact kind/part/property postings and can derive strict ancestor/descendant candidate sets with one tree propagation, but it has no full-text tokens, durable relationship postings, embeddings or multi-document ranking. Parent/child, sibling and arbitrary dependency-graph axes are not query predicates. Raw document text stays in process memory as part of the semantic projection and is never returned by index management, but it is not encrypted in memory. Callers should release handles as soon as repeated queries finish.
-- Saved-package semantic style mutation currently assigns only an existing compatible,
-  inheritance-resolvable paragraph, character, or table style to an exact paragraph,
-  run, or table node. It does not create, rename, delete, copy, consolidate, repair, or
-  align style definitions; infer domain labels such as APA/IEEE; model conditional
-  table-style rendering; or enforce document protection/permission semantics. Planning
-  and apply are bounded to 200 commands, block signatures and new SDK validation errors,
-  and never modify `styles.xml`. Bulk selectors are limited to 16 commands and 200
+- Saved-package semantic style mutation can create a minimal inherited paragraph,
+  character, table or numbering style, losslessly clone one existing definition, and
+  assign a compatible inheritance-resolvable paragraph/character/table style to exact or
+  selected semantic nodes in the same atomic transaction. `create_style` does not accept
+  arbitrary formatting blocks; `clone_style` preserves source formatting and opaque
+  extensions but deliberately strips default and linked-style identity. The engine does
+  not rename, delete, consolidate, repair, maintain linked pairs, or align definitions to
+  templates; infer domain labels such as APA/IEEE; model conditional table-style
+  rendering; or enforce document protection/permission semantics. Definition edits fail
+  closed when `stylesWithEffects.xml` exists because mirrored mutation is not implemented.
+  Planning and apply are bounded to 200 resolved operations and block signatures and new
+  SDK validation errors. Bulk selectors are limited to 16 commands and 200
   resolved nodes; they support one paragraph/run/table kind plus bounded text, exact
   properties, ancestry/descendancy, subtree and source-part predicates. They reject an
   empty result but cannot directly express property absence, sibling/adjacency, arbitrary

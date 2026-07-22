@@ -1495,7 +1495,10 @@ public sealed class PackageInspectionServiceTests
             Assert.Equal(beforeBytes, File.ReadAllBytes(path));
             Assert.StartsWith("wseplan_", planId, StringComparison.Ordinal);
             Assert.False(planned.GetProperty("apply_blocked").GetBoolean());
-            Assert.True(planned.GetProperty("can_apply").GetBoolean());
+            Assert.True(
+                planned.GetProperty("can_apply").GetBoolean(),
+                planned.GetRawText()
+            );
             Assert.True(planned.GetProperty("has_changes").GetBoolean());
             Assert.Equal(1, planned.GetProperty("operation_count").GetInt32());
             Assert.Equal(1, planned.GetProperty("changed_part_count").GetInt32());
@@ -1677,6 +1680,227 @@ public sealed class PackageInspectionServiceTests
     }
 
     [Fact]
+    public async Task SemanticStyleDefinitionsCloneCreateAndAssignAtomicallyWithoutWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-style-definition-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "definitions.docx");
+            CreatePackage(
+                path,
+                stylesXml: SemanticEditStylesXml(),
+                paragraphPropertiesXml: "<w:pPr><w:pStyle w:val=\"OldPara\"/></w:pPr>"
+            );
+            var beforeBytes = File.ReadAllBytes(path);
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var beforeHashes = before.Entries.ToDictionary(
+                entry => entry.Name,
+                entry => entry.Sha256,
+                StringComparer.Ordinal
+            );
+
+            static object[] Commands(bool reordered) => reordered
+                ?
+                [
+                    new Dictionary<string, object?>
+                    {
+                        ["name"] = "Copied paragraph",
+                        ["style_id"] = "CopiedPara",
+                        ["source_style_id"] = "OldPara",
+                        ["type"] = "clone_style",
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["ui_priority"] = 21,
+                        ["quick_format"] = true,
+                        ["based_on_style_id"] = "CopiedPara",
+                        ["style_type"] = "paragraph",
+                        ["name"] = "Fresh definition",
+                        ["style_id"] = "FreshDefinition",
+                        ["type"] = "create_style",
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["max_matches"] = 1,
+                        ["expected_style_id"] = "OldPara",
+                        ["style_id"] = "FreshDefinition",
+                        ["selector"] = new Dictionary<string, object?>
+                        {
+                            ["property_equals"] = new Dictionary<string, string>
+                            {
+                                ["style_id"] = "OldPara",
+                            },
+                            ["kind"] = "paragraph",
+                        },
+                        ["type"] = "set_style_where",
+                    },
+                ]
+                :
+                [
+                    new Dictionary<string, object?>
+                    {
+                        ["type"] = "clone_style",
+                        ["source_style_id"] = "OldPara",
+                        ["style_id"] = "CopiedPara",
+                        ["name"] = "Copied paragraph",
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["type"] = "create_style",
+                        ["style_id"] = "FreshDefinition",
+                        ["name"] = "Fresh definition",
+                        ["style_type"] = "paragraph",
+                        ["based_on_style_id"] = "CopiedPara",
+                        ["quick_format"] = true,
+                        ["ui_priority"] = 21,
+                    },
+                    new Dictionary<string, object?>
+                    {
+                        ["type"] = "set_style_where",
+                        ["selector"] = new Dictionary<string, object?>
+                        {
+                            ["kind"] = "paragraph",
+                            ["property_equals"] = new Dictionary<string, string>
+                            {
+                                ["style_id"] = "OldPara",
+                            },
+                        },
+                        ["style_id"] = "FreshDefinition",
+                        ["expected_style_id"] = "OldPara",
+                        ["max_matches"] = 1,
+                    },
+                ];
+
+            var service = new WordLiveService(new NoInvokeHost());
+            using var planArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                commands = Commands(false),
+                include_details = true,
+            }));
+            using var reorderedArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                commands = Commands(true),
+            }));
+
+            var plannedObject = await service.CallAsync(
+                "plan_ooxml_semantic_edits",
+                planArguments.RootElement,
+                CancellationToken.None
+            );
+            var reorderedObject = await service.CallAsync(
+                "plan_ooxml_semantic_edits",
+                reorderedArguments.RootElement,
+                CancellationToken.None
+            );
+            using var plannedJson = JsonDocument.Parse(JsonSerializer.Serialize(plannedObject));
+            using var reorderedJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(reorderedObject)
+            );
+            var planned = plannedJson.RootElement;
+            var planId = planned.GetProperty("plan_id").GetString()!;
+
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.Equal(planId, reorderedJson.RootElement.GetProperty("plan_id").GetString());
+            Assert.Equal(3, planned.GetProperty("submitted_command_count").GetInt32());
+            Assert.Equal(2, planned.GetProperty("style_definition_count").GetInt32());
+            Assert.Equal(1, planned.GetProperty("style_assignment_count").GetInt32());
+            Assert.Equal(1, planned.GetProperty("selector_command_count").GetInt32());
+            Assert.Equal(1, planned.GetProperty("selector_match_count").GetInt32());
+            Assert.Equal(3, planned.GetProperty("operation_count").GetInt32());
+            Assert.Equal(2, planned.GetProperty("changed_part_count").GetInt32());
+            Assert.True(
+                planned.GetProperty("can_apply").GetBoolean(),
+                planned.GetRawText()
+            );
+            Assert.True(
+                planned.GetProperty("candidate_validation")
+                    .GetProperty("no_new_errors")
+                    .GetBoolean()
+            );
+            Assert.Equal(
+                ["clone_style", "create_style"],
+                planned.GetProperty("style_definition_operations")
+                    .EnumerateArray()
+                    .Select(item => item.GetProperty("kind").GetString()!)
+                    .ToArray()
+            );
+            Assert.Equal(
+                "set_style",
+                Assert.Single(planned.GetProperty("operations").EnumerateArray())
+                    .GetProperty("kind")
+                    .GetString()
+            );
+            Assert.False(planned.GetProperty("raw_xml_returned").GetBoolean());
+            Assert.False(planned.GetProperty("word_opened").GetBoolean());
+
+            using var applyArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                expected_plan_id = planId,
+                commands = Commands(true),
+                keep_backup = true,
+            }));
+            var appliedObject = await service.CallAsync(
+                "apply_ooxml_semantic_edits",
+                applyArguments.RootElement,
+                CancellationToken.None
+            );
+            using var appliedJson = JsonDocument.Parse(JsonSerializer.Serialize(appliedObject));
+            var applied = appliedJson.RootElement;
+
+            Assert.True(applied.GetProperty("applied").GetBoolean());
+            Assert.Equal(
+                planned.GetProperty("result_package_fingerprint").GetString(),
+                applied.GetProperty("package_fingerprint").GetString()
+            );
+            Assert.NotEqual(JsonValueKind.Null, applied.GetProperty("backup_path").ValueKind);
+            Assert.Equal(
+                ["word/document.xml", "word/styles.xml"],
+                applied.GetProperty("changed_entry_names")
+                    .EnumerateArray()
+                    .Select(item => item.GetString()!)
+                    .Order(StringComparer.Ordinal)
+                    .ToArray()
+            );
+            var after = reader.Read(path);
+            var afterSemantic = new WordSemanticProjector().Project(after);
+            var styles = new WordStyleGraphBuilder().Build(after, afterSemantic);
+            Assert.True(styles.TryGetStyle("CopiedPara", out var copied));
+            Assert.Equal("Copied paragraph", copied!.Name);
+            Assert.True(styles.TryGetStyle("FreshDefinition", out var created));
+            Assert.Equal("CopiedPara", created!.BasedOnStyleId);
+            Assert.True(created.QuickFormat);
+            Assert.Equal(21, created.UiPriority);
+            Assert.True(created.InheritanceResolvable);
+            Assert.Equal(
+                "FreshDefinition",
+                afterSemantic.Nodes.Single(node =>
+                    node.Kind == WordSemanticNodeKind.Paragraph
+                ).Properties["style_id"]
+            );
+            Assert.All(after.Entries.Where(entry =>
+                entry.Name is not "word/document.xml" and not "word/styles.xml"
+            ), entry => Assert.Equal(beforeHashes[entry.Name], entry.Sha256));
+            Assert.True(File.Exists(applied.GetProperty("backup_path").GetString()));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task SemanticStyleApplyRejectsSignedPackageAndLeavesItUntouched()
     {
         var directory = Path.Combine(
@@ -1745,6 +1969,159 @@ public sealed class PackageInspectionServiceTests
 
             Assert.Equal("SIGNED_PACKAGE", exception.ErrorCode);
             Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SemanticStyleDefinitionInputsFailClosedAndBindPlanIntent()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-style-definition-rejection-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "reject-definitions.docx");
+            CreatePackage(path, stylesXml: SemanticEditStylesXml());
+            var beforeBytes = File.ReadAllBytes(path);
+            var package = new OpcPackageReader().Read(path);
+            var service = new WordLiveService(new NoInvokeHost());
+
+            async Task<NativeToolException> RejectPlanAsync(object[] commands)
+            {
+                using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    expected_package_fingerprint = package.Fingerprint,
+                    commands,
+                }));
+                return await Assert.ThrowsAsync<NativeToolException>(() =>
+                    service.CallAsync(
+                        "plan_ooxml_semantic_edits",
+                        arguments.RootElement,
+                        CancellationToken.None
+                    )
+                );
+            }
+
+            var missingSource = await RejectPlanAsync(
+            [
+                new
+                {
+                    type = "clone_style",
+                    source_style_id = "Missing",
+                    style_id = "Copy",
+                    name = "Copy",
+                },
+            ]);
+            Assert.Equal("UNSAFE_EDIT", missingSource.ErrorCode);
+
+            var invalidType = await RejectPlanAsync(
+            [
+                new
+                {
+                    type = "create_style",
+                    style_id = "BadType",
+                    name = "Bad type",
+                    style_type = "shape",
+                },
+            ]);
+            Assert.Equal("INVALID_INPUT", invalidType.ErrorCode);
+
+            var invalidNext = await RejectPlanAsync(
+            [
+                new
+                {
+                    type = "create_style",
+                    style_id = "CharacterWithNext",
+                    name = "Character with next",
+                    style_type = "character",
+                    next_style_id = "OldPara",
+                },
+            ]);
+            Assert.Equal("UNSAFE_EDIT", invalidNext.ErrorCode);
+
+            using var duplicateArguments = JsonDocument.Parse(
+                $$"""
+                {
+                  "local_path": {{JsonSerializer.Serialize(path)}},
+                  "expected_package_fingerprint": "{{package.Fingerprint}}",
+                  "commands": [{
+                    "type": "create_style",
+                    "style_id": "Duplicate",
+                    "style_id": "DuplicateAgain",
+                    "name": "Duplicate",
+                    "style_type": "paragraph"
+                  }]
+                }
+                """
+            );
+            var duplicate = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "plan_ooxml_semantic_edits",
+                    duplicateArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("INVALID_INPUT", duplicate.ErrorCode);
+
+            object[] reviewed =
+            [
+                new
+                {
+                    type = "create_style",
+                    style_id = "Reviewed",
+                    name = "Reviewed name",
+                    style_type = "paragraph",
+                    based_on_style_id = "OldPara",
+                },
+            ];
+            using var planArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                commands = reviewed,
+            }));
+            var planObject = await service.CallAsync(
+                "plan_ooxml_semantic_edits",
+                planArguments.RootElement,
+                CancellationToken.None
+            );
+            using var planJson = JsonDocument.Parse(JsonSerializer.Serialize(planObject));
+            object[] changedIntent =
+            [
+                new
+                {
+                    type = "create_style",
+                    style_id = "Reviewed",
+                    name = "Changed after review",
+                    style_type = "paragraph",
+                    based_on_style_id = "OldPara",
+                },
+            ];
+            using var applyArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                expected_plan_id = planJson.RootElement.GetProperty("plan_id").GetString(),
+                commands = changedIntent,
+            }));
+            var mismatch = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "apply_ooxml_semantic_edits",
+                    applyArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("PLAN_MISMATCH", mismatch.ErrorCode);
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.Empty(Directory.GetFiles(directory, "*.bak"));
         }
         finally
         {

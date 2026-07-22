@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Added atomic typed style-definition creation and cloning to the existing semantic edit
+  actions. `create_style` emits a minimal custom paragraph, character, table or numbering
+  definition with bounded inheritance/UI metadata; `clone_style` preserves an existing
+  definition's modeled and opaque formatting while stripping unsafe default/link identity.
+  The same stateless plan can server-select nodes and assign a newly created style, joining
+  `styles.xml` and document-part changes under one predicted fingerprint, exact inverse,
+  Microsoft Open XML validation and atomic backup-capable apply. Duplicate IDs, missing or
+  wrong-type references, cycles, changed intent, signatures and `stylesWithEffects` mirror
+  drift fail closed. No command accepts or returns raw XML, and the lazy schemas remain
+  below 4,500 serialized characters.
+- Verified the style-definition slice with 274 document-engine tests, 205 native-host
+  tests, 1,273 Python/OOXML tests with 16 intentional skips, Ruff, scoped .NET
+  formatting and the standalone Open XML validator build. Two local self-contained
+  builds produced identical 195-file, 84,359,203-byte trees and 35,982,903-byte ZIPs
+  with SHA-256
+  `ddd7bbeee1903f857436f35c2e15861327f47c30d840f00ea53e7657400ab88c`.
+  Through the packaged MCP, a 218-character two-command batch cloned `Standard` as
+  `CodexDefinition` and server-assigned it to six paragraphs in an Apache POI DOCX.
+  The compact seven-operation plan response was 2,334 characters. Candidate validation
+  found no new errors; apply matched the predicted fingerprint, changed only
+  `word/styles.xml` and `word/document.xml`, retained a backup, returned no XML, left
+  the source fixture unchanged and did not alter the running Word process set. Hosted
+  artifact verification is pending for this uncommitted checkpoint.
 - Added token-lean bulk `set_style_where` commands to the typed saved-package semantic
   edit actions. One compact selector now resolves paragraph, run, or table targets from
   bounded text, exact properties, ancestor/descendant, subtree and source-part evidence

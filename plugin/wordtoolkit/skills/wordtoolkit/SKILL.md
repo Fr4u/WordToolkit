@@ -274,16 +274,20 @@ For a saved-package text edit, use this strict lazy workflow:
 Never bypass the plan with raw XML. Signed packages are intentionally blocked; do
 not attempt to strip or invalidate a signature through another action.
 
-For a saved-package style assignment, use this strict lazy workflow:
+For a saved-package style definition or assignment, use this strict lazy workflow:
 
 1. Retain the exact package fingerprint. For a surgical edit, query only the target
    `paragraph`, `run`, or `table` nodes and keep their explicit current `style_id`. For
    a bulk edit already expressible as strict kind/text/property/ancestor/descendant/
    subtree/story predicates, do not download node IDs: use one server-side selector.
-2. Inspect the narrow style type with `inspect_ooxml_styles`; use the exact existing
-   `style_id`, not a visible name or an invented identifier. Reject an unresolved
-   inheritance chain.
-3. Send exact nodes as `set_style`, or use `set_style_where` with a single
+2. Inspect the narrow style type with `inspect_ooxml_styles`. To reuse a style, use its
+   exact `style_id`, not its visible name. To add a definition, choose one new ID and
+   either use `create_style` with a type plus optional `based_on_style_id`, `next_style_id`,
+   quick-format flag and UI priority, or `clone_style` with one exact existing source ID.
+   A clone preserves the source definition's modeled and opaque formatting but becomes
+   custom, non-default and unlinked. Do not send XML or formatting-property fragments.
+3. Put definition commands and assignments in the same batch when the new style must be
+   used immediately. Send exact nodes as `set_style`, or use `set_style_where` with a single
    `paragraph`/`run`/`table` kind, strict optional predicates, and an explicit
    `max_matches` ceiling. Add `expected_style_id` when every selected node must retain
    one current style, or `require_no_explicit_style=true` when every match must still
@@ -299,12 +303,15 @@ selector intent, not JSON property order, is bound into the reviewed plan ID. It
 select “missing property” directly: `require_no_explicit_style` is a precondition on all
 nodes selected by the other predicates, not a hidden absence filter.
 
-The current typed semantic command family only assigns an already declared, compatible,
-resolvable paragraph, character, or table style. It does not create, rename, delete,
-copy, infer, repair, or align style definitions and it does not implement conditional
-table-style semantics. Planning writes nothing; apply blocks signed packages, stale
-sources, changed selector intent, plan drift, wrong-type/missing styles, and new Microsoft
-Open XML validation errors. Neither action opens Word or returns XML/document text.
+The current command family can create a minimal inherited paragraph, character, table,
+or numbering style, clone one existing definition, and assign compatible paragraph,
+character, or table styles. Creation does not accept arbitrary formatting properties;
+clone is the lossless path for retaining an existing definition's formatting. It does
+not rename, delete, consolidate, repair, infer, align to a template, maintain linked-style
+pairs, or implement conditional table-style semantics. Definition edits reject packages
+with `stylesWithEffects` until both parts can be mirrored safely. Planning writes nothing;
+apply blocks signatures, stale sources, changed intent, plan drift, invalid graphs and new
+Microsoft Open XML validation errors. Neither action opens Word or returns XML/document text.
 
 1. `list_live_word_documents`.
 2. Use `start_word_application` only when Word is unavailable.

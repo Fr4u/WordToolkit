@@ -154,6 +154,8 @@ internal sealed partial class WordLiveService
             submitted_command_count = context.SubmittedCommandCount,
             selector_command_count = context.SelectorResolutions.Count,
             selector_match_count = context.SelectorResolutions.Sum(item => item.MatchedNodeCount),
+            style_definition_count = context.Plan.DefinitionOperations.Count,
+            style_assignment_count = context.Plan.Operations.Count,
             operation_count = context.Plan.OperationCount,
             changed_operation_count = context.Plan.ChangedOperationCount,
             changed_part_count = context.Plan.ChangedPartCount,
@@ -185,6 +187,20 @@ internal sealed partial class WordLiveService
                     property_name = operation.PropertyName,
                     before_value = BoundForResponse(operation.BeforeValue, 253),
                     after_value = BoundForResponse(operation.AfterValue, 253),
+                    source_part_uri = BoundForResponse(operation.SourcePartUri, 512),
+                    source_element_ordinal = operation.SourceElementOrdinal,
+                    xml_byte_delta = operation.XmlByteDelta,
+                    has_change = operation.HasChange,
+                }).ToArray()
+                : null,
+            style_definition_operations = includeDetails
+                ? context.Plan.DefinitionOperations.Select(operation => new
+                {
+                    index = operation.Index,
+                    kind = operation.Kind,
+                    style_id = BoundForResponse(operation.StyleId, 253),
+                    source_style_id = BoundForResponse(operation.SourceStyleId, 253),
+                    style_type = operation.StyleType.ToString().ToLowerInvariant(),
                     source_part_uri = BoundForResponse(operation.SourcePartUri, 512),
                     source_element_ordinal = operation.SourceElementOrdinal,
                     xml_byte_delta = operation.XmlByteDelta,
@@ -251,10 +267,11 @@ internal sealed partial class WordLiveService
         );
         var plan = new WordSemanticTransactionPlanner(
             new WordSemanticTransactionOptions { MaxCommands = 200 }
-        ).PlanStyleAssignments(
+        ).PlanStyleEdits(
             package,
             semantic,
-            parsed.Commands,
+            parsed.DefinitionCommands,
+            parsed.AssignmentCommands,
             cancellationToken
         );
         var validation = ValidatePackageCandidate(
@@ -287,7 +304,8 @@ internal sealed partial class WordLiveService
                 "commands must contain between 1 and 200 semantic edits"
             );
         }
-        var result = new List<WordStyleAssignmentCommand>(array.GetArrayLength());
+        var assignments = new List<WordStyleAssignmentCommand>(array.GetArrayLength());
+        var definitions = new List<WordStyleDefinitionCommand>(array.GetArrayLength());
         var intentFields = new List<string>(checked(array.GetArrayLength() * 16));
         var selectorResolutions = new List<SemanticSelectorResolution>();
         var commandIndex = 0;
@@ -306,7 +324,7 @@ internal sealed partial class WordLiveService
             switch (type)
             {
                 case "set_style":
-                    ParseExactStyleCommand(item, commandIndex, result, intentFields);
+                    ParseExactStyleCommand(item, commandIndex, assignments, intentFields);
                     break;
                 case "set_style_where":
                     if (selectorResolutions.Count >= MaxSemanticSelectorCommands)
@@ -320,20 +338,36 @@ internal sealed partial class WordLiveService
                         item,
                         commandIndex,
                         semanticDocument,
-                        result,
+                        assignments,
                         intentFields,
                         selectorResolutions,
                         cancellationToken
                     );
                     break;
+                case "create_style":
+                    ParseCreateStyleCommand(
+                        item,
+                        commandIndex,
+                        definitions,
+                        intentFields
+                    );
+                    break;
+                case "clone_style":
+                    ParseCloneStyleCommand(
+                        item,
+                        commandIndex,
+                        definitions,
+                        intentFields
+                    );
+                    break;
                 default:
                     throw new NativeToolException(
                         "INVALID_INPUT",
-                        "Semantic edit command type must be set_style or set_style_where"
+                        "Semantic edit command type must be create_style, clone_style, set_style, or set_style_where"
                     );
             }
 
-            if (result.Count > 200)
+            if (assignments.Count + definitions.Count > 200)
             {
                 throw new NativeToolException(
                     "TRANSACTION_LIMIT",
@@ -343,12 +377,168 @@ internal sealed partial class WordLiveService
             commandIndex++;
         }
         return new ParsedSemanticEditBatch(
-            result,
+            definitions,
+            assignments,
             intentFields,
             array.GetArrayLength(),
             selectorResolutions
         );
     }
+
+    private static void ParseCreateStyleCommand(
+        JsonElement item,
+        int commandIndex,
+        ICollection<WordStyleDefinitionCommand> result,
+        ICollection<string> intentFields
+    )
+    {
+        ValidateCommandProperties(
+            item,
+            [
+                "type",
+                "style_id",
+                "name",
+                "style_type",
+                "based_on_style_id",
+                "next_style_id",
+                "quick_format",
+                "ui_priority",
+            ]
+        );
+        _ = item.Required("style_id");
+        _ = item.Required("name");
+        _ = item.Required("style_type");
+        var styleId = RequiredBoundedStyleText(item, "style_id");
+        var name = RequiredBoundedStyleText(item, "name");
+        var styleType = ParseStyleType(item.String("style_type"));
+        var basedOnStyleId = OptionalBoundedStyleText(item, "based_on_style_id");
+        var nextStyleId = OptionalBoundedStyleText(item, "next_style_id");
+        var quickFormat = OptionalBoolean(item, "quick_format");
+        var uiPriorityValue = item.NullableInt64("ui_priority");
+        if (uiPriorityValue is < 0 or > int.MaxValue)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "ui_priority must be between 0 and 2147483647"
+            );
+        }
+        var uiPriority = uiPriorityValue is null ? null : (int?)uiPriorityValue.Value;
+        result.Add(
+            new WordStyleCreateCommand(
+                styleId,
+                name,
+                styleType,
+                basedOnStyleId,
+                nextStyleId,
+                quickFormat,
+                uiPriority
+            )
+        );
+        AddStyleDefinitionIntent(
+            intentFields,
+            commandIndex,
+            "create_style",
+            styleId,
+            name,
+            styleType.ToString(),
+            basedOnStyleId,
+            nextStyleId,
+            quickFormat,
+            uiPriority,
+            null
+        );
+    }
+
+    private static void ParseCloneStyleCommand(
+        JsonElement item,
+        int commandIndex,
+        ICollection<WordStyleDefinitionCommand> result,
+        ICollection<string> intentFields
+    )
+    {
+        ValidateCommandProperties(
+            item,
+            ["type", "source_style_id", "style_id", "name"]
+        );
+        _ = item.Required("source_style_id");
+        _ = item.Required("style_id");
+        _ = item.Required("name");
+        var sourceStyleId = RequiredBoundedStyleText(item, "source_style_id");
+        var styleId = RequiredBoundedStyleText(item, "style_id");
+        var name = RequiredBoundedStyleText(item, "name");
+        result.Add(new WordStyleCloneCommand(sourceStyleId, styleId, name));
+        AddStyleDefinitionIntent(
+            intentFields,
+            commandIndex,
+            "clone_style",
+            styleId,
+            name,
+            null,
+            null,
+            null,
+            null,
+            null,
+            sourceStyleId
+        );
+    }
+
+    private static string RequiredBoundedStyleText(JsonElement item, string name)
+    {
+        var value = item.String(name);
+        if (string.IsNullOrWhiteSpace(value) || value.Length > 253)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                $"{name} must contain between 1 and 253 characters"
+            );
+        }
+        return value;
+    }
+
+    private static string? OptionalBoundedStyleText(JsonElement item, string name)
+    {
+        var value = OptionalString(item, name);
+        if (value is null)
+        {
+            return null;
+        }
+        if (string.IsNullOrWhiteSpace(value) || value.Length > 253)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                $"{name} must contain between 1 and 253 characters"
+            );
+        }
+        return value;
+    }
+
+    private static bool? OptionalBoolean(JsonElement item, string name)
+    {
+        if (!item.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+        if (value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                $"{name} must be boolean or null"
+            );
+        }
+        return value.GetBoolean();
+    }
+
+    private static WordStyleType ParseStyleType(string value) => value switch
+    {
+        "paragraph" => WordStyleType.Paragraph,
+        "character" => WordStyleType.Character,
+        "table" => WordStyleType.Table,
+        "numbering" => WordStyleType.Numbering,
+        _ => throw new NativeToolException(
+            "INVALID_INPUT",
+            "style_type must be paragraph, character, table, or numbering"
+        ),
+    };
 
     private static void ParseExactStyleCommand(
         JsonElement item,
@@ -718,6 +908,35 @@ internal sealed partial class WordLiveService
         fields.Add(style.RequireNoExplicitStyle ? "1" : "0");
     }
 
+    private static void AddStyleDefinitionIntent(
+        ICollection<string> fields,
+        int commandIndex,
+        string type,
+        string styleId,
+        string name,
+        string? styleType,
+        string? basedOnStyleId,
+        string? nextStyleId,
+        bool? quickFormat,
+        int? uiPriority,
+        string? sourceStyleId
+    )
+    {
+        fields.Add(commandIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        fields.Add(type);
+        fields.Add(styleId);
+        fields.Add(name);
+        AddNullableIntent(fields, styleType);
+        AddNullableIntent(fields, basedOnStyleId);
+        AddNullableIntent(fields, nextStyleId);
+        AddNullableIntent(fields, quickFormat?.ToString());
+        AddNullableIntent(
+            fields,
+            uiPriority?.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        );
+        AddNullableIntent(fields, sourceStyleId);
+    }
+
     private static void AddQueryIntent(
         ICollection<string> fields,
         WordSemanticQuery query,
@@ -861,7 +1080,8 @@ internal sealed partial class WordLiveService
     );
 
     private sealed record ParsedSemanticEditBatch(
-        IReadOnlyList<WordStyleAssignmentCommand> Commands,
+        IReadOnlyList<WordStyleDefinitionCommand> DefinitionCommands,
+        IReadOnlyList<WordStyleAssignmentCommand> AssignmentCommands,
         IReadOnlyList<string> IntentFields,
         int SubmittedCommandCount,
         IReadOnlyList<SemanticSelectorResolution> SelectorResolutions
