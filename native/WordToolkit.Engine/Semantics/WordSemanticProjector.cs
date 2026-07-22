@@ -358,6 +358,7 @@ public sealed class WordSemanticProjector
 
             var anchor = DurableAnchor(element, kind.Value);
             var fingerprint = Fingerprint(element, state);
+            var structuralFingerprint = StructuralFingerprint(element, state);
             var signature = anchor ?? $"fp:{fingerprint}";
             var occurrenceKey = $"{kind}:{signature}";
             var occurrence = context.occurrences.TryGetValue(occurrenceKey, out var count)
@@ -380,7 +381,13 @@ public sealed class WordSemanticProjector
                 sourcePartUri,
                 sourcePath,
                 NodeText(element, kind.Value),
-                NodeProperties(element, kind.Value)
+                NodeProperties(element, kind.Value),
+                anchor is null
+                    ? WordSemanticIdentityKind.ContentFingerprint
+                    : WordSemanticIdentityKind.DurableAnchor,
+                FingerprintIdentity(kind.Value, signature),
+                fingerprint,
+                structuralFingerprint
             );
             if (context.parent is null)
             {
@@ -512,9 +519,12 @@ public sealed class WordSemanticProjector
             var attribute in element.Attributes()
                 .Where(attribute =>
                     !attribute.IsNamespaceDeclaration
-                    && !attribute.Name.LocalName.StartsWith(
-                        "rsid",
-                        StringComparison.OrdinalIgnoreCase
+                    && !(
+                        IsWordNamespace(attribute.Name.NamespaceName)
+                        && attribute.Name.LocalName.StartsWith(
+                            "rsid",
+                            StringComparison.OrdinalIgnoreCase
+                        )
                     )
                 )
                 .OrderBy(attribute => attribute.Name.NamespaceName, StringComparer.Ordinal)
@@ -542,6 +552,48 @@ public sealed class WordSemanticProjector
         var fingerprint = Convert.ToHexString(hash.GetHashAndReset())
             .ToLowerInvariant();
         state.Fingerprints[element] = fingerprint;
+        return fingerprint;
+    }
+
+    private static string StructuralFingerprint(
+        XElement element,
+        ProjectionState state
+    )
+    {
+        if (state.StructuralFingerprints.TryGetValue(element, out var cached))
+        {
+            return cached;
+        }
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Append(hash, element.Name.NamespaceName);
+        Append(hash, element.Name.LocalName);
+        foreach (
+            var attribute in element.Attributes()
+                .Where(attribute =>
+                    !attribute.IsNamespaceDeclaration
+                    && !(
+                        IsWordNamespace(attribute.Name.NamespaceName)
+                        && attribute.Name.LocalName.StartsWith(
+                            "rsid",
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    )
+                )
+                .OrderBy(attribute => attribute.Name.NamespaceName, StringComparer.Ordinal)
+                .ThenBy(attribute => attribute.Name.LocalName, StringComparer.Ordinal)
+        )
+        {
+            Append(hash, attribute.Name.NamespaceName);
+            Append(hash, attribute.Name.LocalName);
+            Append(hash, attribute.Value);
+        }
+        foreach (var child in element.Elements())
+        {
+            Append(hash, StructuralFingerprint(child, state));
+        }
+        var fingerprint = Convert.ToHexString(hash.GetHashAndReset())
+            .ToLowerInvariant();
+        state.StructuralFingerprints[element] = fingerprint;
         return fingerprint;
     }
 
@@ -914,6 +966,17 @@ public sealed class WordSemanticProjector
         return new SemanticNodeId("wdn_" + encoded);
     }
 
+    private static string FingerprintIdentity(
+        WordSemanticNodeKind kind,
+        string signature
+    )
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Append(hash, kind.ToString());
+        Append(hash, signature);
+        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+    }
+
     private static string QualifiedName(XName name)
     {
         var prefix = name.NamespaceName switch
@@ -1103,6 +1166,8 @@ public sealed class WordSemanticProjector
     {
         public Dictionary<XElement, string> Fingerprints { get; } = [];
 
+        public Dictionary<XElement, string> StructuralFingerprints { get; } = [];
+
         public int SemanticNodeCount { get; set; }
     }
 
@@ -1117,7 +1182,11 @@ public sealed class WordSemanticProjector
             string sourcePartUri,
             string sourcePath,
             string? text,
-            IDictionary<string, string> properties
+            IDictionary<string, string> properties,
+            WordSemanticIdentityKind identityKind,
+            string identityFingerprint,
+            string subtreeFingerprint,
+            string structuralFingerprint
         )
         {
             Id = id;
@@ -1129,6 +1198,10 @@ public sealed class WordSemanticProjector
             SourcePath = sourcePath;
             Text = text;
             Properties = properties;
+            IdentityKind = identityKind;
+            IdentityFingerprint = identityFingerprint;
+            SubtreeFingerprint = subtreeFingerprint;
+            StructuralFingerprint = structuralFingerprint;
         }
 
         public SemanticNodeId Id { get; }
@@ -1149,6 +1222,14 @@ public sealed class WordSemanticProjector
 
         public IDictionary<string, string> Properties { get; }
 
+        public WordSemanticIdentityKind IdentityKind { get; }
+
+        public string IdentityFingerprint { get; }
+
+        public string SubtreeFingerprint { get; }
+
+        public string StructuralFingerprint { get; }
+
         public List<MutableSemanticNode> Children { get; } = [];
 
         public WordSemanticNode Freeze() => new(
@@ -1161,6 +1242,10 @@ public sealed class WordSemanticProjector
             SourcePath,
             Text,
             Properties,
+            IdentityKind,
+            IdentityFingerprint,
+            SubtreeFingerprint,
+            StructuralFingerprint,
             Children.Select(child => child.Freeze()).ToArray()
         );
     }

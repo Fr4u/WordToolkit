@@ -41,6 +41,10 @@ public sealed class WordSemanticProjectorTests
         Assert.Equal("Heading1", paragraph.Properties["style_id"]);
         Assert.Contains("Linked equation", paragraph.TextPreview());
         Assert.StartsWith("wdn_", paragraph.Id.Value, StringComparison.Ordinal);
+        Assert.Equal(WordSemanticIdentityKind.DurableAnchor, paragraph.IdentityKind);
+        Assert.Matches("^[a-f0-9]{64}$", paragraph.IdentityFingerprint);
+        Assert.Matches("^[a-f0-9]{64}$", paragraph.SubtreeFingerprint);
+        Assert.Matches("^[a-f0-9]{64}$", paragraph.StructuralFingerprint);
         Assert.Equal(
             semantic.NodeCount,
             semantic.Nodes.Select(node => node.Id).Distinct().Count()

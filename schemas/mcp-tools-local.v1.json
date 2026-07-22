@@ -3976,6 +3976,196 @@
       }
     },
     {
+      "name": "compare_ooxml_semantics",
+      "title": "Compare saved Word documents semantically",
+      "description": "Compare two saved Word OOXML packages without opening Word. Produces separate bounded OPC-entry and source-linked semantic differences across the main body, headers, footers, notes, comments, glossary entries, text boxes, tables, fields and equations. Matching prefers exact or durable identities, detects proven moves, labels contextual similarity, exposes ambiguity and alignment fallbacks, and never treats an opaque package change as semantic equality proof.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "before_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the original DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "after_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the revised DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "expected_before_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$",
+            "description": "Optional exact package fingerprint precondition for the original file."
+          },
+          "expected_after_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$",
+            "description": "Optional exact package fingerprint precondition for the revised file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "changes", "entries", "diagnostics"],
+            "default": "summary",
+            "description": "Start with summary. Load one bounded page of semantic changes, OPC entries, or matcher diagnostics only when needed."
+          },
+          "node_kinds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 38,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "document",
+                "body",
+                "paragraph",
+                "run",
+                "text",
+                "tab",
+                "break",
+                "table",
+                "table_row",
+                "table_cell",
+                "hyperlink",
+                "field",
+                "equation",
+                "equation_component",
+                "content_control",
+                "bookmark",
+                "bookmark_end",
+                "comment_anchor",
+                "revision",
+                "drawing",
+                "alternate_content",
+                "extension_island",
+                "header",
+                "footer",
+                "footnotes",
+                "footnote",
+                "endnotes",
+                "endnote",
+                "comments",
+                "comment",
+                "glossary_document",
+                "glossary_entry",
+                "text_box",
+                "header_reference",
+                "footer_reference",
+                "footnote_reference",
+                "endnote_reference",
+                "section"
+              ]
+            },
+            "description": "Optional semantic-node filter for view=changes."
+          },
+          "change_kinds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 7,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "added",
+                "removed",
+                "moved",
+                "text_changed",
+                "properties_changed",
+                "structure_changed",
+                "unmodeled_markup_changed"
+              ]
+            },
+            "description": "Optional difference-kind filter for view=changes."
+          },
+          "scope_families": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 7,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "main",
+                "header",
+                "footer",
+                "footnotes",
+                "endnotes",
+                "comments",
+                "glossary_document"
+              ]
+            },
+            "description": "Optional Word-story family filter for view=changes."
+          },
+          "compare_text": {
+            "type": "boolean",
+            "default": true
+          },
+          "compare_properties": {
+            "type": "boolean",
+            "default": true
+          },
+          "compare_whitespace": {
+            "type": "boolean",
+            "default": true
+          },
+          "case_sensitive": {
+            "type": "boolean",
+            "default": true
+          },
+          "detect_moves": {
+            "type": "boolean",
+            "default": true
+          },
+          "minimum_similarity": {
+            "type": "number",
+            "minimum": 0.25,
+            "maximum": 0.99,
+            "default": 0.56,
+            "description": "Minimum explicitly reported contextual-match score. Exact and durable matching remains independent of this threshold."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 50
+          },
+          "include_sensitive": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow bounded text previews and property values in view=changes."
+          },
+          "text_preview_chars": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 400,
+            "default": 0,
+            "description": "Per-side preview bound; a positive value requires include_sensitive=true."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include part URI, normalized source path and lexical element ordinal."
+          },
+          "include_hashes": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include entry/subtree hashes and text comparison fingerprints."
+          }
+        },
+        "required": ["before_path", "after_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "inspect_ooxml_sections",
       "title": "Inspect Word sections and story bindings",
       "description": "Resolve Word section boundaries, page properties, and effective default, first-page, and even-page header/footer bindings. Reports explicit, inherited, blank, and suppressed variants without opening Word or returning document text.",

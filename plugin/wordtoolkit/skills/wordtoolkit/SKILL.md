@@ -102,6 +102,18 @@ preview requires both `include_sensitive=true` and positive `text_preview_chars`
 Source metadata is separately opt-in and raw XML is never returned. The inspector is
 parse-only: it does not open Word, accept/reject changes, resolve comments, merge review
 state or mutate the package.
+Use lazy `compare_ooxml_semantics` for two saved DOCX/DOCM/DOTX/DOTM snapshots. Start
+with `view=summary`; do not load all differences just to learn whether anything changed.
+Retain both returned package fingerprints and keep `package_equivalent`,
+`semantically_equivalent` and `matching_complete` separate. If semantic detail is needed,
+request `view=changes` with narrow node/change/story filters and page with `next_offset`.
+Request `view=entries` only to explain package or opaque-part drift, and
+`view=diagnostics` when matching is incomplete or projected changes remain unclassified.
+Text and property values require explicit sensitive opt-in; hashes and source locations
+are separate opt-ins. Never call two documents identical when package evidence differs,
+matching is incomplete, or `unclassified_projected_entry_count` is nonzero. This action
+does not open Word, mutate either file, return raw XML, create a patch/merge, or produce a
+tracked-change comparison document.
 For a saved-package tracked-revision decision, use this strict lazy workflow:
 
 1. Inspect only the required revisions and retain the exact package fingerprint,

@@ -460,6 +460,35 @@ Repair never means “rewrite until the validator stops complaining.” Every re
 rule ID, confidence, destructive-risk label, affected source spans, inverse, and proof
 that no unrelated parts changed.
 
+### Semantic comparison
+
+Saved-package comparison is now a two-layer read-only service. The OPC layer reports
+added, removed and modified ZIP entries with size, content type, infrastructure and
+projected-part classification. The semantic layer compares source-linked objects across
+the main story, headers, footers, notes, comments, glossary entries and text boxes. The
+two verdicts remain separate: byte/package equivalence is not semantic equivalence, and
+semantic equivalence is not proof that opaque or currently unmodeled markup is equal.
+
+Matching uses a conservative ladder: document/story role, exact node ID, unique durable
+identity, unique exact subtree, then bounded sibling-sequence alignment with an explicit
+similarity score. Duplicate durable anchors and equal or near-equal contextual candidates
+remain unmatched instead of being guessed. Sequence moves are derived from a longest
+increasing matched subsequence so an insertion-induced index shift is not mislabeled as
+a move; descendant move noise is collapsed beneath the top-level moved object.
+
+Every result reports whether matching was complete, the number and basis of matches,
+ambiguity and fallback diagnostics, alignment work, changed projected entries not yet
+classified by the semantic vocabulary, deterministic difference IDs and exact package
+fingerprints. Text, property values, hashes and source paths are independent bounded
+opt-ins. The engine enforces node, alignment-cell, diagnostic, change, processed-text and
+captured-text budgets. It never opens Word, emits raw XML, mutates either package or
+pretends that the output is a Word tracked-revision document.
+
+This is a foundation for review, patch and three-way merge, not those capabilities
+wearing a borrowed coat. A future patch must bind each operation to both package
+fingerprints and stable semantic targets; a future merge must add a common ancestor,
+conflict graph and deterministic resolution policy.
+
 ## Equation engine
 
 Equations require their own semantic AST rather than string substitution. The first

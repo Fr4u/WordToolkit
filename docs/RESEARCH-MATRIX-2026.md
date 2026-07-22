@@ -232,6 +232,47 @@ Word automation for authoritative operations. Their limitations are equally usef
 flat tool catalogs, unsafe generic code execution, in-place overwrites, weak versioning,
 and ASTs that silently flatten what they do not understand.
 
+## Comparison evidence and adopted boundary
+
+Microsoft Word's native `Application.CompareDocuments` can compare formatting,
+whitespace and case, tables, headers and footers, footnotes and endnotes, text boxes,
+fields, comments and moves, then returns a document containing tracked revisions. That
+is the authoritative Windows workflow when the required artifact is a Word review
+document, but it is not a compact, cross-platform semantic diff and it necessarily opens
+Word. [CompareDocuments](https://learn.microsoft.com/en-us/office/vba/api/word.application.comparedocuments)
+(B).
+
+Word's `w14:paraId` is a useful durable paragraph anchor when it is valid and unchanged,
+but the format requires uniqueness and constrains it to an eight-character hexadecimal
+value. Real damaged or merged documents can violate the uniqueness assumption, so a
+duplicate is ambiguity evidence, not permission to pair by wishful thinking.
+[MS-DOCX `paraId`](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-docx/a0e7d2e2-2246-44c6-96e8-1cf009823615)
+(B).
+
+Open-Xml-PowerTools' `WmlComparer` is the strongest inspected open-source WordprocessingML
+comparison reference in this research set. Its source demonstrates the scale of the real
+problem: atomization, revision consolidation, table handling, correlation, hashing and
+tracked-revision reconstruction are inseparable from Word markup details. WordToolkit
+does not copy that code or claim equivalent tracked-revision output; it adopts the harder
+boundary that unmatched and unsupported evidence stays explicit.
+[WmlComparer source](https://github.com/OfficeDev/Open-Xml-PowerTools/blob/5881422a881f6ccefce2b9801b5dc6a753670d6e/OpenXmlPowerTools/WmlComparer.cs)
+(A).
+
+For ordered sibling alignment, the classical edit-script literature establishes why a
+sequence algorithm is preferable to comparing raw positional indexes. WordToolkit's
+current implementation uses bounded weighted alignment plus a longest-increasing matched
+subsequence for move detection, not a claim of Myers-equivalent minimal edit scripts.
+[Myers, “An O(ND) Difference Algorithm and Its Variations”](https://par.cse.nsysu.edu.tw/resource/lab_relative/Myer86.pdf)
+(B).
+
+The adopted service therefore emits two independent layers: exact OPC entry changes and
+source-linked semantic object changes. It matches by role, exact ID, unique durable
+identity, unique exact subtree and finally contextual sibling evidence. Near ties remain
+unmatched, fallback is labeled, opaque changes survive at package level, and compact MCP
+views hide text, property values, hashes and source paths unless explicitly requested.
+This is a tested diff foundation. Patch, three-way merge, revision-producing comparison
+and visual comparison remain separate unfinished work.
+
 ## Conversion and rendering adapters
 
 DOCX-to-PDF and PDF-to-DOCX are not symmetric operations. The first can ask a layout

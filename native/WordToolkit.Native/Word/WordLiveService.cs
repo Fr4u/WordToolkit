@@ -100,6 +100,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "compare_ooxml_semantics" => ComparePackageSemanticsAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_ooxml_sections" => InspectPackageSectionsAsync(
                 arguments,
                 cancellationToken

@@ -8,6 +8,12 @@ public readonly record struct SemanticNodeId(string Value)
     public override string ToString() => Value;
 }
 
+public enum WordSemanticIdentityKind
+{
+    DurableAnchor,
+    ContentFingerprint,
+}
+
 public enum WordSemanticNodeKind
 {
     Document,
@@ -62,6 +68,10 @@ public sealed class WordSemanticNode
         string sourcePath,
         string? text,
         IDictionary<string, string> properties,
+        WordSemanticIdentityKind identityKind,
+        string identityFingerprint,
+        string subtreeFingerprint,
+        string structuralFingerprint,
         IReadOnlyList<WordSemanticNode> children
     )
     {
@@ -76,6 +86,10 @@ public sealed class WordSemanticNode
         Properties = new ReadOnlyDictionary<string, string>(
             new Dictionary<string, string>(properties, StringComparer.Ordinal)
         );
+        IdentityKind = identityKind;
+        IdentityFingerprint = identityFingerprint;
+        SubtreeFingerprint = subtreeFingerprint;
+        StructuralFingerprint = structuralFingerprint;
         Children = children;
     }
 
@@ -96,6 +110,14 @@ public sealed class WordSemanticNode
     public string? Text { get; }
 
     public IReadOnlyDictionary<string, string> Properties { get; }
+
+    public WordSemanticIdentityKind IdentityKind { get; }
+
+    public string IdentityFingerprint { get; }
+
+    public string SubtreeFingerprint { get; }
+
+    public string StructuralFingerprint { get; }
 
     public IReadOnlyList<WordSemanticNode> Children { get; }
 

@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## 0.27.0 — 2026-07-22
+
+- Added native `WordSemanticDiffEngine`, a bounded two-layer comparison of saved Word
+  packages. It separates exact OPC entry drift from source-linked semantic added,
+  removed, moved, text, declared-property, structure and unmodeled-markup differences
+  across the main body, headers, footers, notes, comments, glossary entries and text
+  boxes.
+- Matching prefers document/story roles, exact semantic IDs, unique durable anchors and
+  unique exact subtrees, then uses bounded contextual sibling alignment. Duplicate
+  identities, near-tied candidates and alignment-budget fallbacks remain explicit;
+  insertion-driven index shifts are not mislabeled as moves.
+- Added lazy `compare_ooxml_semantics` with compact summary-first output, exact package
+  fingerprint preconditions, filters and paging. Document text and property values are
+  redacted by default; text previews, source paths and hashes are independent bounded
+  opt-ins. The action never opens Word, returns raw XML or mutates either package.
+- Added node, change, diagnostic, alignment, processed-text and captured-text budgets,
+  deterministic diff/change IDs, cancellation, option-policy tests, adversarial
+  ambiguity tests and no-op coverage across the bundled multi-producer DOCX corpus.
+- The native checkpoint passes 192 engine tests and 78 host tests.
+
 ## 0.26.0 — 2026-07-22
 
 - Added `WordReviewMutationPlanner`, a typed lossless saved-package transaction for

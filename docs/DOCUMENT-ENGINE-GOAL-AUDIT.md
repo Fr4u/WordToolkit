@@ -63,7 +63,7 @@ vendor claim is not implementation evidence.
 | Formatter | Not started | Architecture only | Explicit previewed policies; no incidental formatting on save |
 | Optimizer | Not started | Architecture only | Duplicate/dead-part/image/style/package optimizations with preservation proof |
 | Repair engine | Not started | Architecture only | Diagnosis, confidence/risk, candidate fix, inverse and postcondition evidence |
-| Semantic diff | Not started | Historical Python comparison only | Node-aware diff with source fallback and review-friendly output |
+| Semantic diff | Partial (strengthened initial slice) | Native two-layer saved-package comparison reports OPC entry changes separately from source-linked semantic added/removed/moved/text/property/structure/unmodeled-markup differences across all projected Word stories. Matching uses exact IDs, unique durable identities, exact subtrees and bounded contextual alignment; ambiguity, fallbacks, unclassified projected entries, deterministic IDs, fingerprints, redaction and resource budgets remain explicit. Corpus no-op, different-producer, adversarial ambiguity, option-policy, move and MCP privacy tests exist | Richer typed property vocabulary, review-friendly rendering, patch generation, Word `CompareDocuments` adapter, benchmarked accuracy and cross-version corpus |
 | Three-way merge | Not started | None | Conflict graph, revision-aware merge and deterministic resolution policies |
 
 ## Word feature systems
@@ -197,7 +197,7 @@ preconditions, affected-node proof, transaction, validation, and inverse.
 | accept only changes by author X | Partial: redacted author-fingerprint selection, explicit dependency cascade, deterministic plan/apply, exact inverse and atomic backup cover supported wrappers/moves/property snapshots/inserted rows plus proven one-sided cell/numbering decisions; unsupported paragraph/table-grid/vertical-merge/numbering/custom-XML structures block |
 | revert changes by author Y | Partial: the same saved-package planner rejects the selected author's supported revisions under exact fingerprint/plan preconditions; unsupported dependencies block and can be routed to guarded live Word |
 | align styles with a template | Not started |
-| compare two documents | Not started in new engine |
+| compare two documents | Partial: lazy `compare_ooxml_semantics` separates package and semantic verdicts, compares every projected Word story without opening Word, pages redacted differences, exposes match confidence/ambiguity/fallbacks and preserves opaque changes as explicit entry evidence; it does not yet create a tracked-change document or visual diff |
 | create a patch | Not started |
 | create a merge | Not started |
 | render to HTML | Not started |
@@ -246,7 +246,7 @@ mutation/repair/render execution required by the goal.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Unit/regression tests | Partial | 172 engine, 73 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
+| Unit/regression tests | Partial | 192 engine, 78 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
 | Property/fuzz testing | Partial | Deterministic malformed bytes and random opaque round-trip smoke | Continuous coverage-guided fuzzing, minimized corpus and resource assertions |
 | Fault injection | Not started | Validation/concurrency failure tests only | Every persistence/transaction phase, disk-full, denied, crash and race tests |
 | Preservation benchmark | Partial | Entry hashes and random no-op round trip | Public producer/feature corpus with untouched part/subtree metrics |
@@ -255,19 +255,21 @@ mutation/repair/render execution required by the goal.
 | Visual regression | Not started for new engine | Historical screenshots and live acceptance | Versioned PDF/page/object baselines across rendering backends |
 | Cross-platform CI | Not started | Engine targets `net8.0`; current verification is Windows | Windows/Linux/macOS core tests and qualified backend matrix |
 | Public competitor benchmark | Not started | Research matrix only | Same fixtures, versions, commands, results, caveats and reproducible harness |
-| Release packaging | Partial (strengthened) | Versioned 0.26.0 self-contained Windows build succeeds, contains the engine/runtime/manifest, contains zero Python files, and passes unpacked search/schema/review-plan smoke without starting Word; ZIP SHA-256 `4e0386dc673c7fff0840df36e4386a9d7b4b53e36e3db7005491a76c993282f3` | Packaged apply/rollback exercise; optional signing/provenance policy |
+| Release packaging | Partial (strengthened) | Versioned 0.27.0 self-contained Windows build succeeds, contains the engine/runtime/manifest, contains zero Python files, and passes unpacked lazy search/schema/semantic-compare smoke without starting Word; ZIP SHA-256 `21d2bfd36840f248d6f557e97e805dedcdccfa9dea80760daa33e1e3e5b9b1d7` | Packaged apply/rollback exercise; optional signing/provenance policy |
 
 ## Current checkpoint evidence
 
-- `dotnet test native/WordToolkit.Engine.Tests` — 172 passed.
-- `dotnet test native/WordToolkit.Native.Tests` — 73 passed.
+- `dotnet test native/WordToolkit.Engine.Tests` — 192 passed.
+- `dotnet test native/WordToolkit.Native.Tests` — 78 passed.
 - `.venv/Scripts/python -m pytest -q` — 1273 passed, 16 intentionally skipped.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
-- Unpacked 0.26.0 MCP search, schema inspection and review-decision planning were
-  exercised against the Pandoc move fixture. The plan paired both revisions, removed all
-  four move markers, introduced zero SDK errors, returned no sensitive values or raw XML,
-  performed no mutation and did not start Word.
+- Unpacked 0.27.0 MCP lazy search, schema inspection and semantic comparison were
+  exercised against real Word and Pandoc tracked-change/move fixtures. The compact
+  summary was 1207 UTF-8 bytes and reported 18 package-entry plus 49 semantic
+  differences; a redacted three-change page was 2150 bytes. Matching uncertainty stayed
+  explicit, no sensitive values or raw XML were returned, no mutation occurred, Word was
+  not started and the runtime spawned zero Python children.
 - Packaged/native MCP graph inspection was exercised end to end.
 - Saved-package review inspection was exercised end to end against WordToolkit,
   Mammoth, Pandoc and Apache POI comments, tracked revisions and move fixtures; default
