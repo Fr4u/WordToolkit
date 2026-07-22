@@ -22,7 +22,9 @@
   Python files. The exact packaged MCP inspected a real LibreOffice document in a
   3,054-character response without opening Word, following external targets, mutating
   the package or returning namespace URIs, source-part names, formulas or raw XML.
-  Hosted artifact parity remains pending.
+  All five jobs in mandatory CI run `29951495361` passed with zero annotations. Its
+  hosted Windows artifact matched both local ZIPs and expanded trees byte for byte at
+  the same size and SHA-256.
 - Added fail-closed primary-name rename to the typed saved-package semantic edit actions.
   `rename_style` changes only `w:name` for an explicitly selected custom, non-default
   style; it never changes the stable `w:styleId`, aliases, formatting or ID-based

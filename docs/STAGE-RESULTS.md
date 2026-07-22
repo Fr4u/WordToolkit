@@ -29,8 +29,10 @@
   five compatibility rules and one alternate-content block. Its data object was 1,218
   characters and complete response 3,054 characters; it returned no namespace URI,
   source-part name, formula or raw XML and left the Word process set unchanged.
-- Hosted CI/artifact parity and human review remain required. The public release stays
-  at 0.34.0; no licensed Word release gate is claimed for this saved-package tranche.
+- Mandatory CI run `29951495361` passed all five jobs with zero annotations. Its
+  downloaded Windows artifact matched both local ZIPs and expanded trees byte for byte.
+  Human review remains required. The public release stays at 0.34.0; no licensed Word
+  release gate is claimed for this saved-package tranche.
 
 ## WordToolkit 0.35.0 classic chart graph — 2026-07-22
 
