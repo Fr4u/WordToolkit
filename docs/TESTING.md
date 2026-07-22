@@ -9,6 +9,11 @@
 - Native MCP host: `WordToolkit.Native.Tests` covers the compact/lazy tool catalog,
   input validation, response compaction, cancellation and service contracts without
   starting Microsoft Word.
+- Classic charts: the engine uses a real LibreOffice chart plus synthetic Strict,
+  malformed, external-target and resource-limit packages to verify series, axes,
+  caches and related parts. Native tests prove that default and complete MCP envelopes
+  remain bounded, cached point values are never serialized, sensitive/source opt-ins
+  are independent, and neither Word nor an embedded/external workbook is opened.
 - Round-trip: LaTeX/UnicodeMath/MathML/AST → OMML → DOCX → reopened OMML with semantic AST comparison.
 - Integration: create/open/edit/save, package validation, Streamable HTTP initialization and bearer rejection.
 - Regression: the broad bundled corpus catches parser crashes, byte drift and open graph

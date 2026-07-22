@@ -111,12 +111,24 @@ semantic object, style, numbering definition, field target or section story. Sta
 `view=summary`; use `view=nodes` only to obtain one stable `wddn_` ID, then request a
 bounded `impact` neighborhood or filtered `edges`/`unresolved` page. Keep keys and source
 metadata redacted unless the next operation consumes them. The graph joins only the
-explicitly reported OPC, semantic-containment, style, numbering, reference and section
-domains. Its `explicitly_unmodeled_domains` list is a hard coverage boundary: absence of
-an edge for drawings, charts, SmartArt, OLE, custom XML, bibliography, active content,
-signatures, encryption or co-authoring is not proof that the dependency does not exist.
+explicitly reported OPC, semantic-containment, style, numbering, reference, section and
+classic-chart domains. Its `explicitly_unmodeled_domains` list is a hard coverage
+boundary: absence of an edge for drawings, SmartArt, OLE, custom XML, bibliography,
+active content, signatures, encryption or co-authoring is not proof that the dependency
+does not exist.
 This action never opens Word, executes a field, follows an external target, repairs a
 document or authorizes deleting an apparently unused node.
+Use lazy `inspect_ooxml_charts` instead of opening chart XML or embedded workbooks.
+Start with `view=summary`; it returns only aggregate counts and plot families. Page
+`charts`, `series`, `axes` or `relationships` only when the next decision needs them,
+and filter by an exact `chart_id` or `chart_type`. Chart titles and formulas are
+redacted by default. Request `include_sensitive=true` only when their bounded text is
+necessary, and `include_source=true` only for part or relationship provenance. Cached
+point values are never returned, even with sensitive detail enabled. External targets
+and embedded packages are never opened. Classic Transitional and Strict DrawingML
+charts are modeled; Office 2016 extended charts remain preserved but explicitly
+unmodeled. This inspector is read-only evidence, not permission to edit a chart or its
+workbook.
 Use lazy `lint_ooxml_document` for a bounded quality or safety audit of a saved package.
 Start with `view=summary` and one rule pack when the task is narrow; request paged
 `findings` only after the counts show relevant evidence. Keep `include_source=false`

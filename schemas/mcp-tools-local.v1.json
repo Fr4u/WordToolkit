@@ -5216,7 +5216,10 @@
               "bookmark",
               "field",
               "reference_target",
-              "section"
+              "section",
+              "chart",
+              "chart_series",
+              "chart_axis"
             ],
             "description": "Optional exact node-kind filter for the nodes view."
           },
@@ -5248,7 +5251,11 @@
               "field_contains_field",
               "field_reference",
               "defines_section",
-              "section_binds_story"
+              "section_binds_story",
+              "defines_chart",
+              "chart_contains_series",
+              "chart_contains_axis",
+              "chart_uses_part"
             ],
             "description": "Optional exact edge-kind filter for edge, unresolved, and impact views."
           },
@@ -5290,6 +5297,94 @@
             "type": "boolean",
             "default": true,
             "description": "Include at most 40 bounded cross-domain dependency diagnostics in non-issues views."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_ooxml_charts",
+      "title": "Inspect native Word charts",
+      "description": "Inspect a bounded, source-linked graph of classic DrawingML charts in a saved Word package without opening Word, embedded workbooks, or external targets. Understands the 16 standard classic plot families, series, axes, formulas, cache metadata, chart references, embedded packages and related parts in Transitional and Strict OOXML. Cached point values are never returned. Titles and formulas are redacted unless include_sensitive is true; source relationship targets remain redacted unless include_source is true. Office 2016 extended chart parts are preserved and reported honestly as unmodeled.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "charts", "series", "axes", "relationships", "issues"],
+            "default": "summary",
+            "description": "Return compact plot-type counts, chart metadata, series and data-source metadata, axes, package relationships, or diagnostics."
+          },
+          "detail": {
+            "type": "string",
+            "enum": ["summary", "declared"],
+            "default": "summary",
+            "description": "Use declared for additional bounded chart settings, sensitive-opt-in format codes, auto-update flags, and unmodeled-element counts."
+          },
+          "chart_id": {
+            "type": "string",
+            "pattern": "^wdch_[A-Za-z0-9_-]+$",
+            "maxLength": 128,
+            "description": "Optional exact chart ID from the same package fingerprint."
+          },
+          "chart_type": {
+            "type": "string",
+            "enum": [
+              "area3DChart",
+              "areaChart",
+              "bar3DChart",
+              "barChart",
+              "bubbleChart",
+              "doughnutChart",
+              "line3DChart",
+              "lineChart",
+              "ofPieChart",
+              "pie3DChart",
+              "pieChart",
+              "radarChart",
+              "scatterChart",
+              "stockChart",
+              "surface3DChart",
+              "surfaceChart"
+            ],
+            "description": "Optional exact classic DrawingML plot-type filter."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "include_sensitive": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded chart-title text and series formulas. Cached point values are never returned."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded part URIs, content types, relationship IDs and targets, namespaces, and source XML element ordinals. External targets are never followed."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include at most 20 bounded chart diagnostics in non-issues views."
           }
         },
         "required": ["local_path"],

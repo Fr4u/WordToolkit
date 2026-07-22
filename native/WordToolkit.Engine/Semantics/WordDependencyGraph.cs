@@ -21,6 +21,9 @@ public enum WordDependencyNodeKind
     Field,
     ReferenceTarget,
     Section,
+    Chart,
+    ChartSeries,
+    ChartAxis,
 }
 
 public enum WordDependencyEdgeKind
@@ -51,6 +54,10 @@ public enum WordDependencyEdgeKind
     FieldReference,
     DefinesSection,
     SectionBindsStory,
+    DefinesChart,
+    ChartContainsSeries,
+    ChartContainsAxis,
+    ChartUsesPart,
 }
 
 public enum WordDependencyIssueSeverity
@@ -104,6 +111,7 @@ public sealed record WordDependencyCoverage(
     bool Numbering,
     bool References,
     bool Sections,
+    bool Charts,
     IReadOnlyList<string> ExplicitlyUnmodeledDomains
 );
 
@@ -126,7 +134,8 @@ public sealed class WordDependencyGraph
         int styleIssueCount,
         int numberingIssueCount,
         int referenceIssueCount,
-        int unboundSectionStoryCount
+        int unboundSectionStoryCount,
+        int chartIssueCount
     )
     {
         PackageFingerprint = packageFingerprint;
@@ -140,6 +149,7 @@ public sealed class WordDependencyGraph
         NumberingIssueCount = numberingIssueCount;
         ReferenceIssueCount = referenceIssueCount;
         UnboundSectionStoryCount = unboundSectionStoryCount;
+        ChartIssueCount = chartIssueCount;
         _nodesById = new ReadOnlyDictionary<string, WordDependencyNode>(
             nodes.ToDictionary(node => node.Id, StringComparer.Ordinal)
         );
@@ -168,6 +178,8 @@ public sealed class WordDependencyGraph
     public int ReferenceIssueCount { get; }
 
     public int UnboundSectionStoryCount { get; }
+
+    public int ChartIssueCount { get; }
 
     public bool TryGetNode(string nodeId, out WordDependencyNode? node)
     {
@@ -247,7 +259,7 @@ public sealed class WordDependencyGraphBuilder
         new ReadOnlyCollection<string>(
             [
                 "drawingml_vml_layout",
-                "charts_smartart_diagrams",
+                "smartart_diagrams",
                 "ole_embedded_packages",
                 "content_control_custom_xml_bindings",
                 "citations_bibliography_sources",
@@ -295,6 +307,7 @@ public sealed class WordDependencyGraphBuilder
             semanticDocument,
             cancellationToken
         );
+        var charts = new WordChartGraphBuilder().Build(package, cancellationToken);
         return Build(
             package,
             semanticDocument,
@@ -302,6 +315,7 @@ public sealed class WordDependencyGraphBuilder
             numbering,
             references,
             sections,
+            charts,
             cancellationToken
         );
     }
@@ -314,6 +328,26 @@ public sealed class WordDependencyGraphBuilder
         WordReferenceGraph references,
         WordSectionGraph sections,
         CancellationToken cancellationToken = default
+    ) => Build(
+        package,
+        semanticDocument,
+        styles,
+        numbering,
+        references,
+        sections,
+        new WordChartGraphBuilder().Build(package, cancellationToken),
+        cancellationToken
+    );
+
+    public WordDependencyGraph Build(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordStyleGraph styles,
+        WordNumberingGraph numbering,
+        WordReferenceGraph references,
+        WordSectionGraph sections,
+        WordChartGraph charts,
+        CancellationToken cancellationToken = default
     )
     {
         ArgumentNullException.ThrowIfNull(package);
@@ -322,6 +356,7 @@ public sealed class WordDependencyGraphBuilder
         ArgumentNullException.ThrowIfNull(numbering);
         ArgumentNullException.ThrowIfNull(references);
         ArgumentNullException.ThrowIfNull(sections);
+        ArgumentNullException.ThrowIfNull(charts);
         cancellationToken.ThrowIfCancellationRequested();
         EnsureFingerprint(
             package.Fingerprint,
@@ -329,7 +364,8 @@ public sealed class WordDependencyGraphBuilder
             styles.PackageFingerprint,
             numbering.PackageFingerprint,
             references.PackageFingerprint,
-            sections.PackageFingerprint
+            sections.PackageFingerprint,
+            charts.PackageFingerprint
         );
 
         var state = new BuildState(_options);
@@ -390,6 +426,13 @@ public sealed class WordDependencyGraphBuilder
             reachableParts,
             cancellationToken
         );
+        AddChartDependencies(
+            state,
+            package,
+            charts,
+            reachableParts,
+            cancellationToken
+        );
 
         var (nodes, edges, issues) = state.Materialize();
         return new WordDependencyGraph(
@@ -405,14 +448,132 @@ public sealed class WordDependencyGraphBuilder
                 Numbering: true,
                 References: true,
                 Sections: true,
+                Charts: true,
                 ExplicitlyUnmodeledDomains
             ),
             package.Diagnostics.Count,
             styles.Issues.Count,
             numbering.Issues.Count,
             references.Issues.Count,
-            sections.UnboundStoryPartUris.Count
+            sections.UnboundStoryPartUris.Count,
+            charts.Issues.Count
         );
+    }
+
+    private static void AddChartDependencies(
+        BuildState state,
+        OpcPackageSnapshot package,
+        WordChartGraph charts,
+        IReadOnlySet<string> reachableParts,
+        CancellationToken cancellationToken
+    )
+    {
+        foreach (var chart in charts.Charts)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var partNodeId = PartNode(
+                state,
+                package,
+                reachableParts,
+                chart.PartUri
+            );
+            var chartNodeId = state.AddNode(
+                WordDependencyNodeKind.Chart,
+                chart.Id,
+                isResolved: true,
+                isExternal: false,
+                chart.IsPackageReachable,
+                partUri: chart.PartUri,
+                sourceElementOrdinal: chart.SourceElementOrdinal
+            );
+            state.AddEdge(
+                WordDependencyEdgeKind.DefinesChart,
+                partNodeId,
+                chartNodeId,
+                isResolved: true,
+                isExternal: false,
+                partUri: chart.PartUri,
+                sourceElementOrdinal: chart.SourceElementOrdinal
+            );
+            foreach (var series in chart.Series)
+            {
+                var seriesNodeId = state.AddNode(
+                    WordDependencyNodeKind.ChartSeries,
+                    series.Id,
+                    isResolved: true,
+                    isExternal: false,
+                    chart.IsPackageReachable,
+                    partUri: chart.PartUri,
+                    sourceElementOrdinal: series.SourceElementOrdinal
+                );
+                state.AddEdge(
+                    WordDependencyEdgeKind.ChartContainsSeries,
+                    chartNodeId,
+                    seriesNodeId,
+                    isResolved: true,
+                    isExternal: false,
+                    qualifier: series.ChartType,
+                    partUri: chart.PartUri,
+                    sourceElementOrdinal: series.SourceElementOrdinal
+                );
+            }
+            foreach (var axis in chart.Axes)
+            {
+                var axisNodeId = state.AddNode(
+                    WordDependencyNodeKind.ChartAxis,
+                    $"{chart.Id}:{axis.AxisId}:{axis.SourceElementOrdinal}",
+                    isResolved: true,
+                    isExternal: false,
+                    chart.IsPackageReachable,
+                    partUri: chart.PartUri,
+                    sourceElementOrdinal: axis.SourceElementOrdinal
+                );
+                state.AddEdge(
+                    WordDependencyEdgeKind.ChartContainsAxis,
+                    chartNodeId,
+                    axisNodeId,
+                    isResolved: true,
+                    isExternal: false,
+                    qualifier: axis.Kind,
+                    partUri: chart.PartUri,
+                    sourceElementOrdinal: axis.SourceElementOrdinal
+                );
+            }
+            foreach (var related in chart.RelatedParts)
+            {
+                string targetNodeId;
+                if (related.TargetPartUri is not null)
+                {
+                    targetNodeId = PartNode(
+                        state,
+                        package,
+                        reachableParts,
+                        related.TargetPartUri
+                    );
+                }
+                else
+                {
+                    targetNodeId = state.AddNode(
+                        WordDependencyNodeKind.ExternalTarget,
+                        related.Target,
+                        isResolved: false,
+                        isExternal: related.TargetMode == OpcRelationshipTargetMode.External,
+                        isPackageReachable: false
+                    );
+                }
+                state.AddEdge(
+                    WordDependencyEdgeKind.ChartUsesPart,
+                    chartNodeId,
+                    targetNodeId,
+                    related.IsResolved,
+                    related.TargetMode == OpcRelationshipTargetMode.External,
+                    qualifier: related.Kind.ToString().ToLowerInvariant(),
+                    partUri: chart.PartUri,
+                    relationshipId: related.RelationshipId,
+                    relationshipType: related.RelationshipType
+                );
+            }
+        }
     }
 
     private static void AddPackageDependencies(

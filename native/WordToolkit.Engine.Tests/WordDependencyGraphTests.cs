@@ -128,7 +128,12 @@ public sealed class WordDependencyGraphTests
         Assert.True(first.Coverage.Numbering);
         Assert.True(first.Coverage.References);
         Assert.True(first.Coverage.Sections);
-        Assert.Contains("charts_smartart_diagrams", first.Coverage.ExplicitlyUnmodeledDomains);
+        Assert.True(first.Coverage.Charts);
+        Assert.Contains("smartart_diagrams", first.Coverage.ExplicitlyUnmodeledDomains);
+        Assert.DoesNotContain(
+            "charts_smartart_diagrams",
+            first.Coverage.ExplicitlyUnmodeledDomains
+        );
         Assert.Empty(first.Issues);
 
         var paragraph = semantic.Nodes.Single(node =>

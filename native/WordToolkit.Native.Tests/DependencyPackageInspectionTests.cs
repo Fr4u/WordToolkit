@@ -51,7 +51,7 @@ public sealed class DependencyPackageInspectionTests
                     .GetBoolean()
             );
             Assert.Contains(
-                "charts_smartart_diagrams",
+                "smartart_diagrams",
                 summary.GetProperty("coverage")
                     .GetProperty("explicitly_unmodeled_domains")
                     .EnumerateArray()

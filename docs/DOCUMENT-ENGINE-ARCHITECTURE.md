@@ -604,7 +604,7 @@ that no unrelated parts changed.
 ### Unified dependency graph
 
 `WordDependencyGraph` is the first shared cross-domain dependency spine. It does not
-flatten the existing typed graphs into anonymous strings. It joins six proven domains:
+flatten the existing typed graphs into anonymous strings. It joins seven proven domains:
 
 - OPC package roots, parts and internal/external/invalid relationships;
 - source-linked semantic containment across every projected Word story;
@@ -613,7 +613,8 @@ flatten the existing typed graphs into anonymous strings. It joins six proven do
 - abstract numbering, instances, levels, picture bullets, style links and explicit
   paragraph/style numbering references;
 - story-scoped fields, bookmarks, nested fields and typed reference targets;
-- sections and effective header/footer story bindings.
+- sections and effective header/footer story bindings;
+- classic Transitional/Strict DrawingML charts, series, axes and related package parts.
 
 Every node and edge has a deterministic content-derived `wddn_` or `wdde_` identity.
 Every edge endpoint must exist, even when the target is missing or external; unresolved
@@ -625,9 +626,10 @@ available as opt-in provenance.
 The builder binds every input graph to one exact package fingerprint, uses constant-time
 stable-ID collision checks, enforces node, edge, key and issue budgets, checks
 cancellation during traversal, and never executes a field or follows an external
-relationship. Coverage is explicit. DrawingML/VML layout,
-charts, SmartArt, OLE, custom-XML binding, bibliography sources, active content,
-signatures, encryption and co-authoring sessions are still outside this initial graph.
+relationship. Coverage is explicit. DrawingML/VML layout, SmartArt, OLE, custom-XML
+binding, bibliography sources, active content, signatures, encryption and co-authoring
+sessions are still outside this graph. Office 2016 extended charts are preserved and
+diagnosed, but are not projected as classic chart nodes.
 
 Lazy `inspect_ooxml_dependencies` exposes compact edge-kind counts, filtered nodes and
 edges, unresolved edges, issues and a bounded one-to-four-hop impact neighborhood. Keys
@@ -638,6 +640,30 @@ and query-plan joins; the dependency inspector itself is not any of those engine
 Filtering and paging use one cancellable pass
 and retain only the requested page instead of materializing every matching response
 object; summary counts retain only one accumulator per fixed edge kind.
+
+### Classic chart graph
+
+`WordChartGraph` projects classic DrawingML chart parts without opening Word or an
+embedded workbook. It understands all 16 classic plot families in Transitional and
+Strict OOXML, chart references and reachability, series index/order, typed source roles,
+formulas, cache metadata, four axis families, cross-axis links, `externalData` and
+related packages/images/styles/color styles/chart drawings/theme overrides. Stable
+chart and series IDs retain exact package fingerprint and source provenance.
+
+Cached point values are deliberately absent from the public model. The builder counts
+and validates point indexes, declared counts and cache shape, then discards the values.
+Titles and formulas remain available to trusted callers, but lazy
+`inspect_ooxml_charts` redacts both by default and exposes bounded text only through
+explicit sensitive opt-in. Source part and relationship metadata use a separate opt-in.
+External targets are never followed and embedded packages are never opened.
+
+The builder has independent chart/byte/XML-element/series/source/cache-point/formula/
+title/issue limits, cancellation checks and typed projection failures. It reports
+unreferenced classic charts and preserved Office 2016 extended chart parts instead of
+pretending to understand them. The dependency graph consumes the proven classic layer
+through chart, series and axis nodes plus containment and related-part edges. Chart
+mutation, workbook synchronization, rendering and SmartArt remain unfinished. The full
+contract and evidence are recorded in `CHART-GRAPH.md`.
 
 ### Initial document linter
 

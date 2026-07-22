@@ -1,5 +1,37 @@
 # Stage results
 
+## WordToolkit 0.35.0 classic chart graph — 2026-07-22
+
+- Added a bounded typed graph for classic Transitional and Strict DrawingML charts:
+  all 16 plot families, series/source roles, formulas, literal/reference/multi-level
+  cache metadata, axes/cross-axis links, `externalData` and related package parts.
+- Cached point values are discarded by the engine and have no public model property.
+  Titles, formulas, format codes and source relationships are independently redacted;
+  external targets and embedded workbooks are never opened.
+- The shared dependency graph now includes chart, series and axis nodes plus chart
+  containment and related-part edges. Office 2016 extended charts remain preserved and
+  explicitly unmodeled; chart editing/rendering/workbook synchronization are not
+  claimed.
+- Full native engine suite: **309 passed, 0 skipped**.
+- Full native MCP host suite: **213 passed, 0 skipped**.
+- Full Python compatibility suite: **1,273 passed, 16 skipped**; Ruff clean.
+- Native package version: `0.35.0+codex.20260722203415` with 14 public gateway tools
+  and **81** lazy native actions.
+- Native package: **195 files**, **84,535,811 expanded bytes**, **36,034,548 ZIP bytes**.
+- ZIP SHA-256:
+  `26b7c1ff41933a26a2cd812aec70abe2f74408005eba8a76d48918409f2f0f88`.
+- Executable SHA-256:
+  `59fb8419dbe664d1b1ae7f0b5df35b7738cfd1c43b69719049d8e06dd64cd138`.
+- Runtime assembly SHA-256:
+  `59ac4a47cfe5446cfcd4248f6b20a1398b740fae2967dcc98beaf7416efa3c09`.
+- Two independent local builds produced byte-identical ZIPs and byte-identical
+  195-file expanded trees. The packaged executable inspected the real LibreOffice
+  chart fixture as one plot, three series, two axes, 27 cached point entries and one
+  embedded workbook without opening Word or the workbook. Its compact content was 875
+  characters and the complete tool-call response was 2,260 characters.
+- Hosted CI and human review remain required. The public release stays at 0.34.0, and
+  the licensed 48-action Word gate is not re-claimed by this saved-package-only tranche.
+
 ## WordToolkit 0.35.0 semantic golden corpus — 2026-07-22
 
 - Added a versioned semantic oracle for nine public DOCX fixtures from Apache POI,

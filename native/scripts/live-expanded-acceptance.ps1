@@ -120,7 +120,7 @@ try {
         throw "Expected 14 exposed tools, got $($tools.result.tools.Count)"
     }
     $report.exposed_tool_count = $tools.result.tools.Count
-    $report.available_action_count = 77
+    $report.available_action_count = 81
 
     $stage = "start Word"
     $started = Invoke-Tool `

@@ -148,6 +148,7 @@ internal sealed partial class WordLiveService
                     numbering = graph.NumberingIssueCount,
                     references = graph.ReferenceIssueCount,
                     unbound_section_stories = graph.UnboundSectionStoryCount,
+                    charts = graph.ChartIssueCount,
                 },
                 coverage = new
                 {
@@ -157,6 +158,7 @@ internal sealed partial class WordLiveService
                     numbering = graph.Coverage.Numbering,
                     references = graph.Coverage.References,
                     sections = graph.Coverage.Sections,
+                    charts = graph.Coverage.Charts,
                     explicitly_unmodeled_domains = graph.Coverage
                         .ExplicitlyUnmodeledDomains,
                 },
