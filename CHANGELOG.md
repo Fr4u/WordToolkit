@@ -22,7 +22,9 @@
   `berschrift1` to the existing `Standard` style, validated the candidate, matched the
   predicted fingerprint, changed only `word/document.xml`, retained a backup, returned
   no XML, kept every complete response below 2,900 characters, left the source fixture
-  unchanged and did not alter the running Word process set.
+  unchanged and did not alter the running Word process set. All five jobs in mandatory
+  CI run `29925881340` passed, and its downloaded Windows ZIP matched the local archive
+  exactly.
 - Added strict `ancestor` and `descendant` predicates to saved-package semantic
   queries. A related-node predicate combines semantic kinds and exact properties on
   one node, excludes self, and is propagated through the tree in linear time. Indexed

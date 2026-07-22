@@ -256,7 +256,7 @@ mutation/repair/render execution required by the goal.
 | Visual regression | Not started for new engine | Historical screenshots and live acceptance | Versioned PDF/page/object baselines across rendering backends |
 | Cross-platform CI | Partial | Mandatory Linux engine job plus clean hosted-Windows engine/native/package jobs; licensed Word gate remains separate | macOS core job, qualified backend matrix and routinely available self-hosted Word release evidence |
 | Public competitor benchmark | Not started | Research matrix only | Same fixtures, versions, commands, results, caveats and reproducible harness |
-| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF and normalizes Windows packaging onto Windows PowerShell 5.1. The current semantic-style checkpoint produced the same 195-file, 84,302,924-byte tree and 35,963,647-byte ZIP with SHA-256 `fc92ec8ae48273f972426934497b1217bd0d660fd55f6fa7f001b36215eb06e4` in two local builds; hosted evidence is pending. The preceding structural-query checkpoint matched hosted Windows CI run `29923044649` exactly at SHA-256 `f416bfbd8e37adcce2a3a88a97ad4f7e5b698001d9d9f2c4784b9e15715899fe`. The earlier exact 0.35 live package, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action real-Word gate; the later saved-package slices do not change live COM code | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
+| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF and normalizes Windows packaging onto Windows PowerShell 5.1. The current semantic-style checkpoint produced the same 195-file, 84,302,924-byte tree and 35,963,647-byte ZIP with SHA-256 `fc92ec8ae48273f972426934497b1217bd0d660fd55f6fa7f001b36215eb06e4` in two local builds and mandatory hosted Windows CI run `29925881340`; all five jobs passed and the downloaded ZIP matched exactly. The preceding structural-query checkpoint matched hosted Windows CI run `29923044649` exactly at SHA-256 `f416bfbd8e37adcce2a3a88a97ad4f7e5b698001d9d9f2c4784b9e15715899fe`. The earlier exact 0.35 live package, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action real-Word gate; the later saved-package slices do not change live COM code | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
 
 ## Current checkpoint evidence
 
@@ -281,7 +281,8 @@ mutation/repair/render execution required by the goal.
   predicted fingerprint, changed only `word/document.xml`, retained a recovery backup,
   and returned no XML. All four complete MCP responses stayed below 2,900 characters,
   the source fixture remained unchanged, and the running Word process set did not change.
-  Hosted evidence for this head is pending.
+  All five jobs in mandatory CI run `29925881340` passed; its downloaded Windows ZIP
+  matched the local archive exactly in length and SHA-256.
 - The preceding structural-query checkpoint matched mandatory CI run `29923044649`
   exactly at SHA-256
   `f416bfbd8e37adcce2a3a88a97ad4f7e5b698001d9d9f2c4784b9e15715899fe`; all five jobs
