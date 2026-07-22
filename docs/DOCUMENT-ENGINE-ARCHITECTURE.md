@@ -603,9 +603,17 @@ streaming and incremental lint remain unfinished.
 
 Lazy `lint_ooxml_document` exposes compact summary, paged findings and a paged rule
 catalog without starting Word, following an external target or returning document text.
-All current fix records are marked `implemented=false`, `review_required` and
-`requires_preview=true`. No linter finding is an executable repair, and the formatter,
-optimizer and general repair engine remain separate unfinished layers.
+Every fix remains `review_required` and `requires_preview=true`. Only the exact finding
+for one existing, unambiguous, empty and lexically safe `dc:title` is currently marked
+`implemented=true`. `plan_ooxml_lint_repair` re-runs the relevant lint pass against the
+expected package fingerprint, binds the finding to its XML element, creates a lossless
+single-part candidate and proves that the title finding disappears. The native layer
+adds baseline-versus-candidate Open XML validation and binds the reviewed plan to a new
+same-extension output path. `apply_ooxml_lint_repair` rebuilds that exact plan, blocks
+signed packages and validation drift, and atomically creates the new file without
+opening Word or overwriting anything. Missing, duplicate or mixed-markup title elements
+and every other repair kind fail closed. The formatter, optimizer and general repair
+engine remain unfinished layers.
 
 ### Semantic comparison
 
@@ -771,6 +779,8 @@ The current native mapping is therefore:
   -> lazy `inspect_ooxml_dependencies`;
 - source-linked core/style/accessibility/security lint -> lazy
   `lint_ooxml_document`;
+- reviewed source-bound empty-title repair -> lazy `plan_ooxml_lint_repair`, then
+  create-new `apply_ooxml_lint_repair` with the exact destination-bound plan ID;
 - source-linked comments/threads/people/revisions/moves/permissions -> lazy
   `inspect_ooxml_review`;
 - modeled paragraph/run formatting -> lazy `resolve_ooxml_formatting`;

@@ -62,9 +62,13 @@ public sealed class WordDocumentLinterTests
             first.Findings,
             item => item.RuleId == "WTL_ACCESSIBILITY_DOCUMENT_TITLE"
         );
-        Assert.All(
+        Assert.Single(first.Findings, item => item.Fix.IsImplemented);
+        Assert.Contains(
             first.Findings,
-            item => Assert.False(item.Fix.IsImplemented)
+            item => item.RuleId == "WTL_ACCESSIBILITY_DOCUMENT_TITLE"
+                && item.Fix.IsImplemented
+                && item.Fix.RequiresPreview
+                && item.Fix.Safety == WordLintFixSafety.ReviewRequired
         );
         Assert.DoesNotContain(
             "secret.example",

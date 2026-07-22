@@ -1084,20 +1084,29 @@ public sealed class WordDocumentLinter
             return;
         }
         cancellationToken.ThrowIfCancellationRequested();
-        var relationship = package.Relationships.FirstOrDefault(item =>
+        var relationships = package.Relationships.Where(item =>
             item.SourcePartUri == "/"
             && item.TargetMode == OpcRelationshipTargetMode.Internal
             && item.Type.EndsWith("/metadata/core-properties", StringComparison.Ordinal)
-        );
+        ).ToArray();
+        var relationship = relationships.FirstOrDefault();
         var partUri = relationship?.ResolvedTargetPartUri;
-        var hasTitle = partUri is not null
+        XmlSourceElement[] titles = [];
+        XmlSourceElement? coreRoot = null;
+        if (
+            partUri is not null
             && sources.TryRoot(partUri, out var root)
             && root is not null
-            && DescendantsAndSelf(root).Any(item =>
+        )
+        {
+            coreRoot = root;
+            titles = DescendantsAndSelf(root).Where(item =>
                 item.LocalName == "title"
                 && item.NamespaceUri == DublinCoreNamespace
-                && !string.IsNullOrWhiteSpace(item.Value)
-            );
+            ).ToArray();
+        }
+        var title = titles.FirstOrDefault();
+        var hasTitle = titles.Any(item => !string.IsNullOrWhiteSpace(item.Value));
         if (hasTitle)
         {
             return;
@@ -1112,8 +1121,31 @@ public sealed class WordDocumentLinter
             "document",
             "core_title",
             1,
-            sources.Location(partUri, null, null, null, relationship?.Id),
-            ManualFix("set_document_title")
+            sources.Location(
+                partUri,
+                title?.Ordinal,
+                title is null ? null : "/cp:coreProperties/dc:title",
+                null,
+                relationship?.Id
+            ),
+            relationships.Length == 1
+                && package.Parts.TryGetValue(partUri ?? string.Empty, out var corePart)
+                && string.Equals(
+                    corePart.ContentType,
+                    "application/vnd.openxmlformats-package.core-properties+xml",
+                    StringComparison.OrdinalIgnoreCase
+                )
+                && coreRoot is not null
+                && coreRoot.LocalName == "coreProperties"
+                && coreRoot.NamespaceUri
+                    == "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
+                && titles.Length == 1
+                && title is not null
+                && title.ParentOrdinal == coreRoot.Ordinal
+                && title.Children.Count == 0
+                && !title.HasLexicalMarkupInContent
+                ? ImplementedFix("set_document_title")
+                : ManualFix("set_document_title")
         );
     }
 
@@ -1456,6 +1488,14 @@ public sealed class WordDocumentLinter
         IsImplemented: false,
         RequiresPreview: true,
         BlockingReason: "The typed repair engine for this rule is not implemented."
+    );
+
+    private static WordLintFixMetadata ImplementedFix(string kind) => new(
+        kind,
+        WordLintFixSafety.ReviewRequired,
+        IsImplemented: true,
+        RequiresPreview: true,
+        BlockingReason: null
     );
 
     private static WordLintSeverity Map(OpcDiagnosticSeverity severity) => severity switch

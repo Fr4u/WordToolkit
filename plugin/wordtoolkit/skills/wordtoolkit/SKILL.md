@@ -108,6 +108,23 @@ coverage omissions or explicitly unmodeled domains remain. Fix metadata with
 `implemented=false` is evidence for a future repair, not permission to mutate XML or
 claim that the issue was repaired. This action never opens Word, follows an external
 target or changes the package.
+The only current `implemented=true` lint fix is `set_document_title` for exactly one
+existing, empty, lexically safe `dc:title`. Use this strict workflow:
+
+1. Retain the exact package fingerprint and `wtlint_` finding ID from
+   `lint_ooxml_document` with `include_fix=true`.
+2. Call `plan_ooxml_lint_repair` with that fingerprint and finding, explicit
+   `repair_kind=set_document_title`, the reviewed title, and a new same-extension output
+   path. Keep `include_details=false` unless a validation block must be diagnosed.
+3. Review `lint_repair_apply_plan_id`, `apply_blocked`, block codes, target-finding
+   resolution and baseline-versus-candidate Open XML validation. The title is hashed,
+   not echoed, in the response.
+4. Call `apply_ooxml_lint_repair` with the identical source, output, fingerprint,
+   finding, repair kind and title plus the exact returned apply-plan ID.
+
+Never use that path for a missing title element, duplicate titles, mixed-markup title,
+signed package or another lint rule. The actions fail closed, never open Word and never
+overwrite the source or an existing output.
 Use lazy `inspect_ooxml_equations` for equations already stored in a saved Word
 package. Start with `view=summary`; it returns structural counts and statuses without
 formula text or raw OMML. Use `view=equations` to obtain an exact equation ID, then

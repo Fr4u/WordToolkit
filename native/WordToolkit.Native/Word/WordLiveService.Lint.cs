@@ -176,7 +176,9 @@ internal sealed partial class WordLiveService
                 suppressed_finding_count = report.SuppressedFindingCount,
                 severity_filtered_finding_count = report.SeverityFilteredFindingCount,
                 findings_truncated = report.FindingsTruncated,
-                implemented_fix_count = 0,
+                implemented_fix_count = filteredFindings.Count(item =>
+                    item.Fix.IsImplemented
+                ),
                 analysis_execution_complete = report.Coverage.ExecutionComplete,
                 document_coverage_complete = report.Coverage.DocumentCoverageComplete,
                 report_complete = report.Complete,

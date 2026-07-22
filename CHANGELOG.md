@@ -17,12 +17,13 @@
   formatting-equivalent styles, direct formatting, external relationships, hidden text,
   heading-order gaps, absent drawing alt text, unmarked table headers and a missing
   document title. Coverage omissions and unmodeled domains prevent a false complete
-  verdict; every current fix remains marked unimplemented.
+  verdict; at that read-only checkpoint every fix remained marked unimplemented.
 - Added lazy `lint_ooxml_document` with compact summary and paged finding/rule views.
   The action never opens Word, follows an external target or mutates a package. Source
   data is off by default, suppression arrays and pages are bounded, the default result
   stays below 5000 characters and the complete mirrored JSON-RPC response below 10000.
-  The token-lean public surface remains 14 tools while the action catalog grows to 75.
+  The token-lean public surface remained 14 tools while the linter-only action catalog
+  grew to 75; the repair slice below raises it again.
 - Verified the linter checkpoint with 250 document-engine tests and 189 native-host
   tests. Two independent local package builds produced identical 195-file,
   35,918,887-byte archives with SHA-256
@@ -37,6 +38,26 @@
   silently produced different manifest and assembly bytes from a clean checkout. After
   this guard, the same exact ZIP hash is produced by that stale working tree, a clean
   detached worktree and the hosted Windows CI artifact.
+- Added the first fail-closed native lint repair. `WordLintRepairPlanner` accepts only a
+  package-bound document-title finding backed by exactly one existing, empty, leaf
+  `dc:title`; it losslessly replaces that element, changes only the core-properties
+  part, predicts the result fingerprint, reparses the candidate, proves the finding is
+  gone and retains an exact byte inverse. Missing, duplicate, nonempty or mixed-markup
+  titles are refused instead of synthesized or guessed.
+- Added lazy `plan_ooxml_lint_repair` and `apply_ooxml_lint_repair`. The plan binds the
+  package, finding, replacement and new same-extension output path, hashes rather than
+  echoes the title, and compares baseline/candidate Open XML validation. Apply rebuilds
+  the exact plan, blocks signatures and new validation errors, creates a new file
+  atomically, never overwrites the source or output and never opens Word. The public
+  catalog remains 14 tools and grows to 77 lazy actions.
+- Verified the repair slice with 254 document-engine tests, 192 native-host tests,
+  1,273 Python/OOXML tests with 16 intentional skips, Ruff and the standalone Open XML
+  validator build. Two local self-contained builds produced the same 195-file,
+  84,193,862-byte tree and 37,087,639-byte ZIP with SHA-256
+  `316344c8c034daf3f2166062989d8b02ddc46476a5227761ce85363b67636e2d`.
+  The packaged MCP repaired the empty title in the LibreOffice TOC fixture, changed only
+  `docProps/core.xml`, matched the predicted package fingerprint, returned no raw title
+  or XML, removed the exact lint finding and kept Word unopened and the source unchanged.
 
 - Made the document-engine and native .NET test suites mandatory CI inputs and added a
   clean Windows job that builds the exact distributable plugin ZIP. Tag builds on the

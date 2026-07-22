@@ -5138,7 +5138,7 @@
     {
       "name": "lint_ooxml_document",
       "title": "Lint a saved Word document",
-      "description": "Run bounded, deterministic rule packs over a saved Word OOXML package without opening Word or following external targets. Returns stable finding IDs, optional exact source spans, explicit suppression accounting, and separate execution-completeness and document-coverage signals. Fix metadata is advisory only; this initial linter does not mutate or repair the package.",
+      "description": "Run bounded, deterministic rule packs over a saved Word OOXML package without opening Word or following external targets. Returns stable finding IDs, optional exact source spans, explicit suppression accounting, separate execution-completeness and document-coverage signals, and truthful executable-fix availability. Linting never mutates the package.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5234,7 +5234,7 @@
           "include_fix": {
             "type": "boolean",
             "default": false,
-            "description": "Include advisory fix safety and implementation metadata. No fix is executed."
+            "description": "Include fix safety and implementation metadata. No fix is executed by this lint action."
           }
         },
         "required": ["local_path"],
@@ -5244,6 +5244,127 @@
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "plan_ooxml_lint_repair",
+      "title": "Plan a source-bound Word lint repair",
+      "description": "Re-evaluate one package-bound lint finding, build a deterministic lossless candidate, and validate it without opening Word or writing a file. The first implemented repair only sets one existing empty dc:title element. The plan is bound to the exact package fingerprint, finding, replacement value, validation result, and new output path. Raw title text and raw XML are not returned.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Path to the saved source DOCX, DOCM, DOTX, or DOTM package."
+          },
+          "output_path": {
+            "type": "string",
+            "description": "New output path with the same extension as the source. It must not exist and the source is never overwritten."
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$",
+            "description": "Exact package fingerprint returned by lint_ooxml_document."
+          },
+          "finding_id": {
+            "type": "string",
+            "pattern": "^wtlint_[0-9a-f]{24}$",
+            "description": "Exact package-bound finding ID returned by lint_ooxml_document."
+          },
+          "repair_kind": {
+            "type": "string",
+            "enum": ["set_document_title"],
+            "description": "Explicit repair kind. Only set_document_title is implemented."
+          },
+          "new_document_title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Reviewed nonblank document title without boundary whitespace. It is hashed, not echoed, in the plan response."
+          },
+          "include_details": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include bounded source-part, byte-count, hash, and validation issue details."
+          }
+        },
+        "required": [
+          "local_path",
+          "output_path",
+          "expected_package_fingerprint",
+          "finding_id",
+          "repair_kind",
+          "new_document_title"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "apply_ooxml_lint_repair",
+      "title": "Apply a reviewed Word lint repair",
+      "description": "Rebuild an exact reviewed lint-repair plan and atomically create a new validated Word package. Never overwrites the source or an existing output, blocks signed packages and new Open XML validation errors, and does not open Word. The request must repeat the same package fingerprint, finding, repair value, and output path used for planning.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Path to the saved source DOCX, DOCM, DOTX, or DOTM package."
+          },
+          "output_path": {
+            "type": "string",
+            "description": "New output path reviewed during planning. It must not exist."
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          },
+          "finding_id": {
+            "type": "string",
+            "pattern": "^wtlint_[0-9a-f]{24}$"
+          },
+          "repair_kind": {
+            "type": "string",
+            "enum": ["set_document_title"]
+          },
+          "new_document_title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "expected_lint_repair_apply_plan_id": {
+            "type": "string",
+            "pattern": "^wtlintapply_[A-Za-z0-9_-]+$",
+            "maxLength": 96,
+            "description": "Exact apply-plan ID returned by plan_ooxml_lint_repair."
+          },
+          "include_details": {
+            "type": "boolean",
+            "default": false,
+            "description": "Accepted for request parity; apply returns only bounded result metadata."
+          }
+        },
+        "required": [
+          "local_path",
+          "output_path",
+          "expected_package_fingerprint",
+          "finding_id",
+          "repair_kind",
+          "new_document_title",
+          "expected_lint_repair_apply_plan_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
         "openWorldHint": false
       }
     },
