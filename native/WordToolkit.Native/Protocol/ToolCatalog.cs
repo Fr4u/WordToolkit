@@ -45,6 +45,8 @@ internal sealed class ToolCatalog
         "resolve_ooxml_formatting",
         "plan_ooxml_text_edits",
         "apply_ooxml_text_edits",
+        "plan_ooxml_semantic_edits",
+        "apply_ooxml_semantic_edits",
         "plan_ooxml_review_decisions",
         "apply_ooxml_review_decisions",
         "inspect_live_word_document",

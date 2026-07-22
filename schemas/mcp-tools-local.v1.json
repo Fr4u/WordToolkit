@@ -5992,6 +5992,163 @@
       }
     },
     {
+      "name": "plan_ooxml_semantic_edits",
+      "title": "Plan typed Word semantic edits",
+      "description": "Plan a bounded batch of high-level semantic edits against exact stable node IDs and one saved-package fingerprint. The first typed command family assigns an existing compatible paragraph, character, or table style without exposing XML. The deterministic lossless plan predicts the result, validates the exact candidate with Microsoft Open XML SDK, rejects unresolved style inheritance, writes nothing, opens no Word process, and retains no server-side plan state.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$",
+            "description": "Exact fingerprint returned by inspect/query. Planning fails if the package changed."
+          },
+          "commands": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "const": "set_style",
+                  "description": "Typed semantic operation. Additional command families will extend this discriminator."
+                },
+                "node_id": {
+                  "type": "string",
+                  "pattern": "^wdn_[A-Za-z0-9_-]+$",
+                  "maxLength": 128,
+                  "description": "Paragraph, run, or table node from query_ooxml_semantics for this exact fingerprint."
+                },
+                "style_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 253,
+                  "description": "Exact existing style ID from inspect_ooxml_styles; its type must match the target node."
+                },
+                "expected_style_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 253,
+                  "description": "Optional exact explicit-style precondition."
+                },
+                "require_no_explicit_style": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Require the target to have no explicit style. Do not combine true with expected_style_id."
+                }
+              },
+              "required": ["type", "node_id", "style_id"],
+              "not": {
+                "properties": {
+                  "require_no_explicit_style": {"const": true}
+                },
+                "required": ["require_no_explicit_style", "expected_style_id"]
+              },
+              "additionalProperties": false
+            }
+          },
+          "include_details": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include bounded operation, style-value, source and changed-part evidence; never returns XML or document text."
+          }
+        },
+        "required": ["local_path", "expected_package_fingerprint", "commands"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "apply_ooxml_semantic_edits",
+      "title": "Apply reviewed typed Word semantic edits",
+      "description": "Rebuild and atomically apply an already reviewed typed semantic-edit plan to one saved Word package. Requires the exact source fingerprint, deterministic plan ID and same bounded commands; rejects signatures, stale sources, plan drift, missing or wrong-type styles, unresolved inheritance and new Microsoft Open XML schema errors. The transaction can retain a sibling recovery backup and never opens Word.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the existing local DOCX, DOCM, DOTX, or DOTM file modified in place."
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "expected_plan_id": {
+            "type": "string",
+            "pattern": "^wseplan_[A-Za-z0-9_-]+$",
+            "maxLength": 128,
+            "description": "Plan ID returned by plan_ooxml_semantic_edits for the exact same commands."
+          },
+          "commands": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {"const": "set_style"},
+                "node_id": {
+                  "type": "string",
+                  "pattern": "^wdn_[A-Za-z0-9_-]+$",
+                  "maxLength": 128
+                },
+                "style_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 253
+                },
+                "expected_style_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 253
+                },
+                "require_no_explicit_style": {
+                  "type": "boolean",
+                  "default": false
+                }
+              },
+              "required": ["type", "node_id", "style_id"],
+              "not": {
+                "properties": {
+                  "require_no_explicit_style": {"const": true}
+                },
+                "required": ["require_no_explicit_style", "expected_style_id"]
+              },
+              "additionalProperties": false
+            }
+          },
+          "keep_backup": {
+            "type": "boolean",
+            "default": true,
+            "description": "Retain the atomic writer's sibling recovery backup after success."
+          }
+        },
+        "required": [
+          "local_path",
+          "expected_package_fingerprint",
+          "expected_plan_id",
+          "commands"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "plan_ooxml_review_decisions",
       "title": "Plan saved-package review decisions",
       "description": "Plan a bounded accept or reject operation for tracked Word revisions selected by stable revision IDs, redacted author fingerprints, story kinds, or revision kinds. The deterministic lossless plan is fingerprint-guarded, resolves complete move pairs and nested dependencies, reports unsupported structures instead of guessing, validates the exact candidate with Microsoft Open XML SDK, never opens Word, and never returns document text or author names.",

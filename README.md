@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-WordToolkit 0.35 (development line) is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference, canonical OfficeMath and review/revision graphs, lint a saved package with deterministic source-linked rule packs, plan and apply the first source-bound lint repair, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text, tracked-review structures and one existing empty core-title element to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
+WordToolkit 0.35 (development line) is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference, canonical OfficeMath and review/revision graphs, lint a saved package with deterministic source-linked rule packs, plan and apply the first source-bound lint repair, assign existing compatible styles through typed semantic commands, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text, paragraph/run/table style references, tracked-review structures and one existing empty core-title element to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
 
 This is an advanced but experimental OOXML engine, not a verified claim of market leadership or complete Microsoft Word equivalence. Unsupported domains and release evidence are listed explicitly in [Known limitations](docs/KNOWN-LIMITATIONS.md) and [Testing](docs/TESTING.md).
 
@@ -46,7 +46,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 48 tested Word Live actions plus 30 standalone,
+The runtime implements 48 tested Word Live actions plus 32 standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus three token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -93,6 +93,8 @@ inspect_ooxml_fonts
 resolve_ooxml_formatting
 plan_ooxml_text_edits
 apply_ooxml_text_edits
+plan_ooxml_semantic_edits
+apply_ooxml_semantic_edits
 plan_ooxml_review_decisions
 apply_ooxml_review_decisions
 inspect_live_word_document
@@ -159,6 +161,18 @@ inside a table cell without downloading XML or walking the semantic tree in mode
 context. Repeated queries can reuse a fingerprint-bound process-memory index; every
 indexed result is still checked against the full predicate and reports the candidate
 seed and scanned-node count.
+
+Saved-package semantic style edits are typed, bounded, and stateless. Query returns
+stable paragraph, run, or table IDs; style inspection returns exact declarations; then
+`plan_ooxml_semantic_edits` accepts up to 200 `set_style` commands against one package
+fingerprint. A command may require the exact current explicit style or require that no
+explicit style exists. The target style must already exist, match paragraph/character/
+table type, and have a resolvable inheritance chain. Planning losslessly constructs and
+Microsoft-SDK-validates the exact candidate without writing or returning XML. Apply must
+reproduce the same plan ID and commands, rejects signed or stale packages and new schema
+errors, writes atomically, and keeps a recovery backup by default. This slice assigns
+style references; it does not create, rename, delete, copy, repair, or align style
+definitions, infer “APA”/“IEEE” semantics, or model conditional table-style rendering.
 
 Saved-package dependency inspection joins OPC reachability, semantic containment across
 projected stories, explicit paragraph/run/table style use, style inheritance/defaults,
@@ -453,7 +467,7 @@ pwsh -File native/scripts/live-acceptance.ps1 `
 
 Every test mutation is tracked, verified and undone. The script fails if cleanup leaves any outstanding WordToolkit operation.
 
-Run the complete packaged 14-tool/78-action live acceptance gate:
+Run the complete packaged 14-tool/80-action live acceptance gate:
 
 ```powershell
 pwsh -NoProfile -File native/scripts/live-full-capabilities-timed.ps1 `

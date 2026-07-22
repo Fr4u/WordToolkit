@@ -205,6 +205,14 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "plan_ooxml_semantic_edits" => PlanPackageSemanticEditsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_semantic_edits" => ApplyPackageSemanticEditsAsync(
+                arguments,
+                cancellationToken
+            ),
             "plan_ooxml_review_decisions" => PlanPackageReviewDecisionsAsync(
                 arguments,
                 cancellationToken

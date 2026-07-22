@@ -407,6 +407,127 @@ public sealed class LosslessXmlDocument
         );
     }
 
+    public IReadOnlyList<XmlSourcePatch> CreateElementAttributeValuePatches(
+        int elementOrdinal,
+        string namespaceUri,
+        string localName,
+        string newValue,
+        string? expectedValue = null,
+        string? preferredPrefix = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(namespaceUri);
+        ArgumentException.ThrowIfNullOrWhiteSpace(localName);
+        ArgumentNullException.ThrowIfNull(newValue);
+        VerifyXmlName(localName, nameof(localName));
+        VerifyXmlValue(newValue, "Attribute value contains a character forbidden by XML 1.0.");
+
+        var element = GetElement(elementOrdinal);
+        var matches = element.Attributes.Where(attribute =>
+            string.Equals(attribute.NamespaceUri, namespaceUri, StringComparison.Ordinal)
+            && string.Equals(attribute.LocalName, localName, StringComparison.Ordinal)
+        ).ToArray();
+        if (matches.Length > 1)
+        {
+            throw new LosslessXmlEditException(
+                $"Element {element.Ordinal} contains duplicate attribute '{{{namespaceUri}}}{localName}'."
+            );
+        }
+
+        if (matches.Length == 1)
+        {
+            var attribute = matches[0];
+            if (
+                expectedValue is not null
+                && !string.Equals(attribute.Value, expectedValue, StringComparison.Ordinal)
+            )
+            {
+                throw new LosslessXmlPreconditionException(
+                    $"Attribute '{attribute.QualifiedName}' changed before the edit was applied."
+                );
+            }
+            if (string.Equals(attribute.Value, newValue, StringComparison.Ordinal))
+            {
+                return Array.Empty<XmlSourcePatch>();
+            }
+
+            return
+            [
+                new XmlSourcePatch(
+                    attribute.ValueSpan.ByteOffset,
+                    attribute.ValueSpan.ByteLength,
+                    EncodeMarkup(EscapeAttributeValue(newValue, attribute.Quote))
+                ),
+            ];
+        }
+
+        if (expectedValue is not null)
+        {
+            throw new LosslessXmlPreconditionException(
+                $"Attribute '{{{namespaceUri}}}{localName}' no longer exists."
+            );
+        }
+
+        var (qualifiedName, namespaceDeclaration) = ResolveAttributeName(
+            elementOrdinal,
+            namespaceUri,
+            localName,
+            preferredPrefix
+        );
+        var insertion = namespaceDeclaration
+            + " "
+            + qualifiedName
+            + "=\""
+            + EscapeAttributeValue(newValue, '"')
+            + "\"";
+        var insertionOffset = element.IsSelfClosing
+            ? element.SelfClosingSlashByteOffset
+                ?? throw new LosslessXmlEditException(
+                    $"Self-closing element {element.Ordinal} has no lexical slash position."
+                )
+            : element.StartTagCloseByteOffset;
+        return
+        [
+            new XmlSourcePatch(
+                insertionOffset,
+                0,
+                EncodeMarkup(insertion)
+            ),
+        ];
+    }
+
+    public XmlSourcePatch CreateElementContentInsertionPatch(
+        int elementOrdinal,
+        string xmlFragment,
+        XmlContentInsertionPosition position = XmlContentInsertionPosition.Append
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(xmlFragment);
+        VerifyXmlFragment(xmlFragment);
+        var element = GetElement(elementOrdinal);
+        if (element.IsSelfClosing)
+        {
+            var slashOffset = element.SelfClosingSlashByteOffset
+                ?? throw new LosslessXmlEditException(
+                    $"Self-closing element {element.Ordinal} has no lexical slash position."
+                );
+            var expanded = ">" + xmlFragment + "</" + element.QualifiedName;
+            return new XmlSourcePatch(
+                slashOffset,
+                EncodeMarkup("/").Length,
+                EncodeMarkup(expanded)
+            );
+        }
+
+        var offset = position switch
+        {
+            XmlContentInsertionPosition.Prepend => element.ContentSpan.ByteOffset,
+            XmlContentInsertionPosition.Append => element.ContentSpan.EndByteOffset,
+            _ => throw new ArgumentOutOfRangeException(nameof(position)),
+        };
+        return new XmlSourcePatch(offset, 0, EncodeMarkup(xmlFragment));
+    }
+
     public byte[] ApplyPatches(
         IEnumerable<XmlSourcePatch> patches,
         string? expectedSourceSha256 = null,
@@ -567,6 +688,152 @@ public sealed class LosslessXmlDocument
 
             return _sourceEncoding.Encoding.GetBytes(escaped.ToString());
         }
+    }
+
+    private (string QualifiedName, string NamespaceDeclaration) ResolveAttributeName(
+        int elementOrdinal,
+        string namespaceUri,
+        string localName,
+        string? preferredPrefix
+    )
+    {
+        if (namespaceUri.Length == 0)
+        {
+            if (preferredPrefix is not null)
+            {
+                throw new LosslessXmlEditException(
+                    "An unqualified attribute cannot use a namespace prefix."
+                );
+            }
+            return (localName, string.Empty);
+        }
+
+        if (string.Equals(namespaceUri, XmlNamespace, StringComparison.Ordinal))
+        {
+            return ($"xml:{localName}", string.Empty);
+        }
+
+        var parsedElement = GetParsedElement(elementOrdinal);
+        var prefix = preferredPrefix;
+        if (prefix is not null)
+        {
+            VerifyXmlName(prefix, nameof(preferredPrefix));
+            if (prefix is "xml" or "xmlns")
+            {
+                throw new LosslessXmlEditException(
+                    $"Namespace prefix '{prefix}' is reserved."
+                );
+            }
+        }
+        else
+        {
+            prefix = parsedElement.GetPrefixOfNamespace(XNamespace.Get(namespaceUri));
+            if (string.IsNullOrEmpty(prefix))
+            {
+                prefix = "wtk";
+            }
+        }
+
+        var prefixStem = prefix;
+        for (var suffix = 0; suffix <= 1_000; suffix++)
+        {
+            var candidate = suffix == 0 ? prefixStem : prefixStem + suffix;
+            var boundNamespace = parsedElement.GetNamespaceOfPrefix(candidate);
+            if (
+                boundNamespace is not null
+                && string.Equals(
+                    boundNamespace.NamespaceName,
+                    namespaceUri,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return ($"{candidate}:{localName}", string.Empty);
+            }
+            if (boundNamespace is not null)
+            {
+                continue;
+            }
+
+            var declaration = $" xmlns:{candidate}=\"{EscapeAttributeValue(namespaceUri, '"')}\"";
+            return ($"{candidate}:{localName}", declaration);
+        }
+
+        throw new LosslessXmlEditException(
+            $"No collision-free namespace prefix is available for '{{{namespaceUri}}}{localName}'."
+        );
+    }
+
+    private void VerifyXmlFragment(string xmlFragment)
+    {
+        try
+        {
+            var wrapper = "<wordtoolkit-fragment-root>"
+                + xmlFragment
+                + "</wordtoolkit-fragment-root>";
+            using var reader = XmlReader.Create(
+                new StringReader(wrapper),
+                CreateXmlSettings(_options)
+            );
+            _ = XDocument.Load(reader, LoadOptions.PreserveWhitespace);
+        }
+        catch (XmlException exception)
+        {
+            throw new LosslessXmlEditException(
+                "Inserted XML fragment is not safe, self-contained, well-formed XML.",
+                exception
+            );
+        }
+    }
+
+    private static void VerifyXmlName(string value, string parameterName)
+    {
+        try
+        {
+            XmlConvert.VerifyNCName(value);
+        }
+        catch (XmlException exception)
+        {
+            throw new ArgumentException(
+                $"'{value}' is not a valid XML local name.",
+                parameterName,
+                exception
+            );
+        }
+    }
+
+    private static void VerifyXmlValue(string value, string message)
+    {
+        try
+        {
+            XmlConvert.VerifyXmlChars(value);
+        }
+        catch (XmlException exception)
+        {
+            throw new LosslessXmlEditException(message, exception);
+        }
+    }
+
+    private static string EscapeAttributeValue(string value, char quote)
+    {
+        var result = new StringBuilder(value.Length);
+        foreach (var character in value)
+        {
+            result.Append(
+                character switch
+                {
+                    '&' => "&amp;",
+                    '<' => "&lt;",
+                    '"' when quote == '"' => "&quot;",
+                    '\'' when quote == '\'' => "&apos;",
+                    '\t' => "&#x9;",
+                    '\n' => "&#xA;",
+                    '\r' => "&#xD;",
+                    _ => character.ToString(),
+                }
+            );
+        }
+        return result.ToString();
     }
 
     private static string EscapeElementText(string value)

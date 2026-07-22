@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- Added lazy `plan_ooxml_semantic_edits` and `apply_ooxml_semantic_edits` as the first
+  extensible high-level semantic mutation surface. The initial `set_style` command
+  assigns existing compatible paragraph, character, or table styles to exact stable
+  paragraph/run/table IDs under package, plan, and explicit-style preconditions. The
+  lossless planner preserves unrelated bytes, avoids namespace-prefix rebinding,
+  predicts the result fingerprint, retains an exact inverse, and validates the exact
+  candidate against the baseline with Microsoft Open XML SDK. Apply is atomic, keeps a
+  recovery backup by default, rejects signed/stale/drifting/invalid candidates, never
+  opens Word, and returns neither XML nor document text. The public catalog remains 14
+  tools and grows to 80 lazy actions.
+- Verified the semantic-style slice with 270 document-engine tests, 200 native-host
+  tests, 1,273 Python/OOXML tests with 16 intentional skips, Ruff, scoped .NET
+  formatting and the standalone Open XML validator build. Two local self-contained
+  builds produced identical 195-file, 84,302,924-byte trees and 35,963,647-byte ZIPs
+  with SHA-256
+  `fc92ec8ae48273f972426934497b1217bd0d660fd55f6fa7f001b36215eb06e4`.
+  The packaged MCP changed an exact source-linked paragraph in an Apache POI DOCX from
+  `berschrift1` to the existing `Standard` style, validated the candidate, matched the
+  predicted fingerprint, changed only `word/document.xml`, retained a backup, returned
+  no XML, kept every complete response below 2,900 characters, left the source fixture
+  unchanged and did not alter the running Word process set.
 - Added strict `ancestor` and `descendant` predicates to saved-package semantic
   queries. A related-node predicate combines semantic kinds and exact properties on
   one node, excludes self, and is propagated through the tree in linear time. Indexed

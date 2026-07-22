@@ -57,8 +57,8 @@ vendor claim is not implementation evidence.
 | Semantic query/search | Partial (indexed structural-query slice) | Source-ordered kind/property/part/subtree selectors across main, header/footer, note, comment, glossary and text-box stories; strict ancestor/descendant predicates combine related-node kinds with exact properties and are propagated in linear time. Streaming contains/equals/starts/ends matching crosses run/field/tab/break boundaries. Optional immutable indexes precompute kind, source-part and exact-property postings, derive structural-relation candidate sets, select the smallest seed and keep optional previews/properties/provenance bounded | Fields/math/metadata-aware predicates beyond existing node kinds/properties, parent/child and sibling axes, aggregations, cost model and text postings |
 | Document dependency graph | Partial (initial cross-domain spine) | Deterministic `wddn_` nodes and `wdde_` edges join OPC reachability, semantic containment, explicit paragraph/run/table styles, style inheritance/link/defaults, numbering instances/abstracts/levels/picture bullets, field/bookmark targets and section header/footer bindings. Missing and external targets remain explicit; every endpoint, input fingerprint and resource budget is checked. Lazy inspection redacts keys/source by default and provides bounded impact traversal | DrawingML/VML, charts/SmartArt, OLE, custom-XML bindings, citations/bibliography sources, macros/signatures/encryption, co-authoring sessions, semantic query joins, incremental invalidation and mutation-impact policies |
 | Indexing | Partial (bounded process-memory index) | `WordSemanticIndex` is package-fingerprint-bound and deterministically indexes up to 100,000 semantic nodes plus one million property occurrences. Lazy management creates/reuses, inspects, lists and explicitly releases random handles; the native cache is capped at four handles/250,000 nodes and a 30-minute TTL, returns no raw text and never persists. Indexed queries require the exact package fingerprint and report their candidate seed/scanned count | Durable encrypted external index, content-aware token/text postings, incremental invalidation, multi-document ranking and crash-safe lifecycle |
-| AI planner | Partial foundation (strengthened) | Deterministic bounded text plans, typed review-decision plans, exact package-patch plans and three-way merge plans report counts/impact without returning content. Merge exposes stable conflict IDs, explicit three-choice resolutions, independently authorized risk classes, exact identities and baseline/candidate validation; lazy stateless apply requires reviewed IDs and all source fingerprints | Natural-language intent -> evidence -> broader heterogeneous typed plan -> cost/risk -> richer permissions and approval policy |
-| Typed semantic mutations | Partial (text + review transaction slices) | Text plans edit source-bound `w:t`, `w:delText` and `m:t`; review plans accept/reject supported insertion/deletion/conflict wrappers, complete moves and property snapshots, plus numbering-change acceptance, inserted rows, cell-insertion acceptance and cell-deletion rejection. Both preserve unrelated bytes, predict the result fingerprint and retain exact part-byte inverses; unsupported merges/table-grid/numbering-reconstruction/custom-XML cases fail closed | Paragraph/run/table/field/math command set, remaining review vocabulary, affected-node proof, permissions and durable recovery artifacts |
+| AI planner | Partial foundation (strengthened) | Deterministic bounded text and existing-style plans, typed review-decision plans, exact package-patch plans and three-way merge plans report counts/impact without returning content. Merge exposes stable conflict IDs, explicit three-choice resolutions, independently authorized risk classes, exact identities and baseline/candidate validation; lazy stateless apply requires reviewed IDs and all source fingerprints | Natural-language intent -> evidence -> broader heterogeneous typed plan -> cost/risk -> richer permissions and approval policy |
+| Typed semantic mutations | Partial (text + style + review transaction slices) | Text plans edit source-bound `w:t`, `w:delText` and `m:t`; `set_style` plans assign existing compatible resolvable paragraph/character/table styles to exact paragraph/run/table IDs; review plans accept/reject supported insertion/deletion/conflict wrappers, complete moves and property snapshots, plus numbering-change acceptance, inserted rows, cell-insertion acceptance and cell-deletion rejection. All preserve unrelated bytes, predict the result fingerprint and retain exact part-byte inverses; unsupported or ambiguous structures fail closed | Broader heterogeneous paragraph/run/table/field/math command set, style-definition lifecycle/template alignment, remaining review vocabulary, permissions and durable recovery artifacts |
 | Validator | Partial (strengthened) | OPC diagnostics plus exact serialized review, patch and merge candidate reparse with bounded Microsoft Open XML SDK baseline/candidate comparison; new errors block by default, while validation truncation or SDK-open failure hard-blocks apply | Unified OPC/schema/extension/semantic/Word-open profiles and incremental validation |
 | Linter | Partial (initial native rule packs) | `WordDocumentLinter` evaluates 18 deterministic core/style/accessibility/security rules over one fingerprint-bound typed graph set. Findings carry stable rule/finding IDs, severity, confidence, privacy-safe subject fingerprints, bounded evidence, optional exact XML byte spans, validated rule/finding suppressions and explicit fix metadata. Lazy `lint_ooxml_document` is summary-first, paged, source-redacted by default, never opens Word or follows external targets, and distinguishes execution completeness from incomplete document-domain coverage. One safe empty-title shape reports an implemented reviewed fix | Broader style/numbering/reference/language/link/layout/security rules, corpus calibration, incremental execution and plugin rule registration |
 | Formatter | Not started | Architecture only | Explicit previewed policies; no incidental formatting on save |
@@ -119,7 +119,7 @@ it does not mean the engine understands or can edit it.
 | package relationships | Implemented (strengthened initial slice) | Format-specific relationship constraints, signature transforms, repair and broad corpus proof |
 | content types | Implemented (initial) | MIME/parameter validation and repair |
 | `document.xml` | Partial (strengthened) | Main part is projected through the lossless byte-span model and supports guarded leaf-text splice; full typed vocabulary remains |
-| `styles.xml` | Partial (typed read graph) | Defaults, latent metadata, four style types, inheritance diagnostics, theme integration and modeled effective formatting exist; conditional table behavior and mutations remain |
+| `styles.xml` | Partial (typed read graph + reference assignment) | Defaults, latent metadata, four style types, inheritance diagnostics, theme integration and modeled effective formatting exist; typed commands can assign existing compatible resolvable styles without modifying the styles part; style creation/rename/delete/copy, conditional table behavior and template alignment remain |
 | `numbering.xml` | Partial (typed read graph) | Picture/abstract/instance/level/override/style-link graph and one-level effective resolution exist; sequential counters, mutations and repair remain |
 | theme | Partial (typed read graph + effective resolution) | Exact relationship/content/root validation; all twelve color slots; system fallback, transform and environment diagnostics; major/minor primary and supplemental fonts; `themeFontLang`-driven explicit/likely script selection; format-scheme inventory; compact MCP views; deterministic theme font/RGB provenance in effective formatting | Exhaustive Word locale/version substitution behavior, full DrawingML color transform evaluation, exact Word quantization, mutation and visual proof |
 | settings | Partial (typed read graph) | Exact relationship/content/root validation; bounded view/zoom/defaults, `themeFontLang`, compatibility profile and derived mode, legacy switches, protection metadata, document variables, attached-template and mail-merge references, separators and root inventory; compact redacted MCP views | Broader settings vocabulary, relationship-specific validation, typed mutations, version behavior and Word round-trip proof |
@@ -163,7 +163,7 @@ it does not mean the engine understands or can edit it.
 | permissions | Partial (typed read graph) | Story-scoped `permStart`/`permEnd` pairing with editor/group and table-column scope plus orphan/duplicate/reversed diagnostics | Mutation enforcement, authorization policy and Word-version proof |
 | protection | Partial (metadata/policy only) | Document/write-protection modes and algorithm metadata are typed; secrets never returned; editing restriction is explicitly not treated as encryption | Permission-range integration, mutation enforcement, password workflow, authorized encryption adapter and Word probes |
 | revision IDs | Partial (strengthened) | Stable graph IDs, native `w:id` values, nested parents and move-range links are distinct from comment paragraph/durable IDs; duplicates and unresolved links are diagnosed | Cross-document/version identity, merge collision policy and mutation-safe ID allocation |
-| style inheritance | Partial | Base-first `basedOn` graph, default selection, link diagnostics, modeled property provenance and deterministic theme dereferencing exist; conditional table/version behavior and mutations remain |
+| style inheritance | Partial | Base-first `basedOn` graph, default selection, link diagnostics, modeled property provenance and deterministic theme dereferencing exist; assignment rejects unresolved target chains, while definition mutation and conditional table/version behavior remain |
 | numbering inheritance | Partial | Abstract/instance/full-level/start override and numbering-style indirection resolve with provenance; paragraph-sequence counters, restart execution and edits remain |
 | XML namespaces | Partial (strengthened) | Prefixes, declaration placement, expanded element/attribute names and untouched bytes are retained; general namespace-changing edits remain |
 | compatibility mode | Partial (typed read graph) | Bounded `compatSetting` tuples, legacy switches and explicit derived `compatibilityMode` with duplicate/conflict diagnostics | Versioned behavioral profiles, broader setting interpretation and Word probes |
@@ -177,10 +177,10 @@ preconditions, affected-node proof, transaction, validation, and inverse.
 
 | Operation named in the goal | State |
 |---|---|
-| replace every definition with style `Definition` | Not started |
+| replace every definition with style `Definition` | Partial: a bounded query can return exact paragraph IDs and one typed batch can assign an existing compatible `Definition` style under exact style/fingerprint preconditions; semantic classification of what constitutes a definition is not implemented |
 | find every theorem | Not started |
 | rewrite only the paragraph containing an equation | Not started |
-| change table style from APA to IEEE | Not started |
+| change table style from APA to IEEE | Partial: exact table IDs can be reassigned to an existing compatible table-style ID; APA/IEEE intent inference, style-definition creation and conditional table-style semantics are not implemented |
 | create a table of figures | Not started |
 | repair numbering | Not started |
 | repair styles | Not started |
@@ -256,12 +256,12 @@ mutation/repair/render execution required by the goal.
 | Visual regression | Not started for new engine | Historical screenshots and live acceptance | Versioned PDF/page/object baselines across rendering backends |
 | Cross-platform CI | Partial | Mandatory Linux engine job plus clean hosted-Windows engine/native/package jobs; licensed Word gate remains separate | macOS core job, qualified backend matrix and routinely available self-hosted Word release evidence |
 | Public competitor benchmark | Not started | Research matrix only | Same fixtures, versions, commands, results, caveats and reproducible harness |
-| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF and normalizes Windows packaging onto Windows PowerShell 5.1. The current structural-query checkpoint produced the same 195-file, 84,250,176-byte tree and 35,951,915-byte ZIP with SHA-256 `f416bfbd8e37adcce2a3a88a97ad4f7e5b698001d9d9f2c4784b9e15715899fe` in two local builds and hosted Windows CI run `29923044649`. The preceding semantic-index checkpoint matched hosted Windows CI run `29920866791` exactly at SHA-256 `5c4b3ef4d420259463d2cca0e7ebef8d647781c541be761025861c1a73db004a`. The earlier exact 0.35 live package, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action real-Word gate; the later saved-package slices do not change live COM code | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
+| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF and normalizes Windows packaging onto Windows PowerShell 5.1. The current semantic-style checkpoint produced the same 195-file, 84,302,924-byte tree and 35,963,647-byte ZIP with SHA-256 `fc92ec8ae48273f972426934497b1217bd0d660fd55f6fa7f001b36215eb06e4` in two local builds; hosted evidence is pending. The preceding structural-query checkpoint matched hosted Windows CI run `29923044649` exactly at SHA-256 `f416bfbd8e37adcce2a3a88a97ad4f7e5b698001d9d9f2c4784b9e15715899fe`. The earlier exact 0.35 live package, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action real-Word gate; the later saved-package slices do not change live COM code | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
 
 ## Current checkpoint evidence
 
-- `dotnet test native/WordToolkit.Engine.Tests` — 262 passed.
-- `dotnet test native/WordToolkit.Native.Tests` — 196 passed.
+- `dotnet test native/WordToolkit.Engine.Tests` — 270 passed.
+- `dotnet test native/WordToolkit.Native.Tests` — 200 passed.
 - `.venv/Scripts/python -m pytest -q` — 1273 passed, 16 intentionally skipped.
 - Native MCP regression against real Word verified Gaussian, nested and double
   integrals, Presentation MathML, OMML, a parenthesized matrix, cases and combining
@@ -271,16 +271,24 @@ mutation/repair/render execution required by the goal.
   fixed.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
-- The current structural-query checkpoint exposes 14 public tools and 78 lazy actions.
-  Two local builds produced the same 195-file, 84,250,176-byte tree and 35,951,915-byte
-  ZIP with SHA-256
-  `f416bfbd8e37adcce2a3a88a97ad4f7e5b698001d9d9f2c4784b9e15715899fe`.
-  The artifact downloaded from mandatory CI run `29923044649` matched exactly and all
-  five jobs passed. The packaged MCP indexed a real 194-node
-  equation DOCX, used `descendant_relation` to scan 11 candidates, returned 5
-  paragraphs containing equations, explicitly released the handle, kept each complete
-  JSON-RPC response below 3,200 characters, left the source hash unchanged and did not
-  alter the Word process set.
+- The current development head exposes 14 public tools and 80 lazy actions. Two local
+  builds produced the same 195-file, 84,302,924-byte tree and 35,963,647-byte ZIP with
+  SHA-256
+  `fc92ec8ae48273f972426934497b1217bd0d660fd55f6fa7f001b36215eb06e4`.
+  Through the packaged executable, the planner changed one exact source-linked paragraph
+  in the Apache POI styles fixture from `berschrift1` to the existing compatible
+  `Standard` style. Candidate validation ran with no new SDK errors; apply matched the
+  predicted fingerprint, changed only `word/document.xml`, retained a recovery backup,
+  and returned no XML. All four complete MCP responses stayed below 2,900 characters,
+  the source fixture remained unchanged, and the running Word process set did not change.
+  Hosted evidence for this head is pending.
+- The preceding structural-query checkpoint matched mandatory CI run `29923044649`
+  exactly at SHA-256
+  `f416bfbd8e37adcce2a3a88a97ad4f7e5b698001d9d9f2c4784b9e15715899fe`; all five jobs
+  passed. Its packaged MCP indexed a real 194-node equation DOCX, used
+  `descendant_relation` to scan 11 candidates, returned 5 equation-bearing paragraphs,
+  explicitly released the handle, left the source unchanged and did not alter the Word
+  process set.
 - The preceding semantic-index checkpoint matched hosted Windows CI run `29920866791`
   exactly at SHA-256
   `5c4b3ef4d420259463d2cca0e7ebef8d647781c541be761025861c1a73db004a`.

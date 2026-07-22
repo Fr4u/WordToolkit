@@ -7,6 +7,12 @@ public readonly record struct XmlSourceSpan(int ByteOffset, int ByteLength)
     public int EndByteOffset => checked(ByteOffset + ByteLength);
 }
 
+public enum XmlContentInsertionPosition
+{
+    Prepend,
+    Append,
+}
+
 public sealed class XmlSourceAttribute
 {
     internal XmlSourceAttribute(

@@ -125,6 +125,8 @@ public sealed class McpServerTests
                 "resolve_ooxml_formatting",
                 "plan_ooxml_text_edits",
                 "apply_ooxml_text_edits",
+                "plan_ooxml_semantic_edits",
+                "apply_ooxml_semantic_edits",
                 "plan_ooxml_review_decisions",
                 "apply_ooxml_review_decisions",
             }
@@ -167,7 +169,7 @@ public sealed class McpServerTests
         ) + "\n";
         var output = new StringWriter();
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(78, catalog.ActionCount);
+        Assert.Equal(80, catalog.ActionCount);
         var server = new McpServer(
             new StringReader(input),
             output,
@@ -259,6 +261,77 @@ public sealed class McpServerTests
         {
             response.Dispose();
         }
+    }
+
+    [Fact]
+    public void SemanticEditActionsStayTypedBoundedLazyAndTokenLean()
+    {
+        var catalog = ToolCatalog.LoadNativeWordTools();
+        using var plan = JsonDocument.Parse(
+            catalog.InspectAction("plan_ooxml_semantic_edits").ToJsonString()
+        );
+        using var apply = JsonDocument.Parse(
+            catalog.InspectAction("apply_ooxml_semantic_edits").ToJsonString()
+        );
+
+        var planTool = plan.RootElement.GetProperty("tool");
+        var planSchema = planTool.GetProperty("inputSchema");
+        var planCommands = planSchema.GetProperty("properties").GetProperty("commands");
+        Assert.Equal(200, planCommands.GetProperty("maxItems").GetInt32());
+        Assert.Equal(
+            "set_style",
+            planCommands
+                .GetProperty("items")
+                .GetProperty("properties")
+                .GetProperty("type")
+                .GetProperty("const")
+                .GetString()
+        );
+        Assert.True(
+            planTool
+                .GetProperty("annotations")
+                .GetProperty("readOnlyHint")
+                .GetBoolean()
+        );
+        Assert.False(
+            planTool
+                .GetProperty("annotations")
+                .GetProperty("destructiveHint")
+                .GetBoolean()
+        );
+
+        var applyTool = apply.RootElement.GetProperty("tool");
+        Assert.Equal(
+            "^wseplan_[A-Za-z0-9_-]+$",
+            applyTool
+                .GetProperty("inputSchema")
+                .GetProperty("properties")
+                .GetProperty("expected_plan_id")
+                .GetProperty("pattern")
+                .GetString()
+        );
+        Assert.False(
+            applyTool
+                .GetProperty("annotations")
+                .GetProperty("readOnlyHint")
+                .GetBoolean()
+        );
+        Assert.True(
+            applyTool
+                .GetProperty("annotations")
+                .GetProperty("destructiveHint")
+                .GetBoolean()
+        );
+        Assert.DoesNotContain(
+            catalog.Tools,
+            node => node?["name"]?.GetValue<string>() == "plan_ooxml_semantic_edits"
+        );
+        Assert.DoesNotContain(
+            catalog.Tools,
+            node => node?["name"]?.GetValue<string>() == "apply_ooxml_semantic_edits"
+        );
+        Assert.True(planTool.GetRawText().Length < 3_000);
+        Assert.True(applyTool.GetRawText().Length < 3_000);
     }
 
     [Fact]

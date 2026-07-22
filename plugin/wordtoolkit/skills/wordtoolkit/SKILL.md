@@ -1,6 +1,6 @@
 ---
 name: wordtoolkit
-description: Control real Microsoft Word and inspect, index, query, compare, patch, or three-way merge saved Word OOXML packages through a token-lean native .NET bridge. Use for live documents, package/semantic inspection, fields, bookmarks, reference dependencies, semantic selectors, formatting, equations, review, structures, export, save, close, and validation.
+description: Control real Microsoft Word and inspect, index, query, edit, compare, patch, or three-way merge saved Word OOXML packages through a token-lean native .NET bridge. Use for live documents, package/semantic inspection, fields, bookmarks, reference dependencies, semantic selectors, formatting, equations, review, structures, export, save, close, and validation.
 ---
 
 # WordToolkit
@@ -273,6 +273,29 @@ For a saved-package text edit, use this strict lazy workflow:
 
 Never bypass the plan with raw XML. Signed packages are intentionally blocked; do
 not attempt to strip or invalidate a signature through another action.
+
+For a saved-package style assignment, use this strict lazy workflow:
+
+1. Query only the target `paragraph`, `run`, or `table` nodes. Use semantic predicates
+   such as `descendant` to select a paragraph containing an equation without fetching
+   the tree. Retain the exact package fingerprint and explicit current `style_id`.
+2. Inspect the narrow style type with `inspect_ooxml_styles`; use the exact existing
+   `style_id`, not a visible name or an invented identifier. Reject an unresolved
+   inheritance chain.
+3. Send one bounded batch of at most 200 `set_style` commands to
+   `plan_ooxml_semantic_edits`. Add `expected_style_id` when a style is present or
+   `require_no_explicit_style=true` when absence is part of the decision.
+4. Review the deterministic `plan_id`, changed counts, candidate Open XML validation,
+   `can_apply`, and block reasons. Request details only to diagnose a block.
+5. Call `apply_ooxml_semantic_edits` with the identical commands, original fingerprint,
+   and exact plan ID. Keep the recovery backup by default.
+
+The current typed semantic command family only assigns an already declared, compatible,
+resolvable paragraph, character, or table style. It does not create, rename, delete,
+copy, infer, repair, or align style definitions and it does not implement conditional
+table-style semantics. Planning writes nothing; apply blocks signed packages, stale
+sources, plan drift, wrong-type/missing styles, and new Microsoft Open XML validation
+errors. Neither action opens Word or returns XML/document text.
 
 1. `list_live_word_documents`.
 2. Use `start_word_application` only when Word is unavailable.

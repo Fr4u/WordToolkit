@@ -275,6 +275,136 @@ public sealed class LosslessXmlDocumentTests
     }
 
     [Fact]
+    public void SetsExistingAndMissingNamespacedAttributesWithoutReserializingElement()
+    {
+        const string xml = "<w:root xmlns:w='urn:w'><w:a w:val='old' keep=\"1\"/><w:b keep='2'/></w:root>";
+        var source = LosslessXmlDocument.Parse(Encoding.UTF8.GetBytes(xml));
+        var first = source.Elements.Single(element => element.LocalName == "a");
+        var second = source.Elements.Single(element => element.LocalName == "b");
+
+        var result = source.ApplyPatches(
+            source.CreateElementAttributeValuePatches(
+                first.Ordinal,
+                "urn:w",
+                "val",
+                "new & 'value'",
+                expectedValue: "old",
+                preferredPrefix: "w"
+            ).Concat(
+                source.CreateElementAttributeValuePatches(
+                    second.Ordinal,
+                    "urn:new",
+                    "flag",
+                    "yes",
+                    preferredPrefix: "wtk"
+                )
+            )
+        );
+
+        Assert.Equal(
+            "<w:root xmlns:w='urn:w'><w:a w:val='new &amp; &apos;value&apos;' keep=\"1\"/><w:b keep='2' xmlns:wtk=\"urn:new\" wtk:flag=\"yes\"/></w:root>",
+            Encoding.UTF8.GetString(result)
+        );
+        var reparsed = LosslessXmlDocument.Parse(result);
+        Assert.Equal(
+            "new & 'value'",
+            reparsed.Elements.Single(element => element.LocalName == "a")
+                .Attributes.Single(attribute => attribute.LocalName == "val")
+                .Value
+        );
+    }
+
+    [Fact]
+    public void InsertsSelfContainedContentIntoNormalAndSelfClosingElements()
+    {
+        const string xml = "<w:root xmlns:w='urn:w'><w:a>tail</w:a><w:b keep='1'/></w:root>";
+        var source = LosslessXmlDocument.Parse(Encoding.UTF8.GetBytes(xml));
+        var first = source.Elements.Single(element => element.LocalName == "a");
+        var second = source.Elements.Single(element => element.LocalName == "b");
+        const string child = "<wtk:style xmlns:wtk=\"urn:w\" wtk:val=\"Definition\"/>";
+
+        var result = source.ApplyPatches(
+            new[]
+            {
+                source.CreateElementContentInsertionPatch(
+                    first.Ordinal,
+                    child,
+                    XmlContentInsertionPosition.Prepend
+                ),
+                source.CreateElementContentInsertionPatch(second.Ordinal, child),
+            }
+        );
+
+        Assert.Equal(
+            "<w:root xmlns:w='urn:w'><w:a><wtk:style xmlns:wtk=\"urn:w\" wtk:val=\"Definition\"/>tail</w:a><w:b keep='1'><wtk:style xmlns:wtk=\"urn:w\" wtk:val=\"Definition\"/></w:b></w:root>",
+            Encoding.UTF8.GetString(result)
+        );
+        Assert.Equal(2, LosslessXmlDocument.Parse(result).Elements.Count(element =>
+            element.LocalName == "style"
+        ));
+    }
+
+    [Fact]
+    public void MissingAttributeNeverRebindsAnExistingNamespacePrefix()
+    {
+        const string xml = "<w:root xmlns:w='urn:w' xmlns:wtk='urn:other'><w:item wtk:keep='yes'/></w:root>";
+        var source = LosslessXmlDocument.Parse(Encoding.UTF8.GetBytes(xml));
+        var item = source.Elements.Single(element => element.LocalName == "item");
+
+        var result = source.ApplyPatches(
+            source.CreateElementAttributeValuePatches(
+                item.Ordinal,
+                "urn:new",
+                "flag",
+                "on",
+                preferredPrefix: "wtk"
+            )
+        );
+
+        Assert.Equal(
+            "<w:root xmlns:w='urn:w' xmlns:wtk='urn:other'><w:item wtk:keep='yes' xmlns:wtk1=\"urn:new\" wtk1:flag=\"on\"/></w:root>",
+            Encoding.UTF8.GetString(result)
+        );
+        var reparsed = LosslessXmlDocument.Parse(result);
+        var attributes = reparsed.Elements.Single(element => element.LocalName == "item")
+            .Attributes;
+        Assert.Contains(attributes, attribute =>
+            attribute.NamespaceUri == "urn:other"
+            && attribute.LocalName == "keep"
+            && attribute.Value == "yes"
+        );
+        Assert.Contains(attributes, attribute =>
+            attribute.NamespaceUri == "urn:new"
+            && attribute.LocalName == "flag"
+            && attribute.Value == "on"
+        );
+    }
+
+    [Fact]
+    public void RejectsUnsafeFragmentsAndStaleAttributeValues()
+    {
+        var source = LosslessXmlDocument.Parse(
+            Encoding.UTF8.GetBytes("<w:r xmlns:w='urn:w' w:val='old'/>")
+        );
+
+        Assert.Throws<LosslessXmlPreconditionException>(() =>
+            source.CreateElementAttributeValuePatches(
+                source.Root.Ordinal,
+                "urn:w",
+                "val",
+                "new",
+                expectedValue: "other"
+            )
+        );
+        Assert.Throws<LosslessXmlEditException>(() =>
+            source.CreateElementContentInsertionPatch(
+                source.Root.Ordinal,
+                "<x:broken/>"
+            )
+        );
+    }
+
+    [Fact]
     public void StructuralPatchesRespectUtf16ByteOffsetsAndSelfClosingUnwrap()
     {
         const string xml = "<?xml version='1.0' encoding='utf-16'?><r xmlns='urn:r'><empty/><old>żółć</old></r>";

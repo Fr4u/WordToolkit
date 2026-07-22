@@ -1436,6 +1436,323 @@ public sealed class PackageInspectionServiceTests
     }
 
     [Fact]
+    public async Task PlansAndAtomicallyAppliesReviewedSemanticStyleWithoutStartingWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-semantic-edit-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "style.docx");
+            CreatePackage(
+                path,
+                stylesXml: SemanticEditStylesXml(),
+                paragraphPropertiesXml: "<w:pPr><w:pStyle w:val=\"OldPara\"/></w:pPr>"
+            );
+            var beforeBytes = File.ReadAllBytes(path);
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var paragraph = new WordSemanticProjector().Project(before).Nodes.Single(node =>
+                node.Kind == WordSemanticNodeKind.Paragraph
+                && node.Properties.GetValueOrDefault("style_id") == "OldPara"
+            );
+            var commands = new[]
+            {
+                new
+                {
+                    type = "set_style",
+                    node_id = paragraph.Id.Value,
+                    style_id = "Definition",
+                    expected_style_id = "OldPara",
+                },
+            };
+            var service = new WordLiveService(new NoInvokeHost());
+            using var planArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                commands,
+                include_details = true,
+            }));
+
+            var plannedObject = await service.CallAsync(
+                "plan_ooxml_semantic_edits",
+                planArguments.RootElement,
+                CancellationToken.None
+            );
+            using var plannedJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(plannedObject)
+            );
+            var planned = plannedJson.RootElement;
+            var planId = planned.GetProperty("plan_id").GetString()!;
+            var predicted = planned
+                .GetProperty("result_package_fingerprint")
+                .GetString();
+
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.StartsWith("wseplan_", planId, StringComparison.Ordinal);
+            Assert.False(planned.GetProperty("apply_blocked").GetBoolean());
+            Assert.True(planned.GetProperty("can_apply").GetBoolean());
+            Assert.True(planned.GetProperty("has_changes").GetBoolean());
+            Assert.Equal(1, planned.GetProperty("operation_count").GetInt32());
+            Assert.Equal(1, planned.GetProperty("changed_part_count").GetInt32());
+            Assert.True(
+                planned
+                    .GetProperty("candidate_validation")
+                    .GetProperty("performed")
+                    .GetBoolean()
+            );
+            Assert.True(
+                planned
+                    .GetProperty("candidate_validation")
+                    .GetProperty("no_new_errors")
+                    .GetBoolean()
+            );
+            Assert.Equal(
+                "set_style",
+                Assert.Single(planned.GetProperty("operations").EnumerateArray())
+                    .GetProperty("kind")
+                    .GetString()
+            );
+            Assert.False(planned.GetProperty("raw_xml_returned").GetBoolean());
+            Assert.False(planned.GetProperty("word_opened").GetBoolean());
+
+            using var applyArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                expected_plan_id = planId,
+                commands,
+                keep_backup = false,
+            }));
+            var appliedObject = await service.CallAsync(
+                "apply_ooxml_semantic_edits",
+                applyArguments.RootElement,
+                CancellationToken.None
+            );
+            using var appliedJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(appliedObject)
+            );
+            var applied = appliedJson.RootElement;
+
+            Assert.True(applied.GetProperty("applied").GetBoolean());
+            Assert.False(applied.GetProperty("no_op").GetBoolean());
+            Assert.Equal(predicted, applied.GetProperty("package_fingerprint").GetString());
+            Assert.Equal(
+                predicted,
+                applied.GetProperty("predicted_package_fingerprint").GetString()
+            );
+            Assert.Equal(JsonValueKind.Null, applied.GetProperty("backup_path").ValueKind);
+            Assert.Equal(
+                "word/document.xml",
+                Assert.Single(
+                    applied.GetProperty("changed_entry_names").EnumerateArray()
+                ).GetString()
+            );
+            Assert.False(applied.GetProperty("raw_xml_returned").GetBoolean());
+            Assert.False(applied.GetProperty("word_opened").GetBoolean());
+            var after = reader.Read(path);
+            var changedParagraph = new WordSemanticProjector().Project(after).Nodes.Single(
+                node => node.Kind == WordSemanticNodeKind.Paragraph
+            );
+            Assert.Equal("Definition", changedParagraph.Properties["style_id"]);
+            Assert.Equal(
+                before.Parts["/word/styles.xml"].Entry.Sha256,
+                after.Parts["/word/styles.xml"].Entry.Sha256
+            );
+            Assert.Empty(Directory.GetFiles(directory, "*.bak"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SemanticStyleEditsRejectUnsafeCommandsAndPlanDriftWithoutWriting()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-semantic-edit-rejection-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "reject.docx");
+            CreatePackage(
+                path,
+                stylesXml: SemanticEditStylesXml(),
+                paragraphPropertiesXml: "<w:pPr><w:pStyle w:val=\"OldPara\"/></w:pPr>"
+            );
+            var beforeBytes = File.ReadAllBytes(path);
+            var package = new OpcPackageReader().Read(path);
+            var paragraph = new WordSemanticProjector().Project(package).Nodes.Single(node =>
+                node.Kind == WordSemanticNodeKind.Paragraph
+            );
+            var service = new WordLiveService(new NoInvokeHost());
+            using var unsafeArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                commands = new[]
+                {
+                    new
+                    {
+                        type = "set_style",
+                        node_id = paragraph.Id.Value,
+                        style_id = "Emphasis",
+                    },
+                },
+            }));
+            var unsafeException = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "plan_ooxml_semantic_edits",
+                    unsafeArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("UNSAFE_EDIT", unsafeException.ErrorCode);
+
+            using var conflictingArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                commands = new[]
+                {
+                    new
+                    {
+                        type = "set_style",
+                        node_id = paragraph.Id.Value,
+                        style_id = "Definition",
+                        expected_style_id = "OldPara",
+                        require_no_explicit_style = true,
+                    },
+                },
+            }));
+            var conflictingException = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "plan_ooxml_semantic_edits",
+                    conflictingArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("INVALID_INPUT", conflictingException.ErrorCode);
+
+            var commands = new[]
+            {
+                new
+                {
+                    type = "set_style",
+                    node_id = paragraph.Id.Value,
+                    style_id = "Definition",
+                    expected_style_id = "OldPara",
+                },
+            };
+            using var driftArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                expected_plan_id = "wseplan_wrong",
+                commands,
+            }));
+            var driftException = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "apply_ooxml_semantic_edits",
+                    driftArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("PLAN_MISMATCH", driftException.ErrorCode);
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.Empty(Directory.GetFiles(directory, "*.bak"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SemanticStyleApplyRejectsSignedPackageAndLeavesItUntouched()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-signed-semantic-edit-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "signed-style.docx");
+            CreatePackage(
+                path,
+                signed: true,
+                stylesXml: SemanticEditStylesXml(),
+                paragraphPropertiesXml: "<w:pPr><w:pStyle w:val=\"OldPara\"/></w:pPr>"
+            );
+            var beforeBytes = File.ReadAllBytes(path);
+            var package = new OpcPackageReader().Read(path);
+            var paragraph = new WordSemanticProjector().Project(package).Nodes.Single(node =>
+                node.Kind == WordSemanticNodeKind.Paragraph
+            );
+            var commands = new[]
+            {
+                new
+                {
+                    type = "set_style",
+                    node_id = paragraph.Id.Value,
+                    style_id = "Definition",
+                    expected_style_id = "OldPara",
+                },
+            };
+            var service = new WordLiveService(new NoInvokeHost());
+            using var planArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                commands,
+            }));
+            var planObject = await service.CallAsync(
+                "plan_ooxml_semantic_edits",
+                planArguments.RootElement,
+                CancellationToken.None
+            );
+            using var planJson = JsonDocument.Parse(JsonSerializer.Serialize(planObject));
+            Assert.True(planJson.RootElement.GetProperty("apply_blocked").GetBoolean());
+            Assert.Contains(
+                planJson.RootElement.GetProperty("apply_blocked_reasons").EnumerateArray(),
+                item => item.GetString() == "digital_signature_present"
+            );
+            using var applyArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                expected_plan_id = planJson.RootElement.GetProperty("plan_id").GetString(),
+                commands,
+            }));
+
+            var exception = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "apply_ooxml_semantic_edits",
+                    applyArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+
+            Assert.Equal("SIGNED_PACKAGE", exception.ErrorCode);
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task InspectReferencesIsStoryAwareRedactedAndNeverStartsWord()
     {
         var directory = Path.Combine(
@@ -2177,6 +2494,16 @@ public sealed class PackageInspectionServiceTests
             );
         }
     }
+
+    private static string SemanticEditStylesXml() =>
+        """
+        <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+          <w:style w:type="paragraph" w:styleId="OldPara"><w:name w:val="Old paragraph"/></w:style>
+          <w:style w:type="paragraph" w:styleId="Definition"><w:name w:val="Definition"/></w:style>
+          <w:style w:type="character" w:styleId="Emphasis"><w:name w:val="Emphasis"/></w:style>
+          <w:style w:type="table" w:styleId="Grid"><w:name w:val="Grid"/></w:style>
+        </w:styles>
+        """;
 
     private static string ThemeXml() =>
         """

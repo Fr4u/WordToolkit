@@ -341,6 +341,22 @@ internal sealed partial class WordLiveService
                 new { reason = BoundForResponse(exception.Message, 512) }
             );
         }
+        catch (WordStyleLimitException exception)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "Style projection exceeds a bounded safety limit",
+                new { reason = BoundForResponse(exception.Message, 512) }
+            );
+        }
+        catch (WordStyleProjectionException exception)
+        {
+            throw new NativeToolException(
+                "INVALID_WORD_PACKAGE",
+                "The package style graph is invalid",
+                new { reason = BoundForResponse(exception.Message, 512) }
+            );
+        }
         catch (OpcPackageConcurrencyException exception)
         {
             throw new NativeToolException(

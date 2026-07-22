@@ -161,7 +161,10 @@ The first source-model slice is now implemented under `WordToolkit.Engine/Xml`. 
   precondition and reparses the candidate before returning it;
 - replaces a leaf element's text while escaping XML 1.0 characters, retaining every
   unrelated byte, expanding a self-closing element locally, and adding or correcting
-  `xml:space="preserve"` when boundary whitespace demands it.
+  `xml:space="preserve"` when boundary whitespace demands it;
+- updates or inserts one namespaced attribute without changing quote style or rebinding
+  an in-scope prefix, and inserts a self-contained child fragment into normal or
+  self-closing elements while retaining every unrelated byte.
 
 The current regression lane also parses every typed XML part in 52 bundled DOCX files
 produced by Word, LibreOffice, Pandoc, Apache POI and Mammoth, and proves an exact-byte
@@ -416,7 +419,8 @@ Live Word commands use Word's custom undo record only for the scoped live mutati
 Package rollback remains independent, so a failure never calls broad `Undo()` across
 unrelated user work.
 
-The first transaction slice is implemented for batches of text-leaf commands.
+The first transaction slices are implemented for batches of text-leaf and existing-style
+assignment commands.
 `WordSemanticTransactionPlanner` resolves every node against one package fingerprint,
 parses each affected part once, rejects duplicate targets, builds one ordered
 non-overlapping patch set per part, and returns a compact plan with operation counts,
@@ -426,6 +430,17 @@ result package fingerprint, creates an isolated forward mutation, and can create
 exact part-byte inverse only while the applied package still matches that predicted
 fingerprint. Neither forward nor inverse writes a file; atomic persistence remains a
 separate gated step.
+
+The typed `set_style` slice targets exact paragraph, run, or table node IDs. It accepts
+an exact current-style precondition or an explicit absence precondition, requires an
+existing compatible paragraph/character/table style with a resolvable `basedOn` chain,
+and inserts or updates only `pStyle`, `rStyle`, or `tblStyle`. Missing property containers
+are added as the first child through the lossless source model. Duplicate containers,
+wrong-type or missing styles, broken inheritance, stale source identities, namespace
+prefix collisions, signed packages, plan drift, and new Open XML SDK errors fail closed.
+The planner does not create or modify `styles.xml`; style definition lifecycle, template
+alignment, conditional table styles, and heterogeneous command families remain future
+work.
 
 The native MCP exposes this slice without retaining a server-side plan cache. A client
 first calls lazy `plan_ooxml_text_edits` with the inspected package fingerprint and
@@ -810,7 +825,9 @@ The current native mapping is therefore:
 - guarded ancestor/left/right merge planning -> lazy `plan_ooxml_merge`;
 - create-new, destination-bound merge application -> lazy `apply_ooxml_merge`;
 - text-only `document.plan` -> lazy `plan_ooxml_text_edits`;
-- text-only `document.apply` -> lazy `apply_ooxml_text_edits`.
+- text-only `document.apply` -> lazy `apply_ooxml_text_edits`;
+- typed existing-style `document.plan` -> lazy `plan_ooxml_semantic_edits`;
+- typed existing-style `document.apply` -> lazy `apply_ooxml_semantic_edits`.
 
 These schemas stay outside the core catalog, so the default model context does not pay
 for them until search/inspection selects the action.
@@ -900,9 +917,10 @@ No feature is “supported” until it passes the relevant gates:
 
 ### Phase 3 — safe edits
 
-- command schema, preconditions, plan/apply, inverse patches — **bounded multi-text
-  planning, package/node/part/text preconditions, one patch set per part, predicted
-  result fingerprint and exact part-byte inverse implemented; general commands,
+- command schema, preconditions, plan/apply, inverse patches — **bounded multi-text and
+  existing paragraph/run/table style-assignment planning, package/node/part/property
+  preconditions, one patch set per part, predicted result fingerprint and exact part-byte
+  inverse implemented; broader heterogeneous commands, style-definition lifecycle,
   permissions, approval and semantic inverses remain**;
 - style and numbering resolvers;
 - fields/references and source-linked review read graph — **initial implementations
