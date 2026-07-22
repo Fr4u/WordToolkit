@@ -452,7 +452,7 @@ try {
                 },
                 @{
                     type = "text"
-                    text = "Pełny test natywnej ścieżki model → MCP → .NET → COM → uruchomiony Microsoft Word."
+                    text = "Full native path test: model -> MCP -> .NET -> COM -> Microsoft Word."
                     as_new_paragraph = $true
                     formatting = @{
                         font_name = "Aptos"
@@ -485,7 +485,7 @@ try {
                 },
                 @{
                     type = "text"
-                    text = "Równanie utworzone wewnątrz mieszanego batcha:"
+                    text = "Equation created inside a mixed operation batch:"
                     as_new_paragraph = $true
                     formatting = @{
                         font_name = "Aptos Display"
@@ -808,7 +808,7 @@ try {
         -Arguments @{
             live_document_id = $documentId
             range_token = $foundComment.matches[0].range_token
-            text = "Pełny test: komentarz przypięty do zakresu zwróconego przez natywne Word Find."
+            text = "Full test: comment attached to the range returned by native Word Find."
             expected_version = $version
         }
     $version = [long]$comment.live_version
@@ -909,11 +909,11 @@ try {
         -Arguments @{
             live_document_id = $documentId
             rows = @(
-                @("Moduł", "Wynik", "Uwagi"),
+                @("Module", "Result", "Notes"),
                 @("Tekst", "1", "OK"),
-                @("Równania", "1", "OK"),
+                @("Equations", "1", "OK"),
                 @("DOCX/PDF", "2", "OK"),
-                @("Łącznie", "", "")
+                @("Total", "", "")
             )
             target = "document_end"
             header_row = $true
@@ -994,7 +994,7 @@ try {
             items = @(
                 "Natywny tekst i formatowanie",
                 "Natywne obiekty dokumentu",
-                "Natywne równania OMath"
+                "Native OMath equations"
             )
             list_kind = "bullet"
             target = "document_end"
@@ -1076,7 +1076,7 @@ try {
             kind = "reference"
             bookmark = $bookmarkName
             hyperlink = $false
-            prefix_text = "Odwołanie wewnętrzne: "
+            prefix_text = "Internal reference: "
             suffix_text = " "
             as_new_paragraph = $true
         },
@@ -1143,7 +1143,7 @@ try {
         -Arguments @{
             live_document_id = $documentId
             kind = "footnote"
-            text = "Natywny przypis dolny utworzony przez kolekcję Footnotes Worda."
+            text = "Native footnote created through the Word Footnotes collection."
             target = "document_end"
             expected_version = $version
         }
@@ -1158,7 +1158,7 @@ try {
         -Arguments @{
             live_document_id = $documentId
             kind = "endnote"
-            text = "Natywny przypis końcowy utworzony przez kolekcję Endnotes Worda."
+            text = "Native endnote created through the Word Endnotes collection."
             target = "document_end"
             custom_mark = "E"
             expected_version = $version
@@ -1172,31 +1172,31 @@ try {
         @{
             kind = "header"
             variant = "primary"
-            text = "WORDTOOLKIT · FULL LIVE TEST"
+            text = "WORDTOOLKIT - FULL LIVE TEST"
             alignment = "center"
         },
         @{
             kind = "header"
             variant = "first_page"
-            text = "PIERWSZA STRONA · NATYWNY WORD"
+            text = "FIRST PAGE - NATIVE WORD"
             alignment = "left"
         },
         @{
             kind = "header"
             variant = "even_pages"
-            text = "STRONA PARZYSTA · TEST"
+            text = "EVEN PAGE - TEST"
             alignment = "right"
         },
         @{
             kind = "footer"
             variant = "primary"
-            text = "Model → MCP → .NET → COM → Word"
+            text = "Model -> MCP -> .NET -> COM -> Word"
             alignment = "center"
         },
         @{
             kind = "footer"
             variant = "first_page"
-            text = "Pełna automatyzacja bez Pythona"
+            text = "Full automation without Python"
             alignment = "left"
         },
         @{
@@ -1337,7 +1337,12 @@ try {
             live_document_id = $documentId
             equations = @(
                 @{
-                    value = "∑_(i=1)^(n)▒i^(2)=(n(n+1)(2n+1))/(6)"
+                    value = (
+                        ([char]0x2211).ToString() +
+                        "_(i=1)^(n)" +
+                        ([char]0x2592).ToString() +
+                        "i^(2)=(n(n+1)(2n+1))/(6)"
+                    )
                     input_format = "unicodemath"
                     display = $true
                 },
