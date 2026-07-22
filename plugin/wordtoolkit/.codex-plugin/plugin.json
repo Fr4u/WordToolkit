@@ -1,6 +1,6 @@
 {
   "name": "wordtoolkit",
-  "version": "0.35.0+codex.20260722191457",
+  "version": "0.35.0+codex.20260722195005",
   "description": "Token-lean native Microsoft Word automation with 14 core/gateway tools and lazy access to 80 native actions.",
   "author": {
     "name": "WordToolkit contributors"

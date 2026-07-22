@@ -11,7 +11,14 @@
   starting Microsoft Word.
 - Round-trip: LaTeX/UnicodeMath/MathML/AST → OMML → DOCX → reopened OMML with semantic AST comparison.
 - Integration: create/open/edit/save, package validation, Streamable HTTP initialization and bearer rejection.
-- Regression: the vendored `docx-mcp` test corpus covers styles, tables, notes, comments, revisions, fields, raw parts, images, sections, headers/footers and security behavior. Native saved-package review tests additionally exercise modern comment threads/durable IDs/reactions/people, malformed anchors, nested/property revisions, named moves, permission ranges, redaction, paging and real WordToolkit/Mammoth/Pandoc/Apache POI fixtures.
+- Regression: the broad bundled corpus catches parser crashes, byte drift and open graph
+  endpoints. A separate versioned semantic golden corpus fixes exact typed expectations
+  for nine fixtures from five producer families, including styles/effective formatting,
+  numbering, fields, comments, moves, text boxes, headers/footers and chart-part
+  preservation. Its provenance and update discipline are documented in
+  `SEMANTIC-GOLDEN-CORPUS.md`. Native saved-package review tests additionally exercise
+  modern comment threads/durable IDs/reactions/people, malformed anchors,
+  nested/property revisions, named moves, permission ranges, redaction and paging.
 - Rendering: LibreOffice DOCX→PDF, Poppler PDF→PNG and page heuristics.
 - Golden artifacts: `examples/generated` includes validated DOCX, PDF, PNG previews and a JSON report.
 - Runtime inventory: `tests/test_runtime_modules.py` imports every packaged
@@ -45,6 +52,13 @@ python scripts/generate_samples.py
 python scripts/advanced_torture_test.py
 python scripts/real_word_live_gap_test.py
 python scripts/export_tool_schemas.py
+```
+
+For a fast semantic-oracle check while changing a parser or graph builder:
+
+```powershell
+dotnet test native/WordToolkit.Engine.Tests/WordToolkit.Engine.Tests.csproj `
+  --filter FullyQualifiedName~GoldenSemanticCorpusTests
 ```
 
 On Windows, build the same native ZIP uploaded by CI. The script runs both .NET test

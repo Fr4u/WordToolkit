@@ -1,5 +1,39 @@
 # Stage results
 
+## WordToolkit 0.35.0 semantic golden corpus — 2026-07-22
+
+- Added a versioned semantic oracle for nine public DOCX fixtures from Apache POI,
+  Pandoc, Mammoth, LibreOffice and a real-world Microsoft Word document.
+- The manifest binds every fixture by file SHA-256 and package fingerprint, then checks
+  exact semantic and dependency-kind counts plus style, numbering, field, review,
+  section and effective-formatting facts. It contains no document text or raw XML.
+- Independent source-part checks confirmed the selected style inheritance, numbering
+  mappings, field types, comment anchors, tracked move pair, text boxes, six
+  header/footer references and chart relationship.
+- Focused semantic-oracle test: **1 passed** in 612 ms.
+- Full native engine suite: **284 passed, 0 skipped**.
+- Full native MCP host suite: **208 passed, 0 skipped**.
+- Full Python compatibility suite: **1,273 passed, 16 skipped**; Ruff clean.
+- Open XML SDK validator: built successfully with zero compiler warnings. Regenerated
+  basic and advanced artifacts passed structural, SDK, accessibility and LibreOffice
+  visual checks; the advanced document retained 17 native equations across 11 pages.
+- Native package version:
+  `0.35.0+codex.20260722195005`.
+- Native package: **195 files**, **84,409,303 expanded bytes**, **35,998,031 ZIP bytes**.
+- ZIP SHA-256:
+  `bdbeaf9414e1b56311c6518c49787a76dc700da0fff184cbf62f8bb2c0079ed5`.
+- Executable SHA-256:
+  `59fb8419dbe664d1b1ae7f0b5df35b7738cfd1c43b69719049d8e06dd64cd138`.
+- Runtime assembly SHA-256:
+  `d08bb344be1d80e1836dd5bf5b44ae8d7b2f529414fd536e825c78f9931e9634`.
+- Two independent local builds produced byte-identical ZIPs and byte-identical expanded
+  trees. Packaged MCP initialization reported protocol `2025-06-18`; a compact semantic
+  inspection returned the expected 17-node `poi_styles.docx` graph in a 1,448-character
+  JSON-RPC response without opening Word or returning source XML.
+- This is stronger semantic regression evidence, not release approval or a claim of
+  Word-identical rendering. The public release remains 0.34.0 until the draft pull
+  request receives human review and the self-hosted Microsoft Word gate runs.
+
 ## WordToolkit 0.16.0 verification — 2026-07-20
 
 - Full Python suite: **1,284 passed, 16 skipped**.

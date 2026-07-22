@@ -168,8 +168,12 @@ The first source-model slice is now implemented under `WordToolkit.Engine/Xml`. 
 
 The current regression lane also parses every typed XML part in 52 bundled DOCX files
 produced by Word, LibreOffice, Pandoc, Apache POI and Mammoth, and proves an exact-byte
-no-op for each. That is meaningful smoke evidence, not a claim of broad format parity;
-the external hostile and versioned compatibility corpora are still missing.
+no-op for each. A separate versioned semantic oracle now fixes exact typed expectations
+for nine representative fixtures from those producers: complete node- and dependency-
+kind counts plus selected style, numbering, reference, review, section and effective-
+formatting facts. That is stronger than crash/no-op smoke, but still not a claim of broad
+format parity; the external hostile, Word-version and visual compatibility corpora are
+still missing.
 
 Unsupported stateful encodings and unusual UCS-4 orders fail closed. A leaf whose
 content contains comments, CDATA, processing instructions, or child elements is also
