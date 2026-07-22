@@ -173,6 +173,8 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_ooxml_content_controls" =>
+                InspectPackageContentControlsAsync(arguments, cancellationToken),
             "inspect_ooxml_markup_compatibility" =>
                 InspectPackageMarkupCompatibilityAsync(arguments, cancellationToken),
             "lint_ooxml_document" => LintPackageAsync(

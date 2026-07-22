@@ -353,6 +353,21 @@ are inert metadata: no process starts and no target is fetched. Lazy
 `inspect_ooxml_references` defaults to field-type counts; names, instructions, result
 text and dependency keys remain redacted behind opt-in detail, exact filters and paging.
 
+`WordContentControlBindingGraphBuilder` projects source-linked `w:sdt` controls across
+all projected stories and types their block/run/row/cell level, lock, placeholder,
+temporary state, parent control and Transitional/Strict plus Office 2010/2013 control
+kind. It discovers physical Custom XML stores through exact OPC relationships, joins
+item-property GUID/schema metadata, and models Word's built-in core and extended
+property stores. Standard and Office 2013 `dataBinding` records resolve only a restricted
+absolute child-element XPath subset with explicit namespace prefixes and positive
+positions. A per-store QName child index makes positional lookup linear in source size
+instead of quadratic in the number of bindings; intermediate target counts are bounded
+during traversal. Repeating sections retain item topology and store-target cardinality.
+Malformed stores, duplicate IDs, invalid mappings, missing targets and unsupported XPath
+remain typed diagnostics. Lazy `inspect_ooxml_content_controls` pages controls, stores,
+bindings, targets, repeating sections and issues. Values and raw XML never enter its
+response; names, binding metadata and source provenance are independent opt-ins.
+
 WordprocessingML theme tokens are resolved only when a deterministic theme source is
 available. `majorAscii`/`majorHAnsi` and their minor equivalents select the Latin theme
 face. East Asian and complex-script tokens first use the corresponding primary face;
@@ -618,7 +633,7 @@ that no unrelated parts changed.
 ### Unified dependency graph
 
 `WordDependencyGraph` is the first shared cross-domain dependency spine. It does not
-flatten the existing typed graphs into anonymous strings. It joins seven proven domains:
+flatten the existing typed graphs into anonymous strings. It joins eight proven domains:
 
 - OPC package roots, parts and internal/external/invalid relationships;
 - source-linked semantic containment across every projected Word story;
@@ -628,7 +643,9 @@ flatten the existing typed graphs into anonymous strings. It joins seven proven 
   paragraph/style numbering references;
 - story-scoped fields, bookmarks, nested fields and typed reference targets;
 - sections and effective header/footer story bindings;
-- classic Transitional/Strict DrawingML charts, series, axes and related package parts.
+- classic Transitional/Strict DrawingML charts, series, axes and related package parts;
+- content controls, physical and built-in XML stores, resolved binding targets and
+  repeating-section items.
 
 Every node and edge has a deterministic content-derived `wddn_` or `wdde_` identity.
 Every edge endpoint must exist, even when the target is missing or external; unresolved
@@ -640,9 +657,9 @@ available as opt-in provenance.
 The builder binds every input graph to one exact package fingerprint, uses constant-time
 stable-ID collision checks, enforces node, edge, key and issue budgets, checks
 cancellation during traversal, and never executes a field or follows an external
-relationship. Coverage is explicit. DrawingML/VML layout, SmartArt, OLE, custom-XML
-binding, bibliography sources, active content, signatures, encryption and co-authoring
-sessions are still outside this graph. Office 2016 extended charts are preserved and
+relationship. Coverage is explicit. DrawingML/VML layout, SmartArt, OLE, bibliography
+sources, active content, signatures, encryption and co-authoring sessions are still
+outside this graph. Office 2016 extended charts are preserved and
 diagnosed, but are not projected as classic chart nodes.
 
 Lazy `inspect_ooxml_dependencies` exposes compact edge-kind counts, filtered nodes and
@@ -903,6 +920,8 @@ The current native mapping is therefore:
 - story-aware field/bookmark/dependency inspection -> lazy `inspect_ooxml_references`;
 - cross-domain package/semantic/style/numbering/reference/section dependency inspection
   -> lazy `inspect_ooxml_dependencies`;
+- content-control/store/binding/repeating-section inspection -> lazy
+  `inspect_ooxml_content_controls`;
 - source-linked core/style/accessibility/security lint -> lazy
   `lint_ooxml_document`;
 - reviewed source-bound empty-title repair -> lazy `plan_ooxml_lint_repair`, then
@@ -1004,7 +1023,8 @@ No feature is “supported” until it passes the relevant gates:
   passing**;
 - section/style/numbering/reference adapters and semantic query;
 - bounded cross-domain dependency spine — **initial implementation complete for OPC,
-  semantic containment, styles, numbering, references and sections**;
+  semantic containment, styles, numbering, references, sections, classic charts and
+  content-control/Custom XML binding topology**;
 - package-to-semantic provenance tests — **implemented for main-part nodes and first
   text mutation; full-story coverage remains**.
 
@@ -1024,7 +1044,8 @@ No feature is “supported” until it passes the relevant gates:
 ### Phase 4 — hard Word structures
 
 - cross-format canonical equation AST, structural mutations and all import/export paths;
-- drawings, charts, SmartArt, VML, OLE, custom XML, macros, and signatures;
+- drawings, chart mutation, SmartArt, VML, OLE, Custom XML mutation, macros, and
+  signatures;
 - accessibility, citations, bibliography, OCR, and policy scanners.
 
 ### Phase 5 — fidelity and proof

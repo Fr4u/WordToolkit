@@ -21,6 +21,12 @@
   plus a real LibreOffice package. Native tests prove namespace/source redaction,
   explicit application configuration, zero COM calls and sub-5,000-character default
   data plus a sub-8,000-character complete JSON-RPC envelope.
+- Content controls and Custom XML: engine tests cover real LibreOffice and generated
+  packages, physical and built-in stores, standard/Office 2013 bindings, repeating
+  sections, restricted XPath, malformed stores, identity conflicts, cancellation and
+  limits. Native tests prove exact filters, independent metadata/source opt-ins, zero
+  COM calls, default and complete envelope bounds, and non-disclosure of Custom XML,
+  visible bound values and raw XML.
 - Round-trip: LaTeX/UnicodeMath/MathML/AST → OMML → DOCX → reopened OMML with semantic AST comparison.
 - Integration: create/open/edit/save, package validation, Streamable HTTP initialization and bearer rejection.
 - Regression: the broad bundled corpus catches parser crashes, byte drift and open graph
@@ -101,6 +107,16 @@ The Docker image builds the Microsoft Open XML SDK validator. A Python-only run 
 10. Large dependency graphs and `.wtpatch` inputs are claimed only up to a checked-in
     benchmark result reporting elapsed time and peak memory. The configured rejection
     ceilings alone are not performance evidence.
+11. Content-control binding scale claims use the checked-in `bindings` benchmark. Its
+    100,000-control point must report every binding resolved and must disclose any
+    benchmark-only resource limit raised above the production default.
+
+Run the binding-graph scale points without Word:
+
+```powershell
+dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release -- bindings --target-nodes 10000
+dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release -- bindings --target-nodes 100000
+```
 
 ## Interpreting visual results
 

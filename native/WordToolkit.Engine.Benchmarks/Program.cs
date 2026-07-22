@@ -10,9 +10,12 @@ var options = Arguments.Parse(args);
 var report = options.Scenario switch
 {
     "graph" => RunGraph(options),
+    "bindings" => RunBindings(options),
     "mce" => RunMce(options),
     "patch" => RunPatch(options),
-    _ => throw new ArgumentException("scenario must be 'graph', 'mce', or 'patch'"),
+    _ => throw new ArgumentException(
+        "scenario must be 'graph', 'bindings', 'mce', or 'patch'"
+    ),
 };
 var json = JsonSerializer.Serialize(report, new JsonSerializerOptions
 {
@@ -193,6 +196,93 @@ static object RunPatch(Arguments options)
     {
         File.Delete(beforePath);
         File.Delete(afterPath);
+    }
+}
+
+static object RunBindings(Arguments options)
+{
+    if (options.TargetNodes is < 100 or > 100_000)
+    {
+        throw new ArgumentOutOfRangeException(
+            nameof(options.TargetNodes),
+            "binding target must be between 100 and the engine ceiling of 100000 controls"
+        );
+    }
+    var path = TemporaryPath("bindings", ".docx");
+    try
+    {
+        var generation = Measure(() => WriteBindingPackage(path, options.TargetNodes));
+        Collect();
+        var baseline = MemorySnapshot.Capture();
+
+        OpcPackageSnapshot? package = null;
+        WordSemanticDocument? semantic = null;
+        WordContentControlBindingGraph? graph = null;
+        var read = Measure(() => package = new OpcPackageReader().Read(path));
+        var project = Measure(() =>
+            semantic = new WordSemanticProjector(
+                new WordSemanticProjectionOptions
+                {
+                    MaxXmlCharacters = 256L * 1024 * 1024,
+                    MaxXmlElements = 1_000_000,
+                    MaxTextCharacters = 64L * 1024 * 1024,
+                }
+            ).Project(package!)
+        );
+        var bindingOptions = new WordContentControlBindingGraphOptions
+        {
+            // This scale fixture deliberately spends metadata on one distinct positional
+            // XPath per control. Keep the production control/binding ceilings intact while
+            // making the independent metadata budget explicit in the report.
+            MaxMetadataCharacters = 64L * 1024 * 1024,
+        };
+        var build = Measure(() =>
+            graph = new WordContentControlBindingGraphBuilder(bindingOptions).Build(
+                package!,
+                semantic!
+            )
+        );
+        var final = MemorySnapshot.Capture();
+        GC.KeepAlive(graph);
+        return CommonReport(
+            "content_control_binding_graph",
+            new
+            {
+                requested_controls_and_bindings = options.TargetNodes,
+                configured_control_ceiling = bindingOptions.MaxControls,
+                configured_binding_ceiling = bindingOptions.MaxBindings,
+                configured_target_ceiling = bindingOptions.MaxTargets,
+                configured_metadata_character_ceiling = bindingOptions.MaxMetadataCharacters,
+                production_metadata_character_ceiling = WordContentControlBindingGraphOptions.Default.MaxMetadataCharacters,
+                package_bytes = new FileInfo(path).Length,
+                package_parts = package!.Entries.Count,
+                semantic_nodes = semantic!.NodeCount,
+                controls = graph!.Controls.Count,
+                stores = graph.Stores.Count,
+                bindings = graph.Bindings.Count,
+                targets = graph.Targets.Count,
+                repeating_sections = graph.RepeatingSections.Count,
+                issues = graph.Issues.Count,
+                all_bindings_resolved = graph.Bindings.All(binding =>
+                    binding.Status == WordBindingResolutionStatus.Resolved
+                ),
+                timings_ms = new
+                {
+                    generate = generation.TotalMilliseconds,
+                    package_read = read.TotalMilliseconds,
+                    semantic_projection = project.TotalMilliseconds,
+                    binding_graph_build = build.TotalMilliseconds,
+                    measured_total = read.TotalMilliseconds
+                        + project.TotalMilliseconds
+                        + build.TotalMilliseconds,
+                },
+                memory = MemoryReport(baseline, final),
+            }
+        );
+    }
+    finally
+    {
+        File.Delete(path);
     }
 }
 
@@ -407,6 +497,56 @@ static void WritePatchPackage(
     }
 }
 
+static void WriteBindingPackage(string path, int controlCount)
+{
+    using var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+    using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+    WriteTextEntry(archive, "[Content_Types].xml", PackageFixture.BindingContentTypes);
+    WriteTextEntry(archive, "_rels/.rels", PackageFixture.RootRelationships);
+    WriteTextEntry(
+        archive,
+        "word/_rels/document.xml.rels",
+        PackageFixture.BindingDocumentRelationships
+    );
+    WriteTextEntry(
+        archive,
+        "customXml/_rels/item1.xml.rels",
+        PackageFixture.BindingStoreRelationships
+    );
+    WriteTextEntry(archive, "customXml/itemProps1.xml", PackageFixture.BindingStoreProperties);
+
+    var documentEntry = archive.CreateEntry("word/document.xml", CompressionLevel.Fastest);
+    using (var stream = documentEntry.Open())
+    using (var writer = new StreamWriter(stream, new UTF8Encoding(false), 64 * 1024))
+    {
+        writer.Write(PackageFixture.BindingDocumentStart);
+        for (var index = 1; index <= controlCount; index++)
+        {
+            writer.Write("<w:sdt><w:sdtPr><w:id w:val=\"");
+            writer.Write(index);
+            writer.Write("\"/><w:text/><w:dataBinding w:storeItemID=\"");
+            writer.Write(PackageFixture.BindingStoreItemId);
+            writer.Write("\" w:xpath=\"/b:root[1]/b:item[");
+            writer.Write(index);
+            writer.Write("]\" w:prefixMappings=\"xmlns:b='urn:wordtoolkit:benchmark'\"/>");
+            writer.Write("</w:sdtPr><w:sdtContent><w:p/></w:sdtContent></w:sdt>");
+        }
+        writer.Write(PackageFixture.DocumentEnd);
+    }
+
+    var storeEntry = archive.CreateEntry("customXml/item1.xml", CompressionLevel.Fastest);
+    using var storeStream = storeEntry.Open();
+    using var storeWriter = new StreamWriter(storeStream, new UTF8Encoding(false), 64 * 1024);
+    storeWriter.Write("<b:root xmlns:b=\"urn:wordtoolkit:benchmark\">");
+    for (var index = 1; index <= controlCount; index++)
+    {
+        storeWriter.Write("<b:item id=\"");
+        storeWriter.Write(index);
+        storeWriter.Write("\"/>");
+    }
+    storeWriter.Write("</b:root>");
+}
+
 static void WriteMcePackage(string path, int paragraphCount)
 {
     using var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
@@ -467,7 +607,7 @@ internal sealed record Arguments(
         if (args.Length == 0)
         {
             throw new ArgumentException(
-                "usage: graph --target-nodes N | mce --target-nodes N | patch --payload-mib N [--parts N]"
+                "usage: graph --target-nodes N | bindings --target-nodes N | mce --target-nodes N | patch --payload-mib N [--parts N]"
             );
         }
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -523,6 +663,9 @@ internal readonly record struct MemorySnapshot(
 
 internal static class PackageFixture
 {
+    internal const string BindingStoreItemId =
+        "{11111111-2222-3333-4444-555555555555}";
+
     internal const string ContentTypes = """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -540,9 +683,46 @@ internal static class PackageFixture
         </Relationships>
         """;
 
+    internal const string BindingContentTypes = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+          <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+          <Default Extension="xml" ContentType="application/xml"/>
+          <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+          <Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>
+        </Types>
+        """;
+
+    internal const string BindingDocumentRelationships = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdCustom" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml"/>
+        </Relationships>
+        """;
+
+    internal const string BindingStoreRelationships = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml"/>
+        </Relationships>
+        """;
+
+    internal const string BindingStoreProperties = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <ds:datastoreItem ds:itemID="{11111111-2222-3333-4444-555555555555}"
+          xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml">
+          <ds:schemaRefs><ds:schemaRef ds:uri="urn:wordtoolkit:benchmark"/></ds:schemaRefs>
+        </ds:datastoreItem>
+        """;
+
     internal const string DocumentStart = """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"><w:body>
+        """;
+
+    internal const string BindingDocumentStart = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
         """;
 
     internal const string DocumentEnd = "<w:sectPr/></w:body></w:document>";

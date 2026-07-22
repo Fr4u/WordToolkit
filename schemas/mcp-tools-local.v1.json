@@ -5398,6 +5398,83 @@
       }
     },
     {
+      "name": "inspect_ooxml_content_controls",
+      "title": "Inspect Word content controls and XML bindings",
+      "description": "Inspect bounded, source-linked Word content controls, physical Custom XML stores, built-in core/extended property stores, data-binding targets, and repeating-section topology without opening Word or returning Custom XML values. The engine recognizes Transitional and Strict WordprocessingML, Office 2010 checkbox/entity controls, Office 2013 repeating sections and rich-text bindings. XPath execution is restricted to a safe absolute child-element subset; unsupported expressions remain explicit diagnostics. Alias/tag names, store GUIDs, XPath and namespace mappings, and source locations are separately redacted by default. Raw XML is never returned.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "controls", "stores", "bindings", "targets", "repeating_sections", "issues"],
+            "default": "summary",
+            "description": "Return compact type/status counts, controls, stores, binding declarations, resolved target metadata, repeating-section topology, or diagnostics."
+          },
+          "control_id": {
+            "type": "string",
+            "pattern": "^wccc_[a-f0-9]{32}$",
+            "maxLength": 128,
+            "description": "Optional exact content-control ID from the same package fingerprint."
+          },
+          "store_id": {
+            "type": "string",
+            "pattern": "^wccs_[a-f0-9]{32}$",
+            "maxLength": 128,
+            "description": "Optional exact physical or built-in binding-store ID from the same package fingerprint."
+          },
+          "binding_id": {
+            "type": "string",
+            "pattern": "^wccb_[a-f0-9]{32}$",
+            "maxLength": 128,
+            "description": "Optional exact content-control data-binding ID from the same package fingerprint."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "include_names": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded content-control aliases, tags, placeholder building-block names, and repeating-section titles."
+          },
+          "include_binding_details": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded store item GUIDs, XPath, prefix mappings, namespace URIs, schema references, and target element names. Custom XML values and raw XML remain unavailable."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded part URIs, content types, semantic IDs, native control IDs, and source XML element ordinals."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include at most 20 bounded content-control/binding diagnostics in non-issues views."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "inspect_ooxml_markup_compatibility",
       "title": "Inspect OOXML markup compatibility",
       "description": "Inspect and evaluate ECMA-376 Part 3 Markup Compatibility and Extensibility rules across every XML-typed OPC part without preprocessing, rewriting, opening Word, or following external targets. Models Ignorable, ProcessContent, MustUnderstand, AlternateContent, Choice, Fallback, application-defined extension islands, and legacy PreserveElements/PreserveAttributes hints. Evaluation uses only the explicitly supplied application and markup configuration. Namespace URIs, local names, part paths, source ordinals, and part hashes are redacted by default.",

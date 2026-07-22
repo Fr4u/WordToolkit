@@ -1951,7 +1951,7 @@ Audyt natywny: katalog zainstalowanego Worda wykrył $($types.stats.type_count) 
     $report.total_mcp_requests = $requestId
     $report.tool_calls = $toolCalls
     $report.exposed_tool_count = 14
-    $report.available_action_count = 82
+    $report.available_action_count = 83
     $report.object_model_types = $types.stats.type_count
     $report.object_model_members = $types.stats.member_count
     $report.paragraphs = $finalInspection.document.paragraph_count

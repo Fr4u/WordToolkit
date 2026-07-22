@@ -110,14 +110,27 @@ Use lazy `inspect_ooxml_dependencies` when the task asks what depends on a part,
 semantic object, style, numbering definition, field target or section story. Start with
 `view=summary`; use `view=nodes` only to obtain one stable `wddn_` ID, then request a
 bounded `impact` neighborhood or filtered `edges`/`unresolved` page. Keep keys and source
-metadata redacted unless the next operation consumes them. The graph joins only the
-explicitly reported OPC, semantic-containment, style, numbering, reference, section and
-classic-chart domains. Its `explicitly_unmodeled_domains` list is a hard coverage
-boundary: absence of an edge for drawings, SmartArt, OLE, custom XML, bibliography,
-active content, signatures, encryption or co-authoring is not proof that the dependency
-does not exist.
+metadata redacted unless the next operation consumes them. The graph joins the
+explicitly reported OPC, semantic-containment, style, numbering, reference, section,
+classic-chart, content-control, physical/built-in XML-store, binding-target and
+repeating-section domains. Its `explicitly_unmodeled_domains` list is a hard coverage
+boundary: absence of an edge for drawings, SmartArt, OLE, bibliography, active content,
+signatures, encryption or co-authoring is not proof that the dependency does not exist.
 This action never opens Word, executes a field, follows an external target, repairs a
 document or authorizes deleting an apparently unused node.
+Use lazy `inspect_ooxml_content_controls` instead of reading `w:sdt`, `dataBinding`,
+`customXml` or item-properties XML yourself. Start with `view=summary`; page `controls`,
+`stores`, `bindings`, `targets`, `repeating_sections` or `issues` only when the next
+decision consumes those objects. Filter with one exact `wccc_`, `wccs_` or `wccb_` ID.
+Aliases, tags, placeholder names and section titles require `include_names=true`.
+Store GUIDs, XPath, prefix mappings, namespace/schema names and target element names
+require the separate `include_binding_details=true` opt-in. Source parts, semantic/native
+IDs and XML ordinals require `include_source=true`. Custom XML values and raw XML are
+never returned. XPath resolution deliberately supports only an absolute child-element
+subset with optional positive positions; an unsupported expression is evidence, not
+permission to run a general XPath engine or guess the target. The action is read-only,
+does not refresh bound display text and never opens Word. Honor nested `*_truncated`
+flags instead of assuming one binding response contains every target or item ID.
 Use lazy `inspect_ooxml_charts` instead of opening chart XML or embedded workbooks.
 Start with `view=summary`; it returns only aggregate counts and plot families. Page
 `charts`, `series`, `axes` or `relationships` only when the next decision needs them,

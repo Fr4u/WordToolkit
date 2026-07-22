@@ -3,9 +3,29 @@
 This is a measured baseline, not a throughput promise. Results came from one process per
 point on Windows 10.0.19045, .NET 8 workstation GC, an Intel Core i5-10400F (6
 cores/12 logical processors) and 64 GiB physical RAM. The dependency/patch points used
-.NET 8.0.26; the later MCE points used .NET 8.0.29. The exact JSON reports in this
+.NET 8.0.26; the later MCE and content-control binding points used .NET 8.0.29. The exact JSON reports in this
 directory contain timings, retained managed memory, total allocations and process peak
 working set.
+
+## Content-control and Custom XML binding graph
+
+The synthetic DOCX contains one physical Custom XML store, one distinct positional
+XPath per plain-text content control and one resolved element per binding. The measured
+time is package read + semantic projection + binding-graph construction. It excludes
+Word and dependency-graph materialization.
+
+| Controls/bindings/targets | Measured time | Binding build | Retained managed delta | Peak working set | Managed allocations |
+|---:|---:|---:|---:|---:|---:|
+| 10,000 | 2.30 s | 0.79 s | 123.1 MiB | 201.9 MiB | 567.4 MiB |
+| 100,000 | 15.40 s | 5.23 s | 1,274.4 MiB | 1,761.8 MiB | 5,960.7 MiB |
+
+All bindings resolved with zero diagnostics. The 100,000 point reached the exact
+control and binding ceilings, but required a benchmark-only metadata-character budget
+of 64 MiB; production remains at 16 MiB and rejects this deliberately metadata-dense
+fixture. The first implementation also exposed quadratic positional XPath traversal.
+The measured version indexes each parent's children by QName once and selects `[n]` in
+constant time. Even after that correction, allocation remains severe and requires
+compact source/identity storage before this path can be called light.
 
 ## Dependency graph
 
@@ -69,8 +89,9 @@ affected-element storage remain necessary before calling this path light.
 ```powershell
 dotnet build native/WordToolkit.Engine.Benchmarks/WordToolkit.Engine.Benchmarks.csproj -c Release
 dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- graph --target-nodes 100000
+dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- bindings --target-nodes 100000
 dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- patch --payload-mib 64 --parts 64
-dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- mce --target-elements 100000
+dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- mce --target-nodes 100000
 ```
 
 The manual `document-engine-benchmarks` workflow runs all recorded scale points with the

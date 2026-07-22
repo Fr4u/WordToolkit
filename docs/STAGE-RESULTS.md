@@ -1,5 +1,42 @@
 # Stage results
 
+## WordToolkit 0.35.0 content-control and Custom XML binding graph — 2026-07-22
+
+- Added a typed, source-linked read graph for `w:sdt` controls, physical Custom XML
+  stores, Word's built-in core/extended property stores, standard/Office 2013 bindings,
+  restricted child-element XPath targets and repeating-section topology.
+- Integrated control/store/target/repeating nodes and edges into the shared dependency
+  graph. The nine-fixture semantic oracle was updated only after independent OPC part
+  enumeration confirmed every newly counted physical or built-in store.
+- Added lazy `inspect_ooxml_content_controls` with exact filters, paging and independent
+  name/binding/source opt-ins. Custom XML values, visible bound values and raw XML never
+  leave the action. Nested identifier arrays are capped at 100 and namespace/schema
+  arrays at 20, with explicit truncation flags.
+- Replaced quadratic positional XPath sibling rescans with one per-store parent/QName
+  index and bounded intermediate expansion.
+- Full native engine suite: **331 passed, 0 skipped**.
+- Full native MCP host suite: **223 passed, 0 skipped**.
+- The checked-in 10,000-binding point completed in 2.30 seconds with 201.9 MiB peak
+  working set. The 100,000-control/binding/target point completed in 15.40 seconds with
+  1,761.8 MiB peak working set and 5,960.7 MiB managed allocations. It required a
+  benchmark-only 64 MiB metadata budget; production remains at 16 MiB. The result proves
+  reachability on the measured 64 GiB host, not cheap operation.
+- Native package version: `0.35.0+codex.20260722223601`, with 14 public gateway tools
+  and **83** lazy native actions.
+- Two independent local builds produced byte-identical **195-file**, **84,897,393-byte**
+  expanded trees and byte-identical **36,123,774-byte** ZIPs. ZIP SHA-256:
+  `dcaa12c58eed3b1b03f10c6772083a934c62e84f4615e738bee975f37fc7d471`.
+  Executable SHA-256:
+  `59fb8419dbe664d1b1ae7f0b5df35b7738cfd1c43b69719049d8e06dd64cd138`.
+  Runtime assembly SHA-256:
+  `5f3cee35fe78dd0f93392413b3990412b2e3d3da775b39abb216fd7d93ebecdc`.
+- The exact packaged executable inspected the advanced torture DOCX as one control, one
+  resolved binding, one target and two stores with zero issues and no Word process. The
+  complete compact JSON-RPC response was 2,718 characters and contained no Word/Custom
+  XML part path or raw XML element.
+- Hosted CI/artifact parity is not claimed in this local checkpoint. Human review and
+  the licensed Word release gate remain required; the public release stays at 0.34.0.
+
 ## WordToolkit 0.35.0 markup-compatibility graph — 2026-07-22
 
 - Added a bounded, source-preserving ECMA-376 Part 3 fifth-edition graph for

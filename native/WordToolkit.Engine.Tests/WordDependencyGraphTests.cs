@@ -129,7 +129,12 @@ public sealed class WordDependencyGraphTests
         Assert.True(first.Coverage.References);
         Assert.True(first.Coverage.Sections);
         Assert.True(first.Coverage.Charts);
+        Assert.True(first.Coverage.ContentControlsAndCustomXml);
         Assert.Contains("smartart_diagrams", first.Coverage.ExplicitlyUnmodeledDomains);
+        Assert.DoesNotContain(
+            "content_control_custom_xml_bindings",
+            first.Coverage.ExplicitlyUnmodeledDomains
+        );
         Assert.DoesNotContain(
             "charts_smartart_diagrams",
             first.Coverage.ExplicitlyUnmodeledDomains
@@ -146,6 +151,74 @@ public sealed class WordDependencyGraphTests
             "TableGrid",
             semantic.Nodes.Single(node => node.Kind == WordSemanticNodeKind.Table)
                 .Properties["style_id"]
+        );
+    }
+
+    [Fact]
+    public void JoinsRealContentControlsCustomXmlStoresAndBindingTargets()
+    {
+        var path = Path.Combine(
+            FindRepositoryRoot(),
+            "examples",
+            "advanced",
+            "WordToolkit-advanced-torture-test.docx"
+        );
+        var package = new OpcPackageReader().Read(path);
+        var semantic = new WordSemanticProjector().Project(package);
+        var contentControls = new WordContentControlBindingGraphBuilder().Build(
+            package,
+            semantic
+        );
+
+        var graph = new WordDependencyGraphBuilder().Build(package, semantic);
+
+        Assert.True(graph.Coverage.ContentControlsAndCustomXml);
+        Assert.Equal(contentControls.Issues.Count, graph.ContentControlIssueCount);
+        Assert.Contains(
+            graph.Nodes,
+            node => node.Kind == WordDependencyNodeKind.ContentControl
+                && node.SemanticKind == WordSemanticNodeKind.ContentControl
+                && node.SemanticNodeId is not null
+        );
+        Assert.Contains(
+            graph.Nodes,
+            node => node.Kind == WordDependencyNodeKind.CustomXmlStore
+                && node.IsResolved
+        );
+        Assert.Contains(
+            graph.Nodes,
+            node => node.Kind == WordDependencyNodeKind.CustomXmlBindingTarget
+                && node.IsResolved
+        );
+        Assert.Contains(
+            graph.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.DefinesContentControl
+        );
+        Assert.Contains(
+            graph.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.DefinesCustomXmlStore
+        );
+        Assert.Contains(
+            graph.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.ContentControlUsesStore
+                && edge.IsResolved
+        );
+        Assert.Contains(
+            graph.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.CustomXmlStoreContainsTarget
+        );
+        Assert.Contains(
+            graph.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.ContentControlBindsTarget
+                && edge.IsResolved
+        );
+        Assert.All(
+            graph.Edges,
+            edge =>
+            {
+                Assert.True(graph.TryGetNode(edge.SourceNodeId, out _));
+                Assert.True(graph.TryGetNode(edge.TargetNodeId, out _));
+            }
         );
     }
 
@@ -229,6 +302,11 @@ public sealed class WordDependencyGraphTests
         var numbering = new WordNumberingGraphBuilder().Build(package, semantic, styles);
         var references = new WordReferenceGraphBuilder().Build(package, semantic);
         var sections = new WordSectionGraphBuilder().Build(package, semantic);
+        var charts = new WordChartGraphBuilder().Build(package);
+        var otherContentControls = new WordContentControlBindingGraphBuilder().Build(
+            otherPackage,
+            otherSemantic
+        );
 
         Assert.Throws<WordDependencyProjectionException>(() =>
             new WordDependencyGraphBuilder().Build(
@@ -238,6 +316,18 @@ public sealed class WordDependencyGraphTests
                 numbering,
                 references,
                 sections
+            )
+        );
+        Assert.Throws<WordDependencyProjectionException>(() =>
+            new WordDependencyGraphBuilder().Build(
+                package,
+                semantic,
+                styles,
+                numbering,
+                references,
+                sections,
+                charts,
+                otherContentControls
             )
         );
     }
@@ -373,5 +463,21 @@ public sealed class WordDependencyGraphTests
             new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)
         );
         writer.Write(content);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "pyproject.toml")))
+            {
+                return current.FullName;
+            }
+            current = current.Parent;
+        }
+        throw new DirectoryNotFoundException(
+            "Could not locate the WordToolkit repository root."
+        );
     }
 }

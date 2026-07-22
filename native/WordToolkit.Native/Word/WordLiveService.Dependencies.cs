@@ -149,6 +149,7 @@ internal sealed partial class WordLiveService
                     references = graph.ReferenceIssueCount,
                     unbound_section_stories = graph.UnboundSectionStoryCount,
                     charts = graph.ChartIssueCount,
+                    content_controls = graph.ContentControlIssueCount,
                 },
                 coverage = new
                 {
@@ -159,6 +160,8 @@ internal sealed partial class WordLiveService
                     references = graph.Coverage.References,
                     sections = graph.Coverage.Sections,
                     charts = graph.Coverage.Charts,
+                    content_controls_and_custom_xml = graph.Coverage
+                        .ContentControlsAndCustomXml,
                     explicitly_unmodeled_domains = graph.Coverage
                         .ExplicitlyUnmodeledDomains,
                 },
@@ -212,6 +215,7 @@ internal sealed partial class WordLiveService
                 or WordNumberingLimitException
                 or WordReferenceLimitException
                 or WordSectionLimitException
+                or WordContentControlLimitException
         )
         {
             throw new NativeToolException(
@@ -226,6 +230,7 @@ internal sealed partial class WordLiveService
                 or WordNumberingResolutionException
                 or WordReferenceProjectionException
                 or WordSectionProjectionException
+                or WordContentControlProjectionException
         )
         {
             throw new NativeToolException(

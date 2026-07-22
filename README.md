@@ -90,6 +90,9 @@ apply_ooxml_lint_repair
 inspect_ooxml_equations
 inspect_ooxml_review
 inspect_ooxml_fonts
+inspect_ooxml_charts
+inspect_ooxml_content_controls
+inspect_ooxml_markup_compatibility
 resolve_ooxml_formatting
 plan_ooxml_text_edits
 apply_ooxml_text_edits
@@ -208,12 +211,23 @@ character pairs can be consolidated only as one explicit, exactly equivalent bat
 Saved-package dependency inspection joins OPC reachability, semantic containment across
 projected stories, explicit paragraph/run/table style use, style inheritance/defaults,
 numbering definitions and uses, field/bookmark targets, section header/footer bindings,
-and classic charts/series/axes/related parts into one deterministic graph. Missing and external targets remain explicit
+classic charts/series/axes/related parts, content controls, physical and built-in XML
+stores, resolved binding targets and repeating-section topology into one deterministic
+graph. Missing and external targets remain explicit
 nodes; every edge endpoint is verified. The default view returns only bounded edge-kind
 counts and coverage gaps. Node keys and source provenance are separate opt-ins, external
 targets are never followed, and impact traversal is capped at four hops plus an
-independent hard edge budget. DrawingML layout, SmartArt, OLE, custom-XML
-bindings, bibliography sources, active content and co-authoring remain openly unmodeled.
+independent hard edge budget. DrawingML layout, SmartArt, OLE, bibliography sources,
+active content and co-authoring remain openly unmodeled.
+
+Saved-package content-control inspection joins source-linked `w:sdt` type, level, lock,
+placeholder and parent state to physical Custom XML stores, Word's built-in core and
+extended property stores, standard/Office 2013 bindings, selected target ordinals and
+repeating-section items. XPath is deliberately restricted to absolute child-element
+paths with namespace prefixes and positive positions. The default response omits
+aliases, tags, titles, GUIDs, XPath, namespace mappings, part names and source ordinals;
+separate opt-ins reveal bounded metadata only. Custom XML values, visible bound values
+and raw XML are never returned, and no external target or Word process is opened.
 
 Saved-package chart inspection is parse-only and metadata-first. It understands all 16
 classic DrawingML plot families in Transitional and Strict OOXML, series source roles,
@@ -523,7 +537,7 @@ pwsh -File native/scripts/live-acceptance.ps1 `
 
 Every test mutation is tracked, verified and undone. The script fails if cleanup leaves any outstanding WordToolkit operation.
 
-Run the complete packaged 14-tool/82-action live acceptance gate:
+Run the complete packaged 14-tool/83-action live acceptance gate:
 
 ```powershell
 pwsh -NoProfile -File native/scripts/live-full-capabilities-timed.ps1 `

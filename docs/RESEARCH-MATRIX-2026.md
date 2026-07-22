@@ -425,6 +425,56 @@ implemented by removing the same marker: it requires restoring or recalculating 
 field/numbering state. Reject therefore remains blocked until the reference/numbering
 engines can prove that reconstruction.
 
+## Content-control and Custom XML binding findings
+
+The Open XML SDK's [`SdtProperties`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.sdtproperties?view=openxml-3.0.1)
+inventory shows why one generic `ContentControl` node is too weak: alias, tag, native
+ID, lock, placeholder, temporary state, mutually exclusive control types and
+[`DataBinding`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.databinding?view=openxml-3.0.1)
+all live in the property set. Office 2010 and 2013 add checkbox/entity and repeating
+section vocabularies. The engine therefore keeps the semantic `w:sdt` identity but adds
+a separate typed binding graph instead of pushing raw property XML into the AI context.
+
+The Office storage notes for
+[Custom XML](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oi29500/59d313b6-b9a8-4850-83f1-e87ad9abd509)
+and the SDK's
+[`CustomXmlPropertiesPart`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.packaging.customxmlpart.customxmlpropertiespart?view=openxml-3.0.1)
+make the OPC relationship chain the source of truth. Numbered `itemN.xml` filenames are
+not identities. A physical data item points to one properties item, whose
+[`itemID`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.customxmldataproperties.datastoreitem.itemid?view=openxml-3.0.1)
+must be unique across the package. The implementation follows those relationships,
+normalizes GUIDs, retains schema-reference metadata and refuses to choose between
+duplicate stores.
+
+Real LibreOffice fixtures also bind SDTs to Word's well-defined core and extended
+properties stores without physical `customXml` items. Microsoft's
+[well-defined Custom XML part notes](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oe376/52769434-bde1-4e81-a128-7001873acb2b)
+and Office API documentation identify the core-properties store. The observed extended
+store is retained as a producer-backed interoperability fact. Both resolve through exact
+content types; neither is fabricated from a missing physical item.
+
+MS-DOCX's Office 2013
+[`dataBinding`](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-docx/2805f4e9-9333-4e7a-bb56-f1ce0e9e8e25)
+extension is not equivalent to the standard property. It can bind rich-text controls by
+storing escaped flattened WordprocessingML, while the standard binding is ignored for
+rich text and building-block gallery controls. The graph records which dialect was
+declared and emits a warning when the standard form is semantically ignored; it does
+not decode escaped rich-text markup or claim write support.
+
+Microsoft's repeating-section documentation requires the control's item count to track
+the XML elements selected by its binding. WordToolkit therefore joins direct
+`repeatingSectionItem` children to the container and reports cardinality mismatch.
+The SDK's row-content contract also states that row-level SDT content cannot be mapped;
+a resolved row binding remains an error rather than a silently accepted shape.
+
+Arbitrary XPath evaluation was rejected as the public engine contract. The implemented
+subset accepts only absolute child-element paths, namespace prefixes and positive
+integer positions. Descendant axes, attributes, functions, wildcards and arbitrary
+predicates are explicit `XPathUnsupported` evidence. This loses some legitimate Word
+bindings, but it does not turn an inspector over attacker-controlled packages into an
+unbounded expression runtime. Values are never copied into either the graph or MCP
+response.
+
 ## OfficeMath and equation-specific findings
 
 Word stores professional equations as OMML, while accepting user-facing forms such as

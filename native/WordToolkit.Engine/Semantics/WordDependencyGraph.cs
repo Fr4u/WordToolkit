@@ -24,6 +24,9 @@ public enum WordDependencyNodeKind
     Chart,
     ChartSeries,
     ChartAxis,
+    ContentControl,
+    CustomXmlStore,
+    CustomXmlBindingTarget,
 }
 
 public enum WordDependencyEdgeKind
@@ -58,6 +61,12 @@ public enum WordDependencyEdgeKind
     ChartContainsSeries,
     ChartContainsAxis,
     ChartUsesPart,
+    DefinesContentControl,
+    DefinesCustomXmlStore,
+    ContentControlUsesStore,
+    CustomXmlStoreContainsTarget,
+    ContentControlBindsTarget,
+    RepeatingSectionContainsItem,
 }
 
 public enum WordDependencyIssueSeverity
@@ -112,6 +121,7 @@ public sealed record WordDependencyCoverage(
     bool References,
     bool Sections,
     bool Charts,
+    bool ContentControlsAndCustomXml,
     IReadOnlyList<string> ExplicitlyUnmodeledDomains
 );
 
@@ -135,7 +145,8 @@ public sealed class WordDependencyGraph
         int numberingIssueCount,
         int referenceIssueCount,
         int unboundSectionStoryCount,
-        int chartIssueCount
+        int chartIssueCount,
+        int contentControlIssueCount
     )
     {
         PackageFingerprint = packageFingerprint;
@@ -150,6 +161,7 @@ public sealed class WordDependencyGraph
         ReferenceIssueCount = referenceIssueCount;
         UnboundSectionStoryCount = unboundSectionStoryCount;
         ChartIssueCount = chartIssueCount;
+        ContentControlIssueCount = contentControlIssueCount;
         _nodesById = new ReadOnlyDictionary<string, WordDependencyNode>(
             nodes.ToDictionary(node => node.Id, StringComparer.Ordinal)
         );
@@ -180,6 +192,8 @@ public sealed class WordDependencyGraph
     public int UnboundSectionStoryCount { get; }
 
     public int ChartIssueCount { get; }
+
+    public int ContentControlIssueCount { get; }
 
     public bool TryGetNode(string nodeId, out WordDependencyNode? node)
     {
@@ -261,7 +275,6 @@ public sealed class WordDependencyGraphBuilder
                 "drawingml_vml_layout",
                 "smartart_diagrams",
                 "ole_embedded_packages",
-                "content_control_custom_xml_bindings",
                 "citations_bibliography_sources",
                 "macros_signatures_encryption",
                 "coauthoring_sessions",
@@ -367,6 +380,55 @@ public sealed class WordDependencyGraphBuilder
             sections.PackageFingerprint,
             charts.PackageFingerprint
         );
+        var contentControls = new WordContentControlBindingGraphBuilder().Build(
+            package,
+            semanticDocument,
+            cancellationToken
+        );
+        return Build(
+            package,
+            semanticDocument,
+            styles,
+            numbering,
+            references,
+            sections,
+            charts,
+            contentControls,
+            cancellationToken
+        );
+    }
+
+    public WordDependencyGraph Build(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordStyleGraph styles,
+        WordNumberingGraph numbering,
+        WordReferenceGraph references,
+        WordSectionGraph sections,
+        WordChartGraph charts,
+        WordContentControlBindingGraph contentControls,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        ArgumentNullException.ThrowIfNull(semanticDocument);
+        ArgumentNullException.ThrowIfNull(styles);
+        ArgumentNullException.ThrowIfNull(numbering);
+        ArgumentNullException.ThrowIfNull(references);
+        ArgumentNullException.ThrowIfNull(sections);
+        ArgumentNullException.ThrowIfNull(charts);
+        ArgumentNullException.ThrowIfNull(contentControls);
+        cancellationToken.ThrowIfCancellationRequested();
+        EnsureFingerprint(
+            package.Fingerprint,
+            semanticDocument.PackageFingerprint,
+            styles.PackageFingerprint,
+            numbering.PackageFingerprint,
+            references.PackageFingerprint,
+            sections.PackageFingerprint,
+            charts.PackageFingerprint,
+            contentControls.PackageFingerprint
+        );
 
         var state = new BuildState(_options);
         var reachableParts = PackageReachableParts(package, cancellationToken);
@@ -433,6 +495,13 @@ public sealed class WordDependencyGraphBuilder
             reachableParts,
             cancellationToken
         );
+        AddContentControlDependencies(
+            state,
+            package,
+            contentControls,
+            reachableParts,
+            cancellationToken
+        );
 
         var (nodes, edges, issues) = state.Materialize();
         return new WordDependencyGraph(
@@ -449,6 +518,7 @@ public sealed class WordDependencyGraphBuilder
                 References: true,
                 Sections: true,
                 Charts: true,
+                ContentControlsAndCustomXml: true,
                 ExplicitlyUnmodeledDomains
             ),
             package.Diagnostics.Count,
@@ -456,8 +526,234 @@ public sealed class WordDependencyGraphBuilder
             numbering.Issues.Count,
             references.Issues.Count,
             sections.UnboundStoryPartUris.Count,
-            charts.Issues.Count
+            charts.Issues.Count,
+            contentControls.Issues.Count
         );
+    }
+
+    private static void AddContentControlDependencies(
+        BuildState state,
+        OpcPackageSnapshot package,
+        WordContentControlBindingGraph contentControls,
+        IReadOnlySet<string> reachableParts,
+        CancellationToken cancellationToken
+    )
+    {
+        var controlNodeIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var control in contentControls.Controls)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var partNodeId = PartNode(
+                state,
+                package,
+                reachableParts,
+                control.PartUri
+            );
+            var controlNodeId = state.AddNode(
+                WordDependencyNodeKind.ContentControl,
+                control.Id,
+                isResolved: true,
+                isExternal: false,
+                isPackageReachable: reachableParts.Contains(control.PartUri),
+                partUri: control.PartUri,
+                sourceElementOrdinal: control.SourceElementOrdinal,
+                semanticNodeId: control.SemanticNodeId,
+                semanticKind: WordSemanticNodeKind.ContentControl
+            );
+            controlNodeIds.Add(control.Id, controlNodeId);
+            state.AddEdge(
+                WordDependencyEdgeKind.DefinesContentControl,
+                partNodeId,
+                controlNodeId,
+                isResolved: true,
+                isExternal: false,
+                qualifier: control.Type.ToString().ToLowerInvariant(),
+                partUri: control.PartUri,
+                sourceElementOrdinal: control.SourceElementOrdinal
+            );
+        }
+
+        var storesById = contentControls.Stores.ToDictionary(
+            store => store.Id,
+            StringComparer.Ordinal
+        );
+        var storeNodeIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var store in contentControls.Stores)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var storeNodeId = state.AddNode(
+                WordDependencyNodeKind.CustomXmlStore,
+                store.Id,
+                isResolved: store.Parsed,
+                isExternal: false,
+                isPackageReachable: reachableParts.Contains(store.PartUri),
+                partUri: store.PartUri
+            );
+            storeNodeIds.Add(store.Id, storeNodeId);
+            var partNodeId = PartNode(
+                state,
+                package,
+                reachableParts,
+                store.PartUri
+            );
+            state.AddEdge(
+                WordDependencyEdgeKind.DefinesCustomXmlStore,
+                partNodeId,
+                storeNodeId,
+                isResolved: store.Parsed,
+                isExternal: false,
+                qualifier: store.Kind.ToString().ToLowerInvariant(),
+                partUri: store.PartUri
+            );
+        }
+
+        var targetNodeIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var target in contentControls.Targets)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                !storeNodeIds.TryGetValue(target.StoreId, out var storeNodeId)
+                || !storesById.TryGetValue(target.StoreId, out var store)
+            )
+            {
+                throw new WordDependencyProjectionException(
+                    "A custom-XML binding target has no owning store."
+                );
+            }
+            var targetNodeId = state.AddNode(
+                WordDependencyNodeKind.CustomXmlBindingTarget,
+                target.Id,
+                isResolved: true,
+                isExternal: false,
+                isPackageReachable: reachableParts.Contains(store.PartUri),
+                partUri: store.PartUri,
+                sourceElementOrdinal: target.SourceElementOrdinal
+            );
+            targetNodeIds.Add(target.Id, targetNodeId);
+            state.AddEdge(
+                WordDependencyEdgeKind.CustomXmlStoreContainsTarget,
+                storeNodeId,
+                targetNodeId,
+                isResolved: true,
+                isExternal: false,
+                partUri: store.PartUri,
+                sourceElementOrdinal: target.SourceElementOrdinal
+            );
+        }
+
+        foreach (var binding in contentControls.Bindings)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!controlNodeIds.TryGetValue(binding.ControlId, out var controlNodeId))
+            {
+                throw new WordDependencyProjectionException(
+                    "A content-control binding has no owning content control."
+                );
+            }
+
+            string storeNodeId;
+            var storeResolved = false;
+            if (
+                binding.StoreId is not null
+                && storeNodeIds.TryGetValue(binding.StoreId, out var knownStoreNodeId)
+                && storesById.TryGetValue(binding.StoreId, out var knownStore)
+            )
+            {
+                storeNodeId = knownStoreNodeId;
+                storeResolved = knownStore.Parsed;
+            }
+            else
+            {
+                storeNodeId = state.AddNode(
+                    WordDependencyNodeKind.CustomXmlStore,
+                    "unresolved:" + binding.Id,
+                    isResolved: false,
+                    isExternal: false,
+                    isPackageReachable: false
+                );
+            }
+            var storeEdgeId = state.AddEdge(
+                WordDependencyEdgeKind.ContentControlUsesStore,
+                controlNodeId,
+                storeNodeId,
+                isResolved: storeResolved,
+                isExternal: false,
+                qualifier: binding.Status.ToString().ToLowerInvariant(),
+                partUri: binding.PartUri,
+                sourceElementOrdinal: binding.SourceElementOrdinal
+            );
+
+            foreach (var targetId in binding.TargetIds)
+            {
+                if (!targetNodeIds.TryGetValue(targetId, out var targetNodeId))
+                {
+                    throw new WordDependencyProjectionException(
+                        "A content-control binding references a missing custom-XML target."
+                    );
+                }
+                state.AddEdge(
+                    WordDependencyEdgeKind.ContentControlBindsTarget,
+                    controlNodeId,
+                    targetNodeId,
+                    isResolved: true,
+                    isExternal: false,
+                    qualifier: binding.IsOffice2013RichTextBinding
+                        ? "office2013-rich-text"
+                        : "standard",
+                    partUri: binding.PartUri,
+                    sourceElementOrdinal: binding.SourceElementOrdinal
+                );
+            }
+
+            if (binding.Status != WordBindingResolutionStatus.Resolved)
+            {
+                state.AddIssue(
+                    "WDG050",
+                    binding.Status == WordBindingResolutionStatus.XPathUnsupported
+                        ? WordDependencyIssueSeverity.Warning
+                        : WordDependencyIssueSeverity.Error,
+                    "A content-control custom-XML binding is unresolved.",
+                    nodeId: controlNodeId,
+                    edgeId: storeEdgeId,
+                    partUri: binding.PartUri,
+                    sourceElementOrdinal: binding.SourceElementOrdinal
+                );
+            }
+        }
+
+        foreach (var repeatingSection in contentControls.RepeatingSections)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                !controlNodeIds.TryGetValue(
+                    repeatingSection.ControlId,
+                    out var containerNodeId
+                )
+            )
+            {
+                throw new WordDependencyProjectionException(
+                    "A repeating section has no content-control node."
+                );
+            }
+            foreach (var itemControlId in repeatingSection.ItemControlIds)
+            {
+                if (!controlNodeIds.TryGetValue(itemControlId, out var itemNodeId))
+                {
+                    throw new WordDependencyProjectionException(
+                        "A repeating section references a missing item control."
+                    );
+                }
+                state.AddEdge(
+                    WordDependencyEdgeKind.RepeatingSectionContainsItem,
+                    containerNodeId,
+                    itemNodeId,
+                    isResolved: true,
+                    isExternal: false,
+                    partUri: repeatingSection.PartUri,
+                    sourceElementOrdinal: repeatingSection.SourceElementOrdinal
+                );
+            }
+        }
     }
 
     private static void AddChartDependencies(

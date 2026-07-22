@@ -35,6 +35,12 @@ dependency-edge-kind counts. The style fixture also fixes selected effective par
 and run properties using source part, lexical element ordinal and semantic kind; it
 does not depend on document text or a transient node ID.
 
+Dependency expectations include every physical Custom XML item plus Word's built-in
+core and extended property stores. The July 2026 content-control graph change added
+only these source-proven store nodes and `defines_custom_xml_store` edges to the nine
+existing fixtures; the corresponding OPC parts were independently enumerated before
+the oracle was updated.
+
 The manifest contains no document text, raw XML, field result text, comment text,
 relationship targets or binary payloads. Tests operate on the engine's typed objects.
 
@@ -79,4 +85,3 @@ Run the focused gate with the pinned SDK:
 dotnet test native/WordToolkit.Engine.Tests/WordToolkit.Engine.Tests.csproj `
   --filter FullyQualifiedName~GoldenSemanticCorpusTests
 ```
-
