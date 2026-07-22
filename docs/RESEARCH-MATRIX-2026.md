@@ -1,4 +1,4 @@
-# Word document-engine research matrix (2026-07-21)
+# Word document-engine research matrix (2026-07-22)
 
 This document records evidence that shapes WordToolkit's document-engine design. It is
 not a vendor scorecard disguised as science. A feature advertised on a landing page is
@@ -211,13 +211,14 @@ public WordToolkit core cannot quietly require them or copy their behavior by gu
 
 ## AI-oriented CLI and MCP implementations
 
-Pinned source snapshots were cloned under a temporary research directory on
-2026-07-21. Repository metadata is volatile; commit IDs make the observations
+Pinned source snapshots were cloned under a temporary research directory and the
+AI/Word repository heads were rechecked on 2026-07-22. Repository metadata is volatile;
+commit IDs make the observations
 reproducible.
 
 | Project and snapshot | Observed architecture and strength | Observed failure boundary | Evidence |
 |---|---|---|---|
-| [OfficeCLI](https://github.com/iOfficeAI/OfficeCLI) `0b3557bbec29f073f5df6b92b4b8dcefa7e3c160` | .NET/Open XML SDK, wide command surface, selectors, dump/replay, resident mode, Word/HTML render routes, one compact generic MCP command, sibling-temp atomic replacement. | Source contains explicit unsupported warnings and replay-loss paths; no independent Word pagination; broad handlers are not a unified repair/diff semantic engine. Atomic replacement is crash-oriented, not demonstrated power-loss durability. | A |
+| [OfficeCLI](https://github.com/iOfficeAI/OfficeCLI) `e7916a2ca5c6e865269daf7d3ae0652cdc435433` (`1.0.140`) | .NET/Open XML SDK, wide command surface, selectors, issue views, dump/replay, resident mode, Word/HTML render routes, one compact generic MCP command, sibling-temp atomic replacement. The 2026-07-22 head adds a fallback move when the destination disappears after its session lock is released. | Source contains explicit unsupported warnings and replay-loss paths; no independent Word pagination; broad handlers are not a unified repair/diff semantic engine. The new missing-destination fallback prevents one class of discarded edits, but it still does not bind persistence to a previously reviewed filesystem identity or demonstrate power-loss durability. | A |
 | [docx-cli](https://github.com/kklimuk/docx-cli) `3c2e2721ed90cbb42626c270d183a09d3b6d08b0` | TypeScript/Bun, substantial AST, stable locators, annotated Markdown, XML-in-place edits, equations, comments, revisions, raw parts, schema validation, and practical AI benchmark design. | Documentation admits no undo and in-place overwrite. Rendering delegates to Word/LibreOffice/PDFium routes. Raw escape hatches remain necessary for unsupported structures. | A |
 | [Office Word MCP Server](https://github.com/GongRzhe/Office-Word-MCP-Server) `a3bbbb6d6167e68cf855d73ef7dc6cd8cfbfedba` | Accessible python-docx MCP tool set for common document construction. | Archived in March 2026; small regression surface; several advanced features are simplified or placeholder-backed; no complete package graph or native layout. | A |
 | [word-mcp-live](https://github.com/ykarapazar/word-mcp-live) `c6c76179f66b27846d8f6a822a683e144d9288cb` | Broad live Word COM surface on Windows plus a macOS JXA path; over one hundred MCP tools. | Raw positional indices, weak optimistic concurrency, undo can cross unrelated user edits, macOS undo grouping is a no-op, and equation parity is platform-dependent. | A |
@@ -225,6 +226,12 @@ reproducible.
 | [hongkongkiwi/docx-mcp](https://github.com/hongkongkiwi/docx-mcp) `d3fbbcfd7c93b0403de65d31f733c01b1cb2234f` | Small Rust package with an attractive standalone deployment story. | Source inspection found placeholder feature flags and placeholder rendering/TOC behavior behind broad README claims. Marketing breadth is not implementation evidence. | A |
 | [mcp-msoffice-interop-word](https://github.com/mario-andreschak/mcp-msoffice-interop-word) `e50e339f1ac11fde6904addebef8c0b070879160` | Thin TypeScript/winax bridge to desktop Word. | Raw COM enums, basic failure handling, no package model, transactions, version tokens, validation, or semantic locators. | A |
 | [OfficeMCP](https://github.com/OfficeMCP/OfficeMCP) `188140dc784f53d66da566696072f47d29fa795a` | Generic access to Office automation. | Its generic tool executes supplied Python with `exec` against COM objects. That is an arbitrary-code-execution boundary, not a safe document API. No detected repository license at the research snapshot. | A |
+
+The 2026-07-22 head refresh found the other seven pinned AI/Word repositories unchanged.
+OfficeCLI was 28 commits ahead of the prior `0b3557b...` snapshot; the changed files were
+mostly Excel, PowerPoint, formula, installer and preview work. No Word handler changed in
+that range. The atomic-writer change above is recorded because persistence semantics are
+part of the comparison contract, even when a release contains no new Word feature.
 
 The useful ideas are clear: OfficeCLI's compact gateway and resident mode, docx-cli's
 locators and benchmark methodology, SecurityRonin's regression discipline, and live

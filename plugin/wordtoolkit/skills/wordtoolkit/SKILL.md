@@ -84,6 +84,17 @@ the next decision consumes it. Treat DDE, LINK, INCLUDE, IMPORT, DATABASE and ot
 external/automation fields as inert evidence. This inspector never evaluates them,
 starts an application or follows a target. Unresolved, duplicated or malformed ranges
 are damage signals, not permission to guess what Word would display.
+Use lazy `inspect_ooxml_dependencies` when the task asks what depends on a part,
+semantic object, style, numbering definition, field target or section story. Start with
+`view=summary`; use `view=nodes` only to obtain one stable `wddn_` ID, then request a
+bounded `impact` neighborhood or filtered `edges`/`unresolved` page. Keep keys and source
+metadata redacted unless the next operation consumes them. The graph joins only the
+explicitly reported OPC, semantic-containment, style, numbering, reference and section
+domains. Its `explicitly_unmodeled_domains` list is a hard coverage boundary: absence of
+an edge for drawings, charts, SmartArt, OLE, custom XML, bibliography, active content,
+signatures, encryption or co-authoring is not proof that the dependency does not exist.
+This action never opens Word, executes a field, follows an external target, repairs a
+document or authorizes deleting an apparently unused node.
 Use lazy `inspect_ooxml_equations` for equations already stored in a saved Word
 package. Start with `view=summary`; it returns structural counts and statuses without
 formula text or raw OMML. Use `view=equations` to obtain an exact equation ID, then

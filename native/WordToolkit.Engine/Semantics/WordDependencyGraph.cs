@@ -1,0 +1,2021 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using WordToolkit.Engine.Packaging;
+
+namespace WordToolkit.Engine.Semantics;
+
+public enum WordDependencyNodeKind
+{
+    Package,
+    Part,
+    ExternalTarget,
+    SemanticNode,
+    Style,
+    AbstractNumbering,
+    NumberingInstance,
+    PictureBullet,
+    Story,
+    Bookmark,
+    Field,
+    ReferenceTarget,
+    Section,
+}
+
+public enum WordDependencyEdgeKind
+{
+    PackageRelationship,
+    PartContainsSemanticRoot,
+    SemanticContainment,
+    DefinesStyle,
+    UsesStyle,
+    DefaultStyle,
+    StyleBasedOn,
+    StyleNext,
+    StyleLinked,
+    DefinesAbstractNumbering,
+    DefinesNumberingInstance,
+    DefinesPictureBullet,
+    NumberingInstanceUsesAbstract,
+    NumberingLevelUsesStyle,
+    AbstractNumberingUsesStyle,
+    UsesNumbering,
+    StyleUsesNumbering,
+    NumberingUsesPictureBullet,
+    PictureBulletRelationship,
+    DefinesStory,
+    StoryContainsBookmark,
+    StoryContainsField,
+    FieldContainsField,
+    FieldReference,
+    DefinesSection,
+    SectionBindsStory,
+}
+
+public enum WordDependencyIssueSeverity
+{
+    Info,
+    Warning,
+    Error,
+}
+
+public sealed record WordDependencyIssue(
+    string Code,
+    WordDependencyIssueSeverity Severity,
+    string Message,
+    string? NodeId = null,
+    string? EdgeId = null,
+    string? PartUri = null,
+    int? SourceElementOrdinal = null
+);
+
+public sealed record WordDependencyNode(
+    string Id,
+    WordDependencyNodeKind Kind,
+    string Key,
+    bool IsResolved,
+    bool IsExternal,
+    bool IsPackageReachable,
+    string? PartUri,
+    int? SourceElementOrdinal,
+    SemanticNodeId? SemanticNodeId,
+    WordSemanticNodeKind? SemanticKind
+);
+
+public sealed record WordDependencyEdge(
+    string Id,
+    WordDependencyEdgeKind Kind,
+    string SourceNodeId,
+    string TargetNodeId,
+    bool IsResolved,
+    bool IsExternal,
+    string? Qualifier,
+    string? PartUri,
+    int? SourceElementOrdinal,
+    string? RelationshipId,
+    string? RelationshipType
+);
+
+public sealed record WordDependencyCoverage(
+    bool PackageRelationships,
+    bool SemanticContainment,
+    bool Styles,
+    bool Numbering,
+    bool References,
+    bool Sections,
+    IReadOnlyList<string> ExplicitlyUnmodeledDomains
+);
+
+public sealed class WordDependencyGraph
+{
+    private readonly IReadOnlyDictionary<string, WordDependencyNode> _nodesById;
+    private readonly IReadOnlyDictionary<string, IReadOnlyList<WordDependencyEdge>>
+        _incomingByNodeId;
+    private readonly IReadOnlyDictionary<string, IReadOnlyList<WordDependencyEdge>>
+        _outgoingByNodeId;
+
+    internal WordDependencyGraph(
+        string packageFingerprint,
+        string mainPartUri,
+        IReadOnlyList<WordDependencyNode> nodes,
+        IReadOnlyList<WordDependencyEdge> edges,
+        IReadOnlyList<WordDependencyIssue> issues,
+        WordDependencyCoverage coverage,
+        int packageDiagnosticCount,
+        int styleIssueCount,
+        int numberingIssueCount,
+        int referenceIssueCount,
+        int unboundSectionStoryCount
+    )
+    {
+        PackageFingerprint = packageFingerprint;
+        MainPartUri = mainPartUri;
+        Nodes = new ReadOnlyCollection<WordDependencyNode>(nodes.ToArray());
+        Edges = new ReadOnlyCollection<WordDependencyEdge>(edges.ToArray());
+        Issues = new ReadOnlyCollection<WordDependencyIssue>(issues.ToArray());
+        Coverage = coverage;
+        PackageDiagnosticCount = packageDiagnosticCount;
+        StyleIssueCount = styleIssueCount;
+        NumberingIssueCount = numberingIssueCount;
+        ReferenceIssueCount = referenceIssueCount;
+        UnboundSectionStoryCount = unboundSectionStoryCount;
+        _nodesById = new ReadOnlyDictionary<string, WordDependencyNode>(
+            nodes.ToDictionary(node => node.Id, StringComparer.Ordinal)
+        );
+        _incomingByNodeId = BuildAdjacency(edges, edge => edge.TargetNodeId);
+        _outgoingByNodeId = BuildAdjacency(edges, edge => edge.SourceNodeId);
+    }
+
+    public string PackageFingerprint { get; }
+
+    public string MainPartUri { get; }
+
+    public IReadOnlyList<WordDependencyNode> Nodes { get; }
+
+    public IReadOnlyList<WordDependencyEdge> Edges { get; }
+
+    public IReadOnlyList<WordDependencyIssue> Issues { get; }
+
+    public WordDependencyCoverage Coverage { get; }
+
+    public int PackageDiagnosticCount { get; }
+
+    public int StyleIssueCount { get; }
+
+    public int NumberingIssueCount { get; }
+
+    public int ReferenceIssueCount { get; }
+
+    public int UnboundSectionStoryCount { get; }
+
+    public bool TryGetNode(string nodeId, out WordDependencyNode? node)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
+        return _nodesById.TryGetValue(nodeId, out node);
+    }
+
+    public IReadOnlyList<WordDependencyEdge> Incoming(string nodeId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
+        return _incomingByNodeId.TryGetValue(nodeId, out var edges)
+            ? edges
+            : Array.Empty<WordDependencyEdge>();
+    }
+
+    public IReadOnlyList<WordDependencyEdge> Outgoing(string nodeId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
+        return _outgoingByNodeId.TryGetValue(nodeId, out var edges)
+            ? edges
+            : Array.Empty<WordDependencyEdge>();
+    }
+
+    private static IReadOnlyDictionary<string, IReadOnlyList<WordDependencyEdge>>
+        BuildAdjacency(
+            IReadOnlyList<WordDependencyEdge> edges,
+            Func<WordDependencyEdge, string> keySelector
+        ) => new ReadOnlyDictionary<string, IReadOnlyList<WordDependencyEdge>>(
+            edges.GroupBy(keySelector, StringComparer.Ordinal)
+                .ToDictionary(
+                    group => group.Key,
+                    group => (IReadOnlyList<WordDependencyEdge>)group
+                        .OrderBy(edge => edge.Kind)
+                        .ThenBy(edge => edge.Id, StringComparer.Ordinal)
+                        .ToArray(),
+                    StringComparer.Ordinal
+                )
+        );
+}
+
+public sealed record WordDependencyGraphOptions
+{
+    public static WordDependencyGraphOptions Default { get; } = new();
+
+    public int MaxNodes { get; init; } = 1_000_000;
+
+    public int MaxEdges { get; init; } = 2_000_000;
+
+    public int MaxIssues { get; init; } = 10_000;
+
+    public int MaxKeyCharacters { get; init; } = 65_536;
+
+    internal void Validate()
+    {
+        if (MaxNodes <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxNodes));
+        }
+        if (MaxEdges <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxEdges));
+        }
+        if (MaxIssues <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxIssues));
+        }
+        if (MaxKeyCharacters <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxKeyCharacters));
+        }
+    }
+}
+
+public sealed class WordDependencyGraphBuilder
+{
+    private static readonly IReadOnlyList<string> ExplicitlyUnmodeledDomains =
+        new ReadOnlyCollection<string>(
+            [
+                "drawingml_vml_layout",
+                "charts_smartart_diagrams",
+                "ole_embedded_packages",
+                "content_control_custom_xml_bindings",
+                "citations_bibliography_sources",
+                "macros_signatures_encryption",
+                "coauthoring_sessions",
+            ]
+        );
+
+    private readonly WordDependencyGraphOptions _options;
+
+    public WordDependencyGraphBuilder(WordDependencyGraphOptions? options = null)
+    {
+        _options = options ?? WordDependencyGraphOptions.Default;
+        _options.Validate();
+    }
+
+    public WordDependencyGraph Build(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        ArgumentNullException.ThrowIfNull(semanticDocument);
+        cancellationToken.ThrowIfCancellationRequested();
+        EnsureFingerprint(package.Fingerprint, semanticDocument.PackageFingerprint);
+        var styles = new WordStyleGraphBuilder().Build(
+            package,
+            semanticDocument,
+            cancellationToken
+        );
+        var numbering = new WordNumberingGraphBuilder().Build(
+            package,
+            semanticDocument,
+            styles,
+            cancellationToken
+        );
+        var references = new WordReferenceGraphBuilder().Build(
+            package,
+            semanticDocument,
+            cancellationToken
+        );
+        var sections = new WordSectionGraphBuilder().Build(
+            package,
+            semanticDocument,
+            cancellationToken
+        );
+        return Build(
+            package,
+            semanticDocument,
+            styles,
+            numbering,
+            references,
+            sections,
+            cancellationToken
+        );
+    }
+
+    public WordDependencyGraph Build(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordStyleGraph styles,
+        WordNumberingGraph numbering,
+        WordReferenceGraph references,
+        WordSectionGraph sections,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        ArgumentNullException.ThrowIfNull(semanticDocument);
+        ArgumentNullException.ThrowIfNull(styles);
+        ArgumentNullException.ThrowIfNull(numbering);
+        ArgumentNullException.ThrowIfNull(references);
+        ArgumentNullException.ThrowIfNull(sections);
+        cancellationToken.ThrowIfCancellationRequested();
+        EnsureFingerprint(
+            package.Fingerprint,
+            semanticDocument.PackageFingerprint,
+            styles.PackageFingerprint,
+            numbering.PackageFingerprint,
+            references.PackageFingerprint,
+            sections.PackageFingerprint
+        );
+
+        var state = new BuildState(_options);
+        var reachableParts = PackageReachableParts(package, cancellationToken);
+        var packageNodeId = state.AddNode(
+            WordDependencyNodeKind.Package,
+            package.Fingerprint,
+            isResolved: true,
+            isExternal: false,
+            isPackageReachable: true
+        );
+
+        AddPackageDependencies(
+            state,
+            package,
+            packageNodeId,
+            reachableParts,
+            cancellationToken
+        );
+        AddSemanticDependencies(
+            state,
+            package,
+            semanticDocument,
+            reachableParts,
+            cancellationToken
+        );
+        AddStyleDependencies(
+            state,
+            package,
+            semanticDocument,
+            styles,
+            packageNodeId,
+            reachableParts,
+            cancellationToken
+        );
+        AddNumberingDependencies(
+            state,
+            package,
+            semanticDocument,
+            styles,
+            numbering,
+            reachableParts,
+            cancellationToken
+        );
+        AddReferenceDependencies(
+            state,
+            package,
+            styles,
+            references,
+            reachableParts,
+            cancellationToken
+        );
+        AddSectionDependencies(
+            state,
+            package,
+            semanticDocument,
+            sections,
+            reachableParts,
+            cancellationToken
+        );
+
+        var (nodes, edges, issues) = state.Materialize();
+        return new WordDependencyGraph(
+            package.Fingerprint,
+            semanticDocument.MainPartUri,
+            nodes,
+            edges,
+            issues,
+            new WordDependencyCoverage(
+                PackageRelationships: true,
+                SemanticContainment: true,
+                Styles: true,
+                Numbering: true,
+                References: true,
+                Sections: true,
+                ExplicitlyUnmodeledDomains
+            ),
+            package.Diagnostics.Count,
+            styles.Issues.Count,
+            numbering.Issues.Count,
+            references.Issues.Count,
+            sections.UnboundStoryPartUris.Count
+        );
+    }
+
+    private static void AddPackageDependencies(
+        BuildState state,
+        OpcPackageSnapshot package,
+        string packageNodeId,
+        IReadOnlySet<string> reachableParts,
+        CancellationToken cancellationToken
+    )
+    {
+        foreach (
+            var part in package.Parts.Values.OrderBy(part => part.Uri, StringComparer.Ordinal)
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            state.AddNode(
+                WordDependencyNodeKind.Part,
+                part.Uri,
+                isResolved: true,
+                isExternal: false,
+                isPackageReachable: reachableParts.Contains(part.Uri),
+                partUri: part.Uri
+            );
+        }
+
+        foreach (
+            var relationship in package.Relationships
+                .OrderBy(item => item.SourcePartUri, StringComparer.Ordinal)
+                .ThenBy(item => item.Id, StringComparer.Ordinal)
+        )
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var sourceNodeId = relationship.SourcePartUri == "/"
+                ? packageNodeId
+                : PartNode(
+                    state,
+                    package,
+                    reachableParts,
+                    relationship.SourcePartUri
+                );
+            string targetNodeId;
+            var resolved = false;
+            var external = relationship.TargetMode == OpcRelationshipTargetMode.External;
+            if (
+                relationship.TargetMode == OpcRelationshipTargetMode.Internal
+                && relationship.ResolvedTargetPartUri is { } targetPartUri
+            )
+            {
+                resolved = package.Parts.ContainsKey(targetPartUri);
+                targetNodeId = PartNode(
+                    state,
+                    package,
+                    reachableParts,
+                    targetPartUri
+                );
+            }
+            else if (external)
+            {
+                targetNodeId = state.AddNode(
+                    WordDependencyNodeKind.ExternalTarget,
+                    relationship.Target,
+                    isResolved: false,
+                    isExternal: true,
+                    isPackageReachable: false
+                );
+            }
+            else
+            {
+                var key = relationship.ResolvedTargetPartUri
+                    ?? relationship.Target;
+                targetNodeId = state.AddNode(
+                    WordDependencyNodeKind.Part,
+                    key,
+                    isResolved: false,
+                    isExternal: false,
+                    isPackageReachable: false,
+                    partUri: relationship.ResolvedTargetPartUri
+                );
+            }
+
+            var edgeId = state.AddEdge(
+                WordDependencyEdgeKind.PackageRelationship,
+                sourceNodeId,
+                targetNodeId,
+                resolved,
+                external,
+                qualifier: relationship.TargetMode.ToString().ToLowerInvariant(),
+                partUri: relationship.SourcePartUri == "/"
+                    ? null
+                    : relationship.SourcePartUri,
+                relationshipId: relationship.Id,
+                relationshipType: relationship.Type
+            );
+            if (
+                relationship.TargetMode == OpcRelationshipTargetMode.Internal
+                && !resolved
+            )
+            {
+                state.AddIssue(
+                    "WDG001",
+                    WordDependencyIssueSeverity.Error,
+                    "An internal package relationship does not resolve to an existing part.",
+                    edgeId: edgeId,
+                    partUri: relationship.SourcePartUri == "/"
+                        ? null
+                        : relationship.SourcePartUri
+                );
+            }
+            else if (relationship.TargetMode == OpcRelationshipTargetMode.Invalid)
+            {
+                state.AddIssue(
+                    "WDG002",
+                    WordDependencyIssueSeverity.Error,
+                    "A package relationship target is structurally invalid.",
+                    edgeId: edgeId,
+                    partUri: relationship.SourcePartUri == "/"
+                        ? null
+                        : relationship.SourcePartUri
+                );
+            }
+        }
+
+        foreach (
+            var part in package.Parts.Values
+                .Where(part => !reachableParts.Contains(part.Uri))
+                .OrderBy(part => part.Uri, StringComparer.Ordinal)
+        )
+        {
+            var nodeId = PartNode(state, package, reachableParts, part.Uri);
+            state.AddIssue(
+                "WDG003",
+                WordDependencyIssueSeverity.Warning,
+                "A package part is not reachable from a package-level relationship.",
+                nodeId: nodeId,
+                partUri: part.Uri
+            );
+        }
+    }
+
+    private static void AddSemanticDependencies(
+        BuildState state,
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        IReadOnlySet<string> reachableParts,
+        CancellationToken cancellationToken
+    )
+    {
+        var semanticNodes = semanticDocument.Nodes.ToDictionary(node => node.Id);
+        foreach (var node in semanticDocument.Nodes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var nodeId = SemanticNode(state, node, reachableParts.Contains(node.SourcePartUri));
+            if (
+                node.ParentId is { } parentId
+                && semanticNodes.TryGetValue(parentId, out var parent)
+            )
+            {
+                var parentNodeId = SemanticNode(
+                    state,
+                    parent,
+                    reachableParts.Contains(parent.SourcePartUri)
+                );
+                state.AddEdge(
+                    WordDependencyEdgeKind.SemanticContainment,
+                    parentNodeId,
+                    nodeId,
+                    isResolved: true,
+                    isExternal: false,
+                    qualifier: node.Kind.ToString().ToLowerInvariant(),
+                    partUri: node.SourcePartUri,
+                    sourceElementOrdinal: node.SourceElementOrdinal
+                );
+                if (!string.Equals(
+                    parent.SourcePartUri,
+                    node.SourcePartUri,
+                    StringComparison.Ordinal
+                ))
+                {
+                    AddPartSemanticRootEdge(
+                        state,
+                        package,
+                        reachableParts,
+                        node,
+                        nodeId
+                    );
+                }
+            }
+            else
+            {
+                AddPartSemanticRootEdge(
+                    state,
+                    package,
+                    reachableParts,
+                    node,
+                    nodeId
+                );
+            }
+        }
+    }
+
+    private static void AddPartSemanticRootEdge(
+        BuildState state,
+        OpcPackageSnapshot package,
+        IReadOnlySet<string> reachableParts,
+        WordSemanticNode node,
+        string nodeId
+    )
+    {
+        var partNodeId = PartNode(
+            state,
+            package,
+            reachableParts,
+            node.SourcePartUri
+        );
+        state.AddEdge(
+            WordDependencyEdgeKind.PartContainsSemanticRoot,
+            partNodeId,
+            nodeId,
+            isResolved: package.Parts.ContainsKey(node.SourcePartUri),
+            isExternal: false,
+            qualifier: node.Kind.ToString().ToLowerInvariant(),
+            partUri: node.SourcePartUri,
+            sourceElementOrdinal: node.SourceElementOrdinal
+        );
+    }
+
+    private static void AddStyleDependencies(
+        BuildState state,
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordStyleGraph styles,
+        string packageNodeId,
+        IReadOnlySet<string> reachableParts,
+        CancellationToken cancellationToken
+    )
+    {
+        var stylesReachable = styles.StylesPartUri is { } stylePartUri
+            && reachableParts.Contains(stylePartUri);
+        string? stylesPartNodeId = null;
+        if (styles.StylesPartUri is { } stylesPartUri)
+        {
+            stylesPartNodeId = PartNode(
+                state,
+                package,
+                reachableParts,
+                stylesPartUri
+            );
+        }
+        foreach (var style in styles.Styles.OrderBy(item => item.StyleId, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var styleNodeId = StyleNode(
+                state,
+                styles,
+                style.StyleId,
+                resolved: true,
+                stylesReachable
+            );
+            if (stylesPartNodeId is not null)
+            {
+                state.AddEdge(
+                    WordDependencyEdgeKind.DefinesStyle,
+                    stylesPartNodeId,
+                    styleNodeId,
+                    isResolved: true,
+                    isExternal: false,
+                    qualifier: style.Type.ToString().ToLowerInvariant(),
+                    partUri: styles.StylesPartUri,
+                    sourceElementOrdinal: style.SourceElementOrdinal
+                );
+            }
+            AddStyleReference(
+                state,
+                styles,
+                styleNodeId,
+                style.BasedOnStyleId,
+                WordDependencyEdgeKind.StyleBasedOn,
+                style.SourceElementOrdinal,
+                stylesReachable
+            );
+            AddStyleReference(
+                state,
+                styles,
+                styleNodeId,
+                style.NextStyleId,
+                WordDependencyEdgeKind.StyleNext,
+                style.SourceElementOrdinal,
+                stylesReachable
+            );
+            AddStyleReference(
+                state,
+                styles,
+                styleNodeId,
+                style.LinkedStyleId,
+                WordDependencyEdgeKind.StyleLinked,
+                style.SourceElementOrdinal,
+                stylesReachable
+            );
+        }
+
+        foreach (var (type, styleId) in styles.DefaultStyleIds.OrderBy(pair => pair.Key))
+        {
+            var target = StyleNode(
+                state,
+                styles,
+                styleId,
+                styles.TryGetStyle(styleId, out _),
+                stylesReachable
+            );
+            state.AddEdge(
+                WordDependencyEdgeKind.DefaultStyle,
+                packageNodeId,
+                target,
+                isResolved: styles.TryGetStyle(styleId, out _),
+                isExternal: false,
+                qualifier: type.ToString().ToLowerInvariant(),
+                partUri: styles.StylesPartUri
+            );
+        }
+
+        foreach (var node in semanticDocument.Nodes)
+        {
+            if (
+                node.Kind is not WordSemanticNodeKind.Paragraph
+                    and not WordSemanticNodeKind.Run
+                    and not WordSemanticNodeKind.Table
+                || !node.Properties.TryGetValue("style_id", out var styleId)
+                || string.IsNullOrWhiteSpace(styleId)
+            )
+            {
+                continue;
+            }
+            var resolved = styles.TryGetStyle(styleId, out _);
+            var target = StyleNode(
+                state,
+                styles,
+                styleId,
+                resolved,
+                stylesReachable
+            );
+            var source = SemanticNode(
+                state,
+                node,
+                reachableParts.Contains(node.SourcePartUri)
+            );
+            var edgeId = state.AddEdge(
+                WordDependencyEdgeKind.UsesStyle,
+                source,
+                target,
+                resolved,
+                isExternal: false,
+                qualifier: node.Kind.ToString().ToLowerInvariant(),
+                partUri: node.SourcePartUri,
+                sourceElementOrdinal: node.SourceElementOrdinal
+            );
+            if (!resolved)
+            {
+                state.AddIssue(
+                    "WDG010",
+                    WordDependencyIssueSeverity.Error,
+                    "Word content refers to a missing style definition.",
+                    edgeId: edgeId,
+                    partUri: node.SourcePartUri,
+                    sourceElementOrdinal: node.SourceElementOrdinal
+                );
+            }
+        }
+    }
+
+    private static void AddStyleReference(
+        BuildState state,
+        WordStyleGraph styles,
+        string sourceNodeId,
+        string? targetStyleId,
+        WordDependencyEdgeKind kind,
+        int sourceElementOrdinal,
+        bool stylesReachable
+    )
+    {
+        if (string.IsNullOrWhiteSpace(targetStyleId))
+        {
+            return;
+        }
+        var resolved = styles.TryGetStyle(targetStyleId, out _);
+        var targetNodeId = StyleNode(
+            state,
+            styles,
+            targetStyleId,
+            resolved,
+            stylesReachable
+        );
+        var edgeId = state.AddEdge(
+            kind,
+            sourceNodeId,
+            targetNodeId,
+            resolved,
+            isExternal: false,
+            partUri: styles.StylesPartUri,
+            sourceElementOrdinal: sourceElementOrdinal
+        );
+        if (!resolved)
+        {
+            state.AddIssue(
+                "WDG011",
+                WordDependencyIssueSeverity.Error,
+                "A style dependency refers to a missing style definition.",
+                edgeId: edgeId,
+                partUri: styles.StylesPartUri,
+                sourceElementOrdinal: sourceElementOrdinal
+            );
+        }
+    }
+
+    private static void AddNumberingDependencies(
+        BuildState state,
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordStyleGraph styles,
+        WordNumberingGraph numbering,
+        IReadOnlySet<string> reachableParts,
+        CancellationToken cancellationToken
+    )
+    {
+        var numberingReachable = numbering.NumberingPartUri is { } numberingPartUriValue
+            && reachableParts.Contains(numberingPartUriValue);
+        var stylesReachable = styles.StylesPartUri is { } stylesPartUriValue
+            && reachableParts.Contains(stylesPartUriValue);
+        string? numberingPartNodeId = null;
+        if (numbering.NumberingPartUri is { } numberingPartUri)
+        {
+            numberingPartNodeId = PartNode(
+                state,
+                package,
+                reachableParts,
+                numberingPartUri
+            );
+        }
+        foreach (var definition in numbering.AbstractDefinitions)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var abstractNodeId = AbstractNumberingNode(
+                state,
+                numbering,
+                definition.AbstractNumberId,
+                resolved: true,
+                numberingReachable
+            );
+            if (numberingPartNodeId is not null)
+            {
+                state.AddEdge(
+                    WordDependencyEdgeKind.DefinesAbstractNumbering,
+                    numberingPartNodeId,
+                    abstractNodeId,
+                    isResolved: true,
+                    isExternal: false,
+                    partUri: numbering.NumberingPartUri,
+                    sourceElementOrdinal: definition.SourceElementOrdinal
+                );
+            }
+            AddAbstractStyleReference(
+                state,
+                styles,
+                numbering,
+                abstractNodeId,
+                definition.NumberingStyleLinkId,
+                "numbering_style_link",
+                definition.SourceElementOrdinal,
+                stylesReachable
+            );
+            AddAbstractStyleReference(
+                state,
+                styles,
+                numbering,
+                abstractNodeId,
+                definition.StyleLinkId,
+                "style_link",
+                definition.SourceElementOrdinal,
+                stylesReachable
+            );
+            foreach (var level in definition.Levels)
+            {
+                AddNumberingLevelDependencies(
+                    state,
+                    styles,
+                    numbering,
+                    abstractNodeId,
+                    level,
+                    $"abstract:{definition.AbstractNumberId}",
+                    stylesReachable,
+                    numberingReachable
+                );
+            }
+        }
+
+        foreach (var instance in numbering.Instances)
+        {
+            var instanceNodeId = NumberingInstanceNode(
+                state,
+                numbering,
+                instance.NumberId,
+                resolved: true,
+                numberingReachable
+            );
+            if (numberingPartNodeId is not null)
+            {
+                state.AddEdge(
+                    WordDependencyEdgeKind.DefinesNumberingInstance,
+                    numberingPartNodeId,
+                    instanceNodeId,
+                    isResolved: true,
+                    isExternal: false,
+                    partUri: numbering.NumberingPartUri,
+                    sourceElementOrdinal: instance.SourceElementOrdinal
+                );
+            }
+            var abstractResolved = numbering.TryGetAbstractDefinition(
+                instance.AbstractNumberId,
+                out _
+            );
+            var abstractNodeId = AbstractNumberingNode(
+                state,
+                numbering,
+                instance.AbstractNumberId,
+                abstractResolved,
+                numberingReachable
+            );
+            var edgeId = state.AddEdge(
+                WordDependencyEdgeKind.NumberingInstanceUsesAbstract,
+                instanceNodeId,
+                abstractNodeId,
+                abstractResolved,
+                isExternal: false,
+                partUri: numbering.NumberingPartUri,
+                sourceElementOrdinal: instance.SourceElementOrdinal
+            );
+            if (!abstractResolved)
+            {
+                state.AddIssue(
+                    "WDG020",
+                    WordDependencyIssueSeverity.Error,
+                    "A numbering instance refers to a missing abstract numbering definition.",
+                    edgeId: edgeId,
+                    partUri: numbering.NumberingPartUri,
+                    sourceElementOrdinal: instance.SourceElementOrdinal
+                );
+            }
+            foreach (var levelOverride in instance.LevelOverrides)
+            {
+                if (levelOverride.Level is { } level)
+                {
+                    AddNumberingLevelDependencies(
+                        state,
+                        styles,
+                        numbering,
+                        instanceNodeId,
+                        level,
+                        $"instance:{instance.NumberId}",
+                        stylesReachable,
+                        numberingReachable
+                    );
+                }
+            }
+        }
+
+        foreach (var picture in numbering.PictureBullets)
+        {
+            var pictureNodeId = PictureBulletNode(
+                state,
+                numbering,
+                picture.PictureBulletId,
+                resolved: true,
+                numberingReachable
+            );
+            if (numberingPartNodeId is not null)
+            {
+                state.AddEdge(
+                    WordDependencyEdgeKind.DefinesPictureBullet,
+                    numberingPartNodeId,
+                    pictureNodeId,
+                    isResolved: true,
+                    isExternal: false,
+                    partUri: numbering.NumberingPartUri,
+                    sourceElementOrdinal: picture.SourceElementOrdinal
+                );
+            }
+            foreach (var relationshipId in picture.RelationshipIds)
+            {
+                var relationship = package.RelationshipsFrom(
+                        numbering.NumberingPartUri ?? semanticDocument.MainPartUri
+                    )
+                    .SingleOrDefault(item => item.Id == relationshipId);
+                var external = relationship?.TargetMode
+                    == OpcRelationshipTargetMode.External;
+                var resolved = !external
+                    && relationship?.ResolvedTargetPartUri is { } targetPart
+                    && package.Parts.ContainsKey(targetPart);
+                var targetNodeId = external
+                    ? state.AddNode(
+                        WordDependencyNodeKind.ExternalTarget,
+                        relationship!.Target,
+                        isResolved: false,
+                        isExternal: true,
+                        isPackageReachable: false
+                    )
+                    : relationship?.ResolvedTargetPartUri is { } targetUri
+                        ? PartNode(state, package, reachableParts, targetUri)
+                        : state.AddNode(
+                        WordDependencyNodeKind.Part,
+                        $"missing-picture-relationship:{relationshipId}",
+                        isResolved: false,
+                        isExternal: false,
+                        isPackageReachable: false
+                    );
+                var edgeId = state.AddEdge(
+                    WordDependencyEdgeKind.PictureBulletRelationship,
+                    pictureNodeId,
+                    targetNodeId,
+                    resolved,
+                    isExternal: external,
+                    partUri: numbering.NumberingPartUri,
+                    sourceElementOrdinal: picture.SourceElementOrdinal,
+                    relationshipId: relationshipId,
+                    relationshipType: relationship?.Type
+                );
+                if (!resolved)
+                {
+                    state.AddIssue(
+                        "WDG021",
+                        WordDependencyIssueSeverity.Error,
+                        "A picture-bullet dependency does not resolve to an internal package part.",
+                        edgeId: edgeId,
+                        partUri: numbering.NumberingPartUri,
+                        sourceElementOrdinal: picture.SourceElementOrdinal
+                    );
+                }
+            }
+        }
+
+        foreach (var node in semanticDocument.Nodes.Where(item =>
+            item.Kind == WordSemanticNodeKind.Paragraph
+            && item.Properties.TryGetValue("numbering_id", out _)
+        ))
+        {
+            var numberIdText = node.Properties["numbering_id"];
+            var resolved = int.TryParse(
+                    numberIdText,
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var numberId
+                )
+                && numbering.TryGetInstance(numberId, out _);
+            var targetNodeId = int.TryParse(
+                numberIdText,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out numberId
+            )
+                ? NumberingInstanceNode(
+                    state,
+                    numbering,
+                    numberId,
+                    resolved,
+                    numberingReachable
+                )
+                : state.AddNode(
+                    WordDependencyNodeKind.NumberingInstance,
+                    numberIdText,
+                    isResolved: false,
+                    isExternal: false,
+                    isPackageReachable: numbering.NumberingPartUri is not null,
+                    partUri: numbering.NumberingPartUri
+                );
+            var sourceNodeId = SemanticNode(
+                state,
+                node,
+                reachableParts.Contains(node.SourcePartUri)
+            );
+            var edgeId = state.AddEdge(
+                WordDependencyEdgeKind.UsesNumbering,
+                sourceNodeId,
+                targetNodeId,
+                resolved,
+                isExternal: false,
+                qualifier: node.Properties.TryGetValue("numbering_level", out var level)
+                    ? level
+                    : null,
+                partUri: node.SourcePartUri,
+                sourceElementOrdinal: node.SourceElementOrdinal
+            );
+            if (!resolved)
+            {
+                state.AddIssue(
+                    "WDG022",
+                    WordDependencyIssueSeverity.Error,
+                    "A paragraph refers to a missing or invalid numbering instance.",
+                    edgeId: edgeId,
+                    partUri: node.SourcePartUri,
+                    sourceElementOrdinal: node.SourceElementOrdinal
+                );
+            }
+        }
+
+        foreach (var style in styles.Styles)
+        {
+            AddStyleNumberingReference(
+                state,
+                styles,
+                numbering,
+                style,
+                style.ParagraphProperties,
+                stylesReachable,
+                numberingReachable
+            );
+        }
+    }
+
+    private static void AddAbstractStyleReference(
+        BuildState state,
+        WordStyleGraph styles,
+        WordNumberingGraph numbering,
+        string sourceNodeId,
+        string? styleId,
+        string qualifier,
+        int sourceElementOrdinal,
+        bool stylesReachable
+    )
+    {
+        if (string.IsNullOrWhiteSpace(styleId))
+        {
+            return;
+        }
+        var resolved = styles.TryGetStyle(styleId, out _);
+        var targetNodeId = StyleNode(
+            state,
+            styles,
+            styleId,
+            resolved,
+            stylesReachable
+        );
+        var edgeId = state.AddEdge(
+            WordDependencyEdgeKind.AbstractNumberingUsesStyle,
+            sourceNodeId,
+            targetNodeId,
+            resolved,
+            isExternal: false,
+            qualifier: qualifier,
+            partUri: numbering.NumberingPartUri,
+            sourceElementOrdinal: sourceElementOrdinal
+        );
+        if (!resolved)
+        {
+            state.AddIssue(
+                "WDG023",
+                WordDependencyIssueSeverity.Error,
+                "An abstract-numbering dependency refers to a missing style.",
+                edgeId: edgeId,
+                partUri: numbering.NumberingPartUri,
+                sourceElementOrdinal: sourceElementOrdinal
+            );
+        }
+    }
+
+    private static void AddNumberingLevelDependencies(
+        BuildState state,
+        WordStyleGraph styles,
+        WordNumberingGraph numbering,
+        string sourceNodeId,
+        WordNumberingLevelDefinition level,
+        string ownerQualifier,
+        bool stylesReachable,
+        bool numberingReachable
+    )
+    {
+        if (level.ParagraphStyleId is { Length: > 0 } styleId)
+        {
+            var resolved = styles.TryGetStyle(styleId, out _);
+            var targetNodeId = StyleNode(
+                state,
+                styles,
+                styleId,
+                resolved,
+                stylesReachable
+            );
+            var edgeId = state.AddEdge(
+                WordDependencyEdgeKind.NumberingLevelUsesStyle,
+                sourceNodeId,
+                targetNodeId,
+                resolved,
+                isExternal: false,
+                qualifier: $"{ownerQualifier}:level:{level.LevelIndex}",
+                partUri: numbering.NumberingPartUri,
+                sourceElementOrdinal: level.SourceElementOrdinal
+            );
+            if (!resolved)
+            {
+                state.AddIssue(
+                    "WDG024",
+                    WordDependencyIssueSeverity.Error,
+                    "A numbering level refers to a missing paragraph style.",
+                    edgeId: edgeId,
+                    partUri: numbering.NumberingPartUri,
+                    sourceElementOrdinal: level.SourceElementOrdinal
+                );
+            }
+        }
+        if (level.PictureBulletId is { } pictureBulletId)
+        {
+            var resolved = numbering.TryGetPictureBullet(pictureBulletId, out _);
+            var targetNodeId = PictureBulletNode(
+                state,
+                numbering,
+                pictureBulletId,
+                resolved,
+                numberingReachable
+            );
+            var edgeId = state.AddEdge(
+                WordDependencyEdgeKind.NumberingUsesPictureBullet,
+                sourceNodeId,
+                targetNodeId,
+                resolved,
+                isExternal: false,
+                qualifier: $"{ownerQualifier}:level:{level.LevelIndex}",
+                partUri: numbering.NumberingPartUri,
+                sourceElementOrdinal: level.SourceElementOrdinal
+            );
+            if (!resolved)
+            {
+                state.AddIssue(
+                    "WDG025",
+                    WordDependencyIssueSeverity.Error,
+                    "A numbering level refers to a missing picture-bullet definition.",
+                    edgeId: edgeId,
+                    partUri: numbering.NumberingPartUri,
+                    sourceElementOrdinal: level.SourceElementOrdinal
+                );
+            }
+        }
+    }
+
+    private static void AddStyleNumberingReference(
+        BuildState state,
+        WordStyleGraph styles,
+        WordNumberingGraph numbering,
+        WordStyleDefinition style,
+        WordStylePropertySet properties,
+        bool stylesReachable,
+        bool numberingReachable
+    )
+    {
+        if (!properties.Values.TryGetValue("numbering_id", out var numberIdText))
+        {
+            return;
+        }
+        var parsed = int.TryParse(
+            numberIdText,
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out var numberId
+        );
+        var resolved = parsed && numbering.TryGetInstance(numberId, out _);
+        var sourceNodeId = state.AddNode(
+            WordDependencyNodeKind.Style,
+            style.StyleId,
+            isResolved: true,
+            isExternal: false,
+            isPackageReachable: stylesReachable,
+            partUri: styles.StylesPartUri,
+            sourceElementOrdinal: style.SourceElementOrdinal
+        );
+        var targetNodeId = parsed
+            ? NumberingInstanceNode(
+                state,
+                numbering,
+                numberId,
+                resolved,
+                numberingReachable
+            )
+            : state.AddNode(
+                WordDependencyNodeKind.NumberingInstance,
+                numberIdText,
+                isResolved: false,
+                isExternal: false,
+                isPackageReachable: numbering.NumberingPartUri is not null,
+                partUri: numbering.NumberingPartUri
+            );
+        var edgeId = state.AddEdge(
+            WordDependencyEdgeKind.StyleUsesNumbering,
+            sourceNodeId,
+            targetNodeId,
+            resolved,
+            isExternal: false,
+            qualifier: properties.Values.TryGetValue("numbering_level", out var level)
+                ? level
+                : null,
+            partUri: styles.StylesPartUri,
+            sourceElementOrdinal: style.SourceElementOrdinal
+        );
+        if (!resolved)
+        {
+            state.AddIssue(
+                "WDG026",
+                WordDependencyIssueSeverity.Error,
+                "A style refers to a missing or invalid numbering instance.",
+                edgeId: edgeId,
+                partUri: styles.StylesPartUri,
+                sourceElementOrdinal: style.SourceElementOrdinal
+            );
+        }
+    }
+
+    private static void AddReferenceDependencies(
+        BuildState state,
+        OpcPackageSnapshot package,
+        WordStyleGraph styles,
+        WordReferenceGraph references,
+        IReadOnlySet<string> reachableParts,
+        CancellationToken cancellationToken
+    )
+    {
+        var stylesReachable = styles.StylesPartUri is { } stylesPartUri
+            && reachableParts.Contains(stylesPartUri);
+        var storyNodes = new Dictionary<string, string>(StringComparer.Ordinal);
+        var bookmarkNodes = new Dictionary<string, string>(StringComparer.Ordinal);
+        var fieldNodes = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var story in references.Stories)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var storyNodeId = state.AddNode(
+                WordDependencyNodeKind.Story,
+                story.Id,
+                isResolved: true,
+                isExternal: false,
+                isPackageReachable: reachableParts.Contains(story.PartUri),
+                partUri: story.PartUri,
+                sourceElementOrdinal: story.RootElementOrdinal
+            );
+            storyNodes[story.Id] = storyNodeId;
+            var partNodeId = PartNode(state, package, reachableParts, story.PartUri);
+            state.AddEdge(
+                WordDependencyEdgeKind.DefinesStory,
+                partNodeId,
+                storyNodeId,
+                isResolved: package.Parts.ContainsKey(story.PartUri),
+                isExternal: false,
+                qualifier: story.Kind.ToString().ToLowerInvariant(),
+                partUri: story.PartUri,
+                sourceElementOrdinal: story.RootElementOrdinal
+            );
+        }
+        foreach (var bookmark in references.Bookmarks)
+        {
+            var bookmarkNodeId = state.AddNode(
+                WordDependencyNodeKind.Bookmark,
+                bookmark.Id,
+                isResolved: bookmark.IsComplete,
+                isExternal: false,
+                isPackageReachable: reachableParts.Contains(bookmark.PartUri),
+                partUri: bookmark.PartUri,
+                sourceElementOrdinal: bookmark.StartElementOrdinal,
+                semanticNodeId: bookmark.StartNodeId
+            );
+            bookmarkNodes[bookmark.Id] = bookmarkNodeId;
+            if (storyNodes.TryGetValue(bookmark.StoryId, out var storyNodeId))
+            {
+                state.AddEdge(
+                    WordDependencyEdgeKind.StoryContainsBookmark,
+                    storyNodeId,
+                    bookmarkNodeId,
+                    bookmark.IsComplete,
+                    isExternal: false,
+                    qualifier: bookmark.Status.ToString().ToLowerInvariant(),
+                    partUri: bookmark.PartUri,
+                    sourceElementOrdinal: bookmark.StartElementOrdinal
+                );
+            }
+        }
+        foreach (var field in references.Fields)
+        {
+            var fieldNodeId = state.AddNode(
+                WordDependencyNodeKind.Field,
+                field.Id,
+                isResolved: field.Status == WordFieldStatus.Complete
+                    && field.InstructionParseComplete,
+                isExternal: field.RequiresExternalAccess,
+                isPackageReachable: reachableParts.Contains(field.PartUri),
+                partUri: field.PartUri,
+                sourceElementOrdinal: field.StartElementOrdinal,
+                semanticNodeId: field.StartNodeId
+            );
+            fieldNodes[field.Id] = fieldNodeId;
+            if (storyNodes.TryGetValue(field.StoryId, out var storyNodeId))
+            {
+                state.AddEdge(
+                    WordDependencyEdgeKind.StoryContainsField,
+                    storyNodeId,
+                    fieldNodeId,
+                    field.Status == WordFieldStatus.Complete,
+                    field.RequiresExternalAccess,
+                    qualifier: field.FieldType,
+                    partUri: field.PartUri,
+                    sourceElementOrdinal: field.StartElementOrdinal
+                );
+            }
+        }
+        foreach (var field in references.Fields.Where(item => item.ParentFieldId is not null))
+        {
+            if (
+                fieldNodes.TryGetValue(field.ParentFieldId!, out var parentNodeId)
+                && fieldNodes.TryGetValue(field.Id, out var childNodeId)
+            )
+            {
+                state.AddEdge(
+                    WordDependencyEdgeKind.FieldContainsField,
+                    parentNodeId,
+                    childNodeId,
+                    isResolved: true,
+                    isExternal: false,
+                    qualifier: field.FieldType,
+                    partUri: field.PartUri,
+                    sourceElementOrdinal: field.StartElementOrdinal
+                );
+            }
+        }
+        foreach (var edge in references.Edges)
+        {
+            if (!fieldNodes.TryGetValue(edge.SourceFieldId, out var sourceNodeId))
+            {
+                continue;
+            }
+            string targetNodeId;
+            if (
+                edge.TargetKind == WordReferenceTargetKind.Bookmark
+                && edge.ResolvedBookmarkId is { } bookmarkId
+                && bookmarkNodes.TryGetValue(bookmarkId, out var resolvedBookmarkNodeId)
+            )
+            {
+                targetNodeId = resolvedBookmarkNodeId;
+            }
+            else if (edge.TargetKind == WordReferenceTargetKind.Style)
+            {
+                var styleResolved = styles.TryGetStyle(edge.TargetKey, out _);
+                targetNodeId = StyleNode(
+                    state,
+                    styles,
+                    edge.TargetKey,
+                    styleResolved,
+                    stylesReachable
+                );
+            }
+            else
+            {
+                targetNodeId = state.AddNode(
+                    edge.TargetKind == WordReferenceTargetKind.Bookmark
+                        ? WordDependencyNodeKind.Bookmark
+                        : WordDependencyNodeKind.ReferenceTarget,
+                    $"{edge.TargetKind}:{edge.TargetKey}",
+                    edge.IsResolved,
+                    edge.IsExternal,
+                    isPackageReachable: false
+                );
+            }
+            var dependencyEdgeId = state.AddEdge(
+                WordDependencyEdgeKind.FieldReference,
+                sourceNodeId,
+                targetNodeId,
+                edge.IsResolved,
+                edge.IsExternal,
+                qualifier: $"{edge.Kind}:{edge.TargetKind}",
+                relationshipId: edge.Id
+            );
+            if (!edge.IsResolved && !edge.IsExternal)
+            {
+                state.AddIssue(
+                    "WDG030",
+                    WordDependencyIssueSeverity.Warning,
+                    "A field dependency could not be resolved inside the document graph.",
+                    edgeId: dependencyEdgeId
+                );
+            }
+        }
+    }
+
+    private static void AddSectionDependencies(
+        BuildState state,
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordSectionGraph sections,
+        IReadOnlySet<string> reachableParts,
+        CancellationToken cancellationToken
+    )
+    {
+        var mainPartNodeId = PartNode(
+            state,
+            package,
+            reachableParts,
+            semanticDocument.MainPartUri
+        );
+        foreach (var section in sections.Sections)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var sectionNodeId = state.AddNode(
+                WordDependencyNodeKind.Section,
+                section.Ordinal.ToString(CultureInfo.InvariantCulture),
+                isResolved: true,
+                isExternal: false,
+                isPackageReachable: reachableParts.Contains(semanticDocument.MainPartUri),
+                partUri: semanticDocument.MainPartUri,
+                semanticNodeId: section.NodeId,
+                semanticKind: WordSemanticNodeKind.Section
+            );
+            state.AddEdge(
+                WordDependencyEdgeKind.DefinesSection,
+                mainPartNodeId,
+                sectionNodeId,
+                isResolved: true,
+                isExternal: false,
+                qualifier: section.IsImplicit ? "implicit" : "explicit",
+                partUri: semanticDocument.MainPartUri
+            );
+            foreach (var binding in section.Bindings.Where(item => item.PartUri is not null))
+            {
+                var targetPartUri = binding.PartUri!;
+                var resolved = package.Parts.ContainsKey(targetPartUri);
+                var targetNodeId = PartNode(
+                    state,
+                    package,
+                    reachableParts,
+                    targetPartUri
+                );
+                var edgeId = state.AddEdge(
+                    WordDependencyEdgeKind.SectionBindsStory,
+                    sectionNodeId,
+                    targetNodeId,
+                    resolved,
+                    isExternal: false,
+                    qualifier: $"{binding.Kind}:{binding.Variant}:{binding.Origin}",
+                    partUri: semanticDocument.MainPartUri,
+                    relationshipId: binding.RelationshipId
+                );
+                if (!resolved)
+                {
+                    state.AddIssue(
+                        "WDG040",
+                        WordDependencyIssueSeverity.Error,
+                        "A section header/footer binding does not resolve to an existing part.",
+                        edgeId: edgeId,
+                        partUri: semanticDocument.MainPartUri
+                    );
+                }
+            }
+        }
+        foreach (var partUri in sections.UnboundStoryPartUris)
+        {
+            var nodeId = PartNode(state, package, reachableParts, partUri);
+            state.AddIssue(
+                "WDG041",
+                WordDependencyIssueSeverity.Warning,
+                "A header or footer part is not bound to any effective document section.",
+                nodeId: nodeId,
+                partUri: partUri
+            );
+        }
+    }
+
+    private static IReadOnlySet<string> PackageReachableParts(
+        OpcPackageSnapshot package,
+        CancellationToken cancellationToken
+    )
+    {
+        var reachable = new HashSet<string>(StringComparer.Ordinal);
+        var pendingSources = new Queue<string>();
+        pendingSources.Enqueue("/");
+        var visitedSources = new HashSet<string>(StringComparer.Ordinal) { "/" };
+        while (pendingSources.TryDequeue(out var sourcePartUri))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var relationship in package.RelationshipsFrom(sourcePartUri))
+            {
+                if (
+                    relationship.TargetMode != OpcRelationshipTargetMode.Internal
+                    || relationship.ResolvedTargetPartUri is not { } targetPartUri
+                    || !package.Parts.ContainsKey(targetPartUri)
+                )
+                {
+                    continue;
+                }
+                reachable.Add(targetPartUri);
+                if (visitedSources.Add(targetPartUri))
+                {
+                    pendingSources.Enqueue(targetPartUri);
+                }
+            }
+        }
+        return reachable;
+    }
+
+    private static string PartNode(
+        BuildState state,
+        OpcPackageSnapshot package,
+        IReadOnlySet<string> reachableParts,
+        string partUri
+    ) => state.AddNode(
+        WordDependencyNodeKind.Part,
+        partUri,
+        package.Parts.ContainsKey(partUri),
+        isExternal: false,
+        reachableParts.Contains(partUri),
+        partUri: partUri
+    );
+
+    private static string SemanticNode(
+        BuildState state,
+        WordSemanticNode node,
+        bool isPackageReachable
+    ) => state.AddNode(
+        WordDependencyNodeKind.SemanticNode,
+        node.Id.Value,
+        isResolved: true,
+        isExternal: false,
+        isPackageReachable,
+        partUri: node.SourcePartUri,
+        sourceElementOrdinal: node.SourceElementOrdinal,
+        semanticNodeId: node.Id,
+        semanticKind: node.Kind
+    );
+
+    private static string StyleNode(
+        BuildState state,
+        WordStyleGraph styles,
+        string styleId,
+        bool resolved,
+        bool isPackageReachable
+    ) => state.AddNode(
+        WordDependencyNodeKind.Style,
+        styleId,
+        resolved,
+        isExternal: false,
+        isPackageReachable,
+        partUri: styles.StylesPartUri
+    );
+
+    private static string AbstractNumberingNode(
+        BuildState state,
+        WordNumberingGraph numbering,
+        int abstractNumberId,
+        bool resolved,
+        bool isPackageReachable
+    ) => state.AddNode(
+        WordDependencyNodeKind.AbstractNumbering,
+        abstractNumberId.ToString(CultureInfo.InvariantCulture),
+        resolved,
+        isExternal: false,
+        isPackageReachable,
+        partUri: numbering.NumberingPartUri
+    );
+
+    private static string NumberingInstanceNode(
+        BuildState state,
+        WordNumberingGraph numbering,
+        int numberId,
+        bool resolved,
+        bool isPackageReachable
+    ) => state.AddNode(
+        WordDependencyNodeKind.NumberingInstance,
+        numberId.ToString(CultureInfo.InvariantCulture),
+        resolved,
+        isExternal: false,
+        isPackageReachable,
+        partUri: numbering.NumberingPartUri
+    );
+
+    private static string PictureBulletNode(
+        BuildState state,
+        WordNumberingGraph numbering,
+        int pictureBulletId,
+        bool resolved,
+        bool isPackageReachable
+    ) => state.AddNode(
+        WordDependencyNodeKind.PictureBullet,
+        pictureBulletId.ToString(CultureInfo.InvariantCulture),
+        resolved,
+        isExternal: false,
+        isPackageReachable,
+        partUri: numbering.NumberingPartUri
+    );
+
+    private static void EnsureFingerprint(string expected, params string[] actual)
+    {
+        if (actual.Any(value => !string.Equals(expected, value, StringComparison.Ordinal)))
+        {
+            throw new WordDependencyProjectionException(
+                "Dependency inputs do not belong to the same package fingerprint."
+            );
+        }
+    }
+
+    private sealed class BuildState
+    {
+        private readonly WordDependencyGraphOptions _options;
+        private readonly Dictionary<NodeKey, NodeDraft> _nodes = new();
+        private readonly HashSet<string> _nodeIds = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, EdgeDraft> _edges = new(StringComparer.Ordinal);
+        private readonly List<WordDependencyIssue> _issues = [];
+
+        public BuildState(WordDependencyGraphOptions options)
+        {
+            _options = options;
+        }
+
+        public string AddNode(
+            WordDependencyNodeKind kind,
+            string key,
+            bool isResolved,
+            bool isExternal,
+            bool isPackageReachable,
+            string? partUri = null,
+            int? sourceElementOrdinal = null,
+            SemanticNodeId? semanticNodeId = null,
+            WordSemanticNodeKind? semanticKind = null
+        )
+        {
+            if (key.Length > _options.MaxKeyCharacters)
+            {
+                throw new WordDependencyLimitException(
+                    $"A dependency key exceeds {_options.MaxKeyCharacters} characters."
+                );
+            }
+            var nodeKey = new NodeKey(kind, key);
+            if (_nodes.TryGetValue(nodeKey, out var existing))
+            {
+                existing.IsResolved |= isResolved;
+                existing.IsExternal |= isExternal;
+                existing.IsPackageReachable |= isPackageReachable;
+                existing.PartUri ??= partUri;
+                existing.SourceElementOrdinal ??= sourceElementOrdinal;
+                existing.SemanticNodeId ??= semanticNodeId;
+                existing.SemanticKind ??= semanticKind;
+                return existing.Id;
+            }
+            if (_nodes.Count >= _options.MaxNodes)
+            {
+                throw new WordDependencyLimitException(
+                    $"Dependency graph exceeds the {_options.MaxNodes}-node limit."
+                );
+            }
+            var id = StableId("wddn_", kind.ToString(), key);
+            if (!_nodeIds.Add(id))
+            {
+                throw new WordDependencyProjectionException(
+                    "A stable dependency-node ID collision was detected."
+                );
+            }
+            _nodes[nodeKey] = new NodeDraft(
+                id,
+                kind,
+                key,
+                isResolved,
+                isExternal,
+                isPackageReachable,
+                partUri,
+                sourceElementOrdinal,
+                semanticNodeId,
+                semanticKind
+            );
+            return id;
+        }
+
+        public string AddEdge(
+            WordDependencyEdgeKind kind,
+            string sourceNodeId,
+            string targetNodeId,
+            bool isResolved,
+            bool isExternal,
+            string? qualifier = null,
+            string? partUri = null,
+            int? sourceElementOrdinal = null,
+            string? relationshipId = null,
+            string? relationshipType = null
+        )
+        {
+            var id = StableId(
+                "wdde_",
+                kind.ToString(),
+                sourceNodeId,
+                targetNodeId,
+                qualifier ?? "",
+                partUri ?? "",
+                sourceElementOrdinal?.ToString(CultureInfo.InvariantCulture) ?? "",
+                relationshipId ?? "",
+                relationshipType ?? ""
+            );
+            if (_edges.TryGetValue(id, out var existing))
+            {
+                if (
+                    existing.Kind != kind
+                    || existing.SourceNodeId != sourceNodeId
+                    || existing.TargetNodeId != targetNodeId
+                    || existing.Qualifier != qualifier
+                    || existing.PartUri != partUri
+                    || existing.SourceElementOrdinal != sourceElementOrdinal
+                    || existing.RelationshipId != relationshipId
+                    || existing.RelationshipType != relationshipType
+                )
+                {
+                    throw new WordDependencyProjectionException(
+                        "A stable dependency-edge ID collision was detected."
+                    );
+                }
+                existing.IsResolved |= isResolved;
+                existing.IsExternal |= isExternal;
+                return id;
+            }
+            if (_edges.Count >= _options.MaxEdges)
+            {
+                throw new WordDependencyLimitException(
+                    $"Dependency graph exceeds the {_options.MaxEdges}-edge limit."
+                );
+            }
+            _edges[id] = new EdgeDraft(
+                id,
+                kind,
+                sourceNodeId,
+                targetNodeId,
+                isResolved,
+                isExternal,
+                qualifier,
+                partUri,
+                sourceElementOrdinal,
+                relationshipId,
+                relationshipType
+            );
+            return id;
+        }
+
+        public void AddIssue(
+            string code,
+            WordDependencyIssueSeverity severity,
+            string message,
+            string? nodeId = null,
+            string? edgeId = null,
+            string? partUri = null,
+            int? sourceElementOrdinal = null
+        )
+        {
+            if (_issues.Count >= _options.MaxIssues)
+            {
+                throw new WordDependencyLimitException(
+                    $"Dependency graph exceeds the {_options.MaxIssues}-issue limit."
+                );
+            }
+            _issues.Add(
+                new WordDependencyIssue(
+                    code,
+                    severity,
+                    message,
+                    nodeId,
+                    edgeId,
+                    partUri,
+                    sourceElementOrdinal
+                )
+            );
+        }
+
+        public (
+            IReadOnlyList<WordDependencyNode> Nodes,
+            IReadOnlyList<WordDependencyEdge> Edges,
+            IReadOnlyList<WordDependencyIssue> Issues
+        ) Materialize()
+        {
+            var nodes = _nodes.Values
+                .OrderBy(node => node.Kind)
+                .ThenBy(node => node.Key, StringComparer.Ordinal)
+                .Select(node => node.ToRecord())
+                .ToArray();
+            var edges = _edges.Values
+                .OrderBy(edge => edge.Kind)
+                .ThenBy(edge => edge.SourceNodeId, StringComparer.Ordinal)
+                .ThenBy(edge => edge.TargetNodeId, StringComparer.Ordinal)
+                .ThenBy(edge => edge.Id, StringComparer.Ordinal)
+                .Select(edge => edge.ToRecord())
+                .ToArray();
+            var nodeIds = nodes.Select(node => node.Id).ToHashSet(StringComparer.Ordinal);
+            if (edges.Any(edge =>
+                !nodeIds.Contains(edge.SourceNodeId) || !nodeIds.Contains(edge.TargetNodeId)
+            ))
+            {
+                throw new WordDependencyProjectionException(
+                    "Dependency graph contains an edge with a missing endpoint."
+                );
+            }
+            return (
+                nodes,
+                edges,
+                _issues.OrderByDescending(issue => issue.Severity)
+                    .ThenBy(issue => issue.Code, StringComparer.Ordinal)
+                    .ThenBy(issue => issue.EdgeId, StringComparer.Ordinal)
+                    .ThenBy(issue => issue.NodeId, StringComparer.Ordinal)
+                    .ToArray()
+            );
+        }
+
+        private sealed class NodeDraft(
+            string id,
+            WordDependencyNodeKind kind,
+            string key,
+            bool isResolved,
+            bool isExternal,
+            bool isPackageReachable,
+            string? partUri,
+            int? sourceElementOrdinal,
+            SemanticNodeId? semanticNodeId,
+            WordSemanticNodeKind? semanticKind
+        )
+        {
+            public string Id { get; } = id;
+            public WordDependencyNodeKind Kind { get; } = kind;
+            public string Key { get; } = key;
+            public bool IsResolved { get; set; } = isResolved;
+            public bool IsExternal { get; set; } = isExternal;
+            public bool IsPackageReachable { get; set; } = isPackageReachable;
+            public string? PartUri { get; set; } = partUri;
+            public int? SourceElementOrdinal { get; set; } = sourceElementOrdinal;
+            public SemanticNodeId? SemanticNodeId { get; set; } = semanticNodeId;
+            public WordSemanticNodeKind? SemanticKind { get; set; } = semanticKind;
+
+            public WordDependencyNode ToRecord() => new(
+                Id,
+                Kind,
+                Key,
+                IsResolved,
+                IsExternal,
+                IsPackageReachable,
+                PartUri,
+                SourceElementOrdinal,
+                SemanticNodeId,
+                SemanticKind
+            );
+        }
+
+        private sealed class EdgeDraft(
+            string id,
+            WordDependencyEdgeKind kind,
+            string sourceNodeId,
+            string targetNodeId,
+            bool isResolved,
+            bool isExternal,
+            string? qualifier,
+            string? partUri,
+            int? sourceElementOrdinal,
+            string? relationshipId,
+            string? relationshipType
+        )
+        {
+            public string Id { get; } = id;
+            public WordDependencyEdgeKind Kind { get; } = kind;
+            public string SourceNodeId { get; } = sourceNodeId;
+            public string TargetNodeId { get; } = targetNodeId;
+            public bool IsResolved { get; set; } = isResolved;
+            public bool IsExternal { get; set; } = isExternal;
+            public string? Qualifier { get; } = qualifier;
+            public string? PartUri { get; } = partUri;
+            public int? SourceElementOrdinal { get; } = sourceElementOrdinal;
+            public string? RelationshipId { get; } = relationshipId;
+            public string? RelationshipType { get; } = relationshipType;
+
+            public WordDependencyEdge ToRecord() => new(
+                Id,
+                Kind,
+                SourceNodeId,
+                TargetNodeId,
+                IsResolved,
+                IsExternal,
+                Qualifier,
+                PartUri,
+                SourceElementOrdinal,
+                RelationshipId,
+                RelationshipType
+            );
+        }
+
+        private readonly record struct NodeKey(WordDependencyNodeKind Kind, string Key);
+    }
+
+    private static string StableId(string prefix, params string[] values)
+    {
+        var material = string.Join('\u001f', values);
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(material));
+        var encoded = Convert.ToBase64String(digest.AsSpan(0, 15))
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+        return prefix + encoded;
+    }
+}
+
+public class WordDependencyProjectionException : IOException
+{
+    public WordDependencyProjectionException(string message)
+        : base(message) { }
+}
+
+public sealed class WordDependencyLimitException : WordDependencyProjectionException
+{
+    public WordDependencyLimitException(string message)
+        : base(message) { }
+}

@@ -1732,7 +1732,7 @@ try {
     $report.total_seconds = [Math]::Round($totalWatch.Elapsed.TotalSeconds, 3)
     $report.total_mcp_requests = $requestId
     $report.exposed_tool_count = $script:catalogNames.Count
-    $report.available_action_count = 73
+    $report.available_action_count = 74
     $report.exercised_live_action_count = $nativeTools.Count
     $report.positive_tools_passed = $positivePassed
     $report.safety_guard_tools_passed = $safetyGuardPassCount

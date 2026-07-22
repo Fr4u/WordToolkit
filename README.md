@@ -44,7 +44,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 48 tested Word Live actions plus 25 standalone,
+The runtime implements 48 tested Word Live actions plus 26 standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus three token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -80,6 +80,7 @@ inspect_ooxml_numbering
 inspect_ooxml_theme
 inspect_ooxml_settings
 inspect_ooxml_references
+inspect_ooxml_dependencies
 inspect_ooxml_equations
 inspect_ooxml_review
 inspect_ooxml_fonts
@@ -144,6 +145,16 @@ classified but never followed or executed. Comment/revision text, author/editor/
 names, provider/user identifiers and move names are fingerprinted and redacted by
 default. Font hashes are opt-in metadata only. Protection is reported as an editing
 restriction, not misrepresented as document encryption.
+
+Saved-package dependency inspection joins OPC reachability, semantic containment across
+projected stories, explicit paragraph/run/table style use, style inheritance/defaults,
+numbering definitions and uses, field/bookmark targets, and section header/footer
+bindings into one deterministic graph. Missing and external targets remain explicit
+nodes; every edge endpoint is verified. The default view returns only bounded edge-kind
+counts and coverage gaps. Node keys and source provenance are separate opt-ins, external
+targets are never followed, and impact traversal is capped at four hops plus an
+independent hard edge budget. DrawingML layout, charts, SmartArt, OLE, custom-XML
+bindings, bibliography sources, active content and co-authoring remain openly unmodeled.
 
 Saved-package equation inspection is also metadata-first. Its default response groups
 equations by story, display mode and structural status without returning formula text or
@@ -403,7 +414,7 @@ pwsh -File native/scripts/live-acceptance.ps1 `
 
 Every test mutation is tracked, verified and undone. The script fails if cleanup leaves any outstanding WordToolkit operation.
 
-Run the complete packaged 14-tool/73-action live acceptance gate:
+Run the complete packaged 14-tool/74-action live acceptance gate:
 
 ```powershell
 pwsh -NoProfile -File native/scripts/live-full-capabilities-timed.ps1 `
@@ -435,14 +446,14 @@ The cleaner constrains every target to the repository root. It preserves only th
 Version:
 
 ```text
-0.33.0+codex.20260722100256
+0.34.0+codex.20260722105842
 ```
 
 Windows x64 ZIP:
 
-[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.33.0/WordToolkit-0.33.0%2Bcodex.20260722100256-native-win-x64.zip)
+[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.34.0/WordToolkit-0.34.0%2Bcodex.20260722105842-native-win-x64.zip)
 
-SHA-256: `8a64ed4f9b69b80f338de5c30bc687852bf29d24bddcb9b99eb078d15e06d1b1`
+SHA-256: `f4625c2c15827e78c9b5c54eaa50adf6aeeb64644235cafc46aa8374812b3944`
 
 Live demonstration document:
 

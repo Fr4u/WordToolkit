@@ -99,7 +99,7 @@ internal sealed class McpServer
                     ["serverInfo"] = new JsonObject
                     {
                         ["name"] = "WordToolkit Native",
-                        ["version"] = "0.33.0",
+                        ["version"] = "0.34.0",
                     },
                     ["instructions"] =
                         "Token-lean native Word bridge. Use core tools directly; inspect and "

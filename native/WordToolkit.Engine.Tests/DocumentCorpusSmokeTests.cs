@@ -65,6 +65,71 @@ public sealed class DocumentCorpusSmokeTests
         }
     }
 
+    [Fact]
+    public void BuildsClosedDependencyGraphsForBundledMultiProducerDocxCorpus()
+    {
+        var root = FindRepositoryRoot();
+        var documentPaths = new[]
+        {
+            Path.Combine(root, "examples"),
+            Path.Combine(root, "tests", "upstream", "fixtures"),
+            Path.Combine(root, "tests", "upstream", "fuzz", "corpus"),
+        }
+            .Where(Directory.Exists)
+            .SelectMany(path =>
+                Directory.EnumerateFiles(path, "*.docx", SearchOption.AllDirectories)
+            )
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        Assert.True(
+            documentPaths.Length >= 40,
+            $"Expected at least 40 corpus documents, found {documentPaths.Length}."
+        );
+
+        var reader = new OpcPackageReader();
+        var nodeKinds = new HashSet<WordDependencyNodeKind>();
+        var edgeKinds = new HashSet<WordDependencyEdgeKind>();
+        foreach (var path in documentPaths)
+        {
+            var package = reader.Read(path);
+            var semantic = new WordSemanticProjector().Project(package);
+            var graph = new WordDependencyGraphBuilder().Build(package, semantic);
+            Assert.Equal(package.Fingerprint, graph.PackageFingerprint);
+            var nodeIds = graph.Nodes.Select(node => node.Id)
+                .ToHashSet(StringComparer.Ordinal);
+            Assert.Equal(graph.Nodes.Count, nodeIds.Count);
+            Assert.Equal(
+                graph.Edges.Count,
+                graph.Edges.Select(edge => edge.Id)
+                    .Distinct(StringComparer.Ordinal)
+                    .Count()
+            );
+            Assert.All(
+                graph.Edges,
+                edge =>
+                {
+                    Assert.Contains(edge.SourceNodeId, nodeIds);
+                    Assert.Contains(edge.TargetNodeId, nodeIds);
+                }
+            );
+            nodeKinds.UnionWith(graph.Nodes.Select(node => node.Kind));
+            edgeKinds.UnionWith(graph.Edges.Select(edge => edge.Kind));
+        }
+
+        Assert.Contains(WordDependencyNodeKind.Part, nodeKinds);
+        Assert.Contains(WordDependencyNodeKind.SemanticNode, nodeKinds);
+        Assert.Contains(WordDependencyNodeKind.Style, nodeKinds);
+        Assert.Contains(WordDependencyNodeKind.NumberingInstance, nodeKinds);
+        Assert.Contains(WordDependencyNodeKind.Bookmark, nodeKinds);
+        Assert.Contains(WordDependencyNodeKind.Section, nodeKinds);
+        Assert.Contains(WordDependencyEdgeKind.PackageRelationship, edgeKinds);
+        Assert.Contains(WordDependencyEdgeKind.UsesStyle, edgeKinds);
+        Assert.Contains(WordDependencyEdgeKind.UsesNumbering, edgeKinds);
+        Assert.Contains(WordDependencyEdgeKind.FieldReference, edgeKinds);
+        Assert.Contains(WordDependencyEdgeKind.SectionBindsStory, edgeKinds);
+    }
+
     private static bool IsXml(string? contentType) =>
         contentType is not null
         && (

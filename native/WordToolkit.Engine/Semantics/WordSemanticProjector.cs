@@ -718,17 +718,47 @@ public sealed class WordSemanticProjector
         );
         if (kind == WordSemanticNodeKind.Paragraph)
         {
-            var style = element.Elements(wordNamespace + "pPr")
+            var paragraphProperties = element.Elements(wordNamespace + "pPr")
+                .FirstOrDefault();
+            var style = paragraphProperties?
                 .Elements(wordNamespace + "pStyle")
                 .Attributes(wordNamespace + "val")
                 .Select(attribute => attribute.Value)
                 .FirstOrDefault();
             AddIfPresent(result, "style_id", style);
+            var numberingProperties = paragraphProperties?
+                .Elements(wordNamespace + "numPr")
+                .FirstOrDefault();
+            AddIfPresent(
+                result,
+                "numbering_id",
+                numberingProperties?.Elements(wordNamespace + "numId")
+                    .Attributes(wordNamespace + "val")
+                    .Select(attribute => attribute.Value)
+                    .FirstOrDefault()
+            );
+            AddIfPresent(
+                result,
+                "numbering_level",
+                numberingProperties?.Elements(wordNamespace + "ilvl")
+                    .Attributes(wordNamespace + "val")
+                    .Select(attribute => attribute.Value)
+                    .FirstOrDefault()
+            );
         }
         else if (kind == WordSemanticNodeKind.Run)
         {
             var style = element.Elements(wordNamespace + "rPr")
                 .Elements(wordNamespace + "rStyle")
+                .Attributes(wordNamespace + "val")
+                .Select(attribute => attribute.Value)
+                .FirstOrDefault();
+            AddIfPresent(result, "style_id", style);
+        }
+        else if (kind == WordSemanticNodeKind.Table)
+        {
+            var style = element.Elements(wordNamespace + "tblPr")
+                .Elements(wordNamespace + "tblStyle")
                 .Attributes(wordNamespace + "val")
                 .Select(attribute => attribute.Value)
                 .FirstOrDefault();

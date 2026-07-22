@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+## 0.34.0 — 2026-07-22
+
+- Added the initial unified `WordDependencyGraph`. Deterministic `wddn_` nodes and
+  `wdde_` edges join OPC reachability, source-linked semantic containment, explicit
+  paragraph/run/table style usage, style defaults and inheritance/link chains,
+  numbering definitions and uses, field/bookmark targets, nested fields and section
+  header/footer bindings. Missing and external targets remain explicit, every endpoint
+  and input fingerprint is checked, stable-ID collision detection is constant-time,
+  and node/edge/key/issue budgets fail closed.
+- Added lazy `inspect_ooxml_dependencies` with compact summary, paged node/edge,
+  unresolved-target, issue and bounded one-to-four-hop impact views. Keys and source
+  provenance are redacted by default, external relationships are never followed, field
+  codes are never executed and the response carries an explicit unmodeled-domain list.
+  Page selection is a cancellable single pass that retains only the requested page;
+  summary aggregation is bounded by the fixed edge-kind vocabulary. The public MCP
+  surface remains 14 tools while the lazy action catalog grows to 74.
+- Projected explicit table style, paragraph numbering instance and numbering-level
+  references into the source-linked semantic properties so the dependency spine does
+  not infer those relationships from rendered appearance.
+- Refreshed all eight pinned AI/Word repository heads on 2026-07-22. Seven were
+  unchanged; OfficeCLI advanced 28 commits to `e7916a2...` (`1.0.140`). No Word handler
+  changed in that range, while its missing-destination atomic-write fallback was
+  recorded as a persistence-semantic change rather than ignored as release noise.
+- Verified 238 document-engine tests and 183 native-host tests. A field-heavy corpus
+  document keeps the default dependency result data below 5000 serialized characters,
+  and tests prove deterministic identities, complete edge endpoints, redaction,
+  unresolved/orphan evidence, traversal limits and zero Word COM invocation.
+- Built the self-contained Windows x64 plugin twice from independent output
+  directories. Both 195-file archives are byte-identical at 35,867,498 bytes with
+  SHA-256 `f4625c2c15827e78c9b5c54eaa50adf6aeeb64644235cafc46aa8374812b3944`;
+  the native runtime assembly SHA-256 is
+  `d93d12ab573a72547bc4db1992c997c1cb44c6b235439ca72ec1abd16d45840f`.
+- Corrected the package report to hash the native runtime assembly separately from the
+  generic .NET apphost executable, whose unchanged stub hash is not proof that the
+  WordToolkit implementation stayed unchanged.
+
 ## 0.33.0 — 2026-07-22
 
 - Added loss-aware native style preservation for Presentation MathML and OMML. MathML

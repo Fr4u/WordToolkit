@@ -1,0 +1,372 @@
+using System.IO.Compression;
+using System.Text;
+using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Semantics;
+
+namespace WordToolkit.Engine.Tests;
+
+public sealed class WordDependencyGraphTests
+{
+    [Fact]
+    public void BuildsOneStableSourceLinkedGraphAcrossSixDocumentDomains()
+    {
+        using var bytes = BuildPackage(
+            documentBody: """
+            <w:p>
+              <w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="5"/></w:numPr></w:pPr>
+              <w:bookmarkStart w:id="7" w:name="Target"/>
+              <w:r><w:rPr><w:rStyle w:val="Heading1Char"/></w:rPr><w:t>Heading</w:t></w:r>
+              <w:bookmarkEnd w:id="7"/>
+            </w:p>
+            <w:p>
+              <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+              <w:r><w:instrText xml:space="preserve"> REF Target \h </w:instrText></w:r>
+              <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+              <w:r><w:t>Heading</w:t></w:r>
+              <w:r><w:fldChar w:fldCharType="end"/></w:r>
+            </w:p>
+            <w:tbl>
+              <w:tblPr><w:tblStyle w:val="TableGrid"/></w:tblPr>
+              <w:tr><w:tc><w:p><w:r><w:t>Cell</w:t></w:r></w:p></w:tc></w:tr>
+            </w:tbl>
+            """,
+            stylesXml: """
+            <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+            <w:style w:type="paragraph" w:styleId="Heading1">
+              <w:name w:val="Heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:link w:val="Heading1Char"/>
+            </w:style>
+            <w:style w:type="character" w:styleId="Heading1Char"><w:link w:val="Heading1"/></w:style>
+            <w:style w:type="table" w:default="1" w:styleId="TableGrid"><w:name w:val="Table Grid"/></w:style>
+            <w:style w:type="paragraph" w:styleId="Numbered"><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="5"/></w:numPr></w:pPr></w:style>
+            """,
+            numberingXml: """
+            <w:abstractNum w:abstractNumId="10">
+              <w:multiLevelType w:val="singleLevel"/>
+              <w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:pStyle w:val="Heading1"/><w:lvlText w:val="%1."/></w:lvl>
+            </w:abstractNum>
+            <w:num w:numId="5"><w:abstractNumId w:val="10"/></w:num>
+            """,
+            headerXml: "<w:p><w:r><w:t>Header</w:t></w:r></w:p>"
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+
+        var first = new WordDependencyGraphBuilder().Build(package, semantic);
+        var second = new WordDependencyGraphBuilder().Build(package, semantic);
+
+        Assert.Equal(
+            first.Nodes.Select(node => node.Id),
+            second.Nodes.Select(node => node.Id)
+        );
+        Assert.Equal(
+            first.Edges.Select(edge => edge.Id),
+            second.Edges.Select(edge => edge.Id)
+        );
+        Assert.All(
+            first.Edges,
+            edge =>
+            {
+                Assert.True(first.TryGetNode(edge.SourceNodeId, out _));
+                Assert.True(first.TryGetNode(edge.TargetNodeId, out _));
+            }
+        );
+        Assert.Contains(
+            first.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.PackageRelationship
+                && edge.IsResolved
+        );
+        Assert.Contains(
+            first.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.SemanticContainment
+        );
+        Assert.Contains(
+            first.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.UsesStyle
+                && edge.Qualifier == "paragraph"
+        );
+        Assert.Contains(
+            first.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.UsesStyle
+                && edge.Qualifier == "run"
+        );
+        Assert.Contains(
+            first.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.UsesStyle
+                && edge.Qualifier == "table"
+        );
+        Assert.Contains(
+            first.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.UsesNumbering
+                && edge.IsResolved
+                && edge.Qualifier == "0"
+        );
+        Assert.Contains(
+            first.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.StyleUsesNumbering
+                && edge.IsResolved
+                && edge.PartUri == "/word/styles.xml"
+        );
+        Assert.Contains(
+            first.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.FieldReference
+                && edge.IsResolved
+        );
+        Assert.Contains(
+            first.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.SectionBindsStory
+                && edge.IsResolved
+        );
+        Assert.Contains(
+            first.Nodes,
+            node => node.Kind == WordDependencyNodeKind.Part
+                && node.Key == "/word/header1.xml"
+                && node.IsPackageReachable
+        );
+        Assert.True(first.Coverage.PackageRelationships);
+        Assert.True(first.Coverage.SemanticContainment);
+        Assert.True(first.Coverage.Styles);
+        Assert.True(first.Coverage.Numbering);
+        Assert.True(first.Coverage.References);
+        Assert.True(first.Coverage.Sections);
+        Assert.Contains("charts_smartart_diagrams", first.Coverage.ExplicitlyUnmodeledDomains);
+        Assert.Empty(first.Issues);
+
+        var paragraph = semantic.Nodes.Single(node =>
+            node.Kind == WordSemanticNodeKind.Paragraph
+            && node.Properties.ContainsKey("numbering_id")
+        );
+        Assert.Equal("5", paragraph.Properties["numbering_id"]);
+        Assert.Equal("0", paragraph.Properties["numbering_level"]);
+        Assert.Equal(
+            "TableGrid",
+            semantic.Nodes.Single(node => node.Kind == WordSemanticNodeKind.Table)
+                .Properties["style_id"]
+        );
+    }
+
+    [Fact]
+    public void PreservesUnresolvedTargetsAndPackageOrphansAsEvidence()
+    {
+        using var bytes = BuildPackage(
+            documentBody: """
+            <w:p>
+              <w:pPr><w:pStyle w:val="MissingStyle"/><w:numPr><w:numId w:val="99"/></w:numPr></w:pPr>
+              <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+              <w:r><w:instrText xml:space="preserve"> REF MissingBookmark </w:instrText></w:r>
+              <w:r><w:fldChar w:fldCharType="end"/></w:r>
+            </w:p>
+            """,
+            stylesXml: """
+            <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+            """,
+            numberingXml: """
+            <w:num w:numId="5"><w:abstractNumId w:val="42"/></w:num>
+            """,
+            includeMissingRelationship: true,
+            includeExternalRelationship: true,
+            includeOrphanPart: true
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+
+        var graph = new WordDependencyGraphBuilder().Build(package, semantic);
+
+        Assert.Contains(graph.Issues, issue => issue.Code == "WDG001");
+        Assert.Contains(graph.Issues, issue => issue.Code == "WDG003");
+        Assert.Contains(graph.Issues, issue => issue.Code == "WDG010");
+        Assert.Contains(graph.Issues, issue => issue.Code == "WDG020");
+        Assert.Contains(graph.Issues, issue => issue.Code == "WDG022");
+        Assert.Contains(graph.Issues, issue => issue.Code == "WDG030");
+        Assert.Contains(
+            graph.Nodes,
+            node => node.Kind == WordDependencyNodeKind.ExternalTarget
+                && node.IsExternal
+                && !node.IsResolved
+        );
+        Assert.Contains(
+            graph.Nodes,
+            node => node.Kind == WordDependencyNodeKind.Part
+                && node.Key == "/custom/orphan.xml"
+                && !node.IsPackageReachable
+        );
+        Assert.Contains(
+            graph.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.FieldReference
+                && !edge.IsResolved
+        );
+        Assert.All(
+            graph.Edges,
+            edge =>
+            {
+                Assert.True(graph.TryGetNode(edge.SourceNodeId, out _));
+                Assert.True(graph.TryGetNode(edge.TargetNodeId, out _));
+            }
+        );
+    }
+
+    [Fact]
+    public void EnforcesNodeAndFingerprintBoundaries()
+    {
+        using var bytes = BuildPackage(documentBody: "<w:p/>");
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+
+        Assert.Throws<WordDependencyLimitException>(() =>
+            new WordDependencyGraphBuilder(
+                new WordDependencyGraphOptions { MaxNodes = 1 }
+            ).Build(package, semantic)
+        );
+
+        using var otherBytes = BuildPackage(documentBody: "<w:p><w:r><w:t>Other</w:t></w:r></w:p>");
+        var otherPackage = new OpcPackageReader().Read(otherBytes);
+        var otherSemantic = new WordSemanticProjector().Project(otherPackage);
+        var styles = new WordStyleGraphBuilder().Build(package, semantic);
+        var numbering = new WordNumberingGraphBuilder().Build(package, semantic, styles);
+        var references = new WordReferenceGraphBuilder().Build(package, semantic);
+        var sections = new WordSectionGraphBuilder().Build(package, semantic);
+
+        Assert.Throws<WordDependencyProjectionException>(() =>
+            new WordDependencyGraphBuilder().Build(
+                package,
+                otherSemantic,
+                styles,
+                numbering,
+                references,
+                sections
+            )
+        );
+    }
+
+    private static MemoryStream BuildPackage(
+        string documentBody,
+        string? stylesXml = null,
+        string? numberingXml = null,
+        string? headerXml = null,
+        bool includeMissingRelationship = false,
+        bool includeExternalRelationship = false,
+        bool includeOrphanPart = false
+    )
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(
+                archive,
+                "[Content_Types].xml",
+                $"""
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                  <Default Extension="xml" ContentType="application/xml"/>
+                  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  {(stylesXml is null ? "" : "<Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/>")}
+                  {(numberingXml is null ? "" : "<Override PartName=\"/word/numbering.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml\"/>")}
+                  {(headerXml is null ? "" : "<Override PartName=\"/word/header1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml\"/>")}
+                </Types>
+                """
+            );
+            AddEntry(
+                archive,
+                "_rels/.rels",
+                """
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                </Relationships>
+                """
+            );
+            AddEntry(
+                archive,
+                "word/document.xml",
+                $"""
+                <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+                  <w:body>
+                    {documentBody}
+                    <w:sectPr>{(headerXml is null ? "" : "<w:headerReference w:type=\"default\" r:id=\"rId3\"/>")}</w:sectPr>
+                  </w:body>
+                </w:document>
+                """
+            );
+            var documentRelationships = new StringBuilder();
+            documentRelationships.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>");
+            documentRelationships.AppendLine("<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">");
+            if (stylesXml is not null)
+            {
+                documentRelationships.AppendLine("<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>");
+            }
+            if (numberingXml is not null)
+            {
+                documentRelationships.AppendLine("<Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering\" Target=\"numbering.xml\"/>");
+            }
+            if (headerXml is not null)
+            {
+                documentRelationships.AppendLine("<Relationship Id=\"rId3\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" Target=\"header1.xml\"/>");
+            }
+            if (includeMissingRelationship)
+            {
+                documentRelationships.AppendLine("<Relationship Id=\"rId98\" Type=\"urn:wordtoolkit:test:missing\" Target=\"missing.xml\"/>");
+            }
+            if (includeExternalRelationship)
+            {
+                documentRelationships.AppendLine("<Relationship Id=\"rId99\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink\" Target=\"https://example.invalid/private\" TargetMode=\"External\"/>");
+            }
+            documentRelationships.AppendLine("</Relationships>");
+            AddEntry(
+                archive,
+                "word/_rels/document.xml.rels",
+                documentRelationships.ToString()
+            );
+            if (stylesXml is not null)
+            {
+                AddEntry(
+                    archive,
+                    "word/styles.xml",
+                    $"""
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">{stylesXml}</w:styles>
+                    """
+                );
+            }
+            if (numberingXml is not null)
+            {
+                AddEntry(
+                    archive,
+                    "word/numbering.xml",
+                    $"""
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">{numberingXml}</w:numbering>
+                    """
+                );
+            }
+            if (headerXml is not null)
+            {
+                AddEntry(
+                    archive,
+                    "word/header1.xml",
+                    $"""
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">{headerXml}</w:hdr>
+                    """
+                );
+            }
+            if (includeOrphanPart)
+            {
+                AddEntry(archive, "custom/orphan.xml", "<orphan/>");
+            }
+        }
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static void AddEntry(ZipArchive archive, string name, string content)
+    {
+        var entry = archive.CreateEntry(name, CompressionLevel.NoCompression);
+        entry.LastWriteTime = new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        using var writer = new StreamWriter(
+            entry.Open(),
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)
+        );
+        writer.Write(content);
+    }
+}

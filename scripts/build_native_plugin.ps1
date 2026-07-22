@@ -122,6 +122,10 @@ $runtimeExecutable = Join-Path $runtime "wordtoolkit-native.exe"
 if (-not (Test-Path -LiteralPath $runtimeExecutable -PathType Leaf)) {
     throw "Published runtime executable is missing"
 }
+$runtimeAssembly = Join-Path $runtime "wordtoolkit-native.dll"
+if (-not (Test-Path -LiteralPath $runtimeAssembly -PathType Leaf)) {
+    throw "Published runtime assembly is missing"
+}
 
 $forbidden = @(
     Get-ChildItem -LiteralPath $resolvedOutput -Recurse -File |
@@ -232,6 +236,9 @@ $result = [ordered]@{
     ).Hash.ToLowerInvariant()
     executable_sha256 = (
         Get-FileHash -LiteralPath $runtimeExecutable -Algorithm SHA256
+    ).Hash.ToLowerInvariant()
+    runtime_assembly_sha256 = (
+        Get-FileHash -LiteralPath $runtimeAssembly -Algorithm SHA256
     ).Hash.ToLowerInvariant()
 }
 $result | ConvertTo-Json -Depth 10

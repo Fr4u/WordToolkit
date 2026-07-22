@@ -535,6 +535,43 @@ Repair never means “rewrite until the validator stops complaining.” Every re
 rule ID, confidence, destructive-risk label, affected source spans, inverse, and proof
 that no unrelated parts changed.
 
+### Unified dependency graph
+
+`WordDependencyGraph` is the first shared cross-domain dependency spine. It does not
+flatten the existing typed graphs into anonymous strings. It joins six proven domains:
+
+- OPC package roots, parts and internal/external/invalid relationships;
+- source-linked semantic containment across every projected Word story;
+- style definitions, defaults, `basedOn`, `next`, linked styles and explicit paragraph,
+  run and table usage;
+- abstract numbering, instances, levels, picture bullets, style links and explicit
+  paragraph/style numbering references;
+- story-scoped fields, bookmarks, nested fields and typed reference targets;
+- sections and effective header/footer story bindings.
+
+Every node and edge has a deterministic content-derived `wddn_` or `wdde_` identity.
+Every edge endpoint must exist, even when the target is missing or external; unresolved
+evidence is represented as an unresolved node instead of being dropped. Part nodes
+record reachability from the package root separately from semantic containment. Source
+part URI, XML element ordinal, relationship metadata and semantic node identity remain
+available as opt-in provenance.
+
+The builder binds every input graph to one exact package fingerprint, uses constant-time
+stable-ID collision checks, enforces node, edge, key and issue budgets, checks
+cancellation during traversal, and never executes a field or follows an external
+relationship. Coverage is explicit. DrawingML/VML layout,
+charts, SmartArt, OLE, custom-XML binding, bibliography sources, active content,
+signatures, encryption and co-authoring sessions are still outside this initial graph.
+
+Lazy `inspect_ooxml_dependencies` exposes compact edge-kind counts, filtered nodes and
+edges, unresolved edges, issues and a bounded one-to-four-hop impact neighborhood. Keys
+that may contain part names, bookmark names, field targets or external addresses are
+fingerprinted and redacted by default. Source metadata is a separate opt-in. This is the
+common substrate for later linter, repair, optimizer, affected-node proof and query-plan
+joins; it is not yet any of those engines. Filtering and paging use one cancellable pass
+and retain only the requested page instead of materializing every matching response
+object; summary counts retain only one accumulator per fixed edge kind.
+
 ### Semantic comparison
 
 Saved-package comparison is now a two-layer read-only service. The OPC layer reports
@@ -695,6 +732,8 @@ The current native mapping is therefore:
 - settings/compatibility/protection metadata -> lazy `inspect_ooxml_settings`;
 - declared and embedded font metadata -> lazy `inspect_ooxml_fonts`;
 - story-aware field/bookmark/dependency inspection -> lazy `inspect_ooxml_references`;
+- cross-domain package/semantic/style/numbering/reference/section dependency inspection
+  -> lazy `inspect_ooxml_dependencies`;
 - source-linked comments/threads/people/revisions/moves/permissions -> lazy
   `inspect_ooxml_review`;
 - modeled paragraph/run formatting -> lazy `resolve_ooxml_formatting`;
@@ -789,6 +828,8 @@ No feature is “supported” until it passes the relevant gates:
 - stable node identity and compact semantic inspection — **implemented, initial tests
   passing**;
 - section/style/numbering/reference adapters and semantic query;
+- bounded cross-domain dependency spine — **initial implementation complete for OPC,
+  semantic containment, styles, numbering, references and sections**;
 - package-to-semantic provenance tests — **implemented for main-part nodes and first
   text mutation; full-story coverage remains**.
 

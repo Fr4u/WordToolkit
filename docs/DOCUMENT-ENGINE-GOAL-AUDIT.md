@@ -53,8 +53,9 @@ vendor claim is not implementation evidence.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Compact inspect | Implemented (strengthened initial slice) | `inspect_ooxml_package`, `inspect_ooxml_semantics`, lazy `query_ooxml_semantics`, `inspect_ooxml_sections`, `inspect_ooxml_styles`, `inspect_ooxml_numbering`, `inspect_ooxml_theme`, `inspect_ooxml_settings`, `inspect_ooxml_fonts`, `inspect_ooxml_references` and filtered `resolve_ooxml_formatting`; projected-part inventory, privacy redaction, fingerprints, exact filters, per-field/item bounds and offset paging; a field-heavy TOC fixture enforces a sub-5000-character default reference response | Opaque continuation tokens, remaining auxiliary/versioned parts and a representative cross-action token benchmark suite |
+| Compact inspect | Implemented (strengthened initial slice) | `inspect_ooxml_package`, `inspect_ooxml_semantics`, lazy `query_ooxml_semantics`, `inspect_ooxml_sections`, `inspect_ooxml_styles`, `inspect_ooxml_numbering`, `inspect_ooxml_theme`, `inspect_ooxml_settings`, `inspect_ooxml_fonts`, `inspect_ooxml_references`, `inspect_ooxml_dependencies` and filtered `resolve_ooxml_formatting`; projected-part inventory, privacy redaction, fingerprints, exact filters, per-field/item bounds and offset paging; field-heavy TOC fixtures enforce sub-5000-character default reference and dependency responses | Opaque continuation tokens, remaining auxiliary/versioned parts and a representative cross-action token benchmark suite |
 | Semantic query/search | Partial (strengthened initial) | Source-ordered kind/property/part/subtree selectors across main, header/footer, note, comment, glossary and text-box stories; streaming contains/equals/starts/ends matching crosses run/field/tab/break boundaries; bounded optional previews/properties/provenance | Fields/math/metadata-aware predicates, structural relationship joins, aggregations and query planner |
+| Document dependency graph | Partial (initial cross-domain spine) | Deterministic `wddn_` nodes and `wdde_` edges join OPC reachability, semantic containment, explicit paragraph/run/table styles, style inheritance/link/defaults, numbering instances/abstracts/levels/picture bullets, field/bookmark targets and section header/footer bindings. Missing and external targets remain explicit; every endpoint, input fingerprint and resource budget is checked. Lazy inspection redacts keys/source by default and provides bounded impact traversal | DrawingML/VML, charts/SmartArt, OLE, custom-XML bindings, citations/bibliography sources, macros/signatures/encryption, co-authoring sessions, semantic query joins, incremental invalidation and mutation-impact policies |
 | Indexing | Not started | None | Incremental external index, invalidation and privacy controls |
 | AI planner | Partial foundation (strengthened) | Deterministic bounded text plans, typed review-decision plans, exact package-patch plans and three-way merge plans report counts/impact without returning content. Merge exposes stable conflict IDs, explicit three-choice resolutions, independently authorized risk classes, exact identities and baseline/candidate validation; lazy stateless apply requires reviewed IDs and all source fingerprints | Natural-language intent -> evidence -> broader heterogeneous typed plan -> cost/risk -> richer permissions and approval policy |
 | Typed semantic mutations | Partial (text + review transaction slices) | Text plans edit source-bound `w:t`, `w:delText` and `m:t`; review plans accept/reject supported insertion/deletion/conflict wrappers, complete moves and property snapshots, plus numbering-change acceptance, inserted rows, cell-insertion acceptance and cell-deletion rejection. Both preserve unrelated bytes, predict the result fingerprint and retain exact part-byte inverses; unsupported merges/table-grid/numbering-reconstruction/custom-XML cases fail closed | Paragraph/run/table/field/math command set, remaining review vocabulary, affected-node proof, permissions and durable recovery artifacts |
@@ -189,7 +190,7 @@ preconditions, affected-node proof, transaction, validation, and inverse.
 | repair a corrupted document | Detection partial; repair not started |
 | detect unused styles | Not started |
 | detect duplicate styles | Not started |
-| detect dead relationships | Partial (`OPC040` reachability); typed repair not started |
+| detect dead relationships | Partial (strengthened): `OPC040` plus source-linked dependency part reachability and unresolved relationship edges; typed repair not started |
 | minimize package size | Not started |
 | rebuild numbering | Not started |
 | repair OfficeMath | Not started |
@@ -208,7 +209,7 @@ preconditions, affected-node proof, transaction, validation, and inverse.
 | render only a table | Not started |
 | render one equation | Not started |
 | generate a document AST | Partial read-only semantic AST |
-| generate a dependency graph | OPC graph only; semantic dependencies not started |
+| generate a dependency graph | Partial: one bounded graph now joins OPC, semantic containment, styles, numbering, references and sections with explicit coverage gaps; drawings, embedded objects, custom XML, bibliography, active content and collaboration remain outside the typed spine |
 | generate a style map | Partial typed, paged graph plus filtered paragraph/run effective-property slice and provenance |
 | generate a section structure | Partial typed boundary and effective header/footer binding graph |
 | generate a document analysis | Package/semantic counts partial; full analysis not started |
@@ -246,21 +247,21 @@ mutation/repair/render execution required by the goal.
 
 | Requirement | State | Current evidence | Exit condition |
 |---|---|---|---|
-| Unit/regression tests | Partial | 234 engine, 179 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
+| Unit/regression tests | Partial | 238 engine, 183 native, 1273 Python passing at current checkpoint | Coverage for every required feature and published failure corpus |
 | Property/fuzz testing | Partial | Deterministic malformed bytes and random opaque round-trip smoke | Continuous coverage-guided fuzzing, minimized corpus and resource assertions |
 | Fault injection | Not started | Validation/concurrency failure tests only | Every persistence/transaction phase, disk-full, denied, crash and race tests |
 | Preservation benchmark | Partial | Entry hashes and random no-op round trip | Public producer/feature corpus with untouched part/subtree metrics |
 | Performance benchmark | Not started for new engine | Existing native COM benchmark only | Parse/edit/save/render latency, allocation, peak memory, scaling and long run |
-| AI token benchmark | Partial (strengthened) | Lazy catalogue and bounded responses; earlier 83.5% schema reduction; field-heavy references and default equation summaries are regression-capped below 5000 serialized characters. Compact live-equation preflight now omits converted linear math and rule arrays in favor of lengths, flags and a short fingerprint; live verification returns hashes/counts but never raw OMML | Representative task suite against competitors with raw token logs |
+| AI token benchmark | Partial (strengthened) | Lazy catalogue and bounded responses; earlier 83.5% schema reduction; field-heavy reference and dependency result data plus default equation result data are regression-capped below 5000 serialized characters. Dependency keys/source are redacted by default, and compact live-equation preflight omits converted linear math and rule arrays in favor of lengths, flags and a short fingerprint; live verification returns hashes/counts but never raw OMML. The current MCP compatibility envelope mirrors successful data in both `content` and `structuredContent`, so the measured 2611-character dependency data becomes a 6750-character complete JSON-RPC line; this duplication is not hidden under the smaller claim | Representative task suite against competitors with raw token logs, followed by a compatibility-safe removal of duplicated payload tokens |
 | Visual regression | Not started for new engine | Historical screenshots and live acceptance | Versioned PDF/page/object baselines across rendering backends |
 | Cross-platform CI | Not started | Engine targets `net8.0`; current verification is Windows | Windows/Linux/macOS core tests and qualified backend matrix |
 | Public competitor benchmark | Not started | Research matrix only | Same fixtures, versions, commands, results, caveats and reproducible harness |
-| Release packaging | Partial (strengthened) | Versioned 0.33.0 self-contained Windows build succeeds under Windows PowerShell 5.1, contains the engine/runtime/manifest and zero Python files, and passes packaged compact equation preflight plus the complete 48-action real-Word acceptance through the 14-tool lazy public surface. Two independent sorted fixed-timestamp builds produced the same 36,989,699-byte ZIP; SHA-256 `8a64ed4f9b69b80f338de5c30bc687852bf29d24bddcb9b99eb078d15e06d1b1` | Optional signing/provenance policy, cross-host reproducibility proof and published multi-platform core artifacts |
+| Release packaging | Partial (strengthened) | Versioned 0.34.0 self-contained Windows build succeeds under Windows PowerShell 5.1, contains the engine/runtime/manifest and zero Python files, and passes packaged dependency-graph inspection without starting Word or following external targets. Two independent sorted fixed-timestamp builds produced the same 35,867,498-byte ZIP; SHA-256 `f4625c2c15827e78c9b5c54eaa50adf6aeeb64644235cafc46aa8374812b3944`. The latest complete 48-action real-Word acceptance remains the unchanged 0.33.0 live path; 0.34.0 changes only saved-package inspection | Optional signing/provenance policy, cross-host reproducibility proof and published multi-platform core artifacts |
 
 ## Current checkpoint evidence
 
-- `dotnet test native/WordToolkit.Engine.Tests` — 234 passed.
-- `dotnet test native/WordToolkit.Native.Tests` — 179 passed.
+- `dotnet test native/WordToolkit.Engine.Tests` — 238 passed.
+- `dotnet test native/WordToolkit.Native.Tests` — 183 passed.
 - `.venv/Scripts/python -m pytest -q` — 1273 passed, 16 intentionally skipped.
 - Native MCP regression against real Word verified Gaussian, nested and double
   integrals, Presentation MathML, OMML, a parenthesized matrix, cases and combining
@@ -270,6 +271,15 @@ mutation/repair/render execution required by the goal.
   fixed.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
+- Packaged 0.34.0 exposed 14 public tools, discovered the new dependency action and
+  inspected the field-heavy LibreOffice TOC fixture as 205 nodes and 255 edges without
+  opening Word or following an external target. Its compact result data was 2611
+  serialized characters; the complete JSON-RPC line was 6750 characters because the
+  compatibility layer mirrors the payload in both `content` and `structuredContent`.
+  Two independent 195-file builds produced identical 35,867,498-byte ZIPs with SHA-256
+  `f4625c2c15827e78c9b5c54eaa50adf6aeeb64644235cafc46aa8374812b3944`;
+  the native runtime assembly SHA-256 is
+  `d93d12ab573a72547bc4db1992c997c1cb44c6b235439ca72ec1abd16d45840f`.
 - Packaged 0.33.0 compact equation preflight returned 339 serialized characters and
   omitted converted linear math. The same packaged executable exposed 14 token-lean
   tools, resolved the 73-action lazy catalog, exercised all 48 live actions through the
@@ -307,6 +317,11 @@ mutation/repair/render execution required by the goal.
   redacted author selection, explicit-all enforcement, no Word startup, atomic backup and
   baseline-aware Microsoft Open XML SDK validation.
 - Semantic inspection was exercised through lazy search -> schema inspection -> execute.
+- Cross-domain dependency inspection was exercised without Word against constructed
+  resolved, missing, external and orphan targets and the field-heavy LibreOffice TOC
+  fixture. Stable graph identities repeated exactly, every edge endpoint existed,
+  one-to-four-hop traversal stayed bounded, sensitive keys/source stayed redacted by
+  default and the default response remained below 5000 serialized characters.
 - Header-story query -> guarded plan -> atomic apply was exercised end to end while
   proving that the main document part remained byte-identical.
 - Section inheritance and effective header/footer selection were exercised against

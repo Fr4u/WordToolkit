@@ -5012,6 +5012,130 @@
       }
     },
     {
+      "name": "inspect_ooxml_dependencies",
+      "title": "Inspect the Word document dependency graph",
+      "description": "Inspect one bounded, source-linked dependency graph spanning OPC parts and relationships, semantic containment across Word stories, styles, numbering, fields and bookmarks, and section header/footer bindings without opening Word. Unresolved and external targets remain explicit nodes; external targets are never followed. Keys and source locations are redacted by default, views are paged, and the response reports domains that are still unmodeled rather than claiming complete document coverage.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "nodes", "edges", "unresolved", "impact", "issues"],
+            "default": "summary",
+            "description": "Return compact edge-kind counts, graph nodes, graph edges, unresolved edges, a bounded neighborhood around node_id, or dependency diagnostics."
+          },
+          "node_id": {
+            "type": "string",
+            "pattern": "^wddn_[A-Za-z0-9_-]+$",
+            "maxLength": 128,
+            "description": "Optional exact dependency node ID from the same package fingerprint. Required for the impact view."
+          },
+          "node_kind": {
+            "type": "string",
+            "enum": [
+              "package",
+              "part",
+              "external_target",
+              "semantic_node",
+              "style",
+              "abstract_numbering",
+              "numbering_instance",
+              "picture_bullet",
+              "story",
+              "bookmark",
+              "field",
+              "reference_target",
+              "section"
+            ],
+            "description": "Optional exact node-kind filter for the nodes view."
+          },
+          "edge_kind": {
+            "type": "string",
+            "enum": [
+              "package_relationship",
+              "part_contains_semantic_root",
+              "semantic_containment",
+              "defines_style",
+              "uses_style",
+              "default_style",
+              "style_based_on",
+              "style_next",
+              "style_linked",
+              "defines_abstract_numbering",
+              "defines_numbering_instance",
+              "defines_picture_bullet",
+              "numbering_instance_uses_abstract",
+              "numbering_level_uses_style",
+              "abstract_numbering_uses_style",
+              "uses_numbering",
+              "style_uses_numbering",
+              "numbering_uses_picture_bullet",
+              "picture_bullet_relationship",
+              "defines_story",
+              "story_contains_bookmark",
+              "story_contains_field",
+              "field_contains_field",
+              "field_reference",
+              "defines_section",
+              "section_binds_story"
+            ],
+            "description": "Optional exact edge-kind filter for edge, unresolved, and impact views."
+          },
+          "direction": {
+            "type": "string",
+            "enum": ["incoming", "outgoing", "both"],
+            "default": "both",
+            "description": "Direction used when node_id filters edges and during impact traversal."
+          },
+          "max_depth": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4,
+            "default": 1,
+            "description": "Maximum edge depth for the impact view. Traversal has an independent hard edge budget."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "include_keys": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded internal node keys. Keys can contain bookmark names, field targets, part URIs, or external relationship targets; external content is never fetched."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include bounded part URIs, relationship metadata, semantic node IDs, and XML element ordinals."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include at most 40 bounded cross-domain dependency diagnostics in non-issues views."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "inspect_ooxml_equations",
       "title": "Inspect native Word equations",
       "description": "Inspect a source-linked canonical graph of native OfficeMath objects in a saved Word package without opening Word, converting the equations, or returning raw OMML. Understands all standard OMML object families, display paragraphs, matrix cells, argument roles, run properties, main math defaults, Strict markup, Word story boundaries, malformed structures, and preserved extension content. Text is fingerprinted and redacted unless an explicit bounded preview is requested.",
