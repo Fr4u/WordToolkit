@@ -12,6 +12,8 @@ public sealed record OpcAtomicWriteOptions
     public bool AllowStructuralErrors { get; init; }
 
     public bool KeepBackup { get; init; }
+
+    public bool RequireNewDestination { get; init; }
 }
 
 public sealed record OpcAtomicWriteResult(
@@ -80,7 +82,11 @@ public sealed class OpcAtomicPackageWriter
         {
             var expectedFingerprint = options.ExpectedDestinationFingerprint
                 ?? mutation.BaseFingerprint;
-            AssertDestinationVersion(destination, expectedFingerprint);
+            AssertDestinationVersion(
+                destination,
+                expectedFingerprint,
+                options.RequireNewDestination
+            );
 
             using (
                 var output = new FileStream(
@@ -119,8 +125,25 @@ public sealed class OpcAtomicPackageWriter
                 );
             }
 
-            AssertDestinationVersion(destination, expectedFingerprint);
-            if (File.Exists(destination))
+            AssertDestinationVersion(
+                destination,
+                expectedFingerprint,
+                options.RequireNewDestination
+            );
+            if (options.RequireNewDestination)
+            {
+                try
+                {
+                    File.Move(temporaryPath, destination, overwrite: false);
+                }
+                catch (IOException) when (File.Exists(destination))
+                {
+                    throw new OpcPackageConcurrencyException(
+                        "The destination was created while the package was being written."
+                    );
+                }
+            }
+            else if (File.Exists(destination))
             {
                 File.Replace(
                     temporaryPath,
@@ -173,11 +196,22 @@ public sealed class OpcAtomicPackageWriter
         }
     }
 
-    private void AssertDestinationVersion(string destination, string expectedFingerprint)
+    private void AssertDestinationVersion(
+        string destination,
+        string expectedFingerprint,
+        bool requireNewDestination
+    )
     {
         if (!File.Exists(destination))
         {
             return;
+        }
+
+        if (requireNewDestination)
+        {
+            throw new OpcPackageConcurrencyException(
+                "The destination already exists and overwrite is forbidden."
+            );
         }
 
         var current = _reader.Read(destination);

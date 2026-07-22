@@ -1,6 +1,6 @@
 ---
 name: wordtoolkit
-description: Control real Microsoft Word and inspect or query saved Word OOXML packages through a token-lean native .NET bridge. Use for live documents, package/semantic inspection, fields, bookmarks, reference dependencies, semantic selectors, formatting, equations, review, structures, export, save, close, and validation.
+description: Control real Microsoft Word and inspect, compare, patch, or three-way merge saved Word OOXML packages through a token-lean native .NET bridge. Use for live documents, package/semantic inspection, fields, bookmarks, reference dependencies, semantic selectors, formatting, equations, review, structures, export, save, close, and validation.
 ---
 
 # WordToolkit
@@ -140,6 +140,31 @@ layout. Signature invalidation, macros/OLE/ActiveX, external relationships, opaq
 payloads and new structural errors are separate gates; never collapse them into a broad
 force flag. Validation truncation or inability to open the candidate is non-overridable.
 These actions do not open Word.
+For a three-way merge of saved Word packages, use this strict lazy workflow:
+
+1. Supply a real common ancestor, left branch, right branch and a new output path to
+   `plan_ooxml_merge`. Keep `view=summary` first. Retain all three fingerprints,
+   `merge_id` and `merge_apply_plan_id`.
+2. If conflicts exist, request bounded `view=conflicts` pages. Leave text previews and
+   hashes off unless the next decision needs them. A one-sided or identical entry change
+   is automatic; disjoint text changes in one XML part are automatic only when each
+   branch reconstructs byte-exactly from the ancestor. Everything else remains a
+   conflict.
+3. Resubmit explicit resolutions by stable `conflict_id`, choosing only
+   `use_ancestor`, `use_left` or `use_right`. Review the new merge/apply-plan IDs,
+   remaining conflict count, resulting patch/risk evidence, Open XML validation, hard
+   blocks and exact authorization names. Never infer that an unresolved conflict was
+   accepted.
+4. Call `apply_ooxml_merge` with the same paths and resolutions, all three exact
+   fingerprints, and the destination-bound `expected_merge_apply_plan_id`. Set only
+   authorizations the user accepted. The output must not exist; merge never overwrites
+   an input or destination.
+
+The merge path does not open Word, expose payloads/raw XML or retain document content in
+a server cache. Output-type mismatch, unresolved conflicts, validation truncation and
+failure to open the candidate are non-overridable. Arbitrary structural OOXML and
+revision-aware merge are not implemented; they must stay as conflicts rather than be
+flattened into a plausible-looking but damaged document.
 For a saved-package tracked-revision decision, use this strict lazy workflow:
 
 1. Inspect only the required revisions and retain the exact package fingerprint,

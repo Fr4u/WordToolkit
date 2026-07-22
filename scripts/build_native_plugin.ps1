@@ -37,6 +37,27 @@ function Assert-ChildPath {
     return $resolvedCandidate
 }
 
+function Get-RelativePathCompat {
+    param(
+        [string]$BasePath,
+        [string]$TargetPath
+    )
+    $resolvedBase = [IO.Path]::GetFullPath($BasePath).TrimEnd('\', '/') + '\'
+    $resolvedTarget = [IO.Path]::GetFullPath($TargetPath)
+    $baseUri = [Uri]::new($resolvedBase)
+    $targetUri = [Uri]::new($resolvedTarget)
+    if (-not [string]::Equals(
+        $baseUri.Scheme,
+        $targetUri.Scheme,
+        [StringComparison]::OrdinalIgnoreCase
+    )) {
+        throw "Cannot compute a relative path across URI schemes"
+    }
+    return [Uri]::UnescapeDataString(
+        $baseUri.MakeRelativeUri($targetUri).ToString()
+    ).Replace('/', '\')
+}
+
 $resolvedOutput = Assert-ChildPath -Root $dist -Candidate $Output
 $resolvedArchive = Assert-ChildPath -Root $dist -Candidate $Archive -AllowFile
 $project = Join-Path $root "native\WordToolkit.Native\WordToolkit.Native.csproj"
@@ -153,17 +174,37 @@ try {
             $file in Get-ChildItem -LiteralPath $resolvedOutput -Recurse -File |
                 Sort-Object FullName
         ) {
-            $relative = [IO.Path]::GetRelativePath(
-                $resolvedOutput,
-                $file.FullName
-            ).Replace('\', '/')
+            $relative = Get-RelativePathCompat `
+                -BasePath $resolvedOutput `
+                -TargetPath $file.FullName
+            $relative = $relative.Replace('\', '/')
             $entryName = "wordtoolkit/$relative"
-            [IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
-                $zip,
-                $file.FullName,
+            $entry = $zip.CreateEntry(
                 $entryName,
                 [IO.Compression.CompressionLevel]::Optimal
-            ) | Out-Null
+            )
+            $entry.LastWriteTime = [DateTimeOffset]::new(
+                1980,
+                1,
+                1,
+                0,
+                0,
+                0,
+                [TimeSpan]::Zero
+            )
+            $source = [IO.File]::OpenRead($file.FullName)
+            try {
+                $target = $entry.Open()
+                try {
+                    $source.CopyTo($target)
+                }
+                finally {
+                    $target.Dispose()
+                }
+            }
+            finally {
+                $source.Dispose()
+            }
         }
     }
     finally {
@@ -186,6 +227,9 @@ $result = [ordered]@{
     files = $files.Count
     bytes = ($files | Measure-Object Length -Sum).Sum
     archive_bytes = (Get-Item -LiteralPath $resolvedArchive).Length
+    archive_sha256 = (
+        Get-FileHash -LiteralPath $resolvedArchive -Algorithm SHA256
+    ).Hash.ToLowerInvariant()
     executable_sha256 = (
         Get-FileHash -LiteralPath $runtimeExecutable -Algorithm SHA256
     ).Hash.ToLowerInvariant()

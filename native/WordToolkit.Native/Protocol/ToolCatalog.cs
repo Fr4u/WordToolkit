@@ -26,6 +26,8 @@ internal sealed class ToolCatalog
         "inspect_ooxml_patch",
         "plan_ooxml_patch_apply",
         "apply_ooxml_patch",
+        "plan_ooxml_merge",
+        "apply_ooxml_merge",
         "inspect_ooxml_sections",
         "inspect_ooxml_styles",
         "inspect_ooxml_numbering",

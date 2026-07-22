@@ -4443,6 +4443,203 @@
       }
     },
     {
+      "name": "plan_ooxml_merge",
+      "title": "Plan a guarded three-way Word package merge",
+      "description": "Merge two saved Word branches against an explicit common ancestor without opening Word. Automatically selects one-sided and identical entry changes and composes disjoint lossless source-linked text edits; every other divergence becomes a stable conflict requiring an explicit resolution. Returns a compact summary by default and bounded conflict, entry, operation, risk, or schema-error pages on demand. The destination-bound apply-plan ID covers all three package fingerprints, resolutions, validation evidence, result type, and output path.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ancestor_path": {
+            "type": "string",
+            "description": "Path to the common ancestor DOCX, DOCM, DOTX, or DOTM package."
+          },
+          "left_path": {
+            "type": "string",
+            "description": "Path to the left branch package."
+          },
+          "right_path": {
+            "type": "string",
+            "description": "Path to the right branch package."
+          },
+          "output_path": {
+            "type": "string",
+            "description": "New DOCX, DOCM, DOTX, or DOTM output path. The parent directory must exist and the file must not exist."
+          },
+          "expected_ancestor_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "expected_left_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "expected_right_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "resolutions": {
+            "type": "array",
+            "maxItems": 20000,
+            "default": [],
+            "description": "Explicit resolutions for stable conflict IDs returned by an earlier plan. Omit unresolved conflicts to inspect them without producing a candidate.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "conflict_id": {
+                  "type": "string",
+                  "pattern": "^wtmc_[A-Za-z0-9_-]+$"
+                },
+                "choice": {
+                  "type": "string",
+                  "enum": ["use_ancestor", "use_left", "use_right"]
+                }
+              },
+              "required": ["conflict_id", "choice"],
+              "additionalProperties": false
+            }
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "summary",
+              "conflicts",
+              "entries",
+              "operations",
+              "risks",
+              "schema_errors"
+            ],
+            "default": "summary"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 50
+          },
+          "include_hashes": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include per-side content hashes in conflict or operation pages."
+          },
+          "include_text_previews": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include bounded text previews for semantic text conflicts. Off by default for privacy and token economy."
+          }
+        },
+        "required": [
+          "ancestor_path",
+          "left_path",
+          "right_path",
+          "output_path"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "apply_ooxml_merge",
+      "title": "Create a reviewed three-way Word merge result",
+      "description": "Recompute and create a reviewed three-way merge as a new Word package. Requires exact ancestor, left, and right fingerprints plus the destination-bound merge apply-plan ID. It never overwrites a file, rejects unresolved conflicts, validates the candidate with the Open XML SDK, enforces result type against the output extension, and keeps active-content, signature, external-link, opaque-binary, and new-error authorizations separate and false by default.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ancestor_path": { "type": "string" },
+          "left_path": { "type": "string" },
+          "right_path": { "type": "string" },
+          "output_path": { "type": "string" },
+          "expected_ancestor_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "expected_left_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "expected_right_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "expected_merge_apply_plan_id": {
+            "type": "string",
+            "pattern": "^wtmergeapply_[A-Za-z0-9_-]+$"
+          },
+          "resolutions": {
+            "type": "array",
+            "maxItems": 20000,
+            "default": [],
+            "items": {
+              "type": "object",
+              "properties": {
+                "conflict_id": {
+                  "type": "string",
+                  "pattern": "^wtmc_[A-Za-z0-9_-]+$"
+                },
+                "choice": {
+                  "type": "string",
+                  "enum": ["use_ancestor", "use_left", "use_right"]
+                }
+              },
+              "required": ["conflict_id", "choice"],
+              "additionalProperties": false
+            }
+          },
+          "allow_digital_signature_invalidation": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicitly accept that changing a signed package may invalidate its signatures."
+          },
+          "allow_active_content_changes": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicitly authorize selected VBA, macro, OLE, embedded-package, ActiveX, or control changes."
+          },
+          "allow_external_relationship_changes": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicitly authorize selected external relationship changes."
+          },
+          "allow_opaque_binary_changes": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicitly authorize selected unclassified binary payload changes."
+          },
+          "allow_new_structural_errors": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicitly authorize newly introduced OPC or Open XML schema errors. Validation failure, truncation, or inability to open the candidate remains non-overridable."
+          }
+        },
+        "required": [
+          "ancestor_path",
+          "left_path",
+          "right_path",
+          "output_path",
+          "expected_ancestor_fingerprint",
+          "expected_left_fingerprint",
+          "expected_right_fingerprint",
+          "expected_merge_apply_plan_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "inspect_ooxml_sections",
       "title": "Inspect Word sections and story bindings",
       "description": "Resolve Word section boundaries, page properties, and effective default, first-page, and even-page header/footer bindings. Reports explicit, inherited, blank, and suppressed variants without opening Word or returning document text.",

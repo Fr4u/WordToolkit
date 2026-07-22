@@ -124,6 +124,14 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "plan_ooxml_merge" => PlanPackageMergeAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_merge" => ApplyPackageMergeAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_ooxml_sections" => InspectPackageSectionsAsync(
                 arguments,
                 cancellationToken

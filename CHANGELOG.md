@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+## 0.29.0 — 2026-07-22
+
+- Added `WordPackageThreeWayMergePlanner`, a bounded deterministic merge over an
+  explicit ancestor plus left and right saved Word packages. It automatically selects
+  one-sided changes, coalesces identical changes and composes disjoint lossless
+  source-linked `w:t`, `w:delText` and `m:t` edits inside the same part. A branch must
+  reconstruct byte-exactly from the ancestor through those text commands before the
+  semantic path is trusted; hidden markup drift therefore falls back to conflict rather
+  than being discarded.
+- Added stable `wtmc_` conflict records and `wtmerge_` plan identities. Divergent add,
+  modify, delete/modify and same-text-node changes expose hashes, sizes and bounded
+  privacy-off-by-default text evidence without payloads or raw XML. Every conflict must
+  be resolved exactly once with `use_ancestor`, `use_left` or `use_right`; unknown,
+  duplicate and stale IDs fail closed.
+- Added lazy `plan_ooxml_merge` and `apply_ooxml_merge`. Planning is summary-first and
+  pages conflicts, entry decisions, resulting patch operations, risks or schema errors
+  only on demand. Apply requires exact fingerprints for all three inputs and a
+  destination-bound `wtmergeapply_` identity, reprojects and revalidates the candidate,
+  preserves the patch engine's separate signature/active-content/external-link/binary/
+  error gates, enforces the Word main-part type against the output extension, creates a
+  new file atomically and never overwrites an existing path.
+- Extended the atomic writer with a race-safe new-destination mode. Added merge coverage
+  for no-op, one-sided/identical/disjoint edits, same-node conflicts, unknown markup,
+  hidden XML drift, add/delete/modify conflicts, deterministic resolution order, stale
+  identities, output-path binding, no-overwrite, macro and opaque-binary gates, type
+  mismatch, cancellation and no-Word-host operation. This is an honest initial merge
+  slice: arbitrary structural OOXML and revision-aware node merges remain unresolved
+  work, not a fabricated success.
+- Hardened the Windows release builder so it also runs under the system Windows
+  PowerShell 5.1 instead of depending on a .NET-only `Path.GetRelativePath` method.
+  Plugin ZIP entries are emitted in sorted order with a fixed OPC-compatible timestamp
+  and explicit stream copying, removing source-file timestamp drift from repeated builds.
+
 ## 0.28.0 — 2026-07-22
 
 - Added `OpcPackagePatchBuilder` and a deterministic reversible OPC entry-payload patch

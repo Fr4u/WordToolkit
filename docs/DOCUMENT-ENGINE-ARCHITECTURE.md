@@ -485,6 +485,35 @@ atomic writer rechecks the destination before and after candidate construction, 
 the predicted result fingerprint and uses a flushed sibling file plus atomic replacement.
 A no-op performs no write and creates no backup.
 
+The initial three-way merge slice builds on this transaction boundary instead of
+inventing a second serializer. `WordPackageThreeWayMergePlanner` requires an explicit
+ancestor and two branches. For each exact OPC entry it applies four deterministic rules:
+unchanged on both sides stays unchanged; a one-sided change wins; identical branch
+states coalesce; every other state is either proven as a lossless semantic text merge or
+becomes a conflict. The semantic path is deliberately narrow: text nodes are joined by
+source part and lexical source path, each branch is reconstructed from the ancestor with
+the existing hash-guarded text transaction, and its resulting entry must match the
+branch byte for byte. Only then can disjoint text changes be composed. This proof keeps
+unknown attributes, namespace declarations, extension islands and every unrelated byte
+from being silently normalized away.
+
+Conflicts are immutable `wtmc_` records covering divergent additions/modifications,
+delete/modify pairs and same-node text edits. They contain bounded metadata and optional
+text snapshots, never payloads or raw XML. A candidate exists only after every conflict
+has one explicit `use_ancestor`, `use_left` or `use_right` resolution. The resulting
+snapshot is converted back into the canonical reversible package patch, so semantic
+diff evidence, risk classification and exact inverse machinery are reused rather than
+forked.
+
+Lazy `plan_ooxml_merge` returns a summary by default and pages conflicts, entry choices,
+result operations, risks or schema errors on demand. `apply_ooxml_merge` recomputes the
+entire plan from the three fingerprinted inputs and resolutions, requires a normalized-
+output-path-bound `wtmergeapply_` ID, reruns baseline/candidate Open XML validation and
+the independent patch risk gates, enforces the result main-part type against `.docx`,
+`.docm`, `.dotx` or `.dotm`, then uses the atomic writer's require-new mode. The output
+is a new file and cannot overwrite anything. Structural/revision-aware semantic merging
+is not yet claimed; those cases remain whole-entry conflicts.
+
 ### Layer 6: analysis services
 
 All analysis consumes the same package and semantic graphs:
@@ -530,12 +559,14 @@ opt-ins. The engine enforces node, alignment-cell, diagnostic, change, processed
 captured-text budgets. It never opens Word, emits raw XML, mutates either package or
 pretends that the output is a Word tracked-revision document.
 
-This now feeds a generic reversible OPC payload patch, but not yet a semantic-command
-patch or three-way merge. The current artifact binds both complete package fingerprints
-and exact entry payloads; it does not claim that each entry operation is a stable
-high-level Word intent. A future semantic patch must add stable semantic targets and
-typed commands. A future merge must add a common ancestor, conflict graph and
-deterministic resolution policy.
+This now feeds a generic reversible OPC payload patch and an initial three-way merge,
+but not yet a portable semantic-command patch. The current patch artifact binds both
+complete package fingerprints and exact entry payloads; it does not claim that each
+entry operation is a stable high-level Word intent. Merge adds a common ancestor,
+stable conflict records and deterministic explicit resolutions, while automatic
+same-part composition is limited to text-leaf branches that reconstruct byte-exactly.
+A future semantic patch and fuller merge still need broader typed structural commands,
+revision-aware conflict semantics and durable target recovery across Word rewrites.
 
 ## Equation engine
 
@@ -668,6 +699,8 @@ The current native mapping is therefore:
 - bounded patch integrity/operation inspection -> lazy `inspect_ooxml_patch`;
 - patch application evidence and policy planning -> lazy `plan_ooxml_patch_apply`;
 - atomic exact package patch application -> lazy `apply_ooxml_patch`;
+- guarded ancestor/left/right merge planning -> lazy `plan_ooxml_merge`;
+- create-new, destination-bound merge application -> lazy `apply_ooxml_merge`;
 - text-only `document.plan` -> lazy `plan_ooxml_text_edits`;
 - text-only `document.apply` -> lazy `apply_ooxml_text_edits`.
 

@@ -506,6 +506,38 @@ public sealed class OpcPackageReaderTests
     }
 
     [Fact]
+    public void AtomicWriterRequireNewDestinationNeverOverwritesExistingFile()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var destination = Path.Combine(directory, "merge.docx");
+            File.WriteAllText(destination, "do not replace");
+            using var package = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                ("word/document.xml", DocumentXml())
+            );
+            var snapshot = new OpcPackageReader().Read(package);
+            var mutation = new OpcPackageMutationBuilder(snapshot);
+
+            Assert.Throws<OpcPackageConcurrencyException>(() =>
+                new OpcAtomicPackageWriter().Write(
+                    destination,
+                    mutation,
+                    new OpcAtomicWriteOptions { RequireNewDestination = true }
+                )
+            );
+
+            Assert.Equal("do not replace", File.ReadAllText(destination));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void AtomicWriterRejectsUnexpectedCandidateFingerprintBeforeReplacement()
     {
         var directory = CreateTemporaryDirectory();

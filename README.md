@@ -44,7 +44,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 48 tested Word Live actions plus 23 standalone,
+The runtime implements 48 tested Word Live actions plus 25 standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus three token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -72,6 +72,8 @@ create_ooxml_patch
 inspect_ooxml_patch
 plan_ooxml_patch_apply
 apply_ooxml_patch
+plan_ooxml_merge
+apply_ooxml_merge
 inspect_ooxml_sections
 inspect_ooxml_styles
 inspect_ooxml_numbering
@@ -179,6 +181,24 @@ relationships, opaque binaries and new structural errors have independent explic
 authorizations. Validation truncation, an SDK-open failure or a result-type/extension
 mismatch cannot be overridden. Successful replacement is atomic and retains a recovery
 backup by default; a no-op does not touch the file.
+
+Saved-package three-way merge requires an explicit common ancestor. It automatically
+selects one-sided changes, coalesces byte-identical branch changes and can combine
+disjoint source-linked text-leaf edits in the same XML part only after proving that each
+branch is reproduced byte-exactly by lossless text commands from the ancestor. A change
+to the same text node, a delete/modify pair, divergent additions, arbitrary structural
+XML drift or opaque payload divergence becomes a stable `wtmc_` conflict instead of a
+guess. Conflict text is absent by default; bounded previews and hashes are independent
+opt-ins.
+
+The strict lazy workflow is `plan_ooxml_merge` -> review/page conflicts -> resubmit
+explicit `use_ancestor`, `use_left` or `use_right` resolutions -> `apply_ooxml_merge`.
+The apply call requires all three exact package fingerprints and the returned
+destination-bound `wtmergeapply_` ID. It recomputes the merge, validates the candidate,
+reuses the independent patch-risk authorizations, checks the Word main-part type against
+the requested extension, and creates a new file through a flushed sibling temporary
+file. It never overwrites. This is not yet a general revision-aware or arbitrary
+structural semantic merge; those cases remain explicit conflicts.
 
 Saved-package review inspection links standard comments to story-scoped start/end/reference
 anchors, `commentsExtended` threads and resolved state, `commentsIds` durable IDs,
@@ -318,12 +338,12 @@ Requirements for building:
 
 - Windows x64;
 - .NET 8 SDK;
-- PowerShell 7.
+- Windows PowerShell 5.1 or PowerShell 7+.
 
 Build and test the self-contained plugin:
 
 ```powershell
-pwsh -File scripts/build_native_plugin.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build_native_plugin.ps1
 ```
 
 Outputs:
@@ -365,14 +385,14 @@ The cleaner constrains every target to the repository root. It preserves only th
 Version:
 
 ```text
-0.28.0+codex.20260722041949
+0.29.0+codex.20260722030105
 ```
 
 Windows x64 ZIP:
 
-[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.28.0/WordToolkit-0.28.0%2Bcodex.20260722041949-native-win-x64.zip)
+[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.29.0/WordToolkit-0.29.0%2Bcodex.20260722030105-native-win-x64.zip)
 
-SHA-256: `b77c23fd3faec997f634bc2862ab7ed3824d7c74372256aefb20c556c3b1f603`
+SHA-256: `4a27448049452fb52c97872caf118813b3b08867387697b34a9d49eaf06a9828`
 
 Live demonstration document:
 
