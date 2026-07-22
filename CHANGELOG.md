@@ -24,7 +24,9 @@
   with six reference rewrites and no new SDK errors. Apply matched the predicted
   fingerprint, changed only `word/document.xml` and `word/styles.xml`, retained a backup,
   removed the source definition, left six target uses and zero source uses, returned no
-  XML and did not change the running Word process set.
+  XML and did not change the running Word process set. All five jobs in mandatory CI run
+  `29936061264` passed, and its hosted Windows artifact matched the local ZIP byte for byte
+  at the same size and SHA-256.
 - Added atomic typed style-definition creation and cloning to the existing semantic edit
   actions. `create_style` emits a minimal custom paragraph, character, table or numbering
   definition with bounded inheritance/UI metadata; `clone_style` preserves an existing
