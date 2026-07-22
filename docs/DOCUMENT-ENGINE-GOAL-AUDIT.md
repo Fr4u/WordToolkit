@@ -256,7 +256,7 @@ mutation/repair/render execution required by the goal.
 | Visual regression | Not started for new engine | Historical screenshots and live acceptance | Versioned PDF/page/object baselines across rendering backends |
 | Cross-platform CI | Partial | Mandatory Linux engine job plus clean hosted-Windows engine/native/package jobs; licensed Word gate remains separate | macOS core job, qualified backend matrix and routinely available self-hosted Word release evidence |
 | Public competitor benchmark | Not started | Research matrix only | Same fixtures, versions, commands, results, caveats and reproducible harness |
-| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF and normalizes Windows packaging onto Windows PowerShell 5.1. The local unused-style-deletion checkpoint produced the same 195-file, 84,397,476-byte tree and 35,995,361-byte ZIP in two builds with SHA-256 `417af08694ba33cd7c6fedc6ad06a6e2baf00b51f0f2af76c34d703b3976f9b6`. The preceding exact-consolidation checkpoint matched all five jobs in mandatory CI run `29936319636` and its hosted Windows artifact byte for byte at SHA-256 `c7f68a994a185b80e211a751a05881537f0d836c53e195107cd4ae2fd4d11a76`. The earlier exact 0.35 live package, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action real-Word gate; the later saved-package slices do not change live COM code | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
+| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF and normalizes Windows packaging onto Windows PowerShell 5.1. The unused-style-deletion checkpoint produced the same 195-file, 84,397,476-byte tree and 35,995,361-byte ZIP in two local builds and mandatory CI run `29938834101`; the hosted artifact matched byte for byte at SHA-256 `417af08694ba33cd7c6fedc6ad06a6e2baf00b51f0f2af76c34d703b3976f9b6`, and all five jobs passed. The preceding exact-consolidation checkpoint matched all five jobs in mandatory CI run `29936319636` and its hosted Windows artifact byte for byte at SHA-256 `c7f68a994a185b80e211a751a05881537f0d836c53e195107cd4ae2fd4d11a76`. The earlier exact 0.35 live package, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action real-Word gate; the later saved-package slices do not change live COM code | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
 
 ## Current checkpoint evidence
 
@@ -282,7 +282,9 @@ mutation/repair/render execution required by the goal.
   changed only `word/styles.xml`, retained a byte-exact pre-apply backup, removed the
   selected style and preserved every original ZIP-entry payload. It returned no XML and
   did not alter the running Word process set. A packaged attempt to delete the default
-  `Standard` style failed closed without changing the file.
+  `Standard` style failed closed without changing the file. All five jobs in mandatory
+  CI run `29938834101` passed, and its hosted Windows ZIP matched the local archive byte
+  for byte at the same size and SHA-256.
 - The preceding exact-consolidation checkpoint matched mandatory CI run `29936319636`
   exactly at SHA-256
   `c7f68a994a185b80e211a751a05881537f0d836c53e195107cd4ae2fd4d11a76`; all five jobs

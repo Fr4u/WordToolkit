@@ -24,7 +24,9 @@
   predicted fingerprint, changed only `word/styles.xml`, retained an exact pre-apply
   backup, removed the style, preserved every original ZIP-entry payload, returned no XML
   and did not change the running Word process set. A packaged attempt to delete the
-  default `Standard` style failed closed and left the file byte-identical.
+  default `Standard` style failed closed and left the file byte-identical. All five jobs
+  in mandatory CI run `29938834101` passed, and its hosted Windows artifact matched the
+  local ZIP byte for byte at the same size and SHA-256.
 - Added fail-closed exact style consolidation to the typed saved-package semantic edit
   actions. `consolidate_style` rewrites type-checked paragraph/run/table, glossary,
   style-graph and numbering references, removes an explicitly selected
