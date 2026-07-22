@@ -4166,6 +4166,283 @@
       }
     },
     {
+      "name": "plan_ooxml_patch",
+      "title": "Plan an exact reversible Word package patch",
+      "description": "Compare two saved Word OOXML packages without opening Word and build a deterministic, reversible entry-payload patch plan. Returns a compact semantic and risk summary by default; operation and risk pages are opt-in and bounded.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "before_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the original DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "after_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the target DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "expected_before_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "expected_after_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "operations", "risks"],
+            "default": "summary"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 50
+          },
+          "include_hashes": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include per-entry payload hashes in view=operations."
+          }
+        },
+        "required": ["before_path", "after_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "create_ooxml_patch",
+      "title": "Create a reviewed Word package patch artifact",
+      "description": "Rebuild an exact reviewed patch plan and persist a new deterministic .wtpatch artifact containing verified before and after entry payloads. Requires both package fingerprints and the reviewed patch ID; never overwrites an existing artifact.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "before_path": {
+            "type": "string"
+          },
+          "after_path": {
+            "type": "string"
+          },
+          "expected_before_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "expected_after_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "expected_patch_id": {
+            "type": "string",
+            "pattern": "^wtpatch_[A-Za-z0-9_-]+$"
+          },
+          "patch_path": {
+            "type": "string",
+            "description": "New absolute or workspace-relative .wtpatch output path. Existing files are rejected."
+          }
+        },
+        "required": [
+          "before_path",
+          "after_path",
+          "expected_before_fingerprint",
+          "expected_after_fingerprint",
+          "expected_patch_id",
+          "patch_path"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_ooxml_patch",
+      "title": "Inspect a Word package patch artifact",
+      "description": "Validate a local .wtpatch archive, every payload hash, canonical operation ID, patch ID, archive path and resource bound without opening Word. Returns only compact metadata and an optional bounded operation page; payload bytes and raw XML are never returned.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "patch_path": {
+            "type": "string"
+          },
+          "expected_patch_id": {
+            "type": "string",
+            "pattern": "^wtpatch_[A-Za-z0-9_-]+$"
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "operations"],
+            "default": "summary"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 50
+          },
+          "include_hashes": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": ["patch_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "plan_ooxml_patch_apply",
+      "title": "Plan safe application of a Word package patch",
+      "description": "Rebuild a patch candidate against an exact saved-package fingerprint, recompute semantic differences and risk evidence, verify result package type against the destination extension, and compare baseline and candidate Open XML SDK validation results. Returns a deterministic destination-bound apply-plan ID and separate required authorization flags without writing the document or opening Word.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Existing DOCX, DOCM, DOTX, or DOTM destination."
+          },
+          "patch_path": {
+            "type": "string"
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "expected_patch_id": {
+            "type": "string",
+            "pattern": "^wtpatch_[A-Za-z0-9_-]+$"
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "operations", "risks", "schema_errors"],
+            "default": "summary"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 50
+          },
+          "include_hashes": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "local_path",
+          "patch_path",
+          "expected_package_fingerprint",
+          "expected_patch_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "apply_ooxml_patch",
+      "title": "Atomically apply a reviewed Word package patch",
+      "description": "Rebuild and atomically apply an exact reviewed .wtpatch artifact to a saved Word package. Requires the base fingerprint, patch ID and destination-bound apply-plan ID; enforces result package type against the in-place extension, validates the candidate, writes through a sibling temporary file, rechecks fingerprints, and keeps a recovery backup by default. Risk authorizations are separate and default to false.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string"
+          },
+          "patch_path": {
+            "type": "string"
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "expected_patch_id": {
+            "type": "string",
+            "pattern": "^wtpatch_[A-Za-z0-9_-]+$"
+          },
+          "expected_apply_plan_id": {
+            "type": "string",
+            "pattern": "^wtapply_[A-Za-z0-9_-]+$"
+          },
+          "allow_digital_signature_invalidation": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicitly accept that changing a signed package may invalidate its signatures."
+          },
+          "allow_active_content_changes": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicitly authorize VBA, macro, OLE, embedded-package, ActiveX, or control changes."
+          },
+          "allow_external_relationship_changes": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicitly authorize added or removed external relationship targets."
+          },
+          "allow_opaque_binary_changes": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicitly authorize unclassified binary payload changes."
+          },
+          "allow_new_structural_errors": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicitly authorize newly introduced OPC or Open XML schema errors. Validation failure, truncation, or inability to open the candidate remains non-overridable."
+          },
+          "keep_backup": {
+            "type": "boolean",
+            "default": true,
+            "description": "Retain the atomic writer's sibling recovery backup after success."
+          }
+        },
+        "required": [
+          "local_path",
+          "patch_path",
+          "expected_package_fingerprint",
+          "expected_patch_id",
+          "expected_apply_plan_id"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "inspect_ooxml_sections",
       "title": "Inspect Word sections and story bindings",
       "description": "Resolve Word section boundaries, page properties, and effective default, first-page, and even-page header/footer bindings. Reports explicit, inherited, blank, and suppressed variants without opening Word or returning document text.",

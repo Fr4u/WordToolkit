@@ -104,6 +104,26 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "plan_ooxml_patch" => PlanPackagePatchAsync(
+                arguments,
+                cancellationToken
+            ),
+            "create_ooxml_patch" => CreatePackagePatchAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_patch" => InspectPackagePatchAsync(
+                arguments,
+                cancellationToken
+            ),
+            "plan_ooxml_patch_apply" => PlanPackagePatchApplyAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_patch" => ApplyPackagePatchAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_ooxml_sections" => InspectPackageSectionsAsync(
                 arguments,
                 cancellationToken

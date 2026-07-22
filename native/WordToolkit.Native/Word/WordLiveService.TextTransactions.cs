@@ -285,21 +285,7 @@ internal sealed partial class WordLiveService
     }
 
     private static bool HasDigitalSignatures(OpcPackageSnapshot package) =>
-        package.Entries.Any(entry =>
-            entry.Name.StartsWith("_xmlsignatures/", StringComparison.OrdinalIgnoreCase)
-        )
-        || package.Parts.Values.Any(part =>
-            part.ContentType?.Contains(
-                "digital-signature",
-                StringComparison.OrdinalIgnoreCase
-            ) == true
-        )
-        || package.Relationships.Any(relationship =>
-            relationship.Type.Contains(
-                "digital-signature",
-                StringComparison.OrdinalIgnoreCase
-            )
-        );
+        WordPackagePatchRiskAnalyzer.HasDigitalSignatures(package);
 
     private static Task<object> ExecutePackageTextAction(Func<object> action)
     {

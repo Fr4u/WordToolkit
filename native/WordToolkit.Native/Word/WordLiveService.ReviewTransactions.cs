@@ -491,6 +491,16 @@ internal sealed partial class WordLiveService
         OpcPackageSnapshot package,
         WordReviewMutationPlan plan,
         CancellationToken cancellationToken
+    ) => ValidatePackageCandidate(
+        package,
+        plan.CreateMutation(package),
+        cancellationToken
+    );
+
+    private static CandidateSchemaValidation ValidatePackageCandidate(
+        OpcPackageSnapshot package,
+        OpcPackageMutationBuilder candidateMutation,
+        CancellationToken cancellationToken
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -504,7 +514,7 @@ internal sealed partial class WordLiveService
             using var candidateStream = new MemoryStream();
             new OpcPackageSerializer().Write(
                 candidateStream,
-                plan.CreateMutation(package)
+                candidateMutation
             );
             var baseline = ValidateOpenXmlStream(baselineStream, cancellationToken);
             var candidate = ValidateOpenXmlStream(candidateStream, cancellationToken);

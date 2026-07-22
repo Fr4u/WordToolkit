@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+## 0.28.0 — 2026-07-22
+
+- Added `OpcPackagePatchBuilder` and a deterministic reversible OPC entry-payload patch
+  model. Add, replace and delete operations bind exact base/result package fingerprints,
+  content types, byte lengths and before/after hashes; deduplicated payloads support an
+  exact guarded reverse without the original files. The guarantee is explicit: entry
+  names and uncompressed payloads are exact, while ZIP container metadata and compression
+  layout are deterministic serializer output rather than byte-identical source records.
+- Added the strict `.wtpatch` codec. Its canonical manifest and content-addressed payload
+  archive rejects duplicate/unknown/missing fields, unsafe or duplicate ZIP names,
+  noncanonical operation order, ID/hash/length/count drift, unreferenced payloads,
+  excessive expansion and compression bombs. Read never extracts archive entries to the
+  filesystem; create writes a sibling temporary file, flushes and rereads it, then moves
+  only to a new path and never overwrites.
+- Added semantic package-patch planning and risk analysis. Plans recompute the native
+  semantic diff, detect OPC signatures, VBA/macro, OLE/embedded package, ActiveX/control,
+  external relationship, opaque binary, custom XML, infrastructure and newly introduced
+  structural changes. Signature invalidation, active content, external relationships,
+  opaque binaries and new errors have independent false-by-default authorizations; no
+  blanket force flag exists.
+- Added five lazy token-lean actions: `plan_ooxml_patch`, `create_ooxml_patch`,
+  `inspect_ooxml_patch`, `plan_ooxml_patch_apply` and `apply_ooxml_patch`. Apply requires
+  exact base, patch and path-bound deterministic apply-plan identities, rematerializes the
+  candidate, enforces package-main-type compatibility with the in-place destination
+  extension, compares baseline/candidate Microsoft Open XML SDK results, writes atomically
+  and keeps a recovery backup by default. Validation truncation, inability to open the
+  candidate or a result-type/extension mismatch is non-overridable. No action opens Word,
+  returns payload bytes/raw XML or stores a server-side document cache.
+- Added adversarial codec, inverse, corpus, signature, macro, OLE, ActiveX, external-link,
+  opaque-binary, custom-XML, inherited/new-error, stale-plan, artifact-tamper, no-overwrite,
+  path-bound approval, package-type, atomic-backup and no-Word-host tests. The native
+  checkpoint passes 221 engine tests and 85 host tests.
+
 ## 0.27.0 — 2026-07-22
 
 - Added native `WordSemanticDiffEngine`, a bounded two-layer comparison of saved Word

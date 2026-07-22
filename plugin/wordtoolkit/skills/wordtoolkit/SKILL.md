@@ -114,6 +114,32 @@ are separate opt-ins. Never call two documents identical when package evidence d
 matching is incomplete, or `unclassified_projected_entry_count` is nonzero. This action
 does not open Word, mutate either file, return raw XML, create a patch/merge, or produce a
 tracked-change comparison document.
+For a portable saved-package patch, use this strict lazy workflow:
+
+1. Call `plan_ooxml_patch` with the original and target files. Keep the compact summary
+   unless a bounded `operations` or `risks` page is needed. Retain both fingerprints and
+   `patch_id`.
+2. Review semantic counts, matcher completeness, risk counts, default block codes and
+   the independent required authorization names. Do not confuse semantic equivalence
+   with package equivalence.
+3. Call `create_ooxml_patch` with both exact fingerprints, the reviewed patch ID and a
+   new `.wtpatch` path. Existing artifacts are never overwritten.
+4. Before mutation, call `plan_ooxml_patch_apply` with the destination fingerprint,
+   artifact and patch ID. Review `apply_plan_id`, risk evidence, baseline/candidate Open
+   XML validation, hard blocks and the exact authorization flags required. The apply-plan
+   ID is bound to this destination path, and the result package type must match its file
+   extension.
+5. Call `apply_ooxml_patch` only with that exact base fingerprint, patch ID and apply-plan
+   ID. Set only the individual risk authorizations the user accepted and keep the
+   recovery backup by default.
+
+Use `inspect_ooxml_patch` when only artifact integrity or a bounded operation page is
+needed. It never returns payload bytes or raw XML. A `.wtpatch` is exact for OPC entry
+names and uncompressed before/after payloads, not for ZIP compression metadata or record
+layout. Signature invalidation, macros/OLE/ActiveX, external relationships, opaque binary
+payloads and new structural errors are separate gates; never collapse them into a broad
+force flag. Validation truncation or inability to open the candidate is non-overridable.
+These actions do not open Word.
 For a saved-package tracked-revision decision, use this strict lazy workflow:
 
 1. Inspect only the required revisions and retain the exact package fingerprint,

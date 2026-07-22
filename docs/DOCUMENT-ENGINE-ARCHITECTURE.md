@@ -439,6 +439,52 @@ or relationships fail closed because silently leaving an invalid signature would
 corruption disguised as success. This stateless design spends some repeated input
 tokens, but avoids retaining document text in a long-lived MCP cache.
 
+The generic package-patch slice now carries exact saved-package changes across process
+and machine boundaries. `OpcPackagePatchBuilder` compares two immutable snapshots and
+emits canonical add/replace/delete operations ordered by OPC entry name. Every operation
+binds the base and result package fingerprints, content types, byte lengths and before/
+after SHA-256 values. The artifact stores every referenced before and after uncompressed
+entry payload, deduplicated by hash, so `Reverse()` can construct the exact guarded
+inverse without consulting either original file. This is payload-exact OPC patching, not
+a claim that ZIP compression records, timestamps or central-directory layout are copied
+byte for byte.
+
+`OpcPackagePatchCodec` writes deterministic `.wtpatch` ZIP archives containing one
+strict manifest and content-addressed payload blobs. Read performs no filesystem
+extraction and rejects unknown, missing or duplicate JSON fields; unknown, duplicate,
+rooted, traversal or backslash archive names; noncanonical operation order; mismatched
+IDs, counts, lengths or hashes; unreferenced blobs; excessive entry/count/expanded-byte
+budgets; and compression bombs. An expected patch ID obtained during planning is the
+authenticity boundary: hashes alone detect corruption, while the separately retained ID
+detects a maliciously rebuilt artifact.
+
+The lazy native path is deliberately split into five actions:
+
+1. `plan_ooxml_patch` recomputes package, semantic and security evidence and returns a
+   summary by default;
+2. `create_ooxml_patch` requires both exact source fingerprints and the reviewed patch
+   ID, writes a sibling temporary artifact, flushes and rereads it, then moves only to a
+   new `.wtpatch` path;
+3. `inspect_ooxml_patch` validates the bounded archive and pages operation metadata
+   without exposing payloads or raw XML;
+4. `plan_ooxml_patch_apply` rematerializes the candidate from the exact base, reruns the
+   semantic diff and risk analyzer, and compares baseline/candidate Microsoft Open XML
+   SDK validation before returning a deterministic apply-plan ID;
+5. `apply_ooxml_patch` requires base fingerprint, patch ID and apply-plan ID, then uses
+   the existing atomic package writer and retains a recovery backup by default.
+
+Signature invalidation, VBA/macro/OLE/embedded/ActiveX material, external relationship
+targets, opaque binaries and newly introduced OPC or Open XML errors are separate policy
+gates with false defaults. There is no blanket `force`. Inherited structural/schema
+errors may survive when the candidate adds none; newly introduced errors require their
+specific authorization. The apply-plan ID is bound to the normalized destination path,
+and the candidate's Word main-part content type must match the in-place `.docx`, `.docm`,
+`.dotx` or `.dotm` extension. Validation truncation, inability to open the candidate
+through the Open XML SDK or a result-type/extension mismatch is non-overridable. The
+atomic writer rechecks the destination before and after candidate construction, validates
+the predicted result fingerprint and uses a flushed sibling file plus atomic replacement.
+A no-op performs no write and creates no backup.
+
 ### Layer 6: analysis services
 
 All analysis consumes the same package and semantic graphs:
@@ -484,10 +530,12 @@ opt-ins. The engine enforces node, alignment-cell, diagnostic, change, processed
 captured-text budgets. It never opens Word, emits raw XML, mutates either package or
 pretends that the output is a Word tracked-revision document.
 
-This is a foundation for review, patch and three-way merge, not those capabilities
-wearing a borrowed coat. A future patch must bind each operation to both package
-fingerprints and stable semantic targets; a future merge must add a common ancestor,
-conflict graph and deterministic resolution policy.
+This now feeds a generic reversible OPC payload patch, but not yet a semantic-command
+patch or three-way merge. The current artifact binds both complete package fingerprints
+and exact entry payloads; it does not claim that each entry operation is a stable
+high-level Word intent. A future semantic patch must add stable semantic targets and
+typed commands. A future merge must add a common ancestor, conflict graph and
+deterministic resolution policy.
 
 ## Equation engine
 
@@ -615,6 +663,11 @@ The current native mapping is therefore:
 - source-linked comments/threads/people/revisions/moves/permissions -> lazy
   `inspect_ooxml_review`;
 - modeled paragraph/run formatting -> lazy `resolve_ooxml_formatting`;
+- generic package patch planning -> lazy `plan_ooxml_patch`;
+- reviewed portable patch creation -> lazy `create_ooxml_patch`;
+- bounded patch integrity/operation inspection -> lazy `inspect_ooxml_patch`;
+- patch application evidence and policy planning -> lazy `plan_ooxml_patch_apply`;
+- atomic exact package patch application -> lazy `apply_ooxml_patch`;
 - text-only `document.plan` -> lazy `plan_ooxml_text_edits`;
 - text-only `document.apply` -> lazy `apply_ooxml_text_edits`.
 

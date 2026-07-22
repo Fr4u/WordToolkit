@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-WordToolkit 0.27 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference, canonical OfficeMath and review/revision graphs, compare two saved packages at separate OPC-entry and source-linked semantic layers, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text and tracked-review structures to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
+WordToolkit 0.28 is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference, canonical OfficeMath and review/revision graphs, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text and tracked-review structures to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
 
 The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtual environment, an interpreter bootstrap, or a per-call helper process. Its MCP command points directly to:
 
@@ -8,7 +8,7 @@ The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtua
 ./runtime/win-x64/wordtoolkit-native.exe
 ```
 
-The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.27 local plugin, does not participate in its startup, and is not required at runtime.
+The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.28 local plugin, does not participate in its startup, and is not required at runtime.
 
 ## Why the runtime was replaced
 
@@ -44,7 +44,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 48 tested Word Live actions plus eighteen standalone,
+The runtime implements 48 tested Word Live actions plus 23 standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus three token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -67,6 +67,11 @@ inspect_ooxml_package
 inspect_ooxml_semantics
 query_ooxml_semantics
 compare_ooxml_semantics
+plan_ooxml_patch
+create_ooxml_patch
+inspect_ooxml_patch
+plan_ooxml_patch_apply
+apply_ooxml_patch
 inspect_ooxml_sections
 inspect_ooxml_styles
 inspect_ooxml_numbering
@@ -151,6 +156,29 @@ unmodeled-markup changes, or exact OPC entry changes. Duplicate durable IDs, nea
 context candidates and alignment fallbacks remain explicit instead of being guessed.
 Text/property values, hashes and source locations are independent opt-ins; raw XML is
 never returned and Word is never opened.
+
+Saved-package patching turns that comparison into a portable `.wtpatch` artifact without
+pretending the ZIP container itself is sacred. Every changed OPC entry carries its exact
+before and after uncompressed payload, length and SHA-256; operation and patch IDs bind
+both complete package fingerprints. The codec rejects unknown or duplicate manifest
+fields, unsafe or duplicate archive paths, unreferenced payloads, noncanonical operation
+order, hash/length drift, excessive expansion and compression bombs. This preserves OPC
+entry names and payload bytes exactly. ZIP compression, timestamps and container record
+layout are deterministic serializer output, not byte-identical copies of either source
+archive.
+
+The strict lazy workflow is `plan_ooxml_patch` -> `create_ooxml_patch` ->
+`plan_ooxml_patch_apply` -> `apply_ooxml_patch`; `inspect_ooxml_patch` validates an
+artifact independently. Create requires both source fingerprints and the reviewed patch
+ID and never overwrites. Apply rematerializes the candidate, recomputes semantic/risk
+evidence, compares baseline and candidate Open XML SDK errors, requires an exact apply-
+plan ID bound to the reviewed destination path, verifies that the result's Word main-part
+type matches the in-place file extension, and rechecks the destination before and after
+candidate serialization. Signature invalidation, macro/OLE/ActiveX changes, external
+relationships, opaque binaries and new structural errors have independent explicit
+authorizations. Validation truncation, an SDK-open failure or a result-type/extension
+mismatch cannot be overridden. Successful replacement is atomic and retains a recovery
+backup by default; a no-op does not touch the file.
 
 Saved-package review inspection links standard comments to story-scoped start/end/reference
 anchors, `commentsExtended` threads and resolved state, `commentsIds` durable IDs,
@@ -280,6 +308,9 @@ and reports malformed or Word-rejected placement instead of repairing it silentl
 - Saved-package review apply requires the original package fingerprint, an exact deterministic plan ID and identical selectors; signed packages are blocked.
 - Review candidates are reparsed and compared with the baseline under the Microsoft Open XML SDK validator; apply stops if the mutation introduces any new schema error.
 - Review mutations fail closed on unsupported structural dependencies, write atomically and retain a sibling recovery backup by default.
+- Saved-package patch create never overwrites an artifact; read validates canonical metadata, every payload hash/length and bounded ZIP expansion without extracting files.
+- Patch apply requires exact base, patch and path-bound apply-plan identities, and the result Word package type must match the in-place destination extension. Active content, signature invalidation, external relationships, opaque binaries and new errors cannot share one blanket bypass.
+- Patch persistence uses a flushed sibling candidate, baseline-aware OPC and Open XML SDK validation, a second destination-version check, atomic replacement and a recovery backup by default.
 
 ## Build
 
@@ -334,14 +365,14 @@ The cleaner constrains every target to the repository root. It preserves only th
 Version:
 
 ```text
-0.27.0+codex.20260722033308
+0.28.0+codex.20260722041949
 ```
 
 Windows x64 ZIP:
 
-[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.27.0/WordToolkit-0.27.0%2Bcodex.20260722033308-native-win-x64.zip)
+[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.28.0/WordToolkit-0.28.0%2Bcodex.20260722041949-native-win-x64.zip)
 
-SHA-256: `21d2bfd36840f248d6f557e97e805dedcdccfa9dea80760daa33e1e3e5b9b1d7`
+SHA-256: `b77c23fd3faec997f634bc2862ab7ed3824d7c74372256aefb20c556c3b1f603`
 
 Live demonstration document:
 
