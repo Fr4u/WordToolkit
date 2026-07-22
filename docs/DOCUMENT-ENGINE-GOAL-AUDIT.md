@@ -256,7 +256,7 @@ mutation/repair/render execution required by the goal.
 | Visual regression | Not started for new engine | Historical screenshots and live acceptance | Versioned PDF/page/object baselines across rendering backends |
 | Cross-platform CI | Partial | Mandatory Linux engine job plus clean hosted-Windows engine/native/package jobs; licensed Word gate remains separate | macOS core job, qualified backend matrix and routinely available self-hosted Word release evidence |
 | Public competitor benchmark | Not started | Research matrix only | Same fixtures, versions, commands, results, caveats and reproducible harness |
-| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF and normalizes Windows packaging onto Windows PowerShell 5.1. The current semantic-index checkpoint produced two identical local 195-file, 84,237,559-byte trees and 35,947,755-byte ZIPs with SHA-256 `5c4b3ef4d420259463d2cca0e7ebef8d647781c541be761025861c1a73db004a`; hosted equality is pending the branch CI run. The preceding repair checkpoint matched hosted Windows CI exactly at SHA-256 `49aae752c5d2457d4474f63ff1142fe5909bac20cfdf7b534e97044dd3e29ca8`. The earlier exact 0.35 live package, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action real-Word gate; the later saved-package slices do not change live COM code | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
+| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF and normalizes Windows packaging onto Windows PowerShell 5.1. The current semantic-index checkpoint produced the same 195-file, 84,237,559-byte tree and 35,947,755-byte ZIP with SHA-256 `5c4b3ef4d420259463d2cca0e7ebef8d647781c541be761025861c1a73db004a` in two local builds and hosted Windows CI run `29920866791`. The preceding repair checkpoint matched hosted Windows CI exactly at SHA-256 `49aae752c5d2457d4474f63ff1142fe5909bac20cfdf7b534e97044dd3e29ca8`. The earlier exact 0.35 live package, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action real-Word gate; the later saved-package slices do not change live COM code | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
 
 ## Current checkpoint evidence
 
@@ -272,7 +272,8 @@ mutation/repair/render execution required by the goal.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
 - The current semantic-index checkpoint exposes 14 public tools and 78 lazy actions. Two
-  local builds produced the same 195-file, 84,237,559-byte tree and 35,947,755-byte ZIP
+  local builds and hosted Windows CI run `29920866791` produced the same 195-file,
+  84,237,559-byte tree and 35,947,755-byte ZIP
   with SHA-256 `5c4b3ef4d420259463d2cca0e7ebef8d647781c541be761025861c1a73db004a`.
   The packaged MCP discovered and inspected `manage_ooxml_semantic_index`, indexed the
   142-node LibreOffice TOC fixture with 160 property occurrences, narrowed a paragraph

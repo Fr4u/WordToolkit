@@ -16,6 +16,7 @@
   and the standalone Open XML validator build. Two local self-contained builds produced
   identical 195-file, 84,237,559-byte trees and 35,947,755-byte ZIPs with SHA-256
   `5c4b3ef4d420259463d2cca0e7ebef8d647781c541be761025861c1a73db004a`.
+  The downloaded artifact from mandatory CI run `29920866791` matched that ZIP exactly.
   The packaged MCP indexed the 142-node LibreOffice TOC fixture, reduced a paragraph
   query to 13 candidates, explicitly released the handle, returned no raw index text,
   left the source unchanged and did not change the running Word process set.
