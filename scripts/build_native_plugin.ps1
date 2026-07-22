@@ -4,6 +4,33 @@ param(
     [switch]$SkipTests
 )
 
+# System.IO.Compression output differs between the .NET runtime embedded in pwsh and
+# Windows PowerShell's .NET Framework even when every source byte is identical. The
+# distributable is Windows-only, and hosted packaging already runs under Windows
+# PowerShell 5.1. Re-enter that same host for local pwsh callers so ZIP bytes, not only
+# the expanded plugin tree, remain reproducible across the supported build path.
+if ($PSVersionTable.PSEdition -ne "Desktop" -and $IsWindows) {
+    $windowsPowerShell = Get-Command powershell.exe -ErrorAction Stop
+    $reentryArguments = @(
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        $PSCommandPath
+    )
+    if ($Output) {
+        $reentryArguments += @("-Output", $Output)
+    }
+    if ($Archive) {
+        $reentryArguments += @("-Archive", $Archive)
+    }
+    if ($SkipTests) {
+        $reentryArguments += "-SkipTests"
+    }
+    & $windowsPowerShell.Source @reentryArguments
+    exit $LASTEXITCODE
+}
+
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $dist = [IO.Path]::GetFullPath((Join-Path $root "dist"))

@@ -53,11 +53,16 @@
 - Verified the repair slice with 254 document-engine tests, 192 native-host tests,
   1,273 Python/OOXML tests with 16 intentional skips, Ruff and the standalone Open XML
   validator build. Two local self-contained builds produced the same 195-file,
-  84,193,862-byte tree and 37,087,639-byte ZIP with SHA-256
-  `316344c8c034daf3f2166062989d8b02ddc46476a5227761ce85363b67636e2d`.
+  84,193,862-byte tree and 35,935,327-byte ZIP with SHA-256
+  `49aae752c5d2457d4474f63ff1142fe5909bac20cfdf7b534e97044dd3e29ca8`.
   The packaged MCP repaired the empty title in the LibreOffice TOC fixture, changed only
   `docProps/core.xml`, matched the predicted package fingerprint, returned no raw title
   or XML, removed the exact lint finding and kept Word unopened and the source unchanged.
+- Normalized Windows packaging onto Windows PowerShell 5.1 even when the caller starts
+  the build through `pwsh`. The two hosts use different `System.IO.Compression`
+  implementations and previously produced different ZIP bytes from the same 195-file
+  tree. Local `pwsh`, direct Windows PowerShell and the hosted Windows artifact now
+  produce the exact same distributable hash above.
 
 - Made the document-engine and native .NET test suites mandatory CI inputs and added a
   clean Windows job that builds the exact distributable plugin ZIP. Tag builds on the

@@ -256,7 +256,7 @@ mutation/repair/render execution required by the goal.
 | Visual regression | Not started for new engine | Historical screenshots and live acceptance | Versioned PDF/page/object baselines across rendering backends |
 | Cross-platform CI | Partial | Mandatory Linux engine job plus clean hosted-Windows engine/native/package jobs; licensed Word gate remains separate | macOS core job, qualified backend matrix and routinely available self-hosted Word release evidence |
 | Public competitor benchmark | Not started | Research matrix only | Same fixtures, versions, commands, results, caveats and reproducible harness |
-| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF, closing a stale-checkout CRLF divergence. Two local repair-slice builds produced the same 195-file, 84,193,862-byte tree and 37,087,639-byte ZIP with SHA-256 `316344c8c034daf3f2166062989d8b02ddc46476a5227761ce85363b67636e2d`; hosted confirmation is pending the pushed commit. The packaged MCP exposed the lint and repair schemas, then planned, validated and created a repaired corpus DOCX without opening Word or modifying its source. The preceding linter-only package was identical across the existing working tree, a clean detached worktree and hosted Windows CI; the earlier exact 0.35 package checkpoint, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action live-Word gate, and no live COM code changed in either saved-package slice | Hosted artifact equality for this slice, optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
+| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF, closing a stale-checkout CRLF divergence, and re-enters Windows PowerShell 5.1 for Windows packaging so `pwsh` cannot silently select a different ZIP compressor. Two local builds and hosted Windows CI produced the same 195-file, 84,193,862-byte tree and 35,935,327-byte ZIP with SHA-256 `49aae752c5d2457d4474f63ff1142fe5909bac20cfdf7b534e97044dd3e29ca8`. The packaged MCP exposed the lint and repair schemas, then planned, validated and created a repaired corpus DOCX without opening Word or modifying its source. The earlier exact 0.35 package checkpoint, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action live-Word gate, and no live COM code changed in either saved-package slice | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
 
 ## Current checkpoint evidence
 
@@ -272,15 +272,15 @@ mutation/repair/render execution required by the goal.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
 - The current 0.35 repair checkpoint exposes 14 public tools and 77 lazy actions. Two
-  local builds produced the same 195-file, 84,193,862-byte tree and 37,087,639-byte ZIP
-  with SHA-256 `316344c8c034daf3f2166062989d8b02ddc46476a5227761ce85363b67636e2d` and no Python
+  local builds and hosted Windows CI produced the same 195-file, 84,193,862-byte tree and
+  35,935,327-byte ZIP with SHA-256
+  `49aae752c5d2457d4474f63ff1142fe5909bac20cfdf7b534e97044dd3e29ca8` and no Python
   files. The packaged MCP exposed the embedded lint/repair schemas, found the exact
   source-linked empty-title finding in `lo_toc_preserve.docx`, reported one implemented
   fix, planned a candidate with both engine and baseline-aware Open XML validation
   passing, atomically created a new file, changed only `docProps/core.xml`, matched the
   predicted fingerprint, removed the target finding, returned no raw title/XML and kept
-  Word unopened and the source unmodified. Hosted artifact equality remains pending the
-  pushed commit.
+  Word unopened and the source unmodified.
 - The preceding linter-only checkpoint was identical across the existing checkout, a
   clean detached worktree and hosted Windows CI: 195 files, 35,918,887-byte ZIP,
   SHA-256 `e0d162feac71679efedfeac0de6982447f4856298d9b7334a0195a04c27f7400`.
