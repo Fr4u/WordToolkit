@@ -14,6 +14,13 @@
   caches and related parts. Native tests prove that default and complete MCP envelopes
   remain bounded, cached point values are never serialized, sensitive/source opt-ins
   are independent, and neither Word nor an embedded/external workbook is opened.
+- Markup Compatibility: engine tests cover inherited and aliased `Ignorable`,
+  `ProcessContent`, `MustUnderstand`, first-choice/fallback selection, output
+  reachability beneath discarded branches, ignored attributes, explicit extension
+  islands, legacy preservation hints, malformed XML/structure, cancellation and limits,
+  plus a real LibreOffice package. Native tests prove namespace/source redaction,
+  explicit application configuration, zero COM calls and sub-5,000-character default
+  data plus a sub-8,000-character complete JSON-RPC envelope.
 - Round-trip: LaTeX/UnicodeMath/MathML/AST → OMML → DOCX → reopened OMML with semantic AST comparison.
 - Integration: create/open/edit/save, package validation, Streamable HTTP initialization and bearer rejection.
 - Regression: the broad bundled corpus catches parser crashes, byte drift and open graph

@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- Added a bounded, read-only ECMA-376 Part 3 Markup Compatibility graph and the lazy
+  `inspect_ooxml_markup_compatibility` action. The engine now models inherited
+  `mc:Ignorable`, `mc:ProcessContent`, `mc:MustUnderstand` and
+  `mc:AlternateContent`, separates branch selection from effective output, records
+  legacy preservation hints without executing them, and keeps explicitly configured
+  application-defined extension subtrees opaque. Namespace/source details are redacted
+  by default; the action does not preprocess, mutate, open Word or claim a Word-version
+  compatibility profile. Corrected scale fixtures remain below their declared ceilings
+  at 99,999, 499,999 and 998,998 XML elements; the largest retains about 1.03 GB of
+  managed memory, so the million-element boundary is documented as a hard limit rather
+  than an ordinary workload.
+- Verified the local MCE checkpoint with 316 document-engine tests, 218 native-host
+  tests, 1,273 Python/OOXML tests with 16 intentional skips, Ruff, scoped .NET
+  formatting, schema drift checks, generated-document structural/visual checks and a
+  warning-free Open XML validator build. Two local self-contained builds produced
+  identical 195-file, 84,713,190-byte trees and 36,077,499-byte ZIPs at SHA-256
+  `5312432d0ff5e8ea2c0c4ca664011225be7ea7ad49a0b7b091aa9db4efba2ea3`, with zero
+  Python files. The exact packaged MCP inspected a real LibreOffice document in a
+  3,054-character response without opening Word, following external targets, mutating
+  the package or returning namespace URIs, source-part names, formulas or raw XML.
+  Hosted artifact parity remains pending.
 - Added fail-closed primary-name rename to the typed saved-package semantic edit actions.
   `rename_style` changes only `w:name` for an explicitly selected custom, non-default
   style; it never changes the stable `w:styleId`, aliases, formatting or ID-based

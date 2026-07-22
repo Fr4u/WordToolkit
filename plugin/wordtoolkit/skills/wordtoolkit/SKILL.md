@@ -129,6 +129,17 @@ and embedded packages are never opened. Classic Transitional and Strict DrawingM
 charts are modeled; Office 2016 extended charts remain preserved but explicitly
 unmodeled. This inspector is read-only evidence, not permission to edit a chart or its
 workbook.
+Use lazy `inspect_ooxml_markup_compatibility` before interpreting or changing markup
+that contains `mc:*` attributes, `mc:AlternateContent`, or unfamiliar extension
+namespaces. Start with `view=summary`; page `parts`, `rules`, `alternate_content`,
+`affected`, `must_understand`, or `issues` only when the next decision needs them. Pass
+`understood_namespaces` only for namespaces the target application is proven to
+understand. Pass `application_defined_extension_elements` only from a known markup
+configuration; never guess opaque islands from an `ext`-looking name. Namespace URIs
+and affected local names are redacted by default, and source paths/hashes/ordinals use
+a separate opt-in. The action evaluates and reports the ECMA-376 Part 3 fifth-edition
+model without preprocessing or rewriting the package. Legacy `PreserveElements` and
+`PreserveAttributes` hints are inventoried, not executed as current-edition rules.
 Use lazy `lint_ooxml_document` for a bounded quality or safety audit of a saved package.
 Start with `view=summary` and one rule pack when the task is narrow; request paged
 `findings` only after the counts show relevant evidence. Keep `include_source=false`

@@ -37,6 +37,7 @@ internal sealed class ToolCatalog
         "inspect_ooxml_references",
         "inspect_ooxml_dependencies",
         "inspect_ooxml_charts",
+        "inspect_ooxml_markup_compatibility",
         "lint_ooxml_document",
         "plan_ooxml_lint_repair",
         "apply_ooxml_lint_repair",

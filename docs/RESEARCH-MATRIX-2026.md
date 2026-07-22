@@ -50,6 +50,36 @@ path; unsupported islands must remain available as opaque source-backed data.
 [Open XML SDK MCE guidance](https://learn.microsoft.com/en-us/office/open-xml/general/introduction-to-markup-compatibility)
 (B).
 
+The current normative MCE baseline is
+[ECMA-376 Part 3, fifth edition](https://ecma-international.org/publications-and-standards/standards/ecma-376/).
+It defines a three-step reference model: first mark unknown ignorable elements and
+attributes as ignored or unwrapped through `ProcessContent`; independently choose the
+first `Choice` whose required namespaces are understood, or `Fallback`; then construct
+the effective output and signal `MustUnderstand` mismatches. The selection of a nested
+choice is computed even when an ancestor choice is not selected, but that nested content
+does not reach the output. Application-defined extension elements suspend MCE processing
+for their complete subtree. Those details rule out the common shortcut of deleting every
+unknown namespace or treating `AlternateContent` as an ordinary first-child switch (B).
+
+`PreserveElements` and `PreserveAttributes` are a version trap. They existed as
+preservation hints in earlier MCE editions and remain exposed by the
+[Open XML SDK `MarkupCompatibilityAttributes` API](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.markupcompatibilityattributes?view=openxml-3.0.1),
+but they are absent from the fifth-edition Part 3 syntax and processing model. Office
+Open XML never obliged applications to honor those hints and instead defines native
+extension-list round-tripping rules. WordToolkit therefore inventories and preserves
+the legacy attributes, reports their edition status, and does not execute them as
+current rules. Pretending either that they never existed or that they remain normative
+would corrupt one side of the compatibility boundary (B).
+
+Microsoft's own extension specification states that Word extensions integrate with
+ISO/IEC 29500 through `Ignorable` and `AlternateContent` rather than by becoming base
+WordprocessingML. The target consumer's understood namespaces are therefore part of the
+meaning of the document, not ambient global truth.
+[MS-DOCX structure overview](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-docx/728a7abc-7f55-40dc-90a7-1276ff53c8b2)
+(B). The engine consequently accepts an explicit application configuration and explicit
+application-defined extension names. It does not claim that a marketing label such as
+“Office 2016” is a complete namespace-capability profile without a version-pinned probe.
+
 Styles are not a single `w:pStyle` lookup. WordprocessingML defines paragraph,
 character, linked, table, numbering, and document-default style forms; paragraph styles
 can contribute both paragraph and run properties. Microsoft also records that Word

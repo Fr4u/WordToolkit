@@ -10,8 +10,9 @@ var options = Arguments.Parse(args);
 var report = options.Scenario switch
 {
     "graph" => RunGraph(options),
+    "mce" => RunMce(options),
     "patch" => RunPatch(options),
-    _ => throw new ArgumentException("scenario must be 'graph' or 'patch'"),
+    _ => throw new ArgumentException("scenario must be 'graph', 'mce', or 'patch'"),
 };
 var json = JsonSerializer.Serialize(report, new JsonSerializerOptions
 {
@@ -195,6 +196,101 @@ static object RunPatch(Arguments options)
     }
 }
 
+static object RunMce(Arguments options)
+{
+    if (options.TargetNodes is < 100 or > 999_000)
+    {
+        throw new ArgumentOutOfRangeException(
+            nameof(options.TargetNodes),
+            "MCE target must be between 100 and 999000 XML elements"
+        );
+    }
+    var paragraphCount = MceParagraphCountForTarget(options.TargetNodes);
+    const int maxElements = 1_000_000;
+    var path = TemporaryPath("mce", ".docx");
+    try
+    {
+        var generation = Measure(() => WriteMcePackage(path, paragraphCount));
+        Collect();
+        var baseline = MemorySnapshot.Capture();
+
+        OpcPackageSnapshot? package = null;
+        WordMarkupCompatibilityGraph? graph = null;
+        var read = Measure(() => package = new OpcPackageReader().Read(path));
+        var build = Measure(() =>
+            graph = new WordMarkupCompatibilityGraphBuilder(
+                new WordMarkupCompatibilityGraphOptions
+                {
+                    MaxElementsPerPart = maxElements,
+                    MaxTotalElements = maxElements,
+                    MaxAffectedElements = maxElements,
+                }
+            ).Build(package!)
+        );
+        var final = MemorySnapshot.Capture();
+        GC.KeepAlive(graph);
+        return CommonReport(
+            "markup_compatibility_graph",
+            new
+            {
+                requested_xml_element_ceiling = options.TargetNodes,
+                paragraphs = paragraphCount,
+                package_bytes = new FileInfo(path).Length,
+                package_parts = package!.Entries.Count,
+                parsed_xml_parts = graph!.Parts.Count(part => part.Parsed),
+                parsed_xml_bytes = graph.ParsedXmlBytes,
+                parsed_xml_elements = graph.ParsedElementCount,
+                namespaces = graph.Namespaces.Count,
+                rules = graph.Rules.Count,
+                alternate_content = graph.AlternateContent.Count,
+                affected_elements = graph.AffectedElements.Count,
+                output_affecting_elements = graph.AffectedElements.Count(item =>
+                    item.AffectsOutput
+                ),
+                must_understand_mismatches = graph.MustUnderstandMismatches.Count,
+                issues = graph.Issues.Count,
+                timings_ms = new
+                {
+                    generate = generation.TotalMilliseconds,
+                    package_read = read.TotalMilliseconds,
+                    mce_build = build.TotalMilliseconds,
+                    measured_total = read.TotalMilliseconds + build.TotalMilliseconds,
+                },
+                memory = MemoryReport(baseline, final),
+            }
+        );
+    }
+    finally
+    {
+        File.Delete(path);
+    }
+}
+
+static int MceParagraphCountForTarget(int targetElements)
+{
+    var low = 1;
+    var high = Math.Max(1, targetElements / 3);
+    while (low < high)
+    {
+        var candidate = low + ((high - low + 1) / 2);
+        if (MceElementCount(candidate) <= targetElements)
+        {
+            low = candidate;
+        }
+        else
+        {
+            high = candidate - 1;
+        }
+    }
+    return low;
+}
+
+static long MceElementCount(int paragraphs) =>
+    8L
+    + (3L * paragraphs)
+    + ((paragraphs + 19L) / 20L)
+    + (2L * ((paragraphs + 99L) / 100L));
+
 static object CommonReport(string scenario, object measurements)
 {
     return new
@@ -311,6 +407,33 @@ static void WritePatchPackage(
     }
 }
 
+static void WriteMcePackage(string path, int paragraphCount)
+{
+    using var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+    using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+    WriteTextEntry(archive, "[Content_Types].xml", PackageFixture.ContentTypes);
+    WriteTextEntry(archive, "_rels/.rels", PackageFixture.RootRelationships);
+    var entry = archive.CreateEntry("word/document.xml", CompressionLevel.Fastest);
+    using var stream = entry.Open();
+    using var writer = new StreamWriter(stream, new UTF8Encoding(false), 64 * 1024);
+    writer.Write(PackageFixture.MceDocumentStart);
+    for (var index = 0; index < paragraphCount; index++)
+    {
+        writer.Write("<w:p><w:r><w:t>Item ");
+        writer.Write(index);
+        writer.Write("</w:t></w:r></w:p>");
+        if (index % 20 == 0)
+        {
+            writer.Write("<w14:future w14:value=\"opaque\"/>");
+        }
+        if (index % 100 == 0)
+        {
+            writer.Write("<w14:unwrap><w:p/></w14:unwrap>");
+        }
+    }
+    writer.Write(PackageFixture.MceDocumentEnd);
+}
+
 static void FillDeterministic(Span<byte> destination, int part, long offset, int variant)
 {
     var state = unchecked((uint)(part * 2654435761U) ^ (uint)offset ^ (uint)variant);
@@ -344,7 +467,7 @@ internal sealed record Arguments(
         if (args.Length == 0)
         {
             throw new ArgumentException(
-                "usage: graph --target-nodes N | patch --payload-mib N [--parts N]"
+                "usage: graph --target-nodes N | mce --target-nodes N | patch --payload-mib N [--parts N]"
             );
         }
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -423,4 +546,20 @@ internal static class PackageFixture
         """;
 
     internal const string DocumentEnd = "<w:sectPr/></w:body></w:document>";
+
+    internal const string MceDocumentStart = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+          xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"
+          xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+          mc:Ignorable="w14" mc:ProcessContent="w14:unwrap" mc:MustUnderstand="w14"><w:body>
+        """;
+
+    internal const string MceDocumentEnd = """
+        <mc:AlternateContent>
+          <mc:Choice Requires="w14"><w:p/></mc:Choice>
+          <mc:Fallback><w:p/></mc:Fallback>
+        </mc:AlternateContent>
+        <w:sectPr/></w:body></w:document>
+        """;
 }

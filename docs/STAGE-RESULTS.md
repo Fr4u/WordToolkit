@@ -1,5 +1,37 @@
 # Stage results
 
+## WordToolkit 0.35.0 markup-compatibility graph — 2026-07-22
+
+- Added a bounded, source-preserving ECMA-376 Part 3 fifth-edition graph for
+  `Ignorable`, `ProcessContent`, `MustUnderstand` and `AlternateContent`, with explicit
+  application/extension configuration and non-executed legacy preservation-hint
+  inventory.
+- Added the lazy, read-only `inspect_ooxml_markup_compatibility` action. Namespace and
+  source details are independently opt-in; the action never preprocesses XML, follows
+  external targets, opens Word or mutates the package.
+- Full native engine suite: **316 passed, 0 skipped**.
+- Full native MCP host suite: **218 passed, 0 skipped**.
+- Full Python compatibility suite: **1,273 passed, 16 skipped**; Ruff clean. Open XML
+  validator built with zero warnings, and the generated basic/advanced artifacts passed
+  structural and visual checks.
+- Corrected MCE scale points remain below their declared ceilings at 99,999, 499,999 and
+  998,998 XML elements. The largest point took 4.78 seconds for package read plus graph
+  build, retained about 1.03 GB managed memory and is documented as a hard boundary, not
+  an ordinary workload.
+- Native package version: `0.35.0+codex.20260722212907`, with 14 public gateway tools
+  and **82** lazy native actions.
+- Two independent local builds produced byte-identical **195-file**, **84,713,190-byte**
+  expanded trees and byte-identical **36,077,499-byte** ZIPs. ZIP SHA-256:
+  `5312432d0ff5e8ea2c0c4ca664011225be7ea7ad49a0b7b091aa9db4efba2ea3`.
+  Runtime assembly SHA-256:
+  `d8f3346b7f29b9bbf85fc4b1f2d38d903836c514a245629e85bb16694b58c78b`.
+- The exact packaged MCP inspected the real LibreOffice chart document as 11 XML parts,
+  five compatibility rules and one alternate-content block. Its data object was 1,218
+  characters and complete response 3,054 characters; it returned no namespace URI,
+  source-part name, formula or raw XML and left the Word process set unchanged.
+- Hosted CI/artifact parity and human review remain required. The public release stays
+  at 0.34.0; no licensed Word release gate is claimed for this saved-package tranche.
+
 ## WordToolkit 0.35.0 classic chart graph — 2026-07-22
 
 - Added a bounded typed graph for classic Transitional and Strict DrawingML charts:

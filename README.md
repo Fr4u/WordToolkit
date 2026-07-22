@@ -224,6 +224,19 @@ never started, and neither embedded workbooks nor external targets are opened. O
 2016 extended charts are preserved and explicitly reported as unmodeled. The default
 summary and complete JSON-RPC envelope have regression size caps.
 
+Saved-package markup-compatibility inspection evaluates ECMA-376 Part 3 across every
+XML-typed OPC part without destructively preprocessing the document. It inventories
+`mc:Ignorable`, `mc:ProcessContent`, `mc:MustUnderstand`, `mc:AlternateContent`,
+`mc:Choice` and `mc:Fallback`, then reports the selected branch, ignored or unwrapped
+elements and attributes, and unresolved must-understand requirements for one explicit
+application configuration. Application-defined extension islands are also explicit;
+the engine never guesses which private vocabulary is opaque. Legacy
+`mc:PreserveElements` and `mc:PreserveAttributes` hints are retained and reported but
+are not misrepresented as part of the current fifth-edition processing model. The
+action never rewrites the source, opens Word, or follows relationships. Custom
+namespace URIs and local names are redacted unless separately requested, while part
+paths, source hashes and XML ordinals require the source-provenance opt-in.
+
 Saved-package linting builds on those typed graphs without opening Word. The initial 18
 rules cover package/dependency diagnostics, typed style/numbering/reference/theme/
 settings/font diagnostics, unbound section stories, unused and formatting-equivalent
@@ -510,7 +523,7 @@ pwsh -File native/scripts/live-acceptance.ps1 `
 
 Every test mutation is tracked, verified and undone. The script fails if cleanup leaves any outstanding WordToolkit operation.
 
-Run the complete packaged 14-tool/81-action live acceptance gate:
+Run the complete packaged 14-tool/82-action live acceptance gate:
 
 ```powershell
 pwsh -NoProfile -File native/scripts/live-full-capabilities-timed.ps1 `

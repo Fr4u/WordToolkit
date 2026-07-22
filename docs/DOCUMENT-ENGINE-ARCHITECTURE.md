@@ -184,6 +184,20 @@ and the parser uses documented .NET bounds and DTD prohibition rather than assum
 well-behaved input ([`MaxCharactersInDocument`](https://learn.microsoft.com/en-us/dotnet/api/system.xml.xmlreadersettings.maxcharactersindocument),
 [`DtdProcessing`](https://learn.microsoft.com/en-us/dotnet/api/system.xml.xmlreadersettings.dtdprocessing)).
 
+The first package-wide Markup Compatibility layer now sits on that lossless source.
+`WordMarkupCompatibilityGraphBuilder` inventories and evaluates `mc:Ignorable`,
+`mc:ProcessContent`, `mc:MustUnderstand`, `mc:AlternateContent`, `mc:Choice` and
+`mc:Fallback` across every XML-typed OPC part. It accepts explicit application and
+markup configurations, keeps branch selection separate from effective output
+reachability, suspends interpretation inside configured application-defined extension
+elements, and reports ignored elements/attributes, unwrapping and must-understand
+mismatches. Legacy `PreserveElements`/`PreserveAttributes` hints are retained and
+identified as pre-fifth-edition advisory state. No preprocessing or transformed XML is
+written back. The lazy `inspect_ooxml_markup_compatibility` projection pages stable IDs
+and counts while redacting private namespace details and source provenance by default.
+Current limitations are serializer/transform output, namespace-changing mutation rules,
+automatic Word-version capability profiles and a cross-version Word corpus.
+
 ### Layer 3: typed OOXML and extension adapters
 
 Typed adapters project known structures from lossless source without owning unknown

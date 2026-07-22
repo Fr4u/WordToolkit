@@ -5398,6 +5398,98 @@
       }
     },
     {
+      "name": "inspect_ooxml_markup_compatibility",
+      "title": "Inspect OOXML markup compatibility",
+      "description": "Inspect and evaluate ECMA-376 Part 3 Markup Compatibility and Extensibility rules across every XML-typed OPC part without preprocessing, rewriting, opening Word, or following external targets. Models Ignorable, ProcessContent, MustUnderstand, AlternateContent, Choice, Fallback, application-defined extension islands, and legacy PreserveElements/PreserveAttributes hints. Evaluation uses only the explicitly supplied application and markup configuration. Namespace URIs, local names, part paths, source ordinals, and part hashes are redacted by default.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "parts", "namespaces", "rules", "alternate_content", "affected", "must_understand", "issues"],
+            "default": "summary",
+            "description": "Return compact rule counts, XML-part coverage, namespace inventory, rule declarations, branch selection, ignored/unwrapped content, MustUnderstand mismatches, or diagnostics."
+          },
+          "part_id": {
+            "type": "string",
+            "pattern": "^wmcp_[a-f0-9]{32}$",
+            "maxLength": 128,
+            "description": "Optional exact MCE part ID from the same package fingerprint."
+          },
+          "understood_namespaces": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            },
+            "description": "Explicit application configuration: namespace URIs treated as understood. Empty means no extension namespace is assumed understood; WordToolkit does not guess an Office version."
+          },
+          "application_defined_extension_elements": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "object",
+              "properties": {
+                "namespace_uri": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2048
+                },
+                "local_name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                }
+              },
+              "required": ["namespace_uri", "local_name"],
+              "additionalProperties": false
+            },
+            "description": "Explicit markup configuration: expanded names whose entire subtrees are opaque application-defined extension islands."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "include_namespace_details": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded namespace URIs and affected local names. Custom namespace names can disclose document-domain information."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded part URIs, content types, source hashes, and XML element ordinals."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include at most 20 bounded MCE diagnostics in non-issues views."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "lint_ooxml_document",
       "title": "Lint a saved Word document",
       "description": "Run bounded, deterministic rule packs over a saved Word OOXML package without opening Word or following external targets. Returns stable finding IDs, optional exact source spans, explicit suppression accounting, separate execution-completeness and document-coverage signals, and truthful executable-fix availability. Linting never mutates the package.",

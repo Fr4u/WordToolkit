@@ -1,8 +1,9 @@
 # Document-engine scale baseline — Windows x64 — 2026-07-22
 
 This is a measured baseline, not a throughput promise. Results came from one process per
-point on Windows 10.0.19045, .NET 8.0.26 workstation GC, an Intel Core i5-10400F (6
-cores/12 logical processors) and 64 GiB physical RAM. The exact JSON reports in this
+point on Windows 10.0.19045, .NET 8 workstation GC, an Intel Core i5-10400F (6
+cores/12 logical processors) and 64 GiB physical RAM. The dependency/patch points used
+.NET 8.0.26; the later MCE points used .NET 8.0.29. The exact JSON reports in this
 directory contain timings, retained managed memory, total allocations and process peak
 working set.
 
@@ -43,12 +44,33 @@ These results caused the aggregate default to be reduced from 512 MiB to 128 MiB
 explicit high-limit path. Even the reduced ceiling is a rejection bound, not a promise
 of cheap processing, until streaming payload storage replaces the byte-array model.
 
+## Markup Compatibility graph
+
+The synthetic DOCX uses one main XML story with inherited `mc:Ignorable`,
+`mc:ProcessContent` and `mc:MustUnderstand` rules, periodic ignored and unwrapped
+elements, and one `mc:AlternateContent` block. The requested value is a hard XML-element
+ceiling; the generator chooses the largest paragraph count that remains below it. The
+measured time is package read plus source-preserving MCE graph construction. It excludes
+Word, rendering and any compatibility transform.
+
+| Requested ceiling | Actual XML elements | MCE-affected elements | Measured time | Retained managed delta | Peak working set | Managed allocations |
+|---:|---:|---:|---:|---:|---:|---:|
+| 100,000 | 99,999 | 1,955 | 0.65 s | 112.4 MiB | 152.3 MiB | 181.0 MiB |
+| 500,000 | 499,999 | 9,773 | 2.75 s | 493.2 MiB | 552.7 MiB | 882.8 MiB |
+| 999,000 | 998,998 | 19,526 | 4.78 s | 981.6 MiB | 1,108.0 MiB | 1,763.1 MiB |
+
+The graph reaches the configured million-element boundary on this machine, but it is
+not cheap: the largest point retains roughly 1.03 GB of managed memory. This is a
+resource-bound proof, not a default throughput promise. Compact source references and
+affected-element storage remain necessary before calling this path light.
+
 ## Reproduction
 
 ```powershell
 dotnet build native/WordToolkit.Engine.Benchmarks/WordToolkit.Engine.Benchmarks.csproj -c Release
 dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- graph --target-nodes 100000
 dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- patch --payload-mib 64 --parts 64
+dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- mce --target-elements 100000
 ```
 
 The manual `document-engine-benchmarks` workflow runs all recorded scale points with the
