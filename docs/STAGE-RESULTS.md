@@ -1,5 +1,50 @@
 # Stage results
 
+## WordToolkit 0.35.0 logical table graph — 2026-07-22
+
+- Added `WordTableGraphBuilder`, a bounded Transitional/Strict WordprocessingML read
+  graph for declared grids, physical-to-logical cell placement, `gridBefore`/`gridAfter`,
+  `gridSpan`, exact-span vertical merges, separately retained legacy `hMerge`, nested
+  tables, contiguous repeating headers, row table-property exceptions, widths,
+  fixed/autofit layout and Word-effective floating positioning.
+- Integrated nested tables and vertical-merge continuation cells into the shared
+  dependency graph. Table diagnostics now retain a source-linked dependency subject,
+  and the accessibility linter consumes the same typed header result instead of parsing
+  row XML independently.
+- Added lazy `inspect_ooxml_tables` with summary/table/row/cell/merge/issue views, exact
+  table/row/cell filters, paging and independent layout/name/source opt-ins. Cell text and
+  raw XML have no response field. Nested ID and grid-width arrays are capped at 100 with
+  explicit truncation flags.
+- Full native engine suite: **340 passed, 0 skipped**.
+- Full native MCP host suite: **228 passed, 0 skipped**.
+- Full Python compatibility suite: **1,273 passed, 16 intentional skips**; Ruff clean.
+  Open XML validator built with zero warnings. Generated basic and advanced artifacts
+  passed structural and visual checks; the advanced report contained zero validation,
+  warning or accessibility findings.
+- Checked-in table scale points cover 10,000 and 100,000 physical cells. The smaller
+  point completed package read + semantic projection + table build in 0.89 seconds with
+  110.1 MiB peak working set. The larger completed in 5.23 seconds with 579.3 MiB peak
+  working set and 1,885.1 MiB managed allocations. Both produced zero diagnostics; the
+  production five-million-cell limit remains a rejection bound, not a throughput claim.
+- Native package version: `0.35.0+codex.20260722231852`, with 14 public gateway tools
+  and **84** lazy native actions.
+- Two independent local builds produced byte-identical **195-file**, **85,056,480-byte**
+  expanded trees and byte-identical **36,172,619-byte** ZIPs. ZIP SHA-256:
+  `910a1cece37397f61568ea0a230fe663fdf54d834d8a8d367fa56b37ddfe1c13`.
+  Executable SHA-256:
+  `59fb8419dbe664d1b1ae7f0b5df35b7738cfd1c43b69719049d8e06dd64cd138`.
+  Runtime assembly SHA-256:
+  `f6e8923897b7578a0344347ec5c43f802f01f2de093553a819d036736ac698cd`.
+  Document-engine assembly SHA-256:
+  `1d7780bf01c5242b9e3d41e162d870a4bd7c7131653287e0c6737b97b18cc888`.
+- The exact packaged MCP inspected the advanced torture DOCX as 2 tables, 34 rows and
+  251 cells with zero table issues. Its complete compact JSON-RPC response was 2,308
+  characters, did not start Word, left the Word process set unchanged, and contained no
+  source part path, cell text or raw table XML.
+- Mandatory hosted CI and artifact-parity evidence remain pending for this checkpoint.
+  Human review and the licensed Word release gate remain required; the public release
+  stays at 0.34.0.
+
 ## WordToolkit 0.35.0 content-control and Custom XML binding graph — 2026-07-22
 
 - Added a typed, source-linked read graph for `w:sdt` controls, physical Custom XML

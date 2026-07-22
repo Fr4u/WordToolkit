@@ -11,10 +11,11 @@ var report = options.Scenario switch
 {
     "graph" => RunGraph(options),
     "bindings" => RunBindings(options),
+    "tables" => RunTables(options),
     "mce" => RunMce(options),
     "patch" => RunPatch(options),
     _ => throw new ArgumentException(
-        "scenario must be 'graph', 'bindings', 'mce', or 'patch'"
+        "scenario must be 'graph', 'bindings', 'tables', 'mce', or 'patch'"
     ),
 };
 var json = JsonSerializer.Serialize(report, new JsonSerializerOptions
@@ -272,6 +273,83 @@ static object RunBindings(Arguments options)
                     package_read = read.TotalMilliseconds,
                     semantic_projection = project.TotalMilliseconds,
                     binding_graph_build = build.TotalMilliseconds,
+                    measured_total = read.TotalMilliseconds
+                        + project.TotalMilliseconds
+                        + build.TotalMilliseconds,
+                },
+                memory = MemoryReport(baseline, final),
+            }
+        );
+    }
+    finally
+    {
+        File.Delete(path);
+    }
+}
+
+static object RunTables(Arguments options)
+{
+    if (options.TargetNodes is < 100 or > 1_000_000)
+    {
+        throw new ArgumentOutOfRangeException(
+            nameof(options.TargetNodes),
+            "table target must be between 100 and 1000000 physical cells"
+        );
+    }
+    const int columns = 20;
+    var rows = (options.TargetNodes + columns - 1) / columns;
+    var path = TemporaryPath("tables", ".docx");
+    try
+    {
+        var generation = Measure(() =>
+            WriteTablePackage(path, options.TargetNodes, columns)
+        );
+        Collect();
+        var baseline = MemorySnapshot.Capture();
+
+        OpcPackageSnapshot? package = null;
+        WordSemanticDocument? semantic = null;
+        WordTableGraph? graph = null;
+        var read = Measure(() => package = new OpcPackageReader().Read(path));
+        var project = Measure(() =>
+            semantic = new WordSemanticProjector(
+                new WordSemanticProjectionOptions
+                {
+                    MaxXmlCharacters = 256L * 1024 * 1024,
+                    MaxXmlElements = 2_000_000,
+                    MaxTextCharacters = 64L * 1024 * 1024,
+                }
+            ).Project(package!)
+        );
+        var build = Measure(() =>
+            graph = new WordTableGraphBuilder().Build(package!, semantic!)
+        );
+        var final = MemorySnapshot.Capture();
+        GC.KeepAlive(graph);
+        return CommonReport(
+            "table_graph",
+            new
+            {
+                requested_physical_cells = options.TargetNodes,
+                configured_cell_ceiling = WordTableGraphOptions.Default.MaxCells,
+                columns,
+                generated_rows = rows,
+                package_bytes = new FileInfo(path).Length,
+                package_parts = package!.Entries.Count,
+                semantic_nodes = semantic!.NodeCount,
+                tables = graph!.Tables.Count,
+                rows = graph.Rows.Count,
+                cells = graph.Cells.Count,
+                vertical_merges = graph.VerticalMerges.Count,
+                issues = graph.Issues.Count,
+                parsed_xml_bytes = graph.ParsedXmlBytes,
+                parsed_xml_elements = graph.ParsedXmlElements,
+                timings_ms = new
+                {
+                    generate = generation.TotalMilliseconds,
+                    package_read = read.TotalMilliseconds,
+                    semantic_projection = project.TotalMilliseconds,
+                    table_graph_build = build.TotalMilliseconds,
                     measured_total = read.TotalMilliseconds
                         + project.TotalMilliseconds
                         + build.TotalMilliseconds,
@@ -547,6 +625,46 @@ static void WriteBindingPackage(string path, int controlCount)
     storeWriter.Write("</b:root>");
 }
 
+static void WriteTablePackage(string path, int cellCount, int columns)
+{
+    using var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+    using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+    WriteTextEntry(archive, "[Content_Types].xml", PackageFixture.ContentTypes);
+    WriteTextEntry(archive, "_rels/.rels", PackageFixture.RootRelationships);
+    var entry = archive.CreateEntry("word/document.xml", CompressionLevel.Fastest);
+    using var stream = entry.Open();
+    using var writer = new StreamWriter(stream, new UTF8Encoding(false), 64 * 1024);
+    writer.Write(PackageFixture.DocumentStart);
+    writer.Write("<w:tbl><w:tblPr><w:tblW w:w=\"5000\" w:type=\"pct\"/><w:tblLayout w:type=\"fixed\"/></w:tblPr><w:tblGrid>");
+    for (var column = 0; column < columns; column++)
+    {
+        writer.Write("<w:gridCol w:w=\"500\"/>");
+    }
+    writer.Write("</w:tblGrid>");
+    var written = 0;
+    var row = 0;
+    while (written < cellCount)
+    {
+        writer.Write(row == 0 ? "<w:tr><w:trPr><w:tblHeader/></w:trPr>" : "<w:tr>");
+        for (var column = 0; column < columns && written < cellCount; column++)
+        {
+            writer.Write("<w:tc>");
+            if (column == 0)
+            {
+                writer.Write(row % 5 == 0
+                    ? "<w:tcPr><w:vMerge w:val=\"restart\"/></w:tcPr>"
+                    : "<w:tcPr><w:vMerge/></w:tcPr>");
+            }
+            writer.Write("<w:p/></w:tc>");
+            written++;
+        }
+        writer.Write("</w:tr>");
+        row++;
+    }
+    writer.Write("</w:tbl>");
+    writer.Write(PackageFixture.DocumentEnd);
+}
+
 static void WriteMcePackage(string path, int paragraphCount)
 {
     using var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
@@ -607,7 +725,7 @@ internal sealed record Arguments(
         if (args.Length == 0)
         {
             throw new ArgumentException(
-                "usage: graph --target-nodes N | bindings --target-nodes N | mce --target-nodes N | patch --payload-mib N [--parts N]"
+                "usage: graph --target-nodes N | bindings --target-nodes N | tables --target-nodes N | mce --target-nodes N | patch --payload-mib N [--parts N]"
             );
         }
         var values = new Dictionary<string, string>(StringComparer.Ordinal);

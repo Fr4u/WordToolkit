@@ -67,6 +67,8 @@ public enum WordDependencyEdgeKind
     CustomXmlStoreContainsTarget,
     ContentControlBindsTarget,
     RepeatingSectionContainsItem,
+    TableNestsTable,
+    TableCellContinuesVerticalMerge,
 }
 
 public enum WordDependencyIssueSeverity
@@ -122,6 +124,7 @@ public sealed record WordDependencyCoverage(
     bool Sections,
     bool Charts,
     bool ContentControlsAndCustomXml,
+    bool TablesAndCellTopology,
     IReadOnlyList<string> ExplicitlyUnmodeledDomains
 );
 
@@ -146,7 +149,8 @@ public sealed class WordDependencyGraph
         int referenceIssueCount,
         int unboundSectionStoryCount,
         int chartIssueCount,
-        int contentControlIssueCount
+        int contentControlIssueCount,
+        int tableIssueCount
     )
     {
         PackageFingerprint = packageFingerprint;
@@ -162,6 +166,7 @@ public sealed class WordDependencyGraph
         UnboundSectionStoryCount = unboundSectionStoryCount;
         ChartIssueCount = chartIssueCount;
         ContentControlIssueCount = contentControlIssueCount;
+        TableIssueCount = tableIssueCount;
         _nodesById = new ReadOnlyDictionary<string, WordDependencyNode>(
             nodes.ToDictionary(node => node.Id, StringComparer.Ordinal)
         );
@@ -194,6 +199,8 @@ public sealed class WordDependencyGraph
     public int ChartIssueCount { get; }
 
     public int ContentControlIssueCount { get; }
+
+    public int TableIssueCount { get; }
 
     public bool TryGetNode(string nodeId, out WordDependencyNode? node)
     {
@@ -410,6 +417,38 @@ public sealed class WordDependencyGraphBuilder
         CancellationToken cancellationToken = default
     )
     {
+        var tables = new WordTableGraphBuilder().Build(
+            package,
+            semanticDocument,
+            cancellationToken
+        );
+        return Build(
+            package,
+            semanticDocument,
+            styles,
+            numbering,
+            references,
+            sections,
+            charts,
+            contentControls,
+            tables,
+            cancellationToken
+        );
+    }
+
+    public WordDependencyGraph Build(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordStyleGraph styles,
+        WordNumberingGraph numbering,
+        WordReferenceGraph references,
+        WordSectionGraph sections,
+        WordChartGraph charts,
+        WordContentControlBindingGraph contentControls,
+        WordTableGraph tables,
+        CancellationToken cancellationToken = default
+    )
+    {
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(semanticDocument);
         ArgumentNullException.ThrowIfNull(styles);
@@ -418,6 +457,7 @@ public sealed class WordDependencyGraphBuilder
         ArgumentNullException.ThrowIfNull(sections);
         ArgumentNullException.ThrowIfNull(charts);
         ArgumentNullException.ThrowIfNull(contentControls);
+        ArgumentNullException.ThrowIfNull(tables);
         cancellationToken.ThrowIfCancellationRequested();
         EnsureFingerprint(
             package.Fingerprint,
@@ -427,7 +467,8 @@ public sealed class WordDependencyGraphBuilder
             references.PackageFingerprint,
             sections.PackageFingerprint,
             charts.PackageFingerprint,
-            contentControls.PackageFingerprint
+            contentControls.PackageFingerprint,
+            tables.PackageFingerprint
         );
 
         var state = new BuildState(_options);
@@ -502,6 +543,13 @@ public sealed class WordDependencyGraphBuilder
             reachableParts,
             cancellationToken
         );
+        AddTableDependencies(
+            state,
+            semanticDocument,
+            tables,
+            reachableParts,
+            cancellationToken
+        );
 
         var (nodes, edges, issues) = state.Materialize();
         return new WordDependencyGraph(
@@ -519,6 +567,7 @@ public sealed class WordDependencyGraphBuilder
                 Sections: true,
                 Charts: true,
                 ContentControlsAndCustomXml: true,
+                TablesAndCellTopology: true,
                 ExplicitlyUnmodeledDomains
             ),
             package.Diagnostics.Count,
@@ -527,8 +576,148 @@ public sealed class WordDependencyGraphBuilder
             references.Issues.Count,
             sections.UnboundStoryPartUris.Count,
             charts.Issues.Count,
-            contentControls.Issues.Count
+            contentControls.Issues.Count,
+            tables.Issues.Count
         );
+    }
+
+    private static void AddTableDependencies(
+        BuildState state,
+        WordSemanticDocument semanticDocument,
+        WordTableGraph tables,
+        IReadOnlySet<string> reachableParts,
+        CancellationToken cancellationToken
+    )
+    {
+        var semanticById = semanticDocument.Nodes.ToDictionary(node => node.Id);
+        var tableById = tables.Tables.ToDictionary(table => table.Id, StringComparer.Ordinal);
+        var cellById = tables.Cells.ToDictionary(cell => cell.Id, StringComparer.Ordinal);
+
+        foreach (var table in tables.Tables.Where(table => table.ParentTableId is not null))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                !tableById.TryGetValue(table.ParentTableId!, out var parent)
+                || !semanticById.TryGetValue(parent.SemanticNodeId, out var parentNode)
+                || !semanticById.TryGetValue(table.SemanticNodeId, out var tableNode)
+            )
+            {
+                throw new WordDependencyProjectionException(
+                    "A nested table has no source-linked parent table."
+                );
+            }
+            var parentNodeId = SemanticNode(
+                state,
+                parentNode,
+                reachableParts.Contains(parent.PartUri)
+            );
+            var tableNodeId = SemanticNode(
+                state,
+                tableNode,
+                reachableParts.Contains(table.PartUri)
+            );
+            state.AddEdge(
+                WordDependencyEdgeKind.TableNestsTable,
+                parentNodeId,
+                tableNodeId,
+                isResolved: true,
+                isExternal: false,
+                qualifier: table.Depth.ToString(CultureInfo.InvariantCulture),
+                partUri: table.PartUri,
+                sourceElementOrdinal: table.SourceElementOrdinal
+            );
+        }
+
+        foreach (var merge in tables.VerticalMerges)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                !cellById.TryGetValue(merge.RootCellId, out var rootCell)
+                || !semanticById.TryGetValue(rootCell.SemanticNodeId, out var rootNode)
+            )
+            {
+                throw new WordDependencyProjectionException(
+                    "A vertical table merge has no source-linked root cell."
+                );
+            }
+            var rootNodeId = SemanticNode(
+                state,
+                rootNode,
+                reachableParts.Contains(rootCell.PartUri)
+            );
+            foreach (var continuationCellId in merge.CellIds.Skip(1))
+            {
+                if (
+                    !cellById.TryGetValue(continuationCellId, out var continuationCell)
+                    || !semanticById.TryGetValue(
+                        continuationCell.SemanticNodeId,
+                        out var continuationNode
+                    )
+                )
+                {
+                    throw new WordDependencyProjectionException(
+                        "A vertical table merge references a missing continuation cell."
+                    );
+                }
+                var continuationNodeId = SemanticNode(
+                    state,
+                    continuationNode,
+                    reachableParts.Contains(continuationCell.PartUri)
+                );
+                state.AddEdge(
+                    WordDependencyEdgeKind.TableCellContinuesVerticalMerge,
+                    rootNodeId,
+                    continuationNodeId,
+                    isResolved: merge.IsComplete,
+                    isExternal: false,
+                    qualifier: $"{merge.LogicalColumnStart}:{merge.GridSpan}",
+                    partUri: continuationCell.PartUri,
+                    sourceElementOrdinal: continuationCell.SourceElementOrdinal
+                );
+            }
+        }
+
+        var rowById = tables.Rows.ToDictionary(row => row.Id, StringComparer.Ordinal);
+        foreach (var issue in tables.Issues)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            SemanticNodeId? semanticId = null;
+            if (issue.CellId is not null && cellById.TryGetValue(issue.CellId, out var cell))
+            {
+                semanticId = cell.SemanticNodeId;
+            }
+            else if (issue.RowId is not null && rowById.TryGetValue(issue.RowId, out var row))
+            {
+                semanticId = row.SemanticNodeId;
+            }
+            else if (issue.TableId is not null && tableById.TryGetValue(issue.TableId, out var table))
+            {
+                semanticId = table.SemanticNodeId;
+            }
+            string? nodeId = null;
+            if (semanticId is not null && semanticById.TryGetValue(semanticId.Value, out var semanticNode))
+            {
+                nodeId = SemanticNode(
+                    state,
+                    semanticNode,
+                    reachableParts.Contains(semanticNode.SourcePartUri)
+                );
+            }
+            state.AddIssue(
+                "WDG060_" + issue.Code,
+                issue.Severity switch
+                {
+                    WordTableIssueSeverity.Info => WordDependencyIssueSeverity.Info,
+                    WordTableIssueSeverity.Warning => WordDependencyIssueSeverity.Warning,
+                    WordTableIssueSeverity.Error => WordDependencyIssueSeverity.Error,
+                    _ => throw new ArgumentOutOfRangeException(nameof(issue.Severity)),
+                },
+                $"The typed table graph emitted {issue.Code}.",
+                nodeId: nodeId,
+                partUri: issue.PartUri,
+                sourceElementOrdinal: issue.SourceElementOrdinal
+            );
+        }
     }
 
     private static void AddContentControlDependencies(

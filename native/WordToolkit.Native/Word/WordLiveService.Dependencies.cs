@@ -150,6 +150,7 @@ internal sealed partial class WordLiveService
                     unbound_section_stories = graph.UnboundSectionStoryCount,
                     charts = graph.ChartIssueCount,
                     content_controls = graph.ContentControlIssueCount,
+                    tables = graph.TableIssueCount,
                 },
                 coverage = new
                 {
@@ -162,6 +163,8 @@ internal sealed partial class WordLiveService
                     charts = graph.Coverage.Charts,
                     content_controls_and_custom_xml = graph.Coverage
                         .ContentControlsAndCustomXml,
+                    tables_and_cell_topology = graph.Coverage
+                        .TablesAndCellTopology,
                     explicitly_unmodeled_domains = graph.Coverage
                         .ExplicitlyUnmodeledDomains,
                 },

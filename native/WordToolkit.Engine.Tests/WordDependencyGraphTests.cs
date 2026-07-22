@@ -130,6 +130,7 @@ public sealed class WordDependencyGraphTests
         Assert.True(first.Coverage.Sections);
         Assert.True(first.Coverage.Charts);
         Assert.True(first.Coverage.ContentControlsAndCustomXml);
+        Assert.True(first.Coverage.TablesAndCellTopology);
         Assert.Contains("smartart_diagrams", first.Coverage.ExplicitlyUnmodeledDomains);
         Assert.DoesNotContain(
             "content_control_custom_xml_bindings",
@@ -169,11 +170,14 @@ public sealed class WordDependencyGraphTests
             package,
             semantic
         );
+        var tables = new WordTableGraphBuilder().Build(package, semantic);
 
         var graph = new WordDependencyGraphBuilder().Build(package, semantic);
 
         Assert.True(graph.Coverage.ContentControlsAndCustomXml);
+        Assert.True(graph.Coverage.TablesAndCellTopology);
         Assert.Equal(contentControls.Issues.Count, graph.ContentControlIssueCount);
+        Assert.Equal(tables.Issues.Count, graph.TableIssueCount);
         Assert.Contains(
             graph.Nodes,
             node => node.Kind == WordDependencyNodeKind.ContentControl
@@ -220,6 +224,83 @@ public sealed class WordDependencyGraphTests
                 Assert.True(graph.TryGetNode(edge.TargetNodeId, out _));
             }
         );
+    }
+
+    [Fact]
+    public void LinksNestedTablesAndVerticalMergeContinuationsWithoutDuplicateNodes()
+    {
+        using var bytes = BuildPackage(
+            documentBody: """
+            <w:tbl>
+              <w:tblPr/>
+              <w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>
+              <w:tr>
+                <w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr><w:p/></w:tc>
+                <w:tc><w:p/></w:tc>
+              </w:tr>
+              <w:tr>
+                <w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc>
+                <w:tc>
+                  <w:p/>
+                  <w:tbl><w:tblPr/><w:tblGrid><w:gridCol/></w:tblGrid><w:tr><w:tc><w:p/></w:tc></w:tr></w:tbl>
+                </w:tc>
+              </w:tr>
+            </w:tbl>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+        var graph = new WordDependencyGraphBuilder().Build(package, semantic);
+
+        Assert.Contains(
+            graph.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.TableNestsTable
+                && edge.IsResolved
+        );
+        Assert.Contains(
+            graph.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.TableCellContinuesVerticalMerge
+                && edge.IsResolved
+        );
+        Assert.Equal(
+            semantic.NodeCount,
+            graph.Nodes.Count(node => node.Kind == WordDependencyNodeKind.SemanticNode)
+        );
+        Assert.All(
+            graph.Edges,
+            edge =>
+            {
+                Assert.True(graph.TryGetNode(edge.SourceNodeId, out _));
+                Assert.True(graph.TryGetNode(edge.TargetNodeId, out _));
+            }
+        );
+    }
+
+    [Fact]
+    public void PreservesTypedTableDamageAsSourceLinkedDependencyEvidence()
+    {
+        using var bytes = BuildPackage(
+            documentBody: """
+            <w:tbl>
+              <w:tblPr/><w:tblGrid><w:gridCol/></w:tblGrid>
+              <w:tr><w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc></w:tr>
+            </w:tbl>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+        var graph = new WordDependencyGraphBuilder().Build(package, semantic);
+
+        var issue = Assert.Single(
+            graph.Issues,
+            issue => issue.Code
+                == "WDG060_TABLE_VERTICAL_MERGE_ORPHAN_CONTINUATION"
+        );
+        Assert.Equal("/word/document.xml", issue.PartUri);
+        Assert.NotNull(issue.SourceElementOrdinal);
+        Assert.NotNull(issue.NodeId);
+        Assert.True(graph.TryGetNode(issue.NodeId!, out var node));
+        Assert.Equal(WordSemanticNodeKind.TableCell, node!.SemanticKind);
     }
 
     [Fact]

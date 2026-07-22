@@ -3,7 +3,7 @@
 This is a measured baseline, not a throughput promise. Results came from one process per
 point on Windows 10.0.19045, .NET 8 workstation GC, an Intel Core i5-10400F (6
 cores/12 logical processors) and 64 GiB physical RAM. The dependency/patch points used
-.NET 8.0.26; the later MCE and content-control binding points used .NET 8.0.29. The exact JSON reports in this
+.NET 8.0.26; the later MCE, content-control binding and table points used .NET 8.0.29. The exact JSON reports in this
 directory contain timings, retained managed memory, total allocations and process peak
 working set.
 
@@ -27,6 +27,24 @@ The measured version indexes each parent's children by QName once and selects `[
 constant time. Even after that correction, allocation remains severe and requires
 compact source/identity storage before this path can be called light.
 
+## Table graph
+
+The synthetic DOCX contains one fixed-layout 20-column table. The first column forms
+five-row vertical merge chains, the first row is a repeating header, and no cell text is
+needed. The measured time is package read + semantic projection + table-graph
+construction. It excludes dependency materialization, Word and rendering.
+
+| Physical cells | Rows | Vertical merges | Measured time | Table build | Retained managed delta | Peak working set | Managed allocations |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 10,000 | 500 | 100 | 0.89 s | 0.25 s | 37.8 MiB | 110.1 MiB | 190.6 MiB |
+| 100,000 | 5,000 | 1,000 | 5.23 s | 1.30 s | 440.2 MiB | 579.3 MiB | 1,885.1 MiB |
+
+Both points produced the exact requested cell count and zero diagnostics. The larger
+point remains well below the five-million-cell rejection ceiling, yet already allocates
+roughly 1.84 GiB. The ceiling is therefore a fail-closed bound, not a claim of cheap
+operation. Sharing a parsed story representation between semantic projection and typed
+table construction is the next clear allocation target.
+
 ## Dependency graph
 
 The synthetic DOCX has one main story containing plain one-run paragraphs. The measured
@@ -35,14 +53,17 @@ represent complex style, field, relationship or review density.
 
 | Actual dependency nodes | Edges | Measured time | Peak working set | Managed allocations |
 |---:|---:|---:|---:|---:|
-| 9,997 | 9,996 | 0.60 s | 79.0 MiB | 124.0 MiB |
-| 99,997 | 99,996 | 4.91 s | 449.9 MiB | 1,229.1 MiB |
-| 499,999 | 499,998 | 19.21 s | 2,119.2 MiB | 6,086.3 MiB |
-| 998,998 | 998,997 | 38.56 s | 4,173.1 MiB | 12,177.6 MiB |
+| 9,997 | 9,996 | 0.66 s | 81.5 MiB | 141.6 MiB |
+| 99,997 | 99,996 | 4.92 s | 571.9 MiB | 1,403.0 MiB |
+| 499,999 | 499,998 | 20.64 s | 2,149.9 MiB | 6,936.2 MiB |
+| 998,998 | 998,997 | 40.08 s | 5,209.2 MiB | 13,891.5 MiB |
 
 The million-node ceiling is reachable on this 64 GiB machine, but the cost is severe.
-It must not be advertised as an ordinary safe workload. The next engineering target is
-lower-allocation node/source storage and adjacency construction, followed by the same
+The current dependency build also constructs the typed table graph; even a table-free
+fixture therefore pays for a second safe parse of each projected story. The largest
+point now peaks near 5.09 GiB and allocates about 13.57 GiB. It must not be advertised as
+an ordinary safe workload. The next engineering target is a shared immutable parsed
+story plus lower-allocation node/source and adjacency storage, followed by the same
 fixtures with dense cross-domain edges.
 
 ## `.wtpatch` materialization
@@ -90,6 +111,7 @@ affected-element storage remain necessary before calling this path light.
 dotnet build native/WordToolkit.Engine.Benchmarks/WordToolkit.Engine.Benchmarks.csproj -c Release
 dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- graph --target-nodes 100000
 dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- bindings --target-nodes 100000
+dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- tables --target-nodes 100000
 dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- patch --payload-mib 64 --parts 64
 dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- mce --target-nodes 100000
 ```

@@ -113,7 +113,8 @@ bounded `impact` neighborhood or filtered `edges`/`unresolved` page. Keep keys a
 metadata redacted unless the next operation consumes them. The graph joins the
 explicitly reported OPC, semantic-containment, style, numbering, reference, section,
 classic-chart, content-control, physical/built-in XML-store, binding-target and
-repeating-section domains. Its `explicitly_unmodeled_domains` list is a hard coverage
+repeating-section domains plus nested-table and vertical-merge topology. Its
+`explicitly_unmodeled_domains` list is a hard coverage
 boundary: absence of an edge for drawings, SmartArt, OLE, bibliography, active content,
 signatures, encryption or co-authoring is not proof that the dependency does not exist.
 This action never opens Word, executes a field, follows an external target, repairs a
@@ -131,6 +132,18 @@ subset with optional positive positions; an unsupported expression is evidence, 
 permission to run a general XPath engine or guess the target. The action is read-only,
 does not refresh bound display text and never opens Word. Honor nested `*_truncated`
 flags instead of assuming one binding response contains every target or item ID.
+Use lazy `inspect_ooxml_tables` instead of reading `w:tbl`, `tblGrid`, `trPr` or `tcPr`
+yourself. Start with `view=summary`; page `tables`, `rows`, `cells`, `merges` or `issues`
+only when the next decision consumes them. Narrow with an exact `wdt_`, `wdtr_` or
+`wdtc_` ID. The default response contains topology but no cell text, style ID, caption,
+description, layout coordinates or source path. Request names, layout and source through
+their three independent opt-ins. Cell text and raw XML are never returned. Treat
+grid overflow/underflow, orphan or span-mismatched vertical continuations, noncontiguous
+header declarations and out-of-range floating coordinates as damage evidence, not
+permission to guess or silently normalize the table. `hMerge` remains a separately
+reported legacy state. Declared widths are preferences, not guaranteed rendered widths;
+final autofit, page layout, conditional table styles and rendering remain outside this
+read graph. Honor nested-ID and grid-width truncation flags.
 Use lazy `inspect_ooxml_charts` instead of opening chart XML or embedded workbooks.
 Start with `view=summary`; it returns only aggregate counts and plot families. Page
 `charts`, `series`, `axes` or `relationships` only when the next decision needs them,

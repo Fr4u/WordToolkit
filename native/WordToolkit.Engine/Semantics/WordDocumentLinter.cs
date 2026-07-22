@@ -446,6 +446,17 @@ public sealed class WordDocumentLinter
             semanticDocument,
             cancellationToken
         );
+        var charts = new WordChartGraphBuilder().Build(package, cancellationToken);
+        var contentControls = new WordContentControlBindingGraphBuilder().Build(
+            package,
+            semanticDocument,
+            cancellationToken
+        );
+        var tables = new WordTableGraphBuilder().Build(
+            package,
+            semanticDocument,
+            cancellationToken
+        );
         var dependencies = new WordDependencyGraphBuilder(
             new WordDependencyGraphOptions
             {
@@ -460,6 +471,9 @@ public sealed class WordDocumentLinter
             numbering,
             references,
             sections,
+            charts,
+            contentControls,
+            tables,
             cancellationToken
         );
         return Analyze(
@@ -473,6 +487,7 @@ public sealed class WordDocumentLinter
             settings,
             fonts,
             dependencies,
+            tables,
             cancellationToken
         );
     }
@@ -491,6 +506,42 @@ public sealed class WordDocumentLinter
         CancellationToken cancellationToken = default
     )
     {
+        var tables = new WordTableGraphBuilder().Build(
+            package,
+            semanticDocument,
+            cancellationToken
+        );
+        return Analyze(
+            package,
+            semanticDocument,
+            styles,
+            numbering,
+            references,
+            sections,
+            theme,
+            settings,
+            fonts,
+            dependencies,
+            tables,
+            cancellationToken
+        );
+    }
+
+    public WordLintReport Analyze(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordStyleGraph styles,
+        WordNumberingGraph numbering,
+        WordReferenceGraph references,
+        WordSectionGraph sections,
+        WordThemeGraph theme,
+        WordSettingsGraph settings,
+        WordFontTableGraph fonts,
+        WordDependencyGraph dependencies,
+        WordTableGraph tables,
+        CancellationToken cancellationToken = default
+    )
+    {
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(semanticDocument);
         ArgumentNullException.ThrowIfNull(styles);
@@ -501,6 +552,7 @@ public sealed class WordDocumentLinter
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(fonts);
         ArgumentNullException.ThrowIfNull(dependencies);
+        ArgumentNullException.ThrowIfNull(tables);
         cancellationToken.ThrowIfCancellationRequested();
         EnsureFingerprint(
             package.Fingerprint,
@@ -512,7 +564,8 @@ public sealed class WordDocumentLinter
             theme.PackageFingerprint,
             settings.PackageFingerprint,
             fonts.PackageFingerprint,
-            dependencies.PackageFingerprint
+            dependencies.PackageFingerprint,
+            tables.PackageFingerprint
         );
 
         var enabledPacks = (_options.EnabledRulePacks
@@ -557,6 +610,7 @@ public sealed class WordDocumentLinter
             state,
             sources,
             scannedNodes,
+            tables,
             cancellationToken
         );
         var headingCount = AddHeadingFindings(
@@ -953,31 +1007,32 @@ public sealed class WordDocumentLinter
         LintState state,
         SourceIndex sources,
         IReadOnlyList<WordSemanticNode> nodes,
+        WordTableGraph tableGraph,
         CancellationToken cancellationToken
     )
     {
-        var tables = nodes.Where(node => node.Kind == WordSemanticNodeKind.Table)
-            .OrderBy(node => node.SourceOrder)
+        var scannedTableIds = nodes.Where(node => node.Kind == WordSemanticNodeKind.Table)
+            .Select(node => node.Id)
+            .ToHashSet();
+        var tables = tableGraph.Tables.Where(table =>
+                scannedTableIds.Contains(table.SemanticNodeId)
+            )
+            .OrderBy(table => table.SourceElementOrdinal)
             .ToArray();
         if (!state.Enabled(TableHeader))
         {
             return tables.Length;
         }
 
-        foreach (var node in tables)
+        var rowsById = tableGraph.Rows.ToDictionary(row => row.Id, StringComparer.Ordinal);
+        foreach (var table in tables)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var rows = node.Children.Where(child => child.Kind == WordSemanticNodeKind.TableRow)
-                .ToArray();
-            if (rows.Length < 2 || !sources.TryElement(rows[0], out var firstRow))
+            if (table.RowIds.Count < 2 || !rowsById.TryGetValue(table.RowIds[0], out var firstRow))
             {
                 continue;
             }
-            var hasHeader = firstRow!.Children
-                .Where(child => IsWordElement(child, "trPr"))
-                .SelectMany(child => child.Children)
-                .Any(child => IsWordElement(child, "tblHeader") && OnOffEnabled(child));
-            if (hasHeader)
+            if (firstRow.HeaderEffective)
             {
                 continue;
             }
@@ -989,9 +1044,15 @@ public sealed class WordDocumentLinter
                 "A multi-row table does not mark its first row as a repeating header. Confirm whether the table has column headings.",
                 null,
                 "table",
-                node.Id.Value,
-                rows.Length,
-                sources.Location(rows[0]),
+                table.Id,
+                table.RowIds.Count,
+                sources.Location(
+                    firstRow.PartUri,
+                    firstRow.SourceElementOrdinal,
+                    null,
+                    firstRow.SemanticNodeId,
+                    null
+                ),
                 ManualFix("mark_table_header_row")
             );
         }

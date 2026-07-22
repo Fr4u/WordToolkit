@@ -5475,6 +5475,83 @@
       }
     },
     {
+      "name": "inspect_ooxml_tables",
+      "title": "Inspect Word table topology",
+      "description": "Inspect a bounded, source-linked logical model of WordprocessingML tables without opening Word or returning cell text or raw XML. Reports declared grids, physical-to-logical cell placement, gridSpan, vertical and legacy horizontal merges, nested tables, contiguous repeating headers, row property exceptions, widths, fixed/autofit layout, and Word-effective floating-table positioning. Supports Transitional and Strict WordprocessingML. Captions, descriptions, style IDs, layout details, and source locations are independently redacted by default.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "tables", "rows", "cells", "merges", "issues"],
+            "default": "summary",
+            "description": "Return compact story/issue counts, tables, rows, logical cells, vertical merge chains, or diagnostics."
+          },
+          "table_id": {
+            "type": "string",
+            "pattern": "^wdt_[A-Za-z0-9_-]{20}$",
+            "maxLength": 128,
+            "description": "Optional exact table ID from the same package fingerprint."
+          },
+          "row_id": {
+            "type": "string",
+            "pattern": "^wdtr_[A-Za-z0-9_-]{20}$",
+            "maxLength": 128,
+            "description": "Optional exact table-row ID from the same package fingerprint."
+          },
+          "cell_id": {
+            "type": "string",
+            "pattern": "^wdtc_[A-Za-z0-9_-]{20}$",
+            "maxLength": 128,
+            "description": "Optional exact table-cell ID from the same package fingerprint."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "include_layout": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded widths, grid-column widths, layout, justification, row/cell presentation properties, and floating-position coordinates."
+          },
+          "include_names": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded table style IDs, captions, and descriptions. Cell text remains unavailable."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded part URIs, semantic IDs, and source XML element ordinals."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include at most 20 bounded table diagnostics in non-issues views."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "inspect_ooxml_markup_compatibility",
       "title": "Inspect OOXML markup compatibility",
       "description": "Inspect and evaluate ECMA-376 Part 3 Markup Compatibility and Extensibility rules across every XML-typed OPC part without preprocessing, rewriting, opening Word, or following external targets. Models Ignorable, ProcessContent, MustUnderstand, AlternateContent, Choice, Fallback, application-defined extension islands, and legacy PreserveElements/PreserveAttributes hints. Evaluation uses only the explicitly supplied application and markup configuration. Namespace URIs, local names, part paths, source ordinals, and part hashes are redacted by default.",

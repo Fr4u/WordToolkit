@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- Added a bounded, source-linked logical table graph and lazy
+  `inspect_ooxml_tables` action. Transitional and Strict WordprocessingML tables now
+  expose declared grids, physical-to-logical cell placement, row skips, `gridSpan`,
+  exact-span vertical merge chains, separate legacy `hMerge` state, nested tables,
+  contiguous repeating headers, row table-property exceptions, widths, fixed/autofit
+  layout and Word-effective floating positioning. The dependency graph links nesting and
+  merge continuations; the accessibility linter consumes the same typed header result.
+  Cell text and raw XML have no response field, while names, layout and source require
+  independent opt-ins.
+- Verified the local table checkpoint with 340 document-engine tests, 228 native-host
+  tests, 1,273 Python/OOXML tests with 16 intentional skips, Ruff, schema validation,
+  generated-document structural/visual checks and a warning-free Open XML validator
+  build. Two local self-contained builds produced identical 195-file, 85,056,480-byte
+  trees and 36,172,619-byte ZIPs at SHA-256
+  `910a1cece37397f61568ea0a230fe663fdf54d834d8a8d367fa56b37ddfe1c13`.
+  The packaged MCP returned 2 tables, 34 rows and 251 cells from the advanced torture
+  DOCX in a 2,308-character compact response with zero issues, no Word process change,
+  no source path, no cell text and no raw XML. Checked-in 10,000/100,000-cell scale
+  points expose both throughput and allocation cost. Hosted CI and artifact parity are
+  still pending; the public release remains 0.34.0.
+
 - Added a bounded, read-only ECMA-376 Part 3 Markup Compatibility graph and the lazy
   `inspect_ooxml_markup_compatibility` action. The engine now models inherited
   `mc:Ignorable`, `mc:ProcessContent`, `mc:MustUnderstand` and

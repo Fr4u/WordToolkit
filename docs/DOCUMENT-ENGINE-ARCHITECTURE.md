@@ -368,6 +368,20 @@ remain typed diagnostics. Lazy `inspect_ooxml_content_controls` pages controls, 
 bindings, targets, repeating sections and issues. Values and raw XML never enter its
 response; names, binding metadata and source provenance are independent opt-ins.
 
+`WordTableGraphBuilder` projects each source-linked `w:tbl` into an actual logical
+table rather than leaving `Table`, `TableRow` and `TableCell` as labels. It maps direct
+physical cells through `gridBefore`, `gridSpan` and `gridAfter`, compares every row with
+the declared `tblGrid`, constructs exact-span vertical-merge chains, retains legacy
+`hMerge` separately, links nested tables, applies the contiguous repeating-header rule,
+and types widths, fixed/autofit layout, row property exceptions and cell presentation.
+`tblpPr` retains declared and Word-effective positioning, including Word's different
+anchor defaults, ignored story contexts and bounded coordinate behavior. Adjacent
+same-style sibling tables share a visual-continuation handle without losing separate
+identities. The accessibility linter consumes the same header result. Lazy
+`inspect_ooxml_tables` pages summary/table/row/cell/merge/issue objects; cell text and
+raw XML have no response field, while names, layout and source are independent opt-ins.
+The complete contract, sources, limits and scale evidence are in `TABLE-GRAPH.md`.
+
 WordprocessingML theme tokens are resolved only when a deterministic theme source is
 available. `majorAscii`/`majorHAnsi` and their minor equivalents select the Latin theme
 face. East Asian and complex-script tokens first use the corresponding primary face;
@@ -633,7 +647,7 @@ that no unrelated parts changed.
 ### Unified dependency graph
 
 `WordDependencyGraph` is the first shared cross-domain dependency spine. It does not
-flatten the existing typed graphs into anonymous strings. It joins eight proven domains:
+flatten the existing typed graphs into anonymous strings. It joins nine proven domains:
 
 - OPC package roots, parts and internal/external/invalid relationships;
 - source-linked semantic containment across every projected Word story;
@@ -645,7 +659,8 @@ flatten the existing typed graphs into anonymous strings. It joins eight proven 
 - sections and effective header/footer story bindings;
 - classic Transitional/Strict DrawingML charts, series, axes and related package parts;
 - content controls, physical and built-in XML stores, resolved binding targets and
-  repeating-section items.
+  repeating-section items;
+- nested table topology and source-linked vertical-merge continuation cells.
 
 Every node and edge has a deterministic content-derived `wddn_` or `wdde_` identity.
 Every edge endpoint must exist, even when the target is missing or external; unresolved
@@ -922,6 +937,8 @@ The current native mapping is therefore:
   -> lazy `inspect_ooxml_dependencies`;
 - content-control/store/binding/repeating-section inspection -> lazy
   `inspect_ooxml_content_controls`;
+- logical table/grid/merge/nesting/floating-position inspection -> lazy
+  `inspect_ooxml_tables`;
 - source-linked core/style/accessibility/security lint -> lazy
   `lint_ooxml_document`;
 - reviewed source-bound empty-title repair -> lazy `plan_ooxml_lint_repair`, then
@@ -1017,14 +1034,15 @@ No feature is “supported” until it passes the relevant gates:
 ### Phase 2 — semantic spine
 
 - lossless XML source model — **implemented, initial tests passing**;
-- read-only paragraph/run/table projection and canonical source-linked OfficeMath read
-  graph — **implemented, initial tests passing**;
+- read-only paragraph/run projection, typed logical table/grid/merge/floating read graph
+  and canonical source-linked OfficeMath read graph — **implemented, initial tests
+  passing**;
 - stable node identity and compact semantic inspection — **implemented, initial tests
   passing**;
 - section/style/numbering/reference adapters and semantic query;
 - bounded cross-domain dependency spine — **initial implementation complete for OPC,
   semantic containment, styles, numbering, references, sections, classic charts and
-  content-control/Custom XML binding topology**;
+  content-control/Custom XML binding plus nested-table/vertical-merge topology**;
 - package-to-semantic provenance tests — **implemented for main-part nodes and first
   text mutation; full-story coverage remains**.
 

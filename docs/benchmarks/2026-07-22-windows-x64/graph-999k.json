@@ -1,11 +1,11 @@
 {
   "schema": "wordtoolkit-engine-benchmark-v1",
   "scenario": "dependency_graph",
-  "utc": "2026-07-22T09:38:49.8961546+00:00",
-  "runtime": ".NET 8.0.26",
+  "utc": "2026-07-22T21:23:12.6671362+00:00",
+  "runtime": ".NET 8.0.29",
   "operating_system": "Microsoft Windows 10.0.19045",
   "architecture": "X64",
-  "engine_version": "0.34.0",
+  "engine_version": "0.35.0",
   "processor_count": 12,
   "server_gc": false,
   "measurements": {
@@ -18,20 +18,20 @@
     "dependency_edges": 998997,
     "issues": 0,
     "timings_ms": {
-      "generate": 83.3179,
-      "package_read": 169.5301,
-      "semantic_projection": 20754.3303,
-      "dependency_build": 17632.7706,
-      "measured_total": 38556.631
+      "generate": 88.4766,
+      "package_read": 190.9362,
+      "semantic_projection": 18984.131,
+      "dependency_build": 20900.3472,
+      "measured_total": 40075.4144
     },
     "memory": {
-      "baseline_managed_bytes": 121392,
-      "final_managed_bytes": 3616483544,
-      "retained_managed_delta_bytes": 3616362152,
-      "allocated_delta_bytes": 12769095024,
-      "baseline_working_set_bytes": 30408704,
-      "final_working_set_bytes": 4375777280,
-      "process_peak_working_set_bytes": 4375781376
+      "baseline_managed_bytes": 121048,
+      "final_managed_bytes": 2090827560,
+      "retained_managed_delta_bytes": 2090706512,
+      "allocated_delta_bytes": 14566311328,
+      "baseline_working_set_bytes": 30568448,
+      "final_working_set_bytes": 4874649600,
+      "process_peak_working_set_bytes": 5462233088
     }
   }
 }

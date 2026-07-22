@@ -1,0 +1,43 @@
+{
+  "schema": "wordtoolkit-engine-benchmark-v1",
+  "scenario": "table_graph",
+  "utc": "2026-07-22T21:09:48.8159501+00:00",
+  "runtime": ".NET 8.0.29",
+  "operating_system": "Microsoft Windows 10.0.19045",
+  "architecture": "X64",
+  "engine_version": "0.35.0",
+  "processor_count": 12,
+  "server_gc": false,
+  "measurements": {
+    "requested_physical_cells": 10000,
+    "configured_cell_ceiling": 5000000,
+    "columns": 20,
+    "generated_rows": 500,
+    "package_bytes": 4749,
+    "package_parts": 3,
+    "semantic_nodes": 20504,
+    "tables": 1,
+    "rows": 500,
+    "cells": 10000,
+    "vertical_merges": 100,
+    "issues": 0,
+    "parsed_xml_bytes": 212935,
+    "parsed_xml_elements": 21530,
+    "timings_ms": {
+      "generate": 12.3938,
+      "package_read": 48.1525,
+      "semantic_projection": 599.2642,
+      "table_graph_build": 245.6215,
+      "measured_total": 893.0382
+    },
+    "memory": {
+      "baseline_managed_bytes": 108008,
+      "final_managed_bytes": 39779904,
+      "retained_managed_delta_bytes": 39671896,
+      "allocated_delta_bytes": 199875080,
+      "baseline_working_set_bytes": 23642112,
+      "final_working_set_bytes": 115445760,
+      "process_peak_working_set_bytes": 115449856
+    }
+  }
+}
