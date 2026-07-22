@@ -9,6 +9,7 @@
     <RootNamespace>WordToolkit.Native</RootNamespace>
     <InvariantGlobalization>false</InvariantGlobalization>
     <DebugType>embedded</DebugType>
+    <WordToolkitLocalSchemaPath Condition="'$(WordToolkitLocalSchemaPath)' == ''">$(MSBuildThisFileDirectory)..\..\schemas\mcp-tools-local.v1.json</WordToolkitLocalSchemaPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="../../schemas/mcp-tools-local.v1.json"
+    <EmbeddedResource Include="$(WordToolkitLocalSchemaPath)"
                       Link="Schemas/mcp-tools-local.v1.json" />
   </ItemGroup>
 </Project>

@@ -68,6 +68,17 @@ function Get-RelativePathCompat {
     ).Replace('/', '\')
 }
 
+function Write-CanonicalUtf8Text {
+    param(
+        [string]$Source,
+        [string]$Destination
+    )
+    $text = [IO.File]::ReadAllText($Source)
+    $text = $text.Replace("`r`n", "`n").Replace("`r", "`n")
+    $encoding = New-Object Text.UTF8Encoding($false)
+    [IO.File]::WriteAllText($Destination, $text, $encoding)
+}
+
 $resolvedOutput = Assert-ChildPath -Root $dist -Candidate $Output
 $resolvedArchive = Assert-ChildPath -Root $dist -Candidate $Archive -AllowFile
 $project = Join-Path $root "native\WordToolkit.Native\WordToolkit.Native.csproj"
@@ -109,6 +120,27 @@ Copy-Item `
     -LiteralPath (Join-Path $pluginSource ".mcp.json") `
     -Destination $resolvedOutput
 
+# Package text must not depend on a stale pre-.gitattributes checkout or the caller's
+# core.autocrlf setting. Canonicalize copied metadata and skill instructions without
+# rewriting the source working tree.
+Get-ChildItem -LiteralPath $resolvedOutput -Recurse -File |
+    Where-Object { $_.Extension -in ".json", ".md" } |
+    ForEach-Object {
+        Write-CanonicalUtf8Text -Source $_.FullName -Destination $_.FullName
+    }
+
+# The schema is embedded into the native assembly, so its raw line endings must be
+# canonical before compilation as well. Keep the generated input under obj and pass it
+# explicitly; ordinary project builds continue to use the checked-in schema directly.
+$normalizedInputDirectory = Join-Path `
+    $root `
+    "native\WordToolkit.Native\obj\wordtoolkit-package-inputs"
+New-Item -ItemType Directory -Path $normalizedInputDirectory -Force | Out-Null
+$normalizedSchema = Join-Path $normalizedInputDirectory "mcp-tools-local.v1.json"
+Write-CanonicalUtf8Text `
+    -Source (Join-Path $root "schemas\mcp-tools-local.v1.json") `
+    -Destination $normalizedSchema
+
 $runtime = Join-Path $resolvedOutput "runtime\win-x64"
 New-Item -ItemType Directory -Path $runtime -Force | Out-Null
 & dotnet publish `
@@ -120,6 +152,7 @@ New-Item -ItemType Directory -Path $runtime -Force | Out-Null
     -p:PublishReadyToRun=false `
     -p:DebugType=None `
     -p:DebugSymbols=false `
+    "-p:WordToolkitLocalSchemaPath=$normalizedSchema" `
     -o $runtime
 if ($LASTEXITCODE -ne 0) {
     throw "Native publish failed"

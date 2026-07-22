@@ -256,7 +256,7 @@ mutation/repair/render execution required by the goal.
 | Visual regression | Not started for new engine | Historical screenshots and live acceptance | Versioned PDF/page/object baselines across rendering backends |
 | Cross-platform CI | Partial | Mandatory Linux engine job plus clean hosted-Windows engine/native/package jobs; licensed Word gate remains separate | macOS core job, qualified backend matrix and routinely available self-hosted Word release evidence |
 | Public competitor benchmark | Not started | Research matrix only | Same fixtures, versions, commands, results, caveats and reproducible harness |
-| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Two independent sorted fixed-timestamp local builds of the linter checkpoint produced the same 195-file, 35,919,217-byte ZIP; SHA-256 `0398ad82a2772b3757d1b5c0f31ecd1473dc93d1b41a48e015922a8e44e2df35`. The packaged MCP exposed the embedded lint schema and analyzed a corpus DOCX with all 18 rules without starting Word, following external targets or modifying the package. The preceding exact 0.35 package checkpoint, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action live-Word gate; no live code changed in the linter slice | Optional signing/provenance policy, hosted cross-host proof for this exact head, published artifact and refreshed licensed Word gate before release |
+| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF, closing a stale-checkout CRLF divergence. The existing working tree, a clean detached worktree and hosted Windows CI produced the same 195-file, 35,918,887-byte ZIP; SHA-256 `e0d162feac71679efedfeac0de6982447f4856298d9b7334a0195a04c27f7400`. The packaged MCP exposed the embedded lint schema and analyzed a corpus DOCX with all 18 rules without starting Word, following external targets or modifying the package. The preceding exact 0.35 package checkpoint, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action live-Word gate; no live code changed in the linter slice | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
 
 ## Current checkpoint evidence
 
@@ -272,9 +272,11 @@ mutation/repair/render execution required by the goal.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
 - The current 0.35 linter checkpoint exposed 14 public tools and 75 lazy actions.
-  Two independent local 195-file builds produced identical 35,919,217-byte ZIPs with
-  SHA-256 `0398ad82a2772b3757d1b5c0f31ecd1473dc93d1b41a48e015922a8e44e2df35` and no Python
-  files. The packaged MCP exposed the embedded `lint_ooxml_document` schema, analyzed
+  The existing checkout, a clean detached worktree and hosted Windows CI produced the
+  same 195-file, 35,918,887-byte ZIP with SHA-256
+  `e0d162feac71679efedfeac0de6982447f4856298d9b7334a0195a04c27f7400` and no Python
+  files after packaging canonicalized JSON/Markdown and the embedded schema to LF. The
+  packaged MCP exposed the embedded `lint_ooxml_document` schema, analyzed
   `lo_toc_preserve.docx` with all 18 rules, returned 35 visible findings in a
   3700-character complete response, reported execution complete but document coverage
   incomplete, and kept Word unopened, external targets unfollowed and the package

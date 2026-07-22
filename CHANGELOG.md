@@ -25,13 +25,18 @@
   The token-lean public surface remains 14 tools while the action catalog grows to 75.
 - Verified the linter checkpoint with 250 document-engine tests and 189 native-host
   tests. Two independent local package builds produced identical 195-file,
-  35,919,217-byte archives with SHA-256
-  `0398ad82a2772b3757d1b5c0f31ecd1473dc93d1b41a48e015922a8e44e2df35` and no Python
+  35,918,887-byte archives with SHA-256
+  `e0d162feac71679efedfeac0de6982447f4856298d9b7334a0195a04c27f7400` and no Python
   files. The packaged MCP inspected the LibreOffice TOC fixture with all 18 rules,
   returned 35 visible findings in a 3700-character complete response, reported
   incomplete document-domain coverage, and proved Word remained unopened and the
   package unmodified. The last complete 48-action live-Word gate remains the preceding
   exact 0.35 package checkpoint because this slice changes only saved-package analysis.
+- Canonicalized copied plugin JSON/Markdown and the embedded native MCP schema to
+  BOM-less UTF-8 with LF during packaging. A stale pre-`.gitattributes` checkout had
+  silently produced different manifest and assembly bytes from a clean checkout. After
+  this guard, the same exact ZIP hash is produced by that stale working tree, a clean
+  detached worktree and the hosted Windows CI artifact.
 
 - Made the document-engine and native .NET test suites mandatory CI inputs and added a
   clean Windows job that builds the exact distributable plugin ZIP. Tag builds on the
