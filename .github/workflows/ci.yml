@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: "8.0.423"
       - run: dotnet restore native/WordToolkit.Engine.Tests/WordToolkit.Engine.Tests.csproj
       - run: >-
           dotnet test native/WordToolkit.Engine.Tests/WordToolkit.Engine.Tests.csproj
@@ -37,7 +37,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: "8.0.423"
       - name: Test, publish, validate and archive the native plugin
         shell: powershell
         run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build_native_plugin.ps1
@@ -84,7 +84,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: "8.0.423"
       - run: dotnet build tools/OpenXmlValidator/OpenXmlValidator.csproj -c Release
 
   container:

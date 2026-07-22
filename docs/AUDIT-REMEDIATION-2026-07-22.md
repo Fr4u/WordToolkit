@@ -20,6 +20,9 @@ engine objective is complete.
   development line from the immutable published 0.34 artifact.
 - The Python schema exporter no longer overwrites the native MCP schema. CI rejects
   generated remote-schema drift; native schema coverage is enforced by .NET tests.
+- Native builds pin SDK 8.0.423 through `global.json` and CI configuration. Repository
+  text uses an explicit LF policy so Windows checkout settings cannot silently change
+  packaged manifest/skill bytes.
 - Repeatable graph/patch benchmarks and exact JSON evidence are checked in. On the
   measured workstation, 998,998 dependency nodes peaked at 4,173.1 MiB and a 400 MiB
   patch payload peaked at 2,158.1 MiB.
@@ -49,6 +52,9 @@ engine objective is complete.
 - Obtain independent human review. Self-review, automated tests and CI are not a second
   maintainer.
 - Let all new mandatory GitHub checks pass on the pushed commit.
+- Re-run local/CI reproducibility comparison under the newly pinned SDK. The first
+  comparison correctly failed because local SDK 10.0.300 and CI SDK 8.0.423 supplied
+  different self-contained runtime packs and Windows checkout changed text line endings.
 - Run the full licensed Word release gate on the exact 0.35 package. Do not reuse the
   0.34 live result as evidence for changed MCP/COM code.
 - The historical cumulative PR cannot honestly be made small after the fact. Merge it as

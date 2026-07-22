@@ -18,6 +18,9 @@
 - Stopped the legacy Python schema exporter from overwriting the native MCP catalog.
   CI now rejects generated remote-schema/documentation drift, while native catalog
   coverage remains enforced by `WordToolkit.Native.Tests`.
+- Pinned native builds to .NET SDK 8.0.423 and enforced LF for repository text. This
+  removes SDK/runtime-pack and Windows checkout conversion from cross-host ZIP hashes;
+  build reports now include the exact SDK version.
 - Documented that version-1 `.wtpatch` files contain full confidential payloads, are
   materialized in memory and currently have no trusted signature or encryption envelope.
 - Added a reproducible engine benchmark harness, scheduled/manual benchmark workflow and

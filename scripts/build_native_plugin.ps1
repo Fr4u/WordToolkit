@@ -233,6 +233,7 @@ $files = @(Get-ChildItem -LiteralPath $resolvedOutput -Recurse -File)
 $result = [ordered]@{
     name = $manifest.name
     version = $manifest.version
+    dotnet_sdk = (& dotnet --version).Trim()
     runtime = "dotnet-self-contained-win-x64"
     python_runtime = $false
     mcp_command = $command
