@@ -15,12 +15,12 @@
 - Verified the style-definition slice with 274 document-engine tests, 205 native-host
   tests, 1,273 Python/OOXML tests with 16 intentional skips, Ruff, scoped .NET
   formatting and the standalone Open XML validator build. Two local self-contained
-  builds produced identical 195-file, 84,359,203-byte trees and 35,982,903-byte ZIPs
+  builds produced identical 195-file, 84,359,203-byte trees and 35,982,900-byte ZIPs
   with SHA-256
-  `ddd7bbeee1903f857436f35c2e15861327f47c30d840f00ea53e7657400ab88c`.
+  `ca713cbec08fa31dc67de8ef503bbf33c28a08e187980cc95d18093144c53f2f`.
   Through the packaged MCP, a 218-character two-command batch cloned `Standard` as
   `CodexDefinition` and server-assigned it to six paragraphs in an Apache POI DOCX.
-  The compact seven-operation plan response was 2,334 characters. Candidate validation
+  The compact seven-operation plan response was 2,146 characters. Candidate validation
   found no new errors; apply matched the predicted fingerprint, changed only
   `word/styles.xml` and `word/document.xml`, retained a backup, returned no XML, left
   the source fixture unchanged and did not alter the running Word process set. Hosted

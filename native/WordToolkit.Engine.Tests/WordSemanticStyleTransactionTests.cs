@@ -480,6 +480,26 @@ public sealed class WordSemanticStyleTransactionTests
             )
         );
         Assert.Contains("stylesWithEffects", effectsError.Message, StringComparison.Ordinal);
+
+        using var invalidNextStream = BuildPackage(
+            $"<w:document xmlns:w='{WordNamespace}'><w:body><w:p/></w:body></w:document>",
+            $"""
+            <w:styles xmlns:w="{WordNamespace}">
+              <w:style w:type="paragraph" w:styleId="BrokenNext"><w:name w:val="Broken next"/><w:next w:val="Missing"/></w:style>
+            </w:styles>
+            """
+        );
+        var invalidNextPackage = new OpcPackageReader().Read(invalidNextStream);
+        var invalidNextSemantic = new WordSemanticProjector().Project(invalidNextPackage);
+        var invalidNextError = Assert.Throws<WordSemanticEditException>(() =>
+            planner.PlanStyleEdits(
+                invalidNextPackage,
+                invalidNextSemantic,
+                [new WordStyleCloneCommand("BrokenNext", "CopiedBroken", "Copied broken")],
+                Array.Empty<WordStyleAssignmentCommand>()
+            )
+        );
+        Assert.Contains("missing next", invalidNextError.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

@@ -587,14 +587,13 @@ public sealed partial class WordSemanticTransactionPlanner
                     $"Created style '{operation.StyleId}' has an unresolved inheritance chain."
                 );
             }
-            var error = graph.Issues.FirstOrDefault(issue =>
-                issue.Severity == WordStyleIssueSeverity.Error
-                && string.Equals(issue.StyleId, operation.StyleId, StringComparison.Ordinal)
+            var issue = graph.Issues.FirstOrDefault(item =>
+                string.Equals(item.StyleId, operation.StyleId, StringComparison.Ordinal)
             );
-            if (error is not null)
+            if (issue is not null)
             {
                 throw new WordSemanticEditException(
-                    $"Created style '{operation.StyleId}' is invalid: {error.Message}"
+                    $"Created style '{operation.StyleId}' is invalid: {issue.Message}"
                 );
             }
         }
