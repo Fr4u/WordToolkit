@@ -23,8 +23,9 @@
   The compact seven-operation plan response was 2,146 characters. Candidate validation
   found no new errors; apply matched the predicted fingerprint, changed only
   `word/styles.xml` and `word/document.xml`, retained a backup, returned no XML, left
-  the source fixture unchanged and did not alter the running Word process set. Hosted
-  artifact verification is pending for this uncommitted checkpoint.
+  the source fixture unchanged and did not alter the running Word process set. All five
+  jobs in mandatory CI run `29932018346` passed, and its Windows artifact matched the
+  local ZIP byte for byte at the same size and SHA-256.
 - Added token-lean bulk `set_style_where` commands to the typed saved-package semantic
   edit actions. One compact selector now resolves paragraph, run, or table targets from
   bounded text, exact properties, ancestor/descendant, subtree and source-part evidence

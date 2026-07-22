@@ -256,7 +256,7 @@ mutation/repair/render execution required by the goal.
 | Visual regression | Not started for new engine | Historical screenshots and live acceptance | Versioned PDF/page/object baselines across rendering backends |
 | Cross-platform CI | Partial | Mandatory Linux engine job plus clean hosted-Windows engine/native/package jobs; licensed Word gate remains separate | macOS core job, qualified backend matrix and routinely available self-hosted Word release evidence |
 | Public competitor benchmark | Not started | Research matrix only | Same fixtures, versions, commands, results, caveats and reproducible harness |
-| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF and normalizes Windows packaging onto Windows PowerShell 5.1. The current style-definition checkpoint produced the same 195-file, 84,359,203-byte tree and 35,982,900-byte ZIP in two local builds with SHA-256 `ca713cbec08fa31dc67de8ef503bbf33c28a08e187980cc95d18093144c53f2f`; hosted verification is pending until the checkpoint is committed. The preceding bulk-selector checkpoint matched mandatory hosted Windows CI run `29928388511` exactly at SHA-256 `65ccaed09b608be6fb851a4ae38e54b4fc4ff9d1b7ac8b6f1e5aaa9d0dcbaeac`; all five jobs passed. The earlier exact 0.35 live package, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action real-Word gate; the later saved-package slices do not change live COM code | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
+| Release packaging | Partial (strengthened) | The 0.35 development package is self-contained Windows x64, contains the engine/runtime/manifest and zero Python files. Packaging canonicalizes copied JSON/Markdown and the embedded schema to BOM-less UTF-8/LF and normalizes Windows packaging onto Windows PowerShell 5.1. The current style-definition checkpoint produced the same 195-file, 84,359,203-byte tree and 35,982,900-byte ZIP in two local builds with SHA-256 `ca713cbec08fa31dc67de8ef503bbf33c28a08e187980cc95d18093144c53f2f`; mandatory CI run `29932018346` passed all five jobs and its hosted Windows artifact matched that local ZIP byte for byte. The preceding bulk-selector checkpoint matched mandatory hosted Windows CI run `29928388511` exactly at SHA-256 `65ccaed09b608be6fb851a4ae38e54b4fc4ff9d1b7ac8b6f1e5aaa9d0dcbaeac`; all five jobs passed. The earlier exact 0.35 live package, SHA-256 `e8f2e4b74fe65213197126c7aafb445452bd0e80bc05f7206d82672e4b09e59b`, passed the complete 48-action real-Word gate; the later saved-package slices do not change live COM code | Optional signing/provenance policy, published artifact and refreshed licensed Word gate before release |
 
 ## Current checkpoint evidence
 
@@ -281,8 +281,9 @@ mutation/repair/render execution required by the goal.
   2,146 characters. Candidate validation ran with no new SDK errors; apply matched the
   predicted fingerprint, changed only `word/styles.xml` and `word/document.xml`, retained
   a recovery backup, returned no XML, left the source fixture unchanged and did not alter
-  the running Word process set. Hosted artifact verification is pending until this
-  checkpoint is committed.
+  the running Word process set. All five jobs in mandatory CI run `29932018346` passed;
+  its hosted Windows ZIP matched the local archive byte for byte at the same size and
+  SHA-256.
 - The preceding bulk-selector checkpoint matched mandatory CI run `29928388511`
   exactly at SHA-256
   `65ccaed09b608be6fb851a4ae38e54b4fc4ff9d1b7ac8b6f1e5aaa9d0dcbaeac`; all five jobs
