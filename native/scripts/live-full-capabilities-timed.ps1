@@ -112,6 +112,9 @@ $startInfo.RedirectStandardInput = $true
 $startInfo.RedirectStandardOutput = $true
 $startInfo.RedirectStandardError = $true
 $startInfo.CreateNoWindow = $true
+$utf8NoBom = New-Object Text.UTF8Encoding($false)
+$startInfo.StandardOutputEncoding = $utf8NoBom
+$startInfo.StandardErrorEncoding = $utf8NoBom
 $process = [Diagnostics.Process]::new()
 $process.StartInfo = $startInfo
 [void]$process.Start()
@@ -132,13 +135,20 @@ function Invoke-Mcp {
         method = $Method
         params = $Params
     } | ConvertTo-Json -Depth 60 -Compress
+    # Windows PowerShell 5.1 does not expose ProcessStartInfo.StandardInputEncoding.
+    # Escape non-ASCII code units so MCP input stays valid under every console code page.
+    $request = [regex]::Replace(
+        $request,
+        '[^\u0000-\u007F]',
+        { param($match) '\u{0:x4}' -f [int][char]$match.Value }
+    )
     $process.StandardInput.WriteLine($request)
     $process.StandardInput.Flush()
     $line = $process.StandardOutput.ReadLine()
     if (-not $line) {
         throw "Native MCP exited: $($process.StandardError.ReadToEnd())"
     }
-    $response = $line | ConvertFrom-Json -Depth 60
+    $response = $line | ConvertFrom-Json
     if ($response.error) {
         throw ($response.error | ConvertTo-Json -Depth 30 -Compress)
     }
@@ -1812,7 +1822,7 @@ finally {
 
     $process.StandardInput.Close()
     if (-not $process.WaitForExit(5000)) {
-        $process.Kill($true)
+        $process.Kill()
     }
 }
 
