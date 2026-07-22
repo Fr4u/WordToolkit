@@ -242,8 +242,14 @@ For an integral, write an explicit differential such as
 `\int f(x)\,\mathrm{d}x`; `\,d x`, `\operatorname{d}x`, and `\dd x` are also
 accepted. Use the exact field name `input_format`, never `source_format`.
 WordToolkit canonicalizes the differential and groups the complete n-ary operand.
+Use `\left\|u\right\|` for a norm. `\mathcal`, `\mathfrak`, `\mathbb`,
+`\mathsf`, `\mathtt`, and simple alphanumeric `\mathrm` preserve their native Word
+math alphabet. Do not emit `\mathbf` or `\boldsymbol`: this linear OMath path cannot
+preserve their weight and the converter rejects them instead of silently degrading.
 Sensitive equations force bounded OMML readback and rollback on structural drift;
-raw OMML is never returned. Keep the default compact response. Request
+only differentials belonging to integral operands are required to remain under the
+matching n-ary body, so ordinary derivative notation remains valid. Raw OMML is never
+returned. Keep the default compact response. Request
 `response_mode="full"` only to diagnose the exact converted Word linear form.
 Do not confuse live equation insertion with saved-package equation inspection. The
 former asks Word to create professional OMath; the latter reads existing OMML into a

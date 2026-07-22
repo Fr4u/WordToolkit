@@ -477,11 +477,10 @@ internal static class MathMarkupToUnicodeMath
             "acc" => ConvertOmmlAccent(element, depth),
             "bar" => ApplyAccent(OmmlContainer(element, "e", depth), "bar"),
             "limLow" =>
-                $"{ParenthesizeBase(OmmlContainer(element, "e", depth))}{BelowMarker}({OmmlContainer(element, "lim", depth)})",
+                $"{LimitBase(OmmlContainer(element, "e", depth))}{BelowMarker}({OmmlContainer(element, "lim", depth)})",
             "limUpp" =>
-                $"{ParenthesizeBase(OmmlContainer(element, "e", depth))}{AboveMarker}({OmmlContainer(element, "lim", depth)})",
-            "func" =>
-                $"{OmmlContainer(element, "fName", depth)}\u2061({OmmlContainer(element, "e", depth)})",
+                $"{LimitBase(OmmlContainer(element, "e", depth))}{AboveMarker}({OmmlContainer(element, "lim", depth)})",
+            "func" => ConvertOmmlFunction(element, depth),
             "box" or "borderBox" => $"▭({OmmlContainer(element, "e", depth)})",
             "groupChr" or "phant" => OmmlContainer(element, "e", depth),
             var name when name.EndsWith("Pr", StringComparison.Ordinal) => "",
@@ -510,7 +509,17 @@ internal static class MathMarkupToUnicodeMath
         {
             return WordLinearMathNormalizer.DifferentialD.ToString();
         }
-        return normal ? WordText(text) : CleanLeaf(text);
+        if (normal)
+        {
+            return WordText(text);
+        }
+        var clean = CleanLeaf(text);
+        var scriptElement = element.Descendants()
+            .FirstOrDefault(item => IsOfficeMathElement(item, "scr"));
+        var script = scriptElement is null ? "" : ReadVal(scriptElement, "");
+        return MathAlphabetMapper.TryFromOmmlScript(clean, script, out var styled)
+            ? styled
+            : clean;
     }
 
     private static string ConvertOmmlRadical(XElement element, int depth)
@@ -568,6 +577,13 @@ internal static class MathMarkupToUnicodeMath
         var begin = properties is null ? "(" : ReadVal(Child(properties, "begChr"), "(");
         var end = properties is null ? ")" : ReadVal(Child(properties, "endChr"), ")");
         return $"{CleanLeaf(begin)}{OmmlContainer(element, "e", depth)}{CleanLeaf(end)}";
+    }
+
+    private static string ConvertOmmlFunction(XElement element, int depth)
+    {
+        var name = UnwrapNamedBase(OmmlContainer(element, "fName", depth));
+        var argument = OmmlContainer(element, "e", depth);
+        return $"{name}\u2061{argument}";
     }
 
     private static string ConvertOmmlMatrix(XElement element, int depth)
@@ -705,6 +721,44 @@ internal static class MathMarkupToUnicodeMath
     private static string ParenthesizeBase(string value)
     {
         return value.Length == 1 ? value : $"({value})";
+    }
+
+    private static string LimitBase(string value) =>
+        IsSimpleName(value) ? value : ParenthesizeBase(value);
+
+    private static string UnwrapNamedBase(string value)
+    {
+        if (value.Length < 4 || value[0] != '(')
+        {
+            return value;
+        }
+        var closing = value.IndexOf(')');
+        if (
+            closing <= 1
+            || closing + 1 >= value.Length
+            || value[closing + 1] is not ('_' or '^' or BelowMarker or AboveMarker)
+        )
+        {
+            return value;
+        }
+        var candidate = value[1..closing];
+        return IsSimpleName(candidate)
+            ? candidate + value[(closing + 1)..]
+            : value;
+    }
+
+    private static bool IsSimpleName(string value)
+    {
+        if (value.Length == 0)
+        {
+            return false;
+        }
+        var candidate = value;
+        if (value.Length >= 2 && value[0] == '"' && value[^1] == '"')
+        {
+            candidate = value[1..^1];
+        }
+        return candidate.Length > 0 && candidate.All(char.IsLetterOrDigit);
     }
 
     private static string WordText(string value)

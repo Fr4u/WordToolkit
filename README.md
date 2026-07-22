@@ -293,8 +293,11 @@ Supported conversion includes:
 - fractions and nested groups;
 - square and indexed roots;
 - superscripts and subscripts;
-- sums, products and integrals with limits;
-- common Greek letters, mathematical symbols and functions;
+- sums, products, integrals and `lim`/`min`/`max` with protected operand boundaries;
+- common Greek letters, all registered mathematical symbols and named functions;
+- angle, floor, ceiling, absolute-value and single/double-bar norm delimiters;
+- upright text plus script, Fraktur, double-struck, sans-serif and monospace Latin
+  mathematical alphabets;
 - vectors, hats, bars, tildes and dots;
 - text spans;
 - matrices, aligned equation arrays and cases.
@@ -305,7 +308,14 @@ canonicalizes them to the Unicode differential `ⅆ` (U+2146) and wraps the comp
 integral operand in Word's invisible `〖…〗` group. A generic plain `d` without
 differential notation stays an ordinary identifier.
 
-Malformed or unsupported LaTeX fails before Word changes. MathML and OMML are parsed with DTD and external entity resolution disabled, strict root/namespace checks, bounded depth and element counts, then converted before Word changes. Equation AST input remains unsupported. Structurally sensitive equations are immediately read back from Word as bounded OMML after `BuildUp()`. Canonical hashes, symbol counts and differential placement must agree or the complete Undo transaction is rolled back. Compact responses return only verification facts and hashes; source text and raw OMML are not returned.
+`\mathcal`, `\mathfrak`, `\mathbb`, `\mathsf` and `\mathtt` are converted to
+the corresponding Unicode mathematical alphabet and reconstructed from Word's native
+`m:scr` run property during readback. Simple alphanumeric `\mathrm{...}` becomes an
+upright Word math-text run. `\mathbf` and `\boldsymbol` are rejected: the linear OMath
+build-up used by this runtime does not preserve their weight, so returning a plain
+letter would be a false success.
+
+Malformed or unsupported LaTeX fails before Word changes. MathML and OMML are parsed with DTD and external entity resolution disabled, strict root/namespace checks, bounded depth and element counts, then converted before Word changes. Equation AST input remains unsupported. Structurally sensitive equations are immediately read back from Word as bounded OMML after `BuildUp()`. Canonical hashes, symbol counts and integral-owned differential placement must agree or the complete Undo transaction is rolled back. Differentials in derivatives are valid outside an integral. Compact responses return only verification facts and hashes; source text and raw OMML are not returned.
 
 For an existing saved package, lazy `inspect_ooxml_equations` takes the opposite path:
 it performs no conversion and builds a canonical read graph over all 19 standard OMML
@@ -370,6 +380,17 @@ pwsh -File native/scripts/live-acceptance.ps1 `
 
 Every test mutation is tracked, verified and undone. The script fails if cleanup leaves any outstanding WordToolkit operation.
 
+Run the complete packaged 14-tool/73-action live acceptance gate:
+
+```powershell
+pwsh -NoProfile -File native/scripts/live-full-capabilities-timed.ps1 `
+  -RuntimeExecutable dist/wordtoolkit/runtime/win-x64/wordtoolkit-native.exe
+```
+
+This creates timestamped DOCX and PDF evidence, exercises all 48 live actions through
+the lazy public gateways, requests full responses only for assertions, checks the
+default compact equation preflight separately, and closes its own test document.
+
 ## Workspace cleanup
 
 Dry-run:
@@ -391,14 +412,14 @@ The cleaner constrains every target to the repository root. It preserves only th
 Version:
 
 ```text
-0.30.0+codex.20260722041105
+0.31.0+codex.20260722072340
 ```
 
 Windows x64 ZIP:
 
-[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.30.0/WordToolkit-0.30.0%2Bcodex.20260722041105-native-win-x64.zip)
+[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.31.0/WordToolkit-0.31.0%2Bcodex.20260722072340-native-win-x64.zip)
 
-SHA-256: `bb19ce8c268c5989156fc5fa852d6718ce513c02c898a398866442e19ee7dc17`
+SHA-256: `17ef223ddac5b9b8ba02c7b86c29089b2e76d8cc730cbee58f9aa0225d088f25`
 
 Live demonstration document:
 

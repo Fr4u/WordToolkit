@@ -155,10 +155,11 @@ The native bridge verifies OMath creation and final equation count. Sensitive
 equations additionally undergo bounded immediate `WordOpenXML` readback: DTDs
 and external resolution are prohibited, exactly one top-level OMath is required,
 and element/depth/character limits are enforced before canonical hashes, symbol
-counts and differential ancestry are compared. A build-up, parse, contract or
-placement mismatch fails closed and rolls back. Responses expose verification
-facts and hashes, never raw OMML. The in-process learning counters retain only
-input format and success/failure counts—not formula text, document content,
+counts and integral-owned differential ancestry are compared. Differentials in
+ordinary derivative notation are not required to have an `m:nary` ancestor. A
+build-up, parse, contract or placement mismatch fails closed and rolls back. Responses
+expose verification facts and hashes, never raw OMML. The in-process learning counters
+retain only input format and success/failure counts—not formula text, document content,
 names or paths.
 
 ## Failure behavior

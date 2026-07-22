@@ -58,7 +58,8 @@ internal static class EquationReadbackVerifier
     internal static bool RequiresReadback(string linear)
     {
         ArgumentNullException.ThrowIfNull(linear);
-        return linear.Any(ReadbackSensitiveCharacters.Contains);
+        return linear.Any(ReadbackSensitiveCharacters.Contains)
+            || MathAlphabetMapper.ContainsStyledCharacter(linear);
     }
 
     internal static EquationReadbackVerification Verify(
@@ -157,13 +158,17 @@ internal static class EquationReadbackVerifier
             var expectedDifferentials = expectedContract.Count(character =>
                 character == WordLinearMathNormalizer.DifferentialD
             );
-            var placementVerified = differentialTextNodes.All(element =>
-                element.Ancestors().Any(ancestor =>
-                    IsMathElement(ancestor, "e")
-                    && ancestor.Parent is { } parent
-                    && IsMathElement(parent, "nary")
-                )
-            );
+            var expectedIntegralDifferentials =
+                CountIntegralOperandDifferentials(expectedContract);
+            var actualIntegralDifferentials = differentialTextNodes
+                .Where(IsInsideIntegralOperand)
+                .Sum(element =>
+                    element.Value.Count(character =>
+                        character == WordLinearMathNormalizer.DifferentialD
+                    )
+                );
+            var placementVerified =
+                actualIntegralDifferentials == expectedIntegralDifferentials;
             var naryCount = equation.Descendants()
                 .Count(element => IsMathElement(element, "nary"));
 
@@ -181,6 +186,8 @@ internal static class EquationReadbackVerifier
                         actual_contract_sha256 = actualHash,
                         expected_differential_count = expectedDifferentials,
                         actual_differential_count = differentialCount,
+                        expected_integral_differential_count = expectedIntegralDifferentials,
+                        actual_integral_differential_count = actualIntegralDifferentials,
                         differential_placement_verified = placementVerified,
                         nary_count = naryCount,
                     }
@@ -227,6 +234,8 @@ internal static class EquationReadbackVerifier
         var normalized = WordLinearMathNormalizer.NormalizeForWord(
             ExpandCompositeMarkers(value)
         );
+        normalized = NormalizeQuotedTextWhitespace(normalized);
+        normalized = RemoveFunctionApplicationGroups(normalized);
         var output = new StringBuilder(normalized.Length);
         var inQuotedText = false;
         for (var index = 0; index < normalized.Length; index++)
@@ -252,12 +261,93 @@ internal static class EquationReadbackVerifier
             {
                 continue;
             }
+            if (!inQuotedText && character == '\u2061')
+            {
+                continue;
+            }
             output.Append(character switch
             {
                 '−' or '‐' or '‑' => '-',
                 'ħ' => 'ℏ',
                 _ => character,
             });
+        }
+        return output.ToString();
+    }
+
+    private static string NormalizeQuotedTextWhitespace(string value)
+    {
+        var output = new StringBuilder(value.Length);
+        for (var index = 0; index < value.Length; index++)
+        {
+            if (value[index] != '"')
+            {
+                output.Append(value[index]);
+                continue;
+            }
+            var text = new StringBuilder();
+            var closing = -1;
+            for (var cursor = index + 1; cursor < value.Length; cursor++)
+            {
+                if (value[cursor] != '"')
+                {
+                    text.Append(value[cursor]);
+                    continue;
+                }
+                if (cursor + 1 < value.Length && value[cursor + 1] == '"')
+                {
+                    text.Append("\"\"");
+                    cursor++;
+                    continue;
+                }
+                closing = cursor;
+                break;
+            }
+            if (closing < 0)
+            {
+                output.Append(value.AsSpan(index));
+                break;
+            }
+            output.Append('"').Append(text.ToString().Trim()).Append('"');
+            index = closing;
+        }
+        return output.ToString();
+    }
+
+    private static string RemoveFunctionApplicationGroups(string value)
+    {
+        var groups = new Stack<(int Opening, bool Remove)>();
+        var removed = new HashSet<int>();
+        for (var index = 0; index < value.Length; index++)
+        {
+            if (value[index] == '〖')
+            {
+                groups.Push((
+                    index,
+                    index > 0 && value[index - 1] == '\u2061'
+                ));
+            }
+            else if (value[index] == '〗' && groups.Count > 0)
+            {
+                var group = groups.Pop();
+                if (group.Remove)
+                {
+                    removed.Add(group.Opening);
+                    removed.Add(index);
+                }
+            }
+        }
+        if (removed.Count == 0)
+        {
+            return value;
+        }
+        var output = new StringBuilder(value.Length - removed.Count);
+        for (var index = 0; index < value.Length; index++)
+        {
+            if (!removed.Contains(index))
+            {
+                output.Append(value[index]);
+            }
         }
         return output.ToString();
     }
@@ -306,6 +396,149 @@ internal static class EquationReadbackVerifier
         }
         return output.ToString();
     }
+
+    private static int CountIntegralOperandDifferentials(string value)
+    {
+        var positions = new HashSet<int>();
+        var inQuotedText = false;
+        for (var index = 0; index < value.Length; index++)
+        {
+            if (value[index] == '"')
+            {
+                if (
+                    inQuotedText
+                    && index + 1 < value.Length
+                    && value[index + 1] == '"'
+                )
+                {
+                    index++;
+                    continue;
+                }
+                inQuotedText = !inQuotedText;
+                continue;
+            }
+            if (inQuotedText || !IsIntegralCharacter(value[index]))
+            {
+                continue;
+            }
+            if (!TryFindBodySeparator(value, index, out var separator))
+            {
+                continue;
+            }
+            var opening = separator + 1;
+            while (opening < value.Length && char.IsWhiteSpace(value[opening]))
+            {
+                opening++;
+            }
+            if (opening >= value.Length || value[opening] != '〖')
+            {
+                continue;
+            }
+            var closing = MatchingInvisibleGroup(value, opening);
+            if (closing < 0)
+            {
+                continue;
+            }
+            for (var cursor = opening + 1; cursor < closing; cursor++)
+            {
+                if (value[cursor] == WordLinearMathNormalizer.DifferentialD)
+                {
+                    positions.Add(cursor);
+                }
+            }
+        }
+        return positions.Count;
+    }
+
+    private static bool TryFindBodySeparator(
+        string value,
+        int operatorIndex,
+        out int separator
+    )
+    {
+        var depth = 0;
+        var inQuotedText = false;
+        for (var index = operatorIndex + 1; index < value.Length; index++)
+        {
+            var character = value[index];
+            if (character == '"')
+            {
+                if (
+                    inQuotedText
+                    && index + 1 < value.Length
+                    && value[index + 1] == '"'
+                )
+                {
+                    index++;
+                    continue;
+                }
+                inQuotedText = !inQuotedText;
+                continue;
+            }
+            if (inQuotedText)
+            {
+                continue;
+            }
+            if (character is '(' or '[' or '{' or '〖')
+            {
+                depth++;
+                continue;
+            }
+            if (character is ')' or ']' or '}' or '〗')
+            {
+                depth = Math.Max(0, depth - 1);
+                continue;
+            }
+            if (character == '▒' && depth == 0)
+            {
+                separator = index;
+                return true;
+            }
+        }
+        separator = -1;
+        return false;
+    }
+
+    private static int MatchingInvisibleGroup(string value, int opening)
+    {
+        var depth = 1;
+        for (var index = opening + 1; index < value.Length; index++)
+        {
+            if (value[index] == '〖')
+            {
+                depth++;
+            }
+            else if (value[index] == '〗' && --depth == 0)
+            {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private static bool IsInsideIntegralOperand(XElement element) =>
+        element.Ancestors().Any(ancestor =>
+            IsMathElement(ancestor, "e")
+            && ancestor.Parent is { } parent
+            && IsMathElement(parent, "nary")
+            && IsIntegralNary(parent)
+        );
+
+    private static bool IsIntegralNary(XElement element)
+    {
+        var character = element.Descendants()
+            .FirstOrDefault(item => IsMathElement(item, "chr"))
+            ?.Attributes()
+            .FirstOrDefault(attribute =>
+                attribute.Name.LocalName == "val"
+                && IsMathNamespace(attribute.Name.NamespaceName)
+            )
+            ?.Value ?? "∫";
+        return character.Length == 1 && IsIntegralCharacter(character[0]);
+    }
+
+    private static bool IsIntegralCharacter(char character) =>
+        character is '∫' or '∬' or '∭' or '∮';
 
     private static int MatchingParenthesis(string value, int openingIndex)
     {

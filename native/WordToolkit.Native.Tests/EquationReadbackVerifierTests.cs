@@ -53,6 +53,35 @@ public sealed class EquationReadbackVerifierTests
     }
 
     [Fact]
+    public void AllowsDifferentialsOutsideAnIntegralOperand()
+    {
+        const string omml =
+            """
+            <m:oMath>
+              <m:f>
+                <m:num>
+                  <m:r><m:rPr><m:nor/></m:rPr><m:t>ⅆ</m:t></m:r>
+                  <m:r><m:t>y</m:t></m:r>
+                </m:num>
+                <m:den>
+                  <m:r><m:rPr><m:nor/></m:rPr><m:t>ⅆ</m:t></m:r>
+                  <m:r><m:t>x</m:t></m:r>
+                </m:den>
+              </m:f>
+            </m:oMath>
+            """;
+
+        var result = EquationReadbackVerifier.Verify(
+            Wrap(omml),
+            "(ⅆy)/(ⅆx)"
+        );
+
+        Assert.Equal(2, result.DifferentialCount);
+        Assert.True(result.DifferentialPlacementVerified);
+        Assert.Equal(result.ExpectedContractSha256, result.ActualContractSha256);
+    }
+
+    [Fact]
     public void TreatsWordBuiltParenthesizedMatrixAsTheSameCanonicalStructure()
     {
         const string omml =
@@ -101,6 +130,40 @@ public sealed class EquationReadbackVerifierTests
     }
 
     [Fact]
+    public void TreatsWordFunctionApplicationMarkersAsCanonical()
+    {
+        const string omml =
+            """
+            <m:oMath>
+              <m:func>
+                <m:fName><m:r><m:t>sin</m:t></m:r></m:fName>
+                <m:e><m:r><m:t>x</m:t></m:r></m:e>
+              </m:func>
+            </m:oMath>
+            """;
+
+        var result = EquationReadbackVerifier.Verify(Wrap(omml), "sin x");
+
+        Assert.Equal(result.ExpectedContractSha256, result.ActualContractSha256);
+    }
+
+    [Fact]
+    public void IgnoresTrimmedEdgesOfWordMathTextRuns()
+    {
+        const string omml =
+            """
+            <m:oMath>
+              <m:r><m:rPr><m:nor/></m:rPr><m:t>gdy</m:t></m:r>
+              <m:r><m:t>x</m:t></m:r>
+            </m:oMath>
+            """;
+
+        var result = EquationReadbackVerifier.Verify(Wrap(omml), "\"gdy \"x");
+
+        Assert.Equal(result.ExpectedContractSha256, result.ActualContractSha256);
+    }
+
+    [Fact]
     public void RejectsMultipleEquationsInOneReadbackRange()
     {
         var error = Assert.Throws<NativeToolException>(() =>
@@ -132,6 +195,8 @@ public sealed class EquationReadbackVerifierTests
     [InlineData("∫_(0)^(1)▒〖x ⅆx〗", true)]
     [InlineData("■(a&b@c&d)", true)]
     [InlineData("x⃗", true)]
+    [InlineData("ℝ", true)]
+    [InlineData("𝖠", true)]
     public void SelectsOnlyStructurallySensitiveEquationsForAutomaticReadback(
         string linear,
         bool expected

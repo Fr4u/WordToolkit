@@ -318,7 +318,7 @@ internal static class LatexToUnicodeMath
                     }
                     var atom = ParseScripts(baseAtom);
                     if (
-                        baseAtom == "lim"
+                        baseAtom is "lim" or "\"min\"" or "\"max\""
                         && atom.Length > baseAtom.Length
                         && atom[baseAtom.Length] == '_'
                     )
@@ -327,6 +327,11 @@ internal static class LatexToUnicodeMath
                             baseAtom
                             + BelowMarker
                             + atom[(baseAtom.Length + 1)..];
+                        var argument = ParseFunctionArgument();
+                        atom += "\u2061";
+                        atom += HasTopLevelDivision(argument)
+                            ? $"〖{argument}〗"
+                            : argument;
                     }
                     if (
                         IsNaryAtom(atom)
@@ -387,6 +392,20 @@ internal static class LatexToUnicodeMath
             {
                 var beforeWhitespace = _index;
                 SkipWhitespace();
+                if (TryConsumeCommand("limits"))
+                {
+                    if (!IsNaryAtom(atom))
+                    {
+                        throw Invalid("\\limits must follow an n-ary operator");
+                    }
+                    continue;
+                }
+                if (TryConsumeCommand("nolimits"))
+                {
+                    throw Invalid(
+                        "\\nolimits cannot be preserved by Word's linear OMath build-up"
+                    );
+                }
                 if (_index >= _source.Length || _source[_index] is not ('^' or '_'))
                 {
                     _index = beforeWhitespace;
@@ -397,6 +416,21 @@ internal static class LatexToUnicodeMath
                 var value = ParseScriptArgument();
                 atom += $"{marker}({value.Trim()})";
             }
+        }
+
+        private bool TryConsumeCommand(string command)
+        {
+            var token = $@"\{command}";
+            if (
+                !_source.AsSpan(_index).StartsWith(token, StringComparison.Ordinal)
+                || _index + token.Length < _source.Length
+                    && char.IsLetter(_source[_index + token.Length])
+            )
+            {
+                return false;
+            }
+            _index += token.Length;
+            return true;
         }
 
         private string ParseScriptArgument()
@@ -413,6 +447,29 @@ internal static class LatexToUnicodeMath
                 return body;
             }
             return ParseAtom();
+        }
+
+        private string ParseFunctionArgument()
+        {
+            SkipWhitespace();
+            if (_index >= _source.Length || _source[_index] == '}')
+            {
+                throw Invalid("A limit operator has no following argument");
+            }
+            var basis = ParseAtom();
+            if (basis.Length == 0)
+            {
+                throw Invalid("A limit operator has an empty following argument");
+            }
+            var argument = ParseScripts(basis);
+            if (
+                IsNaryAtom(argument)
+                && !NextNonWhitespaceIsNaryBodySeparator()
+            )
+            {
+                argument += NaryBodySeparator;
+            }
+            return argument;
         }
 
         private string ParseCommand()
@@ -443,6 +500,7 @@ internal static class LatexToUnicodeMath
                 {
                     '{' => "{",
                     '}' => "}",
+                    '|' => "‖",
                     '_' => "_",
                     '%' => "%",
                     '#' => "#",
@@ -520,15 +578,57 @@ internal static class LatexToUnicodeMath
                     or "mathtt"
                     or "mathcal"
                     or "mathbb"
+                    or "mathfrak"
                     or "boldsymbol"
-                    or "displaystyle"
-                    or "textstyle"
             )
             {
-                var body = ParseRequiredGroup(command);
-                return command == "mathrm" && body.Trim() == "d"
-                    ? WordLinearMathNormalizer.DifferentialD.ToString()
-                    : body;
+                var body = ReadRequiredRawGroup(command);
+                if (body.IndexOfAny(['\\', '{', '}']) >= 0)
+                {
+                    throw Invalid(
+                        $"\\{command} does not accept nested LaTeX commands in this converter"
+                    );
+                }
+                if (command == "mathrm")
+                {
+                    return body.Trim() == "d"
+                        ? WordLinearMathNormalizer.DifferentialD.ToString()
+                        : RomanText(body, command);
+                }
+                if (command is "mathbf" or "boldsymbol")
+                {
+                    throw Invalid(
+                        $"\\{command} cannot be preserved by Word's linear OMath build-up; use explicit Word formatting after insertion"
+                    );
+                }
+                return command switch
+                {
+                    "mathcal" => MathAlphabetMapper.Apply(
+                        body,
+                        MathAlphabetStyle.Script
+                    ),
+                    "mathbb" => MathAlphabetMapper.Apply(
+                        body,
+                        MathAlphabetStyle.DoubleStruck
+                    ),
+                    "mathfrak" => MathAlphabetMapper.Apply(
+                        body,
+                        MathAlphabetStyle.Fraktur
+                    ),
+                    "mathsf" => MathAlphabetMapper.Apply(
+                        body,
+                        MathAlphabetStyle.SansSerif
+                    ),
+                    "mathtt" => MathAlphabetMapper.Apply(
+                        body,
+                        MathAlphabetStyle.Monospace
+                    ),
+                    _ => body,
+                };
+            }
+            if (command is "displaystyle" or "textstyle")
+            {
+                return ParseRequiredGroup(command);
             }
             if (
                 command
@@ -571,9 +671,15 @@ internal static class LatexToUnicodeMath
             {
                 return " ";
             }
-            if (command is "limits" or "nolimits")
+            if (command == "limits")
             {
-                return "";
+                throw Invalid("\\limits must follow an n-ary operator");
+            }
+            if (command == "nolimits")
+            {
+                throw Invalid(
+                    "\\nolimits cannot be preserved by Word's linear OMath build-up"
+                );
             }
             if (Symbols.TryGetValue(command, out var symbol))
             {
@@ -611,6 +717,24 @@ internal static class LatexToUnicodeMath
                 return _source[_index++].ToString();
             }
             _index++;
+            if (_index >= _source.Length)
+            {
+                throw Invalid($"\\{command} has an incomplete escaped delimiter");
+            }
+            if (!char.IsLetter(_source[_index]))
+            {
+                var escaped = _source[_index++];
+                return escaped switch
+                {
+                    '|' => "‖",
+                    '{' => "{",
+                    '}' => "}",
+                    _ => throw Invalid(
+                        "Unsupported LaTeX delimiter",
+                        new { command, delimiter = $@"\{escaped}" }
+                    ),
+                };
+            }
             var start = _index;
             while (_index < _source.Length && char.IsLetter(_source[_index]))
             {
@@ -625,6 +749,23 @@ internal static class LatexToUnicodeMath
                 "Unsupported LaTeX delimiter",
                 new { command, delimiter = $@"\{name}" }
             );
+        }
+
+        private static string RomanText(string body, string command)
+        {
+            var text = body.Trim();
+            if (
+                text.Length == 0
+                || text.Any(character =>
+                    !char.IsLetterOrDigit(character) && !char.IsWhiteSpace(character)
+                )
+            )
+            {
+                throw Invalid(
+                    $"\\{command} currently requires plain alphanumeric text"
+                );
+            }
+            return $"\"{text.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
         }
 
         private string ParseEnvironment(string environment)
@@ -946,6 +1087,47 @@ internal static class LatexToUnicodeMath
     private static bool IsNaryAtom(string value)
     {
         return value.Length > 0 && NaryOperators.Contains(value[0]);
+    }
+
+    private static bool HasTopLevelDivision(string value)
+    {
+        var depth = 0;
+        var inQuotedText = false;
+        for (var index = 0; index < value.Length; index++)
+        {
+            var character = value[index];
+            if (character == '"')
+            {
+                if (
+                    inQuotedText
+                    && index + 1 < value.Length
+                    && value[index + 1] == '"'
+                )
+                {
+                    index++;
+                    continue;
+                }
+                inQuotedText = !inQuotedText;
+                continue;
+            }
+            if (inQuotedText)
+            {
+                continue;
+            }
+            if (character is '(' or '[' or '{' or '〖')
+            {
+                depth++;
+            }
+            else if (character is ')' or ']' or '}' or '〗')
+            {
+                depth = Math.Max(0, depth - 1);
+            }
+            else if (character == '/' && depth == 0)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static bool EndsWithIdentifier(StringBuilder value)

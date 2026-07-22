@@ -8,6 +8,7 @@ public sealed class LatexToUnicodeMathTests
     [Theory]
     [InlineData(@"\frac{x^2+1}{\sqrt[3]{y}}", "(x^(2)+1)/(√(3&y))")]
     [InlineData(@"\sum_{i=1}^{n} i^2", "∑_(i=1)^(n)▒i^(2)")]
+    [InlineData(@"\sum\limits_{i=1}^{n} i^2", "∑_(i=1)^(n)▒i^(2)")]
     [InlineData(@"\int_0^1 e^{-x^2}\,d x", "∫_(0)^(1)▒〖e^(-x^(2)) ⅆx〗")]
     [InlineData(@"\int x\,d x", "∫▒〖x ⅆx〗")]
     [InlineData(@"\int f(x)\,\mathrm{d}x", "∫▒〖f(x) ⅆx〗")]
@@ -50,8 +51,21 @@ public sealed class LatexToUnicodeMathTests
     )]
     [InlineData(@"\vec{x}+\hat{y}+\bar{z}", "x⃗+ŷ+z̅")]
     [InlineData(@"\text{speed}+\operatorname{rank}(A)", @"""speed""+""rank""(A)")]
-    [InlineData(@"\lim_{x\to 0}\sin x", "lim┬(x→ 0)sin x")]
-    [InlineData(@"\min_{x\in S}f(x)", @"""min""_(x∈ S)f(x)")]
+    [InlineData(@"\lim_{x\to 0}\sin x", "lim┬(x→ 0)⁡sin x")]
+    [InlineData(@"\min_{x\in S}f(x)", @"""min""┬(x∈ S)⁡f(x)")]
+    [InlineData(@"\max_{x\in S}f(x)", @"""max""┬(x∈ S)⁡f(x)")]
+    [InlineData(
+        @"\lim_{x\to0}\frac{\sin x}{x}",
+        "lim┬(x→0)⁡〖(sin x)/(x)〗"
+    )]
+    [InlineData(@"\left\|u\right\|", "‖u‖")]
+    [InlineData(@"\|u\|", "‖u‖")]
+    [InlineData(@"\mathrm{speed}", @"""speed""")]
+    [InlineData(@"\mathbb{R}+\mathbb{C}", "ℝ+ℂ")]
+    [InlineData(@"\mathcal{F}+\mathcal{l}", "ℱ+ℓ")]
+    [InlineData(@"\mathfrak{R}+\mathfrak{I}", "ℜ+ℑ")]
+    [InlineData(@"\mathsf{A}", "𝖠")]
+    [InlineData(@"\mathtt{x}", "𝚡")]
     public void ConvertsCommonWordMath(string latex, string expected)
     {
         Assert.Equal(expected, LatexToUnicodeMath.Convert(latex));
@@ -68,6 +82,10 @@ public sealed class LatexToUnicodeMathTests
     [InlineData(@"\frac{x}")]
     [InlineData(@"{x")]
     [InlineData(@"x_")]
+    [InlineData(@"\mathbf{x}")]
+    [InlineData(@"\boldsymbol{x}")]
+    [InlineData(@"\sum\nolimits_{i=1}^{n}i")]
+    [InlineData(@"x\limits_0")]
     public void FailsClosedForUnsupportedOrMalformedLatex(string latex)
     {
         var error = Assert.Throws<NativeToolException>(

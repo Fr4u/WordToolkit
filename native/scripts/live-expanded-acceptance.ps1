@@ -74,7 +74,14 @@ function Invoke-Tool {
     )
     $response = Invoke-Mcp `
         -Method "tools/call" `
-        -Params @{ name = $Name; arguments = $Arguments }
+        -Params @{
+            name = "execute_wordtoolkit_action"
+            arguments = @{
+                action = $Name
+                arguments = $Arguments
+                response_mode = "full"
+            }
+        }
     if ($response.result.isError) {
         throw (
             $response.result.structuredContent.error |
@@ -109,9 +116,11 @@ try {
             }
         })
     $tools = Invoke-Mcp -Method "tools/list" -Params @{}
-    if ($tools.result.tools.Count -ne 48) {
-        throw "Expected 48 native tools, got $($tools.result.tools.Count)"
+    if ($tools.result.tools.Count -ne 14) {
+        throw "Expected 14 exposed tools, got $($tools.result.tools.Count)"
     }
+    $report.exposed_tool_count = $tools.result.tools.Count
+    $report.available_action_count = 73
 
     $stage = "start Word"
     $started = Invoke-Tool `
@@ -385,7 +394,7 @@ try {
         }
     }
 
-    $report.tools = 48
+    $report.exercised_live_action_count = 48
     $report.start_word = $true
     $report.open_close = $true
     $report.comment = $true

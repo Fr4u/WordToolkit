@@ -7864,7 +7864,7 @@
           },
           "verify_readback": {
             "default": false,
-            "description": "Also verify bounded native OMML readback for an otherwise low-risk formula. N-ary operators, differentials, matrices, equation arrays, accents and advanced symbols force this verification regardless.",
+            "description": "Also verify bounded native OMML readback for an otherwise low-risk formula. N-ary operators, differentials, mathematical alphabets, matrices, equation arrays, accents and advanced symbols force this verification regardless.",
             "title": "Verify Readback",
             "type": "boolean"
           },
@@ -7956,7 +7956,7 @@
                 },
                 "verify_readback": {
                   "default": false,
-                  "description": "Force bounded OMML readback for a low-risk formula; sensitive structures enable it automatically.",
+                  "description": "Force bounded OMML readback for a low-risk formula; sensitive structures and mathematical alphabets enable it automatically.",
                   "type": "boolean"
                 }
               },
@@ -8033,7 +8033,7 @@
                 },
                 "verify_readback": {
                   "default": false,
-                  "description": "Force bounded OMML readback for a low-risk formula; sensitive structures enable it automatically.",
+                  "description": "Force bounded OMML readback for a low-risk formula; sensitive structures and mathematical alphabets enable it automatically.",
                   "type": "boolean"
                 }
               },

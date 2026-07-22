@@ -77,6 +77,24 @@ $nativeTools = @(
     "disconnect_live_word_document"
 )
 
+$exposedTools = @(
+    "list_live_word_documents",
+    "start_word_application",
+    "create_live_word_document",
+    "open_live_word_document",
+    "connect_live_word_document",
+    "inspect_ooxml_package",
+    "inspect_live_word_document",
+    "get_live_word_selection",
+    "apply_live_word_operations",
+    "save_live_word_document",
+    "disconnect_live_word_document",
+    "search_wordtoolkit_actions",
+    "inspect_wordtoolkit_action",
+    "execute_wordtoolkit_action"
+)
+$catalogNames = @()
+
 $toolStats = [ordered]@{}
 foreach ($name in $nativeTools) {
     $toolStats[$name] = [ordered]@{
@@ -163,9 +181,15 @@ function Invoke-TimedTool {
 
     $watch = [Diagnostics.Stopwatch]::StartNew()
     try {
+        $callName = "execute_wordtoolkit_action"
+        $callArguments = @{
+            action = $Name
+            arguments = $Arguments
+            response_mode = "full"
+        }
         $response = Invoke-Mcp `
             -Method "tools/call" `
-            -Params @{ name = $Name; arguments = $Arguments }
+            -Params @{ name = $callName; arguments = $callArguments }
         if ($response.result.isError) {
             throw (
                 $response.result.structuredContent.error |
@@ -201,9 +225,15 @@ function Invoke-TimedToolExpectedError {
 
     $watch = [Diagnostics.Stopwatch]::StartNew()
     try {
+        $callName = "execute_wordtoolkit_action"
+        $callArguments = @{
+            action = $Name
+            arguments = $Arguments
+            response_mode = "full"
+        }
         $response = Invoke-Mcp `
             -Method "tools/call" `
-            -Params @{ name = $Name; arguments = $Arguments }
+            -Params @{ name = $callName; arguments = $callArguments }
         $watch.Stop()
         if (-not $response.result.isError) {
             Add-ToolTiming `
@@ -227,6 +257,7 @@ function Invoke-TimedToolExpectedError {
             -Milliseconds $watch.Elapsed.TotalMilliseconds `
             -Status "guard_passed" `
             -Note $Note
+        $script:safetyGuardPassCount++
         return $errorData
     }
     catch {
@@ -286,6 +317,10 @@ $documentOpen = $false
 $stage = "initialize"
 $failure = $null
 $selectionSetupMs = 0.0
+$compactPreflightCharacters = 0
+$safetyGuardPassCount = 0
+$actualWordQuitSkipped = $true
+$actualWordQuitSkipReason = ""
 $report = [ordered]@{
     runtime = $runtime
     transport = "real MCP STDIO"
@@ -306,27 +341,53 @@ try {
             }
         })
 
-    $stage = "verify the installed 48-tool catalog"
+    $stage = "verify the token-lean 14-tool catalog and lazy live actions"
     $catalog = Invoke-Mcp -Method "tools/list" -Params @{}
-    $catalogNames = @($catalog.result.tools | ForEach-Object { $_.name })
+    $script:catalogNames = @($catalog.result.tools | ForEach-Object { $_.name })
     Assert-True `
-        -Condition ($catalogNames.Count -eq 48) `
-        -Message "Expected 48 tools, got $($catalogNames.Count)"
-    foreach ($name in $nativeTools) {
+        -Condition ($script:catalogNames.Count -eq 14) `
+        -Message "Expected 14 exposed tools, got $($script:catalogNames.Count)"
+    foreach ($name in $exposedTools) {
         Assert-True `
-            -Condition ($catalogNames -contains $name) `
+            -Condition ($script:catalogNames -contains $name) `
             -Message "Installed runtime is missing $name"
+    }
+
+    $search = Invoke-Mcp `
+        -Method "tools/call" `
+        -Params @{
+            name = "search_wordtoolkit_actions"
+            arguments = @{ query = "equation"; max_results = 12 }
+        }
+    Assert-True `
+        -Condition (
+            -not $search.result.isError -and
+            $search.result.structuredContent.data.match_count -gt 0
+        ) `
+        -Message "The lazy action search gateway returned no equation actions"
+    foreach ($name in $nativeTools) {
+        $inspection = Invoke-Mcp `
+            -Method "tools/call" `
+            -Params @{
+                name = "inspect_wordtoolkit_action"
+                arguments = @{ action = $name }
+            }
+        Assert-True `
+            -Condition (
+                -not $inspection.result.isError -and
+                $inspection.result.structuredContent.data.action -eq $name
+            ) `
+            -Message "Lazy action catalog is missing $name"
     }
 
     $stage = "list real Word documents"
     $listedBefore = Invoke-TimedTool `
         -Name "list_live_word_documents" `
         -Arguments @{}
-    Assert-True `
-        -Condition $listedBefore.word_running `
-        -Message "Microsoft Word is not running"
+    $wordWasRunning = [bool]$listedBefore.word_running
+    $preexistingDocuments = @($listedBefore.documents)
     $unrelatedDirtyDocuments = @(
-        $listedBefore.documents |
+        $preexistingDocuments |
             Where-Object { -not $_.saved -and $_.full_name -ne $documentPath }
     )
 
@@ -346,7 +407,7 @@ try {
             confirm = $false
         } `
         -ExpectedCode "AUTH_FORBIDDEN" `
-        -Note "Confirmation gate passed; actual quit intentionally skipped because unrelated Word documents are open"
+        -Note "Confirmation gate passed; no unconfirmed application quit was allowed"
 
     $stage = "create a new saved live DOCX"
     $created = Invoke-TimedTool `
@@ -1178,6 +1239,39 @@ try {
 <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:deg/><m:e><m:r><m:t>x+1</m:t></m:r></m:e></m:rad></m:oMath>
 '@
 
+    $stage = "verify compact lazy equation preflight"
+    $compactPreflightResponse = Invoke-Mcp `
+        -Method "tools/call" `
+        -Params @{
+            name = "execute_wordtoolkit_action"
+            arguments = @{
+                action = "preflight_live_word_equations"
+                arguments = @{
+                    equations = @(
+                        @{
+                            value = "\frac{\mathrm{d}y}{\mathrm{d}x}=3x^2"
+                            input_format = "latex"
+                            display = $true
+                        }
+                    )
+                }
+            }
+        }
+    Assert-True `
+        -Condition (-not $compactPreflightResponse.result.isError) `
+        -Message "Compact equation preflight failed"
+    $compactPreflight = $compactPreflightResponse.result.structuredContent.data
+    $compactPreflightCharacters = (
+        $compactPreflight | ConvertTo-Json -Depth 30 -Compress
+    ).Length
+    Assert-True `
+        -Condition (
+            -not $compactPreflight.word_linear_returned -and
+            $compactPreflightCharacters -lt 600 -and
+            $compactPreflight.equations[0].PSObject.Properties.Name -notcontains "word_linear"
+        ) `
+        -Message "Compact equation preflight leaked linear math or exceeded 599 characters"
+
     $stage = "preflight all four equation input formats"
     $preflight = Invoke-TimedTool `
         -Name "preflight_live_word_equations" `
@@ -1214,9 +1308,10 @@ try {
         -Name "insert_live_word_equation" `
         -Arguments @{
             live_document_id = $documentId
-            value = "\frac{d}{d x}\left(x^3\right)=3x^2"
+            value = "\frac{\mathrm{d}y}{\mathrm{d}x}=3x^2"
             input_format = "latex"
             display = $true
+            verify_readback = $true
             target = "document_end"
             expected_version = $version
         }
@@ -1245,14 +1340,44 @@ try {
                     value = $omml
                     input_format = "omml"
                     display = $true
+                },
+                @{
+                    value = "\lim_{x\to0}\frac{\sin x}{x}=1"
+                    input_format = "latex"
+                    display = $true
+                    verify_readback = $true
+                },
+                @{
+                    value = "\min_{x\in S}f(x)+\max_{x\in S}g(x)"
+                    input_format = "latex"
+                    display = $true
+                    verify_readback = $true
+                },
+                @{
+                    value = "\frac{u\cdot v}{\left\|u\right\|\left\|v\right\|}"
+                    input_format = "latex"
+                    display = $true
+                    verify_readback = $true
+                },
+                @{
+                    value = "f(x)=\begin{cases}x^2&\text{gdy }x\ge0\\-x&\text{gdy }x<0\end{cases}"
+                    input_format = "latex"
+                    display = $true
+                    verify_readback = $true
+                },
+                @{
+                    value = "\mathbb{R}+\mathcal{F}+\mathfrak{R}+\mathsf{A}+\mathtt{x}"
+                    input_format = "latex"
+                    display = $true
+                    verify_readback = $true
                 }
             )
             expected_version = $version
         }
     $version = [long]$equationBatch.live_version
     Assert-True `
-        -Condition ($equationBatch.equation_operation_count -eq 3) `
-        -Message "Native equation batch did not create all three equations"
+        -Condition ($equationBatch.equation_operation_count -eq 8) `
+        -Message "Native equation batch did not create all eight equations"
 
     $stage = "map every supported native Word structure collection"
     $structureMap = Invoke-TimedTool `
@@ -1378,7 +1503,15 @@ try {
             $beforeClose.document.table_count -ge 1 -and
             $beforeClose.document.equation_count -ge 5
         ) `
-        -Message "One or more native Word structures are missing before close"
+        -Message (
+            "One or more native Word structures are missing before close: " +
+            "comments=$($beforeClose.document.comment_count), " +
+            "footnotes=$($beforeClose.document.footnote_count), " +
+            "endnotes=$($beforeClose.document.endnote_count), " +
+            "images=$($beforeClose.document.inline_image_count), " +
+            "tables=$($beforeClose.document.table_count), " +
+            "equations=$($beforeClose.document.equation_count)"
+        )
 
     $stage = "close only the saved acceptance document"
     [void](Invoke-TimedTool `
@@ -1455,7 +1588,7 @@ try {
     $documentId = ""
     $documentOpen = $false
 
-    $stage = "open the final result and leave it visible"
+    $stage = "open the final result for last live verification"
     $finalOpen = Invoke-TimedTool `
         -Name "open_live_word_document" `
         -Arguments @{
@@ -1483,12 +1616,49 @@ try {
         -Condition ($finalMatch.Count -eq 1) `
         -Message "The final acceptance DOCX is not active in Word"
 
-    $stage = "release the toolkit handle and leave Word open"
+    $stage = "close the final verified acceptance document"
     [void](Invoke-TimedTool `
-        -Name "disconnect_live_word_document" `
-        -Arguments @{ live_document_id = $documentId })
+        -Name "close_live_word_document" `
+        -Arguments @{
+            live_document_id = $documentId
+            save_changes = "save"
+            expected_version = $version
+        })
     $documentId = ""
     $documentOpen = $false
+
+    $stage = "verify acceptance document cleanup"
+    $listedAfterClose = Invoke-TimedTool `
+        -Name "list_live_word_documents" `
+        -Arguments @{}
+    $remainingAcceptanceDocuments = @(
+        $listedAfterClose.documents |
+            Where-Object { $_.full_name -eq $documentPath }
+    )
+    Assert-True `
+        -Condition ($remainingAcceptanceDocuments.Count -eq 0) `
+        -Message "The final acceptance DOCX remained open after explicit close"
+
+    if (-not $wordWasRunning -and @($listedAfterClose.documents).Count -eq 0) {
+        $stage = "quit only the Word application started by this acceptance run"
+        [void](Invoke-TimedTool `
+            -Name "quit_word_application" `
+            -Arguments @{
+                save_changes = "discard_all"
+                confirm = $true
+            })
+        $actualWordQuitSkipped = $false
+        $actualWordQuitSkipReason = ""
+    }
+    else {
+        $actualWordQuitSkipped = $true
+        $actualWordQuitSkipReason = if ($wordWasRunning) {
+            "Word was already running before acceptance; the user-owned application was preserved"
+        }
+        else {
+            "Other Word documents remained open; application quit was not authorized"
+        }
+    }
 
     $totalWatch.Stop()
     $toolResultRows = foreach ($name in $nativeTools) {
@@ -1512,10 +1682,6 @@ try {
         $toolResultRows |
             Where-Object { $_.status -eq "passed" }
     ).Count
-    $guardPassed = @(
-        $toolResultRows |
-            Where-Object { $_.status -eq "guard_passed" }
-    ).Count
     $notPassed = @(
         $toolResultRows |
             Where-Object { $_.status -notin @("passed", "guard_passed") }
@@ -1526,13 +1692,17 @@ try {
 
     $report.total_seconds = [Math]::Round($totalWatch.Elapsed.TotalSeconds, 3)
     $report.total_mcp_requests = $requestId
-    $report.installed_tool_count = 48
+    $report.exposed_tool_count = $script:catalogNames.Count
+    $report.available_action_count = 73
+    $report.exercised_live_action_count = $nativeTools.Count
     $report.positive_tools_passed = $positivePassed
-    $report.safety_guard_tools_passed = $guardPassed
+    $report.safety_guard_tools_passed = $safetyGuardPassCount
     $report.selection_setup_ms = [Math]::Round($selectionSetupMs, 3)
+    $report.compact_equation_preflight_characters = $compactPreflightCharacters
+    $report.preexisting_document_count = $preexistingDocuments.Count
     $report.unrelated_dirty_documents_protected = $unrelatedDirtyDocuments.Count
-    $report.actual_word_quit_skipped = $true
-    $report.actual_word_quit_skip_reason = "Unrelated Word documents were open; destructive application quit was not authorized"
+    $report.actual_word_quit_skipped = $actualWordQuitSkipped
+    $report.actual_word_quit_skip_reason = $actualWordQuitSkipReason
     $report.document = [ordered]@{
         paragraphs = $finalOpen.document.paragraph_count
         tables = $finalOpen.document.table_count
@@ -1543,8 +1713,8 @@ try {
         inline_images = $finalOpen.document.inline_image_count
         sections = $finalOpen.document.section_count
         saved = $finalOpen.document.saved
-        active = $true
-        left_open_in_word = $true
+        active = $false
+        left_open_in_word = $false
     }
     $report.pdf_bytes = [long]$pdf.bytes
     $report.openxml_valid = $validated.validation.valid

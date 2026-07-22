@@ -232,6 +232,73 @@ public sealed class MathMarkupToUnicodeMathTests
     }
 
     [Fact]
+    public void ConvertsOmmlFunctionsWithoutInventingArgumentDelimiters()
+    {
+        const string source =
+            """
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:func>
+                <m:fName>
+                  <m:sSub>
+                    <m:e><m:r><m:t>log</m:t></m:r></m:e>
+                    <m:sub><m:r><m:t>b</m:t></m:r></m:sub>
+                  </m:sSub>
+                </m:fName>
+                <m:e><m:r><m:t>x</m:t></m:r></m:e>
+              </m:func>
+            </m:oMath>
+            """;
+
+        Assert.Equal(
+            "log_(b)⁡x",
+            MathMarkupToUnicodeMath.Convert(source, "omml")
+        );
+    }
+
+    [Fact]
+    public void ConvertsQuotedOmmlLimitOperatorWithoutRedundantGrouping()
+    {
+        const string source =
+            """
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:limLow>
+                <m:e><m:r><m:rPr><m:nor/></m:rPr><m:t>min</m:t></m:r></m:e>
+                <m:lim><m:r><m:t>x</m:t></m:r></m:lim>
+              </m:limLow>
+            </m:oMath>
+            """;
+
+        Assert.Equal(
+            "\"min\"┬(x)",
+            MathMarkupToUnicodeMath.Convert(source, "omml")
+        );
+    }
+
+    [Fact]
+    public void ReconstructsMathematicalAlphabetCharactersFromOmmlRunProperties()
+    {
+        const string source =
+            """
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:r><m:rPr><m:scr m:val="script"/></m:rPr><m:t>Fl</m:t></m:r>
+              <m:r><m:t>+</m:t></m:r>
+              <m:r><m:rPr><m:scr m:val="fraktur"/></m:rPr><m:t>RI</m:t></m:r>
+              <m:r><m:t>+</m:t></m:r>
+              <m:r><m:rPr><m:scr m:val="double-struck"/></m:rPr><m:t>RC</m:t></m:r>
+              <m:r><m:t>+</m:t></m:r>
+              <m:r><m:rPr><m:scr m:val="sans-serif"/></m:rPr><m:t>A</m:t></m:r>
+              <m:r><m:t>+</m:t></m:r>
+              <m:r><m:rPr><m:scr m:val="monospace"/></m:rPr><m:t>x</m:t></m:r>
+            </m:oMath>
+            """;
+
+        Assert.Equal(
+            "ℱℓ+ℜℑ+ℝℂ+𝖠+𝚡",
+            MathMarkupToUnicodeMath.Convert(source, "omml")
+        );
+    }
+
+    [Fact]
     public void RejectsDtdAndExternalEntityMarkup()
     {
         const string source =

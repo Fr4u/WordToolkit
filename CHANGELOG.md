@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+## 0.31.0 — 2026-07-22
+
+- Corrected native Word round trips for named functions and limit operators. OMML
+  function application no longer invents an extra argument delimiter, while `lim`,
+  `min` and `max` now receive an explicit Word boundary after their lower limit so the
+  following operand cannot be swallowed into that limit.
+- Added LaTeX `\left\|...\right\|` and `\|...\|` norm delimiters, and canonicalized
+  the edge whitespace that Word removes from mathematical text inside `cases`.
+- Scoped differential-placement verification to differentials owned by integral
+  operands. Ordinary derivatives such as `\frac{\mathrm{d}y}{\mathrm{d}x}` retain the
+  same U+2146 contract without being falsely rejected for living outside `m:nary`.
+- Preserved Word's mathematical-alphabet run properties for script, Fraktur,
+  double-struck, sans-serif and monospace Latin letters and supported digits. LaTeX
+  `\mathcal`, `\mathfrak`, `\mathbb`, `\mathsf`, `\mathtt` and simple `\mathrm`
+  now create the intended native glyph family and survive readback. `\mathbf` and
+  `\boldsymbol` fail closed because this linear OMath path does not preserve their
+  weight; silently emitting an ordinary letter is no longer treated as success.
+- Forced real-Word readback over the 48-family equation atlas, all 112 registered
+  symbol commands, all 20 named functions, ten delimiter forms, mathematical
+  alphabets and an ordinary derivative. Every accepted case matched its canonical
+  contract and returned no raw OMML.
+- Repaired the packaged full-live acceptance harness for the token-lean public
+  surface: 14 exposed tools now discover and execute the 73-action catalog through
+  the lazy gateways, detailed assertions explicitly request full responses, and a
+  separate compact equation preflight remains capped at 339 serialized characters.
+  The gate exercised all 48 live actions, reopened the saved DOCX, validated it,
+  exported PDF and closed only its own test document. The older expanded acceptance,
+  capability demo and Word atlas harnesses now use the same lazy public contract instead
+  of demanding the retired 48-tool catalogue.
+- Verified 234 document-engine tests, 143 native-host tests and 1273 Python/OOXML
+  tests. Two independent Windows PowerShell 5.1 builds produced the same
+  35,814,374-byte self-contained ZIP with SHA-256
+  `17ef223ddac5b9b8ba02c7b86c29089b2e76d8cc730cbee58f9aa0225d088f25`.
+
 ## 0.30.0 — 2026-07-22
 
 - Rebuilt live integral conversion around Word's actual UnicodeMath grammar. LaTeX
