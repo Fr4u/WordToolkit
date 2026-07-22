@@ -370,7 +370,13 @@ internal sealed partial class WordLiveService
                 );
             }
 
-            result.Add(property.Name, property.Value.GetString() ?? string.Empty);
+            if (!result.TryAdd(property.Name, property.Value.GetString() ?? string.Empty))
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "property_equals cannot contain duplicate names"
+                );
+            }
         }
 
         return result;

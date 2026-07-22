@@ -15,7 +15,12 @@ WordToolkit deliberately avoids claiming complete Microsoft Word parity.
   align style definitions; infer domain labels such as APA/IEEE; model conditional
   table-style rendering; or enforce document protection/permission semantics. Planning
   and apply are bounded to 200 commands, block signatures and new SDK validation errors,
-  and never modify `styles.xml`.
+  and never modify `styles.xml`. Bulk selectors are limited to 16 commands and 200
+  resolved nodes; they support one paragraph/run/table kind plus bounded text, exact
+  properties, ancestry/descendancy, subtree and source-part predicates. They reject an
+  empty result but cannot directly express property absence, sibling/adjacency, arbitrary
+  dependency-graph reachability, linguistic document roles such as “theorem”, or an
+  indexed multi-document query.
 - Dependency-graph limits of one million nodes and two million edges are safety ceilings, not ordinary operating targets. The current builder materializes drafts, identifiers, edges, endpoint sets and incoming/outgoing adjacency. The checked-in Windows x64 baseline reached 998,998 nodes/998,997 edges in 38.56 seconds with a 4,173.1 MiB process peak and 12,177.6 MiB of managed allocations on a 64 GiB machine. Dense cross-domain edge cases remain unbenchmarked. See `docs/benchmarks/2026-07-22-windows-x64`.
 - General Word Live formula fields intentionally accept only bounded numeric expressions and deterministic allowlisted functions. Inputs use a period for decimals and a comma between function arguments; WordToolkit translates these to Word's active locale before insertion. Table-cell references remain rejected there. The dedicated table-formula tools generate positional or A1-style references from typed coordinates, but currently require a uniform rectangular table and support only `SUM`, `AVERAGE`, `COUNT`, `MAX`, `MIN` and `PRODUCT`. They do not accept arbitrary expressions, bookmarks, merged-grid addressing or raw switches. `update_live_word_table_fields` can refresh up to 5,000 existing fields in one selected table, but it intentionally updates the complete table `Fields` collection rather than accepting or rewriting field codes.
 - Word Live can create bounded named bookmarks over newly inserted text and use them as `REF` targets. It does not yet rename, move or delete existing live bookmarks, and it rejects collisions instead of silently replacing an existing range.

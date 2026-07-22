@@ -278,14 +278,53 @@ public sealed class McpServerTests
         var planSchema = planTool.GetProperty("inputSchema");
         var planCommands = planSchema.GetProperty("properties").GetProperty("commands");
         Assert.Equal(200, planCommands.GetProperty("maxItems").GetInt32());
+        var planDefinitions = planSchema.GetProperty("$defs");
         Assert.Equal(
             "set_style",
-            planCommands
-                .GetProperty("items")
+            planDefinitions
+                .GetProperty("exact_style")
                 .GetProperty("properties")
                 .GetProperty("type")
                 .GetProperty("const")
                 .GetString()
+        );
+        Assert.Equal(
+            "set_style_where",
+            planDefinitions
+                .GetProperty("selected_style")
+                .GetProperty("properties")
+                .GetProperty("type")
+                .GetProperty("const")
+                .GetString()
+        );
+        Assert.Equal(
+            200,
+            planDefinitions
+                .GetProperty("selected_style")
+                .GetProperty("properties")
+                .GetProperty("max_matches")
+                .GetProperty("maximum")
+                .GetInt32()
+        );
+        Assert.Equal(
+            ["paragraph", "run", "table"],
+            planDefinitions
+                .GetProperty("selector")
+                .GetProperty("properties")
+                .GetProperty("kind")
+                .GetProperty("enum")
+                .EnumerateArray()
+                .Select(item => item.GetString()!)
+                .ToArray()
+        );
+        Assert.Equal(
+            ["#/$defs/exact_style", "#/$defs/selected_style"],
+            planCommands
+                .GetProperty("items")
+                .GetProperty("oneOf")
+                .EnumerateArray()
+                .Select(item => item.GetProperty("$ref").GetString()!)
+                .ToArray()
         );
         Assert.True(
             planTool
@@ -330,8 +369,41 @@ public sealed class McpServerTests
             catalog.Tools,
             node => node?["name"]?.GetValue<string>() == "apply_ooxml_semantic_edits"
         );
-        Assert.True(planTool.GetRawText().Length < 3_000);
-        Assert.True(applyTool.GetRawText().Length < 3_000);
+        Assert.True(planTool.GetRawText().Length < 4_500);
+        Assert.True(applyTool.GetRawText().Length < 4_500);
+
+        var exactBulkInput = JsonSerializer.Serialize(new
+        {
+            commands = Enumerable.Range(0, 200).Select(index => new
+            {
+                type = "set_style",
+                node_id = $"wdn_{index:D3}",
+                style_id = "Definition",
+                expected_style_id = "OldPara",
+            }),
+        });
+        var selectedBulkInput = JsonSerializer.Serialize(new
+        {
+            commands = new[]
+            {
+                new
+                {
+                    type = "set_style_where",
+                    selector = new
+                    {
+                        kind = "paragraph",
+                        property_equals = new { style_id = "OldPara" },
+                    },
+                    style_id = "Definition",
+                    expected_style_id = "OldPara",
+                    max_matches = 200,
+                },
+            },
+        });
+        Assert.True(
+            selectedBulkInput.Length * 20 < exactBulkInput.Length,
+            $"Selector request {selectedBulkInput.Length} characters; exact-node request {exactBulkInput.Length} characters"
+        );
     }
 
     [Fact]

@@ -162,17 +162,21 @@ context. Repeated queries can reuse a fingerprint-bound process-memory index; ev
 indexed result is still checked against the full predicate and reports the candidate
 seed and scanned-node count.
 
-Saved-package semantic style edits are typed, bounded, and stateless. Query returns
-stable paragraph, run, or table IDs; style inspection returns exact declarations; then
-`plan_ooxml_semantic_edits` accepts up to 200 `set_style` commands against one package
-fingerprint. A command may require the exact current explicit style or require that no
-explicit style exists. The target style must already exist, match paragraph/character/
-table type, and have a resolvable inheritance chain. Planning losslessly constructs and
-Microsoft-SDK-validates the exact candidate without writing or returning XML. Apply must
-reproduce the same plan ID and commands, rejects signed or stale packages and new schema
-errors, writes atomically, and keeps a recovery backup by default. This slice assigns
-style references; it does not create, rename, delete, copy, repair, or align style
-definitions, infer “APA”/“IEEE” semantics, or model conditional table-style rendering.
+Saved-package semantic style edits are typed, bounded, and stateless. Exact `set_style`
+commands consume stable paragraph, run, or table IDs. Token-lean `set_style_where`
+commands instead resolve all nodes server-side from one strict kind plus optional bounded
+text, exact-property, ancestor/descendant, subtree and source-story predicates. Every
+selector declares `max_matches`, rejects zero or excessive matches, and is bound
+canonically into the plan ID independent of JSON property order. At most 16 selectors
+and 200 resolved operations enter one transaction. A command may require the exact
+current explicit style or require that every selected node have none. The target style
+must already exist, match paragraph/character/table type, and have a resolvable
+inheritance chain. Planning losslessly constructs and Microsoft-SDK-validates the exact
+candidate without writing or returning XML. Apply must reproduce the same intent-bound
+plan, rejects signed/stale packages and new schema errors, writes atomically, and keeps a
+recovery backup by default. This slice assigns style references; it does not create,
+rename, delete, copy, repair, or align style definitions, infer “APA”/“IEEE” semantics,
+select a missing property directly, or model conditional table-style rendering.
 
 Saved-package dependency inspection joins OPC reachability, semantic containment across
 projected stories, explicit paragraph/run/table style use, style inheritance/defaults,

@@ -276,26 +276,35 @@ not attempt to strip or invalidate a signature through another action.
 
 For a saved-package style assignment, use this strict lazy workflow:
 
-1. Query only the target `paragraph`, `run`, or `table` nodes. Use semantic predicates
-   such as `descendant` to select a paragraph containing an equation without fetching
-   the tree. Retain the exact package fingerprint and explicit current `style_id`.
+1. Retain the exact package fingerprint. For a surgical edit, query only the target
+   `paragraph`, `run`, or `table` nodes and keep their explicit current `style_id`. For
+   a bulk edit already expressible as strict kind/text/property/ancestor/descendant/
+   subtree/story predicates, do not download node IDs: use one server-side selector.
 2. Inspect the narrow style type with `inspect_ooxml_styles`; use the exact existing
    `style_id`, not a visible name or an invented identifier. Reject an unresolved
    inheritance chain.
-3. Send one bounded batch of at most 200 `set_style` commands to
-   `plan_ooxml_semantic_edits`. Add `expected_style_id` when a style is present or
-   `require_no_explicit_style=true` when absence is part of the decision.
+3. Send exact nodes as `set_style`, or use `set_style_where` with a single
+   `paragraph`/`run`/`table` kind, strict optional predicates, and an explicit
+   `max_matches` ceiling. Add `expected_style_id` when every selected node must retain
+   one current style, or `require_no_explicit_style=true` when every match must still
+   have none. One batch resolves at most 200 operations and contains at most 16 selector
+   commands.
 4. Review the deterministic `plan_id`, changed counts, candidate Open XML validation,
    `can_apply`, and block reasons. Request details only to diagnose a block.
 5. Call `apply_ooxml_semantic_edits` with the identical commands, original fingerprint,
    and exact plan ID. Keep the recovery backup by default.
 
+`set_style_where` rejects zero matches and any result above `max_matches`; its exact
+selector intent, not JSON property order, is bound into the reviewed plan ID. It cannot
+select “missing property” directly: `require_no_explicit_style` is a precondition on all
+nodes selected by the other predicates, not a hidden absence filter.
+
 The current typed semantic command family only assigns an already declared, compatible,
 resolvable paragraph, character, or table style. It does not create, rename, delete,
 copy, infer, repair, or align style definitions and it does not implement conditional
 table-style semantics. Planning writes nothing; apply blocks signed packages, stale
-sources, plan drift, wrong-type/missing styles, and new Microsoft Open XML validation
-errors. Neither action opens Word or returns XML/document text.
+sources, changed selector intent, plan drift, wrong-type/missing styles, and new Microsoft
+Open XML validation errors. Neither action opens Word or returns XML/document text.
 
 1. `list_live_word_documents`.
 2. Use `start_word_application` only when Word is unavailable.

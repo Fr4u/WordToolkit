@@ -442,6 +442,17 @@ The planner does not create or modify `styles.xml`; style definition lifecycle, 
 alignment, conditional table styles, and heterogeneous command families remain future
 work.
 
+Bulk assignment does not require the model to echo a list of node IDs. A bounded
+`set_style_where` command reuses the semantic query engine over the exact projected
+snapshot, with one assignable node kind plus optional text, exact-property,
+ancestor/descendant, subtree and source-part predicates. The caller supplies a hard
+`max_matches` ceiling; zero matches, more matches than authorized, more than 16 selector
+commands, more than 200 resolved operations, or overlapping exact/selected targets are
+rejected. Canonical typed selector fields and the expanded engine plan jointly determine
+the external plan ID, so harmless JSON property reordering is stable while changed
+selection intent cannot replay an old approval. Selector expansion returns only counts
+and query-plan evidence unless operation details are explicitly requested.
+
 The native MCP exposes this slice without retaining a server-side plan cache. A client
 first calls lazy `plan_ooxml_text_edits` with the inspected package fingerprint and
 commands. To commit, it resubmits the same bounded commands to lazy

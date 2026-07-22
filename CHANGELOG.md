@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Added token-lean bulk `set_style_where` commands to the typed saved-package semantic
+  edit actions. One compact selector now resolves paragraph, run, or table targets from
+  bounded text, exact properties, ancestor/descendant, subtree and source-part evidence
+  without making the model echo every node ID. The caller must declare `max_matches`;
+  empty, excessive, overlapping, invalid-kind and over-200 selections fail closed, with
+  at most 16 selectors per transaction. Canonical typed intent makes plan IDs stable
+  across harmless JSON property order while preventing changed selector replay. Compact
+  responses expose submitted/selector/resolved counts and no document text or XML.
+- Verified the bulk-selector slice with 270 document-engine tests, 203 native-host
+  tests, 1,273 Python/OOXML tests with 16 intentional skips, Ruff, scoped .NET
+  formatting and the standalone Open XML validator build. Two local self-contained
+  builds produced identical 195-file, 84,327,130-byte trees and 35,973,436-byte ZIPs
+  with SHA-256
+  `65ccaed09b608be6fb851a4ae38e54b4fc4ff9d1b7ac8b6f1e5aaa9d0dcbaeac`.
+  Through the packaged MCP, one bounded selector resolved six paragraph style changes
+  in an Apache POI DOCX; candidate validation found no new errors, apply matched the
+  predicted fingerprint, changed only `word/document.xml`, retained a recovery backup,
+  returned no XML, left the source unchanged and did not alter the running Word process
+  set. The selector used 77.53% fewer serialized command-input characters than the six
+  exact commands on that fixture; the 200-target regression fixture reduced command
+  input from 19,014 to 186 characters (99.02%). Hosted artifact verification is pending
+  for this uncommitted checkpoint.
 - Added lazy `plan_ooxml_semantic_edits` and `apply_ooxml_semantic_edits` as the first
   extensible high-level semantic mutation surface. The initial `set_style` command
   assigns existing compatible paragraph, character, or table styles to exact stable

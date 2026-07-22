@@ -1,4 +1,7 @@
+using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Semantics;
@@ -8,6 +11,8 @@ namespace WordToolkit.Native.Word;
 
 internal sealed partial class WordLiveService
 {
+    private const int MaxSemanticSelectorCommands = 16;
+
     private static Task<object> PlanPackageSemanticEditsAsync(
         JsonElement arguments,
         CancellationToken cancellationToken
@@ -33,7 +38,7 @@ internal sealed partial class WordLiveService
         var path = ResolveInspectablePackagePath(arguments);
         var expectedPlanId = RequiredSemanticEditPlanId(arguments);
         var context = BuildPackageSemanticEditPlan(path, arguments, cancellationToken);
-        if (!string.Equals(context.Plan.PlanId, expectedPlanId, StringComparison.Ordinal))
+        if (!string.Equals(context.PlanId, expectedPlanId, StringComparison.Ordinal))
         {
             throw new NativeToolException(
                 "PLAN_MISMATCH",
@@ -67,7 +72,7 @@ internal sealed partial class WordLiveService
             return new
             {
                 file_name = Path.GetFileName(path),
-                plan_id = context.Plan.PlanId,
+                plan_id = context.PlanId,
                 applied = false,
                 no_op = true,
                 package_fingerprint = context.Package.Fingerprint,
@@ -100,7 +105,7 @@ internal sealed partial class WordLiveService
         return new
         {
             file_name = Path.GetFileName(path),
-            plan_id = context.Plan.PlanId,
+            plan_id = context.PlanId,
             applied = true,
             no_op = false,
             operation_count = context.Plan.OperationCount,
@@ -143,9 +148,12 @@ internal sealed partial class WordLiveService
         return new
         {
             file_name = Path.GetFileName(path),
-            plan_id = context.Plan.PlanId,
+            plan_id = context.PlanId,
             base_package_fingerprint = context.Plan.BasePackageFingerprint,
             result_package_fingerprint = context.Plan.ResultPackageFingerprint,
+            submitted_command_count = context.SubmittedCommandCount,
+            selector_command_count = context.SelectorResolutions.Count,
+            selector_match_count = context.SelectorResolutions.Sum(item => item.MatchedNodeCount),
             operation_count = context.Plan.OperationCount,
             changed_operation_count = context.Plan.ChangedOperationCount,
             changed_part_count = context.Plan.ChangedPartCount,
@@ -192,6 +200,15 @@ internal sealed partial class WordLiveService
                     byte_delta = (long)part.AfterBytes - part.BeforeBytes,
                 }).ToArray()
                 : null,
+            selector_resolutions = includeDetails
+                ? context.SelectorResolutions.Select(item => new
+                {
+                    command_index = item.CommandIndex,
+                    matched_node_count = item.MatchedNodeCount,
+                    scanned_node_count = item.ScannedNodeCount,
+                    candidate_seed = item.CandidateSeed,
+                }).ToArray()
+                : null,
             raw_xml_returned = false,
             mutation_performed = false,
             word_opened = false,
@@ -211,7 +228,6 @@ internal sealed partial class WordLiveService
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var commands = ParseSemanticEditCommands(arguments);
         var expectedFingerprint = RequiredSha256(
             arguments,
             "expected_package_fingerprint"
@@ -228,9 +244,19 @@ internal sealed partial class WordLiveService
             );
         }
         var semantic = new WordSemanticProjector().Project(package, cancellationToken);
+        var parsed = ParseSemanticEditCommands(
+            arguments,
+            semantic,
+            cancellationToken
+        );
         var plan = new WordSemanticTransactionPlanner(
             new WordSemanticTransactionOptions { MaxCommands = 200 }
-        ).PlanStyleAssignments(package, semantic, commands, cancellationToken);
+        ).PlanStyleAssignments(
+            package,
+            semantic,
+            parsed.Commands,
+            cancellationToken
+        );
         var validation = ValidatePackageCandidate(
             package,
             plan.CreateMutation(package),
@@ -239,13 +265,18 @@ internal sealed partial class WordLiveService
         return new PackageSemanticEditPlanContext(
             package,
             plan,
+            CreateSemanticEditPlanId(plan.PlanId, parsed.IntentFields),
+            parsed.SubmittedCommandCount,
+            parsed.SelectorResolutions,
             HasDigitalSignatures(package),
             validation
         );
     }
 
-    private static IReadOnlyList<WordStyleAssignmentCommand> ParseSemanticEditCommands(
-        JsonElement arguments
+    private static ParsedSemanticEditBatch ParseSemanticEditCommands(
+        JsonElement arguments,
+        WordSemanticDocument semanticDocument,
+        CancellationToken cancellationToken
     )
     {
         var array = arguments.RequiredArray("commands");
@@ -257,8 +288,12 @@ internal sealed partial class WordLiveService
             );
         }
         var result = new List<WordStyleAssignmentCommand>(array.GetArrayLength());
+        var intentFields = new List<string>(checked(array.GetArrayLength() * 16));
+        var selectorResolutions = new List<SemanticSelectorResolution>();
+        var commandIndex = 0;
         foreach (var item in array.EnumerateArray())
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (item.ValueKind != JsonValueKind.Object)
             {
                 throw new NativeToolException(
@@ -266,67 +301,514 @@ internal sealed partial class WordLiveService
                     "Every semantic edit command must be an object"
                 );
             }
-            foreach (var property in item.EnumerateObject())
+            _ = item.Required("type");
+            var type = item.String("type");
+            switch (type)
             {
-                if (property.Name is not "type"
-                    and not "node_id"
-                    and not "style_id"
-                    and not "expected_style_id"
-                    and not "require_no_explicit_style")
-                {
+                case "set_style":
+                    ParseExactStyleCommand(item, commandIndex, result, intentFields);
+                    break;
+                case "set_style_where":
+                    if (selectorResolutions.Count >= MaxSemanticSelectorCommands)
+                    {
+                        throw new NativeToolException(
+                            "TRANSACTION_LIMIT",
+                            $"At most {MaxSemanticSelectorCommands} selector commands are allowed"
+                        );
+                    }
+                    ParseSelectorStyleCommand(
+                        item,
+                        commandIndex,
+                        semanticDocument,
+                        result,
+                        intentFields,
+                        selectorResolutions,
+                        cancellationToken
+                    );
+                    break;
+                default:
                     throw new NativeToolException(
                         "INVALID_INPUT",
-                        "A semantic edit command contains an unknown property"
+                        "Semantic edit command type must be set_style or set_style_where"
                     );
-                }
             }
-            _ = item.Required("type");
-            _ = item.Required("node_id");
-            _ = item.Required("style_id");
-            if (!string.Equals(item.String("type"), "set_style", StringComparison.Ordinal))
+
+            if (result.Count > 200)
             {
                 throw new NativeToolException(
-                    "INVALID_INPUT",
-                    "The current semantic edit command type must be set_style"
+                    "TRANSACTION_LIMIT",
+                    "Resolved semantic edits exceed the 200-operation transaction limit"
                 );
             }
-            var nodeId = item.String("node_id");
-            ValidateSemanticNodeId(nodeId);
-            var styleId = item.String("style_id");
-            var expectedStyleId = OptionalString(item, "expected_style_id");
-            var requireNoExplicitStyle = item.Boolean(
+            commandIndex++;
+        }
+        return new ParsedSemanticEditBatch(
+            result,
+            intentFields,
+            array.GetArrayLength(),
+            selectorResolutions
+        );
+    }
+
+    private static void ParseExactStyleCommand(
+        JsonElement item,
+        int commandIndex,
+        ICollection<WordStyleAssignmentCommand> result,
+        ICollection<string> intentFields
+    )
+    {
+        ValidateCommandProperties(
+            item,
+            [
+                "type",
+                "node_id",
+                "style_id",
+                "expected_style_id",
                 "require_no_explicit_style",
-                false
-            );
-            if (
-                string.IsNullOrWhiteSpace(styleId)
-                || styleId.Length > 253
-                || expectedStyleId is not null
-                    && (string.IsNullOrWhiteSpace(expectedStyleId) || expectedStyleId.Length > 253)
+            ]
+        );
+        _ = item.Required("node_id");
+        var style = ParseStyleAssignment(item);
+        var nodeId = item.String("node_id");
+        ValidateSemanticNodeId(nodeId);
+        result.Add(
+            new WordStyleAssignmentCommand(
+                new SemanticNodeId(nodeId),
+                style.StyleId,
+                style.ExpectedStyleId,
+                style.RequireNoExplicitStyle
             )
-            {
-                throw new NativeToolException(
-                    "INVALID_INPUT",
-                    "style_id and expected_style_id must contain between 1 and 253 characters"
-                );
-            }
-            if (requireNoExplicitStyle && expectedStyleId is not null)
-            {
-                throw new NativeToolException(
-                    "INVALID_INPUT",
-                    "Use expected_style_id or require_no_explicit_style, never both"
-                );
-            }
+        );
+        AddCommandIntent(
+            intentFields,
+            commandIndex,
+            "set_style",
+            nodeId,
+            style
+        );
+    }
+
+    private static void ParseSelectorStyleCommand(
+        JsonElement item,
+        int commandIndex,
+        WordSemanticDocument semanticDocument,
+        ICollection<WordStyleAssignmentCommand> result,
+        ICollection<string> intentFields,
+        ICollection<SemanticSelectorResolution> selectorResolutions,
+        CancellationToken cancellationToken
+    )
+    {
+        ValidateCommandProperties(
+            item,
+            [
+                "type",
+                "selector",
+                "style_id",
+                "expected_style_id",
+                "require_no_explicit_style",
+                "max_matches",
+            ]
+        );
+        _ = item.Required("selector");
+        _ = item.Required("max_matches");
+        if (
+            !item.TryGetProperty("selector", out var selector)
+            || selector.ValueKind != JsonValueKind.Object
+        )
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "selector must be an object"
+            );
+        }
+        var maxMatches = item.NullableInt64("max_matches");
+        if (maxMatches is null or < 1 or > 200)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "max_matches must be between 1 and 200"
+            );
+        }
+        var maxMatchLimit = maxMatches.Value;
+        var style = ParseStyleAssignment(item);
+        var query = ParseSemanticStyleSelector(selector);
+        WordSemanticQueryResult queryResult;
+        try
+        {
+            queryResult = new WordSemanticQueryEngine().Query(
+                semanticDocument,
+                query,
+                cancellationToken
+            );
+        }
+        catch (KeyNotFoundException exception)
+        {
+            throw new NativeToolException(
+                "UNSAFE_EDIT",
+                BoundForResponse(exception.Message, 512) ?? "Selector scope does not exist"
+            );
+        }
+        catch (ArgumentException exception)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                BoundForResponse(exception.Message, 512) ?? "Selector is invalid"
+            );
+        }
+        if (queryResult.MatchedNodeCount == 0)
+        {
+            throw new NativeToolException(
+                "EMPTY_SELECTION",
+                "set_style_where selector matched no semantic nodes"
+            );
+        }
+        if (queryResult.MatchedNodeCount > maxMatchLimit)
+        {
+            throw new NativeToolException(
+                "SELECTION_LIMIT",
+                "set_style_where selector exceeded max_matches",
+                new
+                {
+                    command_index = commandIndex,
+                    matched_node_count = queryResult.MatchedNodeCount,
+                    max_matches = maxMatchLimit,
+                }
+            );
+        }
+        foreach (var match in queryResult.Matches)
+        {
             result.Add(
                 new WordStyleAssignmentCommand(
-                    new SemanticNodeId(nodeId),
-                    styleId,
-                    expectedStyleId,
-                    requireNoExplicitStyle
+                    match.NodeId,
+                    style.StyleId,
+                    style.ExpectedStyleId,
+                    style.RequireNoExplicitStyle
                 )
             );
         }
-        return result;
+        selectorResolutions.Add(
+            new SemanticSelectorResolution(
+                commandIndex,
+                queryResult.MatchedNodeCount,
+                queryResult.ScannedNodeCount,
+                queryResult.CandidateSeed
+            )
+        );
+        AddCommandIntent(
+            intentFields,
+            commandIndex,
+            "set_style_where",
+            null,
+            style
+        );
+        AddQueryIntent(intentFields, query, maxMatchLimit);
+    }
+
+    private static StyleAssignmentInput ParseStyleAssignment(JsonElement item)
+    {
+        _ = item.Required("style_id");
+        var styleId = item.String("style_id");
+        var expectedStyleId = OptionalString(item, "expected_style_id");
+        var requireNoExplicitStyle = item.Boolean(
+            "require_no_explicit_style",
+            false
+        );
+        if (
+            string.IsNullOrWhiteSpace(styleId)
+            || styleId.Length > 253
+            || expectedStyleId is not null
+                && (string.IsNullOrWhiteSpace(expectedStyleId) || expectedStyleId.Length > 253)
+        )
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "style_id and expected_style_id must contain between 1 and 253 characters"
+            );
+        }
+        if (requireNoExplicitStyle && expectedStyleId is not null)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "Use expected_style_id or require_no_explicit_style, never both"
+            );
+        }
+        return new StyleAssignmentInput(
+            styleId,
+            expectedStyleId,
+            requireNoExplicitStyle
+        );
+    }
+
+    private static WordSemanticQuery ParseSemanticStyleSelector(JsonElement selector)
+    {
+        ValidateCommandProperties(
+            selector,
+            [
+                "kind",
+                "text",
+                "text_match",
+                "text_scope",
+                "case_sensitive",
+                "property_equals",
+                "ancestor",
+                "descendant",
+                "within_node_id",
+                "source_part_uri",
+            ]
+        );
+        _ = selector.Required("kind");
+        var kind = ParseAssignableStyleKind(selector.String("kind"), "kind");
+        var properties = ParsePropertyEquals(selector);
+        if (properties is { Count: 0 })
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "selector.property_equals cannot be empty"
+            );
+        }
+        var query = new WordSemanticQuery
+        {
+            Kinds = [kind],
+            Text = OptionalString(selector, "text"),
+            TextMatch = selector.String("text_match", "contains") switch
+            {
+                "contains" => WordSemanticTextMatchMode.Contains,
+                "equals" => WordSemanticTextMatchMode.Equals,
+                "starts_with" => WordSemanticTextMatchMode.StartsWith,
+                "ends_with" => WordSemanticTextMatchMode.EndsWith,
+                _ => throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "selector.text_match must be contains, equals, starts_with, or ends_with"
+                ),
+            },
+            TextScope = selector.String("text_scope", "node") switch
+            {
+                "node" => WordSemanticTextScope.Node,
+                "subtree" => WordSemanticTextScope.Subtree,
+                _ => throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "selector.text_scope must be node or subtree"
+                ),
+            },
+            CaseSensitive = selector.Boolean("case_sensitive", false),
+            PropertyEquals = properties,
+            Ancestor = ParseStyleRelatedPredicate(selector, "ancestor"),
+            Descendant = ParseStyleRelatedPredicate(selector, "descendant"),
+            WithinNodeId = OptionalString(selector, "within_node_id") is { } nodeId
+                ? ParseSelectorNodeId(nodeId)
+                : null,
+            SourcePartUri = OptionalString(selector, "source_part_uri"),
+            Offset = 0,
+            Limit = 200,
+            TextPreviewCharacters = 0,
+            IncludeProperties = false,
+            IncludeSource = false,
+        };
+        return query;
+    }
+
+    private static WordSemanticRelatedNodePredicate? ParseStyleRelatedPredicate(
+        JsonElement selector,
+        string name
+    )
+    {
+        if (!selector.TryGetProperty(name, out var value))
+        {
+            return null;
+        }
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            throw new NativeToolException("INVALID_INPUT", $"selector.{name} must be an object");
+        }
+        ValidateCommandProperties(value, ["kind", "property_equals"]);
+        var kind = OptionalString(value, "kind");
+        var properties = ParsePropertyEquals(value);
+        if (properties is { Count: 0 })
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                $"selector.{name}.property_equals cannot be empty"
+            );
+        }
+        if (kind is null && properties is null)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                $"selector.{name} must contain kind or property_equals"
+            );
+        }
+        return new WordSemanticRelatedNodePredicate
+        {
+            Kinds = kind is null ? null : [ParseSemanticKind(kind, $"selector.{name}.kind")],
+            PropertyEquals = properties,
+        };
+    }
+
+    private static WordSemanticNodeKind ParseAssignableStyleKind(string raw, string name)
+    {
+        var kind = ParseSemanticKind(raw, name);
+        if (kind is not WordSemanticNodeKind.Paragraph
+            and not WordSemanticNodeKind.Run
+            and not WordSemanticNodeKind.Table)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                $"{name} must be paragraph, run, or table"
+            );
+        }
+        return kind;
+    }
+
+    private static WordSemanticNodeKind ParseSemanticKind(string raw, string name)
+    {
+        if (!SemanticNodeKinds.TryGetValue(raw, out var kind))
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                $"{name} is not a known semantic node kind"
+            );
+        }
+        return kind;
+    }
+
+    private static SemanticNodeId ParseSelectorNodeId(string value)
+    {
+        ValidateSemanticNodeId(value);
+        return new SemanticNodeId(value);
+    }
+
+    private static void ValidateCommandProperties(
+        JsonElement value,
+        params string[] allowed
+    )
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var property in value.EnumerateObject())
+        {
+            if (!seen.Add(property.Name))
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "A semantic edit command or selector contains a duplicate property"
+                );
+            }
+            if (!allowed.Contains(property.Name, StringComparer.Ordinal))
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "A semantic edit command or selector contains an unknown property"
+                );
+            }
+        }
+    }
+
+    private static void AddCommandIntent(
+        ICollection<string> fields,
+        int commandIndex,
+        string type,
+        string? nodeId,
+        StyleAssignmentInput style
+    )
+    {
+        fields.Add(commandIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        fields.Add(type);
+        AddNullableIntent(fields, nodeId);
+        fields.Add(style.StyleId);
+        AddNullableIntent(fields, style.ExpectedStyleId);
+        fields.Add(style.RequireNoExplicitStyle ? "1" : "0");
+    }
+
+    private static void AddQueryIntent(
+        ICollection<string> fields,
+        WordSemanticQuery query,
+        long maxMatches
+    )
+    {
+        fields.Add(query.Kinds!.Single().ToString());
+        AddNullableIntent(fields, query.Text);
+        fields.Add(query.TextMatch.ToString());
+        fields.Add(query.TextScope.ToString());
+        fields.Add(query.CaseSensitive ? "1" : "0");
+        AddPropertyIntent(fields, query.PropertyEquals);
+        AddRelatedIntent(fields, query.Ancestor);
+        AddRelatedIntent(fields, query.Descendant);
+        AddNullableIntent(fields, query.WithinNodeId?.Value);
+        AddNullableIntent(fields, query.SourcePartUri);
+        fields.Add(maxMatches.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    private static void AddRelatedIntent(
+        ICollection<string> fields,
+        WordSemanticRelatedNodePredicate? predicate
+    )
+    {
+        if (predicate is null)
+        {
+            fields.Add("related:null");
+            return;
+        }
+        fields.Add("related:value");
+        AddNullableIntent(fields, predicate.Kinds?.Single().ToString());
+        AddPropertyIntent(fields, predicate.PropertyEquals);
+    }
+
+    private static void AddPropertyIntent(
+        ICollection<string> fields,
+        IReadOnlyDictionary<string, string>? properties
+    )
+    {
+        if (properties is null)
+        {
+            fields.Add("properties:null");
+            return;
+        }
+        fields.Add("properties:value");
+        fields.Add(properties.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        foreach (var (name, value) in properties.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        {
+            fields.Add(name);
+            fields.Add(value);
+        }
+    }
+
+    private static void AddNullableIntent(
+        ICollection<string> fields,
+        string? value
+    )
+    {
+        fields.Add(value is null ? "nullable:null" : "nullable:value");
+        if (value is not null)
+        {
+            fields.Add(value);
+        }
+    }
+
+    private static string CreateSemanticEditPlanId(
+        string enginePlanId,
+        IReadOnlyList<string> intentFields
+    )
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        AppendIntentHashField(hash, "wordtoolkit-semantic-edit-intent-v1");
+        AppendIntentHashField(hash, enginePlanId);
+        foreach (var field in intentFields)
+        {
+            AppendIntentHashField(hash, field);
+        }
+        var digest = hash.GetHashAndReset();
+        return "wseplan_" + Convert.ToBase64String(digest.AsSpan(0, 15))
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+    }
+
+    private static void AppendIntentHashField(IncrementalHash hash, string value)
+    {
+        var bytes = Encoding.UTF8.GetBytes(value);
+        Span<byte> length = stackalloc byte[4];
+        BinaryPrimitives.WriteInt32BigEndian(length, bytes.Length);
+        hash.AppendData(length);
+        hash.AppendData(bytes);
     }
 
     private static void ValidateSemanticNodeId(string nodeId)
@@ -371,7 +853,30 @@ internal sealed partial class WordLiveService
     private sealed record PackageSemanticEditPlanContext(
         OpcPackageSnapshot Package,
         WordSemanticTransactionPlan Plan,
+        string PlanId,
+        int SubmittedCommandCount,
+        IReadOnlyList<SemanticSelectorResolution> SelectorResolutions,
         bool HasDigitalSignatures,
         CandidateSchemaValidation Validation
+    );
+
+    private sealed record ParsedSemanticEditBatch(
+        IReadOnlyList<WordStyleAssignmentCommand> Commands,
+        IReadOnlyList<string> IntentFields,
+        int SubmittedCommandCount,
+        IReadOnlyList<SemanticSelectorResolution> SelectorResolutions
+    );
+
+    private sealed record SemanticSelectorResolution(
+        int CommandIndex,
+        int MatchedNodeCount,
+        int ScannedNodeCount,
+        string CandidateSeed
+    );
+
+    private sealed record StyleAssignmentInput(
+        string StyleId,
+        string? ExpectedStyleId,
+        bool RequireNoExplicitStyle
     );
 }
