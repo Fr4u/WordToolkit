@@ -29,8 +29,10 @@
   chart fixture as one plot, three series, two axes, 27 cached point entries and one
   embedded workbook without opening Word or the workbook. Its compact content was 875
   characters and the complete tool-call response was 2,260 characters.
-- Hosted CI and human review remain required. The public release stays at 0.34.0, and
-  the licensed 48-action Word gate is not re-claimed by this saved-package-only tranche.
+- Mandatory CI run `29947553481` passed all five jobs, and its downloaded Windows ZIP
+  matched both local archives byte for byte at the same size and SHA-256. Human review
+  remains required. The public release stays at 0.34.0, and the licensed 48-action Word
+  gate is not re-claimed by this saved-package-only tranche.
 
 ## WordToolkit 0.35.0 semantic golden corpus — 2026-07-22
 
