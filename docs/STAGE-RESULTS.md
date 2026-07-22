@@ -34,8 +34,12 @@
   resolved binding, one target and two stores with zero issues and no Word process. The
   complete compact JSON-RPC response was 2,718 characters and contained no Word/Custom
   XML part path or raw XML element.
-- Hosted CI/artifact parity is not claimed in this local checkpoint. Human review and
-  the licensed Word release gate remain required; the public release stays at 0.34.0.
+- Mandatory CI run `29956272868` passed all five jobs with zero check-run annotations.
+  Its downloaded Windows artifact
+  matched both local ZIPs byte for byte; the expanded hosted and local trees each had
+  195 files and 84,897,393 bytes with zero file/hash/length differences. Human review
+  and the licensed Word release gate remain required; the public release stays at
+  0.34.0.
 
 ## WordToolkit 0.35.0 markup-compatibility graph — 2026-07-22
 
