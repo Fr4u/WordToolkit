@@ -20,8 +20,10 @@
   The packaged MCP returned 2 tables, 34 rows and 251 cells from the advanced torture
   DOCX in a 2,308-character compact response with zero issues, no Word process change,
   no source path, no cell text and no raw XML. Checked-in 10,000/100,000-cell scale
-  points expose both throughput and allocation cost. Hosted CI and artifact parity are
-  still pending; the public release remains 0.34.0.
+  points expose both throughput and allocation cost. Mandatory CI run `29959678412`
+  passed all five jobs with zero annotations; its downloaded Windows artifact matched
+  both local ZIPs and the 195-file expanded tree byte for byte. The public release
+  remains 0.34.0.
 
 - Added a bounded, read-only ECMA-376 Part 3 Markup Compatibility graph and the lazy
   `inspect_ooxml_markup_compatibility` action. The engine now models inherited

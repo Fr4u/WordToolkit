@@ -41,7 +41,9 @@
   251 cells with zero table issues. Its complete compact JSON-RPC response was 2,308
   characters, did not start Word, left the Word process set unchanged, and contained no
   source part path, cell text or raw table XML.
-- Mandatory hosted CI and artifact-parity evidence remain pending for this checkpoint.
+- Mandatory hosted CI run [`29959678412`](https://github.com/Fr4u/WordToolkit/actions/runs/29959678412)
+  passed all five jobs with zero annotations. Its downloaded Windows artifact matched
+  both local ZIPs and the 195-file expanded tree byte for byte at the SHA-256 above.
   Human review and the licensed Word release gate remain required; the public release
   stays at 0.34.0.
 
