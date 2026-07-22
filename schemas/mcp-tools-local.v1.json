@@ -5993,12 +5993,12 @@
     },
     {
       "name": "plan_ooxml_semantic_edits",
-      "title": "Plan typed Word semantic edits",
-      "description": "Plan and SDK-validate one fingerprint-bound style transaction without writing.",
+      "title": "Plan edits",
+      "description": "Validate a style plan.",
       "inputSchema": {
         "type": "object",
         "$defs": {
-          "property_equals": {
+          "peq": {
             "type": "object",
             "minProperties": 1,
             "maxProperties": 16,
@@ -6009,7 +6009,7 @@
             "type": "object",
             "properties": {
               "kind": {"type": "string", "maxLength": 64},
-              "property_equals": {"$ref": "#/$defs/property_equals"}
+              "property_equals": {"$ref": "#/$defs/peq"}
             },
             "anyOf": [
               {"required": ["kind"]},
@@ -6028,7 +6028,7 @@
               },
               "text_scope": {"enum": ["node", "subtree"], "default": "node"},
               "case_sensitive": {"type": "boolean", "default": false},
-              "property_equals": {"$ref": "#/$defs/property_equals"},
+              "property_equals": {"$ref": "#/$defs/peq"},
               "ancestor": {"$ref": "#/$defs/related"},
               "descendant": {"$ref": "#/$defs/related"},
               "within_node_id": {
@@ -6122,17 +6122,25 @@
             },
             "required": ["type", "style_id"],
             "additionalProperties": false
+          },
+          "rename_style": {
+            "type": "object",
+            "properties": {
+              "type": {"const": "rename_style"},
+              "style_id": {"$ref": "#/$defs/style_text"},
+              "name": {"$ref": "#/$defs/style_text"}
+            },
+            "required": ["type", "style_id", "name"],
+            "additionalProperties": false
           }
         },
         "properties": {
           "local_path": {
-            "type": "string",
-            "description": "Local DOCX, DOCM, DOTX or DOTM path."
+            "type": "string"
           },
           "expected_package_fingerprint": {
             "type": "string",
-            "pattern": "^[A-Fa-f0-9]{64}$",
-            "description": "Exact prior inspection fingerprint; fails on drift."
+            "pattern": "^[A-Fa-f0-9]{64}$"
           },
           "commands": {
             "type": "array",
@@ -6144,16 +6152,15 @@
                 {"$ref": "#/$defs/clone_style"},
                 {"$ref": "#/$defs/consolidate_style"},
                 {"$ref": "#/$defs/delete_unused_style"},
+                {"$ref": "#/$defs/rename_style"},
                 {"$ref": "#/$defs/exact_style"},
                 {"$ref": "#/$defs/selected_style"}
               ]
-            },
-            "description": "At most 16 selectors and 200 operations."
+            }
           },
           "include_details": {
             "type": "boolean",
-            "default": false,
-            "description": "Return bounded evidence; never XML or document text."
+            "default": false
           }
         },
         "required": ["local_path", "expected_package_fingerprint", "commands"],
@@ -6168,12 +6175,12 @@
     },
     {
       "name": "apply_ooxml_semantic_edits",
-      "title": "Apply reviewed typed Word semantic edits",
-      "description": "Apply reviewed style intent under its fingerprint and plan ID.",
+      "title": "Apply",
+      "description": "Apply.",
       "inputSchema": {
         "type": "object",
         "$defs": {
-          "property_equals": {
+          "peq": {
             "type": "object",
             "minProperties": 1,
             "maxProperties": 16,
@@ -6184,7 +6191,7 @@
             "type": "object",
             "properties": {
               "kind": {"type": "string", "maxLength": 64},
-              "property_equals": {"$ref": "#/$defs/property_equals"}
+              "property_equals": {"$ref": "#/$defs/peq"}
             },
             "anyOf": [
               {"required": ["kind"]},
@@ -6203,7 +6210,7 @@
               },
               "text_scope": {"enum": ["node", "subtree"], "default": "node"},
               "case_sensitive": {"type": "boolean", "default": false},
-              "property_equals": {"$ref": "#/$defs/property_equals"},
+              "property_equals": {"$ref": "#/$defs/peq"},
               "ancestor": {"$ref": "#/$defs/related"},
               "descendant": {"$ref": "#/$defs/related"},
               "within_node_id": {
@@ -6297,12 +6304,21 @@
             },
             "required": ["type", "style_id"],
             "additionalProperties": false
+          },
+          "rename_style": {
+            "type": "object",
+            "properties": {
+              "type": {"const": "rename_style"},
+              "style_id": {"$ref": "#/$defs/style_text"},
+              "name": {"$ref": "#/$defs/style_text"}
+            },
+            "required": ["type", "style_id", "name"],
+            "additionalProperties": false
           }
         },
         "properties": {
           "local_path": {
-            "type": "string",
-            "description": "Existing local Word package path."
+            "type": "string"
           },
           "expected_package_fingerprint": {
             "type": "string",
@@ -6311,8 +6327,7 @@
           "expected_plan_id": {
             "type": "string",
             "pattern": "^wseplan_[A-Za-z0-9_-]+$",
-            "maxLength": 128,
-            "description": "Plan ID for the exact same commands."
+            "maxLength": 128
           },
           "commands": {
             "type": "array",
@@ -6324,6 +6339,7 @@
                 {"$ref": "#/$defs/clone_style"},
                 {"$ref": "#/$defs/consolidate_style"},
                 {"$ref": "#/$defs/delete_unused_style"},
+                {"$ref": "#/$defs/rename_style"},
                 {"$ref": "#/$defs/exact_style"},
                 {"$ref": "#/$defs/selected_style"}
               ]
@@ -6331,8 +6347,7 @@
           },
           "keep_backup": {
             "type": "boolean",
-            "default": true,
-            "description": "Keep the atomic writer's recovery backup."
+            "default": true
           }
         },
         "required": [

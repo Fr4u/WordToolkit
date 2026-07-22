@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-WordToolkit 0.35 (development line) is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference, canonical OfficeMath and review/revision graphs, lint a saved package with deterministic source-linked rule packs, plan and apply the first source-bound lint repair, create, clone, safely consolidate exact typed style definitions or delete proven-unused custom definitions and assign styles through one semantic transaction, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text, style definitions, paragraph/run/table style references, tracked-review structures and one existing empty core-title element to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
+WordToolkit 0.35 (development line) is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed style, numbering, theme, settings, font-table, field/bookmark/reference, canonical OfficeMath and review/revision graphs, lint a saved package with deterministic source-linked rule packs, plan and apply the first source-bound lint repair, create, clone, safely consolidate exact typed style definitions, delete proven-unused custom definitions, rename only a custom style's primary visible name and assign styles through one semantic transaction, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text, style definitions, paragraph/run/table style references, tracked-review structures and one existing empty core-title element to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
 
 This is an advanced but experimental OOXML engine, not a verified claim of market leadership or complete Microsoft Word equivalence. Unsupported domains and release evidence are listed explicitly in [Known limitations](docs/KNOWN-LIMITATIONS.md) and [Testing](docs/TESTING.md).
 
@@ -176,7 +176,11 @@ reports the exact reference count and retains a byte-exact inverse. An explicit
 `delete_unused_style` command removes only a custom, non-default definition after proving
 that no surviving semantic, style, numbering, glossary, latent-style, `STYLEREF` or
 unmodeled XML consumer names it. One batch may remove a closed graph of mutually
-dependent unused styles. Exact `set_style` commands consume
+dependent unused styles. `rename_style` changes only the primary visible `w:name` of an
+explicit custom, non-default style. Its internal `w:styleId`, aliases, formatting and all
+ID-based references remain unchanged; ID/name/alias collisions, name-addressed or
+ambiguous `STYLEREF`, latent-style name consumers and unmodeled field consumers block the
+plan instead of triggering a guessed rewrite. Exact `set_style` commands consume
 stable paragraph, run, or
 table IDs. Token-lean `set_style_where`
 commands instead resolve all nodes server-side from one strict kind plus optional bounded
@@ -191,8 +195,8 @@ candidate without writing or returning XML. Apply must reproduce the same intent
 plan, rejects signed/stale packages and new schema errors, writes atomically, and keeps a
 recovery backup by default. Creation does not accept arbitrary formatting blocks; clone
 is the path for preserving an existing style's modeled and unmodeled formatting. This
-slice does not rename styles, delete referenced or built-in definitions, perform broad
-style repair, align
+slice does not change stable style IDs, delete referenced or built-in definitions,
+perform broad style repair, align
 definitions to templates, infer “APA”/“IEEE” semantics, select a missing property
 directly, or model conditional table-style rendering. Consolidation fails closed for
 non-equivalent or built-in sources, chains, graph damage, unmodeled XML consumers,

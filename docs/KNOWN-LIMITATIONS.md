@@ -18,7 +18,13 @@ WordToolkit deliberately avoids claiming complete Microsoft Word parity.
   and `numbering.xml`, deletes the source definition and retains an exact inverse. The
   explicit `delete_unused_style` command can remove a custom, non-default definition, or
   a closed batch of mutually dependent definitions, only when no surviving modeled or
-  unmodeled consumer refers to it. Both operations are deliberately not a
+  unmodeled consumer refers to it. `rename_style` changes only the primary visible
+  `w:name` of an explicitly selected custom, non-default style while preserving its
+  stable internal `w:styleId`, aliases, formatting and ID-based references. It blocks
+  ID/name/alias collisions, latent-style name consumers, name-addressed or ambiguous
+  `STYLEREF` fields, macros, `altChunk`, linked-template updates, unmodeled field
+  consumers and `stylesWithEffects`; it does not guess at field rewrites. These
+  operations are deliberately not a
   fuzzy duplicate merger: existing style/numbering graph issues, non-equivalence,
   chained targets, `stylesWithEffects`, macros, `altChunk`, automatic linked-template
   updates, matching latent-style exceptions, dynamic/ambiguous/source-addressing
@@ -30,7 +36,7 @@ WordToolkit deliberately avoids claiming complete Microsoft Word parity.
   selected semantic nodes in the same atomic transaction. `create_style` does not accept
   arbitrary formatting blocks; `clone_style` preserves source formatting and opaque
   extensions but deliberately strips default and linked-style identity. The engine does
-  not rename, delete referenced or built-in definitions, fuzzily repair, or align
+  not change stable style IDs, delete referenced or built-in definitions, fuzzily repair, or align
   definitions to templates; infer domain labels such as APA/IEEE; model conditional table-style
   rendering; or enforce document protection/permission semantics. Definition edits fail
   closed when `stylesWithEffects.xml` exists because mirrored mutation is not implemented.

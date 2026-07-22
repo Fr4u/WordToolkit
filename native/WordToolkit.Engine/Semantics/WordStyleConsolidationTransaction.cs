@@ -361,38 +361,11 @@ public sealed partial class WordSemanticTransactionPlanner
         CancellationToken cancellationToken
     )
     {
-        if (package.Parts.Values.Any(part =>
-            part.Uri.EndsWith("/vbaProject.bin", StringComparison.OrdinalIgnoreCase)
-            || (part.ContentType?.Contains(
-                "macroEnabled",
-                StringComparison.OrdinalIgnoreCase
-            ) ?? false)
-            || (part.ContentType?.Contains(
-                "vbaProject",
-                StringComparison.OrdinalIgnoreCase
-            ) ?? false)
-        ))
-        {
-            throw new WordSemanticEditException(
-                "Style removal is blocked for macro-enabled packages because VBA style consumers are not modeled."
-            );
-        }
-
-        var settings = new WordSettingsGraphBuilder().Build(
+        ValidateStyleMutationContainerEnvironment(
             package,
             semanticDocument,
             cancellationToken
         );
-        if (
-            settings.TryGetBoolean("linkStyles", out var linkStyles)
-            && linkStyles is not null
-            && linkStyles.Value
-        )
-        {
-            throw new WordSemanticEditException(
-                "Style removal is blocked while automatic linked-template style updates are enabled."
-            );
-        }
 
         var identities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var sourceStyleId in sourceStyleIds)
@@ -452,6 +425,46 @@ public sealed partial class WordSemanticTransactionPlanner
                     "Style removal is blocked because STYLEREF addresses a source style by ID, name, or alias."
                 );
             }
+        }
+    }
+
+    private static void ValidateStyleMutationContainerEnvironment(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        CancellationToken cancellationToken
+    )
+    {
+        if (package.Parts.Values.Any(part =>
+            part.Uri.EndsWith("/vbaProject.bin", StringComparison.OrdinalIgnoreCase)
+            || (part.ContentType?.Contains(
+                "macroEnabled",
+                StringComparison.OrdinalIgnoreCase
+            ) ?? false)
+            || (part.ContentType?.Contains(
+                "vbaProject",
+                StringComparison.OrdinalIgnoreCase
+            ) ?? false)
+        ))
+        {
+            throw new WordSemanticEditException(
+                "Style mutation is blocked for macro-enabled packages because VBA style consumers are not modeled."
+            );
+        }
+
+        var settings = new WordSettingsGraphBuilder().Build(
+            package,
+            semanticDocument,
+            cancellationToken
+        );
+        if (
+            settings.TryGetBoolean("linkStyles", out var linkStyles)
+            && linkStyles is not null
+            && linkStyles.Value
+        )
+        {
+            throw new WordSemanticEditException(
+                "Style mutation is blocked while automatic linked-template style updates are enabled."
+            );
         }
     }
 

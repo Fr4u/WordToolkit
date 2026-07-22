@@ -2426,6 +2426,39 @@ public sealed class PackageInspectionServiceTests
             ]);
             Assert.Equal("INVALID_INPUT", unknownDeletionProperty.ErrorCode);
 
+            var missingRenameName = await RejectPlanAsync(
+            [
+                new
+                {
+                    type = "rename_style",
+                    style_id = "Definition",
+                },
+            ]);
+            Assert.Equal("INVALID_INPUT", missingRenameName.ErrorCode);
+
+            var unsafeBuiltInRename = await RejectPlanAsync(
+            [
+                new
+                {
+                    type = "rename_style",
+                    style_id = "OldPara",
+                    name = "Renamed",
+                },
+            ]);
+            Assert.Equal("UNSAFE_EDIT", unsafeBuiltInRename.ErrorCode);
+
+            var unknownRenameProperty = await RejectPlanAsync(
+            [
+                new
+                {
+                    type = "rename_style",
+                    style_id = "Definition",
+                    name = "Renamed",
+                    new_style_id = "ChangedId",
+                },
+            ]);
+            Assert.Equal("INVALID_INPUT", unknownRenameProperty.ErrorCode);
+
             using var duplicateArguments = JsonDocument.Parse(
                 $$"""
                 {
@@ -2501,6 +2534,161 @@ public sealed class PackageInspectionServiceTests
             Assert.Equal("PLAN_MISMATCH", mismatch.ErrorCode);
             Assert.Equal(beforeBytes, File.ReadAllBytes(path));
             Assert.Empty(Directory.GetFiles(directory, "*.bak"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SemanticStyleRenameKeepsTheInternalIdAndAppliesValidatedNameOnlyMutation()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-style-rename-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "rename-style.docx");
+            CreatePackage(
+                path,
+                stylesXml: SemanticUnusedStyleDeletionStylesXml(),
+                paragraphPropertiesXml: "<w:pPr><w:pStyle w:val=\"Unused\"/></w:pPr>"
+            );
+            var beforeBytes = File.ReadAllBytes(path);
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var beforeHashes = before.Entries.ToDictionary(
+                entry => entry.Name,
+                entry => entry.Sha256,
+                StringComparer.Ordinal
+            );
+
+            static object[] Commands(bool reordered) => reordered
+                ?
+                [
+                    new Dictionary<string, object?>
+                    {
+                        ["name"] = "Renamed & visible",
+                        ["style_id"] = "Unused",
+                        ["type"] = "rename_style",
+                    },
+                ]
+                :
+                [
+                    new Dictionary<string, object?>
+                    {
+                        ["type"] = "rename_style",
+                        ["style_id"] = "Unused",
+                        ["name"] = "Renamed & visible",
+                    },
+                ];
+
+            var service = new WordLiveService(new NoInvokeHost());
+            using var planArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                commands = Commands(false),
+                include_details = true,
+            }));
+            using var reorderedArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                commands = Commands(true),
+            }));
+            var plannedObject = await service.CallAsync(
+                "plan_ooxml_semantic_edits",
+                planArguments.RootElement,
+                CancellationToken.None
+            );
+            var reorderedObject = await service.CallAsync(
+                "plan_ooxml_semantic_edits",
+                reorderedArguments.RootElement,
+                CancellationToken.None
+            );
+            using var plannedJson = JsonDocument.Parse(JsonSerializer.Serialize(plannedObject));
+            using var reorderedJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(reorderedObject)
+            );
+            var planned = plannedJson.RootElement;
+            var planId = planned.GetProperty("plan_id").GetString()!;
+
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.Equal(planId, reorderedJson.RootElement.GetProperty("plan_id").GetString());
+            Assert.Equal(1, planned.GetProperty("style_definition_count").GetInt32());
+            Assert.Equal(0, planned.GetProperty("style_consolidation_count").GetInt32());
+            Assert.Equal(0, planned.GetProperty("style_deletion_count").GetInt32());
+            Assert.Equal(1, planned.GetProperty("style_rename_count").GetInt32());
+            Assert.Equal(0, planned.GetProperty("style_reference_update_count").GetInt32());
+            Assert.Equal(1, planned.GetProperty("operation_count").GetInt32());
+            Assert.Equal(1, planned.GetProperty("changed_part_count").GetInt32());
+            Assert.True(planned.GetProperty("can_apply").GetBoolean(), planned.GetRawText());
+            Assert.True(
+                planned.GetProperty("candidate_validation")
+                    .GetProperty("no_new_errors")
+                    .GetBoolean()
+            );
+            var operation = Assert.Single(
+                planned.GetProperty("style_definition_operations").EnumerateArray()
+            );
+            Assert.Equal("rename_style", operation.GetProperty("kind").GetString());
+            Assert.Equal("Unused", operation.GetProperty("style_id").GetString());
+            Assert.Equal("Unused", operation.GetProperty("source_style_id").GetString());
+
+            using var applyArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                expected_plan_id = planId,
+                commands = Commands(true),
+                keep_backup = true,
+            }));
+            var appliedObject = await service.CallAsync(
+                "apply_ooxml_semantic_edits",
+                applyArguments.RootElement,
+                CancellationToken.None
+            );
+            using var appliedJson = JsonDocument.Parse(JsonSerializer.Serialize(appliedObject));
+            var applied = appliedJson.RootElement;
+
+            Assert.True(applied.GetProperty("applied").GetBoolean());
+            Assert.Equal(
+                planned.GetProperty("result_package_fingerprint").GetString(),
+                applied.GetProperty("package_fingerprint").GetString()
+            );
+            Assert.Equal(
+                ["word/styles.xml"],
+                applied.GetProperty("changed_entry_names")
+                    .EnumerateArray()
+                    .Select(item => item.GetString()!)
+                    .ToArray()
+            );
+            Assert.Equal(
+                beforeBytes,
+                File.ReadAllBytes(applied.GetProperty("backup_path").GetString()!)
+            );
+
+            var after = reader.Read(path);
+            var afterSemantic = new WordSemanticProjector().Project(after);
+            var styles = new WordStyleGraphBuilder().Build(after, afterSemantic);
+            Assert.True(styles.TryGetStyle("Unused", out var renamed));
+            Assert.Equal("Renamed & visible", renamed!.Name);
+            Assert.Equal(
+                "Unused",
+                afterSemantic.Nodes.Single(node =>
+                    node.Kind == WordSemanticNodeKind.Paragraph
+                ).Properties["style_id"]
+            );
+            Assert.All(after.Entries.Where(entry => entry.Name != "word/styles.xml"), entry =>
+                Assert.Equal(beforeHashes[entry.Name], entry.Sha256)
+            );
+            Assert.False(applied.GetProperty("raw_xml_returned").GetBoolean());
+            Assert.False(applied.GetProperty("word_opened").GetBoolean());
         }
         finally
         {

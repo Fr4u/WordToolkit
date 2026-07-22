@@ -1086,6 +1086,234 @@ public sealed class WordSemanticStyleTransactionTests
         ));
     }
 
+    [Fact]
+    public void RenamesOnlyThePrimaryUiNameAndComposesWithAssignmentAndExactInverse()
+    {
+        var styles = $"""
+            <w:styles xmlns:w="{WordNamespace}" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
+              <w:style w:type="paragraph" w:default="1" w:styleId="Base"><w:name w:val="Base"/></w:style>
+              <w:style w:type="paragraph" w:styleId="RenameMe" w:customStyle="1"><w:name w:val="Old visible name"/><w:aliases w:val="Stable alias"/><w:basedOn w:val="Base"/><w14:opaque w14:val="keep"/><w:rPr><w:b/></w:rPr></w:style>
+            </w:styles>
+            """;
+        var document = $"""
+            <w:document xmlns:w="{WordNamespace}"><w:body><w:p><w:pPr><w:pStyle w:val="RenameMe"/></w:pPr><w:r><w:t>styled</w:t></w:r></w:p><w:p><w:r><w:t>assign</w:t></w:r></w:p></w:body></w:document>
+            """;
+        using var stream = BuildPackage(document, styles, opaque: [8, 6, 7, 5]);
+        var reader = new OpcPackageReader();
+        var package = reader.Read(stream);
+        var semantic = new WordSemanticProjector().Project(package);
+        var unstyled = semantic.Nodes.Where(node =>
+            node.Kind == WordSemanticNodeKind.Paragraph
+        ).Last();
+        var definitions = new WordStyleDefinitionCommand[]
+        {
+            new WordStyleRenameCommand("RenameMe", "New & visible \"name\""),
+        };
+        var assignments = new[]
+        {
+            new WordStyleAssignmentCommand(
+                unstyled.Id,
+                "RenameMe",
+                RequireNoExplicitStyle: true
+            ),
+        };
+        var planner = new WordSemanticTransactionPlanner();
+
+        var plan = planner.PlanStyleEdits(
+            package,
+            semantic,
+            definitions,
+            assignments
+        );
+        var repeated = planner.PlanStyleEdits(
+            package,
+            semantic,
+            definitions,
+            assignments
+        );
+
+        Assert.Equal(plan.PlanId, repeated.PlanId);
+        Assert.Equal(2, plan.OperationCount);
+        Assert.Equal(2, plan.ChangedPartCount);
+        var rename = Assert.Single(plan.DefinitionOperations);
+        Assert.Equal("rename_style", rename.Kind);
+        Assert.Equal("RenameMe", rename.StyleId);
+        Assert.Equal("RenameMe", rename.SourceStyleId);
+        Assert.Equal(0, rename.ReferenceUpdateCount);
+
+        using var appliedStream = Serialize(plan.CreateMutation(package));
+        var applied = reader.Read(appliedStream);
+        Assert.Equal(plan.ResultPackageFingerprint, applied.Fingerprint);
+        var changedSemantic = new WordSemanticProjector().Project(applied);
+        var graph = new WordStyleGraphBuilder().Build(applied, changedSemantic);
+        Assert.True(graph.TryGetStyle("RenameMe", out var renamed));
+        Assert.NotNull(renamed);
+        Assert.Equal("New & visible \"name\"", renamed!.Name);
+        Assert.Equal(["Stable alias"], renamed.Aliases);
+        Assert.Equal(2, changedSemantic.Nodes.Count(node =>
+            node.Kind == WordSemanticNodeKind.Paragraph
+            && node.Properties.TryGetValue("style_id", out var styleId)
+            && styleId == "RenameMe"
+        ));
+        Assert.Equal(
+            package.Parts["/custom/opaque.bin"].Entry.Sha256,
+            applied.Parts["/custom/opaque.bin"].Entry.Sha256
+        );
+
+        using var revertedStream = Serialize(plan.CreateInverseMutation(applied));
+        var reverted = reader.Read(revertedStream);
+        Assert.Equal(package.Fingerprint, reverted.Fingerprint);
+        foreach (var part in package.Parts.Values)
+        {
+            Assert.Equal(
+                part.Entry.Content.ToArray(),
+                reverted.Parts[part.Uri].Entry.Content.ToArray()
+            );
+        }
+    }
+
+    [Fact]
+    public void InsertsAMissingPrimaryNameWithoutChangingTheStableStyleIdentity()
+    {
+        var styles = $"""
+            <w:styles xmlns:w="{WordNamespace}" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
+              <w:style w:type="paragraph" w:default="1" w:styleId="Base"><w:name w:val="Base"/></w:style>
+              <w:style w:type="paragraph" w:styleId="Unnamed" w:customStyle="1"><w:aliases w:val="Stable alias"/><w:basedOn w:val="Base"/><w14:opaque w14:val="keep"/></w:style>
+            </w:styles>
+            """;
+        var document = $"""
+            <w:document xmlns:w="{WordNamespace}"><w:body><w:p><w:pPr><w:pStyle w:val="Unnamed"/></w:pPr></w:p></w:body></w:document>
+            """;
+        using var stream = BuildPackage(document, styles, opaque: [4, 2, 4, 2]);
+        var reader = new OpcPackageReader();
+        var package = reader.Read(stream);
+        var semantic = new WordSemanticProjector().Project(package);
+        var planner = new WordSemanticTransactionPlanner();
+
+        var plan = planner.PlanStyleEdits(
+            package,
+            semantic,
+            [new WordStyleRenameCommand("Unnamed", "Now named")],
+            Array.Empty<WordStyleAssignmentCommand>()
+        );
+
+        Assert.Single(plan.DefinitionOperations);
+        Assert.Equal(1, plan.ChangedPartCount);
+        using var appliedStream = Serialize(plan.CreateMutation(package));
+        var applied = reader.Read(appliedStream);
+        var appliedSemantic = new WordSemanticProjector().Project(applied);
+        var graph = new WordStyleGraphBuilder().Build(applied, appliedSemantic);
+        Assert.True(graph.TryGetStyle("Unnamed", out var renamed));
+        Assert.NotNull(renamed);
+        Assert.Equal("Now named", renamed!.Name);
+        Assert.Equal(["Stable alias"], renamed.Aliases);
+        Assert.Equal(
+            package.Parts["/word/document.xml"].Entry.Sha256,
+            applied.Parts["/word/document.xml"].Entry.Sha256
+        );
+        Assert.Equal(
+            package.Parts["/custom/opaque.bin"].Entry.Sha256,
+            applied.Parts["/custom/opaque.bin"].Entry.Sha256
+        );
+
+        using var revertedStream = Serialize(plan.CreateInverseMutation(applied));
+        var reverted = reader.Read(revertedStream);
+        Assert.Equal(package.Fingerprint, reverted.Fingerprint);
+        Assert.Equal(
+            package.Parts["/word/styles.xml"].Entry.Content.ToArray(),
+            reverted.Parts["/word/styles.xml"].Entry.Content.ToArray()
+        );
+    }
+
+    [Fact]
+    public void RejectsUnsafeAmbiguousAndCrossStageStyleRename()
+    {
+        var styles = $"""
+            <w:styles xmlns:w="{WordNamespace}">
+              <w:style w:type="paragraph" w:default="1" w:styleId="Base"><w:name w:val="Base"/></w:style>
+              <w:style w:type="paragraph" w:styleId="Source" w:customStyle="1"><w:name w:val="Old name"/><w:aliases w:val="Old alias"/><w:rPr><w:b/></w:rPr></w:style>
+              <w:style w:type="paragraph" w:styleId="Target" w:customStyle="1"><w:name w:val="Taken name"/><w:aliases w:val="Taken alias"/><w:rPr><w:b/></w:rPr></w:style>
+            </w:styles>
+            """;
+        var document = $"<w:document xmlns:w='{WordNamespace}'><w:body><w:p/></w:body></w:document>";
+        using var stream = BuildPackage(document, styles);
+        var reader = new OpcPackageReader();
+        var package = reader.Read(stream);
+        var semantic = new WordSemanticProjector().Project(package);
+        var planner = new WordSemanticTransactionPlanner();
+
+        Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+            package,
+            semantic,
+            [new WordStyleRenameCommand("Base", "Renamed base")],
+            Array.Empty<WordStyleAssignmentCommand>()
+        ));
+        foreach (var collision in new[] { "Target", "Taken name", "Taken alias" })
+        {
+            Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+                package,
+                semantic,
+                [new WordStyleRenameCommand("Source", collision)],
+                Array.Empty<WordStyleAssignmentCommand>()
+            ));
+        }
+        Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+            package,
+            semantic,
+            [
+                new WordStyleRenameCommand("Source", "One"),
+                new WordStyleRenameCommand("Source", "Two"),
+            ],
+            Array.Empty<WordStyleAssignmentCommand>()
+        ));
+        Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+            package,
+            semantic,
+            [
+                new WordStyleCloneCommand("Source", "Fresh", "Fresh"),
+                new WordStyleRenameCommand("Fresh", "Other"),
+            ],
+            Array.Empty<WordStyleAssignmentCommand>()
+        ));
+        Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+            package,
+            semantic,
+            [
+                new WordStyleDeleteUnusedCommand("Source"),
+                new WordStyleRenameCommand("Source", "Other"),
+            ],
+            Array.Empty<WordStyleAssignmentCommand>()
+        ));
+
+        var styleRefDocument = $"""
+            <w:document xmlns:w="{WordNamespace}"><w:body><w:p><w:fldSimple w:instr=" STYLEREF &quot;Old name&quot; "><w:r><w:t>x</w:t></w:r></w:fldSimple></w:p></w:body></w:document>
+            """;
+        using var styleRefStream = BuildPackage(styleRefDocument, styles);
+        var styleRefPackage = reader.Read(styleRefStream);
+        var styleRefSemantic = new WordSemanticProjector().Project(styleRefPackage);
+        Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+            styleRefPackage,
+            styleRefSemantic,
+            [new WordStyleRenameCommand("Source", "New name")],
+            Array.Empty<WordStyleAssignmentCommand>()
+        ));
+
+        var latentStyles = styles.Replace(
+            $"<w:styles xmlns:w=\"{WordNamespace}\">",
+            $"<w:styles xmlns:w=\"{WordNamespace}\"><w:latentStyles><w:lsdException w:name=\"New name\"/></w:latentStyles>",
+            StringComparison.Ordinal
+        );
+        using var latentStream = BuildPackage(document, latentStyles);
+        var latentPackage = reader.Read(latentStream);
+        var latentSemantic = new WordSemanticProjector().Project(latentPackage);
+        Assert.Throws<WordSemanticEditException>(() => planner.PlanStyleEdits(
+            latentPackage,
+            latentSemantic,
+            [new WordStyleRenameCommand("Source", "New name")],
+            Array.Empty<WordStyleAssignmentCommand>()
+        ));
+    }
+
     private static string StylesXml(bool includeBrokenStyle = false) => $"""
         <w:styles xmlns:w="{WordNamespace}">
           <w:style w:type="paragraph" w:styleId="OldPara"><w:name w:val="Old paragraph"/></w:style>

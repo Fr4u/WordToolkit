@@ -450,7 +450,13 @@ before the source definition is removed. `delete_unused_style` takes only an exp
 custom, non-default style ID. It removes the exact definition span only after proving that
 no surviving semantic, style, numbering, glossary, latent-style, `STYLEREF` or unmodeled
 XML consumer refers to it. A single deletion batch may describe a closed graph of mutually
-dependent unused styles. Multiple creation, consolidation, deletion and assignment stages compose
+dependent unused styles. `rename_style` accepts an explicit custom, non-default style ID
+and a new primary UI name. It changes only the exact `w:name/@w:val` span, or inserts a
+missing `w:name`, while leaving `w:styleId`, aliases, formatting and every ID-based
+reference untouched. The plan rejects every collision with an existing ID, name or alias
+and fails closed around latent-name behavior, risky `STYLEREF`, macros, `altChunk`,
+linked-template updates, unmodeled field consumers and `stylesWithEffects`. Multiple
+creation, consolidation, deletion, rename and assignment stages compose
 only through an exact byte chain. A single final plan joins every payload, predicts one
 result fingerprint and retains one exact inverse. Missing sources, duplicate IDs,
 wrong-type references, cycles, graph damage, non-equivalence, unmodeled XML consumers,
@@ -466,8 +472,8 @@ are added as the first child through the lossless source model. Duplicate contai
 wrong-type or missing styles, broken inheritance, stale source identities, namespace
 prefix collisions, signed packages, plan drift, and new Open XML SDK errors fail closed.
 Creation does not accept arbitrary formatting-property payloads; cloning is the current
-lossless formatting-preservation path. General rename, deletion of referenced or built-in
-definitions, fuzzy consolidation,
+lossless formatting-preservation path. Stable style-ID changes, deletion of referenced or
+built-in definitions, fuzzy consolidation,
 automatic linked-style repair, template alignment and conditional table styles remain
 future work.
 
@@ -961,10 +967,10 @@ No feature is “supported” until it passes the relevant gates:
 ### Phase 3 — safe edits
 
 - command schema, preconditions, plan/apply, inverse patches — **bounded multi-text plus
-  heterogeneous style create/clone/exact-consolidation/proven-unused deletion/exact-or-selected assignment planning,
+  heterogeneous style create/clone/exact-consolidation/proven-unused deletion/primary-name rename/exact-or-selected assignment planning,
   package/node/part/property preconditions, one patch set per part, predicted result
   fingerprint and exact part-byte inverse implemented; arbitrary style formatting,
-  rename/referenced-or-built-in delete/fuzzy repair/template alignment, broader commands, permissions, approval and semantic
+  stable-ID change/referenced-or-built-in delete/fuzzy repair/template alignment, broader commands, permissions, approval and semantic
   inverses remain**;
 - style and numbering resolvers;
 - fields/references and source-linked review read graph — **initial implementations

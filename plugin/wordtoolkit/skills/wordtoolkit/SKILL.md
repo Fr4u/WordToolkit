@@ -291,7 +291,10 @@ For a saved-package style definition or assignment, use this strict lazy workflo
    remove a proven-unused custom, non-default definition, use `delete_unused_style` with
    its exact `style_id` only after narrow style/dependency inspection. A linter finding is
    evidence, not authorization: the semantic plan must independently prove that every
-   modeled and unmodeled consumer is absent. Do not send XML or formatting-property
+   modeled and unmodeled consumer is absent. To change only the visible primary name of a
+   custom, non-default definition, use `rename_style` with its exact stable `style_id` and
+   new `name`. Never invent a replacement ID and never use the visible name as the ID.
+   Do not send XML or formatting-property
    fragments.
 3. Put definition commands and assignments in the same batch when the new style must be
    used immediately. Send exact nodes as `set_style`, or use `set_style_where` with a single
@@ -301,7 +304,7 @@ For a saved-package style definition or assignment, use this strict lazy workflo
    have none. One batch resolves at most 200 operations and contains at most 16 selector
    commands.
 4. Review the deterministic `plan_id`, changed counts, `style_consolidation_count`,
-   `style_deletion_count`, `style_reference_update_count`, candidate Open XML validation,
+   `style_deletion_count`, `style_rename_count`, `style_reference_update_count`, candidate Open XML validation,
    `can_apply`, and block reasons. Request details only to diagnose a block or audit one
    definition operation.
 5. Call `apply_ooxml_semantic_edits` with the identical commands, original fingerprint,
@@ -315,6 +318,7 @@ nodes selected by the other predicates, not a hidden absence filter.
 The current command family can create a minimal inherited paragraph, character, table,
 or numbering style, clone one existing definition, safely consolidate an explicit exact
 custom duplicate, delete an explicitly selected proven-unused custom non-default style,
+rename only the primary visible name of an explicitly selected custom non-default style,
 and assign compatible paragraph, character, or table styles. Creation
 does not accept arbitrary formatting properties; clone is the lossless path for retaining
 an existing definition's formatting. Consolidation requires a custom non-default source,
@@ -326,8 +330,10 @@ style, numbering, glossary, latent-style, `STYLEREF` or unmodeled XML consumer. 
 paragraph/character pairs require one explicit equivalent batch. Non-equivalence, chains,
 existing style/numbering graph damage, unmodeled XML consumers, matching latent-style
 exceptions, unsafe `STYLEREF`, macros, `altChunk`, automatic linked-template updates and
-`stylesWithEffects` all fail closed. The family still does not rename, delete referenced or
-built-in definitions, or perform fuzzy repair, infer document roles, align to a template, or implement
+`stylesWithEffects` all fail closed. Rename preserves the stable `styleId`, aliases,
+formatting and ID-based references; collisions and name-addressed fields block rather than
+being rewritten. The family still does not change style IDs, delete referenced or built-in
+definitions, or perform fuzzy repair, infer document roles, align to a template, or implement
 conditional table-style semantics. Planning writes nothing; apply blocks signatures, stale
 sources, changed intent, plan drift and new Microsoft Open XML validation errors. Neither
 action opens Word or returns XML/document text.

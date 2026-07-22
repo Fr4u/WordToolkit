@@ -161,6 +161,9 @@ internal sealed partial class WordLiveService
             style_deletion_count = context.Plan.DefinitionOperations.Count(operation =>
                 operation.Kind == "delete_unused_style"
             ),
+            style_rename_count = context.Plan.DefinitionOperations.Count(operation =>
+                operation.Kind == "rename_style"
+            ),
             style_reference_update_count = context.Plan.DefinitionOperations.Sum(operation =>
                 operation.ReferenceUpdateCount
             ),
@@ -386,10 +389,18 @@ internal sealed partial class WordLiveService
                         intentFields
                     );
                     break;
+                case "rename_style":
+                    ParseRenameStyleCommand(
+                        item,
+                        commandIndex,
+                        definitions,
+                        intentFields
+                    );
+                    break;
                 default:
                     throw new NativeToolException(
                         "INVALID_INPUT",
-                        "Semantic edit command type must be create_style, clone_style, consolidate_style, delete_unused_style, set_style, or set_style_where"
+                        "Semantic edit command type must be create_style, clone_style, consolidate_style, delete_unused_style, rename_style, set_style, or set_style_where"
                     );
             }
 
@@ -544,6 +555,22 @@ internal sealed partial class WordLiveService
         var styleId = RequiredBoundedStyleText(item, "style_id");
         result.Add(new WordStyleDeleteUnusedCommand(styleId));
         AddStyleDeletionIntent(intentFields, commandIndex, styleId);
+    }
+
+    private static void ParseRenameStyleCommand(
+        JsonElement item,
+        int commandIndex,
+        ICollection<WordStyleDefinitionCommand> result,
+        ICollection<string> intentFields
+    )
+    {
+        ValidateCommandProperties(item, ["type", "style_id", "name"]);
+        _ = item.Required("style_id");
+        _ = item.Required("name");
+        var styleId = RequiredBoundedStyleText(item, "style_id");
+        var name = RequiredBoundedStyleText(item, "name");
+        result.Add(new WordStyleRenameCommand(styleId, name));
+        AddStyleRenameIntent(intentFields, commandIndex, styleId, name);
     }
 
     private static string RequiredBoundedStyleText(JsonElement item, string name)
@@ -1023,6 +1050,19 @@ internal sealed partial class WordLiveService
         fields.Add(commandIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
         fields.Add("delete_unused_style");
         fields.Add(styleId);
+    }
+
+    private static void AddStyleRenameIntent(
+        ICollection<string> fields,
+        int commandIndex,
+        string styleId,
+        string name
+    )
+    {
+        fields.Add(commandIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        fields.Add("rename_style");
+        fields.Add(styleId);
+        fields.Add(name);
     }
 
     private static void AddQueryIntent(

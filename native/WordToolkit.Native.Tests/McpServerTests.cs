@@ -363,6 +363,24 @@ public sealed class McpServerTests
                 .ToArray()
         );
         Assert.Equal(
+            "rename_style",
+            planDefinitions
+                .GetProperty("rename_style")
+                .GetProperty("properties")
+                .GetProperty("type")
+                .GetProperty("const")
+                .GetString()
+        );
+        Assert.Equal(
+            ["type", "style_id", "name"],
+            planDefinitions
+                .GetProperty("rename_style")
+                .GetProperty("required")
+                .EnumerateArray()
+                .Select(item => item.GetString()!)
+                .ToArray()
+        );
+        Assert.Equal(
             200,
             planDefinitions
                 .GetProperty("selected_style")
@@ -388,6 +406,7 @@ public sealed class McpServerTests
                 "#/$defs/clone_style",
                 "#/$defs/consolidate_style",
                 "#/$defs/delete_unused_style",
+                "#/$defs/rename_style",
                 "#/$defs/exact_style",
                 "#/$defs/selected_style",
             ],
@@ -426,6 +445,16 @@ public sealed class McpServerTests
             applySchema
                 .GetProperty("$defs")
                 .GetProperty("consolidate_style")
+                .GetProperty("properties")
+                .GetProperty("type")
+                .GetProperty("const")
+                .GetString()
+        );
+        Assert.Equal(
+            "rename_style",
+            applySchema
+                .GetProperty("$defs")
+                .GetProperty("rename_style")
                 .GetProperty("properties")
                 .GetProperty("type")
                 .GetProperty("const")

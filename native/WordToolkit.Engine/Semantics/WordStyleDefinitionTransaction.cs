@@ -35,6 +35,11 @@ public sealed record WordStyleDeleteUnusedCommand(
     string StyleId
 ) : WordStyleDefinitionCommand;
 
+public sealed record WordStyleRenameCommand(
+    string StyleId,
+    string Name
+) : WordStyleDefinitionCommand;
+
 public sealed partial class WordSemanticTransactionPlanner
 {
     public WordSemanticTransactionPlan PlanStyleEdits(
@@ -91,8 +96,11 @@ public sealed partial class WordSemanticTransactionPlanner
         var deletions = indexed.Where(item =>
             item.Command is WordStyleDeleteUnusedCommand
         ).ToArray();
+        var renames = indexed.Where(item =>
+            item.Command is WordStyleRenameCommand
+        ).ToArray();
         if (
-            creations.Length + consolidations.Length + deletions.Length
+            creations.Length + consolidations.Length + deletions.Length + renames.Length
             != definitions.Length
         )
         {
@@ -100,7 +108,12 @@ public sealed partial class WordSemanticTransactionPlanner
                 "The semantic transaction contains an unsupported style-definition command."
             );
         }
-        ValidateStyleDefinitionStageInteractions(creations, consolidations, deletions);
+        ValidateStyleDefinitionStageInteractions(
+            creations,
+            consolidations,
+            deletions,
+            renames
+        );
 
         var stages = new List<IReadOnlyList<WordPackagePartPayload>>();
         var definitionOperations = new List<WordStyleDefinitionOperationPlan>(
@@ -189,6 +202,33 @@ public sealed partial class WordSemanticTransactionPlanner
             );
         }
 
+        if (renames.Length != 0)
+        {
+            var renameDraft = BuildStyleRenameDraft(
+                intermediate,
+                intermediateSemantic,
+                renames,
+                cancellationToken
+            );
+            stages.Add(renameDraft.Payloads);
+            definitionOperations.AddRange(renameDraft.Operations);
+            intermediate = MaterializeSnapshot(
+                intermediate,
+                renameDraft.Payloads,
+                cancellationToken
+            );
+            intermediateSemantic = new WordSemanticProjector().Project(
+                intermediate,
+                cancellationToken
+            );
+            ValidateRenamedStyles(
+                intermediate,
+                intermediateSemantic,
+                renames,
+                cancellationToken
+            );
+        }
+
         WordSemanticTransactionPlan? assignmentPlan = null;
         if (assignments.Length != 0)
         {
@@ -232,7 +272,8 @@ public sealed partial class WordSemanticTransactionPlanner
     private static void ValidateStyleDefinitionStageInteractions(
         IReadOnlyList<IndexedStyleDefinitionCommand> creations,
         IReadOnlyList<IndexedStyleDefinitionCommand> consolidations,
-        IReadOnlyList<IndexedStyleDefinitionCommand> deletions
+        IReadOnlyList<IndexedStyleDefinitionCommand> deletions,
+        IReadOnlyList<IndexedStyleDefinitionCommand> renames
     )
     {
         var createdIds = creations.Select(item => item.Command switch
@@ -271,6 +312,27 @@ public sealed partial class WordSemanticTransactionPlanner
             {
                 throw new WordSemanticEditException(
                     "A style consolidated in this plan cannot also be deleted."
+                );
+            }
+        }
+        var removedIds = consolidations.Select(item =>
+            ((WordStyleConsolidateCommand)item.Command).SourceStyleId
+        ).Concat(deletions.Select(item =>
+            ((WordStyleDeleteUnusedCommand)item.Command).StyleId
+        )).ToHashSet(StringComparer.Ordinal);
+        foreach (var indexed in renames)
+        {
+            var styleId = ((WordStyleRenameCommand)indexed.Command).StyleId;
+            if (createdIds.Contains(styleId))
+            {
+                throw new WordSemanticEditException(
+                    "A style created in this plan cannot also be renamed."
+                );
+            }
+            if (removedIds.Contains(styleId))
+            {
+                throw new WordSemanticEditException(
+                    "A style removed in this plan cannot also be renamed."
                 );
             }
         }
@@ -813,6 +875,11 @@ public sealed partial class WordSemanticTransactionPlanner
                 case WordStyleDeleteUnusedCommand delete:
                     AppendHashField(hash, "delete-unused");
                     AppendHashField(hash, delete.StyleId);
+                    break;
+                case WordStyleRenameCommand rename:
+                    AppendHashField(hash, "rename");
+                    AppendHashField(hash, rename.StyleId);
+                    AppendHashField(hash, rename.Name);
                     break;
             }
         }

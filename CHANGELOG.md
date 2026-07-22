@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Added fail-closed primary-name rename to the typed saved-package semantic edit actions.
+  `rename_style` changes only `w:name` for an explicitly selected custom, non-default
+  style; it never changes the stable `w:styleId`, aliases, formatting or ID-based
+  references. Missing primary names are inserted losslessly. Existing ID/name/alias
+  collisions, latent-style name consumers, risky `STYLEREF`, macros, `altChunk`, linked
+  templates, unmodeled field consumers and `stylesWithEffects` block before mutation.
+  Rename composes with assignment in the same deterministic transaction, reports a
+  bounded rename count and retains an exact byte inverse without returning document
+  content.
+- Verified the rename slice with 283 document-engine tests, 208 native-host tests,
+  1,273 Python/OOXML tests with 16 intentional skips, Ruff, scoped .NET formatting,
+  schema-export drift checks and the standalone Open XML validator build. Two local
+  self-contained builds produced identical 195-file, 84,409,303-byte trees and
+  35,998,031-byte ZIPs with SHA-256
+  `85919959a2176627a6a973ad61ccabe189eaf36fabc44c83c5eb53e7479a59f2`.
+  Through that packaged MCP, an 83-character `rename_style` command produced a
+  946-character compact plan stable under JSON property order, with one positive byte
+  delta and no new SDK errors. Apply matched the predicted fingerprint, changed only
+  `word/styles.xml`, retained a byte-exact pre-apply backup, preserved the stable style
+  ID and every original non-style ZIP-entry payload, returned no XML, used no Python and
+  did not open Word. A packaged attempt to rename the default `Standard` style failed
+  closed and left the file byte-identical.
 - Added fail-closed unused-style deletion to the typed saved-package semantic edit
   actions. `delete_unused_style` removes only an explicitly selected custom, non-default
   definition after proving that no surviving semantic, revision, style, numbering,
