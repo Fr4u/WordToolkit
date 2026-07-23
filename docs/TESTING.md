@@ -134,8 +134,11 @@ The Docker image builds the Microsoft Open XML SDK validator. A Python-only run 
    `.pyc`; after installation, the runtime's editable path resolves to the
    installed cache rather than the build directory.
 10. Large dependency graphs and `.wtpatch` inputs are claimed only up to a checked-in
-    benchmark result reporting elapsed time and peak memory. The configured rejection
-    ceilings alone are not performance evidence.
+    benchmark result reporting elapsed time and peak memory. The dependency graph also
+    proves its deterministic accounted-byte usage, rejects the identical fixture when
+    configured one byte below that usage, validates compact incoming/outgoing ordering
+    and keeps its three-field MCP byte-budget proof inside the existing token envelope.
+    Configured rejection ceilings alone are not performance evidence.
 11. Content-control binding scale claims use the checked-in `bindings` benchmark. Its
     100,000-control point must report every binding resolved and must disclose any
     benchmark-only resource limit raised above the production default.

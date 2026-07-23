@@ -44,6 +44,11 @@ public sealed class DependencyPackageInspectionTests
             Assert.False(summary.GetProperty("keys_included").GetBoolean());
             Assert.True(summary.GetProperty("node_count").GetInt32() > 0);
             Assert.True(summary.GetProperty("edge_count").GetInt32() > 0);
+            var byteBudget = summary.GetProperty("byte_budget");
+            Assert.Equal("wdg1", byteBudget.GetProperty("model").GetString());
+            var accountedBytes = byteBudget.GetProperty("used").GetInt64();
+            var maximumAccountedBytes = byteBudget.GetProperty("maximum").GetInt64();
+            Assert.InRange(accountedBytes, 1, maximumAccountedBytes);
             Assert.Equal(1, summary.GetProperty("external_edge_count").GetInt32());
             Assert.True(
                 summary.GetProperty("coverage")
@@ -58,11 +63,26 @@ public sealed class DependencyPackageInspectionTests
                     .Select(value => value.GetString())
             );
             Assert.DoesNotContain("secret.example", summary.GetRawText());
+            Assert.Equal(JsonValueKind.Null, summary.GetProperty("issues").ValueKind);
             Assert.True(
                 summary.GetRawText().Length < 5_000,
                 $"Default dependency response is too large: {summary.GetRawText().Length} characters"
             );
             Assert.Equal(0, host.InvocationCount);
+
+            using var issueArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new { local_path = path, include_issues = true })
+            );
+            var issueObject = await service.CallAsync(
+                "inspect_ooxml_dependencies",
+                issueArguments.RootElement,
+                CancellationToken.None
+            );
+            using var issueJson = JsonDocument.Parse(JsonSerializer.Serialize(issueObject));
+            Assert.Equal(
+                JsonValueKind.Array,
+                issueJson.RootElement.GetProperty("issues").ValueKind
+            );
 
             using var externalArguments = JsonDocument.Parse(
                 JsonSerializer.Serialize(new

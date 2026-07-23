@@ -77,5 +77,6 @@ engine objective is complete.
   a reviewed baseline or close it; all work after that baseline must use narrow PRs.
 - The patch envelope exists at engine level. MCP secret-store provisioning remains
   intentionally absent until there is a real key custody policy.
-- Graph memory is proven expensive, not solved. Compact source storage and adjacency
-  construction remain engineering work.
+- Graph memory was proven expensive here. WordToolkit 0.38.0 later added compact
+  compressed-row adjacency plus a graph-local 128 MiB accounted-byte budget. Shared
+  source storage and an operation-wide resource lease remain engineering work.

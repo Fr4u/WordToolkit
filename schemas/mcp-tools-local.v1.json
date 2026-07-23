@@ -5760,7 +5760,7 @@
     {
       "name": "inspect_ooxml_dependencies",
       "title": "Inspect the Word document dependency graph",
-      "description": "Inspect one bounded, source-linked dependency graph spanning OPC parts and relationships, semantic containment across Word stories, styles, numbering, fields and bookmarks, and section header/footer bindings without opening Word. Unresolved and external targets remain explicit nodes; external targets are never followed. Keys and source locations are redacted by default, views are paged, and the response reports domains that are still unmodeled rather than claiming complete document coverage.",
+      "description": "Inspect one source-linked dependency graph spanning OPC reachability, semantic containment, styles, numbering, fields/bookmarks, section stories, classic charts, logical figures/resources/captions, content controls/Custom XML bindings and nested-table topology without opening Word. Unresolved and external targets remain explicit; external targets are never followed. A graph-local byte budget and compact adjacency fail closed. Keys and source are redacted by default, views are paged, and unmodeled domains stay explicit.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5798,7 +5798,14 @@
               "section",
               "chart",
               "chart_series",
-              "chart_axis"
+              "chart_axis",
+              "figure",
+              "figure_representation",
+              "figure_resource",
+              "caption",
+              "content_control",
+              "custom_xml_store",
+              "custom_xml_binding_target"
             ],
             "description": "Optional exact node-kind filter for the nodes view."
           },
@@ -5834,7 +5841,21 @@
               "defines_chart",
               "chart_contains_series",
               "chart_contains_axis",
-              "chart_uses_part"
+              "chart_uses_part",
+              "defines_figure",
+              "figure_has_representation",
+              "figure_uses_resource",
+              "figure_resource_targets_part",
+              "defines_caption",
+              "figure_caption_association",
+              "defines_content_control",
+              "defines_custom_xml_store",
+              "content_control_uses_store",
+              "custom_xml_store_contains_target",
+              "content_control_binds_target",
+              "repeating_section_contains_item",
+              "table_nests_table",
+              "table_cell_continues_vertical_merge"
             ],
             "description": "Optional exact edge-kind filter for edge, unresolved, and impact views."
           },
@@ -5874,8 +5895,8 @@
           },
           "include_issues": {
             "type": "boolean",
-            "default": true,
-            "description": "Include at most 40 bounded cross-domain dependency diagnostics in non-issues views."
+            "default": false,
+            "description": "Opt in to at most 40 bounded cross-domain dependency diagnostics in non-issues views."
           }
         },
         "required": ["local_path"],

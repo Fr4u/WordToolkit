@@ -88,6 +88,18 @@ This follows the pinned MCP 2025-06-18
 contract and the official TypeScript SDK rule that successful structured content is
 validated while `isError=true` results skip output-schema validation.
 
+The saved-package dependency inspector applies the same content-minimization rule to
+resource safety. Engine callers receive the full deterministic graph accounting record,
+including exact compact-adjacency index bytes. The default AI response receives only
+`byte_budget: {model, used, maximum}`. It does not receive GC snapshots, raw allocation
+breakdowns or another diagnostic array on every call. Dependency diagnostic items require
+`include_issues=true` or `view=issues`; the schema is regression-checked against every
+Engine dependency node and edge kind so typed clients cannot lose new filters. Crossing
+the budget is a
+`PACKAGE_LIMIT`, not a prompt to retry with more disclosure. This byte boundary is local
+to the dependency graph and never claims that upstream semantic and typed projections
+share one process-memory quota.
+
 The fourth shared executable boundary consists of
 `wordtoolkit.plan_ooxml_semantic_edits/1.0` and
 `wordtoolkit.apply_ooxml_semantic_edits/1.0`. `StyleWordPackageOperation` owns all seven

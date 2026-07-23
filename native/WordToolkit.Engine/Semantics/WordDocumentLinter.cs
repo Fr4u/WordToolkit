@@ -1234,9 +1234,16 @@ public sealed class WordDocumentLinter
             {
                 continue;
             }
-            var referenced = dependencies.Incoming(node.Id).Any(edge =>
-                edge.Kind != WordDependencyEdgeKind.DefinesStyle
-            );
+            var referenced = false;
+            foreach (var edge in dependencies.IncomingView(node.Id))
+            {
+                if (edge.Kind == WordDependencyEdgeKind.DefinesStyle)
+                {
+                    continue;
+                }
+                referenced = true;
+                break;
+            }
             if (referenced)
             {
                 continue;

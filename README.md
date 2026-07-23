@@ -402,10 +402,16 @@ caption candidates/associations, content controls, physical and built-in XML
 stores, resolved binding targets, repeating-section topology, nested tables and
 vertical-merge continuation cells into one deterministic
 graph. Missing and external targets remain explicit
-nodes; every edge endpoint is verified. The default view returns only bounded edge-kind
-counts and coverage gaps. Node keys and source provenance are separate opt-ins, external
+nodes; every edge endpoint is verified. The graph has a deterministic 128 MiB
+accounted-byte budget, a 65,536-character metadata ceiling and compact incoming/outgoing
+offset/index adjacency instead of per-node edge dictionaries. The default view returns only bounded edge-kind
+counts and coverage gaps; diagnostic items require `include_issues=true` or
+`view=issues`. Node keys and source provenance are separate opt-ins, external
 targets are never followed, and impact traversal is capped at four hops plus an
-independent hard edge budget. Advanced DrawingML/VML layout, SmartArt, OLE, bibliography sources,
+independent hard edge budget. Its three-field `byte_budget` reports the graph-local
+accounting boundary without returning allocation detail. This is not a whole-process
+heap limit because the upstream typed graphs retain independent budgets. Advanced
+DrawingML/VML layout, SmartArt, OLE, bibliography sources,
 active content and co-authoring remain openly unmodeled.
 
 Saved-package content-control inspection joins source-linked `w:sdt` type, level, lock,
@@ -772,7 +778,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is 0.37.0. The latest immutable public release remains
+The development manifest/runtime is 0.38.0. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:

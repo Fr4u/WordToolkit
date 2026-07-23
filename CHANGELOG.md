@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+- Replaced the unified dependency graph's two eager per-node adjacency dictionaries
+  with compact incoming/outgoing offset and edge-index arrays. Direct adjacency views
+  retain ordering without allocating one list per node, endpoint validation stays
+  fail-closed and construction now observes cancellation through every large index pass.
+- Added the deterministic `dependency_graph_accounted_v1` resource model with a 128 MiB
+  production default, 65,536-character per-key/per-metadata ceilings and pre-retention
+  rejection for nodes, edges and issues. Engine callers receive the complete resource
+  record; the default MCP response pays only for `byte_budget: {model, used, maximum}`.
+  The budget covers this graph, not upstream semantic and typed projections.
+- Added exact one-byte-below-budget rejection, compact-adjacency ordering, option,
+  cancellation-compatible and MCP token-envelope regression coverage. Five cold-process
+  99,997-node Windows x64 samples per version reduced median retained managed memory from
+  234,933,120 to 195,381,520 bytes (16.8%), median managed allocations by 4.2% and median
+  dependency build time by 9.0%. Median peak working set was effectively flat (+0.1%),
+  so no peak-memory win is claimed. Raw before/after series and primary .NET design
+  evidence are checked in.
+- Closed a typed-client contract gap by requiring the dependency action schema to cover
+  every Engine node and edge kind. Dependency diagnostics are now an explicit
+  `include_issues=true` opt-in outside `view=issues`; the default compact response no
+  longer spends tokens on a diagnostic array.
+- Raised the development runtime/plugin line to 0.38.0. Capability discovery remains at
+  90 actions; this release hardens the existing dependency action rather than inflating
+  the action count.
+- Two pinned-SDK 8.0.423 package builds produced byte-identical 196-file,
+  85,730,528-byte trees and 36,372,963-byte ZIPs at SHA-256
+  `69c3406b238590dae096370a550ff6902352972cbe942b2344e2d80dca1e0541`.
+  The personal marketplace and enabled cache match that final tree exactly. The installed
+  runtime reports 0.38.0/90 actions and returns the dependency byte budget without
+  opening Word or following external targets.
+
 - Added the bounded, source-linked `WordFigureCaptionGraph` and lazy
   `inspect_ooxml_figures` action. Transitional/Strict inline and anchored DrawingML,
   VML and legacy-object representations now form stable logical figures with typed

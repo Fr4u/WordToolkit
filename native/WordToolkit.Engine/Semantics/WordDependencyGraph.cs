@@ -139,13 +139,102 @@ public sealed record WordDependencyCoverage(
     IReadOnlyList<string> ExplicitlyUnmodeledDomains
 );
 
+public sealed record WordDependencyResourceUsage(
+    string AccountingModel,
+    long AccountedBytes,
+    long MaximumAccountedBytes,
+    int NodeCount,
+    int EdgeCount,
+    int IssueCount,
+    long AdjacencyIndexBytes
+);
+
+public readonly struct WordDependencyEdgeCollection : IReadOnlyList<WordDependencyEdge>
+{
+    private readonly IReadOnlyList<WordDependencyEdge>? _edges;
+    private readonly int[]? _edgeIndexes;
+    private readonly int _offset;
+
+    internal WordDependencyEdgeCollection(
+        IReadOnlyList<WordDependencyEdge> edges,
+        int[] edgeIndexes,
+        int offset,
+        int count
+    )
+    {
+        _edges = edges;
+        _edgeIndexes = edgeIndexes;
+        _offset = offset;
+        Count = count;
+    }
+
+    public int Count { get; }
+
+    public WordDependencyEdge this[int index]
+    {
+        get
+        {
+            if ((uint)index >= (uint)Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+            return _edges![_edgeIndexes![_offset + index]];
+        }
+    }
+
+    public Enumerator GetEnumerator() => new(this);
+
+    IEnumerator<WordDependencyEdge> IEnumerable<WordDependencyEdge>.GetEnumerator() =>
+        GetEnumerator();
+
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() =>
+        GetEnumerator();
+
+    public struct Enumerator : IEnumerator<WordDependencyEdge>
+    {
+        private readonly WordDependencyEdgeCollection _collection;
+        private int _index;
+
+        internal Enumerator(WordDependencyEdgeCollection collection)
+        {
+            _collection = collection;
+            _index = -1;
+        }
+
+        public WordDependencyEdge Current =>
+            _index >= 0 && _index < _collection.Count
+                ? _collection[_index]
+                : throw new InvalidOperationException(
+                    "The dependency-edge enumerator is not positioned on an item."
+                );
+
+        object System.Collections.IEnumerator.Current => Current;
+
+        public bool MoveNext()
+        {
+            var next = _index + 1;
+            if (next >= _collection.Count)
+            {
+                _index = _collection.Count;
+                return false;
+            }
+            _index = next;
+            return true;
+        }
+
+        public void Reset() => _index = -1;
+
+        public void Dispose() { }
+    }
+}
+
 public sealed class WordDependencyGraph
 {
-    private readonly IReadOnlyDictionary<string, WordDependencyNode> _nodesById;
-    private readonly IReadOnlyDictionary<string, IReadOnlyList<WordDependencyEdge>>
-        _incomingByNodeId;
-    private readonly IReadOnlyDictionary<string, IReadOnlyList<WordDependencyEdge>>
-        _outgoingByNodeId;
+    private readonly IReadOnlyDictionary<string, int> _nodeIndexById;
+    private readonly int[] _incomingOffsets;
+    private readonly int[] _incomingEdgeIndexes;
+    private readonly int[] _outgoingOffsets;
+    private readonly int[] _outgoingEdgeIndexes;
 
     internal WordDependencyGraph(
         string packageFingerprint,
@@ -154,6 +243,8 @@ public sealed class WordDependencyGraph
         IReadOnlyList<WordDependencyEdge> edges,
         IReadOnlyList<WordDependencyIssue> issues,
         WordDependencyCoverage coverage,
+        WordDependencyResourceUsage resourceUsage,
+        CancellationToken cancellationToken,
         int packageDiagnosticCount,
         int styleIssueCount,
         int numberingIssueCount,
@@ -165,12 +256,16 @@ public sealed class WordDependencyGraph
         int tableIssueCount
     )
     {
+        var nodeArray = nodes as WordDependencyNode[] ?? nodes.ToArray();
+        var edgeArray = edges as WordDependencyEdge[] ?? edges.ToArray();
+        var issueArray = issues as WordDependencyIssue[] ?? issues.ToArray();
         PackageFingerprint = packageFingerprint;
         MainPartUri = mainPartUri;
-        Nodes = new ReadOnlyCollection<WordDependencyNode>(nodes.ToArray());
-        Edges = new ReadOnlyCollection<WordDependencyEdge>(edges.ToArray());
-        Issues = new ReadOnlyCollection<WordDependencyIssue>(issues.ToArray());
+        Nodes = new ReadOnlyCollection<WordDependencyNode>(nodeArray);
+        Edges = new ReadOnlyCollection<WordDependencyEdge>(edgeArray);
+        Issues = new ReadOnlyCollection<WordDependencyIssue>(issueArray);
         Coverage = coverage;
+        ResourceUsage = resourceUsage;
         PackageDiagnosticCount = packageDiagnosticCount;
         StyleIssueCount = styleIssueCount;
         NumberingIssueCount = numberingIssueCount;
@@ -180,11 +275,33 @@ public sealed class WordDependencyGraph
         FigureIssueCount = figureIssueCount;
         ContentControlIssueCount = contentControlIssueCount;
         TableIssueCount = tableIssueCount;
-        _nodesById = new ReadOnlyDictionary<string, WordDependencyNode>(
-            nodes.ToDictionary(node => node.Id, StringComparer.Ordinal)
+        var nodeIndexes = new Dictionary<string, int>(nodeArray.Length, StringComparer.Ordinal);
+        for (var index = 0; index < nodeArray.Length; index++)
+        {
+            if ((index & 4095) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            if (!nodeIndexes.TryAdd(nodeArray[index].Id, index))
+            {
+                throw new WordDependencyProjectionException(
+                    "Dependency graph contains a duplicate node ID."
+                );
+            }
+        }
+        _nodeIndexById = new ReadOnlyDictionary<string, int>(nodeIndexes);
+        (_incomingOffsets, _incomingEdgeIndexes) = BuildAdjacency(
+            nodeIndexes,
+            edgeArray,
+            incoming: true,
+            cancellationToken
         );
-        _incomingByNodeId = BuildAdjacency(edges, edge => edge.TargetNodeId);
-        _outgoingByNodeId = BuildAdjacency(edges, edge => edge.SourceNodeId);
+        (_outgoingOffsets, _outgoingEdgeIndexes) = BuildAdjacency(
+            nodeIndexes,
+            edgeArray,
+            incoming: false,
+            cancellationToken
+        );
     }
 
     public string PackageFingerprint { get; }
@@ -198,6 +315,8 @@ public sealed class WordDependencyGraph
     public IReadOnlyList<WordDependencyIssue> Issues { get; }
 
     public WordDependencyCoverage Coverage { get; }
+
+    public WordDependencyResourceUsage ResourceUsage { get; }
 
     public int PackageDiagnosticCount { get; }
 
@@ -220,40 +339,213 @@ public sealed class WordDependencyGraph
     public bool TryGetNode(string nodeId, out WordDependencyNode? node)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
-        return _nodesById.TryGetValue(nodeId, out node);
+        if (_nodeIndexById.TryGetValue(nodeId, out var index))
+        {
+            node = Nodes[index];
+            return true;
+        }
+        node = null;
+        return false;
     }
 
-    public IReadOnlyList<WordDependencyEdge> Incoming(string nodeId)
+    public IReadOnlyList<WordDependencyEdge> Incoming(string nodeId) =>
+        IncomingView(nodeId);
+
+    public WordDependencyEdgeCollection IncomingView(string nodeId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
-        return _incomingByNodeId.TryGetValue(nodeId, out var edges)
-            ? edges
-            : Array.Empty<WordDependencyEdge>();
+        return _nodeIndexById.TryGetValue(nodeId, out var nodeIndex)
+            ? EdgeCollection(_incomingOffsets, _incomingEdgeIndexes, nodeIndex)
+            : default;
     }
 
-    public IReadOnlyList<WordDependencyEdge> Outgoing(string nodeId)
+    public IReadOnlyList<WordDependencyEdge> Outgoing(string nodeId) =>
+        OutgoingView(nodeId);
+
+    public WordDependencyEdgeCollection OutgoingView(string nodeId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
-        return _outgoingByNodeId.TryGetValue(nodeId, out var edges)
-            ? edges
-            : Array.Empty<WordDependencyEdge>();
+        return _nodeIndexById.TryGetValue(nodeId, out var nodeIndex)
+            ? EdgeCollection(_outgoingOffsets, _outgoingEdgeIndexes, nodeIndex)
+            : default;
     }
 
-    private static IReadOnlyDictionary<string, IReadOnlyList<WordDependencyEdge>>
-        BuildAdjacency(
-            IReadOnlyList<WordDependencyEdge> edges,
-            Func<WordDependencyEdge, string> keySelector
-        ) => new ReadOnlyDictionary<string, IReadOnlyList<WordDependencyEdge>>(
-            edges.GroupBy(keySelector, StringComparer.Ordinal)
-                .ToDictionary(
-                    group => group.Key,
-                    group => (IReadOnlyList<WordDependencyEdge>)group
-                        .OrderBy(edge => edge.Kind)
-                        .ThenBy(edge => edge.Id, StringComparer.Ordinal)
-                        .ToArray(),
-                    StringComparer.Ordinal
-                )
-        );
+    private WordDependencyEdgeCollection EdgeCollection(
+        int[] offsets,
+        int[] edgeIndexes,
+        int nodeIndex
+    ) => new(
+        Edges,
+        edgeIndexes,
+        offsets[nodeIndex],
+        offsets[nodeIndex + 1] - offsets[nodeIndex]
+    );
+
+    private static (int[] Offsets, int[] EdgeIndexes) BuildAdjacency(
+        IReadOnlyDictionary<string, int> nodeIndexes,
+        IReadOnlyList<WordDependencyEdge> edges,
+        bool incoming,
+        CancellationToken cancellationToken
+    )
+    {
+        var offsets = new int[nodeIndexes.Count + 1];
+        for (var edgeIndex = 0; edgeIndex < edges.Count; edgeIndex++)
+        {
+            if ((edgeIndex & 4095) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            var edge = edges[edgeIndex];
+            var nodeId = incoming ? edge.TargetNodeId : edge.SourceNodeId;
+            if (!nodeIndexes.TryGetValue(nodeId, out var nodeIndex))
+            {
+                throw new WordDependencyProjectionException(
+                    "Dependency graph contains an edge with a missing endpoint."
+                );
+            }
+            offsets[nodeIndex + 1]++;
+        }
+        for (var index = 1; index < offsets.Length; index++)
+        {
+            if ((index & 4095) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            offsets[index] += offsets[index - 1];
+        }
+
+        var edgeIndexes = new int[edges.Count];
+        var cursors = (int[])offsets.Clone();
+        for (var edgeIndex = 0; edgeIndex < edges.Count; edgeIndex++)
+        {
+            if ((edgeIndex & 4095) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            var edge = edges[edgeIndex];
+            var nodeId = incoming ? edge.TargetNodeId : edge.SourceNodeId;
+            var nodeIndex = nodeIndexes[nodeId];
+            edgeIndexes[cursors[nodeIndex]++] = edgeIndex;
+        }
+
+        var comparer = Comparer<int>.Create((left, right) =>
+        {
+            var kind = edges[left].Kind.CompareTo(edges[right].Kind);
+            return kind != 0
+                ? kind
+                : StringComparer.Ordinal.Compare(edges[left].Id, edges[right].Id);
+        });
+        for (var nodeIndex = 0; nodeIndex < nodeIndexes.Count; nodeIndex++)
+        {
+            if ((nodeIndex & 4095) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            var offset = offsets[nodeIndex];
+            var count = offsets[nodeIndex + 1] - offset;
+            if (count > 1)
+            {
+                SortAdjacencyRange(
+                    edgeIndexes,
+                    offset,
+                    count,
+                    comparer,
+                    cancellationToken
+                );
+            }
+        }
+        return (offsets, edgeIndexes);
+    }
+
+    private static void SortAdjacencyRange(
+        int[] edgeIndexes,
+        int offset,
+        int count,
+        IComparer<int> comparer,
+        CancellationToken cancellationToken
+    )
+    {
+        const int maximumNonCancellableSort = 4_096;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (count <= maximumNonCancellableSort)
+        {
+            Array.Sort(edgeIndexes, offset, count, comparer);
+            cancellationToken.ThrowIfCancellationRequested();
+            return;
+        }
+
+        // Array.Sort cannot observe a CancellationToken. Use an in-place heap sort only
+        // for very high-degree nodes so cancellation stays bounded without allocating a
+        // second segment-sized scratch array.
+        for (var root = count / 2 - 1; root >= 0; root--)
+        {
+            if ((root & 1023) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            SiftDown(edgeIndexes, offset, root, count, comparer);
+        }
+        for (var end = count - 1; end > 0; end--)
+        {
+            if ((end & 1023) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            (edgeIndexes[offset], edgeIndexes[offset + end]) = (
+                edgeIndexes[offset + end],
+                edgeIndexes[offset]
+            );
+            SiftDown(edgeIndexes, offset, 0, end, comparer);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    private static void SiftDown(
+        int[] edgeIndexes,
+        int offset,
+        int root,
+        int count,
+        IComparer<int> comparer
+    )
+    {
+        while (true)
+        {
+            var child = checked(root * 2 + 1);
+            if (child >= count)
+            {
+                return;
+            }
+            var candidate = root;
+            if (
+                comparer.Compare(
+                    edgeIndexes[offset + candidate],
+                    edgeIndexes[offset + child]
+                ) < 0
+            )
+            {
+                candidate = child;
+            }
+            if (
+                child + 1 < count
+                && comparer.Compare(
+                    edgeIndexes[offset + candidate],
+                    edgeIndexes[offset + child + 1]
+                ) < 0
+            )
+            {
+                candidate = child + 1;
+            }
+            if (candidate == root)
+            {
+                return;
+            }
+            (edgeIndexes[offset + root], edgeIndexes[offset + candidate]) = (
+                edgeIndexes[offset + candidate],
+                edgeIndexes[offset + root]
+            );
+            root = candidate;
+        }
+    }
 }
 
 public sealed record WordDependencyGraphOptions
@@ -267,6 +559,10 @@ public sealed record WordDependencyGraphOptions
     public int MaxIssues { get; init; } = 10_000;
 
     public int MaxKeyCharacters { get; init; } = 65_536;
+
+    public int MaxMetadataCharacters { get; init; } = 65_536;
+
+    public long MaxAccountedBytes { get; init; } = 128L * 1024 * 1024;
 
     internal void Validate()
     {
@@ -285,6 +581,14 @@ public sealed record WordDependencyGraphOptions
         if (MaxKeyCharacters <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(MaxKeyCharacters));
+        }
+        if (MaxMetadataCharacters <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxMetadataCharacters));
+        }
+        if (MaxAccountedBytes <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxAccountedBytes));
         }
     }
 }
@@ -582,7 +886,7 @@ public sealed class WordDependencyGraphBuilder
             cancellationToken
         );
 
-        var (nodes, edges, issues) = state.Materialize();
+        var (nodes, edges, issues, resourceUsage) = state.Materialize();
         return new WordDependencyGraph(
             package.Fingerprint,
             semanticDocument.MainPartUri,
@@ -602,6 +906,8 @@ public sealed class WordDependencyGraphBuilder
                 TablesAndCellTopology: true,
                 ExplicitlyUnmodeledDomains
             ),
+            resourceUsage,
+            cancellationToken,
             package.Diagnostics.Count,
             styles.Issues.Count,
             numbering.Issues.Count,
@@ -2617,11 +2923,18 @@ public sealed class WordDependencyGraphBuilder
 
     private sealed class BuildState
     {
+        private const long BaseAccountedBytes = 4_096;
+        private const long NodeFixedAccountedBytes = 320;
+        private const long EdgeFixedAccountedBytes = 352;
+        private const long IssueFixedAccountedBytes = 192;
+        private const string AccountingModel = "dependency_graph_accounted_v1";
+
         private readonly WordDependencyGraphOptions _options;
         private readonly Dictionary<NodeKey, NodeDraft> _nodes = new();
         private readonly HashSet<string> _nodeIds = new(StringComparer.Ordinal);
         private readonly Dictionary<string, EdgeDraft> _edges = new(StringComparer.Ordinal);
         private readonly List<WordDependencyIssue> _issues = [];
+        private long _accountedBytes = BaseAccountedBytes;
 
         public BuildState(WordDependencyGraphOptions options)
         {
@@ -2646,9 +2959,13 @@ public sealed class WordDependencyGraphBuilder
                     $"A dependency key exceeds {_options.MaxKeyCharacters} characters."
                 );
             }
+            EnsureMetadataLength(partUri);
+            EnsureMetadataLength(semanticNodeId?.Value);
             var nodeKey = new NodeKey(kind, key);
             if (_nodes.TryGetValue(nodeKey, out var existing))
             {
+                ChargeOptionalMetadata(existing.PartUri, partUri);
+                ChargeOptionalMetadata(existing.SemanticNodeId?.Value, semanticNodeId?.Value);
                 existing.IsResolved |= isResolved;
                 existing.IsExternal |= isExternal;
                 existing.IsPackageReachable |= isPackageReachable;
@@ -2665,6 +2982,13 @@ public sealed class WordDependencyGraphBuilder
                 );
             }
             var id = StableId("wddn_", kind.ToString(), key);
+            Charge(
+                NodeFixedAccountedBytes
+                    + AccountedStringBytes(id)
+                    + AccountedStringBytes(key)
+                    + AccountedStringBytes(partUri)
+                    + AccountedStringBytes(semanticNodeId?.Value)
+            );
             if (!_nodeIds.Add(id))
             {
                 throw new WordDependencyProjectionException(
@@ -2699,6 +3023,10 @@ public sealed class WordDependencyGraphBuilder
             string? relationshipType = null
         )
         {
+            EnsureMetadataLength(qualifier);
+            EnsureMetadataLength(partUri);
+            EnsureMetadataLength(relationshipId);
+            EnsureMetadataLength(relationshipType);
             var id = StableId(
                 "wdde_",
                 kind.ToString(),
@@ -2737,6 +3065,16 @@ public sealed class WordDependencyGraphBuilder
                     $"Dependency graph exceeds the {_options.MaxEdges}-edge limit."
                 );
             }
+            Charge(
+                EdgeFixedAccountedBytes
+                    + AccountedStringBytes(id)
+                    + AccountedStringBytes(sourceNodeId)
+                    + AccountedStringBytes(targetNodeId)
+                    + AccountedStringBytes(qualifier)
+                    + AccountedStringBytes(partUri)
+                    + AccountedStringBytes(relationshipId)
+                    + AccountedStringBytes(relationshipType)
+            );
             _edges[id] = new EdgeDraft(
                 id,
                 kind,
@@ -2763,12 +3101,25 @@ public sealed class WordDependencyGraphBuilder
             int? sourceElementOrdinal = null
         )
         {
+            EnsureMetadataLength(code);
+            EnsureMetadataLength(message);
+            EnsureMetadataLength(nodeId);
+            EnsureMetadataLength(edgeId);
+            EnsureMetadataLength(partUri);
             if (_issues.Count >= _options.MaxIssues)
             {
                 throw new WordDependencyLimitException(
                     $"Dependency graph exceeds the {_options.MaxIssues}-issue limit."
                 );
             }
+            Charge(
+                IssueFixedAccountedBytes
+                    + AccountedStringBytes(code)
+                    + AccountedStringBytes(message)
+                    + AccountedStringBytes(nodeId)
+                    + AccountedStringBytes(edgeId)
+                    + AccountedStringBytes(partUri)
+            );
             _issues.Add(
                 new WordDependencyIssue(
                     code,
@@ -2785,7 +3136,8 @@ public sealed class WordDependencyGraphBuilder
         public (
             IReadOnlyList<WordDependencyNode> Nodes,
             IReadOnlyList<WordDependencyEdge> Edges,
-            IReadOnlyList<WordDependencyIssue> Issues
+            IReadOnlyList<WordDependencyIssue> Issues,
+            WordDependencyResourceUsage ResourceUsage
         ) Materialize()
         {
             var nodes = _nodes.Values
@@ -2800,15 +3152,10 @@ public sealed class WordDependencyGraphBuilder
                 .ThenBy(edge => edge.Id, StringComparer.Ordinal)
                 .Select(edge => edge.ToRecord())
                 .ToArray();
-            var nodeIds = nodes.Select(node => node.Id).ToHashSet(StringComparer.Ordinal);
-            if (edges.Any(edge =>
-                !nodeIds.Contains(edge.SourceNodeId) || !nodeIds.Contains(edge.TargetNodeId)
-            ))
-            {
-                throw new WordDependencyProjectionException(
-                    "Dependency graph contains an edge with a missing endpoint."
-                );
-            }
+            var adjacencyIndexBytes = checked(
+                ((long)nodes.Length + 1L) * 2L * sizeof(int)
+                    + (long)edges.Length * 2L * sizeof(int)
+            );
             return (
                 nodes,
                 edges,
@@ -2816,8 +3163,56 @@ public sealed class WordDependencyGraphBuilder
                     .ThenBy(issue => issue.Code, StringComparer.Ordinal)
                     .ThenBy(issue => issue.EdgeId, StringComparer.Ordinal)
                     .ThenBy(issue => issue.NodeId, StringComparer.Ordinal)
-                    .ToArray()
+                    .ToArray(),
+                new WordDependencyResourceUsage(
+                    AccountingModel,
+                    _accountedBytes,
+                    _options.MaxAccountedBytes,
+                    nodes.Length,
+                    edges.Length,
+                    _issues.Count,
+                    adjacencyIndexBytes
+                )
             );
+        }
+
+        private void ChargeOptionalMetadata(string? existing, string? candidate)
+        {
+            if (existing is null && candidate is not null)
+            {
+                Charge(AccountedStringBytes(candidate));
+            }
+        }
+
+        private void EnsureMetadataLength(string? value)
+        {
+            if (value is not null && value.Length > _options.MaxMetadataCharacters)
+            {
+                throw new WordDependencyLimitException(
+                    $"A dependency metadata value exceeds {_options.MaxMetadataCharacters} characters."
+                );
+            }
+        }
+
+        private void Charge(long bytes)
+        {
+            if (bytes < 0 || _accountedBytes > _options.MaxAccountedBytes - bytes)
+            {
+                throw new WordDependencyLimitException(
+                    $"Dependency graph exceeds the {_options.MaxAccountedBytes}-byte accounted budget."
+                );
+            }
+            _accountedBytes += bytes;
+        }
+
+        private static long AccountedStringBytes(string? value)
+        {
+            if (value is null)
+            {
+                return 0;
+            }
+            var unaligned = checked(24L + (long)value.Length * sizeof(char));
+            return checked((unaligned + 7L) & ~7L);
         }
 
         private sealed class NodeDraft(

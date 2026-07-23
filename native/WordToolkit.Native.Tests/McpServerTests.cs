@@ -44,7 +44,7 @@ public sealed class McpServerTests
                 .GetString()
         );
         Assert.Equal(
-            "0.37.0",
+            "0.38.0",
             responses[0].RootElement
                 .GetProperty("result")
                 .GetProperty("serverInfo")
@@ -631,6 +631,54 @@ public sealed class McpServerTests
             );
             Assert.True(kindsSchema.GetProperty("uniqueItems").GetBoolean());
         }
+    }
+
+    [Fact]
+    public void DependencySchemaCoversEveryEngineNodeAndEdgeKind()
+    {
+        var catalog = ToolCatalog.LoadNativeWordTools();
+        var serialized = catalog
+            .InspectAction("inspect_ooxml_dependencies")
+            .ToJsonString();
+        Assert.True(
+            serialized.Length < 10_000,
+            $"Dependency schema is too large: {serialized.Length} characters"
+        );
+        using var document = JsonDocument.Parse(serialized);
+        var properties = document.RootElement
+            .GetProperty("tool")
+            .GetProperty("inputSchema")
+            .GetProperty("properties");
+        var nodeKinds = properties
+            .GetProperty("node_kind")
+            .GetProperty("enum")
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var edgeKinds = properties
+            .GetProperty("edge_kind")
+            .GetProperty("enum")
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            Enum.GetNames<WordDependencyNodeKind>()
+                .Select(ToSnakeCase)
+                .Order(StringComparer.Ordinal),
+            nodeKinds
+        );
+        Assert.Equal(
+            Enum.GetNames<WordDependencyEdgeKind>()
+                .Select(ToSnakeCase)
+                .Order(StringComparer.Ordinal),
+            edgeKinds
+        );
+        Assert.False(
+            properties.GetProperty("include_issues").GetProperty("default").GetBoolean()
+        );
     }
 
     private static string ToSnakeCase(string value)

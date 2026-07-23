@@ -1,0 +1,76 @@
+{
+  "schema": "wordtoolkit-engine-benchmark-series-v1",
+  "scenario": "dependency_graph",
+  "engine_version": "0.38.0",
+  "runtime": ".NET 8.0.29",
+  "operating_system": "Microsoft Windows 10.0.19045",
+  "architecture": "X64",
+  "processor_count": 12,
+  "server_gc": false,
+  "sample_count": 5,
+  "fixture": {
+    "requested_nodes": 100000,
+    "paragraphs": 33330,
+    "package_bytes": 186299,
+    "package_parts": 3,
+    "semantic_nodes": 99993,
+    "dependency_nodes": 99997,
+    "dependency_edges": 99996,
+    "issues": 0
+  },
+  "resource_usage": {
+    "accounting_model": "dependency_graph_accounted_v1",
+    "accounted_bytes": 130132744,
+    "maximum_accounted_bytes": 134217728,
+    "adjacency_index_bytes": 1599952
+  },
+  "samples": [
+    {
+      "utc": "2026-07-23T11:40:31.5075058+00:00",
+      "dependency_build_ms": 2954.0962,
+      "measured_total_ms": 5438.7306,
+      "retained_managed_delta_bytes": 195533712,
+      "allocated_delta_bytes": 1608798960,
+      "process_peak_working_set_bytes": 578797568
+    },
+    {
+      "utc": "2026-07-23T11:40:37.5220913+00:00",
+      "dependency_build_ms": 2933.6268,
+      "measured_total_ms": 5432.5835,
+      "retained_managed_delta_bytes": 195332176,
+      "allocated_delta_bytes": 1608715984,
+      "process_peak_working_set_bytes": 576376832
+    },
+    {
+      "utc": "2026-07-23T11:40:43.6286682+00:00",
+      "dependency_build_ms": 3022.8188,
+      "measured_total_ms": 5515.4921,
+      "retained_managed_delta_bytes": 195381520,
+      "allocated_delta_bytes": 1608727168,
+      "process_peak_working_set_bytes": 570970112
+    },
+    {
+      "utc": "2026-07-23T11:40:49.6084345+00:00",
+      "dependency_build_ms": 2977.5971,
+      "measured_total_ms": 5402.4263,
+      "retained_managed_delta_bytes": 195504880,
+      "allocated_delta_bytes": 1608777304,
+      "process_peak_working_set_bytes": 585220096
+    },
+    {
+      "utc": "2026-07-23T11:40:55.5802272+00:00",
+      "dependency_build_ms": 2946.8825,
+      "measured_total_ms": 5382.3221,
+      "retained_managed_delta_bytes": 195286992,
+      "allocated_delta_bytes": 1608709448,
+      "process_peak_working_set_bytes": 575926272
+    }
+  ],
+  "median": {
+    "dependency_build_ms": 2954.0962,
+    "measured_total_ms": 5432.5835,
+    "retained_managed_delta_bytes": 195381520,
+    "allocated_delta_bytes": 1608727168,
+    "process_peak_working_set_bytes": 576376832
+  }
+}

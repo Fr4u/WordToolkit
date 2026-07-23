@@ -136,7 +136,9 @@ Use lazy `inspect_ooxml_dependencies` when the task asks what depends on a part,
 semantic object, style, numbering definition, field target or section story. Start with
 `view=summary`; use `view=nodes` only to obtain one stable `wddn_` ID, then request a
 bounded `impact` neighborhood or filtered `edges`/`unresolved` page. Keep keys and source
-metadata redacted unless the next operation consumes them. The graph joins the
+metadata redacted unless the next operation consumes them. Diagnostic items are omitted
+by default; use `include_issues=true` or `view=issues` only when they drive the next
+decision. The graph joins the
 explicitly reported OPC, semantic-containment, style, numbering, reference, section,
 classic-chart, logical-figure/representation/resource/caption, content-control,
 physical/built-in XML-store, binding-target and repeating-section domains plus
@@ -144,6 +146,10 @@ nested-table and vertical-merge topology. Its
 `explicitly_unmodeled_domains` list is a hard coverage
 boundary: absence of an edge for advanced drawing layout, SmartArt, OLE, bibliography, active content,
 signatures, encryption or co-authoring is not proof that the dependency does not exist.
+The summary's `byte_budget` is a graph-local deterministic accounting boundary. Treat a
+`PACKAGE_LIMIT` as a hard stop; do not retry with broader output or claim the whole
+pipeline has a resident-memory ceiling. The Engine uses compact offset/index adjacency,
+but upstream semantic and typed projections still have independent limits.
 This action never opens Word, executes a field, follows an external target, repairs a
 document or authorizes deleting an apparently unused node.
 Use lazy `inspect_ooxml_figures` instead of reading `w:drawing`, `w:pict`, `w:object`,

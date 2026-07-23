@@ -59,7 +59,7 @@ internal sealed partial class WordLiveService
         }
         var includeKeys = arguments.Boolean("include_keys", false);
         var includeSource = arguments.Boolean("include_source", false);
-        var includeIssues = arguments.Boolean("include_issues", true);
+        var includeIssues = arguments.Boolean("include_issues", false);
         var nodeId = BoundedOptionalArgument(arguments, "node_id", 128);
         if (view == "impact" && nodeId is null)
         {
@@ -191,6 +191,12 @@ internal sealed partial class WordLiveService
                 issues = issuePage,
                 issues_truncated = issuePage is not null
                     && graph.Issues.Count > issuePage.Length,
+                byte_budget = new
+                {
+                    model = "wdg1",
+                    used = graph.ResourceUsage.AccountedBytes,
+                    maximum = graph.ResourceUsage.MaximumAccountedBytes,
+                },
                 runtime = "dotnet-native",
                 python_used = false,
                 performance = new
@@ -458,33 +464,29 @@ internal sealed partial class WordLiveService
             {
                 continue;
             }
-            var adjacent = direction switch
+            if (direction is "incoming" or "both")
             {
-                "incoming" => graph.Incoming(current.NodeId),
-                "outgoing" => graph.Outgoing(current.NodeId),
-                _ => graph.Incoming(current.NodeId)
-                    .Concat(graph.Outgoing(current.NodeId))
-                    .ToArray(),
-            };
-            foreach (var edge in adjacent)
+                VisitDependencyEdges(
+                    graph.IncomingView(current.NodeId),
+                    current.NodeId,
+                    current.Depth + 1,
+                    visitedNodes,
+                    visitedEdges,
+                    frontier,
+                    cancellationToken
+                );
+            }
+            if (direction is "outgoing" or "both")
             {
-                if (
-                    !visitedEdges.ContainsKey(edge.Id)
-                    && visitedEdges.Count >= MaxDependencyTraversalEdges
-                )
-                {
-                    throw new WordDependencyLimitException(
-                        $"Impact traversal exceeds the {MaxDependencyTraversalEdges}-edge limit."
-                    );
-                }
-                visitedEdges.TryAdd(edge.Id, edge);
-                var nextNodeId = edge.SourceNodeId == current.NodeId
-                    ? edge.TargetNodeId
-                    : edge.SourceNodeId;
-                if (visitedNodes.Add(nextNodeId))
-                {
-                    frontier.Enqueue((nextNodeId, current.Depth + 1));
-                }
+                VisitDependencyEdges(
+                    graph.OutgoingView(current.NodeId),
+                    current.NodeId,
+                    current.Depth + 1,
+                    visitedNodes,
+                    visitedEdges,
+                    frontier,
+                    cancellationToken
+                );
             }
         }
         return visitedEdges.Values
@@ -493,6 +495,43 @@ internal sealed partial class WordLiveService
             .ThenBy(edge => edge.TargetNodeId, StringComparer.Ordinal)
             .ThenBy(edge => edge.Id, StringComparer.Ordinal)
             .ToArray();
+    }
+
+    private static void VisitDependencyEdges(
+        WordDependencyEdgeCollection adjacent,
+        string currentNodeId,
+        int nextDepth,
+        HashSet<string> visitedNodes,
+        Dictionary<string, WordDependencyEdge> visitedEdges,
+        Queue<(string NodeId, int Depth)> frontier,
+        CancellationToken cancellationToken
+    )
+    {
+        var scanned = 0;
+        foreach (var edge in adjacent)
+        {
+            if ((scanned++ & 1023) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            if (
+                !visitedEdges.ContainsKey(edge.Id)
+                && visitedEdges.Count >= MaxDependencyTraversalEdges
+            )
+            {
+                throw new WordDependencyLimitException(
+                    $"Impact traversal exceeds the {MaxDependencyTraversalEdges}-edge limit."
+                );
+            }
+            visitedEdges.TryAdd(edge.Id, edge);
+            var nextNodeId = edge.SourceNodeId == currentNodeId
+                ? edge.TargetNodeId
+                : edge.SourceNodeId;
+            if (visitedNodes.Add(nextNodeId))
+            {
+                frontier.Enqueue((nextNodeId, nextDepth));
+            }
+        }
     }
 
     private static object DependencyNodeItem(
@@ -514,8 +553,8 @@ internal sealed partial class WordLiveService
         semantic_kind = node.SemanticKind is null
             ? null
             : ToSnakeCase(node.SemanticKind.Value.ToString()),
-        incoming_edge_count = graph.Incoming(node.Id).Count,
-        outgoing_edge_count = graph.Outgoing(node.Id).Count,
+        incoming_edge_count = graph.IncomingView(node.Id).Count,
+        outgoing_edge_count = graph.OutgoingView(node.Id).Count,
         part_uri = includeSource ? BoundForResponse(node.PartUri, 512) : null,
         source_element_ordinal = includeSource
             ? node.SourceElementOrdinal

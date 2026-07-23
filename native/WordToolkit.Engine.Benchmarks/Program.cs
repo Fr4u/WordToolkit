@@ -69,7 +69,12 @@ static object RunGraph(Arguments options)
             ).Project(package!)
         );
         var build = Measure(() =>
-            graph = new WordDependencyGraphBuilder().Build(package!, semantic!)
+            graph = new WordDependencyGraphBuilder(
+                new WordDependencyGraphOptions
+                {
+                    MaxAccountedBytes = checked((long)options.GraphBudgetMiB * 1024 * 1024),
+                }
+            ).Build(package!, semantic!)
         );
         var final = MemorySnapshot.Capture();
         GC.KeepAlive(graph);
@@ -85,6 +90,13 @@ static object RunGraph(Arguments options)
                 dependency_nodes = graph!.Nodes.Count,
                 dependency_edges = graph.Edges.Count,
                 issues = graph.Issues.Count,
+                resource_usage = new
+                {
+                    accounting_model = graph.ResourceUsage.AccountingModel,
+                    accounted_bytes = graph.ResourceUsage.AccountedBytes,
+                    maximum_accounted_bytes = graph.ResourceUsage.MaximumAccountedBytes,
+                    adjacency_index_bytes = graph.ResourceUsage.AdjacencyIndexBytes,
+                },
                 timings_ms = new
                 {
                     generate = generation.TotalMilliseconds,
@@ -1114,6 +1126,7 @@ internal sealed record Arguments(
     int TargetNodes,
     int PayloadMiB,
     int Parts,
+    int GraphBudgetMiB,
     string? Output
 )
 {
@@ -1122,7 +1135,7 @@ internal sealed record Arguments(
         if (args.Length == 0)
         {
             throw new ArgumentException(
-                "usage: graph --target-nodes N | bindings --target-nodes N | tables --target-nodes N | figures --target-nodes N | mce --target-nodes N | semantic-html --target-nodes N | semantic-svg --target-nodes N | patch --payload-mib N [--parts N]"
+                "usage: graph --target-nodes N [--graph-budget-mib N] | bindings --target-nodes N | tables --target-nodes N | figures --target-nodes N | mce --target-nodes N | semantic-html --target-nodes N | semantic-svg --target-nodes N | patch --payload-mib N [--parts N]"
             );
         }
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -1139,6 +1152,7 @@ internal sealed record Arguments(
             IntValue(values, "target-nodes", 10_000),
             IntValue(values, "payload-mib", 16),
             IntValue(values, "parts", 16),
+            IntValue(values, "graph-budget-mib", 128),
             values.GetValueOrDefault("output")
         );
     }

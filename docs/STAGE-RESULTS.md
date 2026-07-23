@@ -1,5 +1,39 @@
 # Stage results
 
+## WordToolkit 0.38.0 dependency-graph byte boundary — 2026-07-23
+
+- Replaced two eager dictionaries of per-node edge arrays with compact incoming and
+  outgoing compressed-row offset/index arrays. The public typed adjacency view preserves
+  deterministic kind/ID order without allocating a list for every node; endpoint checks
+  and cancellation remain fail-closed.
+- Added the deterministic `dependency_graph_accounted_v1` model. Production rejects
+  before retaining an item that would cross 128 MiB and independently caps keys and
+  metadata at 65,536 characters. The MCP response exposes only
+  `byte_budget: {model, used, maximum}` and stays inside the existing sub-8,000-character
+  full-envelope regression gate.
+- The exact-budget regression rebuilds one graph with a ceiling one byte below its
+  measured usage and requires `WordDependencyLimitException`. Compact incoming/outgoing
+  ordering, missing-node empties, option validation and Native summary disclosure are
+  covered. Full local results are 429/429 Engine, 281/281 Native and 1279/1279 Python
+  passed with 16 intentional Python skips; Ruff and mypy are clean.
+- Five cold-process 99,997-node/99,996-edge Windows x64 samples per version account
+  130,132,744 of 134,217,728 bytes and use exactly 1,599,952 adjacency-index bytes.
+  Against 0.37.0, median retained managed memory fell 16.8%, managed allocations 4.2%,
+  dependency-build time 9.0% and total measured time 5.4%. Median peak working set was
+  effectively flat (+0.1%), so no peak-memory reduction is claimed.
+- This closes only the dependency graph's own missing byte boundary. The semantic and
+  typed source graphs are still constructed first under independent limits; a shared
+  operation-wide resource lease and immutable parsed-story storage remain open work.
+- Two pinned .NET SDK 8.0.423 builds produced byte-identical 196-file, 85,730,528-byte
+  trees and 36,372,963-byte ZIPs at SHA-256
+  `69c3406b238590dae096370a550ff6902352972cbe942b2344e2d80dca1e0541`.
+  The personal marketplace and enabled 0.38.0 cache have zero path/length/hash
+  differences. Installed capability discovery reports runtime 0.38.0 and 90 actions.
+  A packaged MCP smoke test over `pandoc_image_vml.docx` returns 119 nodes, 175 edges,
+  `wdg1` usage 194,760/134,217,728 bytes and a 7,526-character call response while
+  omitting six diagnostic items by default, keeping Word closed and leaving external
+  targets unfollowed.
+
 ## WordToolkit 0.37.0 Figure/Caption graph — 2026-07-23
 
 - Added a fingerprint-bound logical Figure/Caption graph, conservative
@@ -21,8 +55,9 @@
 - Independent red teams found and forced fixes for quadratic relationship lookup,
   hidden VML direct targets, mixed revisions, false MCE primacy, foreign namespaces,
   unbounded QName collection, input-schema drift, repeated issue previews and error
-  provenance leaks. The remaining system-level dependency graph lacks a byte budget;
-  this slice does not pretend otherwise.
+  provenance leaks. At this 0.37.0 checkpoint the system-level dependency graph still
+  lacked a byte budget; 0.38.0 closes that graph-local gap without claiming a
+  whole-pipeline memory ceiling.
 
 ## WordToolkit 0.36.0 exact-target semantic SVG — 2026-07-23
 

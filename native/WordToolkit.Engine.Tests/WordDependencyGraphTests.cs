@@ -413,6 +413,134 @@ public sealed class WordDependencyGraphTests
         );
     }
 
+    [Fact]
+    public void EnforcesDeterministicAccountedByteBudgetAndReportsCompactAdjacency()
+    {
+        using var bytes = BuildPackage(
+            documentBody: "<w:p><w:r><w:t>Bounded</w:t></w:r></w:p>",
+            stylesXml: """
+            <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+            """,
+            headerXml: "<w:p><w:r><w:t>Header</w:t></w:r></w:p>"
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+
+        var first = new WordDependencyGraphBuilder().Build(package, semantic);
+        var second = new WordDependencyGraphBuilder().Build(package, semantic);
+
+        Assert.Equal("dependency_graph_accounted_v1", first.ResourceUsage.AccountingModel);
+        Assert.Equal(first.ResourceUsage.AccountedBytes, second.ResourceUsage.AccountedBytes);
+        Assert.Equal(first.Nodes.Count, first.ResourceUsage.NodeCount);
+        Assert.Equal(first.Edges.Count, first.ResourceUsage.EdgeCount);
+        Assert.Equal(first.Issues.Count, first.ResourceUsage.IssueCount);
+        Assert.Equal(
+            ((long)first.Nodes.Count + 1L) * 2L * sizeof(int)
+                + (long)first.Edges.Count * 2L * sizeof(int),
+            first.ResourceUsage.AdjacencyIndexBytes
+        );
+        Assert.InRange(
+            first.ResourceUsage.AccountedBytes,
+            first.ResourceUsage.AdjacencyIndexBytes + 1,
+            first.ResourceUsage.MaximumAccountedBytes
+        );
+
+        foreach (var node in first.Nodes)
+        {
+            Assert.Equal(
+                first.Edges.Where(edge => edge.TargetNodeId == node.Id)
+                    .OrderBy(edge => edge.Kind)
+                    .ThenBy(edge => edge.Id, StringComparer.Ordinal)
+                    .Select(edge => edge.Id),
+                first.IncomingView(node.Id).Select(edge => edge.Id)
+            );
+            Assert.Equal(
+                first.Edges.Where(edge => edge.SourceNodeId == node.Id)
+                    .OrderBy(edge => edge.Kind)
+                    .ThenBy(edge => edge.Id, StringComparer.Ordinal)
+                    .Select(edge => edge.Id),
+                first.OutgoingView(node.Id).Select(edge => edge.Id)
+            );
+        }
+        Assert.Empty(first.IncomingView("wddn_missing"));
+        Assert.Empty(first.OutgoingView("wddn_missing"));
+        var enumerator = first.Edges.Count > 0
+            ? first.OutgoingView(first.Edges[0].SourceNodeId).GetEnumerator()
+            : default;
+        Assert.Throws<InvalidOperationException>(() => _ = enumerator.Current);
+        while (enumerator.MoveNext()) { }
+        Assert.Throws<InvalidOperationException>(() => _ = enumerator.Current);
+
+        var allocationView = first.OutgoingView(first.Edges[0].SourceNodeId);
+        var observed = 0;
+        foreach (var edge in allocationView)
+        {
+            observed += edge.IsResolved ? 1 : 0;
+        }
+        var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        for (var iteration = 0; iteration < 10_000; iteration++)
+        {
+            foreach (var edge in allocationView)
+            {
+                observed += edge.IsResolved ? 1 : 0;
+            }
+        }
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - allocatedBefore);
+        GC.KeepAlive(observed);
+
+        var exception = Assert.Throws<WordDependencyLimitException>(() =>
+            new WordDependencyGraphBuilder(
+                new WordDependencyGraphOptions
+                {
+                    MaxAccountedBytes = first.ResourceUsage.AccountedBytes - 1,
+                }
+            ).Build(package, semantic)
+        );
+        Assert.Contains("accounted budget", exception.Message, StringComparison.Ordinal);
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new WordDependencyGraphBuilder(
+                new WordDependencyGraphOptions { MaxAccountedBytes = 0 }
+            )
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new WordDependencyGraphBuilder(
+                new WordDependencyGraphOptions { MaxMetadataCharacters = 0 }
+            )
+        );
+        Assert.Throws<WordDependencyLimitException>(() =>
+            new WordDependencyGraphBuilder(
+                new WordDependencyGraphOptions { MaxMetadataCharacters = 8 }
+            ).Build(package, semantic)
+        );
+    }
+
+    [Fact]
+    public void HighDegreeAdjacencyRetainsDeterministicOrdering()
+    {
+        var body = string.Concat(
+            Enumerable.Range(0, 4_100)
+                .Select(index =>
+                    $"<w:p><w:r><w:t>Paragraph {index}</w:t></w:r></w:p>"
+                )
+        );
+        using var bytes = BuildPackage(documentBody: body);
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+        var graph = new WordDependencyGraphBuilder().Build(package, semantic);
+        var highDegreeNode = Assert.Single(
+            graph.Nodes,
+            node => graph.OutgoingView(node.Id).Count > 4_096
+        );
+
+        Assert.Equal(
+            graph.Edges.Where(edge => edge.SourceNodeId == highDegreeNode.Id)
+                .OrderBy(edge => edge.Kind)
+                .ThenBy(edge => edge.Id, StringComparer.Ordinal)
+                .Select(edge => edge.Id),
+            graph.OutgoingView(highDegreeNode.Id).Select(edge => edge.Id)
+        );
+    }
+
     private static MemoryStream BuildPackage(
         string documentBody,
         string? stylesXml = null,

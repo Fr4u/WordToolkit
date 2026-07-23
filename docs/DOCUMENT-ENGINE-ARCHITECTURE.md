@@ -672,9 +672,22 @@ part URI, XML element ordinal, relationship metadata and semantic node identity 
 available as opt-in provenance.
 
 The builder binds every input graph to one exact package fingerprint, uses constant-time
-stable-ID collision checks, enforces node, edge, key and issue budgets, checks
-cancellation during traversal, and never executes a field or follows an external
-relationship. Coverage is explicit. Advanced DrawingML/VML layout, SmartArt, OLE, bibliography
+stable-ID collision checks, enforces node, edge, key, metadata, issue and deterministic
+accounted-byte budgets, checks cancellation during traversal and compact adjacency
+construction, and never executes a field or follows an external relationship. The
+default 128 MiB `dependency_graph_accounted_v1` budget charges fixed object/index costs
+and aligned UTF-16 string storage before retaining each item. It is a stable conservative
+allocation proxy for this graph, not an exact CLR heap or whole-operation resident-memory
+limit.
+
+Incoming and outgoing adjacency use compressed-row offset and edge-index arrays rather
+than two dictionaries of per-node edge arrays. Direct adjacency views do not allocate.
+The Engine reports the complete accounting and exact adjacency-index bytes; the lazy MCP
+summary returns only the compact `{model, used, maximum}` byte-budget tuple. Research,
+formulas and paired measurements are recorded in
+`RESEARCH-DEPENDENCY-GRAPH-MEMORY-2026.md`.
+
+Coverage is explicit. Advanced DrawingML/VML layout, SmartArt, OLE, bibliography
 sources, active content, signatures, encryption and co-authoring sessions are still
 outside this graph. Office 2016 extended charts are preserved and
 diagnosed, but are not projected as classic chart nodes.
