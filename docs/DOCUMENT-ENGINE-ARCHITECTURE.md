@@ -934,15 +934,16 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are two proved migration seams, not a claim that all 85 actions already have
-public SDK operations. Per-operation JSON output schemas, a generic dispatcher and the
-remaining operation migrations are still open work.
+These are proved migration seams, not a claim that all 85 actions already have public SDK
+operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
+projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
+dispatcher and the remaining operation migrations are still open work.
 
-This is deliberately honest about what is still absent. `metadata_coverage` reports
-zero explicit output schemas, permissions, reversibility records and per-operation
-versions until those become canonical source data. Those fields are not inferred from
-operation names. Format support is labelled operation-specific, and full input schemas
-remain behind `inspect_wordtoolkit_action`. The normative JSON shape is
+This is deliberately honest about what is still absent. `metadata_coverage` reports one
+explicit output schema, permission record, reversibility record and per-operation version
+for the semantic query; the other 84 actions remain uncovered. Those fields are not
+inferred from operation names. Format support is labelled operation-specific, and full
+input/output schemas remain behind `inspect_wordtoolkit_action`. The normative JSON shape is
 `schemas/wordtoolkit-capabilities.v1.schema.json`; the runtime embeds and hashes it.
 
 Responses default to summaries and stable handles. Raw XML, full text, binary payloads,
@@ -959,7 +960,12 @@ break node boundaries instead of flattening the document into one giant string.
 Relationship evaluation propagates matching ancestry and descendant presence through
 the semantic tree in linear time; it does not perform a per-candidate tree walk.
 Results are source-ordered, offset-paged, preview-bounded, and omit properties and
-source provenance unless requested.
+source provenance unless requested. The public result preserves stable node IDs while
+adding high-level object category, story context, child count, identity mode and explicit
+disclosure flags. Property output redacts author/name/date/GUID/field-instruction/anchor
+values unless the caller supplies a second sensitive-data opt-in. A local package
+fingerprint can guard a direct read against stale state. No query path returns raw XML,
+follows external relationships or opens Word.
 
 Repeated queries can now bind to a `WordSemanticIndex` created through lazy
 `manage_ooxml_semantic_index`. The immutable index stores postings for semantic kind,
@@ -980,7 +986,8 @@ The current native mapping is therefore:
 
 - `document.capabilities` -> core `get_wordtoolkit_capabilities` or native
   `capabilities --format json`, with identical canonical data;
-- `document.query` -> lazy `query_ooxml_semantics`, optionally over a handle from
+- `document.query` -> public `QueryWordPackageOperation`, `query-package` JSON CLI and
+  lazy `query_ooxml_semantics`, optionally over a handle from
   `manage_ooxml_semantic_index`;
 - style-map inspection -> lazy `inspect_ooxml_styles`;
 - numbering inventory/effective-level resolution -> lazy `inspect_ooxml_numbering`;

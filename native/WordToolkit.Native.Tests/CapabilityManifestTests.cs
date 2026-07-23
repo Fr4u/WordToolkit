@@ -46,9 +46,10 @@ public sealed class CapabilityManifestTests
         Assert.Equal(12, manifest["paging"]!["next_offset"]!.GetValue<int>());
         Assert.Equal(85, manifest["metadata_coverage"]!["input_schema"]!.GetValue<int>());
         Assert.Equal(85, manifest["metadata_coverage"]!["mcp_effect_annotations"]!.GetValue<int>());
-        Assert.Equal(0, manifest["metadata_coverage"]!["explicit_output_schema"]!.GetValue<int>());
-        Assert.Equal(0, manifest["metadata_coverage"]!["explicit_permissions"]!.GetValue<int>());
-        Assert.Equal(0, manifest["metadata_coverage"]!["explicit_reversibility"]!.GetValue<int>());
+        Assert.Equal(1, manifest["metadata_coverage"]!["explicit_output_schema"]!.GetValue<int>());
+        Assert.Equal(1, manifest["metadata_coverage"]!["explicit_permissions"]!.GetValue<int>());
+        Assert.Equal(1, manifest["metadata_coverage"]!["explicit_reversibility"]!.GetValue<int>());
+        Assert.Equal(1, manifest["metadata_coverage"]!["explicit_operation_version"]!.GetValue<int>());
         Assert.Equal(
             "operation-specific",
             manifest["format_support"]!["scope"]!.GetValue<string>()
@@ -88,6 +89,29 @@ public sealed class CapabilityManifestTests
             "inspect_ooxml_equations",
             manifest["operations"]![0]!["name"]!.GetValue<string>()
         );
+    }
+
+    [Fact]
+    public void CapabilityV1OperationSummaryKeepsItsClosedBackwardCompatibleShape()
+    {
+        var manifest = ToolCatalog
+            .LoadNativeWordTools()
+            .GetCapabilities("query_ooxml_semantics", 0, 1);
+        var operation = Assert.Single(manifest["operations"]!.AsArray())!.AsObject();
+
+        Assert.Equal(
+            ["description", "effects", "exposure", "input_schema_sha256", "name"],
+            operation.Select(property => property.Key).Order(StringComparer.Ordinal)
+        );
+
+        var inspected = ToolCatalog
+            .LoadNativeWordTools()
+            .InspectAction("query_ooxml_semantics")["tool"]!
+            .AsObject();
+        Assert.Equal("1.0", inspected["operationVersion"]!.GetValue<string>());
+        Assert.NotNull(inspected["outputSchema"]);
+        Assert.NotNull(inspected["permissions"]);
+        Assert.NotNull(inspected["reversibility"]);
     }
 
     [Fact]

@@ -126,13 +126,54 @@ or markup-compatibility ambiguity. The same core backs a protocol-v1 adapter for
 neutral `docx-platform-tests` harness. Its pinned comparison and raw result are in
 [`docs/COMPETITOR-BENCHMARK-2026-07-23.md`](docs/COMPETITOR-BENCHMARK-2026-07-23.md).
 
+The third shared operation is the read-only semantic object query contract
+`wordtoolkit.query_ooxml_semantics/1.0`. One Engine implementation backs direct .NET
+calls, the lazy MCP action and a non-interactive JSON CLI. A request file uses the same
+flat query fields as MCP:
+
+```json
+{
+  "local_path": "input.docx",
+  "kinds": ["paragraph"],
+  "descendant": {"kinds": ["equation"]},
+  "max_results": 40,
+  "include_source": true
+}
+```
+
+```powershell
+wordtoolkit-native query-package --request .\query.json --format json
+Get-Content .\query.json -Raw | wordtoolkit-native query-package --request - --format json
+```
+
+[`examples/query-package.request.json`](examples/query-package.request.json) is an
+executable repository-relative request against the checked-in equation corpus.
+
+Matches retain stable `node_id` compatibility and now declare `object_category`,
+`story_kind`, child count and identity semantics. Results are bounded and paged; raw XML
+is never returned, external relationships are never followed and Word is never opened.
+An optional `expected_package_fingerprint` rejects stale local reads. Semantic properties
+are opt-in, while author/name/date/GUID/field-instruction/anchor values require the second
+explicit `include_sensitive_properties` flag. Shortened property values are named in
+`truncated_property_names`, and source locators fail at their public limit instead of
+being silently cut. Complex-field instruction text is suppressed from every preview
+under the same second opt-in, so paragraph/subtree previews cannot bypass property
+redaction. The .NET operation also accepts a readable, seekable package stream
+and restores its original position. The MCP action is the first catalogue entry
+with a version, closed output schema, filesystem/network/Word permission record and
+reversibility declaration. Capability discovery counts their presence without widening
+the closed v1 operation summary; `inspect_wordtoolkit_action` returns the exact selected
+contract only when it is needed.
+
 Stream labels are portable leaf names capped at 512 characters, and Word validity additionally
 requires the filename extension to agree with the main content type. MCP rejects unknown
 arguments instead of silently ignoring misspelled closed-schema fields.
-`WordToolkitOperationJson` is the public canonical JSON codec used by both adapters;
+`WordToolkitOperationJson` is the public canonical JSON codec used by all adapters;
 SDK, CLI and compact MCP data therefore share `snake_case`, null handling and field
-order. Full MCP responses retain legacy runtime timing fields only in the transport
-adapter; those fields are deliberately absent from deterministic operation data.
+order. Enums are non-numeric `snake_case`; request adapters reject unknown members while
+result decoding retains additive v1 forward compatibility. Full MCP responses retain
+legacy runtime timing fields only in the transport adapter; those fields are deliberately
+absent from deterministic operation data.
 
 The complete lazy action set is:
 

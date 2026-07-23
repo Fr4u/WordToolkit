@@ -555,7 +555,7 @@ public sealed class McpServerTests
             .InspectAction("query_ooxml_semantics")
             .ToJsonString();
         Assert.True(
-            serialized.Length < 6_000,
+            serialized.Length < 10_000,
             $"Semantic query schema is too large: {serialized.Length} characters"
         );
         using var document = JsonDocument.Parse(serialized);

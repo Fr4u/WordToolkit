@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+- Added `wordtoolkit.query_ooxml_semantics/1.0` as the third public
+  transport-neutral Engine/CLI/MCP operation. Direct saved-package and process-memory
+  indexed queries now share one typed result builder and canonical JSON instead of an
+  adapter-owned anonymous response. Stable node IDs are joined by high-level object
+  category, story, child count and identity fields; local reads can require the exact
+  package fingerprint. Properties remain optional and author/name/date/GUID/field
+  instruction/anchor values require a second explicit sensitive-data flag. The operation
+  also suppresses complex-field instructions from text previews until that second flag
+  is present, reports property shortening explicitly, never returns raw XML, follows
+  external relationships or opens Word, and a new
+  `query-package --request <json|->` CLI accepts the same closed flat query shape.
+- Made semantic query the first action with an explicit operation version, closed MCP
+  lazy-action successful structured-content output schema, normalized
+  filesystem/network/Word permissions and reversibility record. Capability v1 pages keep
+  their existing closed operation-summary shape and count this metadata without adding
+  incompatible fields; the exact values and full output schema remain available through
+  `inspect_wordtoolkit_action`, while the lazy action stays under a 10,000-character
+  contract budget.
+  The public JSON codec now writes enums as non-numeric `snake_case` strings; request
+  boundaries reject unknown members while result decoding retains additive v1 forward
+  compatibility.
+- Verified the semantic-query slice with 375 engine tests, 257 native-host tests and the
+  complete 1,273 Python/OOXML tests with 16 intentional skips. The checked-in request
+  produced five equation-containing paragraphs, a 3,195-byte compact result conforming
+  to the published Draft 2020-12 output schema; the complete action contract is 9,461
+  bytes, below its 10,000-byte budget. No raw XML or Word process appeared. Fifteen cold
+  CLI runs measured 197.76 ms median and 206.68 ms p95 on the development machine; no
+  historical before-change latency baseline exists.
+- Built the semantic-query checkpoint twice through the supported Windows PowerShell
+  package path. Both builds produced identical 195-file, 85,195,358-byte trees and
+  36,214,740-byte ZIPs at SHA-256
+  `04af23655f262389c16a9b8eb94cc08d39173c5a9d80e74606929d26f9beb9e9`.
+  The packaged self-contained executable returned the same five schema-valid matches,
+  discovered the query action, wrote nothing to stderr and left the Word-process count
+  at zero.
 - Added `wordtoolkit.transform_ooxml_package/1.0` as the second public
   transport-neutral Engine/CLI/MCP operation. Its typed core can replace the first
   ordinary text occurrence across run boundaries, accept all supported tracked changes
@@ -25,8 +60,9 @@
   Services. The audit still refuses a global leadership claim: the neutral corpus is
   narrow and does not yet measure Word layout, preservation, tokens, latency or hostile
   package security.
-- Verified this slice with 366 engine tests, 247 native-host tests and the complete 1,273
-  Python/OOXML tests with 16 intentional skips. Focused transform/protocol parity tests
+- Verified the preceding transform/benchmark slice with 366 engine tests, 247 native-host
+  tests and the complete 1,273 Python/OOXML tests with 16 intentional skips. Focused
+  transform/protocol parity tests
   cover cross-run replacement, first-only behavior, OfficeMath exclusion, MCE rejection,
   accept/reject-all, clean no-op clone, signatures, output collisions, unsafe-input
   decline, exact revision inverse and no Word invocation. Two local self-contained builds

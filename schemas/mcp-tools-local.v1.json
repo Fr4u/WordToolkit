@@ -4013,6 +4013,16 @@
       "name": "query_ooxml_semantics",
       "title": "Query Word semantic nodes",
       "description": "Query all projected Word stories by semantic node kind, bounded text predicate, exact properties, source part, subtree, or structural ancestor/descendant predicates. Use a process-memory semantic index for repeated queries with indexed candidate selection; otherwise query one saved package directly. Returns stable node IDs and compact previews without opening Word or returning raw XML.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_input_package",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
       "inputSchema": {
         "type": "object",
         "$defs": {
@@ -4063,6 +4073,7 @@
         "properties": {
           "local_path": {
             "type": "string",
+            "maxLength": 32767,
             "description": "Absolute or workspace-relative path to one local DOCX, DOCM, DOTX, or DOTM. Use this or semantic_index_id, never both."
           },
           "semantic_index_id": {
@@ -4073,7 +4084,7 @@
           "expected_package_fingerprint": {
             "type": "string",
             "pattern": "^[0-9a-fA-F]{64}$",
-            "description": "Required with semantic_index_id so a stale or mistaken handle cannot silently answer for another package."
+            "description": "Required with semantic_index_id and optional with local_path. When supplied, rejects a stale package before returning content."
           },
           "kinds": {
             "type": "array",
@@ -4174,6 +4185,7 @@
           "within_node_id": {
             "type": "string",
             "pattern": "^wdn_[A-Za-z0-9_-]+$",
+            "maxLength": 128,
             "description": "Optional semantic node whose subtree bounds the query."
           },
           "source_part_uri": {
@@ -4200,7 +4212,13 @@
           },
           "include_properties": {
             "type": "boolean",
-            "default": false
+            "default": false,
+            "description": "Include bounded semantic properties. Sensitive values remain redacted unless include_sensitive_properties is also true."
+          },
+          "include_sensitive_properties": {
+            "type": "boolean",
+            "default": false,
+            "description": "Return bounded author, initials, date, bookmark/glossary names, field instructions, hyperlink anchors and GUID values. Requires include_properties=true."
           },
           "include_source": {
             "type": "boolean",
@@ -4211,18 +4229,100 @@
         "oneOf": [
           {
             "required": ["local_path"],
-            "not": {
-              "anyOf": [
-                {"required": ["semantic_index_id"]},
-                {"required": ["expected_package_fingerprint"]}
-              ]
-            }
+            "not": {"required": ["semantic_index_id"]}
           },
           {
             "required": ["semantic_index_id", "expected_package_fingerprint"],
             "not": {"required": ["local_path"]}
           }
         ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {"include_sensitive_properties": {"const": true}},
+              "required": ["include_sensitive_properties"]
+            },
+            "then": {
+              "properties": {"include_properties": {"const": true}},
+              "required": ["include_properties"]
+            }
+          }
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "$defs": {
+          "match": {
+            "type": "object",
+            "required": ["node_id", "kind", "object_category", "story_kind", "source_order", "child_count", "identity_kind", "identity_fingerprint", "text_preview_truncated"],
+            "properties": {
+              "node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$"},
+              "kind": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$", "maxLength": 64},
+              "object_category": {"enum": ["document", "story", "container", "block", "table", "reference", "review", "drawing", "math", "extension", "inline"]},
+              "story_kind": {"type": "string", "maxLength": 64},
+              "parent_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$"},
+              "source_order": {"type": "integer", "minimum": 0},
+              "child_count": {"type": "integer", "minimum": 0},
+              "identity_kind": {"enum": ["durable_anchor", "content_fingerprint"]},
+              "identity_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "text_preview": {"type": "string", "maxLength": 400},
+              "text_preview_truncated": {"type": "boolean"},
+              "properties": {"type": "object", "maxProperties": 64, "additionalProperties": {"type": "string", "maxLength": 161}},
+              "redacted_property_names": {"type": "array", "maxItems": 7, "uniqueItems": true, "items": {"enum": ["anchor", "author", "date", "guid", "initials", "instruction", "name"]}},
+              "truncated_property_names": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
+              "source_part_uri": {"type": "string", "maxLength": 512},
+              "source_path": {"type": "string", "maxLength": 1024},
+              "source_element_ordinal": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": false
+          },
+          "disclosure": {
+            "type": "object",
+            "required": ["text_previews_returned", "properties_returned", "sensitive_properties_returned", "sensitive_text_previews_returned", "source_locations_returned", "raw_xml_returned", "external_relationships_followed", "word_opened", "document_content_is_untrusted"],
+            "properties": {
+              "text_previews_returned": {"type": "boolean"},
+              "properties_returned": {"type": "boolean"},
+              "sensitive_properties_returned": {"type": "boolean"},
+              "sensitive_text_previews_returned": {"type": "boolean"},
+              "source_locations_returned": {"type": "boolean"},
+              "raw_xml_returned": {"const": false},
+              "external_relationships_followed": {"const": false},
+              "word_opened": {"const": false},
+              "document_content_is_untrusted": {"const": true}
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "package_fingerprint", "main_part_uri", "projected_part_count", "projection_warning_count", "semantic_index_used", "candidate_seed", "total_node_count", "scanned_node_count", "matched_node_count", "offset", "returned_node_count", "matches", "disclosure"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.query_ooxml_semantics/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "main_part_uri": {"type": "string", "maxLength": 512},
+              "projected_part_count": {"type": "integer", "minimum": 1},
+              "projection_warning_count": {"type": "integer", "minimum": 0},
+              "semantic_index_used": {"type": "boolean"},
+              "semantic_index_id": {"type": "string", "pattern": "^wsi_[0-9a-f]{32}$"},
+              "semantic_index_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "candidate_seed": {"type": "string", "maxLength": 137},
+              "total_node_count": {"type": "integer", "minimum": 1},
+              "scanned_node_count": {"type": "integer", "minimum": 0},
+              "matched_node_count": {"type": "integer", "minimum": 0},
+              "offset": {"type": "integer", "minimum": 0},
+              "returned_node_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "next_offset": {"type": "integer", "minimum": 0},
+              "matches": {"type": "array", "maxItems": 200, "items": {"$ref": "#/$defs/match"}},
+              "disclosure": {"$ref": "#/$defs/disclosure"}
+            },
+            "additionalProperties": false
+          }
+        },
         "additionalProperties": false
       },
       "annotations": {

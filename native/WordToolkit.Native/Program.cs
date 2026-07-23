@@ -9,7 +9,7 @@ namespace WordToolkit.Native;
 internal static class Program
 {
     private const string Usage =
-        "usage: wordtoolkit-native [capabilities [--schema | [--query <text>] [--offset <n>] [--limit <n>]] [--format json] | inspect-package <path> [--include-details] [--max-items <1..200>] [--format json] | transform-package <input> <output> --operation <name> [--find-text <text> --replace-text <text>] [--format json] | docx-platform-adapter --protocol-version 1 --operation <operation.json> --input <input.docx> --output <output.docx> | --create-test-document <path> | --benchmark-active-word]";
+        "usage: wordtoolkit-native [capabilities [--schema | [--query <text>] [--offset <n>] [--limit <n>]] [--format json] | inspect-package <path> [--include-details] [--max-items <1..200>] [--format json] | query-package --request <query.json|-> [--format json] | transform-package <input> <output> --operation <name> [--find-text <text> --replace-text <text>] [--format json] | docx-platform-adapter --protocol-version 1 --operation <operation.json> --input <input.docx> --output <output.docx> | --create-test-document <path> | --benchmark-active-word]";
 
     public static async Task<int> Main(string[] args)
     {
@@ -51,6 +51,16 @@ internal static class Program
         if (args.Length >= 1 && args[0] == "inspect-package")
         {
             return InspectPackageCli.Run(args[1..], Console.Out, Console.Error);
+        }
+
+        if (args.Length >= 1 && args[0] == "query-package")
+        {
+            return QueryPackageCli.Run(
+                args[1..],
+                Console.In,
+                Console.Out,
+                Console.Error
+            );
         }
 
         if (args.Length >= 1 && args[0] == "transform-package")

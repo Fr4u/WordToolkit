@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using WordToolkit.Engine.Operations;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Semantics;
 using WordToolkit.Native.Protocol;
@@ -15,6 +17,30 @@ internal sealed partial class WordLiveService
                 kind => kind,
                 StringComparer.Ordinal
             );
+    private static readonly HashSet<string> QueryPackageArguments = new(
+        [
+            "local_path",
+            "semantic_index_id",
+            "expected_package_fingerprint",
+            "kinds",
+            "text",
+            "text_match",
+            "text_scope",
+            "case_sensitive",
+            "property_equals",
+            "ancestor",
+            "descendant",
+            "within_node_id",
+            "source_part_uri",
+            "offset",
+            "max_results",
+            "text_preview_chars",
+            "include_properties",
+            "include_sensitive_properties",
+            "include_source",
+        ],
+        StringComparer.Ordinal
+    );
 
     private Task<object> QueryPackageSemanticsAsync(
         JsonElement arguments,
@@ -25,10 +51,32 @@ internal sealed partial class WordLiveService
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
+            if (arguments.ValueKind != JsonValueKind.Object)
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "query_ooxml_semantics arguments must be an object"
+                );
+            }
+            foreach (var property in arguments.EnumerateObject())
+            {
+                if (!QueryPackageArguments.Contains(property.Name))
+                {
+                    throw new NativeToolException(
+                        "INVALID_INPUT",
+                        "query_ooxml_semantics received an unsupported argument",
+                        new { field = property.Name }
+                    );
+                }
+            }
             var query = ParseSemanticQuery(arguments);
             var semanticIndexId = OptionalString(arguments, "semantic_index_id");
-            WordSemanticQueryResult result;
-            string fileName;
+            var includeSensitiveProperties = arguments.Boolean(
+                "include_sensitive_properties",
+                false
+            );
+            QueryWordPackageResult result;
+            var operation = new QueryWordPackageOperation();
             if (semanticIndexId is not null)
             {
                 if (arguments.TryGetProperty("local_path", out _))
@@ -54,12 +102,15 @@ internal sealed partial class WordLiveService
                         "The semantic index does not match expected_package_fingerprint"
                     );
                 }
-                result = new WordSemanticQueryEngine().Query(
-                    entry.Index,
+                result = operation.ExecuteProjected(
+                    entry.Index.Document,
+                    entry.FileName,
                     query,
+                    includeSensitiveProperties,
+                    entry.Index,
+                    semanticIndexId,
                     cancellationToken
                 );
-                fileName = entry.FileName;
             }
             else
             {
@@ -70,67 +121,39 @@ internal sealed partial class WordLiveService
                         "Use exactly one of local_path or semantic_index_id"
                     );
                 }
-                if (arguments.TryGetProperty("expected_package_fingerprint", out _))
-                {
-                    throw new NativeToolException(
-                        "INVALID_INPUT",
-                        "expected_package_fingerprint is only valid with semantic_index_id"
-                    );
-                }
-                var path = ResolveInspectablePackagePath(arguments);
-                var package = new OpcPackageReader().Read(path, cancellationToken);
-                var document = new WordSemanticProjector().Project(
-                    package,
+                var path = arguments.String("local_path");
+                var expectedFingerprint = OptionalString(
+                    arguments,
+                    "expected_package_fingerprint"
+                );
+                result = operation.Execute(
+                    new QueryWordPackageRequest(
+                        path,
+                        query,
+                        expectedFingerprint,
+                        includeSensitiveProperties
+                    ),
                     cancellationToken
                 );
-                result = new WordSemanticQueryEngine().Query(
-                    document,
-                    query,
-                    cancellationToken
-                );
-                fileName = Path.GetFileName(path);
             }
-            var matches = result.Matches.Select(match => new
+            var response = WordToolkitOperationJson.SerializeToNode(result)
+                as JsonObject ?? new JsonObject();
+            response["runtime"] = "dotnet-native";
+            response["python_used"] = false;
+            response["performance"] = new JsonObject
             {
-                node_id = match.NodeId.Value,
-                kind = ToSnakeCase(match.Kind.ToString()),
-                parent_id = match.ParentId?.Value,
-                source_order = match.SourceOrder,
-                text_preview = match.TextPreview,
-                text_preview_truncated = match.TextPreviewTruncated,
-                properties = match.Properties is null
-                    ? null
-                    : BoundProperties(match.Properties, 160),
-                source_part_uri = match.SourcePartUri is null
-                    ? null
-                    : BoundForResponse(match.SourcePartUri, 512),
-                source_path = match.SourcePath is null
-                    ? null
-                    : BoundForResponse(match.SourcePath, 1024),
-                source_element_ordinal = match.SourceElementOrdinal,
-            }).ToArray();
-            return Task.FromResult<object>(new
-            {
-                file_name = fileName,
-                package_fingerprint = result.PackageFingerprint,
-                semantic_index_used = result.SemanticIndexUsed,
-                semantic_index_id = semanticIndexId,
-                semantic_index_fingerprint = result.SemanticIndexFingerprint,
-                candidate_seed = result.CandidateSeed,
-                total_node_count = result.TotalNodeCount,
-                scanned_node_count = result.ScannedNodeCount,
-                matched_node_count = result.MatchedNodeCount,
-                offset = result.Offset,
-                returned_node_count = result.ReturnedNodeCount,
-                next_offset = result.NextOffset,
-                matches,
-                runtime = "dotnet-native",
-                python_used = false,
-                performance = new
-                {
-                    total_ms = Stopwatch.GetElapsedTime(started).TotalMilliseconds,
-                },
-            });
+                ["total_ms"] = Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+            };
+            return Task.FromResult<object>(response);
+        }
+        catch (WordToolkitOperationException exception)
+        {
+            throw new NativeToolException(
+                exception.Code,
+                exception.Message,
+                exception.Reason is null ? null : new { reason = exception.Reason },
+                exception.Retryable
+            );
         }
         catch (WordSemanticLimitException exception)
         {
