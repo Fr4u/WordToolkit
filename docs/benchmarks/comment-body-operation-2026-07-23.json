@@ -65,5 +65,17 @@
     "raw_xml_returned": false,
     "responses_contained_comment_text": false,
     "word_process_set_unchanged": true
+  },
+  "hosted_ci": {
+    "run_id": 29980881560,
+    "head_sha": "3e9f6989cf6e7ff1218bcb37848c1a383207b76f",
+    "all_five_jobs_passed": true,
+    "artifact_name": "wordtoolkit-native-win-x64",
+    "archive_bytes": 36263241,
+    "archive_sha256": "267ace7127d82c8f54c32f56682830770d6209f1880b4f00d38a31dc45aa5503",
+    "byte_identical_to_both_local_archives": true,
+    "expanded_files": 196,
+    "expanded_bytes": 85366594,
+    "expanded_tree_difference_count": 0
   }
 }

@@ -34,7 +34,9 @@
   `25fd2c4afcfef292c95c5925d849cee55b5de1297dbbf0b05734e9edd9231373`.
   Fifteen cold packaged planner processes returned the same 1,027-character response at
   669.53 ms median and 688.29 ms p95/max without mutating the source or starting Word.
-  No historical before-change comment-body CLI latency baseline exists.
+  No historical before-change comment-body CLI latency baseline exists. Hosted CI run
+  `29980881560` passed all five jobs; its downloaded Windows ZIP matched both local
+  archives byte for byte and its expanded 196-file tree had zero differences.
 
 - Added the public semantic-style operation pair
   `wordtoolkit.plan_ooxml_semantic_edits/1.0` and
