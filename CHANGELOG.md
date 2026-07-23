@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- Added a bounded, read-only bibliography graph for the Open XML 2006 and legacy Word
+  2004/10 `Sources` formats. Collections, stable sources, typed identity/type/locale
+  fields, scalar metadata, people and corporate contributors retain package provenance;
+  duplicate tags remain ambiguous. Unique case-insensitive `CITATION` tags now terminate
+  at concrete bibliography source nodes in the unified dependency graph.
+- Added lazy `inspect_ooxml_bibliography` as the 91st native action with paged
+  summary/collection/source/field/contributor/citation/issue views. Sensitive values and
+  source locations are opt-in; the operation never opens Word, evaluates fields,
+  executes bibliography XSLT or follows external targets. Its OPC, semantic, reference
+  and bibliography phases share the 640 MiB `wop1` budget. People and corporate-name
+  ceilings are enforced across all roles in one source. A separate 64 KiB projected-
+  payload budget bounds paged results and diagnostics; truncation returns a continuation
+  offset. Redacted value fingerprints are process-keyed HMAC tokens rather than public
+  unsalted hashes. Unique unmodeled element names are capped at 256 per source and
+  charged to the aggregate metadata budget before display-string materialization.
+- Duplicate singleton Tag, Guid and SourceType fields now fail closed instead of using
+  the first value for identity or citation resolution. Runtime `source_id` validation
+  now matches the published schema before OPC parsing.
+- Added ten Engine and seven Native bibliography regressions, golden dependency-corpus
+  updates and a reproducible 10,000-source Release benchmark. The benchmark resolves all
+  10,000 citations with zero issues and preserves the package fingerprint; seven graph
+  samples measure 642.5681 ms median, 811.9211 ms p95/max and 245,631,072 median
+  thread-allocated bytes on the disclosed local Windows x64/.NET 8.0.29 host. The graph
+  accounts 81,230,184/671,088,640 operation bytes; the raw result is checked in. No
+  before/after speedup is claimed because the prior HEAD had no bibliography graph.
+
 - Added remote `apply_document_operations`, a provider-neutral
   `wordtoolkit.apply_document_operations/1.0` command for 1-16 ordered operations from
   the complete 33-tool ordinary draft-mutation surface. The server validates every

@@ -2,6 +2,14 @@
 
 WordToolkit 0.39 (development line) is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed table/grid/merge topology, style, numbering, theme, settings, font-table, field/bookmark/reference, classic DrawingML chart, source-linked figure/caption, canonical OfficeMath and review/revision graphs, lint a saved package with deterministic source-linked rule packs, plan and apply the first source-bound lint repair, create, clone, safely consolidate exact typed style definitions, delete proven-unused custom definitions, rename only a custom style's primary visible name and assign styles through one semantic transaction, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Classic chart inspection covers all 16 plot families, series, axes, cache metadata and related parts without retaining point values or opening workbooks. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text, style definitions, paragraph/run/table style references, tracked-review structures and one existing empty core-title element to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
 
+The saved-package core also projects Word bibliography collections stored in Custom XML
+into source-linked collections, sources, scalar fields, locale/style metadata and
+contributor structure. A `CITATION` field resolves to a concrete source dependency only
+when its tag is unique; duplicate or missing tags remain unresolved instead of being
+guessed. Duplicate identity fields also fail closed; paged inspection uses process-keyed
+redaction fingerprints and a separate 64 KiB projected-payload ceiling. See [the
+bibliography graph contract](docs/BIBLIOGRAPHY-GRAPH.md).
+
 The saved-package core also exposes a source-linked Figure/Caption graph. It collapses
 DrawingML/VML `mc:AlternateContent` branches into one logical figure without claiming
 that `mc:Choice` was evaluated, records inert internal/external resources, and links
@@ -54,7 +62,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 48 tested Word Live actions plus 36 standalone,
+The runtime implements 48 tested Word Live actions plus 37 standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus four token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -81,7 +89,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 90-action schema set into model context. The normative shape is
+not flatten the 91-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -265,6 +273,7 @@ inspect_ooxml_numbering
 inspect_ooxml_theme
 inspect_ooxml_settings
 inspect_ooxml_references
+inspect_ooxml_bibliography
 inspect_ooxml_dependencies
 lint_ooxml_document
 plan_ooxml_lint_repair
@@ -413,7 +422,8 @@ accounting boundary without returning allocation detail. The saved-package inspe
 creates one 640 MiB `word_operation_accounted_v1` lease before ZIP central-directory
 materialization and passes it through OPC admission/metadata, lossless XML reservations, semantic projection, styles,
 numbering, references, sections/settings, charts, figures/captions, content controls,
-tables and the final graph. The compact `operation_budget: {model, used, maximum}` uses
+tables, bibliography and the final graph. The compact
+`operation_budget: {model, used, maximum}` uses
 alias `wop1`; exhaustion remains `PACKAGE_LIMIT` with a bounded stage and attempted
 charge. ZIP count/size preflight and package-entry/XML working-set charges happen before
 the guarded materializations, OPC derived records have explicit count/resource bounds,
@@ -424,8 +434,9 @@ clients cannot raise the server ceiling.
 This is a stable conservative cumulative accounting contract, not an exact CLR heap,
 peak-live-memory or resident-set guarantee. Repeated parsers deliberately consume the
 same shared lease; immutable shared parsed-story storage remains missing. Advanced
-DrawingML/VML layout, SmartArt, OLE, bibliography sources,
-active content and co-authoring remain openly unmodeled.
+DrawingML/VML layout, SmartArt, full OLE, active content and co-authoring remain openly
+unmodeled. Bibliography source projection is implemented, but rendering, mutation and
+source-type-specific required-field validation are not.
 
 Saved-package content-control inspection joins source-linked `w:sdt` type, level, lock,
 placeholder and parent state to physical Custom XML stores, Word's built-in core and

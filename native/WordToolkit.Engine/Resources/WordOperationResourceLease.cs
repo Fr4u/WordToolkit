@@ -15,6 +15,7 @@ public enum WordOperationResourceStage
     FiguresAndCaptions,
     ContentControls,
     Tables,
+    Bibliography,
     DependencyGraph,
 }
 

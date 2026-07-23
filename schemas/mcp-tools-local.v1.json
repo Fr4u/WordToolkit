@@ -30,6 +30,7 @@
       "inspect_ooxml_theme",
       "inspect_ooxml_settings",
       "inspect_ooxml_references",
+      "inspect_ooxml_bibliography",
       "inspect_ooxml_dependencies",
       "inspect_ooxml_charts",
       "inspect_ooxml_figures",
@@ -5758,9 +5759,81 @@
       }
     },
     {
+      "name": "inspect_ooxml_bibliography",
+      "title": "Inspect Word bibliography sources and citation bindings",
+      "description": "Inspect bounded Word bibliography source collections stored in Custom XML and join CITATION field tags to concrete sources without opening Word, evaluating fields, running bibliography XSLT, or following external targets. Collections, source types, LCIDs, typed scalar-field metadata, contributor structure, duplicate identities and unresolved citations are source-linked. Duplicate singleton identity fields fail closed. Tags, titles, GUIDs, contributor names, field values, style paths and URIs are redacted by default with process-scoped keyed fingerprints; compact views, exact filters, pagination and a 65,536-character projected-payload budget minimize AI token use.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "collections", "sources", "fields", "contributors", "citations", "issues"],
+            "default": "summary",
+            "description": "Return source-type counts, source collections, sources, typed scalar fields, contributor structure, CITATION bindings, or diagnostics."
+          },
+          "source_id": {
+            "type": "string",
+            "pattern": "^wbs_[a-f0-9]{24}$",
+            "maxLength": 128,
+            "description": "Optional exact bibliography source ID returned for the same package fingerprint."
+          },
+          "source_tag": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": "Optional exact case-insensitive Word bibliography Tag filter. The response returns only its fingerprint unless include_sensitive is true."
+          },
+          "source_type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Optional exact case-insensitive bibliography SourceType filter, for example Book or JournalArticle."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "include_sensitive": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded source tags, titles, GUIDs, contributor names, scalar values, selected-style paths and collection URIs. External targets are never followed."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include at most 30 bounded bibliography diagnostics in non-issues views."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include bibliography part URIs and source XML element ordinals."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "inspect_ooxml_dependencies",
       "title": "Inspect the Word document dependency graph",
-      "description": "Inspect one source-linked dependency graph spanning OPC reachability, semantic containment, styles, numbering, fields/bookmarks, section stories, classic charts, logical figures/resources/captions, content controls/Custom XML bindings and nested-table topology without opening Word. Unresolved and external targets remain explicit; external targets are never followed. One operation-wide accounted resource lease covers bounded ZIP/OPC admission and metadata, XML parsing, semantic and typed projections, while the graph keeps its independent local byte budget and compact adjacency. Keys and source are redacted by default, views are paged, and unmodeled domains stay explicit.",
+      "description": "Inspect one source-linked dependency graph spanning OPC reachability, semantic containment, styles, numbering, fields/bookmarks, bibliography sources and resolved CITATION tags, section stories, classic charts, logical figures/resources/captions, content controls/Custom XML bindings and nested-table topology without opening Word. Unresolved and external targets remain explicit; external targets are never followed. One operation-wide accounted resource lease covers bounded ZIP/OPC admission and metadata, XML parsing, semantic and typed projections, while the graph keeps its independent local byte budget and compact adjacency. Keys and source are redacted by default, views are paged, and unmodeled domains stay explicit.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5805,7 +5878,9 @@
               "caption",
               "content_control",
               "custom_xml_store",
-              "custom_xml_binding_target"
+              "custom_xml_binding_target",
+              "bibliography_collection",
+              "bibliography_source"
             ],
             "description": "Optional exact node-kind filter for the nodes view."
           },
@@ -5855,7 +5930,9 @@
               "content_control_binds_target",
               "repeating_section_contains_item",
               "table_nests_table",
-              "table_cell_continues_vertical_merge"
+              "table_cell_continues_vertical_merge",
+              "defines_bibliography_collection",
+              "bibliography_contains_source"
             ],
             "description": "Optional exact edge-kind filter for edge, unresolved, and impact views."
           },

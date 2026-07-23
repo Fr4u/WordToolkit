@@ -173,6 +173,24 @@ internal static class ToolResponseCompactor
         {
             obj.Remove("rules");
         }
+        if (obj["source_diagnostics"] is JsonObject diagnostics)
+        {
+            foreach (var item in diagnostics.ToArray())
+            {
+                if (
+                    item.Value is JsonValue value
+                    && value.TryGetValue<int>(out var count)
+                    && count == 0
+                )
+                {
+                    diagnostics.Remove(item.Key);
+                }
+            }
+            if (diagnostics.Count == 0)
+            {
+                obj.Remove("source_diagnostics");
+            }
+        }
         if (obj["native_readback_required"]?.GetValue<bool>() == false)
         {
             obj.Remove("native_readback_required");

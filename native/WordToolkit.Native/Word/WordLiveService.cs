@@ -63,7 +63,7 @@ internal sealed partial class WordLiveService : IToolHandler
         StringComparer.OrdinalIgnoreCase
     );
     private readonly IWordComHost _host;
-    private readonly Func<WordOperationResourceLease> _dependencyResourceLeaseFactory;
+    private readonly Func<WordOperationResourceLease> _operationResourceLeaseFactory;
     private readonly ConcurrentDictionary<string, LiveDocumentRecord> _records = new();
     private readonly ConcurrentDictionary<string, SelectionGrant> _selectionGrants = new();
     private readonly ConcurrentDictionary<string, UndoGrant> _undoGrants = new();
@@ -77,13 +77,13 @@ internal sealed partial class WordLiveService : IToolHandler
 
     internal WordLiveService(
         IWordComHost host,
-        Func<WordOperationResourceLease> dependencyResourceLeaseFactory
+        Func<WordOperationResourceLease> operationResourceLeaseFactory
     )
     {
         ArgumentNullException.ThrowIfNull(host);
-        ArgumentNullException.ThrowIfNull(dependencyResourceLeaseFactory);
+        ArgumentNullException.ThrowIfNull(operationResourceLeaseFactory);
         _host = host;
-        _dependencyResourceLeaseFactory = dependencyResourceLeaseFactory;
+        _operationResourceLeaseFactory = operationResourceLeaseFactory;
     }
 
     public Task<object> CallAsync(
@@ -186,6 +186,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 cancellationToken
             ),
             "inspect_ooxml_references" => InspectPackageReferencesAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_bibliography" => InspectPackageBibliographyAsync(
                 arguments,
                 cancellationToken
             ),

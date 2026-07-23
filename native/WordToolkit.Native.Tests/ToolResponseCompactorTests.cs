@@ -83,4 +83,30 @@ public sealed class ToolResponseCompactorTests
         Assert.DoesNotContain("secret", compact.ToJsonString(), StringComparison.Ordinal);
         Assert.DoesNotContain(new string('a', 64), compact.ToJsonString(), StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void CompactReadResponseDropsOnlyZeroSourceDiagnostics()
+    {
+        var compact = Assert.IsType<JsonObject>(
+            ToolResponseCompactor.Compact(
+                "inspect_ooxml_dependencies",
+                new
+                {
+                    node_count = 5,
+                    source_diagnostics = new
+                    {
+                        package = 0,
+                        references = 2,
+                        bibliography = 0,
+                    },
+                }
+            )
+        );
+
+        var diagnostics = compact["source_diagnostics"]!.AsObject();
+        Assert.Single(diagnostics);
+        Assert.Equal(2, diagnostics["references"]!.GetValue<int>());
+        Assert.Null(diagnostics["package"]);
+        Assert.Null(diagnostics["bibliography"]);
+    }
 }

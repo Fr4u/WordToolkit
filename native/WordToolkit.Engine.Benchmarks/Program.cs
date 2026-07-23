@@ -12,6 +12,7 @@ var options = Arguments.Parse(args);
 var report = options.Scenario switch
 {
     "graph" => RunGraph(options),
+    "bibliography" => RunBibliography(options),
     "bindings" => RunBindings(options),
     "tables" => RunTables(options),
     "figures" => RunFigures(options),
@@ -20,7 +21,7 @@ var report = options.Scenario switch
     "semantic-html" => RunSemanticHtml(options),
     "semantic-svg" => RunSemanticSvg(options),
     _ => throw new ArgumentException(
-        "scenario must be 'graph', 'bindings', 'tables', 'figures', 'mce', 'patch', 'semantic-html', or 'semantic-svg'"
+        "scenario must be 'graph', 'bibliography', 'bindings', 'tables', 'figures', 'mce', 'patch', 'semantic-html', or 'semantic-svg'"
     ),
 };
 var json = JsonSerializer.Serialize(report, new JsonSerializerOptions
@@ -128,6 +129,135 @@ static object RunGraph(Arguments options)
                     measured_total = read.TotalMilliseconds
                         + project.TotalMilliseconds
                         + build.TotalMilliseconds,
+                },
+                memory = MemoryReport(baseline, final),
+            }
+        );
+    }
+    finally
+    {
+        File.Delete(path);
+    }
+}
+
+static object RunBibliography(Arguments options)
+{
+    if (options.TargetNodes is < 100 or > 100_000)
+    {
+        throw new ArgumentOutOfRangeException(
+            nameof(options.TargetNodes),
+            "bibliography target must be between 100 and 100000 sources"
+        );
+    }
+    const int repetitionCount = 7;
+    var path = TemporaryPath("bibliography", ".docx");
+    try
+    {
+        var generation = Measure(() => WriteBibliographyPackage(path, options.TargetNodes));
+        Collect();
+        var baseline = MemorySnapshot.Capture();
+
+        OpcPackageSnapshot? package = null;
+        WordSemanticDocument? semantic = null;
+        WordReferenceGraph? references = null;
+        var read = Measure(() => package = new OpcPackageReader().Read(path));
+        var project = Measure(() =>
+            semantic = new WordSemanticProjector().Project(package!)
+        );
+        var referenceBuild = Measure(() =>
+            references = new WordReferenceGraphBuilder().Build(package!, semantic!)
+        );
+        WordBibliographyGraph? graph = null;
+        WordOperationResourceUsage? operationUsage = null;
+        var timings = new double[repetitionCount];
+        var allocatedBytes = new long[repetitionCount];
+        for (var index = 0; index < repetitionCount; index++)
+        {
+            var resourceLease = new WordOperationResourceLease(
+                checked((long)options.OperationBudgetMiB * 1024 * 1024)
+            );
+            var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+            timings[index] = Measure(() =>
+            {
+                graph = new WordBibliographyGraphBuilder(null, resourceLease).Build(
+                    package!
+                );
+            }).TotalMilliseconds;
+            allocatedBytes[index] = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+            operationUsage = resourceLease.Snapshot();
+        }
+        Collect();
+        var final = MemorySnapshot.Capture();
+        var measuredGraph = graph ?? throw new InvalidOperationException(
+            "Bibliography benchmark did not produce a graph."
+        );
+        var measuredUsage = operationUsage ?? throw new InvalidOperationException(
+            "Bibliography benchmark did not record resource usage."
+        );
+        var orderedTimings = timings.Order().ToArray();
+        var orderedAllocatedBytes = allocatedBytes.Order().ToArray();
+        var citationEdges = references!.Edges.Where(edge =>
+            edge.TargetKind == WordReferenceTargetKind.Citation
+        ).ToArray();
+        var resolvedCitations = citationEdges.Count(edge =>
+            measuredGraph.TryResolveCitationTag(edge.TargetKey, out _)
+        );
+        GC.KeepAlive(measuredGraph);
+        return CommonReport(
+            "bibliography_graph",
+            new
+            {
+                requested_sources = options.TargetNodes,
+                repetitions = repetitionCount,
+                fixture = "synthetic_unique_book_sources_with_one_person_and_one_matching_citation_each",
+                package_bytes = new FileInfo(path).Length,
+                package_parts = package!.Entries.Count,
+                semantic_nodes = semantic!.NodeCount,
+                sources = measuredGraph.Sources.Count,
+                contributors = measuredGraph.Sources.Sum(source =>
+                    source.Contributors.Count
+                ),
+                people = measuredGraph.Sources.Sum(source =>
+                    source.Contributors.Sum(contributor => contributor.People.Count)
+                ),
+                citation_fields = citationEdges.Length,
+                resolved_citations = resolvedCitations,
+                unresolved_citations = citationEdges.Length - resolvedCitations,
+                issues = measuredGraph.Issues.Count,
+                package_fingerprint_preserved = package.Fingerprint
+                    == measuredGraph.PackageFingerprint,
+                execution_policy =
+                    "parse_package_only_never_open_word_evaluate_fields_execute_xslt_or_follow_external_targets",
+                operation_resource_usage = new
+                {
+                    scope = "bibliography_graph_only_package_semantic_reference_setup_excluded",
+                    accounting_model = measuredUsage.AccountingModel,
+                    accounted_bytes = measuredUsage.AccountedBytes,
+                    maximum_accounted_bytes = measuredUsage.MaximumAccountedBytes,
+                    stages = measuredUsage.Stages.Select(item => new
+                    {
+                        stage = item.Stage.ToString(),
+                        accounted_bytes = item.AccountedBytes,
+                    }),
+                },
+                timings_ms = new
+                {
+                    generate = generation.TotalMilliseconds,
+                    package_read = read.TotalMilliseconds,
+                    semantic_projection = project.TotalMilliseconds,
+                    reference_build = referenceBuild.TotalMilliseconds,
+                    bibliography_build_samples = timings,
+                    bibliography_build_median = orderedTimings[repetitionCount / 2],
+                    bibliography_build_p95 = orderedTimings[^1],
+                    measured_setup_total = read.TotalMilliseconds
+                        + project.TotalMilliseconds
+                        + referenceBuild.TotalMilliseconds,
+                },
+                bibliography_build_allocated_bytes = new
+                {
+                    samples = allocatedBytes,
+                    median = orderedAllocatedBytes[repetitionCount / 2],
+                    p95 = orderedAllocatedBytes[^1],
                 },
                 memory = MemoryReport(baseline, final),
             }
@@ -900,6 +1030,55 @@ static void WriteGraphPackage(string path, int paragraphCount)
     writer.Write(PackageFixture.DocumentEnd);
 }
 
+static void WriteBibliographyPackage(string path, int sourceCount)
+{
+    using var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+    using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+    WriteTextEntry(archive, "[Content_Types].xml", PackageFixture.ContentTypes);
+    WriteTextEntry(archive, "_rels/.rels", PackageFixture.RootRelationships);
+    WriteTextEntry(
+        archive,
+        "word/_rels/document.xml.rels",
+        PackageFixture.BibliographyDocumentRelationships
+    );
+
+    var documentEntry = archive.CreateEntry("word/document.xml", CompressionLevel.Fastest);
+    using (var stream = documentEntry.Open())
+    using (var writer = new StreamWriter(stream, new UTF8Encoding(false), 64 * 1024))
+    {
+        writer.Write(PackageFixture.DocumentStart);
+        for (var index = 1; index <= sourceCount; index++)
+        {
+            writer.Write("<w:p><w:fldSimple w:instr=\" CITATION Source");
+            writer.Write(index.ToString("D8"));
+            writer.Write(" \"><w:r><w:t>[");
+            writer.Write(index);
+            writer.Write("]</w:t></w:r></w:fldSimple></w:p>");
+        }
+        writer.Write(PackageFixture.DocumentEnd);
+    }
+
+    var sourceEntry = archive.CreateEntry("customXml/item1.xml", CompressionLevel.Fastest);
+    using var sourceStream = sourceEntry.Open();
+    using var sourceWriter = new StreamWriter(
+        sourceStream,
+        new UTF8Encoding(false),
+        64 * 1024
+    );
+    sourceWriter.Write("<b:Sources xmlns:b=\"http://schemas.openxmlformats.org/officeDocument/2006/bibliography\" StyleName=\"APA\" Version=\"6\">");
+    for (var index = 1; index <= sourceCount; index++)
+    {
+        sourceWriter.Write("<b:Source><b:Tag>Source");
+        sourceWriter.Write(index.ToString("D8"));
+        sourceWriter.Write("</b:Tag><b:SourceType>Book</b:SourceType><b:LCID>1033</b:LCID><b:Author><b:NameList><b:Person><b:Last>Author");
+        sourceWriter.Write(index.ToString("D8"));
+        sourceWriter.Write("</b:Last><b:First>Benchmark</b:First></b:Person></b:NameList></b:Author><b:Title>Synthetic source ");
+        sourceWriter.Write(index);
+        sourceWriter.Write("</b:Title><b:Year>2026</b:Year></b:Source>");
+    }
+    sourceWriter.Write("</b:Sources>");
+}
+
 static void WriteFigurePackage(string path, int figureCount)
 {
     using var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
@@ -1158,7 +1337,7 @@ internal sealed record Arguments(
         if (args.Length == 0)
         {
             throw new ArgumentException(
-                "usage: graph --target-nodes N [--graph-budget-mib N] [--operation-budget-mib N] | bindings --target-nodes N | tables --target-nodes N | figures --target-nodes N | mce --target-nodes N | semantic-html --target-nodes N | semantic-svg --target-nodes N | patch --payload-mib N [--parts N]"
+                "usage: graph --target-nodes N [--graph-budget-mib N] [--operation-budget-mib N] | bibliography --target-nodes N [--operation-budget-mib N] | bindings --target-nodes N | tables --target-nodes N | figures --target-nodes N | mce --target-nodes N | semantic-html --target-nodes N | semantic-svg --target-nodes N | patch --payload-mib N [--parts N]"
             );
         }
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -1250,6 +1429,13 @@ internal static class PackageFixture
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
         <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
           <Relationship Id="rIdCustom" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml"/>
+        </Relationships>
+        """;
+
+    internal const string BibliographyDocumentRelationships = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdSources" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml"/>
         </Relationships>
         """;
 

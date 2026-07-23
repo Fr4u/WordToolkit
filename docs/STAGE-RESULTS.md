@@ -1,5 +1,37 @@
 # Stage results
 
+## Typed bibliography source graph — 2026-07-23
+
+- Added a provider-neutral, read-only bibliography graph for both supported Word source
+  namespaces. It retains source provenance, stable identity, typed Tag/SourceType/GUID/
+  LCID fields, bounded scalar metadata, contributor roles, people and corporate names.
+  Unique case-insensitive tags resolve `CITATION` fields to concrete source nodes in the
+  unified dependency graph; missing or duplicate tags remain unresolved.
+- Added lazy `inspect_ooxml_bibliography` as native action 91. Default output is paged and
+  redacts tags, titles, GUIDs, names, field values, style paths and URIs. The fixed policy
+  parses the package only: Word is not opened, fields are not evaluated, bibliography
+  XSLT is not executed and external targets are not followed. One 640 MiB `wop1` lease
+  now spans OPC, semantic, reference and bibliography projection.
+- Closed the independent review's three P1 defects before publication. People and
+  corporate names are capped across the whole source; response projection has a shared
+  64 KiB payload budget; low-entropy values use process-keyed HMAC fingerprints; and
+  duplicate singleton identity fields fail closed rather than selecting the first XML
+  value. Manual final diff review additionally capped unique unmodeled element names at
+  256 per source and charged their characters before display-string materialization.
+  Empty citation lookup fails unresolved instead of throwing.
+- Final local verification passed 448/448 Engine and 291/291 Native tests with no skips,
+  plus 1309 Python tests with 16 intentional environment/model skips. Release builds of
+  the native runtime, Open XML SDK validator adapter and benchmark project have zero
+  warnings/errors. Ruff is clean and mypy passes all 29 maintained Python source files.
+- The reproducible Release benchmark generated 10,000 unique Book sources, 10,000 people
+  and 10,000 matching `CITATION` fields. Seven bibliography builds resolve 10,000/10,000
+  citations with zero issues, retain the package fingerprint and measure 642.5681 ms
+  median, 811.9211 ms p95/max, 245,631,072 median thread-allocated bytes and
+  81,230,184/671,088,640 accounted operation bytes on Windows 10 x64, .NET 8.0.29,
+  12 logical processors, workstation GC. The raw JSON is checked in under
+  `docs/benchmarks/bibliography-10k-2026-07-23.json`. No prior-feature baseline exists,
+  so no speedup is claimed.
+
 ## Remote heterogeneous draft batch — 2026-07-23
 
 - Added the provider-neutral `wordtoolkit.apply_document_operations/1.0` contract and

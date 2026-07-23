@@ -86,7 +86,7 @@ internal sealed partial class WordLiveService
 
         try
         {
-            var resourceLease = _dependencyResourceLeaseFactory()
+            var resourceLease = _operationResourceLeaseFactory()
                 ?? throw new InvalidOperationException(
                     "The dependency resource-lease factory returned null."
                 );
@@ -162,6 +162,7 @@ internal sealed partial class WordLiveService
                     figures_and_captions = graph.FigureIssueCount,
                     content_controls = graph.ContentControlIssueCount,
                     tables = graph.TableIssueCount,
+                    bibliography = graph.BibliographyIssueCount,
                 },
                 coverage = new
                 {
@@ -177,6 +178,7 @@ internal sealed partial class WordLiveService
                         .ContentControlsAndCustomXml,
                     tables_and_cell_topology = graph.Coverage
                         .TablesAndCellTopology,
+                    bibliography_sources = graph.Coverage.BibliographySources,
                     explicitly_unmodeled_domains = graph.Coverage
                         .ExplicitlyUnmodeledDomains,
                 },
@@ -238,6 +240,14 @@ internal sealed partial class WordLiveService
                         stage = ToSnakeCase(exception.Stage.ToString()),
                     },
                 }
+            );
+        }
+        catch (WordBibliographyLimitException)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "The bibliography graph exceeds a bounded safety limit",
+                new { reason_code = "bibliography_graph_limit" }
             );
         }
         catch (WordDependencyLimitException exception)

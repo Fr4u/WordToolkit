@@ -32,6 +32,8 @@ public enum WordDependencyNodeKind
     ContentControl,
     CustomXmlStore,
     CustomXmlBindingTarget,
+    BibliographyCollection,
+    BibliographySource,
 }
 
 public enum WordDependencyEdgeKind
@@ -80,6 +82,8 @@ public enum WordDependencyEdgeKind
     RepeatingSectionContainsItem,
     TableNestsTable,
     TableCellContinuesVerticalMerge,
+    DefinesBibliographyCollection,
+    BibliographyContainsSource,
 }
 
 public enum WordDependencyIssueSeverity
@@ -137,6 +141,7 @@ public sealed record WordDependencyCoverage(
     bool FiguresAndCaptions,
     bool ContentControlsAndCustomXml,
     bool TablesAndCellTopology,
+    bool BibliographySources,
     IReadOnlyList<string> ExplicitlyUnmodeledDomains
 );
 
@@ -255,7 +260,8 @@ public sealed class WordDependencyGraph
         int chartIssueCount,
         int figureIssueCount,
         int contentControlIssueCount,
-        int tableIssueCount
+        int tableIssueCount,
+        int bibliographyIssueCount
     )
     {
         var nodeArray = nodes as WordDependencyNode[] ?? nodes.ToArray();
@@ -277,6 +283,7 @@ public sealed class WordDependencyGraph
         FigureIssueCount = figureIssueCount;
         ContentControlIssueCount = contentControlIssueCount;
         TableIssueCount = tableIssueCount;
+        BibliographyIssueCount = bibliographyIssueCount;
         var nodeIndexes = new Dictionary<string, int>(nodeArray.Length, StringComparer.Ordinal);
         for (var index = 0; index < nodeArray.Length; index++)
         {
@@ -340,6 +347,8 @@ public sealed class WordDependencyGraph
     public int ContentControlIssueCount { get; }
 
     public int TableIssueCount { get; }
+
+    public int BibliographyIssueCount { get; }
 
     public bool TryGetNode(string nodeId, out WordDependencyNode? node)
     {
@@ -606,7 +615,6 @@ public sealed class WordDependencyGraphBuilder
                 "drawingml_vml_advanced_layout",
                 "smartart_diagrams",
                 "ole_embedded_packages",
-                "citations_bibliography_sources",
                 "macros_signatures_encryption",
                 "coauthoring_sessions",
             ]
@@ -826,6 +834,12 @@ public sealed class WordDependencyGraphBuilder
             styles,
             cancellationToken
         );
+        var bibliography = (_resourceLease is null
+            ? new WordBibliographyGraphBuilder()
+            : new WordBibliographyGraphBuilder(null, _resourceLease)).Build(
+            package,
+            cancellationToken
+        );
         EnsureFingerprint(
             package.Fingerprint,
             semanticDocument.PackageFingerprint,
@@ -836,7 +850,8 @@ public sealed class WordDependencyGraphBuilder
             charts.PackageFingerprint,
             figures.PackageFingerprint,
             contentControls.PackageFingerprint,
-            tables.PackageFingerprint
+            tables.PackageFingerprint,
+            bibliography.PackageFingerprint
         );
 
         var state = new BuildState(_options, _resourceLease);
@@ -881,11 +896,20 @@ public sealed class WordDependencyGraphBuilder
             reachableParts,
             cancellationToken
         );
+        var bibliographySourceNodes = AddBibliographyDependencies(
+            state,
+            package,
+            bibliography,
+            reachableParts,
+            cancellationToken
+        );
         AddReferenceDependencies(
             state,
             package,
             styles,
             references,
+            bibliography,
+            bibliographySourceNodes,
             reachableParts,
             cancellationToken
         );
@@ -945,6 +969,7 @@ public sealed class WordDependencyGraphBuilder
                 FiguresAndCaptions: true,
                 ContentControlsAndCustomXml: true,
                 TablesAndCellTopology: true,
+                BibliographySources: true,
                 ExplicitlyUnmodeledDomains
             ),
             resourceUsage,
@@ -958,8 +983,109 @@ public sealed class WordDependencyGraphBuilder
             charts.Issues.Count,
             figures.Issues.Count,
             contentControls.Issues.Count,
-            tables.Issues.Count
+            tables.Issues.Count,
+            bibliography.Issues.Count
         );
+    }
+
+    private static IReadOnlyDictionary<string, string> AddBibliographyDependencies(
+        BuildState state,
+        OpcPackageSnapshot package,
+        WordBibliographyGraph bibliography,
+        IReadOnlySet<string> reachableParts,
+        CancellationToken cancellationToken
+    )
+    {
+        var collectionNodes = new Dictionary<string, string>(StringComparer.Ordinal);
+        var sourceNodes = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var collection in bibliography.Collections)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var partNodeId = PartNode(
+                state,
+                package,
+                reachableParts,
+                collection.PartUri
+            );
+            var collectionNodeId = state.AddNode(
+                WordDependencyNodeKind.BibliographyCollection,
+                collection.Id,
+                isResolved: true,
+                isExternal: false,
+                isPackageReachable: collection.IsPackageReachable,
+                partUri: collection.PartUri,
+                sourceElementOrdinal: collection.SourceElementOrdinal
+            );
+            collectionNodes.Add(collection.Id, collectionNodeId);
+            state.AddEdge(
+                WordDependencyEdgeKind.DefinesBibliographyCollection,
+                partNodeId,
+                collectionNodeId,
+                isResolved: true,
+                isExternal: false,
+                qualifier: collection.NamespaceUri
+                    == WordBibliographyGraphBuilder.TransitionalBibliographyNamespace
+                        ? "openxml_2006"
+                        : "word_2004_10",
+                partUri: collection.PartUri,
+                sourceElementOrdinal: collection.SourceElementOrdinal
+            );
+        }
+        foreach (var source in bibliography.Sources)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var sourceNodeId = state.AddNode(
+                WordDependencyNodeKind.BibliographySource,
+                source.Id,
+                isResolved: true,
+                isExternal: false,
+                isPackageReachable: reachableParts.Contains(source.PartUri),
+                partUri: source.PartUri,
+                sourceElementOrdinal: source.SourceElementOrdinal
+            );
+            sourceNodes.Add(source.Id, sourceNodeId);
+            if (collectionNodes.TryGetValue(source.CollectionId, out var collectionNodeId))
+            {
+                state.AddEdge(
+                    WordDependencyEdgeKind.BibliographyContainsSource,
+                    collectionNodeId,
+                    sourceNodeId,
+                    isResolved: true,
+                    isExternal: false,
+                    qualifier: source.IsSourceTypeKnown
+                        ? source.SourceType
+                        : source.HasAmbiguousSourceType
+                            ? "(ambiguous)"
+                        : string.IsNullOrWhiteSpace(source.SourceType)
+                            ? "(missing)"
+                            : "(unknown)",
+                    partUri: source.PartUri,
+                    sourceElementOrdinal: source.SourceElementOrdinal
+                );
+            }
+        }
+        foreach (var issue in bibliography.Issues)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            state.AddIssue(
+                "WDG070_" + issue.Code,
+                issue.Severity switch
+                {
+                    WordBibliographyIssueSeverity.Info => WordDependencyIssueSeverity.Info,
+                    WordBibliographyIssueSeverity.Warning => WordDependencyIssueSeverity.Warning,
+                    WordBibliographyIssueSeverity.Error => WordDependencyIssueSeverity.Error,
+                    _ => throw new ArgumentOutOfRangeException(nameof(issue.Severity)),
+                },
+                $"The typed bibliography graph emitted {issue.Code}.",
+                nodeId: issue.SourceId is not null
+                    && sourceNodes.TryGetValue(issue.SourceId, out var sourceNodeId)
+                        ? sourceNodeId
+                        : null,
+                partUri: issue.PartUri,
+                sourceElementOrdinal: issue.SourceElementOrdinal
+            );
+        }
+        return sourceNodes;
     }
 
     private static void AddTableDependencies(
@@ -2582,6 +2708,8 @@ public sealed class WordDependencyGraphBuilder
         OpcPackageSnapshot package,
         WordStyleGraph styles,
         WordReferenceGraph references,
+        WordBibliographyGraph bibliography,
+        IReadOnlyDictionary<string, string> bibliographySourceNodes,
         IReadOnlySet<string> reachableParts,
         CancellationToken cancellationToken
     )
@@ -2697,6 +2825,7 @@ public sealed class WordDependencyGraphBuilder
                 continue;
             }
             string targetNodeId;
+            var resolved = edge.IsResolved;
             if (
                 edge.TargetKind == WordReferenceTargetKind.Bookmark
                 && edge.ResolvedBookmarkId is { } bookmarkId
@@ -2716,6 +2845,16 @@ public sealed class WordDependencyGraphBuilder
                     stylesReachable
                 );
             }
+            else if (
+                edge.TargetKind == WordReferenceTargetKind.Citation
+                && bibliography.TryResolveCitationTag(edge.TargetKey, out var source)
+                && source is not null
+                && bibliographySourceNodes.TryGetValue(source.Id, out var bibliographyNodeId)
+            )
+            {
+                targetNodeId = bibliographyNodeId;
+                resolved = true;
+            }
             else
             {
                 targetNodeId = state.AddNode(
@@ -2732,12 +2871,12 @@ public sealed class WordDependencyGraphBuilder
                 WordDependencyEdgeKind.FieldReference,
                 sourceNodeId,
                 targetNodeId,
-                edge.IsResolved,
+                resolved,
                 edge.IsExternal,
                 qualifier: $"{edge.Kind}:{edge.TargetKind}",
                 relationshipId: edge.Id
             );
-            if (!edge.IsResolved && !edge.IsExternal)
+            if (!resolved && !edge.IsExternal)
             {
                 state.AddIssue(
                     "WDG030",

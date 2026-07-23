@@ -353,6 +353,22 @@ are inert metadata: no process starts and no target is fetched. Lazy
 `inspect_ooxml_references` defaults to field-type counts; names, instructions, result
 text and dependency keys remain redacted behind opt-in detail, exact filters and paging.
 
+`WordBibliographyGraphBuilder` discovers relationship-backed and orphan-preserved
+`customXml/item*.xml` candidates, but projects only a `Sources` root in the Open XML
+2006 or legacy Word 2004/10 bibliography namespace. Collections retain source links,
+style/version/URI metadata and package reachability. Sources type Tag, SourceType, GUID,
+LCID, scalar fields and contributor/person/corporate structure under independent part,
+element, source, value and aggregate metadata limits. Stable source IDs prefer a
+normalized GUID, then a case-normalized tag; unrelated source reordering therefore does
+not churn IDs. Duplicate case-insensitive tags never resolve. The dependency builder
+adds collection/source nodes and redirects a CITATION field edge to one source only when
+that tag is unique. Repeated singleton identity fields fail closed instead of selecting
+the first value. Lazy `inspect_ooxml_bibliography` exposes summary-first paged views;
+one 65,536-character projected-payload budget covers page items and optional issues,
+while redacted values use process-keyed HMAC equality tokens. Document values and source
+locations require separate opt-ins. Neither layer evaluates
+fields, executes bibliography XSLT, opens Word or follows external targets.
+
 `WordContentControlBindingGraphBuilder` projects source-linked `w:sdt` controls across
 all projected stories and types their block/run/row/cell level, lock, placeholder,
 temporary state, parent control and Transitional/Strict plus Office 2010/2013 control
@@ -706,9 +722,10 @@ summary returns only the compact `{model, used, maximum}` byte-budget tuple. Res
 formulas and paired measurements are recorded in
 `RESEARCH-DEPENDENCY-GRAPH-MEMORY-2026.md`.
 
-Coverage is explicit. Advanced DrawingML/VML layout, SmartArt, OLE, bibliography
-sources, active content, signatures, encryption and co-authoring sessions are still
-outside this graph. Office 2016 extended charts are preserved and
+Coverage is explicit. Advanced DrawingML/VML layout, SmartArt, full OLE, active
+content, signatures, encryption and co-authoring sessions are still outside this graph.
+Bibliography collection/source nodes and unique-tag `CITATION` resolution are inside the
+graph; bibliography rendering and mutation are not. Office 2016 extended charts are preserved and
 diagnosed, but are not projected as classic chart nodes.
 
 Lazy `inspect_ooxml_dependencies` exposes compact edge-kind counts, filtered nodes and
@@ -1061,7 +1078,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 90 actions already have public SDK
+These are proved migration seams, not a claim that all 91 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
@@ -1204,8 +1221,9 @@ These are resolvers, not bags of XML helpers:
   fields and emits typed dependencies for REF/PAGEREF/NOTEREF, SEQ, TOC bookmark
   restrictions, HYPERLINK anchors, variables, merge fields, citations, index entries,
   styles and external-resource fields;
-- the unfinished reference layers must still unify element hyperlinks, captions,
-  notes, bibliography sources and complete TOC/TOF/TOT semantics, then add safe edits;
+- the unfinished reference layers must still unify element hyperlinks, notes and
+  complete TOC/TOF/TOT semantics, deepen citation/bibliography validation, then add safe
+  edits;
 - updates are backend-qualified because Word's field evaluator remains authoritative for
   fields it owns.
 

@@ -132,6 +132,20 @@ the next decision consumes it. Treat DDE, LINK, INCLUDE, IMPORT, DATABASE and ot
 external/automation fields as inert evidence. This inspector never evaluates them,
 starts an application or follows a target. Unresolved, duplicated or malformed ranges
 are damage signals, not permission to guess what Word would display.
+Use lazy `inspect_ooxml_bibliography` instead of opening `customXml/item*.xml` or
+trying to join `CITATION` text by hand. Start with `view=summary`, then page
+`collections`, `sources`, `citations`, `fields`, `contributors` or `issues`. Narrow by
+one exact `wbs_` source ID, tag or source type. Tags, titles, GUIDs, contributor names,
+field values, selected-style paths and collection URIs are redacted by default; request
+`include_sensitive=true` only when the next decision consumes them. Duplicate
+case-insensitive tags and duplicate singleton identity fields remain unresolved. The
+returned fingerprints are process-scoped keyed equality tokens, not durable IDs. One
+65,536-character projected-payload budget covers the requested page and optional issues;
+follow `next_offset` when `response_budget_truncated=true`. The action recognizes the
+Open XML 2006 and legacy Word 2004/10 bibliography namespaces, validates typed source
+identity/type/LCID evidence and never opens Word, evaluates fields, executes bibliography
+XSLT or follows an external target. It is read-only: it does not refresh citations,
+render a formatted bibliography or authorize source deletion.
 Use lazy `inspect_ooxml_dependencies` when the task asks what depends on a part,
 semantic object, style, numbering definition, field target or section story. Start with
 `view=summary`; use `view=nodes` only to obtain one stable `wddn_` ID, then request a
@@ -141,16 +155,17 @@ by default; use `include_issues=true` or `view=issues` only when they drive the 
 decision. The graph joins the
 explicitly reported OPC, semantic-containment, style, numbering, reference, section,
 classic-chart, logical-figure/representation/resource/caption, content-control,
-physical/built-in XML-store, binding-target and repeating-section domains plus
+physical/built-in XML-store, binding-target, repeating-section, bibliography collection,
+source and resolved CITATION domains plus
 nested-table and vertical-merge topology. Its
 `explicitly_unmodeled_domains` list is a hard coverage
-boundary: absence of an edge for advanced drawing layout, SmartArt, OLE, bibliography, active content,
+boundary: absence of an edge for advanced drawing layout, SmartArt, OLE, active content,
 signatures, encryption or co-authoring is not proof that the dependency does not exist.
 The summary's `byte_budget` remains the graph-local deterministic boundary. Its separate
 `operation_budget` (`wop1`) is one shared 640 MiB accounted lease spanning ZIP/OPC
 admission and metadata,
 lossless XML reservations, semantic/style/numbering/reference/section/chart/figure/
-content-control/table projections and the final graph. Treat `PACKAGE_LIMIT` as a hard
+content-control/table/bibliography projections and the final graph. Treat `PACKAGE_LIMIT` as a hard
 stop; an operation-budget error reports only the bounded stage and attempted charge.
 Do not retry with broader output or call this an exact CLR heap, peak-live-memory or
 resident-set limit. Accounting is cumulative and conservative; repeated XML projection
