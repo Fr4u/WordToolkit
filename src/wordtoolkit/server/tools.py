@@ -196,6 +196,62 @@ async def _run_locked_worker(function: Callable[..., Any], *args: Any, **kwargs:
         raise cancellation
 
 
+def _prepare_mutation_candidate(
+    source: WordDocumentEngine,
+    operation: Callable[[Any], Any],
+    checkpoint: Path,
+    candidate_path: Path,
+) -> tuple[WordDocumentEngine, Any]:
+    """Build and validate one mutation without exposing partial engine state."""
+    clone: WordDocumentEngine | None = None
+    try:
+        clone = source.fork(checkpoint)
+        result = operation(clone)
+        clone.snapshot(candidate_path)
+        validation = clone.validator.validate(candidate_path)
+        if not validation["valid"]:
+            issue_codes = sorted(
+                {
+                    str(issue.get("code", "VALIDATION_ERROR"))
+                    for issue in validation.get("issues", [])
+                    if isinstance(issue, dict)
+                }
+            )[:20]
+            raise WordToolkitError(
+                ErrorCode.OOXML_INVALID,
+                "Mutation candidate failed structural validation",
+                {
+                    "errors": int(validation.get("errors", 0)),
+                    "warnings": int(validation.get("warnings", 0)),
+                    "issue_codes": issue_codes,
+                },
+            )
+        package = validation.get("package")
+        if isinstance(package, dict):
+            clone.inspection = package
+        return clone, result
+    except BaseException:
+        if clone is not None:
+            with contextlib.suppress(Exception):
+                clone.close()
+        raise
+
+
+def _close_engine_safely(engine: WordDocumentEngine) -> None:
+    with contextlib.suppress(Exception):
+        engine.close()
+
+
+def _commit_mutation_candidate(
+    record: Any, clone: WordDocumentEngine
+) -> tuple[int, WordDocumentEngine]:
+    previous = record.engine
+    clone.path = record.current_path.resolve()
+    record.engine = clone
+    record.version += 1
+    return record.version, previous
+
+
 async def _mutate(
     runtime: ToolRuntime,
     document_id: str,
@@ -206,27 +262,61 @@ async def _mutate(
     require_scope("documents:write")
     async with runtime.store.locked_document(subject, document_id) as record:
         runtime.store.require_version(record, expected_version)
-        worker = asyncio.create_task(asyncio.to_thread(operation, record.engine))
-        try:
-            result = await asyncio.shield(worker)
-        except asyncio.CancelledError as cancellation:
-            completed = False
-            try:
-                result = await _drain_worker(worker)
-                completed = True
-            except BaseException:
-                completed = False
-            if completed:
-                record.version += 1
-            raise cancellation
-        record.version += 1
-        return ok(
-            {
-                "document_id": document_id,
-                "draft_version": record.version,
-                "result": _public(result),
-            }
+        session = runtime.store.sessions.get(record.session_id)
+        if session is None or session.closed:
+            raise WordToolkitError(ErrorCode.SESSION_NOT_FOUND, "Session was not found")
+        transaction_dir = session.root / ".transactions" / record.document_id / opaque_id("txn")
+        cleanup_required = True
+        checkpoint = transaction_dir / "before.docx"
+        candidate_path = transaction_dir / "candidate.docx"
+        worker = asyncio.create_task(
+            asyncio.to_thread(
+                _prepare_mutation_candidate,
+                record.engine,
+                operation,
+                checkpoint,
+                candidate_path,
+            )
         )
+        cancellation: asyncio.CancelledError | None = None
+        clone: WordDocumentEngine | None = None
+        try:
+            try:
+                clone, result = await asyncio.shield(worker)
+            except asyncio.CancelledError as exc:
+                cancellation = exc
+                try:
+                    clone, result = await _drain_worker(worker)
+                except BaseException:
+                    raise cancellation from None
+
+            assert clone is not None
+            version, previous = _commit_mutation_candidate(record, clone)
+            clone = None
+            cleanup_required = False
+            try:
+                await _run_locked_worker(_close_engine_safely, previous)
+            except asyncio.CancelledError as exc:
+                cancellation = cancellation or exc
+            if cancellation is not None:
+                raise cancellation
+            return ok(
+                {
+                    "document_id": document_id,
+                    "draft_version": version,
+                    "result": _public(result),
+                }
+            )
+        finally:
+            if clone is not None:
+                with contextlib.suppress(Exception):
+                    clone.close()
+            if cleanup_required:
+                cleanup = asyncio.create_task(
+                    asyncio.to_thread(shutil.rmtree, transaction_dir, True)
+                )
+                with contextlib.suppress(BaseException):
+                    await _drain_worker(cleanup)
 
 
 async def _read(runtime: ToolRuntime, document_id: str, operation: Callable[[Any], Any]) -> dict:
@@ -350,7 +440,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
                         await cleanup_worker(shutil.rmtree, output, True)
                     else:
                         output.unlink()
-        if transaction_dir is not None:
+        if transaction_dir is not None and not committed:
             await cleanup_worker(shutil.rmtree, transaction_dir, True)
         if cancellation is not None:
             raise cancellation
@@ -360,14 +450,13 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         clone: WordDocumentEngine,
         version: int,
         current_path: Path,
-    ) -> None:
+    ) -> WordDocumentEngine:
         previous = record.engine
         clone.path = current_path.resolve()
         record.engine = clone
         record.current_path = current_path
         record.version = version
-        with contextlib.suppress(Exception):
-            previous.close()
+        return previous
 
     async def _publish_docx(
         document_id: str,
@@ -397,8 +486,6 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
                 result = await _run_publish_worker(clone.save_version, output)
                 inspection = await _run_publish_worker(clone.package_inspector.inspect, output)
                 clone.inspection = inspection.to_dict()
-                await _run_publish_worker(shutil.rmtree, transaction_dir, True)
-                transaction_dir = None
                 response = await runtime.artifact_result(
                     subject,
                     output,
@@ -411,8 +498,9 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
                     },
                     label=label,
                 )
-                _commit_published_engine(record, clone, version, output)
+                previous = _commit_published_engine(record, clone, version, output)
                 committed = True
+                await _run_publish_worker(_close_engine_safely, previous)
                 return response
             finally:
                 await _cleanup_publish_attempt(
@@ -2056,8 +2144,6 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
                 visual = await _run_publish_worker(runtime.renderer.visual_audit, pdf, pages)
                 inspection = await _run_publish_worker(clone.package_inspector.inspect, docx)
                 clone.inspection = inspection.to_dict()
-                await _run_publish_worker(shutil.rmtree, transaction_dir, True)
-                transaction_dir = None
                 files = [(pdf, "application/pdf", pdf.name)]
                 if include_pages:
                     selected = pages[:max_pages] if max_pages else pages
@@ -2075,8 +2161,9 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
                     },
                     label="Rendered files and visual QA ready",
                 )
-                _commit_published_engine(record, clone, version, docx)
+                previous = _commit_published_engine(record, clone, version, docx)
                 committed = True
+                await _run_publish_worker(_close_engine_safely, previous)
                 return response
             finally:
                 await _cleanup_publish_attempt(

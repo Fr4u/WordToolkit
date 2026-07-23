@@ -44,7 +44,7 @@ The MCP layer has no direct ZIP/XML manipulation. The document engine has no aut
 
 An OAuth `sub` claim is hashed to a non-reversible owner key. IDs have opaque random forms such as `ses_<base32>`, `doc_<base32>` and `art_<base32>`; they contain no path or user information. Every session has a root beneath the configured storage root. A document may only be resolved when its owner and live session match the caller.
 
-Existing-draft mutations require `expected_version`. A mismatch returns `VERSION_CONFLICT`, preventing two clients from silently overwriting the same draft. Successful DOCX publication increments the draft version and writes `versions/<document-id>/vN-<name>.docx`; the original upload is never overwritten. Per-document async locks serialize in-process mutation and publication.
+Existing-draft mutations require `expected_version`. A mismatch returns `VERSION_CONFLICT`, preventing two clients from silently overwriting the same draft. The 33 ordinary draft mutators execute as copy-on-write transactions under the same per-document lock: the active in-memory engine is snapshotted, the complete operation runs on an isolated clone, the candidate is serialized and structurally validated, and only then are the engine reference and version swapped. A partial operation failure or rejected candidate closes the clone and leaves the active engine, bytes and version unchanged. Successful DOCX publication increments the draft version and writes `versions/<document-id>/vN-<name>.docx`; the original upload is never overwritten. Per-document async locks serialize in-process mutation and publication.
 
 Sessions and artifacts expire independently. Cleanup closes XML trees and removes session directories. Artifact URLs contain owner, expiry and HMAC; download responses are private/no-store and content-sniffing is disabled.
 
@@ -91,4 +91,19 @@ The result is a compatibility check, not a promise of pixel equality with Micros
 
 The tool contract is versioned independently from the implementation. `schemas/mcp-tools.v2.json` is the current remote source of truth; v1 remains immutable. Additive optional fields are permitted within v2. A renamed tool, new required field, changed type, removed enum member or changed side effect requires a new major schema and migration note. Document migrations are explicit copy-on-write operations.
 
-Every operation that changes, publishes or closes an existing remote draft requires the caller's `expected_version`. The check and operation execute under the same document lock. A cancelled background engine call is drained before that lock is released; if a mutation finishes successfully after cancellation, its version still advances so the abandoned token cannot authorize a later write. Save, repair and render use an isolated engine fork; only a validated output with an atomically registered artifact set can replace the active engine and advance the version. Stale input and failed publication leave the active engine, version, current path and artifacts unchanged. DOCX export follows this rule; lossy Markdown export is read-only and does not advance the draft.
+Every operation that changes, publishes or closes an existing remote draft requires the caller's `expected_version`. The check and operation execute under the same document lock. A cancelled background engine call is drained before that lock is released; if a mutation finishes successfully after cancellation, its version still advances so the abandoned token cannot authorize a later write. Ordinary edits, save, repair and render use isolated engine forks. Ordinary edits additionally serialize and validate a candidate snapshot before swapping the active engine; publication swaps it only after validated output and all-or-nothing artifact registration. Stale input, partial edit failure, rejected validation and failed publication leave the active engine, version, current path and artifacts unchanged. DOCX export follows this rule; lossy Markdown export is read-only and does not advance the draft.
+
+Each committed clone owns its transaction workspace until a later engine swap or
+document close. Replacement cleanup is drained in a background worker while the document
+lock remains held. OPC part identities are always canonical forward-slash ZIP names;
+using host-native Windows separators here can silently skip dirty XML and serialize a
+structurally valid but stale candidate.
+
+This boundary is transactional inside one running remote-service process, not a durable
+database commit. Draft/session metadata still lives in memory, and an ordinary edit pays
+for a full package snapshot, clone open, candidate snapshot and validation. The recorded
+15-sample one-paragraph benchmark measured 0.160 ms median for the former direct mutation
+and 56.319 ms for candidate preparation (+56.159 ms, 351.99x). It excludes engine
+creation, commit swap, replaced-workspace cleanup and MCP dispatch, and only the built-in
+structural validator was available. Shared immutable parsed-part storage is not yet
+implemented, so the service chooses isolation without disguising the measured cost.

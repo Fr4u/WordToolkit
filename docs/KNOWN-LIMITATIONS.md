@@ -68,6 +68,19 @@ WordToolkit deliberately avoids claiming complete Microsoft Word parity.
 - The optional Microsoft Open XML SDK validator is built in Docker. Local Python-only environments report it unavailable and rely on WordToolkit's structural validator.
 - OAuth tokens are verified against an external standards-compliant identity provider; WordToolkit is a resource server and does not implement user login or dynamic client registration itself.
 - Session metadata and locks are in process memory. Production is limited to one application replica until a shared backend is implemented.
+- The remote service's 33 ordinary draft mutators are now isolated copy-on-write
+  transactions: partial operation and candidate-validation failures leave the active
+  engine and version unchanged. This is process-local isolation, not crash-durable
+  persistence. Each edit currently serializes the full active package twice, opens a
+  clone and validates the candidate because immutable shared parsed-part storage does not
+  exist. A 15-sample local one-paragraph benchmark measured 56.319 ms candidate-
+  preparation median versus 0.160 ms for the old unsafe direct mutation (+56.159 ms,
+  351.99x). It excludes engine creation, commit swap, replaced-workspace cleanup and MCP
+  dispatch; the optional Microsoft SDK validator was unavailable. Package size and SDK
+  validation can increase the whole-request cost. The active clone deliberately retains
+  its checkpoint, candidate package and extracted work directory until the next swap or
+  close, so large drafts also carry a sustained per-open-document disk cost. No dedicated
+  workspace quota or disk-pressure metric exists yet.
 - The current local Codex plugin is a self-contained Windows x64 .NET runtime and does not need `uv`, Python or a virtual environment. It still cannot run in ChatGPT web or on a phone because those surfaces cannot automate the user's desktop Word process.
 - No public deployment is included in source-control credentials. Remote use
   still requires an operator-owned HTTPS domain and identity provider.

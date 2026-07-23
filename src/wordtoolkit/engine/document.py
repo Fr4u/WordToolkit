@@ -4,6 +4,7 @@ import copy
 import hashlib
 import os
 import re
+import shutil
 import zipfile
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -132,6 +133,7 @@ class WordDocumentEngine:
         self.initial_hashes: dict[str, str] = {}
         self.cumulative_modified_parts: set[str] = set()
         self.inspection: dict[str, Any] = {}
+        self._owned_workspace_root: Path | None = None
 
     @classmethod
     def create(
@@ -209,9 +211,15 @@ class WordDocumentEngine:
         return {"assigned_missing": assigned, "replaced_invalid_or_duplicate": replaced}
 
     def close(self) -> None:
-        if self.document is not None:
-            self.document.close()
+        owned_workspace_root = self._owned_workspace_root
+        try:
+            if self.document is not None:
+                self.document.close()
+        finally:
             self.document = None
+            self._owned_workspace_root = None
+            if owned_workspace_root is not None:
+                shutil.rmtree(owned_workspace_root, ignore_errors=True)
 
     @property
     def doc(self) -> DocxDocument:
@@ -249,7 +257,7 @@ class WordDocumentEngine:
             for root, _dirs, files in os.walk(self.doc.workdir):
                 for filename in files:
                     source = Path(root) / filename
-                    part = str(source.relative_to(self.doc.workdir))
+                    part = source.relative_to(self.doc.workdir).as_posix()
                     if part in self.doc._modified and part in self.doc._trees:
                         data = etree.tostring(
                             self.doc._trees[part],
@@ -271,6 +279,7 @@ class WordDocumentEngine:
         """Create an isolated copy-on-write engine for an atomic publish attempt."""
         self.snapshot(snapshot_path)
         clone = WordDocumentEngine(snapshot_path, self.settings)
+        clone._owned_workspace_root = snapshot_path.parent.resolve()
         try:
             clone.open()
         except Exception:

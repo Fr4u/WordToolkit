@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- Made all 33 ordinary remote draft mutators copy-on-write transactions. Each request
+  now snapshots the locked active engine, applies the complete operation to an isolated
+  clone, serializes and structurally validates the candidate, and swaps the active
+  engine plus `draft_version` only after every gate succeeds. An operation that mutates
+  and then raises, or a candidate rejected by validation, leaves the active engine,
+  package bytes and version unchanged. Validation failures expose only bounded counts
+  and issue codes, never validator messages, part names or document content.
+- Preserved cancellation truth at the stronger boundary: a cancelled caller cannot
+  release the document lock while the clone worker is alive; a fully successful and
+  validated post-cancellation mutation is committed and advances the version, while a
+  failed post-cancellation attempt is discarded. Transaction snapshots and abandoned
+  clones are drained and removed before the lock is released.
+- Added partial-mutation rollback, candidate-validation rejection, redaction and engine
+  identity regressions. Sequential mutation -> mutation -> save -> close coverage proves
+  that the one active clone workspace survives publication and replaced workspaces are
+  removed. Replaced-engine cleanup runs in a drained background worker, so a large
+  workspace cannot block the event loop or escape cleanup when the caller cancels.
+- Fixed a Windows snapshot defect that compared backslash filesystem paths with canonical
+  POSIX OPC part names. The broken comparison could omit modified XML while still
+  producing a structurally valid, stale package; snapshots now serialize every marked
+  part with canonical ZIP names.
+- Recorded a 15-sample local Windows x64 cost measurement for one paragraph insertion:
+  direct in-memory mutation measured 0.160 ms median, while snapshot + clone open +
+  mutation + candidate snapshot + structural validation measured 56.319 ms median. The
+  absolute 56.159 ms / 351.99x median cost is an explicit correctness tradeoff. This
+  candidate-preparation point excludes engine creation, commit swap, replaced-workspace
+  cleanup and MCP dispatch; the optional Microsoft SDK validator was unavailable.
+
 - Raised the legacy remote Python service to the unified 0.40.0 development line and
   published remote MCP schema v2.
   Every edit, save, repair, render, preview and close of an existing draft now requires a

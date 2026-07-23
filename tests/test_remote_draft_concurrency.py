@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +57,7 @@ async def test_missing_and_stale_versions_never_mutate_or_publish(
     created = await _create_document(server)
     document_id = created["document_id"]
     record = runtime.store.documents[document_id]
+    original_engine = record.engine
 
     for invalid_version in (None, False, 0.0, "0"):
         arguments: dict[str, Any] = {
@@ -100,7 +102,12 @@ async def test_missing_and_stale_versions_never_mutate_or_publish(
         )
     )
     assert inserted["data"]["draft_version"] == 1
+    assert record.engine is not original_engine
+    assert original_engine.document is None
+    assert record.engine.doc.workdir is not None
+    assert record.engine.doc.workdir.exists()
     before = _snapshot_hashes(record.engine, tmp_path / "before-stale.docx")
+    assert {"[Content_Types].xml", "_rels/.rels", "word/document.xml"} <= before.keys()
     engine_before = record.engine
 
     stale = _tool_payload(
@@ -258,6 +265,239 @@ async def test_quality_snapshot_reports_captured_version_during_later_mutation(
     )
     assert len(snapshots) == 1
     assert record.version == 1
+
+
+@pytest.mark.asyncio
+async def test_sequential_mutations_and_publish_keep_one_live_workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server, runtime = _build_server(tmp_path, monkeypatch)
+    created = await _create_document(server)
+    record = runtime.store.documents[created["document_id"]]
+
+    first = _tool_payload(
+        await server.call_tool(
+            "insert_paragraph",
+            {
+                "document_id": created["document_id"],
+                "after_paragraph_id": created["anchor_paragraph_id"],
+                "text": "first transactional edit",
+                "expected_version": 0,
+            },
+        )
+    )
+    assert first["data"]["draft_version"] == 1
+    first_workspace = record.engine._owned_workspace_root
+    assert first_workspace is not None and first_workspace.is_dir()
+    assert record.engine.doc.workdir is not None and record.engine.doc.workdir.is_dir()
+
+    second = _tool_payload(
+        await server.call_tool(
+            "insert_paragraph",
+            {
+                "document_id": created["document_id"],
+                "after_paragraph_id": created["anchor_paragraph_id"],
+                "text": "second transactional edit",
+                "expected_version": 1,
+            },
+        )
+    )
+    assert second["data"]["draft_version"] == 2
+    second_workspace = record.engine._owned_workspace_root
+    assert second_workspace is not None and second_workspace.is_dir()
+    assert second_workspace != first_workspace
+    assert not first_workspace.exists()
+
+    saved = _tool_payload(
+        await server.call_tool(
+            "save_document",
+            {
+                "document_id": created["document_id"],
+                "file_name": "sequential.docx",
+                "expected_version": 2,
+            },
+        )
+    )
+    assert saved["data"]["draft_version"] == 3
+    published_workspace = record.engine._owned_workspace_root
+    assert published_workspace is not None and published_workspace.is_dir()
+    assert not second_workspace.exists()
+    assert record.engine.doc.workdir is not None and record.engine.doc.workdir.is_dir()
+
+    artifact = runtime.store.artifacts[saved["data"]["artifact"]["artifact_id"]]
+    with zipfile.ZipFile(artifact.path) as archive:
+        names = set(archive.namelist())
+        assert {"[Content_Types].xml", "_rels/.rels", "word/document.xml"} <= names
+        document_xml = archive.read("word/document.xml").decode("utf-8")
+    assert "first transactional edit" in document_xml
+    assert "second transactional edit" in document_xml
+
+    transaction_root = (
+        runtime.store.sessions[record.session_id].root / ".transactions" / record.document_id
+    )
+    assert [path for path in transaction_root.iterdir() if path.is_dir()] == [published_workspace]
+
+    closed = _tool_payload(
+        await server.call_tool(
+            "close_document",
+            {"document_id": created["document_id"], "expected_version": 3},
+        )
+    )
+    assert closed["data"]["closed"] is True
+    assert not published_workspace.exists()
+
+
+@pytest.mark.asyncio
+async def test_committed_replacement_cleanup_is_off_event_loop_and_drained_on_cancel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server, runtime = _build_server(tmp_path, monkeypatch)
+    created = await _create_document(server)
+    record = runtime.store.documents[created["document_id"]]
+
+    first = _tool_payload(
+        await server.call_tool(
+            "insert_paragraph",
+            {
+                "document_id": created["document_id"],
+                "after_paragraph_id": created["anchor_paragraph_id"],
+                "text": "first committed edit",
+                "expected_version": 0,
+            },
+        )
+    )
+    assert first["data"]["draft_version"] == 1
+    replaced_engine = record.engine
+    replaced_workspace = replaced_engine._owned_workspace_root
+    assert replaced_workspace is not None and replaced_workspace.is_dir()
+
+    close_started = threading.Event()
+    release_close = threading.Event()
+    original_close = replaced_engine.close
+
+    def slow_close() -> None:
+        close_started.set()
+        release_close.wait(2)
+        original_close()
+
+    monkeypatch.setattr(replaced_engine, "close", slow_close)
+    mutation = asyncio.create_task(
+        server.call_tool(
+            "insert_paragraph",
+            {
+                "document_id": created["document_id"],
+                "after_paragraph_id": created["anchor_paragraph_id"],
+                "text": "second committed edit",
+                "expected_version": 1,
+            },
+        )
+    )
+
+    try:
+        assert await asyncio.to_thread(close_started.wait, 2)
+        await asyncio.wait_for(asyncio.sleep(0), timeout=0.1)
+        assert not mutation.done()
+        mutation.cancel()
+    finally:
+        release_close.set()
+
+    with pytest.raises(asyncio.CancelledError):
+        await mutation
+    assert record.version == 2
+    assert record.engine is not replaced_engine
+    assert record.engine._owned_workspace_root is not None
+    assert record.engine._owned_workspace_root.is_dir()
+    assert not replaced_workspace.exists()
+
+
+@pytest.mark.asyncio
+async def test_failed_mutation_discards_partially_changed_clone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server, runtime = _build_server(tmp_path, monkeypatch)
+    created = await _create_document(server)
+    record = runtime.store.documents[created["document_id"]]
+    original_engine = record.engine
+    before = _snapshot_hashes(original_engine, tmp_path / "before-failed-mutation.docx")
+    original_call = WordDocumentEngine.call
+
+    def fail_after_mutation(self: WordDocumentEngine, name: str, *args: Any, **kwargs: Any):
+        result = original_call(self, name, *args, **kwargs)
+        if name == "insert_paragraph":
+            raise WordToolkitError(ErrorCode.OOXML_INVALID, "injected mutation failure")
+        return result
+
+    monkeypatch.setattr(WordDocumentEngine, "call", fail_after_mutation)
+    failed = _tool_payload(
+        await server.call_tool(
+            "insert_paragraph",
+            {
+                "document_id": created["document_id"],
+                "after_paragraph_id": created["anchor_paragraph_id"],
+                "text": "must remain isolated",
+                "expected_version": 0,
+            },
+        )
+    )
+
+    assert failed["error"]["code"] == "OOXML_INVALID"
+    assert record.version == 0
+    assert record.engine is original_engine
+    assert _snapshot_hashes(record.engine, tmp_path / "after-failed-mutation.docx") == before
+    transaction_root = (
+        runtime.store.sessions[record.session_id].root / ".transactions" / record.document_id
+    )
+    assert not list(transaction_root.rglob("*.docx"))
+
+
+@pytest.mark.asyncio
+async def test_invalid_mutation_candidate_is_rejected_before_engine_swap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server, runtime = _build_server(tmp_path, monkeypatch)
+    created = await _create_document(server)
+    record = runtime.store.documents[created["document_id"]]
+    original_engine = record.engine
+    before = _snapshot_hashes(original_engine, tmp_path / "before-invalid-candidate.docx")
+
+    def reject_candidate(_path: Path) -> dict:
+        return {
+            "valid": False,
+            "errors": 2,
+            "warnings": 1,
+            "issues": [
+                {"code": "XML_INVALID", "message": "sensitive candidate detail"},
+                {"code": "REL_TARGET_MISSING", "message": "sensitive relationship"},
+            ],
+        }
+
+    monkeypatch.setattr(record.engine.validator.__class__, "validate", lambda self, path: reject_candidate(path))
+    failed = _tool_payload(
+        await server.call_tool(
+            "insert_paragraph",
+            {
+                "document_id": created["document_id"],
+                "after_paragraph_id": created["anchor_paragraph_id"],
+                "text": "candidate rejected by validation",
+                "expected_version": 0,
+            },
+        )
+    )
+
+    assert failed["error"] == {
+        "code": "OOXML_INVALID",
+        "message": "Mutation candidate failed structural validation",
+        "details": {
+            "errors": 2,
+            "warnings": 1,
+            "issue_codes": ["REL_TARGET_MISSING", "XML_INVALID"],
+        },
+        "retryable": False,
+    }
+    assert "sensitive" not in json.dumps(failed)
+    assert record.version == 0
+    assert record.engine is original_engine
+    assert _snapshot_hashes(record.engine, tmp_path / "after-invalid-candidate.docx") == before
 
 
 @pytest.mark.asyncio
