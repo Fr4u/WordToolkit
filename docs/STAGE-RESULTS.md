@@ -46,10 +46,11 @@
   ms median** and **290.44 ms p95/max**. All 15 artifacts were the same 3,628 bytes with
   one SHA-256. Static HTML-tree, CSP and external-resource checks passed. The in-app
   browser blocked `file://`, so no visual screenshot claim is made and no bypass was used.
-- Hosted CI run [`29984588930`](https://github.com/Fr4u/WordToolkit/actions/runs/29984588930)
-  remains the last completed proof for the preceding whole-document renderer checkpoint;
-  it is not evidence for the new selection package fingerprint. Current hosted parity is
-  recorded only after the selection commit is pushed and the mandatory workflow passes.
+- Hosted CI run [`29988472344`](https://github.com/Fr4u/WordToolkit/actions/runs/29988472344)
+  passed all five jobs for commit `dc72a8e811217bb9515b0ad30810c8925b3081cb`.
+  Downloaded Windows artifact `8556049406` matched both local ZIPs byte for byte; after
+  normalizing its single `wordtoolkit/` wrapper, the hosted 196-file tree had zero
+  length/hash differences and the same expanded-manifest SHA-256.
 
 ## WordToolkit 0.35.0 logical table graph — 2026-07-22
 

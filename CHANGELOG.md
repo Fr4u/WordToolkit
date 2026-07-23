@@ -54,8 +54,10 @@
   the fingerprint-bound Mammoth table to a 3,742-byte artifact with one `table`, one
   `tbody`, two `tr` and four cells under an HTML5 parser, zero invalid table ancestors,
   no source mutation, no Word process and no fixture cell text in the JSON response.
-  Hosted CI run `29984588930` remains evidence only for the preceding whole-document
-  renderer package until the selection commit is pushed and requalified.
+  Hosted CI run `29988472344` passed all five jobs for commit
+  `dc72a8e811217bb9515b0ad30810c8925b3081cb`; downloaded Windows artifact
+  `8556049406` matched both local ZIPs byte for byte and its normalized 196-file tree had
+  zero length/hash differences at the recorded manifest SHA-256.
 
 - Added the public comment-body operation pair
   `wordtoolkit.plan_ooxml_comment_body_edits/1.0` and
