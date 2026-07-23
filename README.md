@@ -75,7 +75,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 85-action schema set into model context. The normative shape is
+not flatten the 87-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -220,6 +220,18 @@ normative contracts are
 `wordtoolkit.plan_ooxml_semantic_edits/1.0` and
 `wordtoolkit.apply_ooxml_semantic_edits/1.0`.
 
+Comment-body rewrites have a separate high-level, token-lean boundary. Select one
+comment through `inspect_ooxml_review`, then submit its stable `comment_id`, exact
+`find_text`, replacement and expected match count to
+`wordtoolkit.plan_ooxml_comment_body_edits/1.0`; apply the reviewed plan through
+`wordtoolkit.apply_ooxml_comment_body_edits/1.0` or the non-interactive
+`comment-body-package` CLI. Matches may span adjacent Word runs in the same ordinary
+comment paragraph, but never paragraphs, table cells, tabs, breaks, fields, content
+controls or other rich structural boundaries. Only the selected comment's editable text
+leaves can change. Plan/apply return counts and hashes rather than comment
+text or XML and prove that anchors, authors, threads, durable IDs, reactions, revisions,
+permissions, unselected comments and unrelated package parts remain unchanged.
+
 The complete lazy action set is:
 
 ```text
@@ -263,6 +275,8 @@ plan_ooxml_text_edits
 apply_ooxml_text_edits
 plan_ooxml_semantic_edits
 apply_ooxml_semantic_edits
+plan_ooxml_comment_body_edits
+apply_ooxml_comment_body_edits
 plan_ooxml_review_decisions
 apply_ooxml_review_decisions
 inspect_live_word_document

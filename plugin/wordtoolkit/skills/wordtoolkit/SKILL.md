@@ -1,6 +1,6 @@
 ---
 name: wordtoolkit
-description: Control real Microsoft Word and inspect, index, query, edit, compare, patch, or three-way merge saved Word OOXML packages through a token-lean native .NET bridge. Use for live documents, package/semantic inspection, fields, bookmarks, reference dependencies, semantic selectors, formatting, equations, review, structures, export, save, close, and validation.
+description: Control real Microsoft Word and inspect, index, query, edit, compare, patch, or three-way merge saved Word OOXML packages through a token-lean native .NET bridge. Use for live documents, package/semantic inspection, fields, bookmarks, reference dependencies, semantic selectors, formatting, equations, comments and review, structures, export, save, close, and validation.
 ---
 
 # WordToolkit
@@ -318,7 +318,29 @@ application defaults, or documented Word compatibility edges are final rendering
 Its compact `numbering`, `theme`, `settings` and `font_table` blocks are enough for
 most decisions; call the dedicated graph inspectors only when their declarations
 or diagnostics are actually needed.
-For a saved-package text edit, use this strict lazy workflow:
+Prefer an object-specific saved-package edit whenever one exists.
+
+When the requested text is inside a comment, do not query technical `w:t` node IDs and
+do not use the generic text-edit action. Inspect only the required comment to retain its
+stable `comment_id`, then use this body-only workflow:
+
+1. Call `plan_ooxml_comment_body_edits` with `replace_comment_body_text`, the exact
+   `comment_id`, bounded `find_text`, replacement, and exact `expected_match_count`.
+   Add `expected_body_sha256` when it was returned by an earlier reviewed plan.
+2. Review the deterministic plan ID, comment/match/text-node counts, candidate validation
+   and block reasons. Leave details off unless hashes or changed-part evidence are needed.
+3. Call `apply_ooxml_comment_body_edits` with identical commands, the original package
+   fingerprint and exact plan ID. Keep the recovery backup by default.
+
+This operation can match across adjacent Word runs in the same ordinary direct comment
+paragraph, but never across paragraph/table-cell, tab, break, field, content-control or
+other rich structural boundaries. It changes only editable text leaves inside the selected
+comment definitions. It returns no comment text or raw XML and verifies that
+anchors, authors, threads, durable IDs, reactions, permissions, revisions, unselected
+comments and every unrelated part remain unchanged. Duplicate comment targets, unexpected
+match counts, signatures, plan drift and new schema errors fail closed.
+
+For other saved-package text edits, use this strict lazy workflow:
 
 1. Query the narrowest possible `text` nodes and retain the package fingerprint.
 2. Call `plan_ooxml_text_edits` with node IDs, replacements, and exact

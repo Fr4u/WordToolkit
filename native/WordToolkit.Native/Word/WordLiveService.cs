@@ -229,6 +229,14 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "plan_ooxml_comment_body_edits" => PlanPackageCommentBodyEditsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_comment_body_edits" => ApplyPackageCommentBodyEditsAsync(
+                arguments,
+                cancellationToken
+            ),
             "plan_ooxml_review_decisions" => PlanPackageReviewDecisionsAsync(
                 arguments,
                 cancellationToken

@@ -100,6 +100,23 @@ transaction beyond 200 resolved operations. Request JSON is capped at 256 Ki cha
 at most 200 package parts may change, and validation issue locations require the existing
 `include_details` opt-in.
 
+The fifth shared boundary is
+`wordtoolkit.plan_ooxml_comment_body_edits/1.0` plus
+`wordtoolkit.apply_ooxml_comment_body_edits/1.0`. `CommentBodyWordPackageOperation`
+selects comment definitions by stable semantic `comment_id`, matches exact bounded text
+across adjacent runs in one ordinary direct comment paragraph, binds the requested match
+count and optional exact source-body hash into the reviewed plan, and lowers the result to
+the shared lossless text transaction core. Paragraphs, table cells, tabs, breaks, fields,
+content controls and rich structures are explicit segment boundaries rather than
+characters silently discarded by a flattened search. Its
+strict JSON codec is shared by the `comment-body-package` CLI and lazy MCP actions.
+Responses expose counts, hashes and changed-part evidence, never comment text or raw XML.
+Exact-candidate validation reprojects both the semantic document and review graph and
+proves that anchors, authors, reply topology, durable IDs, reactions, revisions,
+permissions and every unselected comment are invariant before the Microsoft schema
+adapter is consulted. Apply then rebuilds the plan, blocks signatures and writes
+atomically with a recovery backup by default.
+
 Schema validation crosses a deliberate dependency boundary. The plain `net8.0`
 `WordToolkit.Engine` project declares `IWordPackageCandidateValidator` but does not depend
 on Microsoft or any AI provider. `WordToolkit.OpenXmlSdk` implements the interface with
@@ -132,7 +149,7 @@ The response identifies:
 - `protocols.mcp`: MCP protocol version retained from that same schema;
 - `compatibility_policy`: the source schema's declared compatibility rule;
 - `source.schema_sha256`: exact embedded local schema bytes;
-- `source.native_action_contract_sha256`: canonical native 85-action subset, core
+- `source.native_action_contract_sha256`: canonical native 87-action subset, core
   exposure registry and header;
 - `source.capability_schema_sha256`: normative capability JSON Schema bytes.
 
@@ -181,14 +198,14 @@ coverage gaps visible.
 
 The manifest does not return full input schemas. After selecting one operation, call
 `inspect_wordtoolkit_action`; execute only after validating its schema and effect hints.
-This keeps discovery bounded instead of paying for all 85 schemas.
+This keeps discovery bounded instead of paying for all 87 schemas.
 
 ## Metadata coverage is evidence, not decoration
 
 `metadata_coverage` counts canonical fields actually present in the embedded source.
-All 85 operations have input schemas and MCP effect annotations. Semantic query plus
-semantic-style plan and apply have explicit output-schema, permission, reversibility and
-per-operation-version metadata; the remaining 82 are still uncovered. Missing metadata
+All 87 operations have input schemas and MCP effect annotations. Semantic query,
+semantic-style plan/apply and comment-body plan/apply have explicit output-schema,
+permission, reversibility and per-operation-version metadata; the remaining 82 are still uncovered. Missing metadata
 is not permission to infer behavior from action names. An AI planner must inspect the
 chosen operation and obtain explicit user approval for risky mutations until normalized
 metadata is added to each source contract.

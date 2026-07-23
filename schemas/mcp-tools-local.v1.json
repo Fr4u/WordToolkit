@@ -44,6 +44,8 @@
       "apply_ooxml_text_edits",
       "plan_ooxml_semantic_edits",
       "apply_ooxml_semantic_edits",
+      "plan_ooxml_comment_body_edits",
+      "apply_ooxml_comment_body_edits",
       "plan_ooxml_review_decisions",
       "apply_ooxml_review_decisions",
       "inspect_live_word_document",
@@ -7072,6 +7074,244 @@
               "microsoft_schema_valid": {"type": "boolean"}, "microsoft_schema_no_new_errors": {"type": "boolean"},
               "raw_xml_returned": {"const": false}, "mutation_performed": {"type": "boolean"}, "word_opened": {"const": false},
               "runtime": {"const": "dotnet-native"}, "python_used": {"const": false},
+              "performance": {"type": "object", "required": ["total_ms"], "properties": {"total_ms": {"type": "number", "minimum": 0}}, "additionalProperties": false}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "plan_ooxml_comment_body_edits",
+      "title": "Plan body-only Word comment edits",
+      "description": "Resolve an exact bounded comment body text replacement inside comments selected by stable semantic comment IDs. Matches may span adjacent Word runs in one ordinary direct comment paragraph but never cross paragraphs, table cells, tabs, breaks, fields, content controls or rich structures. The candidate is projected, review metadata and non-selected comments are checked as invariants, Microsoft Open XML schema validation is run, no comment text or raw XML is returned, the package is not changed, and Word is never opened.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_input_package",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "$defs": {
+          "command": {
+            "type": "object",
+            "properties": {
+              "type": {"const": "replace_comment_body_text"},
+              "comment_id": {
+                "type": "string",
+                "pattern": "^wdc_[A-Za-z0-9_-]+$",
+                "maxLength": 128
+              },
+              "find_text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536
+              },
+              "replacement_text": {
+                "type": "string",
+                "maxLength": 65536
+              },
+              "expected_match_count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000,
+                "default": 1
+              },
+              "case_sensitive": {"type": "boolean", "default": true},
+              "expected_body_sha256": {
+                "type": "string",
+                "pattern": "^[A-Fa-f0-9]{64}$"
+              }
+            },
+            "required": ["type", "comment_id", "find_text", "replacement_text"],
+            "additionalProperties": false
+          }
+        },
+        "properties": {
+          "local_path": {"type": "string", "maxLength": 32767},
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "commands": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {"$ref": "#/$defs/command"}
+          },
+          "include_details": {"type": "boolean", "default": false}
+        },
+        "required": ["local_path", "expected_package_fingerprint", "commands"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "plan_id", "base_package_fingerprint", "result_package_fingerprint", "submitted_command_count", "comment_count", "matched_occurrence_count", "text_node_operation_count", "changed_text_node_operation_count", "changed_part_count", "total_xml_byte_delta", "has_changes", "can_apply", "apply_blocked", "apply_blocked_reasons", "candidate_validation", "raw_text_returned", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.plan_ooxml_comment_body_edits/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "plan_id": {"type": "string", "pattern": "^wcbplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "base_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "result_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "submitted_command_count": {"type": "integer", "minimum": 1, "maximum": 200},
+              "comment_count": {"type": "integer", "minimum": 1, "maximum": 200},
+              "matched_occurrence_count": {"type": "integer", "minimum": 1},
+              "text_node_operation_count": {"type": "integer", "minimum": 1, "maximum": 2000},
+              "changed_text_node_operation_count": {"type": "integer", "minimum": 1, "maximum": 2000},
+              "changed_part_count": {"type": "integer", "minimum": 1, "maximum": 8},
+              "total_xml_byte_delta": {"type": "integer"},
+              "has_changes": {"const": true},
+              "can_apply": {"type": "boolean"},
+              "apply_blocked": {"type": "boolean"},
+              "apply_blocked_reasons": {"type": "array", "maxItems": 2, "uniqueItems": true, "items": {"enum": ["digital_signature_present", "schema_validator_unavailable", "microsoft_schema_validation_failed"]}},
+              "candidate_validation": {
+                "type": "object",
+                "required": ["performed", "valid", "no_new_errors", "error_count", "baseline_error_count", "candidate_error_count", "errors_truncated", "issues"],
+                "properties": {
+                  "performed": {"type": "boolean"},
+                  "valid": {"type": "boolean"},
+                  "no_new_errors": {"type": "boolean"},
+                  "error_count": {"type": "integer", "minimum": 0},
+                  "baseline_error_count": {"type": "integer", "minimum": 0},
+                  "candidate_error_count": {"type": "integer", "minimum": 0},
+                  "errors_truncated": {"type": "boolean"},
+                  "not_performed_reason": {"type": "string", "maxLength": 128},
+                  "issues": {"type": "array", "maxItems": 200, "items": {"type": "object"}}
+                },
+                "additionalProperties": false
+              },
+              "comment_edits": {
+                "type": "array",
+                "maxItems": 200,
+                "items": {
+                  "type": "object",
+                  "required": ["command_index", "comment_id", "matched_occurrence_count", "text_node_count", "changed_text_node_count", "before_characters", "after_characters", "before_body_sha256", "after_body_sha256", "source_part_uri"],
+                  "properties": {
+                    "command_index": {"type": "integer", "minimum": 0, "maximum": 199},
+                    "comment_id": {"type": "string", "pattern": "^wdc_[A-Za-z0-9_-]+$", "maxLength": 128},
+                    "matched_occurrence_count": {"type": "integer", "minimum": 1},
+                    "text_node_count": {"type": "integer", "minimum": 1},
+                    "changed_text_node_count": {"type": "integer", "minimum": 1},
+                    "before_characters": {"type": "integer", "minimum": 0},
+                    "after_characters": {"type": "integer", "minimum": 0},
+                    "before_body_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "after_body_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "source_part_uri": {"type": "string", "maxLength": 512}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "changed_parts": {"type": "array", "maxItems": 8, "items": {"type": "object"}},
+              "raw_text_returned": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"const": false},
+              "word_opened": {"const": false},
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {"type": "object", "required": ["total_ms"], "properties": {"total_ms": {"type": "number", "minimum": 0}}, "additionalProperties": false}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "apply_ooxml_comment_body_edits",
+      "title": "Apply reviewed body-only Word comment edits",
+      "description": "Rebuild and atomically apply an exact reviewed comment body plan to one fingerprinted saved Word package. The operation rejects selection drift, unexpected match counts, concurrent changes, digital signatures, review-metadata changes and new Microsoft Open XML schema errors; it can retain a sibling recovery backup, returns no comment text or raw XML, and never opens Word.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_write_input_package_and_optional_sibling_backup",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": true,
+        "mechanism": "atomic_sibling_backup",
+        "default": "retained"
+      },
+      "inputSchema": {
+        "type": "object",
+        "$defs": {
+          "command": {
+            "type": "object",
+            "properties": {
+              "type": {"const": "replace_comment_body_text"},
+              "comment_id": {"type": "string", "pattern": "^wdc_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "find_text": {"type": "string", "minLength": 1, "maxLength": 65536},
+              "replacement_text": {"type": "string", "maxLength": 65536},
+              "expected_match_count": {"type": "integer", "minimum": 1, "maximum": 10000, "default": 1},
+              "case_sensitive": {"type": "boolean", "default": true},
+              "expected_body_sha256": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}
+            },
+            "required": ["type", "comment_id", "find_text", "replacement_text"],
+            "additionalProperties": false
+          }
+        },
+        "properties": {
+          "local_path": {"type": "string", "maxLength": 32767},
+          "expected_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "expected_plan_id": {"type": "string", "pattern": "^wcbplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+          "commands": {"type": "array", "minItems": 1, "maxItems": 200, "items": {"$ref": "#/$defs/command"}},
+          "keep_backup": {"type": "boolean", "default": true}
+        },
+        "required": ["local_path", "expected_package_fingerprint", "expected_plan_id", "commands"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "plan_id", "applied", "no_op", "comment_count", "text_node_operation_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "backup_path", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "raw_text_returned", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.apply_ooxml_comment_body_edits/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "plan_id": {"type": "string", "pattern": "^wcbplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "applied": {"const": true},
+              "no_op": {"const": false},
+              "comment_count": {"type": "integer", "minimum": 1, "maximum": 200},
+              "text_node_operation_count": {"type": "integer", "minimum": 1, "maximum": 2000},
+              "previous_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "predicted_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "backup_path": {"type": ["string", "null"]},
+              "changed_entry_names": {"type": "array", "minItems": 1, "maxItems": 8, "uniqueItems": true, "items": {"type": "string", "maxLength": 1024}},
+              "diagnostic_count": {"type": "integer", "minimum": 0},
+              "microsoft_schema_valid": {"type": "boolean"},
+              "microsoft_schema_no_new_errors": {"type": "boolean"},
+              "raw_text_returned": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"const": true},
+              "word_opened": {"const": false},
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
               "performance": {"type": "object", "required": ["total_ms"], "properties": {"total_ms": {"type": "number", "minimum": 0}}, "additionalProperties": false}
             },
             "additionalProperties": false

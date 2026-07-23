@@ -860,8 +860,17 @@ move-range, move, permission, people, settings and issue views. Default output c
 counts, statuses and short fingerprints. Comment/revision text, author/editor/person
 values, provider/user identifiers and move names are redacted unless explicitly and
 boundedly requested; source metadata is separately opt-in and raw XML is never returned.
-The action is parse-only. Accept/reject, comment resolution, merge and structural review
-mutations remain live-Word operations or future hash-preconditioned package commands.
+The inspector is parse-only. Comment text mutation is a separate public transaction:
+`plan_ooxml_comment_body_edits` selects stable comment IDs and exact bounded matches,
+including matches split across adjacent runs in the same ordinary paragraph, while
+`apply_ooxml_comment_body_edits` rebuilds the same plan under package and optional exact
+source-body-hash preconditions. Paragraph/table-cell, tab, break, field, content-control
+and rich-structure boundaries cannot be crossed. The Engine changes only
+selected text leaves, returns counts and body hashes rather than content, reprojects the
+candidate and proves that anchors, authors, reply topology, done state, durable IDs,
+reactions, revisions, permissions, unselected comments and unrelated parts are invariant.
+Comment creation/deletion, resolution/reaction mutation, merge and rich structural review
+mutations remain live-Word operations or future typed package commands.
 
 ## Rendering and fidelity backends
 
@@ -934,7 +943,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 85 actions already have public SDK
+These are proved migration seams, not a claim that all 87 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
@@ -945,6 +954,17 @@ of the Native partial class and into the vendor-neutral Engine. Seven high-level
 share one path: create, clone, consolidate, proven-unused delete, visible-name rename,
 exact assignment and bounded selector assignment. Apply always rebuilds the plan from the
 request and current package; no serialized mutation is trusted as executable authority.
+
+The fifth seam is `CommentBodyWordPackageOperation`. It accepts stable semantic comment
+IDs rather than technical text-node IDs, resolves exact bounded text even across Word run
+boundaries inside one ordinary direct comment paragraph and lowers only the affected
+leaves to the lossless text transaction. Rendered and structural separators split the
+search space rather than being flattened away. Plan and
+apply share one strict JSON codec across direct .NET, `comment-body-package` CLI and lazy
+MCP. The exact candidate is reprojected before persistence: selected body hashes must
+match, unselected bodies and all review metadata must remain invariant, changed parts
+must be comment-definition parts, Microsoft schema comparison must introduce no errors,
+and neither response may return comment text or raw XML.
 
 Microsoft schema validation is an injected capability rather than an Engine dependency.
 `WordToolkit.Engine.Validation.IWordPackageCandidateValidator` is the neutral boundary;
@@ -963,9 +983,9 @@ to an opaque sibling `.conflict` artifact and deliberately retained, even when n
 backup retention is disabled. Public diagnostics list only still-existing opaque artifact
 names, never their absolute paths or payloads; no artifact is claimed when none exists.
 
-This is deliberately honest about what is still absent. `metadata_coverage` reports three
+This is deliberately honest about what is still absent. `metadata_coverage` reports five
 explicit output schemas, permission records, reversibility records and per-operation
-versions for semantic query plus semantic-style plan/apply; the other 82 actions remain
+versions for semantic query, semantic-style plan/apply and comment-body plan/apply; the other 82 actions remain
 uncovered. Those fields are not
 inferred from operation names. Format support is labelled operation-specific, and full
 input/output schemas remain behind `inspect_wordtoolkit_action`. The normative JSON shape is
@@ -1043,7 +1063,9 @@ The current native mapping is therefore:
 - text-only `document.plan` -> lazy `plan_ooxml_text_edits`;
 - text-only `document.apply` -> lazy `apply_ooxml_text_edits`;
 - typed existing-style `document.plan` -> lazy `plan_ooxml_semantic_edits`;
-- typed existing-style `document.apply` -> lazy `apply_ooxml_semantic_edits`.
+- typed existing-style `document.apply` -> lazy `apply_ooxml_semantic_edits`;
+- typed comment-body `document.plan` -> lazy `plan_ooxml_comment_body_edits`;
+- typed comment-body `document.apply` -> lazy `apply_ooxml_comment_body_edits`.
 
 These schemas stay outside the core catalog, so the default model context does not pay
 for them until search/inspection selects the action.

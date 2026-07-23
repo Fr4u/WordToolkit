@@ -177,7 +177,7 @@ public sealed class McpServerTests
         ) + "\n";
         var output = new StringWriter();
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(85, catalog.ActionCount);
+        Assert.Equal(87, catalog.ActionCount);
         var server = new McpServer(
             new StringReader(input),
             output,

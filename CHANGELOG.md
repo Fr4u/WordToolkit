@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+- Added the public comment-body operation pair
+  `wordtoolkit.plan_ooxml_comment_body_edits/1.0` and
+  `wordtoolkit.apply_ooxml_comment_body_edits/1.0`. The dependency-free Engine selects
+  comments by stable semantic ID, matches exact bounded text across Word runs, binds match
+  counts and optional body hashes into a deterministic reviewed plan, validates the exact
+  candidate and atomically applies it through direct .NET, `comment-body-package` JSON CLI
+  and lazy MCP without opening Word. Responses expose hashes and counts rather than comment
+  text or XML, and candidate reprojection proves that anchors, authors, thread topology,
+  durable IDs, reactions, revisions, permissions, unselected comments and unrelated parts
+  remain invariant. Signatures, plan drift, unexpected matches and new schema errors fail
+  closed; a recovery backup is retained by default.
+- Comment matching is boundary-aware rather than a flattened descendant-text search.
+  Ordinary `w:t` leaves may compose one match across adjacent runs in the same direct
+  comment paragraph, including runs with formatting, but paragraph/table-cell boundaries,
+  tabs, breaks, fields, content controls and other rich structures split or exclude the
+  editable segment. Regression fixtures prove that none of those rendered or structural
+  boundaries can be silently crossed.
+
+- Verified the comment-body checkpoint with 388 Engine tests, 263 Native tests and the
+  complete 1,273-test Python/OOXML suite with 16 intentional skips; Ruff and the
+  maintained 28-module mypy lane are clean. Packaged plan/apply on the checked-in
+  `mammoth_comments.docx` fixture reproduced the reviewed plan ID and predicted result
+  fingerprint, changed only `word/comments.xml`, passed the bounded Microsoft schema
+  comparison, retained a byte-exact backup and left the source fixture and Word-process
+  set unchanged. Neither response returned comment text or raw XML.
+- Built the checkpoint twice through the supported Windows PowerShell path. Both builds
+  produced identical 196-file, 85,366,594-byte trees and identical 36,263,241-byte ZIPs
+  at SHA-256 `267ace7127d82c8f54c32f56682830770d6209f1880b4f00d38a31dc45aa5503`;
+  expanded manifests matched at SHA-256
+  `25fd2c4afcfef292c95c5925d849cee55b5de1297dbbf0b05734e9edd9231373`.
+  Fifteen cold packaged planner processes returned the same 1,027-character response at
+  669.53 ms median and 688.29 ms p95/max without mutating the source or starting Word.
+  No historical before-change comment-body CLI latency baseline exists.
+
 - Added the public semantic-style operation pair
   `wordtoolkit.plan_ooxml_semantic_edits/1.0` and
   `wordtoolkit.apply_ooxml_semantic_edits/1.0`. The dependency-free Engine now owns the
@@ -32,7 +66,7 @@
 - Added operation versions, explicit filesystem/network/Word permissions, reversibility
   records and closed successful MCP output schemas for semantic-style plan/apply. The
   actual compact plan and apply envelopes validate against Draft 2020-12, while capability
-  v1 keeps its existing closed summary shape and reports three metadata-complete actions.
+  v1 keeps its existing closed summary shape and reports five metadata-complete actions.
 - Verified this semantic-style interoperability checkpoint with 385 Engine tests, 260
   Native tests and the full 1,273-test Python/OOXML suite with 16 intentional skips;
   Ruff and the maintained 28-module mypy lane are clean. The packaged executable planned
