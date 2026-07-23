@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
@@ -716,10 +717,22 @@ public sealed class WordNumberingGraphBuilder
         "http://purl.oclc.org/ooxml/officeDocument/relationships";
 
     private readonly WordNumberingGraphOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
 
     public WordNumberingGraphBuilder(WordNumberingGraphOptions? options = null)
     {
         _options = options ?? WordNumberingGraphOptions.Default;
+        _options.Validate();
+    }
+
+    public WordNumberingGraphBuilder(
+        WordNumberingGraphOptions? options,
+        WordOperationResourceLease resourceLease
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        _options = options ?? WordNumberingGraphOptions.Default;
+        _resourceLease = resourceLease;
         _options.Validate();
     }
 
@@ -734,6 +747,10 @@ public sealed class WordNumberingGraphBuilder
         ArgumentNullException.ThrowIfNull(semanticDocument);
         ArgumentNullException.ThrowIfNull(styleGraph);
         cancellationToken.ThrowIfCancellationRequested();
+        WordOperationResourceAccounting.ChargeProjectionBase(
+            _resourceLease,
+            WordOperationResourceStage.Numbering
+        );
         ValidateSnapshots(package, semanticDocument, styleGraph);
         var numberingPart = ResolveNumberingPart(package, semanticDocument.MainPartUri);
         if (numberingPart is null)
@@ -772,6 +789,13 @@ public sealed class WordNumberingGraphBuilder
         EnforceCount(abstractElements.Length, _options.MaxAbstractDefinitions, "abstract numbering definitions");
         EnforceCount(instanceElements.Length, _options.MaxInstances, "numbering instances");
         EnforceCount(pictureElements.Length, _options.MaxPictureBullets, "picture bullets");
+
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.Numbering,
+            checked(abstractElements.Length + instanceElements.Length + pictureElements.Length),
+            2_048
+        );
 
         var abstractDefinitions = abstractElements
             .Select(element => ParseAbstractDefinition(element, w, source))
@@ -929,25 +953,34 @@ public sealed class WordNumberingGraphBuilder
     {
         try
         {
-            return LosslessXmlDocument.Parse(
-                part.Entry.Content,
-                new LosslessXmlOptions
-                {
-                    MaxSourceBytes = _options.MaxNumberingPartBytes,
-                    MaxXmlCharacters = _options.MaxNumberingPartBytes,
-                    MaxXmlElements = (int)Math.Min(
-                        int.MaxValue,
-                        Math.Max(
-                            (long)(_options.MaxAbstractDefinitions + _options.MaxInstances)
-                                * 256,
-                            32_768
-                        )
-                    ),
-                    MaxXmlDepth = 128,
-                    MaxTextCharacters = _options.MaxNumberingPartBytes,
-                },
-                cancellationToken
-            );
+            var options = new LosslessXmlOptions
+            {
+                MaxSourceBytes = _options.MaxNumberingPartBytes,
+                MaxXmlCharacters = _options.MaxNumberingPartBytes,
+                MaxXmlElements = (int)Math.Min(
+                    int.MaxValue,
+                    Math.Max(
+                        (long)(_options.MaxAbstractDefinitions + _options.MaxInstances)
+                            * 256,
+                        32_768
+                    )
+                ),
+                MaxXmlDepth = 128,
+                MaxTextCharacters = _options.MaxNumberingPartBytes,
+            };
+            return _resourceLease is null
+                ? LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    cancellationToken
+                )
+                : LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    _resourceLease,
+                    WordOperationResourceStage.Numbering,
+                    cancellationToken
+                );
         }
         catch (LosslessXmlLimitException exception)
         {

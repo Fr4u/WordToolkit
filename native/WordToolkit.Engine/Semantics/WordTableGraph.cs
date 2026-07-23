@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
@@ -340,10 +341,22 @@ public sealed class WordTableGraphBuilder
         "http://purl.oclc.org/ooxml/wordprocessingml/main";
 
     private readonly WordTableGraphOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
 
     public WordTableGraphBuilder(WordTableGraphOptions? options = null)
     {
         _options = options ?? WordTableGraphOptions.Default;
+        _options.Validate();
+    }
+
+    public WordTableGraphBuilder(
+        WordTableGraphOptions? options,
+        WordOperationResourceLease resourceLease
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        _options = options ?? WordTableGraphOptions.Default;
+        _resourceLease = resourceLease;
         _options.Validate();
     }
 
@@ -353,7 +366,12 @@ public sealed class WordTableGraphBuilder
     )
     {
         ArgumentNullException.ThrowIfNull(package);
-        var semantic = new WordSemanticProjector().Project(package, cancellationToken);
+        var semantic = _resourceLease is null
+            ? new WordSemanticProjector().Project(package, cancellationToken)
+            : new WordSemanticProjector(null, _resourceLease).Project(
+                package,
+                cancellationToken
+            );
         return Build(package, semantic, cancellationToken);
     }
 
@@ -366,6 +384,16 @@ public sealed class WordTableGraphBuilder
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(semanticDocument);
         cancellationToken.ThrowIfCancellationRequested();
+        WordOperationResourceAccounting.ChargeProjectionBase(
+            _resourceLease,
+            WordOperationResourceStage.Tables
+        );
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.Tables,
+            semanticDocument.NodeCount,
+            128
+        );
         if (!string.Equals(
             package.Fingerprint,
             semanticDocument.PackageFingerprint,
@@ -414,18 +442,28 @@ public sealed class WordTableGraphBuilder
         }
         try
         {
-            var source = LosslessXmlDocument.Parse(
-                part.Entry.Content,
-                new LosslessXmlOptions
-                {
-                    MaxSourceBytes = _options.MaxPartBytes,
-                    MaxXmlCharacters = _options.MaxPartBytes,
-                    MaxXmlElements = _options.MaxElementsPerPart,
-                    MaxXmlDepth = 512,
-                    MaxTextCharacters = _options.MaxPartBytes,
-                },
-                cancellationToken
-            );
+            state.EnsureCanParse(part.Entry.Content.Length);
+            var options = new LosslessXmlOptions
+            {
+                MaxSourceBytes = _options.MaxPartBytes,
+                MaxXmlCharacters = _options.MaxPartBytes,
+                MaxXmlElements = _options.MaxElementsPerPart,
+                MaxXmlDepth = 512,
+                MaxTextCharacters = _options.MaxPartBytes,
+            };
+            var source = _resourceLease is null
+                ? LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    cancellationToken
+                )
+                : LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    _resourceLease,
+                    WordOperationResourceStage.Tables,
+                    cancellationToken
+                );
             state.AddParsedXml(part.Entry.Content.Length, source.Elements.Count);
             return source;
         }
@@ -1357,6 +1395,16 @@ public sealed class WordTableGraphBuilder
             {
                 throw new WordTableLimitException(
                     $"Aggregate story XML exceeds {_options.MaxAggregateElements} elements."
+                );
+            }
+        }
+
+        public void EnsureCanParse(int bytes)
+        {
+            if (ParsedXmlBytes > _options.MaxAggregateXmlBytes - bytes)
+            {
+                throw new WordTableLimitException(
+                    $"Aggregate story XML exceeds {_options.MaxAggregateXmlBytes} bytes."
                 );
             }
         }

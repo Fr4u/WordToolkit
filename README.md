@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-WordToolkit 0.37 (development line) is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed table/grid/merge topology, style, numbering, theme, settings, font-table, field/bookmark/reference, classic DrawingML chart, source-linked figure/caption, canonical OfficeMath and review/revision graphs, lint a saved package with deterministic source-linked rule packs, plan and apply the first source-bound lint repair, create, clone, safely consolidate exact typed style definitions, delete proven-unused custom definitions, rename only a custom style's primary visible name and assign styles through one semantic transaction, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Classic chart inspection covers all 16 plot families, series, axes, cache metadata and related parts without retaining point values or opening workbooks. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text, style definitions, paragraph/run/table style references, tracked-review structures and one existing empty core-title element to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
+WordToolkit 0.39 (development line) is a local Windows MCP plugin that starts or attaches to the real Microsoft Word application and controls it through a persistent native .NET COM STA thread. The document-engine core can also inspect the package graph, semantic structure, section bindings, typed table/grid/merge topology, style, numbering, theme, settings, font-table, field/bookmark/reference, classic DrawingML chart, source-linked figure/caption, canonical OfficeMath and review/revision graphs, lint a saved package with deterministic source-linked rule packs, plan and apply the first source-bound lint repair, create, clone, safely consolidate exact typed style definitions, delete proven-unused custom definitions, rename only a custom style's primary visible name and assign styles through one semantic transaction, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Classic chart inspection covers all 16 plot families, series, axes, cache metadata and related parts without retaining point values or opening workbooks. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text, style definitions, paragraph/run/table style references, tracked-review structures and one existing empty core-title element to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
 
 The saved-package core also exposes a source-linked Figure/Caption graph. It collapses
 DrawingML/VML `mc:AlternateContent` branches into one logical figure without claiming
@@ -409,8 +409,21 @@ counts and coverage gaps; diagnostic items require `include_issues=true` or
 `view=issues`. Node keys and source provenance are separate opt-ins, external
 targets are never followed, and impact traversal is capped at four hops plus an
 independent hard edge budget. Its three-field `byte_budget` reports the graph-local
-accounting boundary without returning allocation detail. This is not a whole-process
-heap limit because the upstream typed graphs retain independent budgets. Advanced
+accounting boundary without returning allocation detail. The saved-package inspector now
+creates one 640 MiB `word_operation_accounted_v1` lease before ZIP central-directory
+materialization and passes it through OPC admission/metadata, lossless XML reservations, semantic projection, styles,
+numbering, references, sections/settings, charts, figures/captions, content controls,
+tables and the final graph. The compact `operation_budget: {model, used, maximum}` uses
+alias `wop1`; exhaustion remains `PACKAGE_LIMIT` with a bounded stage and attempted
+charge. ZIP count/size preflight and package-entry/XML working-set charges happen before
+the guarded materializations, OPC derived records have explicit count/resource bounds,
+semantic fingerprints observe cancellation, and table/figure/content-control aggregate
+byte limits reject the next part before parsing it. The input schema is unchanged and
+clients cannot raise the server ceiling.
+
+This is a stable conservative cumulative accounting contract, not an exact CLR heap,
+peak-live-memory or resident-set guarantee. Repeated parsers deliberately consume the
+same shared lease; immutable shared parsed-story storage remains missing. Advanced
 DrawingML/VML layout, SmartArt, OLE, bibliography sources,
 active content and co-authoring remain openly unmodeled.
 
@@ -778,7 +791,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is 0.38.0. The latest immutable public release remains
+The development manifest/runtime is 0.39.0. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:

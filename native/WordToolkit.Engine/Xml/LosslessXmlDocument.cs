@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
+using WordToolkit.Engine.Resources;
 
 namespace WordToolkit.Engine.Xml;
 
@@ -57,6 +58,27 @@ public sealed class LosslessXmlDocument
         LosslessXmlOptions? options = null,
         CancellationToken cancellationToken = default
     )
+        => ParseCore(source, options, null, default, cancellationToken);
+
+    public static LosslessXmlDocument Parse(
+        ReadOnlyMemory<byte> source,
+        LosslessXmlOptions? options,
+        WordOperationResourceLease resourceLease,
+        WordOperationResourceStage stage,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        return ParseCore(source, options, resourceLease, stage, cancellationToken);
+    }
+
+    private static LosslessXmlDocument ParseCore(
+        ReadOnlyMemory<byte> source,
+        LosslessXmlOptions? options,
+        WordOperationResourceLease? resourceLease,
+        WordOperationResourceStage stage,
+        CancellationToken cancellationToken
+    )
     {
         options ??= LosslessXmlOptions.Default;
         options.Validate();
@@ -73,6 +95,11 @@ public sealed class LosslessXmlDocument
             );
         }
 
+        WordOperationResourceAccounting.ChargeXmlParse(
+            resourceLease,
+            stage,
+            source.Length
+        );
         var bytes = source.ToArray();
         AuditXml(bytes, options, cancellationToken);
         var sourceEncoding = DetectEncoding(bytes);
@@ -103,12 +130,16 @@ public sealed class LosslessXmlDocument
         XDocument parsedDocument;
         try
         {
-            using var stream = new MemoryStream(bytes, writable: false);
+            using var stream = new CancellationCheckingReadStream(
+                new MemoryStream(bytes, writable: false),
+                cancellationToken
+            );
             using var reader = XmlReader.Create(stream, CreateXmlSettings(options));
             parsedDocument = XDocument.Load(
                 reader,
                 LoadOptions.PreserveWhitespace | LoadOptions.SetLineInfo
             );
+            cancellationToken.ThrowIfCancellationRequested();
         }
         catch (XmlException exception)
         {
@@ -945,6 +976,76 @@ public sealed class LosslessXmlDocument
         IgnoreWhitespace = false,
         CheckCharacters = true,
     };
+
+    private sealed class CancellationCheckingReadStream : Stream
+    {
+        private readonly Stream _inner;
+        private readonly CancellationToken _cancellationToken;
+
+        public CancellationCheckingReadStream(
+            Stream inner,
+            CancellationToken cancellationToken
+        )
+        {
+            _inner = inner;
+            _cancellationToken = cancellationToken;
+        }
+
+        public override bool CanRead => _inner.CanRead;
+
+        public override bool CanSeek => _inner.CanSeek;
+
+        public override bool CanWrite => false;
+
+        public override long Length => _inner.Length;
+
+        public override long Position
+        {
+            get => _inner.Position;
+            set => _inner.Position = value;
+        }
+
+        public override void Flush() => _inner.Flush();
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+            return _inner.Read(buffer, offset, count);
+        }
+
+        public override int Read(Span<byte> buffer)
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+            return _inner.Read(buffer);
+        }
+
+        public override int ReadByte()
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+            return _inner.ReadByte();
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+            return _inner.Seek(offset, origin);
+        }
+
+        public override void SetLength(long value) =>
+            throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _inner.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+    }
 
     private static SourceEncoding DetectEncoding(byte[] source)
     {

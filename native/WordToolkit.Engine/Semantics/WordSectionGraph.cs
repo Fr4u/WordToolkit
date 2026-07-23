@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 
 namespace WordToolkit.Engine.Semantics;
 
@@ -171,10 +172,22 @@ public sealed class WordSectionGraphBuilder
         "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml";
 
     private readonly WordSectionGraphOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
 
     public WordSectionGraphBuilder(WordSectionGraphOptions? options = null)
     {
         _options = options ?? WordSectionGraphOptions.Default;
+        _options.Validate();
+    }
+
+    public WordSectionGraphBuilder(
+        WordSectionGraphOptions? options,
+        WordOperationResourceLease resourceLease
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        _options = options ?? WordSectionGraphOptions.Default;
+        _resourceLease = resourceLease;
         _options.Validate();
     }
 
@@ -187,6 +200,16 @@ public sealed class WordSectionGraphBuilder
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(semanticDocument);
         cancellationToken.ThrowIfCancellationRequested();
+        WordOperationResourceAccounting.ChargeProjectionBase(
+            _resourceLease,
+            WordOperationResourceStage.Sections
+        );
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.Sections,
+            semanticDocument.NodeCount,
+            96
+        );
         if (
             !string.Equals(
                 package.Fingerprint,
@@ -624,12 +647,14 @@ public sealed class WordSectionGraphBuilder
     {
         try
         {
-            return new WordSettingsGraphBuilder(
-                new WordSettingsGraphOptions
-                {
-                    MaxSettingsPartBytes = _options.MaxSettingsBytes,
-                }
-            ).Build(
+            var options = new WordSettingsGraphOptions
+            {
+                MaxSettingsPartBytes = _options.MaxSettingsBytes,
+            };
+            var builder = _resourceLease is null
+                ? new WordSettingsGraphBuilder(options)
+                : new WordSettingsGraphBuilder(options, _resourceLease);
+            return builder.Build(
                 package,
                 semanticDocument,
                 cancellationToken

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
@@ -391,10 +392,22 @@ public sealed class WordSettingsGraphBuilder
         };
 
     private readonly WordSettingsGraphOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
 
     public WordSettingsGraphBuilder(WordSettingsGraphOptions? options = null)
     {
         _options = options ?? WordSettingsGraphOptions.Default;
+        _options.Validate();
+    }
+
+    public WordSettingsGraphBuilder(
+        WordSettingsGraphOptions? options,
+        WordOperationResourceLease resourceLease
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        _options = options ?? WordSettingsGraphOptions.Default;
+        _resourceLease = resourceLease;
         _options.Validate();
     }
 
@@ -1209,18 +1222,27 @@ public sealed class WordSettingsGraphBuilder
     {
         try
         {
-            return LosslessXmlDocument.Parse(
-                part.Entry.Content,
-                new LosslessXmlOptions
-                {
-                    MaxSourceBytes = _options.MaxSettingsPartBytes,
-                    MaxXmlCharacters = _options.MaxSettingsPartBytes,
-                    MaxXmlElements = 262_144,
-                    MaxXmlDepth = 128,
-                    MaxTextCharacters = _options.MaxSettingsPartBytes,
-                },
-                cancellationToken
-            );
+            var options = new LosslessXmlOptions
+            {
+                MaxSourceBytes = _options.MaxSettingsPartBytes,
+                MaxXmlCharacters = _options.MaxSettingsPartBytes,
+                MaxXmlElements = 262_144,
+                MaxXmlDepth = 128,
+                MaxTextCharacters = _options.MaxSettingsPartBytes,
+            };
+            return _resourceLease is null
+                ? LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    cancellationToken
+                )
+                : LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    _resourceLease,
+                    WordOperationResourceStage.Sections,
+                    cancellationToken
+                );
         }
         catch (LosslessXmlLimitException exception)
         {

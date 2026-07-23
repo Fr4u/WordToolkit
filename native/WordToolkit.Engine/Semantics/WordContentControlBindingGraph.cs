@@ -5,6 +5,7 @@ using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
@@ -382,6 +383,7 @@ public sealed class WordContentControlBindingGraphBuilder
         };
 
     private readonly WordContentControlBindingGraphOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
 
     public WordContentControlBindingGraphBuilder(
         WordContentControlBindingGraphOptions? options = null
@@ -391,13 +393,29 @@ public sealed class WordContentControlBindingGraphBuilder
         _options.Validate();
     }
 
+    public WordContentControlBindingGraphBuilder(
+        WordContentControlBindingGraphOptions? options,
+        WordOperationResourceLease resourceLease
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        _options = options ?? WordContentControlBindingGraphOptions.Default;
+        _resourceLease = resourceLease;
+        _options.Validate();
+    }
+
     public WordContentControlBindingGraph Build(
         OpcPackageSnapshot package,
         CancellationToken cancellationToken = default
     )
     {
         ArgumentNullException.ThrowIfNull(package);
-        var semantic = new WordSemanticProjector().Project(package, cancellationToken);
+        var semantic = _resourceLease is null
+            ? new WordSemanticProjector().Project(package, cancellationToken)
+            : new WordSemanticProjector(null, _resourceLease).Project(
+                package,
+                cancellationToken
+            );
         return Build(package, semantic, cancellationToken);
     }
 
@@ -410,6 +428,10 @@ public sealed class WordContentControlBindingGraphBuilder
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(semanticDocument);
         cancellationToken.ThrowIfCancellationRequested();
+        WordOperationResourceAccounting.ChargeProjectionBase(
+            _resourceLease,
+            WordOperationResourceStage.ContentControls
+        );
         if (!string.Equals(
             package.Fingerprint,
             semanticDocument.PackageFingerprint,
@@ -421,7 +443,7 @@ public sealed class WordContentControlBindingGraphBuilder
             );
         }
 
-        var state = new BuildState(_options);
+        var state = new BuildState(_options, _resourceLease);
         DiscoverCustomXmlStores(package, state, cancellationToken);
         DiscoverBuiltInStore(
             package,
@@ -1701,12 +1723,17 @@ public sealed class WordContentControlBindingGraphBuilder
     private sealed class BuildState
     {
         private readonly WordContentControlBindingGraphOptions _options;
+        private readonly WordOperationResourceLease? _resourceLease;
         private readonly HashSet<string> _parsedPartUris = new(StringComparer.Ordinal);
         private long _metadataCharacters;
 
-        public BuildState(WordContentControlBindingGraphOptions options)
+        public BuildState(
+            WordContentControlBindingGraphOptions options,
+            WordOperationResourceLease? resourceLease
+        )
         {
             _options = options;
+            _resourceLease = resourceLease;
             Issues = new IssueState(options.MaxIssues);
         }
 
@@ -1739,18 +1766,36 @@ public sealed class WordContentControlBindingGraphBuilder
                     $"XML part '{part.Uri}' exceeds {_options.MaxPartBytes} bytes."
                 );
             }
-            var document = LosslessXmlDocument.Parse(
-                part.Entry.Content,
-                new LosslessXmlOptions
-                {
-                    MaxSourceBytes = _options.MaxPartBytes,
-                    MaxXmlCharacters = _options.MaxPartBytes,
-                    MaxXmlElements = _options.MaxElementsPerPart,
-                    MaxXmlDepth = 256,
-                    MaxTextCharacters = _options.MaxPartBytes,
-                },
-                cancellationToken
-            );
+            if (
+                !_parsedPartUris.Contains(part.Uri)
+                && ParsedXmlBytes > _options.MaxAggregateXmlBytes - part.Entry.Content.Length
+            )
+            {
+                throw new WordContentControlLimitException(
+                    $"Aggregate parsed XML exceeds {_options.MaxAggregateXmlBytes} bytes."
+                );
+            }
+            var options = new LosslessXmlOptions
+            {
+                MaxSourceBytes = _options.MaxPartBytes,
+                MaxXmlCharacters = _options.MaxPartBytes,
+                MaxXmlElements = _options.MaxElementsPerPart,
+                MaxXmlDepth = 256,
+                MaxTextCharacters = _options.MaxPartBytes,
+            };
+            var document = _resourceLease is null
+                ? LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    cancellationToken
+                )
+                : LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    _resourceLease,
+                    WordOperationResourceStage.ContentControls,
+                    cancellationToken
+                );
             if (_parsedPartUris.Add(part.Uri))
             {
                 checked

@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Native.Protocol;
 using WordToolkit.Native.Word;
 
@@ -49,6 +50,17 @@ public sealed class DependencyPackageInspectionTests
             var accountedBytes = byteBudget.GetProperty("used").GetInt64();
             var maximumAccountedBytes = byteBudget.GetProperty("maximum").GetInt64();
             Assert.InRange(accountedBytes, 1, maximumAccountedBytes);
+            var operationBudget = summary.GetProperty("operation_budget");
+            Assert.Equal("wop1", operationBudget.GetProperty("model").GetString());
+            var operationAccountedBytes = operationBudget.GetProperty("used").GetInt64();
+            var operationMaximumAccountedBytes = operationBudget
+                .GetProperty("maximum")
+                .GetInt64();
+            Assert.InRange(
+                operationAccountedBytes,
+                accountedBytes,
+                operationMaximumAccountedBytes
+            );
             Assert.Equal(1, summary.GetProperty("external_edge_count").GetInt32());
             Assert.True(
                 summary.GetProperty("coverage")
@@ -164,6 +176,100 @@ public sealed class DependencyPackageInspectionTests
                     StringComparison.Ordinal
                 )
             );
+            Assert.Equal(0, host.InvocationCount);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task OperationBudgetFailureIsTypedBoundedAndNeverStartsWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-dependency-budget-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "budget.docx");
+            CreatePackage(path);
+            var host = new NoInvokeHost();
+            var service = new WordLiveService(
+                host,
+                () => new WordOperationResourceLease(4_096)
+            );
+            using var arguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new { local_path = path })
+            );
+
+            var exception = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "inspect_ooxml_dependencies",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("PACKAGE_LIMIT", exception.ErrorCode);
+            Assert.Equal(
+                "The dependency inspection exceeded its operation resource budget",
+                exception.Message
+            );
+            Assert.False(exception.Retryable);
+            var detailsText = JsonSerializer.Serialize(exception.Details);
+            using var detailsJson = JsonDocument.Parse(detailsText);
+            var budget = detailsJson.RootElement.GetProperty("operation_budget");
+            Assert.Equal("wop1", budget.GetProperty("model").GetString());
+            Assert.Equal(4_096, budget.GetProperty("used").GetInt64());
+            Assert.Equal(4_096, budget.GetProperty("maximum").GetInt64());
+            Assert.Equal("opc_package", budget.GetProperty("stage").GetString());
+            Assert.True(budget.GetProperty("attempted").GetInt64() > 0);
+            Assert.DoesNotContain(path, detailsText, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(0, host.InvocationCount);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task InvalidChartPartIsClassifiedAsInvalidWordPackageWithoutWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-dependency-chart-errors",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "invalid-chart.docx");
+            CreateInvalidChartPackage(path);
+            var host = new NoInvokeHost();
+            var service = new WordLiveService(host);
+            using var arguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new { local_path = path })
+            );
+
+            var exception = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "inspect_ooxml_dependencies",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+
+            Assert.Equal("INVALID_WORD_PACKAGE", exception.ErrorCode);
+            Assert.Equal(
+                "A typed Word dependency source graph could not be resolved",
+                exception.Message
+            );
+            Assert.False(exception.Retryable);
+            Assert.DoesNotContain(path, JsonSerializer.Serialize(exception.Details));
             Assert.Equal(0, host.InvocationCount);
         }
         finally
@@ -374,6 +480,52 @@ public sealed class DependencyPackageInspectionTests
               <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
               <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://secret.example/private" TargetMode="External"/>
             </Relationships>
+            """
+        );
+    }
+
+    private static void CreateInvalidChartPackage(string path)
+    {
+        using var archive = ZipFile.Open(path, ZipArchiveMode.Create);
+        AddEntry(
+            archive,
+            "[Content_Types].xml",
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+              <Override PartName="/word/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>
+            </Types>
+            """
+        );
+        AddEntry(
+            archive,
+            "_rels/.rels",
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+            </Relationships>
+            """
+        );
+        AddEntry(
+            archive,
+            "word/document.xml",
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body><w:p/><w:sectPr/></w:body>
+            </w:document>
+            """
+        );
+        AddEntry(
+            archive,
+            "word/charts/chart1.xml",
+            """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <c:notChartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"/>
             """
         );
     }

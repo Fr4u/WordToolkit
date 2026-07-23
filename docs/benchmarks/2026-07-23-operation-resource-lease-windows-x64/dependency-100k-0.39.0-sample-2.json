@@ -1,0 +1,98 @@
+{
+  "schema": "wordtoolkit-engine-benchmark-v1",
+  "scenario": "dependency_graph",
+  "utc": "2026-07-23T13:12:18.3552191+00:00",
+  "runtime": ".NET 8.0.29",
+  "operating_system": "Microsoft Windows 10.0.19045",
+  "architecture": "X64",
+  "engine_version": "0.39.0",
+  "processor_count": 12,
+  "server_gc": false,
+  "measurements": {
+    "requested_nodes": 100000,
+    "paragraphs": 33330,
+    "package_bytes": 186299,
+    "package_parts": 3,
+    "semantic_nodes": 99993,
+    "dependency_nodes": 99997,
+    "dependency_edges": 99996,
+    "issues": 0,
+    "resource_usage": {
+      "accounting_model": "dependency_graph_accounted_v1",
+      "accounted_bytes": 130132744,
+      "maximum_accounted_bytes": 134217728,
+      "adjacency_index_bytes": 1599952
+    },
+    "operation_resource_usage": {
+      "accounting_model": "word_operation_accounted_v1",
+      "accounted_bytes": 539282576,
+      "maximum_accounted_bytes": 671088640,
+      "stages": [
+        {
+          "stage": "Operation",
+          "accounted_bytes": 4096
+        },
+        {
+          "stage": "OpcPackage",
+          "accounted_bytes": 2258848
+        },
+        {
+          "stage": "SemanticProjection",
+          "accounted_bytes": 281231576
+        },
+        {
+          "stage": "Styles",
+          "accounted_bytes": 4096
+        },
+        {
+          "stage": "Numbering",
+          "accounted_bytes": 4096
+        },
+        {
+          "stage": "References",
+          "accounted_bytes": 38678416
+        },
+        {
+          "stage": "Sections",
+          "accounted_bytes": 9603424
+        },
+        {
+          "stage": "Charts",
+          "accounted_bytes": 4352
+        },
+        {
+          "stage": "FiguresAndCaptions",
+          "accounted_bytes": 38678416
+        },
+        {
+          "stage": "ContentControls",
+          "accounted_bytes": 4096
+        },
+        {
+          "stage": "Tables",
+          "accounted_bytes": 38678416
+        },
+        {
+          "stage": "DependencyGraph",
+          "accounted_bytes": 130132744
+        }
+      ]
+    },
+    "timings_ms": {
+      "generate": 24.0964,
+      "package_read": 78.3231,
+      "semantic_projection": 2473.2555,
+      "dependency_build": 2952.6198,
+      "measured_total": 5504.1984
+    },
+    "memory": {
+      "baseline_managed_bytes": 130104,
+      "final_managed_bytes": 176625152,
+      "retained_managed_delta_bytes": 176495048,
+      "allocated_delta_bytes": 1610477144,
+      "baseline_working_set_bytes": 28540928,
+      "final_working_set_bytes": 406470656,
+      "process_peak_working_set_bytes": 611958784
+    }
+  }
+}

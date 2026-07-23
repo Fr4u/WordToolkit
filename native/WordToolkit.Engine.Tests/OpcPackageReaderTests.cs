@@ -1,11 +1,215 @@
+using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Text;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 
 namespace WordToolkit.Engine.Tests;
 
 public sealed class OpcPackageReaderTests
 {
+    [Fact]
+    public void RejectsAnEntryReservationBeforeRetainingPackageBytes()
+    {
+        using var package = BuildPackage(
+            ("[Content_Types].xml", ContentTypes(includePng: false)),
+            ("_rels/.rels", RootRelationships()),
+            ("word/document.xml", DocumentXml())
+        );
+        var original = package.ToArray();
+        var lease = new WordOperationResourceLease(8_192);
+
+        var exception = Assert.Throws<WordOperationResourceLimitException>(() =>
+            new OpcPackageReader(OpcPackageLimits.Default, lease).Read(package)
+        );
+
+        Assert.Equal(WordOperationResourceStage.OpcPackage, exception.Stage);
+        Assert.Equal(8_192, exception.AccountedBytes);
+        Assert.True(exception.AttemptedBytes > 0);
+        Assert.Equal(original, package.ToArray());
+    }
+
+    [Fact]
+    public void RejectsTheCentralDirectoryEntryCountBeforeReadingEntryPayloads()
+    {
+        using var package = BuildPackage(
+            ("[Content_Types].xml", ContentTypes(includePng: false)),
+            ("_rels/.rels", RootRelationships()),
+            ("word/document.xml", DocumentXml())
+        );
+        var original = package.ToArray();
+        var limits = OpcPackageLimits.Default with { MaxEntries = 2 };
+
+        var exception = Assert.Throws<OpcPackageLimitException>(() =>
+            new OpcPackageReader(limits).Read(package)
+        );
+
+        Assert.Contains("3 entries", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(original, package.ToArray());
+    }
+
+    [Fact]
+    public void RejectsOverflowingZip64DirectoryBoundsAsInvalidData()
+    {
+        var bytes = new byte[98];
+        var zip64 = bytes.AsSpan(0, 56);
+        BinaryPrimitives.WriteUInt32LittleEndian(zip64[0..4], 0x06054b50 + 0x10000);
+        BinaryPrimitives.WriteUInt64LittleEndian(zip64[4..12], 44);
+        BinaryPrimitives.WriteUInt64LittleEndian(zip64[40..48], 1);
+        BinaryPrimitives.WriteUInt64LittleEndian(
+            zip64[48..56],
+            checked((ulong)long.MaxValue)
+        );
+        var locator = bytes.AsSpan(56, 20);
+        BinaryPrimitives.WriteUInt32LittleEndian(locator[0..4], 0x07064b50);
+        BinaryPrimitives.WriteUInt64LittleEndian(locator[8..16], 0);
+        BinaryPrimitives.WriteUInt32LittleEndian(locator[16..20], 1);
+        var end = bytes.AsSpan(76, 22);
+        BinaryPrimitives.WriteUInt32LittleEndian(end[0..4], 0x06054b50);
+        BinaryPrimitives.WriteUInt16LittleEndian(end[8..10], ushort.MaxValue);
+        BinaryPrimitives.WriteUInt16LittleEndian(end[10..12], ushort.MaxValue);
+        BinaryPrimitives.WriteUInt32LittleEndian(end[12..16], uint.MaxValue);
+        BinaryPrimitives.WriteUInt32LittleEndian(end[16..20], uint.MaxValue);
+        using var package = new MemoryStream(bytes, writable: false);
+
+        var exception = Assert.Throws<InvalidDataException>(() =>
+            new OpcPackageReader().Read(package)
+        );
+
+        Assert.Contains(
+            "central-directory bounds",
+            exception.Message,
+            StringComparison.Ordinal
+        );
+        Assert.Equal(bytes, package.ToArray());
+    }
+
+    [Fact]
+    public void SpoolsNonSeekableInputUnderArchiveAndOperationBudgets()
+    {
+        using var package = BuildPackage(
+            ("[Content_Types].xml", ContentTypes(includePng: false)),
+            ("_rels/.rels", RootRelationships()),
+            ("word/document.xml", DocumentXml())
+        );
+        var bytes = package.ToArray();
+        using var source = new NonSeekableReadStream(bytes);
+        var lease = new WordOperationResourceLease();
+
+        var snapshot = new OpcPackageReader(
+            OpcPackageLimits.Default,
+            lease
+        ).Read(source);
+
+        Assert.True(snapshot.IsStructurallyValid);
+        Assert.True(lease.AccountedBytes > 4_096 + bytes.Length);
+
+        using var rejectedSource = new NonSeekableReadStream(bytes);
+        var limits = OpcPackageLimits.Default with
+        {
+            MaxArchiveBytes = bytes.Length - 1,
+        };
+        Assert.Throws<OpcPackageLimitException>(() =>
+            new OpcPackageReader(limits).Read(rejectedSource)
+        );
+    }
+
+    [Fact]
+    public void CaseCollisionDiagnosticDoesNotJoinAttackerControlledNames()
+    {
+        using var package = BuildPackage(
+            ("[Content_Types].xml", ContentTypes(includePng: false)),
+            ("_rels/.rels", RootRelationships()),
+            ("word/document.xml", DocumentXml()),
+            ("word/custom.xml", "<root/>"),
+            ("WORD/CUSTOM.XML", "<root/>")
+        );
+
+        var snapshot = new OpcPackageReader().Read(package);
+
+        var diagnostic = Assert.Single(
+            snapshot.Diagnostics,
+            item => item.Code == "OPC011"
+        );
+        Assert.Contains("2 spellings", diagnostic.Message, StringComparison.Ordinal);
+        Assert.True(diagnostic.Message.Length < 128);
+        Assert.DoesNotContain(",", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RejectsMetadataXmlThroughTheSharedLeaseBeforeRelationshipRetention()
+    {
+        var relationships = RelationshipsXml(
+            Enumerable.Range(0, 300)
+                .Select(index => Relationship(
+                    $"rId{index + 1}",
+                    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+                    $"customXml/item{index + 1}.xml"
+                ))
+                .ToArray()
+        );
+        using var package = BuildPackage(
+            ("[Content_Types].xml", ContentTypes(includePng: false)),
+            ("_rels/.rels", relationships),
+            ("word/document.xml", DocumentXml())
+        );
+        var original = package.ToArray();
+        var lease = new WordOperationResourceLease(128 * 1024);
+
+        var exception = Assert.Throws<WordOperationResourceLimitException>(() =>
+            new OpcPackageReader(OpcPackageLimits.Default, lease).Read(package)
+        );
+
+        Assert.Equal(WordOperationResourceStage.OpcPackage, exception.Stage);
+        Assert.True(exception.AccountedBytes > 32 * 1024);
+        Assert.True(exception.AttemptedBytes > relationships.Length);
+        Assert.Equal(original, package.ToArray());
+    }
+
+    [Fact]
+    public void RejectsExplicitOpcMetadataCountLimits()
+    {
+        using var contentTypesPackage = BuildPackage(
+            ("[Content_Types].xml", ContentTypes(includePng: false)),
+            ("_rels/.rels", RootRelationships()),
+            ("word/document.xml", DocumentXml())
+        );
+        var contentTypesLimit = OpcPackageLimits.Default with
+        {
+            MaxContentTypeDeclarations = 1,
+        };
+        Assert.Throws<OpcPackageLimitException>(() =>
+            new OpcPackageReader(contentTypesLimit).Read(contentTypesPackage)
+        );
+
+        using var relationshipsPackage = BuildPackage(
+            ("[Content_Types].xml", ContentTypes(includePng: false)),
+            (
+                "_rels/.rels",
+                RelationshipsXml(
+                    Relationship("rId1", "type-a", "word/document.xml"),
+                    Relationship("rId2", "type-b", "word/other.xml")
+                )
+            ),
+            ("word/document.xml", DocumentXml())
+        );
+        var relationshipLimit = OpcPackageLimits.Default with
+        {
+            MaxRelationships = 1,
+        };
+        Assert.Throws<OpcPackageLimitException>(() =>
+            new OpcPackageReader(relationshipLimit).Read(relationshipsPackage)
+        );
+
+        using var diagnosticsPackage = BuildPackage(
+            ("word/document.xml", DocumentXml())
+        );
+        var diagnosticLimit = OpcPackageLimits.Default with { MaxDiagnostics = 1 };
+        Assert.Throws<OpcPackageLimitException>(() =>
+            new OpcPackageReader(diagnosticLimit).Read(diagnosticsPackage)
+        );
+    }
+
     [Fact]
     public void ReadsPackageGraphAndPreservesOpaqueParts()
     {
@@ -900,6 +1104,54 @@ public sealed class OpcPackageReaderTests
 
         stream.Position = 0;
         return stream;
+    }
+
+    private sealed class NonSeekableReadStream : Stream
+    {
+        private readonly MemoryStream _inner;
+
+        public NonSeekableReadStream(byte[] bytes)
+        {
+            _inner = new MemoryStream(bytes, writable: false);
+        }
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush() { }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            _inner.Read(buffer, offset, count);
+
+        public override int Read(Span<byte> buffer) => _inner.Read(buffer);
+
+        public override long Seek(long offset, SeekOrigin origin) =>
+            throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _inner.Dispose();
+            }
+            base.Dispose(disposing);
+        }
     }
 
     private static string CreateTemporaryDirectory()

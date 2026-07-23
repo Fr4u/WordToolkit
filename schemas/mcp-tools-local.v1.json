@@ -5760,7 +5760,7 @@
     {
       "name": "inspect_ooxml_dependencies",
       "title": "Inspect the Word document dependency graph",
-      "description": "Inspect one source-linked dependency graph spanning OPC reachability, semantic containment, styles, numbering, fields/bookmarks, section stories, classic charts, logical figures/resources/captions, content controls/Custom XML bindings and nested-table topology without opening Word. Unresolved and external targets remain explicit; external targets are never followed. A graph-local byte budget and compact adjacency fail closed. Keys and source are redacted by default, views are paged, and unmodeled domains stay explicit.",
+      "description": "Inspect one source-linked dependency graph spanning OPC reachability, semantic containment, styles, numbering, fields/bookmarks, section stories, classic charts, logical figures/resources/captions, content controls/Custom XML bindings and nested-table topology without opening Word. Unresolved and external targets remain explicit; external targets are never followed. One operation-wide accounted resource lease covers bounded ZIP/OPC admission and metadata, XML parsing, semantic and typed projections, while the graph keeps its independent local byte budget and compact adjacency. Keys and source are redacted by default, views are paged, and unmodeled domains stay explicit.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5901,6 +5901,21 @@
         },
         "required": ["local_path"],
         "additionalProperties": false
+      },
+      "resourceAccounting": {
+        "operation": {
+          "engineModel": "word_operation_accounted_v1",
+          "mcpModel": "wop1",
+          "responseField": "operation_budget",
+          "defaultMaximumAccountedBytes": 671088640
+        },
+        "dependencyGraph": {
+          "engineModel": "dependency_graph_accounted_v1",
+          "mcpModel": "wdg1",
+          "responseField": "byte_budget",
+          "defaultMaximumAccountedBytes": 134217728
+        },
+        "limitErrorCode": "PACKAGE_LIMIT"
       },
       "annotations": {
         "readOnlyHint": true,

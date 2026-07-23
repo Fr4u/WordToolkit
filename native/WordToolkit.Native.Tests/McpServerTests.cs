@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Semantics;
 using WordToolkit.Native.Protocol;
 
@@ -44,7 +45,7 @@ public sealed class McpServerTests
                 .GetString()
         );
         Assert.Equal(
-            "0.38.0",
+            "0.39.0",
             responses[0].RootElement
                 .GetProperty("result")
                 .GetProperty("serverInfo")
@@ -593,8 +594,8 @@ public sealed class McpServerTests
             $"Semantic query schema is too large: {serialized.Length} characters"
         );
         using var document = JsonDocument.Parse(serialized);
-        var properties = document.RootElement
-            .GetProperty("tool")
+        var tool = document.RootElement.GetProperty("tool");
+        var properties = tool
             .GetProperty("inputSchema")
             .GetProperty("properties");
         var inputSchema = document.RootElement
@@ -645,8 +646,8 @@ public sealed class McpServerTests
             $"Dependency schema is too large: {serialized.Length} characters"
         );
         using var document = JsonDocument.Parse(serialized);
-        var properties = document.RootElement
-            .GetProperty("tool")
+        var tool = document.RootElement.GetProperty("tool");
+        var properties = tool
             .GetProperty("inputSchema")
             .GetProperty("properties");
         var nodeKinds = properties
@@ -678,6 +679,33 @@ public sealed class McpServerTests
         );
         Assert.False(
             properties.GetProperty("include_issues").GetProperty("default").GetBoolean()
+        );
+        var accounting = tool.GetProperty("resourceAccounting");
+        Assert.Equal(
+            "word_operation_accounted_v1",
+            accounting.GetProperty("operation").GetProperty("engineModel").GetString()
+        );
+        Assert.Equal(
+            "wop1",
+            accounting.GetProperty("operation").GetProperty("mcpModel").GetString()
+        );
+        Assert.Equal(
+            "operation_budget",
+            accounting.GetProperty("operation").GetProperty("responseField").GetString()
+        );
+        Assert.Equal(
+            WordOperationResourceLease.DefaultMaximumAccountedBytes,
+            accounting.GetProperty("operation")
+                .GetProperty("defaultMaximumAccountedBytes")
+                .GetInt64()
+        );
+        Assert.Equal(
+            "wdg1",
+            accounting.GetProperty("dependencyGraph").GetProperty("mcpModel").GetString()
+        );
+        Assert.Equal(
+            "PACKAGE_LIMIT",
+            accounting.GetProperty("limitErrorCode").GetString()
         );
     }
 

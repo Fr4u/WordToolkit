@@ -1,10 +1,33 @@
 using System.Text;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Tests;
 
 public sealed class LosslessXmlDocumentTests
 {
+    [Fact]
+    public void RejectsTheXmlReservationBeforeParsingWhenTheOperationLeaseIsFull()
+    {
+        var bytes = Encoding.UTF8.GetBytes("<root><item>value</item></root>");
+        var original = bytes.ToArray();
+        var lease = new WordOperationResourceLease(4_096);
+
+        var exception = Assert.Throws<WordOperationResourceLimitException>(() =>
+            LosslessXmlDocument.Parse(
+                bytes,
+                LosslessXmlOptions.Default,
+                lease,
+                WordOperationResourceStage.Styles
+            )
+        );
+
+        Assert.Equal(WordOperationResourceStage.Styles, exception.Stage);
+        Assert.Equal(4_096, exception.AccountedBytes);
+        Assert.True(exception.AttemptedBytes > bytes.Length);
+        Assert.Equal(original, bytes);
+    }
+
     [Fact]
     public void ParsesSourceBackedElementsAttributesAndExactNoOp()
     {

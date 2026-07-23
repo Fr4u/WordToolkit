@@ -8,6 +8,7 @@ using System.Text.Json;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Validation;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Native.Equations;
 using WordToolkit.Native.Protocol;
 
@@ -62,6 +63,7 @@ internal sealed partial class WordLiveService : IToolHandler
         StringComparer.OrdinalIgnoreCase
     );
     private readonly IWordComHost _host;
+    private readonly Func<WordOperationResourceLease> _dependencyResourceLeaseFactory;
     private readonly ConcurrentDictionary<string, LiveDocumentRecord> _records = new();
     private readonly ConcurrentDictionary<string, SelectionGrant> _selectionGrants = new();
     private readonly ConcurrentDictionary<string, UndoGrant> _undoGrants = new();
@@ -70,8 +72,18 @@ internal sealed partial class WordLiveService : IToolHandler
     private readonly object _semanticIndexGate = new();
 
     public WordLiveService(IWordComHost host)
+        : this(host, () => new WordOperationResourceLease())
+    { }
+
+    internal WordLiveService(
+        IWordComHost host,
+        Func<WordOperationResourceLease> dependencyResourceLeaseFactory
+    )
     {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(dependencyResourceLeaseFactory);
         _host = host;
+        _dependencyResourceLeaseFactory = dependencyResourceLeaseFactory;
     }
 
     public Task<object> CallAsync(

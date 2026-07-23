@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
@@ -485,10 +486,22 @@ public sealed class WordReferenceGraphBuilder
     );
 
     private readonly WordReferenceGraphOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
 
     public WordReferenceGraphBuilder(WordReferenceGraphOptions? options = null)
     {
         _options = options ?? WordReferenceGraphOptions.Default;
+        _options.Validate();
+    }
+
+    public WordReferenceGraphBuilder(
+        WordReferenceGraphOptions? options,
+        WordOperationResourceLease resourceLease
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        _options = options ?? WordReferenceGraphOptions.Default;
+        _resourceLease = resourceLease;
         _options.Validate();
     }
 
@@ -501,6 +514,10 @@ public sealed class WordReferenceGraphBuilder
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(semanticDocument);
         cancellationToken.ThrowIfCancellationRequested();
+        WordOperationResourceAccounting.ChargeProjectionBase(
+            _resourceLease,
+            WordOperationResourceStage.References
+        );
         if (
             !string.Equals(
                 package.Fingerprint,
@@ -514,7 +531,7 @@ public sealed class WordReferenceGraphBuilder
             );
         }
 
-        var state = new BuildState(_options, semanticDocument);
+        var state = new BuildState(_options, semanticDocument, _resourceLease);
         foreach (var partUri in semanticDocument.ProjectedPartUris)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -560,18 +577,27 @@ public sealed class WordReferenceGraphBuilder
     {
         try
         {
-            return LosslessXmlDocument.Parse(
-                part.Entry.Content,
-                new LosslessXmlOptions
-                {
-                    MaxSourceBytes = _options.MaxStoryPartBytes,
-                    MaxXmlCharacters = _options.MaxStoryPartBytes,
-                    MaxXmlElements = 1_000_000,
-                    MaxXmlDepth = 256,
-                    MaxTextCharacters = _options.MaxStoryPartBytes,
-                },
-                cancellationToken
-            );
+            var options = new LosslessXmlOptions
+            {
+                MaxSourceBytes = _options.MaxStoryPartBytes,
+                MaxXmlCharacters = _options.MaxStoryPartBytes,
+                MaxXmlElements = 1_000_000,
+                MaxXmlDepth = 256,
+                MaxTextCharacters = _options.MaxStoryPartBytes,
+            };
+            return _resourceLease is null
+                ? LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    cancellationToken
+                )
+                : LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    _resourceLease,
+                    WordOperationResourceStage.References,
+                    cancellationToken
+                );
         }
         catch (LosslessXmlLimitException exception)
         {
@@ -2061,10 +2087,17 @@ public sealed class WordReferenceGraphBuilder
 
         internal BuildState(
             WordReferenceGraphOptions options,
-            WordSemanticDocument semanticDocument
+            WordSemanticDocument semanticDocument,
+            WordOperationResourceLease? resourceLease
         )
         {
             _options = options;
+            WordOperationResourceAccounting.ChargeItems(
+                resourceLease,
+                WordOperationResourceStage.References,
+                semanticDocument.NodeCount,
+                128
+            );
             _nodeIds = semanticDocument.Nodes.ToDictionary(
                 node => NodeKey(node.SourcePartUri, node.SourceElementOrdinal),
                 node => node.Id,

@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 
 namespace WordToolkit.Engine.Semantics;
 
@@ -244,6 +245,7 @@ public sealed class WordDependencyGraph
         IReadOnlyList<WordDependencyIssue> issues,
         WordDependencyCoverage coverage,
         WordDependencyResourceUsage resourceUsage,
+        WordOperationResourceLease? operationResourceLease,
         CancellationToken cancellationToken,
         int packageDiagnosticCount,
         int styleIssueCount,
@@ -302,6 +304,7 @@ public sealed class WordDependencyGraph
             incoming: false,
             cancellationToken
         );
+        OperationResourceUsage = operationResourceLease?.Snapshot();
     }
 
     public string PackageFingerprint { get; }
@@ -317,6 +320,8 @@ public sealed class WordDependencyGraph
     public WordDependencyCoverage Coverage { get; }
 
     public WordDependencyResourceUsage ResourceUsage { get; }
+
+    public WordOperationResourceUsage? OperationResourceUsage { get; }
 
     public int PackageDiagnosticCount { get; }
 
@@ -608,10 +613,22 @@ public sealed class WordDependencyGraphBuilder
         );
 
     private readonly WordDependencyGraphOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
 
     public WordDependencyGraphBuilder(WordDependencyGraphOptions? options = null)
     {
         _options = options ?? WordDependencyGraphOptions.Default;
+        _options.Validate();
+    }
+
+    public WordDependencyGraphBuilder(
+        WordDependencyGraphOptions? options,
+        WordOperationResourceLease resourceLease
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        _options = options ?? WordDependencyGraphOptions.Default;
+        _resourceLease = resourceLease;
         _options.Validate();
     }
 
@@ -625,28 +642,41 @@ public sealed class WordDependencyGraphBuilder
         ArgumentNullException.ThrowIfNull(semanticDocument);
         cancellationToken.ThrowIfCancellationRequested();
         EnsureFingerprint(package.Fingerprint, semanticDocument.PackageFingerprint);
-        var styles = new WordStyleGraphBuilder().Build(
+        var styles = (_resourceLease is null
+            ? new WordStyleGraphBuilder()
+            : new WordStyleGraphBuilder(null, _resourceLease)).Build(
             package,
             semanticDocument,
             cancellationToken
         );
-        var numbering = new WordNumberingGraphBuilder().Build(
+        var numbering = (_resourceLease is null
+            ? new WordNumberingGraphBuilder()
+            : new WordNumberingGraphBuilder(null, _resourceLease)).Build(
             package,
             semanticDocument,
             styles,
             cancellationToken
         );
-        var references = new WordReferenceGraphBuilder().Build(
+        var references = (_resourceLease is null
+            ? new WordReferenceGraphBuilder()
+            : new WordReferenceGraphBuilder(null, _resourceLease)).Build(
             package,
             semanticDocument,
             cancellationToken
         );
-        var sections = new WordSectionGraphBuilder().Build(
+        var sections = (_resourceLease is null
+            ? new WordSectionGraphBuilder()
+            : new WordSectionGraphBuilder(null, _resourceLease)).Build(
             package,
             semanticDocument,
             cancellationToken
         );
-        var charts = new WordChartGraphBuilder().Build(package, cancellationToken);
+        var charts = (_resourceLease is null
+            ? new WordChartGraphBuilder()
+            : new WordChartGraphBuilder(null, _resourceLease)).Build(
+            package,
+            cancellationToken
+        );
         return Build(
             package,
             semanticDocument,
@@ -674,7 +704,12 @@ public sealed class WordDependencyGraphBuilder
         numbering,
         references,
         sections,
-        new WordChartGraphBuilder().Build(package, cancellationToken),
+        (_resourceLease is null
+            ? new WordChartGraphBuilder()
+            : new WordChartGraphBuilder(null, _resourceLease)).Build(
+            package,
+            cancellationToken
+        ),
         cancellationToken
     );
 
@@ -706,7 +741,9 @@ public sealed class WordDependencyGraphBuilder
             sections.PackageFingerprint,
             charts.PackageFingerprint
         );
-        var contentControls = new WordContentControlBindingGraphBuilder().Build(
+        var contentControls = (_resourceLease is null
+            ? new WordContentControlBindingGraphBuilder()
+            : new WordContentControlBindingGraphBuilder(null, _resourceLease)).Build(
             package,
             semanticDocument,
             cancellationToken
@@ -736,7 +773,9 @@ public sealed class WordDependencyGraphBuilder
         CancellationToken cancellationToken = default
     )
     {
-        var tables = new WordTableGraphBuilder().Build(
+        var tables = (_resourceLease is null
+            ? new WordTableGraphBuilder()
+            : new WordTableGraphBuilder(null, _resourceLease)).Build(
             package,
             semanticDocument,
             cancellationToken
@@ -778,7 +817,9 @@ public sealed class WordDependencyGraphBuilder
         ArgumentNullException.ThrowIfNull(contentControls);
         ArgumentNullException.ThrowIfNull(tables);
         cancellationToken.ThrowIfCancellationRequested();
-        var figures = new WordFigureCaptionGraphBuilder().Build(
+        var figures = (_resourceLease is null
+            ? new WordFigureCaptionGraphBuilder()
+            : new WordFigureCaptionGraphBuilder(null, _resourceLease)).Build(
             package,
             semanticDocument,
             references,
@@ -798,7 +839,7 @@ public sealed class WordDependencyGraphBuilder
             tables.PackageFingerprint
         );
 
-        var state = new BuildState(_options);
+        var state = new BuildState(_options, _resourceLease);
         var reachableParts = PackageReachableParts(package, cancellationToken);
         var packageNodeId = state.AddNode(
             WordDependencyNodeKind.Package,
@@ -907,6 +948,7 @@ public sealed class WordDependencyGraphBuilder
                 ExplicitlyUnmodeledDomains
             ),
             resourceUsage,
+            _resourceLease,
             cancellationToken,
             package.Diagnostics.Count,
             styles.Issues.Count,
@@ -2930,15 +2972,24 @@ public sealed class WordDependencyGraphBuilder
         private const string AccountingModel = "dependency_graph_accounted_v1";
 
         private readonly WordDependencyGraphOptions _options;
+        private readonly WordOperationResourceLease? _resourceLease;
         private readonly Dictionary<NodeKey, NodeDraft> _nodes = new();
         private readonly HashSet<string> _nodeIds = new(StringComparer.Ordinal);
         private readonly Dictionary<string, EdgeDraft> _edges = new(StringComparer.Ordinal);
         private readonly List<WordDependencyIssue> _issues = [];
         private long _accountedBytes = BaseAccountedBytes;
 
-        public BuildState(WordDependencyGraphOptions options)
+        public BuildState(
+            WordDependencyGraphOptions options,
+            WordOperationResourceLease? resourceLease
+        )
         {
             _options = options;
+            _resourceLease = resourceLease;
+            _resourceLease?.Charge(
+                WordOperationResourceStage.DependencyGraph,
+                BaseAccountedBytes
+            );
         }
 
         public string AddNode(
@@ -3202,6 +3253,10 @@ public sealed class WordDependencyGraphBuilder
                     $"Dependency graph exceeds the {_options.MaxAccountedBytes}-byte accounted budget."
                 );
             }
+            _resourceLease?.Charge(
+                WordOperationResourceStage.DependencyGraph,
+                bytes
+            );
             _accountedBytes += bytes;
         }
 

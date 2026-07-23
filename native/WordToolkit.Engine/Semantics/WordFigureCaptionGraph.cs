@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
@@ -408,10 +409,22 @@ public sealed class WordFigureCaptionGraphBuilder
     private const string OfficeNamespace = "urn:schemas-microsoft-com:office:office";
 
     private readonly WordFigureCaptionGraphOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
 
     public WordFigureCaptionGraphBuilder(WordFigureCaptionGraphOptions? options = null)
     {
         _options = options ?? WordFigureCaptionGraphOptions.Default;
+        _options.Validate();
+    }
+
+    public WordFigureCaptionGraphBuilder(
+        WordFigureCaptionGraphOptions? options,
+        WordOperationResourceLease resourceLease
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        _options = options ?? WordFigureCaptionGraphOptions.Default;
+        _resourceLease = resourceLease;
         _options.Validate();
     }
 
@@ -421,13 +434,22 @@ public sealed class WordFigureCaptionGraphBuilder
     )
     {
         ArgumentNullException.ThrowIfNull(package);
-        var semantic = new WordSemanticProjector().Project(package, cancellationToken);
-        var references = new WordReferenceGraphBuilder().Build(
+        var semantic = _resourceLease is null
+            ? new WordSemanticProjector().Project(package, cancellationToken)
+            : new WordSemanticProjector(null, _resourceLease).Project(
+                package,
+                cancellationToken
+            );
+        var references = (_resourceLease is null
+            ? new WordReferenceGraphBuilder()
+            : new WordReferenceGraphBuilder(null, _resourceLease)).Build(
             package,
             semantic,
             cancellationToken
         );
-        var styles = new WordStyleGraphBuilder().Build(
+        var styles = (_resourceLease is null
+            ? new WordStyleGraphBuilder()
+            : new WordStyleGraphBuilder(null, _resourceLease)).Build(
             package,
             semantic,
             cancellationToken
@@ -448,6 +470,16 @@ public sealed class WordFigureCaptionGraphBuilder
         ArgumentNullException.ThrowIfNull(referenceGraph);
         ArgumentNullException.ThrowIfNull(styleGraph);
         cancellationToken.ThrowIfCancellationRequested();
+        WordOperationResourceAccounting.ChargeProjectionBase(
+            _resourceLease,
+            WordOperationResourceStage.FiguresAndCaptions
+        );
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.FiguresAndCaptions,
+            semanticDocument.NodeCount,
+            128
+        );
         RequireSamePackage(package, semanticDocument, referenceGraph, styleGraph);
         if (semanticDocument.ProjectedPartCount > _options.MaxStoryParts)
         {
@@ -496,18 +528,28 @@ public sealed class WordFigureCaptionGraphBuilder
         }
         try
         {
-            var source = LosslessXmlDocument.Parse(
-                part.Entry.Content,
-                new LosslessXmlOptions
-                {
-                    MaxSourceBytes = _options.MaxPartBytes,
-                    MaxXmlCharacters = _options.MaxPartBytes,
-                    MaxXmlElements = _options.MaxElementsPerPart,
-                    MaxXmlDepth = 256,
-                    MaxTextCharacters = _options.MaxPartBytes,
-                },
-                cancellationToken
-            );
+            state.EnsureCanParse(part.Entry.Content.Length);
+            var options = new LosslessXmlOptions
+            {
+                MaxSourceBytes = _options.MaxPartBytes,
+                MaxXmlCharacters = _options.MaxPartBytes,
+                MaxXmlElements = _options.MaxElementsPerPart,
+                MaxXmlDepth = 256,
+                MaxTextCharacters = _options.MaxPartBytes,
+            };
+            var source = _resourceLease is null
+                ? LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    cancellationToken
+                )
+                : LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    _resourceLease,
+                    WordOperationResourceStage.FiguresAndCaptions,
+                    cancellationToken
+                );
             state.AddParsedPart(part.Entry.Content.Length, source.Elements.Count);
             return source;
         }
@@ -2074,6 +2116,16 @@ public sealed class WordFigureCaptionGraphBuilder
             {
                 throw new WordFigureLimitException(
                     $"Aggregate story XML exceeds {_options.MaxAggregateElements} elements."
+                );
+            }
+        }
+
+        public void EnsureCanParse(int bytes)
+        {
+            if (ParsedXmlBytes > _options.MaxAggregateXmlBytes - bytes)
+            {
+                throw new WordFigureLimitException(
+                    $"Aggregate story XML exceeds {_options.MaxAggregateXmlBytes} bytes."
                 );
             }
         }

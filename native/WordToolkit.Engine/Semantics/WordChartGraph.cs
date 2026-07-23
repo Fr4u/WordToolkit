@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
@@ -433,10 +434,22 @@ public sealed class WordChartGraphBuilder
     };
 
     private readonly WordChartGraphOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
 
     public WordChartGraphBuilder(WordChartGraphOptions? options = null)
     {
         _options = options ?? WordChartGraphOptions.Default;
+        _options.Validate();
+    }
+
+    public WordChartGraphBuilder(
+        WordChartGraphOptions? options,
+        WordOperationResourceLease resourceLease
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        _options = options ?? WordChartGraphOptions.Default;
+        _resourceLease = resourceLease;
         _options.Validate();
     }
 
@@ -447,6 +460,16 @@ public sealed class WordChartGraphBuilder
     {
         ArgumentNullException.ThrowIfNull(package);
         cancellationToken.ThrowIfCancellationRequested();
+        WordOperationResourceAccounting.ChargeProjectionBase(
+            _resourceLease,
+            WordOperationResourceStage.Charts
+        );
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.Charts,
+            checked(package.Relationships.Count + package.Parts.Count),
+            128
+        );
         var issueState = new IssueState(_options.MaxIssues);
         var references = BuildReferences(package, issueState, cancellationToken);
         var chartParts = package.Parts.Values
@@ -1088,18 +1111,27 @@ public sealed class WordChartGraphBuilder
     {
         try
         {
-            return LosslessXmlDocument.Parse(
-                part.Entry.Content,
-                new LosslessXmlOptions
-                {
-                    MaxSourceBytes = _options.MaxChartPartBytes,
-                    MaxXmlCharacters = _options.MaxChartPartBytes,
-                    MaxXmlElements = _options.MaxElementsPerChart,
-                    MaxXmlDepth = 256,
-                    MaxTextCharacters = _options.MaxChartPartBytes,
-                },
-                cancellationToken
-            );
+            var options = new LosslessXmlOptions
+            {
+                MaxSourceBytes = _options.MaxChartPartBytes,
+                MaxXmlCharacters = _options.MaxChartPartBytes,
+                MaxXmlElements = _options.MaxElementsPerChart,
+                MaxXmlDepth = 256,
+                MaxTextCharacters = _options.MaxChartPartBytes,
+            };
+            return _resourceLease is null
+                ? LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    cancellationToken
+                )
+                : LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    _resourceLease,
+                    WordOperationResourceStage.Charts,
+                    cancellationToken
+                );
         }
         catch (LosslessXmlLimitException exception)
         {

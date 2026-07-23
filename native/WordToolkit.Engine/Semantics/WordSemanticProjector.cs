@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
@@ -27,9 +28,22 @@ public sealed class WordSemanticProjector
         "http://schemas.microsoft.com/office/word/2010/wordml";
 
     private readonly WordSemanticProjectionOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
+
     public WordSemanticProjector(WordSemanticProjectionOptions? options = null)
     {
         _options = options ?? WordSemanticProjectionOptions.Default;
+        _options.Validate();
+    }
+
+    public WordSemanticProjector(
+        WordSemanticProjectionOptions? options,
+        WordOperationResourceLease resourceLease
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        _options = options ?? WordSemanticProjectionOptions.Default;
+        _resourceLease = resourceLease;
         _options.Validate();
     }
 
@@ -40,6 +54,10 @@ public sealed class WordSemanticProjector
     {
         ArgumentNullException.ThrowIfNull(package);
         cancellationToken.ThrowIfCancellationRequested();
+        WordOperationResourceAccounting.ChargeProjectionBase(
+            _resourceLease,
+            WordOperationResourceStage.SemanticProjection
+        );
         var state = new ProjectionState();
 
         var officeRelationships = package.Relationships
@@ -145,20 +163,29 @@ public sealed class WordSemanticProjector
     {
         try
         {
-            return LosslessXmlDocument.Parse(
-                part.Entry.Content,
-                new LosslessXmlOptions
-                {
-                    MaxSourceBytes = _options.MaxXmlCharacters >= int.MaxValue / 4
-                        ? int.MaxValue
-                        : checked((int)(_options.MaxXmlCharacters * 4)),
-                    MaxXmlCharacters = _options.MaxXmlCharacters,
-                    MaxXmlElements = _options.MaxXmlElements,
-                    MaxXmlDepth = _options.MaxXmlDepth,
-                    MaxTextCharacters = _options.MaxTextCharacters,
-                },
-                cancellationToken
-            );
+            var options = new LosslessXmlOptions
+            {
+                MaxSourceBytes = _options.MaxXmlCharacters >= int.MaxValue / 4
+                    ? int.MaxValue
+                    : checked((int)(_options.MaxXmlCharacters * 4)),
+                MaxXmlCharacters = _options.MaxXmlCharacters,
+                MaxXmlElements = _options.MaxXmlElements,
+                MaxXmlDepth = _options.MaxXmlDepth,
+                MaxTextCharacters = _options.MaxTextCharacters,
+            };
+            return _resourceLease is null
+                ? LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    cancellationToken
+                )
+                : LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    _resourceLease,
+                    WordOperationResourceStage.SemanticProjection,
+                    cancellationToken
+                );
         }
         catch (LosslessXmlLimitException exception)
         {
@@ -355,8 +382,12 @@ public sealed class WordSemanticProjector
             }
 
             var anchor = DurableAnchor(element, kind.Value);
-            var fingerprint = Fingerprint(element, state);
-            var structuralFingerprint = StructuralFingerprint(element, state);
+            var fingerprint = Fingerprint(element, state, cancellationToken);
+            var structuralFingerprint = StructuralFingerprint(
+                element,
+                state,
+                cancellationToken
+            );
             var signature = anchor ?? $"fp:{fingerprint}";
             var occurrenceKey = $"{kind}:{signature}";
             var occurrence = context.occurrences.TryGetValue(occurrenceKey, out var count)
@@ -370,6 +401,21 @@ public sealed class WordSemanticProjector
                 signature,
                 occurrence
             );
+            var text = NodeText(element, kind.Value);
+            var properties = NodeProperties(element, kind.Value);
+            var identityFingerprint = FingerprintIdentity(kind.Value, signature);
+            WordOperationResourceAccounting.ChargeSemanticNode(
+                _resourceLease,
+                id.Value,
+                context.parent?.Id.Value,
+                sourcePartUri,
+                sourcePath,
+                text,
+                properties,
+                identityFingerprint,
+                fingerprint,
+                structuralFingerprint
+            );
             var mutable = new MutableSemanticNode(
                 id,
                 kind.Value,
@@ -378,12 +424,12 @@ public sealed class WordSemanticProjector
                 sourceDocument.GetElementOrdinal(element),
                 sourcePartUri,
                 sourcePath,
-                NodeText(element, kind.Value),
-                NodeProperties(element, kind.Value),
+                text,
+                properties,
                 anchor is null
                     ? WordSemanticIdentityKind.ContentFingerprint
                     : WordSemanticIdentityKind.DurableAnchor,
-                FingerprintIdentity(kind.Value, signature),
+                identityFingerprint,
                 fingerprint,
                 structuralFingerprint
             );
@@ -503,8 +549,13 @@ public sealed class WordSemanticProjector
             : WordSemanticNodeKind.ExtensionIsland;
     }
 
-    private static string Fingerprint(XElement element, ProjectionState state)
+    private string Fingerprint(
+        XElement element,
+        ProjectionState state,
+        CancellationToken cancellationToken
+    )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (state.Fingerprints.TryGetValue(element, out var cached))
         {
             return cached;
@@ -539,7 +590,7 @@ public sealed class WordSemanticProjector
             switch (node)
             {
                 case XElement child:
-                    Append(hash, Fingerprint(child, state));
+                    Append(hash, Fingerprint(child, state, cancellationToken));
                     break;
                 case XText text when !string.IsNullOrWhiteSpace(text.Value):
                     Append(hash, text.Value);
@@ -549,15 +600,21 @@ public sealed class WordSemanticProjector
 
         var fingerprint = Convert.ToHexString(hash.GetHashAndReset())
             .ToLowerInvariant();
+        WordOperationResourceAccounting.ChargeSemanticFingerprint(
+            _resourceLease,
+            fingerprint
+        );
         state.Fingerprints[element] = fingerprint;
         return fingerprint;
     }
 
-    private static string StructuralFingerprint(
+    private string StructuralFingerprint(
         XElement element,
-        ProjectionState state
+        ProjectionState state,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (state.StructuralFingerprints.TryGetValue(element, out var cached))
         {
             return cached;
@@ -587,10 +644,17 @@ public sealed class WordSemanticProjector
         }
         foreach (var child in element.Elements())
         {
-            Append(hash, StructuralFingerprint(child, state));
+            Append(
+                hash,
+                StructuralFingerprint(child, state, cancellationToken)
+            );
         }
         var fingerprint = Convert.ToHexString(hash.GetHashAndReset())
             .ToLowerInvariant();
+        WordOperationResourceAccounting.ChargeSemanticFingerprint(
+            _resourceLease,
+            fingerprint
+        );
         state.StructuralFingerprints[element] = fingerprint;
         return fingerprint;
     }

@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+- Added the vendor-neutral `word_operation_accounted_v1` lease and wired one instance
+  through the complete saved-package dependency-inspection pipeline: OPC retention,
+  lossless XML parsing, semantic nodes/fingerprint caches, styles, numbering, references,
+  sections/settings, charts, figures/captions, content controls, tables and final graph.
+  The calibrated production ceiling is 640 MiB; MCP exposes only
+  `operation_budget: {model, used, maximum}` under compact alias `wop1`.
+- ZIP central-directory count/size preflight now runs before `ZipArchive.Entries` is
+  materialized. Non-seekable public streams are copied through a 576 MiB bounded,
+  delete-on-close temporary spool so they cannot bypass that preflight. Package-entry
+  and XML charges reject before guarded byte copies; OPC
+  content-type, part, relationship and diagnostic records are count-bounded and charged.
+  Semantic hash recursion and metadata XML loading observe cancellation, while
+  table/figure/content-control aggregate byte ceilings reject the next part before
+  parsing it. Operation exhaustion maps to a typed, bounded `PACKAGE_LIMIT`
+  stage/attempted-charge response without paths or document data.
+- Case-insensitive ZIP-name collision diagnostics now return only a bounded spelling
+  count instead of joining every attacker-controlled name into one large string.
+- Kept the existing `wdg1` graph budget and dependency input schema byte-for-byte
+  compatible. Chart/table limit and projection failures now map to `PACKAGE_LIMIT` and
+  `INVALID_WORD_PACKAGE` instead of falling through to `IO_ERROR`. Empty
+  `issues_truncated=false` noise is omitted from compact responses; the complete default
+  dependency JSON-RPC envelope remains below 8,000 characters.
+- Calibrated the previous 99,997-node graph point at 539,282,576 operation-accounted
+  bytes. A 512 MiB candidate failed at 536,870,624 bytes, while 640 MiB preserves the
+  admitted boundary with 19.7% accounted headroom. The model remains a cumulative stable
+  proxy, not an exact CLR heap, live-set or resident-memory claim.
+- Raised the development runtime/plugin line to 0.39.0 without increasing the 90-action
+  catalogue.
+- Two pinned .NET SDK 8.0.423 builds produced byte-identical 196-file,
+  85,759,136-byte trees and 36,380,971-byte ZIPs at SHA-256
+  `2875209550cca57b36d0e99873d443c337f89950e5230d3083110398da0d7468`.
+  The package contains no Python files. The enabled personal-plugin cache at
+  `0.39.0+codex.20260723142922` is an exact path/length/hash copy; its runtime reports
+  0.39.0 and 90 actions. A packaged dependency smoke call returned both `wop1` and
+  `wdg1` while leaving the checked-in DOCX byte-identical.
+
 - Replaced the unified dependency graph's two eager per-node adjacency dictionaries
   with compact incoming/outgoing offset and edge-index arrays. Direct adjacency views
   retain ordering without allocating one list per node, endpoint validation stays

@@ -1,5 +1,43 @@
 # Stage results
 
+## WordToolkit 0.39.0 operation-wide dependency resource lease — 2026-07-23
+
+- Added one cumulative `word_operation_accounted_v1` lease across ZIP/OPC admission,
+  metadata, lossless XML, semantic projection, typed styles/numbering/references/
+  sections/charts/figures/content-controls/tables and final dependency-graph retention.
+  The calibrated default is 640 MiB. The existing 128 MiB graph-local `wdg1` boundary
+  remains independent; MCP reports the new lease only as compact `operation_budget`
+  model `wop1`.
+- Moved hostile-archive rejection ahead of `ZipArchive.Entries`: bounded EOCD/ZIP64
+  preflight now rejects excessive entry counts, central-directory bytes, multi-disk
+  archives and invalid subtraction-based offsets. Public non-seekable streams pass
+  through a 576 MiB bounded random-name `CreateNew` spool with `FileShare.None` and
+  `DeleteOnClose`; its buffer is charged and zeroed. OPC metadata counts, diagnostics,
+  XML retention and typed aggregate limits all reject before the next guarded retention.
+- Cancellation now reaches metadata XML loading and semantic fingerprint recursion.
+  Resource exhaustion returns bounded `PACKAGE_LIMIT` stage/attempted-charge data; it
+  does not return paths, XML or document content. Case-insensitive ZIP collision
+  diagnostics disclose only a spelling count instead of joining attacker-controlled
+  names. The exact dependency input schema remains byte-for-byte unchanged at SHA-256
+  `e371a9c3800f58dcd685c80a9d5a63cee967aa2ba563a8bb01965c373f06b7a2`.
+- Final local verification passed 438/438 Engine and 283/283 Native tests with no skips.
+  The full Python/OOXML lane passed 1,279 tests with 16 intentional environment/model
+  skips; Ruff is clean and mypy succeeds across 28 maintained source files. Independent
+  correctness/resource and final contract red teams found no remaining P0/P1 issue.
+- Five cold 99,997-node samples deterministically charge 539,282,576/671,088,640
+  operation bytes and 130,132,744/134,217,728 graph bytes. Medians are 2,956.082 ms
+  dependency build, 5,491.3294 ms measured total, 175,334,544 retained managed bytes,
+  1,610,477,144 allocated bytes and 615,305,216 bytes peak working set. Against the
+  same-host 0.38 series, peak working set rose 6.75%; no peak-memory win is claimed.
+- Two pinned .NET SDK 8.0.423 builds produced byte-identical 196-file, 85,759,136-byte
+  trees and 36,380,971-byte ZIPs at SHA-256
+  `2875209550cca57b36d0e99873d443c337f89950e5230d3083110398da0d7468`.
+  The package contains no Python files. The enabled personal-plugin cache at
+  `0.39.0+codex.20260723142922` has zero path/length/hash differences from that tree;
+  installed initialization reports runtime 0.39.0 and capability discovery reports 90
+  actions. A packaged read-only dependency smoke call returned 209 nodes, 259 edges,
+  both `wop1` and `wdg1`, and left the source DOCX hash unchanged.
+
 ## WordToolkit 0.38.0 dependency-graph byte boundary — 2026-07-23
 
 - Replaced two eager dictionaries of per-node edge arrays with compact incoming and

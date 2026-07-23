@@ -680,6 +680,25 @@ and aligned UTF-16 string storage before retaining each item. It is a stable con
 allocation proxy for this graph, not an exact CLR heap or whole-operation resident-memory
 limit.
 
+Saved-package dependency inspection now creates one vendor-neutral
+`WordOperationResourceLease` before ZIP central-directory materialization. Its 640 MiB
+`word_operation_accounted_v1` ceiling is consumed cumulatively by retained package
+entries, guarded lossless XML parses, semantic nodes and fingerprint caches, every typed
+source-graph stage and the final dependency graph. Bounded EOCD/ZIP64 preflight rejects
+central-directory count, size and malformed arithmetic before `ZipArchive.Entries`;
+package/XML charges precede guarded byte copies, and derived content-type, part,
+relationship and diagnostic records have count/resource bounds. Dependency items still
+charge before insertion. Engine usage keeps
+a stable per-stage breakdown, while MCP exposes only the three-field `wop1`
+`operation_budget`. Exhaustion maps to `PACKAGE_LIMIT` with a bounded stable stage and no
+document data. The input schema cannot raise the ceiling.
+
+This is deterministic resource accounting, not a GC, resident-set or peak-live-memory
+claim. The lease does not release earlier charges, and the repeated story parsers consume
+the same lease repeatedly. Shared immutable parsed-story storage remains the next memory
+architecture target. The accounting formula and calibration are recorded in
+`RESEARCH-OPERATION-RESOURCE-LEASE-2026.md`.
+
 Incoming and outgoing adjacency use compressed-row offset and edge-index arrays rather
 than two dictionaries of per-node edge arrays. Direct adjacency views do not allocate.
 The Engine reports the complete accounting and exact adjacency-index bytes; the lazy MCP

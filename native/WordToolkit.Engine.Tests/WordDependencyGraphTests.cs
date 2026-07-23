@@ -1,6 +1,8 @@
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Semantics;
 
 namespace WordToolkit.Engine.Tests;
@@ -539,6 +541,70 @@ public sealed class WordDependencyGraphTests
                 .Select(edge => edge.Id),
             graph.OutgoingView(highDegreeNode.Id).Select(edge => edge.Id)
         );
+    }
+
+    [Fact]
+    public void SharesOneDeterministicOperationLeaseAcrossTheInspectionPipeline()
+    {
+        using var bytes = BuildPackage(
+            documentBody: "<w:p><w:r><w:t>bounded</w:t></w:r></w:p>"
+        );
+        var sourceHash = SHA256.HashData(bytes.ToArray());
+
+        static (WordDependencyGraph Graph, WordOperationResourceUsage Usage) Build(
+            Stream source,
+            long maximum = WordOperationResourceLease.DefaultMaximumAccountedBytes
+        )
+        {
+            source.Position = 0;
+            var lease = new WordOperationResourceLease(maximum);
+            var package = new OpcPackageReader(OpcPackageLimits.Default, lease).Read(source);
+            var semantic = new WordSemanticProjector(null, lease).Project(package);
+            var graph = new WordDependencyGraphBuilder(null, lease).Build(
+                package,
+                semantic
+            );
+            return (
+                graph,
+                graph.OperationResourceUsage
+                    ?? throw new InvalidOperationException("Operation usage is missing.")
+            );
+        }
+
+        var first = Build(bytes);
+        var second = Build(bytes);
+        Assert.Equal(first.Usage.AccountingModel, second.Usage.AccountingModel);
+        Assert.Equal(first.Usage.AccountedBytes, second.Usage.AccountedBytes);
+        Assert.Equal(
+            first.Usage.MaximumAccountedBytes,
+            second.Usage.MaximumAccountedBytes
+        );
+        Assert.Equal(first.Usage.Stages, second.Usage.Stages);
+        Assert.True(first.Usage.AccountedBytes > first.Graph.ResourceUsage.AccountedBytes);
+        Assert.Equal(
+            WordOperationResourceLease.AccountingModel,
+            first.Usage.AccountingModel
+        );
+        Assert.Equal(
+            Enum.GetValues<WordOperationResourceStage>()
+                .Except([WordOperationResourceStage.Operation])
+                .Order(),
+            first.Usage.Stages.Select(item => item.Stage)
+                .Except([WordOperationResourceStage.Operation])
+                .Order()
+        );
+        Assert.Equal(sourceHash, SHA256.HashData(bytes.ToArray()));
+
+        var exception = Assert.Throws<WordOperationResourceLimitException>(() =>
+            Build(bytes, first.Usage.AccountedBytes - 1)
+        );
+        Assert.True(exception.AttemptedBytes > 0);
+        Assert.InRange(
+            exception.AccountedBytes,
+            1,
+            exception.MaximumAccountedBytes
+        );
+        Assert.Equal(sourceHash, SHA256.HashData(bytes.ToArray()));
     }
 
     private static MemoryStream BuildPackage(

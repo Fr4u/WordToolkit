@@ -146,10 +146,15 @@ nested-table and vertical-merge topology. Its
 `explicitly_unmodeled_domains` list is a hard coverage
 boundary: absence of an edge for advanced drawing layout, SmartArt, OLE, bibliography, active content,
 signatures, encryption or co-authoring is not proof that the dependency does not exist.
-The summary's `byte_budget` is a graph-local deterministic accounting boundary. Treat a
-`PACKAGE_LIMIT` as a hard stop; do not retry with broader output or claim the whole
-pipeline has a resident-memory ceiling. The Engine uses compact offset/index adjacency,
-but upstream semantic and typed projections still have independent limits.
+The summary's `byte_budget` remains the graph-local deterministic boundary. Its separate
+`operation_budget` (`wop1`) is one shared 640 MiB accounted lease spanning ZIP/OPC
+admission and metadata,
+lossless XML reservations, semantic/style/numbering/reference/section/chart/figure/
+content-control/table projections and the final graph. Treat `PACKAGE_LIMIT` as a hard
+stop; an operation-budget error reports only the bounded stage and attempted charge.
+Do not retry with broader output or call this an exact CLR heap, peak-live-memory or
+resident-set limit. Accounting is cumulative and conservative; repeated XML projection
+consumes the same lease because shared immutable parsed-story storage does not exist yet.
 This action never opens Word, executes a field, follows an external target, repairs a
 document or authorizes deleting an apparently unused node.
 Use lazy `inspect_ooxml_figures` instead of reading `w:drawing`, `w:pict`, `w:object`,

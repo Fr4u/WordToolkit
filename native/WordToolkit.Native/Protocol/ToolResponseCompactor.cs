@@ -165,6 +165,10 @@ internal static class ToolResponseCompactor
         {
             obj.Remove("warnings");
         }
+        if (obj["issues_truncated"]?.GetValue<bool>() == false)
+        {
+            obj.Remove("issues_truncated");
+        }
         if (obj["rules"] is JsonArray)
         {
             obj.Remove("rules");

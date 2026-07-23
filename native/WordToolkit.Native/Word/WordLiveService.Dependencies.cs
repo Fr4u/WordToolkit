@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Semantics;
 using WordToolkit.Native.Protocol;
 
@@ -10,7 +11,7 @@ internal sealed partial class WordLiveService
 {
     private const int MaxDependencyTraversalEdges = 20_000;
 
-    private static Task<object> InspectPackageDependenciesAsync(
+    private Task<object> InspectPackageDependenciesAsync(
         JsonElement arguments,
         CancellationToken cancellationToken
     )
@@ -85,16 +86,25 @@ internal sealed partial class WordLiveService
 
         try
         {
-            var package = new OpcPackageReader().Read(path, cancellationToken);
-            var semantic = new WordSemanticProjector().Project(
+            var resourceLease = _dependencyResourceLeaseFactory()
+                ?? throw new InvalidOperationException(
+                    "The dependency resource-lease factory returned null."
+                );
+            var package = new OpcPackageReader(
+                OpcPackageLimits.Default,
+                resourceLease
+            ).Read(path, cancellationToken);
+            var semantic = new WordSemanticProjector(null, resourceLease).Project(
                 package,
                 cancellationToken
             );
-            var graph = new WordDependencyGraphBuilder().Build(
+            var graph = new WordDependencyGraphBuilder(null, resourceLease).Build(
                 package,
                 semantic,
                 cancellationToken
             );
+            var operationUsage = graph.OperationResourceUsage
+                ?? resourceLease.Snapshot();
             if (nodeId is not null && !graph.TryGetNode(nodeId, out _))
             {
                 throw new NativeToolException(
@@ -197,6 +207,12 @@ internal sealed partial class WordLiveService
                     used = graph.ResourceUsage.AccountedBytes,
                     maximum = graph.ResourceUsage.MaximumAccountedBytes,
                 },
+                operation_budget = new
+                {
+                    model = "wop1",
+                    used = operationUsage.AccountedBytes,
+                    maximum = operationUsage.MaximumAccountedBytes,
+                },
                 runtime = "dotnet-native",
                 python_used = false,
                 performance = new
@@ -204,6 +220,25 @@ internal sealed partial class WordLiveService
                     total_ms = Stopwatch.GetElapsedTime(started).TotalMilliseconds,
                 },
             });
+        }
+        catch (WordOperationResourceLimitException exception)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "The dependency inspection exceeded its operation resource budget",
+                new
+                {
+                    reason = "The operation resource budget was exhausted",
+                    operation_budget = new
+                    {
+                        model = "wop1",
+                        used = exception.AccountedBytes,
+                        maximum = exception.MaximumAccountedBytes,
+                        attempted = exception.AttemptedBytes,
+                        stage = ToSnakeCase(exception.Stage.ToString()),
+                    },
+                }
+            );
         }
         catch (WordDependencyLimitException exception)
         {
@@ -226,8 +261,10 @@ internal sealed partial class WordLiveService
                 or WordNumberingLimitException
                 or WordReferenceLimitException
                 or WordSectionLimitException
+                or WordChartLimitException
                 or WordFigureLimitException
                 or WordContentControlLimitException
+                or WordTableLimitException
         )
         {
             throw new NativeToolException(
@@ -242,8 +279,10 @@ internal sealed partial class WordLiveService
                 or WordNumberingResolutionException
                 or WordReferenceProjectionException
                 or WordSectionProjectionException
+                or WordChartProjectionException
                 or WordFigureProjectionException
                 or WordContentControlProjectionException
+                or WordTableProjectionException
         )
         {
             throw new NativeToolException(

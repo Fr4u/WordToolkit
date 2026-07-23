@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Rendering;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Semantics;
 
 var options = Arguments.Parse(args);
@@ -57,7 +58,15 @@ static object RunGraph(Arguments options)
         OpcPackageSnapshot? package = null;
         WordSemanticDocument? semantic = null;
         WordDependencyGraph? graph = null;
-        var read = Measure(() => package = new OpcPackageReader().Read(path));
+        var resourceLease = new WordOperationResourceLease(
+            checked((long)options.OperationBudgetMiB * 1024 * 1024)
+        );
+        var read = Measure(() =>
+            package = new OpcPackageReader(
+                OpcPackageLimits.Default,
+                resourceLease
+            ).Read(path)
+        );
         var project = Measure(() =>
             semantic = new WordSemanticProjector(
                 new WordSemanticProjectionOptions
@@ -65,7 +74,8 @@ static object RunGraph(Arguments options)
                     MaxXmlCharacters = 256L * 1024 * 1024,
                     MaxXmlElements = maxXmlElements,
                     MaxTextCharacters = 64L * 1024 * 1024,
-                }
+                },
+                resourceLease
             ).Project(package!)
         );
         var build = Measure(() =>
@@ -73,7 +83,8 @@ static object RunGraph(Arguments options)
                 new WordDependencyGraphOptions
                 {
                     MaxAccountedBytes = checked((long)options.GraphBudgetMiB * 1024 * 1024),
-                }
+                },
+                resourceLease
             ).Build(package!, semantic!)
         );
         var final = MemorySnapshot.Capture();
@@ -96,6 +107,17 @@ static object RunGraph(Arguments options)
                     accounted_bytes = graph.ResourceUsage.AccountedBytes,
                     maximum_accounted_bytes = graph.ResourceUsage.MaximumAccountedBytes,
                     adjacency_index_bytes = graph.ResourceUsage.AdjacencyIndexBytes,
+                },
+                operation_resource_usage = new
+                {
+                    accounting_model = graph.OperationResourceUsage!.AccountingModel,
+                    accounted_bytes = graph.OperationResourceUsage.AccountedBytes,
+                    maximum_accounted_bytes = graph.OperationResourceUsage.MaximumAccountedBytes,
+                    stages = graph.OperationResourceUsage.Stages.Select(item => new
+                    {
+                        stage = item.Stage.ToString(),
+                        accounted_bytes = item.AccountedBytes,
+                    }),
                 },
                 timings_ms = new
                 {
@@ -1127,6 +1149,7 @@ internal sealed record Arguments(
     int PayloadMiB,
     int Parts,
     int GraphBudgetMiB,
+    int OperationBudgetMiB,
     string? Output
 )
 {
@@ -1135,7 +1158,7 @@ internal sealed record Arguments(
         if (args.Length == 0)
         {
             throw new ArgumentException(
-                "usage: graph --target-nodes N [--graph-budget-mib N] | bindings --target-nodes N | tables --target-nodes N | figures --target-nodes N | mce --target-nodes N | semantic-html --target-nodes N | semantic-svg --target-nodes N | patch --payload-mib N [--parts N]"
+                "usage: graph --target-nodes N [--graph-budget-mib N] [--operation-budget-mib N] | bindings --target-nodes N | tables --target-nodes N | figures --target-nodes N | mce --target-nodes N | semantic-html --target-nodes N | semantic-svg --target-nodes N | patch --payload-mib N [--parts N]"
             );
         }
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -1153,6 +1176,7 @@ internal sealed record Arguments(
             IntValue(values, "payload-mib", 16),
             IntValue(values, "parts", 16),
             IntValue(values, "graph-budget-mib", 128),
+            IntValue(values, "operation-budget-mib", 640),
             values.GetValueOrDefault("output")
         );
     }

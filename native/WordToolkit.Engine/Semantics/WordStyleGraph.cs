@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
@@ -316,10 +317,22 @@ public sealed class WordStyleGraphBuilder
     );
 
     private readonly WordStyleGraphOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
 
     public WordStyleGraphBuilder(WordStyleGraphOptions? options = null)
     {
         _options = options ?? WordStyleGraphOptions.Default;
+        _options.Validate();
+    }
+
+    public WordStyleGraphBuilder(
+        WordStyleGraphOptions? options,
+        WordOperationResourceLease resourceLease
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        _options = options ?? WordStyleGraphOptions.Default;
+        _resourceLease = resourceLease;
         _options.Validate();
     }
 
@@ -332,6 +345,10 @@ public sealed class WordStyleGraphBuilder
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(semanticDocument);
         cancellationToken.ThrowIfCancellationRequested();
+        WordOperationResourceAccounting.ChargeProjectionBase(
+            _resourceLease,
+            WordOperationResourceStage.Styles
+        );
         if (
             !string.Equals(
                 package.Fingerprint,
@@ -405,6 +422,13 @@ public sealed class WordStyleGraphBuilder
                 $"Styles part contains {styleElements.Length} styles; limit is {_options.MaxStyles}."
             );
         }
+
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.Styles,
+            styleElements.Length,
+            2_048
+        );
 
         var parsed = styleElements
             .Select(element => ParseStyle(element, wordNamespace, source))
@@ -533,21 +557,30 @@ public sealed class WordStyleGraphBuilder
     {
         try
         {
-            return LosslessXmlDocument.Parse(
-                part.Entry.Content,
-                new LosslessXmlOptions
-                {
-                    MaxSourceBytes = _options.MaxStylesPartBytes,
-                    MaxXmlCharacters = _options.MaxStylesPartBytes,
-                    MaxXmlElements = (int)Math.Min(
-                        int.MaxValue,
-                        Math.Max((long)_options.MaxStyles * 128, 32_768)
-                    ),
-                    MaxXmlDepth = 128,
-                    MaxTextCharacters = _options.MaxStylesPartBytes,
-                },
-                cancellationToken
-            );
+            var options = new LosslessXmlOptions
+            {
+                MaxSourceBytes = _options.MaxStylesPartBytes,
+                MaxXmlCharacters = _options.MaxStylesPartBytes,
+                MaxXmlElements = (int)Math.Min(
+                    int.MaxValue,
+                    Math.Max((long)_options.MaxStyles * 128, 32_768)
+                ),
+                MaxXmlDepth = 128,
+                MaxTextCharacters = _options.MaxStylesPartBytes,
+            };
+            return _resourceLease is null
+                ? LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    cancellationToken
+                )
+                : LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    _resourceLease,
+                    WordOperationResourceStage.Styles,
+                    cancellationToken
+                );
         }
         catch (LosslessXmlLimitException exception)
         {
