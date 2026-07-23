@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Fixed native Word build-up for adjacent LaTeX factors after a structured base.
+  The converter now emits an inert parsing boundary between forms such as
+  `x^3e^{2x}`, `e^{2x}\sin(3x)`, a fraction followed by a variable, or a scripted
+  factor followed by a delimited factor. Without that boundary Word could absorb the
+  factors into one malformed function-name or superscript tree; the immediate OMML
+  verifier then correctly rejected the changed structure.
+- OMML readback no longer adds a second redundant wrapper around an already delimited
+  superscript or subscript base. A gated real-Word regression now builds and reads back
+  the complete eight-row complex-method derivation of
+  `\int x^3e^{2x}\sin(3x)\,dx`: all six native n-ary integrals and all six integral-
+  owned differentials survive with identical canonical contracts. The differential,
+  symbol and structural gates remain enabled; the fix does not weaken verification.
+
 - Removed automatic replay of mutating Word COM delegates after disconnect. COM work is
   now non-replayable by default: only explicitly proven read-only or idempotent calls
   may reconnect once. A disconnected non-replayable operation returns non-retryable

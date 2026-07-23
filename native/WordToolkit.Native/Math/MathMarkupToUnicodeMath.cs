@@ -976,7 +976,67 @@ internal static class MathMarkupToUnicodeMath
 
     private static string ParenthesizeBase(string value)
     {
-        return WithoutFormattingMarkers(value).Length == 1 ? value : $"({value})";
+        var visible = WithoutFormattingMarkers(value);
+        return visible.Length == 1 || HasSingleOuterGroup(visible)
+            ? value
+            : $"({value})";
+    }
+
+    private static bool HasSingleOuterGroup(string value)
+    {
+        if (value.Length < 2)
+        {
+            return false;
+        }
+        var closing = value[0] switch
+        {
+            '(' => ')',
+            '[' => ']',
+            '{' => '}',
+            '〖' => '〗',
+            _ => '\0',
+        };
+        if (closing == '\0' || value[^1] != closing)
+        {
+            return false;
+        }
+        var depth = 0;
+        var inQuotedText = false;
+        for (var index = 0; index < value.Length; index++)
+        {
+            var character = value[index];
+            if (character == '"')
+            {
+                if (inQuotedText && index + 1 < value.Length && value[index + 1] == '"')
+                {
+                    index++;
+                    continue;
+                }
+                inQuotedText = !inQuotedText;
+                continue;
+            }
+            if (inQuotedText)
+            {
+                continue;
+            }
+            if (character == value[0])
+            {
+                depth++;
+            }
+            else if (character == closing)
+            {
+                depth--;
+                if (depth == 0 && index != value.Length - 1)
+                {
+                    return false;
+                }
+                if (depth < 0)
+                {
+                    return false;
+                }
+            }
+        }
+        return depth == 0 && !inQuotedText;
     }
 
     private static string LimitBase(string value) =>

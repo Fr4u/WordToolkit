@@ -64,6 +64,8 @@ internal static class EquationReadbackVerifier
             || MathAlphabetMapper.ContainsStyledCharacter(linear);
     }
 
+    internal static string CanonicalizeForTesting(string value) => Canonicalize(value);
+
     internal static EquationReadbackVerification Verify(
         string wordOpenXml,
         string expectedLinear

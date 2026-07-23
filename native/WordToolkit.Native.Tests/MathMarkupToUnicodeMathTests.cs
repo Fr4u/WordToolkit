@@ -49,6 +49,30 @@ public sealed class MathMarkupToUnicodeMathTests
     }
 
     [Fact]
+    public void DoesNotDoubleWrapAnAlreadyDelimitedScriptBase()
+    {
+        const string source =
+            """
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:sSup>
+                <m:e>
+                  <m:d>
+                    <m:dPr><m:begChr m:val="("/><m:endChr m:val=")"/></m:dPr>
+                    <m:e><m:r><m:t>2+3i</m:t></m:r></m:e>
+                  </m:d>
+                </m:e>
+                <m:sup><m:r><m:t>2</m:t></m:r></m:sup>
+              </m:sSup>
+            </m:oMath>
+            """;
+
+        Assert.Equal(
+            "(2+3i)^(2)",
+            MathMarkupToUnicodeMath.Convert(source, "omml")
+        );
+    }
+
+    [Fact]
     public void SeparatesPresentationMathMlNaryLimitsFromTheBody()
     {
         const string source =

@@ -1108,8 +1108,12 @@ internal static class LatexToUnicodeMath
         if (
             output.Length > 0
             && output[^1] != ' '
-            && StartsWithIdentifier(atom)
-            && EndsWithIdentifier(output)
+            && (
+                StartsWithIdentifier(atom)
+                    && EndsWithIdentifierOrStructuredFactor(output)
+                || StartsWithOpeningDelimiter(atom)
+                    && EndsWithStructuredFactor(output)
+            )
             && output[^1] != WordLinearMathNormalizer.DifferentialD
         )
         {
@@ -1142,6 +1146,9 @@ internal static class LatexToUnicodeMath
     {
         return value.Length > 0 && char.IsLetter(value[0]);
     }
+
+    private static bool StartsWithOpeningDelimiter(string value) =>
+        value.Length > 0 && value[0] is '(' or '[' or '{' or '〖';
 
     private static bool IsNaryAtom(string value)
     {
@@ -1189,15 +1196,19 @@ internal static class LatexToUnicodeMath
         return false;
     }
 
-    private static bool EndsWithIdentifier(StringBuilder value)
+    private static bool EndsWithIdentifierOrStructuredFactor(StringBuilder value)
     {
         if (value.Length == 0)
         {
             return false;
         }
         var character = value[^1];
-        return char.IsLetter(character);
+        return char.IsLetter(character)
+            || character is ')' or ']' or '}' or '〗';
     }
+
+    private static bool EndsWithStructuredFactor(StringBuilder value) =>
+        value.Length > 0 && value[^1] is ')' or ']' or '}' or '〗';
 
     private static string NormalizeSpaces(string value)
     {

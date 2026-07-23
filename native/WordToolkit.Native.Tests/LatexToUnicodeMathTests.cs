@@ -72,6 +72,16 @@ public sealed class LatexToUnicodeMathTests
     [InlineData(@"\mathfrak{R}+\mathfrak{I}", "ℜ+ℑ")]
     [InlineData(@"\mathsf{A}", "𝖠")]
     [InlineData(@"\mathtt{x}", "𝚡")]
+    [InlineData(
+        @"\int x^3e^{2x}\sin(3x)\,dx",
+        "∫▒〖x^(3) e^(2x) sin(3x) ⅆx〗"
+    )]
+    [InlineData(@"\frac{a}{b}x+(u+v)y", "(a)/(b) x+(u+v) y")]
+    [InlineData(
+        @"e^{\lambda x}\left(\frac{x^3}{\lambda}\right)",
+        "e^(λ x) ((x^(3))/(λ))"
+    )]
+    [InlineData(@"(a+b)(c+d)", "(a+b) (c+d)")]
     public void ConvertsCommonWordMath(string latex, string expected)
     {
         Assert.Equal(expected, LatexToUnicodeMath.Convert(latex));
