@@ -13,6 +13,7 @@
       "transform_ooxml_package",
       "inspect_ooxml_semantics",
       "query_ooxml_semantics",
+      "render_ooxml_semantic_html",
       "manage_ooxml_semantic_index",
       "compare_ooxml_semantics",
       "plan_ooxml_patch",
@@ -4331,6 +4332,119 @@
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "render_ooxml_semantic_html",
+      "title": "Render a semantic HTML preview of a Word package",
+      "description": "Create a deterministic, self-contained semantic HTML artifact from one saved DOCX, DOCM, DOTX, or DOTM without opening Word. The vendor-neutral renderer preserves story, paragraph, table, revision, field-result and equation-text meaning, keeps hyperlinks inert, never loads external resources or executes active content, and writes only a new .html file. This is explicitly a non-paginated structural preview: it does not claim Microsoft Word layout, typography, drawing, pagination, or print fidelity.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_input_package_and_create_new_html_output",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": true,
+        "mechanism": "delete_created_output",
+        "default": "retained"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "maxLength": 32767,
+            "description": "Absolute or workspace-relative path to one local DOCX, DOCM, DOTX, or DOTM."
+          },
+          "output_path": {
+            "type": "string",
+            "maxLength": 32767,
+            "pattern": "\\.[Hh][Tt][Mm][Ll]$",
+            "description": "New local .html path. Existing files are never overwritten and the parent directory must already exist."
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$",
+            "description": "Optional exact package fingerprint. Supply it when rendering a previously inspected package to reject stale input."
+          },
+          "story_scope": {
+            "type": "string",
+            "enum": ["main_document", "all_text_stories"],
+            "default": "main_document",
+            "description": "Render only the main document body, or also related headers, footers, footnotes, endnotes, comments, and glossary stories."
+          },
+          "language": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 35,
+            "pattern": "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$",
+            "default": "und",
+            "description": "Compact BCP 47-style language tag used on the HTML root."
+          }
+        },
+        "required": ["local_path", "output_path"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "input_file_name", "output_file_name", "package_fingerprint", "artifact_sha256", "artifact_bytes", "backend", "backend_version", "fidelity_class", "story_scope", "rendered_story_count", "rendered_node_count", "paragraph_count", "table_count", "equation_count", "drawing_placeholder_count", "unsupported_node_count", "warnings", "output_created", "source_mutated", "artifact_contains_document_content", "external_resources_loaded", "active_content_executed", "raw_xml_returned", "document_text_returned", "word_opened"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.render_ooxml_semantic_html/1.0"},
+              "input_file_name": {"type": "string", "maxLength": 512},
+              "output_file_name": {"type": "string", "maxLength": 512},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "artifact_bytes": {"type": "integer", "minimum": 1},
+              "backend": {"const": "wordtoolkit-semantic-html"},
+              "backend_version": {"const": "1.0"},
+              "fidelity_class": {"const": "semantic_preview_non_paginated"},
+              "story_scope": {"enum": ["main_document", "all_text_stories"]},
+              "rendered_story_count": {"type": "integer", "minimum": 1},
+              "rendered_node_count": {"type": "integer", "minimum": 1},
+              "paragraph_count": {"type": "integer", "minimum": 0},
+              "table_count": {"type": "integer", "minimum": 0},
+              "equation_count": {"type": "integer", "minimum": 0},
+              "drawing_placeholder_count": {"type": "integer", "minimum": 0},
+              "unsupported_node_count": {"type": "integer", "minimum": 0},
+              "warnings": {
+                "type": "array",
+                "maxItems": 32,
+                "uniqueItems": true,
+                "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]+$", "maxLength": 96}
+              },
+              "output_created": {"const": true},
+              "source_mutated": {"const": false},
+              "artifact_contains_document_content": {"const": true, "description": "The created local HTML artifact contains document content even though the MCP response does not return that content."},
+              "external_resources_loaded": {"const": false},
+              "active_content_executed": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "document_text_returned": {"const": false},
+              "word_opened": {"const": false},
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {
+                "type": "object",
+                "required": ["total_ms"],
+                "properties": {"total_ms": {"type": "number", "minimum": 0}},
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
         "openWorldHint": false
       }
     },

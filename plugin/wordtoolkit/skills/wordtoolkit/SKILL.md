@@ -60,6 +60,17 @@ reachability. Keep property comparisons exact and never request raw XML merely t
 reconstruct ancestry already represented by these predicates. Set `max_results` to
 the smallest useful page and use `text_preview_chars=0` when stable IDs and kinds are
 enough for the next operation.
+Use the lazy `render_ooxml_semantic_html` action when a saved Word package needs a
+self-contained structural preview, accessibility inspection artifact, or diff companion
+without opening Word. Supply a new `.html` `output_path`; existing files are never
+overwritten. Keep `story_scope=main_document` unless headers, footers, notes, comments,
+or glossary text are genuinely needed. The artifact contains document text, but the MCP
+response returns only hashes, counts, warnings, and fidelity metadata. Treat
+`semantic_preview_non_paginated` literally: links are inert, fields expose cached result
+content rather than instructions, tracked changes are annotated, equations are linear
+text fallbacks, and drawings or unsupported extensions are visible placeholders. Never
+use this artifact as evidence of Word pagination, font substitution, line wrapping,
+drawing geometry, or print fidelity.
 For two or more queries over the same unchanged package, first execute lazy
 `manage_ooxml_semantic_index` with `operation=create`. Reuse its
 `semantic_index_id` and exact `package_fingerprint` in every

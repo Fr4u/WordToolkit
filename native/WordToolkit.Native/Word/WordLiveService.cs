@@ -109,6 +109,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "render_ooxml_semantic_html" => RenderPackageSemanticHtmlAsync(
+                arguments,
+                cancellationToken
+            ),
             "manage_ooxml_semantic_index" => ManagePackageSemanticIndexAsync(
                 arguments,
                 cancellationToken

@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+- Added `wordtoolkit.render_ooxml_semantic_html/1.0` as the sixth public
+  transport-neutral Engine/CLI/MCP operation. The dependency-free Engine creates a
+  deterministic, self-contained HTML artifact from a saved DOCX/DOCM/DOTX/DOTM without
+  Word, LibreOffice, Python, network access, external-resource loading or active-content
+  execution. It renders the main body or all projected text stories, infers headings from
+  modeled outline styles, preserves tables and cached field results, keeps hyperlinks
+  inert, annotates tracked insertions/deletions/moves, emits bounded linear-text equation
+  fallbacks and makes unsupported drawings/extensions visible as placeholders. The
+  result contract calls the artifact `semantic_preview_non_paginated`; it makes no claim
+  of Word layout, typography, pagination or print fidelity.
+- Added the strict `render-package --request <json|->` CLI and lazy MCP adapter over the
+  same renderer. The write is create-new and sibling-temporary, flushed before an atomic
+  move, never overwrites an output, can bind an inspected package fingerprint, leaves the
+  source byte-identical, and returns artifact hashes/counts rather than document text or
+  XML in the response. The result explicitly marks that the local HTML artifact itself
+  contains document content. Capability discovery now covers 88 lazy/core actions and reports six actions with
+  complete operation-version, permission, reversibility and output-schema metadata.
+- Hardened the HTML boundary with output-name and 256 MiB artifact limits, a restrictive
+  inline Content Security Policy, HTML escaping of every package-derived value, adaptive
+  inline/block/table-row containers, inert hyperlinks, suppressed field instructions and
+  an atomic create-new race test. Compact MCP responses and full gateway responses now
+  both conform to the same closed output schema; telemetry is optional because the
+  compact gateway intentionally removes it.
+- Verified the semantic-HTML checkpoint with 392 Engine tests, 266 Native tests and the
+  complete 1,273-test Python/OOXML suite with 16 intentional skips; Ruff and the
+  maintained 28-module mypy lane are clean. Two supported Windows builds produced
+  identical 196-file, 85,424,800-byte trees and identical 36,281,531-byte ZIPs at
+  SHA-256 `dbeef0225f8c8d6afdda0d15c68ebf3e942cbdf3dee81268add8a7516993f1ea`;
+  expanded manifests matched at SHA-256
+  `a2d7639b9b935785f0a922fc176406923569b9a9a556be87a616441cef55bf1d`.
+  The manifest is the UTF-8/LF, no-final-newline serialization of relative path,
+  byte length and lowercase SHA-256 fields separated by tabs and sorted by path.
+  The packaged executable discovered the lazy action and rendered the checked-in Mammoth
+  fixture to one deterministic 3,628-byte artifact across 15 cold processes at 252.18 ms
+  median and 302.14 ms p95/max. Static HTML-tree, CSP and external-resource checks passed;
+  the in-app browser blocked the local `file://` URL, so no visual-browser result is
+  claimed and no policy bypass was attempted.
+
 - Added the public comment-body operation pair
   `wordtoolkit.plan_ooxml_comment_body_edits/1.0` and
   `wordtoolkit.apply_ooxml_comment_body_edits/1.0`. The dependency-free Engine selects

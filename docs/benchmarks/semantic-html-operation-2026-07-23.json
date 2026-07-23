@@ -1,0 +1,93 @@
+{
+  "schema": "wordtoolkit.semantic-html-operation-proof/1.0",
+  "date": "2026-07-23",
+  "platform": "windows-x64",
+  "toolkit_version": "0.35.0+codex.20260723074055",
+  "contract": "wordtoolkit.render_ooxml_semantic_html/1.0",
+  "fidelity_class": "semantic_preview_non_paginated",
+  "tests": {
+    "engine_passed": 392,
+    "native_passed": 266,
+    "python_passed": 1273,
+    "python_skipped": 16,
+    "ruff_clean": true,
+    "mypy_source_files": 28,
+    "mypy_clean": true
+  },
+  "reproducible_package": {
+    "build_count": 2,
+    "files": 196,
+    "expanded_bytes": 85424800,
+    "archive_bytes": 36281531,
+    "archive_sha256": "dbeef0225f8c8d6afdda0d15c68ebf3e942cbdf3dee81268add8a7516993f1ea",
+    "tree_manifest_format": "relative_path_tab_length_tab_sha256_lf_no_final_newline",
+    "tree_manifest_sha256": "a2d7639b9b935785f0a922fc176406923569b9a9a556be87a616441cef55bf1d",
+    "tree_difference_count": 0,
+    "executable_sha256": "59fb8419dbe664d1b1ae7f0b5df35b7738cfd1c43b69719049d8e06dd64cd138",
+    "runtime_assembly_sha256": "8535533a8394e3dc6b2b7462b6fa05537135cf9700e3fc80387e715bdc514666",
+    "native_action_count": 88,
+    "exposed_mcp_tool_count": 15,
+    "metadata_complete_action_count": 6,
+    "semantic_html_action_discoverable_by_phrase": true
+  },
+  "packaged_smoke": {
+    "fixture": "tests/upstream/fixtures/mammoth_comments.docx",
+    "fixture_sha256": "adc9f524d176f562db830c346c1e9e21c6a6aa6768d9c09892a423f1257fe17c",
+    "fixture_git_clean_after_render": true,
+    "story_scope": "all_text_stories",
+    "language": "en",
+    "rendered_story_count": 2,
+    "rendered_node_count": 26,
+    "paragraph_count": 3,
+    "artifact_bytes": 3628,
+    "artifact_sha256": "cc63118886f21b450cbbbea5f47d3f96962060ee23d2bbfe1d7b956dfcdeb4db",
+    "external_url_found": false,
+    "script_tag_found": false,
+    "content_security_policy_found": true,
+    "fidelity_marker_found": true,
+    "parsed_html_tree_valid": true,
+    "external_resource_elements_found": false,
+    "word_opened": false,
+    "source_mutated": false
+  },
+  "cold_render_benchmark": {
+    "fixture": "tests/upstream/fixtures/mammoth_comments.docx",
+    "story_scope": "all_text_stories",
+    "language": "en",
+    "runs": 15,
+    "new_process_per_run": true,
+    "min_ms": 242.73,
+    "median_ms": 252.18,
+    "p95_ms": 302.14,
+    "max_ms": 302.14,
+    "artifact_bytes": 3628,
+    "unique_artifact_hashes": 1,
+    "unique_artifact_sizes": 1,
+    "unique_response_lengths": 1,
+    "measurements_ms": [
+      253.77,
+      242.73,
+      252.18,
+      246.62,
+      302.14,
+      277.79,
+      257.28,
+      255.02,
+      243.35,
+      279.61,
+      251.74,
+      275.18,
+      250.65,
+      242.94,
+      250.63
+    ]
+  },
+  "visual_browser_check": {
+    "performed": false,
+    "reason": "The in-app browser blocked the local file URL under its URL security policy; no bypass or alternate browser surface was used."
+  },
+  "hosted_ci": {
+    "performed": false,
+    "reason": "Pending publication of this worktree checkpoint."
+  }
+}

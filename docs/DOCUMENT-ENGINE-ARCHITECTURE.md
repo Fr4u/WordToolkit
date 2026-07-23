@@ -884,6 +884,15 @@ Rendering is a capability interface:
 | Semantic HTML/SVG | Inspection, diff, accessibility, and previews; not pagination authority. |
 | Optional Aspose/GemBox/other adapter | Licensed independent renderer/converter with a recorded version and benchmark profile. |
 
+The first implemented provider-neutral backend is
+`wordtoolkit.render_ooxml_semantic_html/1.0`. It creates deterministic self-contained
+HTML for the main body or all projected text stories, keeps links inert, does not load
+external resources or execute active content, and makes approximations explicit through
+warnings and placeholders. The response marks the created artifact as document-content
+bearing even though it returns only hashes, counts and warnings. Its fidelity class is
+`semantic_preview_non_paginated`; it is
+not an implementation of the page-layout promises described below.
+
 Render results include backend version, operating system, font inventory hash, locale,
 page settings, warnings, and a fidelity class. Visual regression compares page count,
 text geometry, raster deltas, and object-level anchors where available.
@@ -943,7 +952,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 87 actions already have public SDK
+These are proved migration seams, not a claim that all 88 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.

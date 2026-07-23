@@ -1,5 +1,34 @@
 # Stage results
 
+## WordToolkit 0.35.0 semantic HTML renderer — 2026-07-23
+
+- Added `wordtoolkit.render_ooxml_semantic_html/1.0` through one dependency-free Engine,
+  strict JSON CLI and lazy MCP path. It renders the main body or all projected text
+  stories to deterministic self-contained HTML without opening Word, following external
+  relationships or executing active content.
+- The artifact is explicitly `semantic_preview_non_paginated`: cached field results are
+  retained while instructions are suppressed, hyperlinks are inert, tracked changes are
+  annotated, equations use bounded linear-text fallbacks, and drawings/extensions become
+  visible placeholders. CSP, HTML escaping, a 256 MiB limit, adaptive block containers,
+  create-new writes and a two-writer race regression harden the boundary.
+- Full Engine suite: **392 passed, 0 skipped**. Full Native suite: **266 passed, 0
+  skipped**. Full Python/OOXML suite: **1,273 passed, 16 intentional skips**; Ruff and
+  the 28-module mypy lane are clean.
+- Native package version: `0.35.0+codex.20260723074055`, with 15 exposed core/gateway
+  tools and **88** native actions. Six actions now publish complete operation-version,
+  permission, reversibility and output-schema metadata.
+- Two supported Windows builds produced byte-identical **196-file**,
+  **85,424,800-byte** expanded trees and byte-identical **36,281,531-byte** ZIPs. ZIP
+  SHA-256: `dbeef0225f8c8d6afdda0d15c68ebf3e942cbdf3dee81268add8a7516993f1ea`;
+  expanded manifest SHA-256:
+  `a2d7639b9b935785f0a922fc176406923569b9a9a556be87a616441cef55bf1d`.
+  The manifest format is sorted relative path, byte length and lowercase file SHA-256,
+  tab-separated and serialized as UTF-8/LF without a final newline.
+- Fifteen cold packaged processes rendered the checked-in Mammoth fixture at **252.18
+  ms median** and **302.14 ms p95/max**. All 15 artifacts were the same 3,628 bytes with
+  one SHA-256. Static HTML-tree, CSP and external-resource checks passed. The in-app
+  browser blocked `file://`, so no visual screenshot claim is made and no bypass was used.
+
 ## WordToolkit 0.35.0 logical table graph — 2026-07-22
 
 - Added `WordTableGraphBuilder`, a bounded Transitional/Strict WordprocessingML read
