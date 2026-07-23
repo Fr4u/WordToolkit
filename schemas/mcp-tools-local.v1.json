@@ -10,6 +10,7 @@
       "open_live_word_document",
       "connect_live_word_document",
       "inspect_ooxml_package",
+      "transform_ooxml_package",
       "inspect_ooxml_semantics",
       "query_ooxml_semantics",
       "manage_ooxml_semantic_index",
@@ -3892,6 +3893,76 @@
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "transform_ooxml_package",
+      "title": "Transform a Word OOXML package",
+      "description": "Create a new DOCX, DOCM, DOTX, or DOTM by applying one bounded, lossless high-level transform without opening Word: replace the first paragraph-local text occurrence, accept all tracked changes, or reject all tracked changes. The operation never overwrites a file, blocks signed packages, preserves untouched parts and unknown XML, validates the exact candidate before an atomic write, and fails closed when review semantics are unsupported.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the existing input Word package."
+          },
+          "output_path": {
+            "type": "string",
+            "description": "New output path with the same Word package extension. Existing files are never overwritten."
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "replace_first_text_occurrence",
+              "accept_all_tracked_changes",
+              "reject_all_tracked_changes"
+            ]
+          },
+          "find_text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000000,
+            "description": "Required only for replace_first_text_occurrence; matching is ordinal and paragraph-local."
+          },
+          "replace_text": {
+            "type": "string",
+            "maxLength": 1000000,
+            "description": "Required only for replace_first_text_occurrence and may be empty."
+          }
+        },
+        "required": [
+          "local_path",
+          "output_path",
+          "operation"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "operation": {"const": "replace_first_text_occurrence"}
+              },
+              "required": ["operation"]
+            },
+            "then": {
+              "required": ["find_text", "replace_text"]
+            },
+            "else": {
+              "not": {
+                "anyOf": [
+                  {"required": ["find_text"]},
+                  {"required": ["replace_text"]}
+                ]
+              }
+            }
+          }
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
         "openWorldHint": false
       }
     },

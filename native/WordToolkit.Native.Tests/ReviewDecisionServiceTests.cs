@@ -150,7 +150,8 @@ public sealed class ReviewDecisionServiceTests
         Assert.True(root.GetProperty("apply_blocked").GetBoolean());
         Assert.Contains(
             root.GetProperty("block_codes").EnumerateArray(),
-            item => item.GetProperty("code").GetString() == "unsupported_structural_deletion"
+            item => item.GetProperty("code").GetString()
+                == "paragraph_merge_properties_ambiguous"
         );
         Assert.False(root.GetProperty("candidate_validation").GetProperty("performed").GetBoolean());
         Assert.Equal(

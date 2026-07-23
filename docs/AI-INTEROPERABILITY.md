@@ -46,7 +46,7 @@ The response identifies:
 - `protocols.mcp`: MCP protocol version retained from that same schema;
 - `compatibility_policy`: the source schema's declared compatibility rule;
 - `source.schema_sha256`: exact embedded local schema bytes;
-- `source.native_action_contract_sha256`: canonical native 84-action subset, core
+- `source.native_action_contract_sha256`: canonical native 85-action subset, core
   exposure registry and header;
 - `source.capability_schema_sha256`: normative capability JSON Schema bytes.
 
@@ -89,7 +89,7 @@ operation summaries. Each summary contains:
 
 The manifest does not return full input schemas. After selecting one operation, call
 `inspect_wordtoolkit_action`; execute only after validating its schema and effect hints.
-This keeps discovery bounded instead of paying for all 84 schemas.
+This keeps discovery bounded instead of paying for all 85 schemas.
 
 ## Metadata coverage is evidence, not decoration
 

@@ -97,6 +97,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "transform_ooxml_package" => TransformPackageAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_ooxml_semantics" => InspectPackageSemanticsAsync(
                 arguments,
                 cancellationToken

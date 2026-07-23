@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Reflection;
 using WordToolkit.Native.Documents;
 using WordToolkit.Native.Protocol;
 using WordToolkit.Native.Word;
@@ -8,12 +9,23 @@ namespace WordToolkit.Native;
 internal static class Program
 {
     private const string Usage =
-        "usage: wordtoolkit-native [capabilities [--schema | [--query <text>] [--offset <n>] [--limit <n>]] [--format json] | inspect-package <path> [--include-details] [--max-items <1..200>] [--format json] | --create-test-document <path> | --benchmark-active-word]";
+        "usage: wordtoolkit-native [capabilities [--schema | [--query <text>] [--offset <n>] [--limit <n>]] [--format json] | inspect-package <path> [--include-details] [--max-items <1..200>] [--format json] | transform-package <input> <output> --operation <name> [--find-text <text> --replace-text <text>] [--format json] | docx-platform-adapter --protocol-version 1 --operation <operation.json> --input <input.docx> --output <output.docx> | --create-test-document <path> | --benchmark-active-word]";
 
     public static async Task<int> Main(string[] args)
     {
         Console.InputEncoding = System.Text.Encoding.UTF8;
         Console.OutputEncoding = System.Text.Encoding.UTF8;
+
+        if (args.Length == 1 && args[0] == "--version")
+        {
+            Console.Out.WriteLine(
+                Assembly.GetExecutingAssembly()
+                    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+                    ?.InformationalVersion
+                    ?? "unknown"
+            );
+            return 0;
+        }
 
         if (args.Length == 2 && args[0] == "--create-test-document")
         {
@@ -39,6 +51,20 @@ internal static class Program
         if (args.Length >= 1 && args[0] == "inspect-package")
         {
             return InspectPackageCli.Run(args[1..], Console.Out, Console.Error);
+        }
+
+        if (args.Length >= 1 && args[0] == "transform-package")
+        {
+            return TransformPackageCli.Run(args[1..], Console.Out, Console.Error);
+        }
+
+        if (args.Length >= 1 && args[0] == "docx-platform-adapter")
+        {
+            return DocxPlatformTestAdapterCli.Run(
+                args[1..],
+                Console.Out,
+                Console.Error
+            );
         }
 
         if (args.Length == 1 && args[0] is "--help" or "-h")

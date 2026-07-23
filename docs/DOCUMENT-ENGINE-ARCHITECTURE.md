@@ -923,7 +923,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-This is one proved migration seam, not a claim that all 84 actions already have public
+This is one proved migration seam, not a claim that all 85 actions already have public
 SDK operations. Per-operation JSON output schemas, a generic dispatcher and the
 remaining operation migrations are still open work.
 

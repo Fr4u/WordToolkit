@@ -922,6 +922,16 @@ public sealed class WordReviewMutationPlanner
             return RemoveMarkerDraft(binding, selection, "accept_structural_insertion");
         }
         var parent = binding.ParsedElement.Parent;
+        if (IsParagraphMarkRevision(binding.ParsedElement))
+        {
+            return MergeFollowingParagraphDraft(
+                binding,
+                selection,
+                "reject_inserted_paragraph_mark",
+                blocks,
+                blockKeys
+            );
+        }
         if (parent is not null && IsWordElement(parent, "trPr"))
         {
             return RemoveAncestorDraft(
@@ -966,6 +976,16 @@ public sealed class WordReviewMutationPlanner
             return RemoveMarkerDraft(binding, selection, "reject_structural_deletion");
         }
         var parent = binding.ParsedElement.Parent;
+        if (IsParagraphMarkRevision(binding.ParsedElement))
+        {
+            return MergeFollowingParagraphDraft(
+                binding,
+                selection,
+                "accept_deleted_paragraph_mark",
+                blocks,
+                blockKeys
+            );
+        }
         if (parent is not null && IsWordElement(parent, "trPr"))
         {
             return RemoveAncestorDraft(
@@ -985,6 +1005,105 @@ public sealed class WordReviewMutationPlanner
             "unsupported_structural_deletion",
             "Accepting this structural deletion requires paragraph or math reconstruction."
         );
+    }
+
+    private static OperationDraft MergeFollowingParagraphDraft(
+        RevisionBinding binding,
+        Selection selection,
+        string transformation,
+        List<WordReviewDecisionBlock> blocks,
+        HashSet<string> blockKeys
+    )
+    {
+        var runProperties = binding.ParsedElement.Parent!;
+        var paragraphProperties = runProperties.Parent!;
+        var paragraph = paragraphProperties.Parent!;
+        var next = paragraph.ElementsAfterSelf().FirstOrDefault();
+        if (next is null || !IsWordElement(next, "p"))
+        {
+            return BlockedDraft(
+                binding,
+                selection,
+                blocks,
+                blockKeys,
+                "paragraph_merge_target_missing",
+                "The revised paragraph mark has no immediately following paragraph under the same parent."
+            );
+        }
+        if (next.Elements().Any(element => IsWordElement(element, "pPr")))
+        {
+            return BlockedDraft(
+                binding,
+                selection,
+                blocks,
+                blockKeys,
+                "paragraph_merge_properties_ambiguous",
+                "The following paragraph has paragraph properties whose merge precedence is not proven."
+            );
+        }
+        if (next.DescendantsAndSelf().Any(IsTrackedRevisionElement))
+        {
+            return BlockedDraft(
+                binding,
+                selection,
+                blocks,
+                blockKeys,
+                "paragraph_merge_following_revision",
+                "The following paragraph contains another tracked revision that cannot be copied before its own decision is applied."
+            );
+        }
+
+        var paragraphOrdinal = binding.Source.GetElementOrdinal(paragraph);
+        var nextOrdinal = binding.Source.GetElementOrdinal(next);
+        var paragraphSource = binding.Source.GetElement(paragraphOrdinal);
+        var nextSource = binding.Source.GetElement(nextOrdinal);
+        var movedContent = binding.Source.SourceBytes.Slice(
+            nextSource.ContentSpan.ByteOffset,
+            nextSource.ContentSpan.ByteLength
+        );
+        return new OperationDraft(
+            binding,
+            selection,
+            transformation,
+            [
+                binding.Source.CreateElementRemovalPatch(binding.Element.Ordinal),
+                new XmlSourcePatch(
+                    paragraphSource.ContentSpan.EndByteOffset,
+                    0,
+                    movedContent
+                ),
+                binding.Source.CreateElementRemovalPatch(nextSource.Ordinal),
+            ],
+            destructiveSpan: nextSource.FullSpan,
+            forbiddenNestedSpan: null,
+            disallowDestructiveDependencies: true,
+            affectedElementCount: 3
+        );
+    }
+
+    private static bool IsParagraphMarkRevision(XElement element) =>
+        element.Parent is { } runProperties
+        && IsWordElement(runProperties, "rPr")
+        && runProperties.Parent is { } paragraphProperties
+        && IsWordElement(paragraphProperties, "pPr")
+        && paragraphProperties.Parent is { } paragraph
+        && IsWordElement(paragraph, "p");
+
+    private static bool IsTrackedRevisionElement(XElement element)
+    {
+        if (!IsWordNamespace(element.Name.NamespaceName))
+        {
+            return false;
+        }
+        return element.Name.LocalName is
+            "ins" or "del" or "moveFrom" or "moveTo"
+            or "conflictIns" or "conflictDel"
+            or "rPrChange" or "pPrChange" or "tblPrChange"
+            or "tblGridChange" or "trPrChange" or "tcPrChange"
+            or "sectPrChange" or "numPrChange" or "tblPrExChange"
+            or "numberingChange" or "cellIns" or "cellDel" or "cellMerge"
+            or "customXmlInsRangeStart" or "customXmlInsRangeEnd"
+            or "customXmlDelRangeStart" or "customXmlDelRangeEnd";
     }
 
     private static OperationDraft RemoveDraft(

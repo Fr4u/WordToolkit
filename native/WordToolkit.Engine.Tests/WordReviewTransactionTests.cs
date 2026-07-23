@@ -445,28 +445,75 @@ public sealed class WordReviewTransactionTests
     }
 
     [Fact]
-    public void BlocksParagraphMarkDeletionAcceptanceInsteadOfGuessingAtMerge()
+    public void MergesFollowingParagraphForProvenParagraphMarkDecisionsAndRevertsExactly()
     {
-        var xml = DocumentXml(
-            "<w:p><w:pPr><w:rPr><w:del w:id='9' w:author='A'/></w:rPr></w:pPr>"
-                + "<w:r><w:t>x</w:t></w:r></w:p>"
-        );
-        using var stream = BuildPackage(xml);
-        var package = new OpcPackageReader().Read(stream);
-        var graph = BuildGraph(package);
-        var revision = Assert.Single(graph.Revisions);
+        var cases = new[]
+        {
+            (Marker: "del", Decision: WordReviewDecision.Accept),
+            (Marker: "ins", Decision: WordReviewDecision.Reject),
+        };
+        foreach (var item in cases)
+        {
+            var xml = DocumentXml(
+                $"<w:p><w:pPr><w:rPr><w:{item.Marker} w:id='9' w:author='A'/>"
+                    + "</w:rPr></w:pPr><w:r><w:t>x </w:t></w:r></w:p>"
+                    + "<w:p><w:r><w:t>y</w:t></w:r></w:p>"
+            );
+            using var stream = BuildPackage(xml);
+            var reader = new OpcPackageReader();
+            var package = reader.Read(stream);
+            var graph = BuildGraph(package);
+            var revision = Assert.Single(graph.Revisions);
 
-        var plan = new WordReviewMutationPlanner().Plan(
-            package,
-            graph,
-            [new WordReviewDecisionCommand(revision.Id, WordReviewDecision.Accept)]
-        );
+            var plan = new WordReviewMutationPlanner().Plan(
+                package,
+                graph,
+                [new WordReviewDecisionCommand(revision.Id, item.Decision)]
+            );
 
-        Assert.False(plan.CanApply);
-        Assert.Contains(
-            plan.Blocks,
-            block => block.Code == "unsupported_structural_deletion"
-        );
+            Assert.True(plan.CanApply);
+            using var appliedStream = Serialize(plan.CreateMutation(package));
+            var applied = reader.Read(appliedStream);
+            Assert.Equal(
+                DocumentXml(
+                    "<w:p><w:pPr><w:rPr></w:rPr></w:pPr>"
+                        + "<w:r><w:t>x </w:t></w:r><w:r><w:t>y</w:t></w:r></w:p>"
+                ),
+                PartXml(applied)
+            );
+            using var revertedStream = Serialize(plan.CreateInverseMutation(applied));
+            Assert.Equal(package.Fingerprint, reader.Read(revertedStream).Fingerprint);
+        }
+    }
+
+    [Fact]
+    public void BlocksParagraphMarkMergeWithoutSafeImmediateTarget()
+    {
+        var shapes = new[]
+        {
+            "<w:p><w:pPr><w:rPr><w:del w:id='9' w:author='A'/></w:rPr>"
+                + "</w:pPr><w:r><w:t>x</w:t></w:r></w:p>",
+            "<w:p><w:pPr><w:rPr><w:del w:id='9' w:author='A'/></w:rPr>"
+                + "</w:pPr><w:r><w:t>x</w:t></w:r></w:p>"
+                + "<w:p><w:pPr><w:keepNext/></w:pPr><w:r><w:t>y</w:t></w:r></w:p>",
+        };
+        foreach (var shape in shapes)
+        {
+            using var stream = BuildPackage(DocumentXml(shape));
+            var package = new OpcPackageReader().Read(stream);
+            var revision = Assert.Single(BuildGraph(package).Revisions);
+            var plan = new WordReviewMutationPlanner().Plan(
+                package,
+                BuildGraph(package),
+                [new WordReviewDecisionCommand(revision.Id, WordReviewDecision.Accept)]
+            );
+            Assert.False(plan.CanApply);
+            Assert.Contains(
+                plan.Blocks,
+                block => block.Code is "paragraph_merge_target_missing"
+                    or "paragraph_merge_properties_ambiguous"
+            );
+        }
     }
 
     [Fact]
