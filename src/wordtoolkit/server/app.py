@@ -17,6 +17,7 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.routing import Mount, Route
 
+from .. import __version__
 from ..auth import WordToolkitTokenVerifier
 from ..config import Settings
 from ..runtime import ToolRuntime
@@ -115,6 +116,7 @@ def build_app(settings: Settings | None = None) -> Starlette:
         token_verifier=WordToolkitTokenVerifier(settings),
         transport_security=transport_security,
     )
+    mcp._mcp_server.version = __version__
     register_tools(mcp, runtime)
     mcp_app = mcp.streamable_http_app()
 

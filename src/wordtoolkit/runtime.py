@@ -216,36 +216,40 @@ class ToolRuntime:
             mime_type or mimetypes.guess_type(path.name)[0] or "application/octet-stream",
             filename or path.name,
         )
-        url = self.artifact_uri(artifact)
-        structured = {
-            "ok": True,
-            "data": {
-                **(data or {}),
-                "artifact": {
-                    "artifact_id": artifact.artifact_id,
-                    "file_name": artifact.filename,
-                    "mime_type": artifact.mime_type,
-                    "size_bytes": artifact.path.stat().st_size,
-                    "expires_at": int(artifact.expires_at),
-                    "download_url": url,
+        try:
+            url = self.artifact_uri(artifact)
+            structured = {
+                "ok": True,
+                "data": {
+                    **(data or {}),
+                    "artifact": {
+                        "artifact_id": artifact.artifact_id,
+                        "file_name": artifact.filename,
+                        "mime_type": artifact.mime_type,
+                        "size_bytes": artifact.path.stat().st_size,
+                        "expires_at": int(artifact.expires_at),
+                        "download_url": url,
+                    },
                 },
-            },
-            "warnings": [],
-        }
-        return CallToolResult(
-            content=[
-                TextContent(type="text", text=label),
-                ResourceLink(
-                    type="resource_link",
-                    name=artifact.filename,
-                    title=artifact.filename,
-                    uri=AnyUrl(url),
-                    mimeType=artifact.mime_type,
-                    size=artifact.path.stat().st_size,
-                ),
-            ],
-            structuredContent=structured,
-        )
+                "warnings": [],
+            }
+            return CallToolResult(
+                content=[
+                    TextContent(type="text", text=label),
+                    ResourceLink(
+                        type="resource_link",
+                        name=artifact.filename,
+                        title=artifact.filename,
+                        uri=AnyUrl(url),
+                        mimeType=artifact.mime_type,
+                        size=artifact.path.stat().st_size,
+                    ),
+                ],
+                structuredContent=structured,
+            )
+        except Exception:
+            await self.store.discard_artifacts([artifact])
+            raise
 
     async def multi_artifact_result(
         self,
@@ -255,36 +259,40 @@ class ToolRuntime:
         data: dict | None = None,
         label: str = "Files ready",
     ) -> CallToolResult:
-        records = []
-        content: list[ContentBlock] = [TextContent(type="text", text=label)]
-        for path, mime_type, filename in files:
-            artifact = await self.store.register_artifact(subject, path, mime_type, filename)
-            url = self.artifact_uri(artifact)
-            records.append(
-                {
-                    "artifact_id": artifact.artifact_id,
-                    "file_name": filename,
-                    "mime_type": mime_type,
-                    "size_bytes": path.stat().st_size,
-                    "expires_at": int(artifact.expires_at),
-                    "download_url": url,
-                }
-            )
-            content.append(
-                ResourceLink(
-                    type="resource_link",
-                    name=filename,
-                    title=filename,
-                    uri=AnyUrl(url),
-                    mimeType=mime_type,
-                    size=path.stat().st_size,
+        artifacts = await self.store.register_artifacts(subject, files)
+        try:
+            records = []
+            content: list[ContentBlock] = [TextContent(type="text", text=label)]
+            for artifact, (path, mime_type, filename) in zip(artifacts, files, strict=True):
+                url = self.artifact_uri(artifact)
+                records.append(
+                    {
+                        "artifact_id": artifact.artifact_id,
+                        "file_name": filename,
+                        "mime_type": mime_type,
+                        "size_bytes": path.stat().st_size,
+                        "expires_at": int(artifact.expires_at),
+                        "download_url": url,
+                    }
                 )
+                content.append(
+                    ResourceLink(
+                        type="resource_link",
+                        name=filename,
+                        title=filename,
+                        uri=AnyUrl(url),
+                        mimeType=mime_type,
+                        size=path.stat().st_size,
+                    )
+                )
+            return CallToolResult(
+                content=content,
+                structuredContent={
+                    "ok": True,
+                    "data": {**(data or {}), "artifacts": records},
+                    "warnings": [],
+                },
             )
-        return CallToolResult(
-            content=content,
-            structuredContent={
-                "ok": True,
-                "data": {**(data or {}), "artifacts": records},
-                "warnings": [],
-            },
-        )
+        except Exception:
+            await self.store.discard_artifacts(artifacts)
+            raise

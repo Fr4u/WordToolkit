@@ -44,7 +44,7 @@ The MCP layer has no direct ZIP/XML manipulation. The document engine has no aut
 
 An OAuth `sub` claim is hashed to a non-reversible owner key. IDs have opaque random forms such as `ses_<base32>`, `doc_<base32>` and `art_<base32>`; they contain no path or user information. Every session has a root beneath the configured storage root. A document may only be resolved when its owner and live session match the caller.
 
-Mutations accept optional `expected_version`. A mismatch returns `VERSION_CONFLICT`, preventing two mobile turns from silently overwriting the same draft. Exports increment the draft version and write `versions/<document-id>/vN-<name>.docx`; the original upload is never overwritten. Per-document async locks serialize in-process mutations.
+Existing-draft mutations require `expected_version`. A mismatch returns `VERSION_CONFLICT`, preventing two clients from silently overwriting the same draft. Successful DOCX publication increments the draft version and writes `versions/<document-id>/vN-<name>.docx`; the original upload is never overwritten. Per-document async locks serialize in-process mutation and publication.
 
 Sessions and artifacts expire independently. Cleanup closes XML trees and removes session directories. Artifact URLs contain owner, expiry and HMAC; download responses are private/no-store and content-sniffing is disabled.
 
@@ -89,4 +89,6 @@ The result is a compatibility check, not a promise of pixel equality with Micros
 
 ## API evolution
 
-The tool contract is versioned independently from the implementation. `schemas/mcp-tools.v1.json` is the source of truth. Additive optional fields are permitted within v1. A renamed tool, new required field, changed type, removed enum member or changed side effect requires a new major schema and migration note. Document migrations are explicit copy-on-write operations.
+The tool contract is versioned independently from the implementation. `schemas/mcp-tools.v2.json` is the current remote source of truth; v1 remains immutable. Additive optional fields are permitted within v2. A renamed tool, new required field, changed type, removed enum member or changed side effect requires a new major schema and migration note. Document migrations are explicit copy-on-write operations.
+
+Every operation that changes, publishes or closes an existing remote draft requires the caller's `expected_version`. The check and operation execute under the same document lock. A cancelled background engine call is drained before that lock is released; if a mutation finishes successfully after cancellation, its version still advances so the abandoned token cannot authorize a later write. Save, repair and render use an isolated engine fork; only a validated output with an atomically registered artifact set can replace the active engine and advance the version. Stale input and failed publication leave the active engine, version, current path and artifacts unchanged. DOCX export follows this rule; lossy Markdown export is read-only and does not advance the draft.

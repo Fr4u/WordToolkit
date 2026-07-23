@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "wordtoolkit-mcp"
-version = "0.16.2"
+version = "0.40.0"
 description = "Local and remote MCP service for round-trip DOCX and native Office Math editing"
 readme = "README.md"
 requires-python = ">=3.12"

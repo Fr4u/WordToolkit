@@ -1,0 +1,51 @@
+{
+  "benchmark": "remote_docx_publish_copy_on_write",
+  "date": "2026-07-23",
+  "environment": {
+    "platform": "Windows-10-10.0.19045-SP0",
+    "python": "3.13.0"
+  },
+  "fixture": {
+    "paragraphs": 250,
+    "seed_bytes": 7221
+  },
+  "samples_per_path": 9,
+  "scope": "initial engine open excluded; transactional fork clone open and validation included; artifact copy, network and rendering excluded",
+  "baseline": {
+    "operation": "direct save_version on disposable engine",
+    "samples_ms": [
+      18.356,
+      17.986,
+      17.788,
+      18.107,
+      17.922,
+      17.585,
+      17.512,
+      17.935,
+      24.612
+    ],
+    "median_ms": 17.935,
+    "p95_ms": 22.11
+  },
+  "transactional": {
+    "operation": "snapshot + fork open + save_version",
+    "samples_ms": [
+      66.163,
+      69.703,
+      62.991,
+      63.511,
+      64.852,
+      63.224,
+      61.02,
+      62.544,
+      61.206
+    ],
+    "median_ms": 63.224,
+    "p95_ms": 68.287
+  },
+  "delta": {
+    "median_ms": 45.289,
+    "median_percent": 252.5
+  },
+  "interpretation": "Copy-on-write intentionally pays an extra parse/snapshot before publication; correctness and rollback are not inferred from timing and are covered by regression tests."
+}

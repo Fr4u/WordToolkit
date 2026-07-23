@@ -103,4 +103,4 @@ and remote MCP endpoint.
 
 ## Upgrade and rollback
 
-Pin an image digest in production. Before deployment, compare `schemas/mcp-tools.v1.json` and review `migrations/`. Roll forward only when the tool schema change is additive or a matching major migration exists. Rollback changes the container image; exported DOCX artifacts are self-contained and do not depend on a server database.
+Pin an image digest in production. Before deployment, compare the current `schemas/mcp-tools.v2.json` and review `migrations/`. Remote package 0.40.0 requires the v1-to-v2 client migration in `0014-required-draft-version.md`; do not deploy it behind a client that still omits draft versions. Roll forward only when the tool schema change is additive or a matching major migration exists. Rollback changes the container image; exported DOCX artifacts are self-contained and do not depend on a server database.

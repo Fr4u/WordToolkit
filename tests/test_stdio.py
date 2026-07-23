@@ -6,6 +6,7 @@ from urllib.parse import unquote, urlparse
 
 import pytest
 
+from wordtoolkit import __version__
 from wordtoolkit.config import Settings
 from wordtoolkit.runtime import ToolRuntime
 from wordtoolkit.server.stdio import build_stdio_server
@@ -60,6 +61,7 @@ async def test_live_word_tools_exist_only_on_local_stdio(tmp_path: Path) -> None
     )
     mapping = {tool.name: tool for tool in await server.list_tools()}
 
+    assert server._mcp_server.version == __version__
     assert mapping.keys() >= LIVE_TOOLS
     for name in LIVE_TOOLS:
         assert mapping[name].annotations.openWorldHint is True
@@ -82,10 +84,7 @@ async def test_live_word_tools_exist_only_on_local_stdio(tmp_path: Path) -> None
     assert mapping["inspect_live_word_object_model_members"].annotations.readOnlyHint is True
     assert mapping["inspect_live_word_member_capabilities"].annotations.readOnlyHint is True
     assert mapping["preflight_live_word_member_operations"].annotations.readOnlyHint is True
-    assert (
-        mapping["execute_live_word_member_operations"].annotations.destructiveHint
-        is True
-    )
+    assert mapping["execute_live_word_member_operations"].annotations.destructiveHint is True
     assert mapping["preflight_live_word_bookmarks"].annotations.readOnlyHint is True
     assert mapping["insert_live_word_bookmarks"].annotations.destructiveHint is True
     assert mapping["preflight_live_word_fields"].annotations.readOnlyHint is True
@@ -112,7 +111,8 @@ async def test_stdio_server_can_create_and_export_local_document(
     payload = json.loads(created[0].text)
     document_id = payload["data"]["document_id"]
     exported = await server.call_tool(
-        "save_document", {"document_id": document_id, "file_name": "local.docx"}
+        "save_document",
+        {"document_id": document_id, "file_name": "local.docx", "expected_version": 0},
     )
     result = exported.structuredContent
     uri = result["data"]["artifact"]["download_url"]

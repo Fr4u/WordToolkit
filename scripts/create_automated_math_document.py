@@ -418,9 +418,7 @@ async def build_document(plugin: Path, output: Path) -> dict:
             "wyrazów na jedną stronę otrzymujemy liniowe równanie różniczkowe drugiego "
             "rzędu o stałych współczynnikach."
         )
-        await doc.equation(
-            r"\frac{d^2\psi(x)}{dx^2}+k^2\psi(x)=0"
-        )
+        await doc.equation(r"\frac{d^2\psi(x)}{dx^2}+k^2\psi(x)=0")
         await doc.equation(r"k^2=\frac{2mE}{\hbar^2}")
         await doc.heading("Krok 2 — rozwiązanie ogólne", 2)
         await doc.paragraph(
@@ -470,9 +468,7 @@ async def build_document(plugin: Path, output: Path) -> dict:
             r"=\left|A_n\right|^2\frac{L}{2}"
         )
         await doc.equation(r"A_n=\sqrt{\frac{2}{L}}")
-        await doc.paragraph(
-            "Ostateczna, znormalizowana rodzina funkcji własnych ma postać:"
-        )
+        await doc.paragraph("Ostateczna, znormalizowana rodzina funkcji własnych ma postać:")
         await doc.equation(
             r"\psi_n(x)=\sqrt{\frac{2}{L}}"
             r"\sin\left(\frac{n\pi x}{L}\right)"
@@ -481,9 +477,7 @@ async def build_document(plugin: Path, output: Path) -> dict:
             "Różne stany własne są ortogonalne. Dzięki temu dowolny stan w studni można "
             "rozłożyć na ich superpozycję."
         )
-        await doc.equation(
-            r"\int_0^L\psi_m^*(x)\psi_n(x)\,dx=\delta_{mn}"
-        )
+        await doc.equation(r"\int_0^L\psi_m^*(x)\psi_n(x)\,dx=\delta_{mn}")
 
         await doc.heading("4. Przykład liczbowy: elektron w studni 1 nm", 1)
         await doc.paragraph(
@@ -535,9 +529,7 @@ async def build_document(plugin: Path, output: Path) -> dict:
             "Niepewność położenia zależy od liczby kwantowej i dąży dla dużych n do "
             "klasycznej wartości rozkładu jednostajnego."
         )
-        await doc.equation(
-            r"\Delta x_n=L\sqrt{\frac{1}{12}-\frac{1}{2n^2\pi^2}}"
-        )
+        await doc.equation(r"\Delta x_n=L\sqrt{\frac{1}{12}-\frac{1}{2n^2\pi^2}}")
         await doc.heading("Prawdopodobieństwo w środkowej połowie studni", 2)
         await doc.paragraph(
             "Dla stanu podstawowego całkujemy gęstość od L/4 do 3L/4. Wynik pokazuje, "
@@ -555,9 +547,7 @@ async def build_document(plugin: Path, output: Path) -> dict:
             "Stan własny energii zmienia w czasie jedynie fazę. Sama gęstość "
             "prawdopodobieństwa pozostaje wtedy nieruchoma."
         )
-        await doc.equation(
-            r"\Psi_n(x,t)=\psi_n(x)\exp\left(-\frac{iE_nt}{\hbar}\right)"
-        )
+        await doc.equation(r"\Psi_n(x,t)=\psi_n(x)\exp\left(-\frac{iE_nt}{\hbar}\right)")
         await doc.paragraph(
             "Najogólniejszy stan jest superpozycją stanów własnych. Współczynnik cₙ "
             "określa amplitudę prawdopodobieństwa pomiaru energii Eₙ."
@@ -569,9 +559,7 @@ async def build_document(plugin: Path, output: Path) -> dict:
         await doc.equation(r"\sum_{n=1}^{\infty}\left|c_n\right|^2=1")
 
         await doc.heading("7. Kontrola rozwiązania", 1)
-        await doc.paragraph(
-            "Dobre rozwiązanie powinno przejść cztery niezależne kontrole:"
-        )
+        await doc.paragraph("Dobre rozwiązanie powinno przejść cztery niezależne kontrole:")
         await doc.list_items(
             [
                 "Warunki brzegowe: ψₙ(0) = ψₙ(L) = 0.",
@@ -652,31 +640,23 @@ async def build_document(plugin: Path, output: Path) -> dict:
         if not ooxml["valid"] or not official["available"] or not official["valid"]:
             raise RuntimeError(f"OOXML validation failed: {ooxml}")
 
-        preview = payload(
-            await session.call_tool(
-                "generate_preview",
-                {
-                    "document_id": doc.document_id,
-                    "max_pages": 20,
-                    "dpi": 120,
-                },
-            )
+        preview = await doc.mutate(
+            "generate_preview",
+            {
+                "max_pages": 20,
+                "dpi": 120,
+            },
         )
         preview_data = preview["data"]
         if not preview_data["visual_audit"]["passed"]:
-            raise RuntimeError(
-                f"Automated visual audit failed: {preview_data['visual_audit']}"
-            )
+            raise RuntimeError(f"Automated visual audit failed: {preview_data['visual_audit']}")
 
-        exported = payload(
-            await session.call_tool(
-                "export_document",
-                {
-                    "document_id": doc.document_id,
-                    "output_format": "docx",
-                    "file_name": output.name,
-                },
-            )
+        exported = await doc.mutate(
+            "export_document",
+            {
+                "output_format": "docx",
+                "file_name": output.name,
+            },
         )
         source_docx = artifact_path(exported["data"]["artifact"]["download_url"])
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -731,7 +711,7 @@ async def build_document(plugin: Path, output: Path) -> dict:
         payload(
             await session.call_tool(
                 "close_document",
-                {"document_id": doc.document_id},
+                {"document_id": doc.document_id, "expected_version": doc.version},
             )
         )
         return report

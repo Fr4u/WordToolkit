@@ -56,6 +56,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
       - uses: astral-sh/setup-uv@v8.3.2
         with:
           python-version: "3.12"
@@ -64,8 +66,19 @@ jobs:
       - run: uv run ruff check src/wordtoolkit scripts tests/test_*.py
       - run: uv run pytest -ra
       - run: uv run python scripts/export_tool_schemas.py
+      - name: Reject changes to the immutable remote v1 schema
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          echo "8f2c945216370ff535ae99b0ba12ce8df77fb36724e4eceec273b2fa1168419f  schemas/mcp-tools.v1.json" | sha256sum --check --strict
+          if [ -n "$BASE_SHA" ]; then
+            git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$BASE_SHA"
+            git diff --exit-code "$BASE_SHA" -- schemas/mcp-tools.v1.json
+          elif git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            git diff --exit-code HEAD^ -- schemas/mcp-tools.v1.json
+          fi
       - name: Reject generated remote-schema drift
-        run: git diff --exit-code -- schemas/mcp-tools.v1.json docs/TOOL-CATALOG.md
+        run: git diff --exit-code -- schemas/mcp-tools.v2.json docs/TOOL-CATALOG.md
       - run: uv run python scripts/generate_samples.py
       - run: uv run python scripts/advanced_torture_test.py
       - uses: actions/upload-artifact@v7

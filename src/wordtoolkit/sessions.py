@@ -27,6 +27,7 @@ class DocumentRecord:
     touched_at: float
     version: int = 0
     source_name: str = "document.docx"
+    closed: bool = False
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
@@ -38,6 +39,7 @@ class SessionRecord:
     created_at: float
     touched_at: float
     documents: set[str] = field(default_factory=set)
+    closed: bool = False
 
 
 @dataclass(slots=True)
@@ -78,7 +80,7 @@ class SessionStore:
     async def get_session(self, subject: str, session_id: str) -> SessionRecord:
         owner = owner_key(subject)
         record = self.sessions.get(session_id)
-        if record is None or record.owner != owner:
+        if record is None or record.owner != owner or record.closed:
             raise WordToolkitError(ErrorCode.SESSION_NOT_FOUND, "Session was not found")
         if time.time() - record.touched_at > self.settings.session_ttl_seconds:
             await self.close_session(subject, session_id)
@@ -109,6 +111,10 @@ class SessionStore:
             source_name=source_name,
         )
         async with self._map_lock:
+            if session.closed or self.sessions.get(session_id) is not session:
+                with contextlib.suppress(Exception):
+                    engine.close()
+                raise WordToolkitError(ErrorCode.SESSION_NOT_FOUND, "Session was not found")
             if len(session.documents) >= self.settings.max_documents_per_session:
                 with contextlib.suppress(Exception):
                     engine.close()
@@ -122,7 +128,7 @@ class SessionStore:
     async def get_document(self, subject: str, document_id: str) -> DocumentRecord:
         owner = owner_key(subject)
         record = self.documents.get(document_id)
-        if record is None or record.owner != owner:
+        if record is None or record.owner != owner or record.closed:
             raise WordToolkitError(ErrorCode.DOCUMENT_NOT_FOUND, "Document was not found")
         await self.get_session(subject, record.session_id)
         record.touched_at = time.time()
@@ -134,7 +140,33 @@ class SessionStore:
     ) -> AsyncIterator[DocumentRecord]:
         record = await self.get_document(subject, document_id)
         async with record.lock:
+            if record.closed or self.documents.get(document_id) is not record:
+                raise WordToolkitError(ErrorCode.DOCUMENT_NOT_FOUND, "Document was not found")
+            session = self.sessions.get(record.session_id)
+            if session is None or session.closed:
+                raise WordToolkitError(ErrorCode.SESSION_NOT_FOUND, "Session was not found")
             yield record
+
+    @staticmethod
+    def require_version(record: DocumentRecord, expected_version: int | None) -> None:
+        if (
+            expected_version is None
+            or isinstance(expected_version, bool)
+            or not isinstance(expected_version, int)
+            or expected_version < 0
+        ):
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "expected_version is required for every draft mutation",
+                {"field": "expected_version"},
+            )
+        if expected_version != record.version:
+            raise WordToolkitError(
+                ErrorCode.VERSION_CONFLICT,
+                "Draft version changed before the mutation",
+                {"expected": expected_version, "actual": record.version},
+                retryable=True,
+            )
 
     async def register_artifact(
         self,
@@ -144,59 +176,112 @@ class SessionStore:
         filename: str,
         ttl: int | None = None,
     ) -> ArtifactRecord:
-        owner = owner_key(subject)
-        resolved = path.resolve()
-        session = next(
-            (
-                item
-                for item in self.sessions.values()
-                if item.owner == owner and resolved.is_relative_to(item.root.resolve())
-            ),
-            None,
-        )
-        if session is None:
-            raise WordToolkitError(
-                ErrorCode.UNSAFE_PATH, "Artifact is outside the caller's session"
+        return (
+            await self.register_artifacts(
+                subject,
+                [(path, mime_type, filename)],
+                ttl=ttl,
             )
-        stored_bytes = sum(
-            item.stat().st_size for item in session.root.rglob("*") if item.is_file()
-        )
-        if stored_bytes > self.settings.max_session_bytes:
-            raise WordToolkitError(ErrorCode.LIMIT_EXCEEDED, "Session storage quota exceeded")
-        artifact_id = opaque_id("art")
+        )[0]
+
+    async def register_artifacts(
+        self,
+        subject: str,
+        files: list[tuple[Path, str, str]],
+        ttl: int | None = None,
+    ) -> list[ArtifactRecord]:
+        if not files:
+            return []
+        owner = owner_key(subject)
+        resolved_files: list[tuple[Path, str, str]] = []
+        sessions: dict[str, SessionRecord] = {}
+        for path, mime_type, filename in files:
+            resolved = path.resolve()
+            session = next(
+                (
+                    item
+                    for item in self.sessions.values()
+                    if not item.closed
+                    and item.owner == owner
+                    and resolved.is_relative_to(item.root.resolve())
+                ),
+                None,
+            )
+            if session is None:
+                raise WordToolkitError(
+                    ErrorCode.UNSAFE_PATH, "Artifact is outside the caller's session"
+                )
+            if not resolved.is_file():
+                raise WordToolkitError(
+                    ErrorCode.DOCUMENT_NOT_FOUND, "Artifact source was not found"
+                )
+            resolved_files.append((resolved, mime_type, filename))
+            sessions[session.session_id] = session
+        for session in sessions.values():
+            stored_bytes = sum(
+                item.stat().st_size for item in session.root.rglob("*") if item.is_file()
+            )
+            if stored_bytes > self.settings.max_session_bytes:
+                raise WordToolkitError(ErrorCode.LIMIT_EXCEEDED, "Session storage quota exceeded")
         now = time.time()
-        safe_filename = Path(filename).name.replace("\r", "_").replace("\n", "_")[:160]
         artifact_dir = safe_join(self.root, owner, "artifacts")
         artifact_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-        artifact_path = artifact_dir / f"{artifact_id}-{safe_filename or 'artifact.bin'}"
         async with self._map_lock:
+            if any(
+                session.closed or self.sessions.get(session.session_id) is not session
+                for session in sessions.values()
+            ):
+                raise WordToolkitError(ErrorCode.SESSION_NOT_FOUND, "Session was not found")
             active = sum(
                 item.owner == owner and item.expires_at >= now for item in self.artifacts.values()
             )
-            if active >= self.settings.max_artifacts_per_owner:
+            if active + len(resolved_files) > self.settings.max_artifacts_per_owner:
                 raise WordToolkitError(ErrorCode.LIMIT_EXCEEDED, "Active artifact limit exceeded")
             artifact_bytes = sum(
                 item.path.stat().st_size
                 for item in self.artifacts.values()
                 if item.owner == owner and item.expires_at >= now and item.path.exists()
             )
-            if (
-                artifact_bytes + resolved.stat().st_size
-                > self.settings.max_artifact_bytes_per_owner
-            ):
+            requested_bytes = sum(path.stat().st_size for path, _mime, _name in resolved_files)
+            if artifact_bytes + requested_bytes > self.settings.max_artifact_bytes_per_owner:
                 raise WordToolkitError(ErrorCode.LIMIT_EXCEEDED, "Artifact storage quota exceeded")
-            shutil.copy2(resolved, artifact_path)
-            record = ArtifactRecord(
-                artifact_id=artifact_id,
-                owner=owner,
-                path=artifact_path,
-                mime_type=mime_type,
-                filename=safe_filename or "artifact.bin",
-                created_at=now,
-                expires_at=now + (ttl or self.settings.artifact_ttl_seconds),
-            )
-            self.artifacts[artifact_id] = record
-        return record
+            records: list[ArtifactRecord] = []
+            copied: list[Path] = []
+            try:
+                for resolved, mime_type, filename in resolved_files:
+                    artifact_id = opaque_id("art")
+                    safe_filename = Path(filename).name.replace("\r", "_").replace("\n", "_")[:160]
+                    artifact_path = (
+                        artifact_dir / f"{artifact_id}-{safe_filename or 'artifact.bin'}"
+                    )
+                    copied.append(artifact_path)
+                    shutil.copy2(resolved, artifact_path)
+                    records.append(
+                        ArtifactRecord(
+                            artifact_id=artifact_id,
+                            owner=owner,
+                            path=artifact_path,
+                            mime_type=mime_type,
+                            filename=safe_filename or "artifact.bin",
+                            created_at=now,
+                            expires_at=now + (ttl or self.settings.artifact_ttl_seconds),
+                        )
+                    )
+            except Exception:
+                for copied_path in copied:
+                    with contextlib.suppress(OSError):
+                        copied_path.unlink()
+                raise
+            self.artifacts.update({record.artifact_id: record for record in records})
+        return records
+
+    async def discard_artifacts(self, records: list[ArtifactRecord]) -> None:
+        async with self._map_lock:
+            for record in records:
+                if self.artifacts.get(record.artifact_id) is record:
+                    self.artifacts.pop(record.artifact_id, None)
+                with contextlib.suppress(OSError):
+                    record.path.unlink()
 
     def get_artifact(self, subject: str, artifact_id: str) -> ArtifactRecord:
         record = self.artifacts.get(artifact_id)
@@ -206,28 +291,50 @@ class SessionStore:
             )
         return record
 
-    async def close_document(self, subject: str, document_id: str) -> None:
+    async def close_document(
+        self, subject: str, document_id: str, expected_version: int | None
+    ) -> None:
         record = await self.get_document(subject, document_id)
         async with record.lock:
+            if record.closed or self.documents.get(document_id) is not record:
+                raise WordToolkitError(ErrorCode.DOCUMENT_NOT_FOUND, "Document was not found")
+            self.require_version(record, expected_version)
             record.engine.close()
-        async with self._map_lock:
-            self.documents.pop(document_id, None)
-            session = self.sessions.get(record.session_id)
-            if session:
-                session.documents.discard(document_id)
+            record.closed = True
+            async with self._map_lock:
+                self.documents.pop(document_id, None)
+                session = self.sessions.get(record.session_id)
+                if session:
+                    session.documents.discard(document_id)
 
     async def close_session(self, subject: str, session_id: str) -> None:
         owner = owner_key(subject)
         record = self.sessions.get(session_id)
         if record is None or record.owner != owner:
             return
-        for document_id in list(record.documents):
-            doc = self.documents.pop(document_id, None)
-            if doc:
+        await self._close_session_record(record)
+
+    async def _close_session_record(self, record: SessionRecord) -> None:
+        async with self._map_lock:
+            if self.sessions.get(record.session_id) is not record:
+                return
+            record.closed = True
+            document_ids = list(record.documents)
+        for document_id in document_ids:
+            doc = self.documents.get(document_id)
+            if doc is None:
+                continue
+            async with doc.lock:
+                if self.documents.get(document_id) is not doc:
+                    continue
+                doc.closed = True
                 with contextlib.suppress(Exception):
                     doc.engine.close()
+                async with self._map_lock:
+                    self.documents.pop(document_id, None)
+                    record.documents.discard(document_id)
         async with self._map_lock:
-            self.sessions.pop(session_id, None)
+            self.sessions.pop(record.session_id, None)
         shutil.rmtree(record.root, ignore_errors=True)
 
     async def cleanup_expired(self) -> dict[str, int]:
@@ -236,13 +343,7 @@ class SessionStore:
         removed_artifacts = 0
         for session in list(self.sessions.values()):
             if now - session.touched_at > self.settings.session_ttl_seconds:
-                for document_id in list(session.documents):
-                    doc = self.documents.pop(document_id, None)
-                    if doc:
-                        with contextlib.suppress(Exception):
-                            doc.engine.close()
-                self.sessions.pop(session.session_id, None)
-                shutil.rmtree(session.root, ignore_errors=True)
+                await self._close_session_record(session)
                 removed_sessions += 1
         for artifact in list(self.artifacts.values()):
             if artifact.expires_at < now:

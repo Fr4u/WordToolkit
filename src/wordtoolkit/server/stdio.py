@@ -9,6 +9,7 @@ from typing import Literal, cast
 
 from mcp.server.fastmcp import FastMCP
 
+from .. import __version__
 from ..config import Settings
 from ..runtime import ToolRuntime
 from .live_tools import register_live_tools
@@ -98,6 +99,7 @@ def build_stdio_server(settings: Settings | None = None) -> FastMCP:
         lifespan=lifespan,
         log_level=log_level,
     )
+    mcp._mcp_server.version = __version__
     register_tools(mcp, runtime)
     register_live_tools(mcp, runtime)
     return mcp

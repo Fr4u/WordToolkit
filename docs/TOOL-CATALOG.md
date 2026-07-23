@@ -1,6 +1,6 @@
 # MCP tool catalog
 
-The remote Python service source of truth is `schemas/mcp-tools.v1.json`. The native Windows plugin has a separate, deliberately hand-reviewed source in `schemas/mcp-tools-local.v1.json`; `WordToolkit.Native.Tests` validates that catalog and this exporter never overwrites it. Every exported remote tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.
+The current remote Python service source of truth is `schemas/mcp-tools.v2.json`; `schemas/mcp-tools.v1.json` remains the immutable historical contract. The native Windows plugin has a separate, deliberately hand-reviewed source in `schemas/mcp-tools-local.v1.json`; `WordToolkit.Native.Tests` validates that catalog and this exporter never overwrites it. Every exported remote tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.
 
 | Tool | Read only | Destructive | Idempotent | File inputs |
 |---|---:|---:|---:|---|
@@ -69,6 +69,12 @@ The remote Python service source of truth is `schemas/mcp-tools.v1.json`. The na
 | `convert_to_pdf` | False | False | False | — |
 | `export_document` | False | False | False | — |
 | `generate_preview` | False | False | False | — |
+
+## Optimistic concurrency
+
+Every operation that mutates, saves, repairs, renders or closes an existing draft requires a non-negative `expected_version`. A successful mutation or publication advances `draft_version` exactly once. Missing or stale versions are rejected before document-engine mutation or output/artifact publication. A cancelled background engine call is drained before the document lock is released; successful late completion advances the version. Failed save/render attempts run against an isolated copy-on-write engine and leave the active engine, version, current path and artifact set unchanged.
+
+`export_document` is conditional: DOCX export requires `expected_version` because it performs the same repair-and-save transaction, while best-effort Markdown export is read-only and may omit it. See `migrations/0014-required-draft-version.md`.
 
 ## Error contract
 

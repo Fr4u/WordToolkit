@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Raised the legacy remote Python service to the unified 0.40.0 development line and
+  published remote MCP schema v2.
+  Every edit, save, repair, render, preview and close of an existing draft now requires a
+  non-negative `expected_version`; stale calls fail under the same document lock before
+  document-engine mutation or output/artifact publication. DOCX export enforces the
+  version conditionally while
+  read-only Markdown export remains version-neutral.
+- Remote save, repair and render now execute on an isolated copy-on-write engine. The
+  active engine, `draft_version`, current path and artifact inventory change only after
+  validation and all-or-nothing artifact registration succeed. Failed saves/renders
+  discard their clone and attempt outputs. Document/session close races recheck identity
+  after lock acquisition, and session shutdown cannot close an engine in active use.
+  Cancelled background engine calls are drained before the document lock is released; a
+  mutation that completes after caller cancellation still advances the draft version.
+- Added the v1-to-v2 migration, required-field schema tests, stale writer/save tests,
+  failed save/render rollback tests, close-race coverage and atomic multi-artifact failure
+  coverage, repeated-cancellation tests and version-stable concurrent snapshot tests.
+  Remote example clients now carry the returned version through publication and close.
+- Recorded a nine-sample copy-on-write DOCX publication benchmark: median direct save
+  17.935 ms versus 63.224 ms for snapshot, clone open and validated save. The measured
+  45.289 ms cost is reported as a correctness tradeoff, not hidden as a speed win.
+
 - Added the vendor-neutral `word_operation_accounted_v1` lease and wired one instance
   through the complete saved-package dependency-inspection pipeline: OPC retention,
   lossless XML parsing, semantic nodes/fingerprint caches, styles, numbering, references,

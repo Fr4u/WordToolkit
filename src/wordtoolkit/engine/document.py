@@ -267,6 +267,21 @@ class WordDocumentEngine:
                     archive.writestr(part, data)
         return {"path": str(output), "size_bytes": output.stat().st_size}
 
+    def fork(self, snapshot_path: Path) -> WordDocumentEngine:
+        """Create an isolated copy-on-write engine for an atomic publish attempt."""
+        self.snapshot(snapshot_path)
+        clone = WordDocumentEngine(snapshot_path, self.settings)
+        try:
+            clone.open()
+        except Exception:
+            clone.close()
+            raise
+        clone.initial_hashes = dict(self.initial_hashes)
+        clone.cumulative_modified_parts = (
+            set(self.cumulative_modified_parts) | set(self.doc._modified) | set(clone.doc._modified)
+        )
+        return clone
+
     def save_version(self, output: Path) -> dict:
         output.parent.mkdir(parents=True, exist_ok=True)
         pending_modified = set(self.doc._modified)
