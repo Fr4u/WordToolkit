@@ -328,11 +328,19 @@ skill contract states that v1.0.137+ batches are atomic by default, report every
 and leave the on-disk file byte-identical when any item fails; `--best-effort` is the
 explicit partial-apply escape hatch. The legacy WordToolkit remote gateway previously
 had optimistic versioning but still mutated its active engine directly. The current
-slice closes that partial-failure hole for all 33 ordinary mutators through an isolated,
-validated clone and records a 56.159 ms candidate-preparation median delta. It does
-**not** yet give the
-remote API an OfficeCLI-style arbitrary heterogeneous multi-command batch, crash-durable
-draft state or shared immutable parsed parts. Source: [OfficeCLI current skill](https://github.com/iOfficeAI/OfficeCLI/blob/9c78827d25d33f53664e68e7ec841d577c763632/SKILL.md) (A).
+slice first closed that partial-failure hole for all 33 ordinary mutators through an
+isolated, validated clone. `apply_document_operations/1.0` now adds a bounded
+heterogeneous remote batch over that complete surface: 1-16 closed-schema operations,
+one clone, one final validation and one version advance, with no partial-apply escape
+hatch. A three-operation 15-sample Windows point measured 70.901 ms median versus
+189.479 ms for three standalone COW calls (-62.58%) and 427 versus 480 compact request
+JSON characters (-11.04%). Unlike OfficeCLI's on-disk transaction, this remains an
+in-process draft transaction. Its image transport follows the Apps SDK top-level file
+parameter constraint through `files` plus `file_index`; complete image staging can still
+consume session quota before the document lock, and neither crash-durable draft state,
+result-reference syntax nor shared immutable parsed parts exists. Sources:
+[OfficeCLI current skill](https://github.com/iOfficeAI/OfficeCLI/blob/9c78827d25d33f53664e68e7ec841d577c763632/SKILL.md) (A);
+[OpenAI Apps SDK file handling](https://developers.openai.com/apps-sdk/build/mcp-server#file-handling) (A).
 
 The useful ideas are clear: OfficeCLI's compact gateway and resident mode, docx-cli's
 locators and benchmark methodology, SecurityRonin's regression discipline, and live

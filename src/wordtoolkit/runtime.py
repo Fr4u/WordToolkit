@@ -29,6 +29,48 @@ def clean_filename(value: str, default: str = "upload.bin") -> str:
     return name[:160] or default
 
 
+def _allowed_download_filename(
+    file,
+    url: str,
+    extensions: set[str],
+    response_content_type: str = "",
+) -> str:
+    provided_name = str(getattr(file, "file_name", "") or "").strip()
+    base_name = clean_filename(provided_name or str(getattr(file, "file_id", "") or "upload"))
+    explicit_extension = Path(base_name).suffix.lower()
+    if explicit_extension:
+        if explicit_extension not in extensions:
+            raise WordToolkitError(
+                ErrorCode.UNSUPPORTED_FORMAT,
+                "File extension is not allowed for this operation",
+                {"extension": explicit_extension, "allowed": sorted(extensions)},
+            )
+        return base_name
+
+    url_name = clean_filename(Path(unquote(urlparse(url).path)).name, "")
+    url_extension = Path(url_name).suffix.lower()
+    if url_extension in extensions:
+        return url_name
+
+    mime_types = (
+        str(getattr(file, "mime_type", "") or ""),
+        response_content_type,
+    )
+    for mime_type in mime_types:
+        normalized = mime_type.partition(";")[0].strip().lower()
+        if not normalized:
+            continue
+        for extension in mimetypes.guess_all_extensions(normalized, strict=False):
+            if extension.lower() in extensions:
+                return clean_filename(f"{base_name}{extension.lower()}")
+
+    raise WordToolkitError(
+        ErrorCode.UNSUPPORTED_FORMAT,
+        "File type could not be matched to an allowed extension",
+        {"allowed": sorted(extensions)},
+    )
+
+
 class ToolRuntime:
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -56,14 +98,9 @@ class ToolRuntime:
                 return self._copy_local_file(local_source, session, extensions=extensions)
 
         validate_remote_url(file.download_url, self.settings.upload_host_suffixes)
-        filename = clean_filename(file.file_name or f"{file.file_id}.bin")
-        extension = Path(filename).suffix.lower()
-        if extension not in extensions:
-            raise WordToolkitError(
-                ErrorCode.UNSUPPORTED_FORMAT,
-                "File extension is not allowed for this operation",
-                {"extension": extension, "allowed": sorted(extensions)},
-            )
+        provided_name = str(getattr(file, "file_name", "") or "").strip()
+        if provided_name and Path(clean_filename(provided_name)).suffix:
+            _allowed_download_filename(file, file.download_url, extensions)
         target_dir = session.root / "uploads"
         target_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         stored_bytes = sum(
@@ -72,50 +109,62 @@ class ToolRuntime:
         remaining_session = self.settings.max_session_bytes - stored_bytes
         if remaining_session <= 0:
             raise WordToolkitError(ErrorCode.LIMIT_EXCEEDED, "Session storage quota exceeded")
-        target = target_dir / f"{opaque_id('upl')}-{filename}"
+        target: Path | None = None
         url = file.download_url
         timeout = httpx.Timeout(self.settings.http_download_timeout_seconds)
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-            for _ in range(4):
-                validate_remote_url(url, self.settings.upload_host_suffixes)
-                async with client.stream(
-                    "GET", url, headers={"Accept": "application/octet-stream"}
-                ) as response:
-                    if response.status_code in {301, 302, 303, 307, 308}:
-                        location = response.headers.get("location")
-                        if not location:
-                            raise WordToolkitError(
-                                ErrorCode.INVALID_INPUT, "File redirect has no location"
-                            )
-                        url = urljoin(url, location)
-                        continue
-                    if response.status_code != 200:
-                        raise WordToolkitError(
-                            ErrorCode.INVALID_INPUT,
-                            "File download failed",
-                            {"status": response.status_code},
-                            retryable=response.status_code >= 500,
-                        )
-                    declared = response.headers.get("content-length")
-                    per_file_limit = min(self.settings.max_upload_bytes, remaining_session)
-                    if declared and int(declared) > per_file_limit:
-                        raise WordToolkitError(
-                            ErrorCode.LIMIT_EXCEEDED, "Remote file exceeds upload limit"
-                        )
-                    size = 0
-                    with target.open("wb") as output:
-                        async for chunk in response.aiter_bytes(1024 * 1024):
-                            size += len(chunk)
-                            if size > per_file_limit:
-                                output.close()
-                                target.unlink(missing_ok=True)
+        completed = False
+        try:
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+                for _ in range(4):
+                    validate_remote_url(url, self.settings.upload_host_suffixes)
+                    async with client.stream(
+                        "GET", url, headers={"Accept": "application/octet-stream"}
+                    ) as response:
+                        if response.status_code in {301, 302, 303, 307, 308}:
+                            location = response.headers.get("location")
+                            if not location:
                                 raise WordToolkitError(
-                                    ErrorCode.LIMIT_EXCEEDED, "Downloaded file exceeds upload limit"
+                                    ErrorCode.INVALID_INPUT, "File redirect has no location"
                                 )
-                            output.write(chunk)
-                    atomic_permissions(target)
-                    return target
-            raise WordToolkitError(ErrorCode.INVALID_INPUT, "Too many file download redirects")
+                            url = urljoin(url, location)
+                            continue
+                        if response.status_code != 200:
+                            raise WordToolkitError(
+                                ErrorCode.INVALID_INPUT,
+                                "File download failed",
+                                {"status": response.status_code},
+                                retryable=response.status_code >= 500,
+                            )
+                        declared = response.headers.get("content-length")
+                        per_file_limit = min(self.settings.max_upload_bytes, remaining_session)
+                        if declared and int(declared) > per_file_limit:
+                            raise WordToolkitError(
+                                ErrorCode.LIMIT_EXCEEDED, "Remote file exceeds upload limit"
+                            )
+                        filename = _allowed_download_filename(
+                            file,
+                            url,
+                            extensions,
+                            response.headers.get("content-type", ""),
+                        )
+                        target = target_dir / f"{opaque_id('upl')}-{filename}"
+                        size = 0
+                        with target.open("wb") as output:
+                            async for chunk in response.aiter_bytes(1024 * 1024):
+                                size += len(chunk)
+                                if size > per_file_limit:
+                                    raise WordToolkitError(
+                                        ErrorCode.LIMIT_EXCEEDED,
+                                        "Downloaded file exceeds upload limit",
+                                    )
+                                output.write(chunk)
+                        atomic_permissions(target)
+                        completed = True
+                        return target
+                raise WordToolkitError(ErrorCode.INVALID_INPUT, "Too many file download redirects")
+        finally:
+            if not completed and target is not None:
+                target.unlink(missing_ok=True)
 
     @staticmethod
     def _local_file_path(reference: str) -> Path | None:

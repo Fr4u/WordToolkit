@@ -1,5 +1,38 @@
 # Stage results
 
+## Remote heterogeneous draft batch — 2026-07-23
+
+- Added the provider-neutral `wordtoolkit.apply_document_operations/1.0` contract and
+  the remote MCP adapter over all 33 ordinary draft-mutator types. The generated closed
+  `oneOf` schema rejects read-only hybrid actions, unknown/nested transaction fields,
+  empty or 17-operation lists and invalid types. Runtime repeats validation through each
+  standalone Pydantic contract and enforces a 1 MiB aggregate argument limit. The same
+  exporter produces `schemas/draft-operations.v1.json` with input/success/error schemas,
+  permissions, side effects, limits and examples that pass Draft 2020-12 validation.
+- One locked clone receives the ordered operations; the final candidate is snapshotted
+  and structurally validated once, then the active engine swaps and `draft_version`
+  advances once. Injected middle-operation and final-validation failures preserve the
+  original engine, package hashes and version. Cancellation drains both staging and
+  transaction success before lock release. Image binding uses one Apps-compatible
+  top-level `files` array plus per-operation `file_index`; missing, nested and unused
+  references fail before a fork. Partial downloads are removed, while a complete staged
+  upload remains explicitly outside document atomicity and is covered by regression.
+- Final local verification passed 438/438 Engine and 283/283 Native tests with no skips,
+  the Open XML validator Release build with zero warnings/errors, and 1309 Python/OOXML
+  tests with 16 intentional environment/model skips. Ruff and targeted mypy over the
+  changed contract, adapter and test modules are clean.
+- Fifteen Windows x64/Python 3.13 in-process FastMCP samples measured
+  `format_paragraph -> enable_track_changes -> insert_paragraph` at 189.479 ms median
+  across three standalone COW calls and 70.901 ms in one batch (-62.58%, -118.578 ms).
+  The measured compact request JSON fell from 480 to 427 characters (-11.04%), with one
+  instead of three COW commits/version increments. Creation/close and the optional SDK
+  validator were excluded. A representative one-step compact success envelope fell from
+  290 to 102 characters by removing repeated protocol/backend/atomicity fields and
+  operation-name echoes. The generated 33-variant input schema is regression-capped
+  below 20,000 compact characters and measured 19,088; the complete compact remote
+  catalog rose from 57,566 to 77,439 characters (+34.52%), so the request saving is not
+  misreported as a whole-catalog token saving.
+
 ## WordToolkit 0.39.0 operation-wide dependency resource lease — 2026-07-23
 
 - Added one cumulative `word_operation_accounted_v1` lease across ZIP/OPC admission,

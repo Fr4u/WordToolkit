@@ -35,6 +35,8 @@ Production startup fails unless the public URL is HTTPS, JWT OAuth mode is enabl
 
 ChatGPT file inputs use `_meta["openai/fileParams"]`. The server downloads an authorized HTTPS URL with redirects disabled by default and revalidates every redirect. Allowed host suffixes are configurable; DNS resolution rejects loopback, private, link-local, multicast, reserved and unspecified addresses. Localhost HTTP is allowed only for local tests. Downloads stream to a bounded session file and do not log body content or credentials.
 
+If an authorized file reference omits the optional `file_name`, the downloader derives a filename only from an allowlisted extension in the final URL, declared MIME type or response `Content-Type`. An unrecognized type fails closed. Interrupted and failed downloads remove their partial session file; operation-specific package/image validation still runs after download.
+
 Image uploads are decoded and verified by Pillow before embedding. Allowed file extensions are operation-specific. DOCM/DOTM are rejected before package inspection.
 
 ## OPC/ZIP controls

@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+- Added remote `apply_document_operations`, a provider-neutral
+  `wordtoolkit.apply_document_operations/1.0` command for 1-16 ordered operations from
+  the complete 33-tool ordinary draft-mutation surface. The server validates every
+  nested argument against the corresponding standalone Pydantic contract, rejects
+  read-only hybrid actions, enforces a 1 MiB aggregate argument ceiling, runs the whole
+  list on one isolated engine clone, validates the final candidate once and advances
+  `draft_version` once. Its generated Draft 2020-12 schema is a closed 33-variant
+  `oneOf`; arbitrary engine method dispatch and result-reference syntax are absent.
+  The same exporter now emits `schemas/draft-operations.v1.json` with the input,
+  success-data and error schemas, permissions, limits, side effects and validated
+  examples so non-MCP clients do not need to reverse-engineer the adapter.
+- Batch failures carry a bounded operation index/name/cause and discard every earlier
+  clone mutation. Results preserve order but project only compact IDs/counts/status so
+  inserted document content is not echoed back into the model context. Caller
+  cancellation drains image staging and the transaction before releasing the document
+  lock. Because Apps SDK file parameters support only top-level fields, image calls use
+  the top-level `files` array declared through `openai/fileParams` and a bounded
+  `file_index` inside `insert_image`; nested file objects are rejected. Downloads remove
+  partial files on error or cancellation. An optional missing `file_name` is handled
+  through an allowlisted extension from the final URL, declared MIME type or response
+  content type rather than silently treating the payload as `.bin`. A fully staged
+  upload can still remain when a later operation fails, so that non-document
+  session-quota side effect is stated in the
+  public tool description and tested. The compact success payload no longer repeats the
+  operation contract, backend, atomicity, count or requested operation names; a
+  representative one-step envelope fell from 290 to 102 compact JSON characters.
+- Recorded 15 Windows x64 in-process FastMCP samples for
+  `format_paragraph -> enable_track_changes -> insert_paragraph`: three standalone COW
+  calls measured 189.479 ms median versus 70.901 ms for one batch (-62.58%, -118.578
+  ms). The batch also reduced the measured compact request JSON from 480 to 427
+  characters (-11.04%), removed two MCP round trips and used one commit/version advance
+  instead of three. Document creation/close and the optional SDK validator were outside
+  this measurement. The closed 33-variant schema is not free: after removing redundant
+  nested titles and envelopes it occupies 19,088 compact JSON characters and raises the
+  complete 66-tool catalog from 57,566 to 77,439 characters (+34.52%). A contract test
+  caps that schema below 20,000; no whole-catalog token reduction is claimed.
 - Made all 33 ordinary remote draft mutators copy-on-write transactions. Each request
   now snapshots the locked active engine, applies the complete operation to an isolated
   clone, serializes and structurally validates the candidate, and swaps the active

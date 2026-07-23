@@ -70,7 +70,11 @@ WordToolkit deliberately avoids claiming complete Microsoft Word parity.
 - Session metadata and locks are in process memory. Production is limited to one application replica until a shared backend is implemented.
 - The remote service's 33 ordinary draft mutators are now isolated copy-on-write
   transactions: partial operation and candidate-validation failures leave the active
-  engine and version unchanged. This is process-local isolation, not crash-durable
+  engine and version unchanged. `apply_document_operations` can compose 1-16 of them as
+  one ordered process-local transaction with a 1 MiB aggregate JSON-argument ceiling,
+  one final validation and one version advance. It has no best-effort mode, arbitrary
+  method dispatch or references to IDs created by earlier operations. This is
+  process-local isolation, not crash-durable
   persistence. Each edit currently serializes the full active package twice, opens a
   clone and validates the candidate because immutable shared parsed-part storage does not
   exist. A 15-sample local one-paragraph benchmark measured 56.319 ms candidate-
@@ -80,7 +84,11 @@ WordToolkit deliberately avoids claiming complete Microsoft Word parity.
   validation can increase the whole-request cost. The active clone deliberately retains
   its checkpoint, candidate package and extracted work directory until the next swap or
   close, so large drafts also carry a sustained per-open-document disk cost. No dedicated
-  workspace quota or disk-pressure metric exists yet.
+  workspace quota or disk-pressure metric exists yet. Batch image inputs use a top-level
+  `files` array and `file_index`, then are staged and decoded before the document lock.
+  Partial downloads are removed on failure/cancellation, but a complete staged upload
+  can remain against session quota after a later operation fails even though the
+  document itself is rolled back.
 - The current local Codex plugin is a self-contained Windows x64 .NET runtime and does not need `uv`, Python or a virtual environment. It still cannot run in ChatGPT web or on a phone because those surfaces cannot automate the user's desktop Word process.
 - No public deployment is included in source-control credentials. Remote use
   still requires an operator-owned HTTPS domain and identity provider.

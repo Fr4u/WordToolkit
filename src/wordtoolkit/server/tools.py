@@ -2,22 +2,37 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import copy
 import functools
 import json
 import shutil
 from collections.abc import Callable
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
-from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, WithJsonSchema, model_validator
 
 from docx_mcp.document import DocxDocument
 from docx_mcp.document.errors import DocxMcpError, ErrCode
 from docx_mcp.markdown import MarkdownConverter
 
 from ..auth import current_subject, require_scope
+from ..draft_operations import (
+    DRAFT_BATCH_ACTIONS,
+    DRAFT_BATCH_MAX_ARGUMENT_BYTES,
+    DRAFT_BATCH_MAX_FILES,
+    DRAFT_BATCH_MAX_OPERATIONS,
+    ORDINARY_DRAFT_MUTATION_TOOLS,
+    DraftBatchFile,
+    DraftBatchOperation,
+    DraftBatchOutcome,
+    DraftBatchStepResult,
+    compact_batch_result,
+)
 from ..engine import WordDocumentEngine
 from ..errors import ErrorCode, WordToolkitError, ok
 from ..ids import opaque_id
@@ -71,44 +86,14 @@ EXPORT = ToolAnnotations(
     readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False
 )
 FILE_META = {"openai/fileParams": ["file"]}
+BATCH_FILE_META = {"openai/fileParams": ["files"]}
 type DRAFT_VERSION = Annotated[
     Any,
     WithJsonSchema({"type": "integer", "minimum": 0, "title": "Expected Version"}),
 ]
 DRAFT_VERSION_REQUIRED_TOOLS = {
-    "insert_paragraph",
-    "replace_paragraph",
-    "delete_paragraph",
-    "move_block",
-    "create_style",
-    "update_style",
-    "apply_style",
-    "normalize_formatting",
-    "format_paragraph",
-    "format_run",
-    "manage_lists",
-    "insert_caption",
-    "insert_table",
-    "modify_table",
-    "merge_cells",
-    "split_cells",
-    "set_cell_properties",
-    "insert_equation",
-    "replace_equation",
-    "number_equations",
-    "add_equation_reference",
-    "manage_headers_footers",
-    "manage_footnotes_endnotes",
-    "manage_comments",
-    "manage_bookmarks",
-    "manage_cross_references",
-    "manage_fields",
-    "insert_image",
-    "manage_sections",
-    "enable_track_changes",
-    "insert_tracked_change",
-    "accept_changes",
-    "reject_changes",
+    *ORDINARY_DRAFT_MUTATION_TOOLS,
+    "apply_document_operations",
     "save_document",
     "close_document",
     "repair_document",
@@ -117,6 +102,21 @@ DRAFT_VERSION_REQUIRED_TOOLS = {
     "convert_to_pdf",
     "generate_preview",
 }
+
+
+@dataclass(slots=True)
+class _DraftBatchContext:
+    runtime: ToolRuntime
+    document_id: str
+    expected_version: int
+    engine: WordDocumentEngine
+    prepared_image_paths: dict[int, Path] = field(default_factory=dict)
+    operation_index: int = -1
+
+
+_DRAFT_BATCH_CONTEXT: ContextVar[_DraftBatchContext | None] = ContextVar(
+    "wordtoolkit_draft_batch_context", default=None
+)
 
 
 def _safe(function):
@@ -207,34 +207,39 @@ def _prepare_mutation_candidate(
     try:
         clone = source.fork(checkpoint)
         result = operation(clone)
-        clone.snapshot(candidate_path)
-        validation = clone.validator.validate(candidate_path)
-        if not validation["valid"]:
-            issue_codes = sorted(
-                {
-                    str(issue.get("code", "VALIDATION_ERROR"))
-                    for issue in validation.get("issues", [])
-                    if isinstance(issue, dict)
-                }
-            )[:20]
-            raise WordToolkitError(
-                ErrorCode.OOXML_INVALID,
-                "Mutation candidate failed structural validation",
-                {
-                    "errors": int(validation.get("errors", 0)),
-                    "warnings": int(validation.get("warnings", 0)),
-                    "issue_codes": issue_codes,
-                },
-            )
-        package = validation.get("package")
-        if isinstance(package, dict):
-            clone.inspection = package
+        _validate_mutation_candidate(clone, candidate_path)
         return clone, result
     except BaseException:
         if clone is not None:
             with contextlib.suppress(Exception):
                 clone.close()
         raise
+
+
+def _validate_mutation_candidate(clone: WordDocumentEngine, candidate_path: Path) -> None:
+    clone.snapshot(candidate_path)
+    validation = clone.validator.validate(candidate_path)
+    if not validation["valid"]:
+        issue_codes = sorted(
+            {
+                str(issue.get("code", "VALIDATION_ERROR"))[:80]
+                for issue in validation.get("issues", [])
+                if isinstance(issue, dict)
+            }
+        )[:20]
+        raise WordToolkitError(
+            ErrorCode.OOXML_INVALID,
+            "Mutation candidate failed structural validation",
+            {
+                "phase": "candidate_validation",
+                "errors": int(validation.get("errors", 0)),
+                "warnings": int(validation.get("warnings", 0)),
+                "issue_codes": issue_codes,
+            },
+        )
+    package = validation.get("package")
+    if isinstance(package, dict):
+        clone.inspection = package
 
 
 def _close_engine_safely(engine: WordDocumentEngine) -> None:
@@ -252,6 +257,26 @@ def _commit_mutation_candidate(
     return record.version, previous
 
 
+def _verify_image_file(path: Path) -> None:
+    from PIL import Image
+
+    try:
+        with Image.open(path) as image:
+            image.verify()
+    except Exception as exc:
+        raise WordToolkitError(
+            ErrorCode.INVALID_INPUT, "Uploaded file is not a valid supported image"
+        ) from exc
+
+
+async def _download_verified_image(runtime: ToolRuntime, session: Any, file: OpenAIFile) -> Path:
+    path = await runtime.download_file(
+        file, session, extensions={".png", ".jpg", ".jpeg", ".gif", ".tif", ".tiff"}
+    )
+    await _run_locked_worker(_verify_image_file, path)
+    return path
+
+
 async def _mutate(
     runtime: ToolRuntime,
     document_id: str,
@@ -260,6 +285,26 @@ async def _mutate(
 ) -> dict:
     subject = current_subject()
     require_scope("documents:write")
+    batch = _DRAFT_BATCH_CONTEXT.get()
+    if batch is not None:
+        if runtime is not batch.runtime or document_id != batch.document_id:
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "A batch operation cannot target another runtime or document",
+            )
+        if expected_version != batch.expected_version:
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "A batch operation cannot override the transaction version",
+            )
+        result = await _run_locked_worker(operation, batch.engine)
+        return ok(
+            {
+                "document_id": document_id,
+                "draft_version": batch.expected_version,
+                "result": _public(result),
+            }
+        )
     async with runtime.store.locked_document(subject, document_id) as record:
         runtime.store.require_version(record, expected_version)
         session = runtime.store.sessions.get(record.session_id)
@@ -1730,20 +1775,13 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
     ) -> dict:
         subject = current_subject()
         require_scope("documents:write")
-        record = await runtime.store.get_document(subject, document_id)
-        session = await runtime.store.get_session(subject, record.session_id)
-        image_path = await runtime.download_file(
-            file, session, extensions={".png", ".jpg", ".jpeg", ".gif", ".tif", ".tiff"}
-        )
-        from PIL import Image
-
-        try:
-            with Image.open(image_path) as image:
-                image.verify()
-        except Exception as exc:
-            raise WordToolkitError(
-                ErrorCode.INVALID_INPUT, "Uploaded file is not a valid supported image"
-            ) from exc
+        batch = _DRAFT_BATCH_CONTEXT.get()
+        if batch is not None and batch.operation_index in batch.prepared_image_paths:
+            image_path = batch.prepared_image_paths[batch.operation_index]
+        else:
+            record = await runtime.store.get_document(subject, document_id)
+            session = await runtime.store.get_session(subject, record.session_id)
+            image_path = await _download_verified_image(runtime, session, file)
         width_emu, height_emu = int(width_mm * 36000), int(height_mm * 36000)
 
         def operation(engine):
@@ -1949,6 +1987,346 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
             expected_version,
             lambda engine: engine.call(method, *([change_id] if change_id is not None else [])),
         )
+
+    def validate_batch_operations(
+        document_id: str,
+        expected_version: int,
+        operations: list[DraftBatchOperation],
+        files: list[DraftBatchFile],
+    ) -> list[tuple[str, dict[str, Any], Callable[..., Any]]]:
+        try:
+            encoded = json.dumps(
+                {
+                    "operations": [item.model_dump(mode="json") for item in operations],
+                    "files": [item.model_dump(mode="json") for item in files],
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        except (TypeError, ValueError) as exc:
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "Batch operations must contain JSON-compatible values",
+            ) from exc
+        if len(encoded) > DRAFT_BATCH_MAX_ARGUMENT_BYTES:
+            raise WordToolkitError(
+                ErrorCode.LIMIT_EXCEEDED,
+                "Batch operation arguments exceed the aggregate byte limit",
+                {
+                    "actual_bytes": len(encoded),
+                    "max_bytes": DRAFT_BATCH_MAX_ARGUMENT_BYTES,
+                },
+            )
+
+        prepared: list[tuple[str, dict[str, Any], Callable[..., Any]]] = []
+        referenced_file_indexes: set[int] = set()
+        supported = frozenset(ORDINARY_DRAFT_MUTATION_TOOLS)
+        for index, item in enumerate(operations):
+            operation_name = item.operation
+            if operation_name not in supported:
+                raise WordToolkitError(
+                    ErrorCode.INVALID_INPUT,
+                    "Batch operation is not a supported ordinary draft mutation",
+                    {"operation_index": index, "operation": operation_name[:64]},
+                )
+            registered = mcp._tool_manager.get_tool(operation_name)
+            if registered is None:
+                raise WordToolkitError(
+                    ErrorCode.INTERNAL_ERROR,
+                    "The batch operation registry is inconsistent",
+                    {"operation_index": index, "operation": operation_name},
+                )
+            allowed_arguments = set(registered.parameters.get("properties", {})) - {
+                "document_id",
+                "expected_version",
+            }
+            arguments = dict(item.arguments)
+            if operation_name == "insert_image":
+                allowed_arguments.discard("file")
+                allowed_arguments.add("file_index")
+            unknown_arguments = sorted(set(arguments) - allowed_arguments)
+            if unknown_arguments:
+                raise WordToolkitError(
+                    ErrorCode.INVALID_INPUT,
+                    "Batch operation contains unknown or transaction-owned arguments",
+                    {
+                        "operation_index": index,
+                        "operation": operation_name,
+                        "unknown_field_count": len(unknown_arguments),
+                        "unknown_fields": [name[:64] for name in unknown_arguments[:20]],
+                    },
+                )
+            if operation_name == "insert_image":
+                file_index = arguments.pop("file_index", None)
+                if (
+                    not isinstance(file_index, int)
+                    or isinstance(file_index, bool)
+                    or file_index < 0
+                    or file_index >= len(files)
+                ):
+                    raise WordToolkitError(
+                        ErrorCode.INVALID_INPUT,
+                        "Batch image operation references a missing top-level file",
+                        {
+                            "operation_index": index,
+                            "operation": operation_name,
+                            "file_count": len(files),
+                        },
+                    )
+                referenced_file_indexes.add(file_index)
+                arguments["file"] = OpenAIFile.model_validate(
+                    files[file_index].model_dump(mode="python")
+                )
+            payload = {
+                "document_id": document_id,
+                "expected_version": expected_version,
+                **arguments,
+            }
+            try:
+                validated = registered.fn_metadata.arg_model.model_validate(payload)
+            except ValidationError as exc:
+                issues = [
+                    {
+                        "field": ".".join(str(part)[:64] for part in error["loc"]),
+                        "type": str(error["type"])[:80],
+                    }
+                    for error in exc.errors(
+                        include_url=False,
+                        include_context=False,
+                        include_input=False,
+                    )[:20]
+                ]
+                raise WordToolkitError(
+                    ErrorCode.INVALID_INPUT,
+                    "Batch operation arguments failed validation",
+                    {
+                        "operation_index": index,
+                        "operation": operation_name,
+                        "issue_count": exc.error_count(),
+                        "issues": issues,
+                    },
+                ) from None
+            action_allowlist = DRAFT_BATCH_ACTIONS.get(operation_name)
+            if action_allowlist is not None:
+                action = getattr(validated, "action", None)
+                if action not in action_allowlist:
+                    raise WordToolkitError(
+                        ErrorCode.INVALID_INPUT,
+                        "Read-only action is not allowed inside a mutation batch",
+                        {
+                            "operation_index": index,
+                            "operation": operation_name,
+                            "allowed_actions": sorted(action_allowlist),
+                        },
+                    )
+            kwargs = {
+                field_name: getattr(validated, field_name)
+                for field_name in type(validated).model_fields
+            }
+            prepared.append((operation_name, kwargs, registered.fn))
+        unused_file_count = len(set(range(len(files))) - referenced_file_indexes)
+        if unused_file_count:
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "Batch contains top-level files that no image operation references",
+                {"unused_file_count": unused_file_count, "file_count": len(files)},
+            )
+        return prepared
+
+    def batch_operation_failure(
+        response: CallToolResult, index: int, operation_name: str
+    ) -> WordToolkitError:
+        structured = response.structuredContent
+        payload = structured if isinstance(structured, dict) else {}
+        error_value = payload.get("error")
+        source: dict[str, Any] = error_value if isinstance(error_value, dict) else {}
+        source_code = str(source.get("code", ErrorCode.INTERNAL_ERROR.value))
+        try:
+            code = ErrorCode(source_code)
+        except ValueError:
+            code = ErrorCode.INTERNAL_ERROR
+        retryable = bool(source.get("retryable", False))
+        source_details = source.get("details")
+        details = source_details if isinstance(source_details, dict) else {}
+        safe_details: dict[str, Any] = {}
+        for key in ("actual", "actual_bytes", "expected", "issue_count", "max_bytes"):
+            item = details.get(key)
+            if isinstance(item, int) and not isinstance(item, bool):
+                safe_details[key] = item
+        for key in ("unknown_field_count",):
+            item = details.get(key)
+            if isinstance(item, int) and not isinstance(item, bool):
+                safe_details[key] = item
+        for key in ("document_error", "exception", "field"):
+            item = details.get(key)
+            if isinstance(item, str):
+                safe_details[key] = item[:80]
+        cause: dict[str, Any] = {
+            "code": code.value,
+            "message": "The nested document operation failed",
+            "details": safe_details,
+            "retryable": retryable,
+        }
+        return WordToolkitError(
+            code,
+            "Document operation batch failed",
+            {
+                "phase": "operation",
+                "operation_index": index,
+                "operation": operation_name,
+                "cause": cause,
+            },
+            retryable=retryable,
+        )
+
+    async def execute_batch_transaction(
+        document_id: str,
+        expected_version: int,
+        prepared: list[tuple[str, dict[str, Any], Callable[..., Any]]],
+        prepared_image_paths: dict[int, Path],
+    ) -> dict:
+        subject = current_subject()
+        async with runtime.store.locked_document(subject, document_id) as record:
+            runtime.store.require_version(record, expected_version)
+            session = runtime.store.sessions.get(record.session_id)
+            if session is None or session.closed:
+                raise WordToolkitError(ErrorCode.SESSION_NOT_FOUND, "Session was not found")
+            transaction_dir = session.root / ".transactions" / record.document_id / opaque_id("txn")
+            checkpoint = transaction_dir / "before.docx"
+            candidate_path = transaction_dir / "candidate.docx"
+            clone: WordDocumentEngine | None = None
+            cleanup_required = True
+            try:
+                clone = await _run_locked_worker(record.engine.fork, checkpoint)
+                batch_context = _DraftBatchContext(
+                    runtime=runtime,
+                    document_id=document_id,
+                    expected_version=expected_version,
+                    engine=clone,
+                    prepared_image_paths=prepared_image_paths,
+                )
+                token = _DRAFT_BATCH_CONTEXT.set(batch_context)
+                results: list[DraftBatchStepResult] = []
+                try:
+                    for index, (operation_name, kwargs, handler) in enumerate(prepared):
+                        batch_context.operation_index = index
+                        response = await handler(**kwargs)
+                        if isinstance(response, CallToolResult):
+                            if response.isError:
+                                raise batch_operation_failure(response, index, operation_name)
+                            payload = response.structuredContent
+                        else:
+                            payload = response
+                        if not isinstance(payload, dict) or not payload.get("ok"):
+                            raise WordToolkitError(
+                                ErrorCode.INTERNAL_ERROR,
+                                "Batch operation returned an invalid internal result",
+                                {
+                                    "phase": "operation",
+                                    "operation_index": index,
+                                    "operation": operation_name,
+                                },
+                            )
+                        data = payload.get("data")
+                        if not isinstance(data, dict) or "result" not in data:
+                            raise WordToolkitError(
+                                ErrorCode.INTERNAL_ERROR,
+                                "Batch operation omitted its internal result",
+                                {
+                                    "phase": "operation",
+                                    "operation_index": index,
+                                    "operation": operation_name,
+                                },
+                            )
+                        results.append(
+                            DraftBatchStepResult(
+                                index=index,
+                                result=compact_batch_result(data["result"]),
+                            )
+                        )
+                finally:
+                    _DRAFT_BATCH_CONTEXT.reset(token)
+
+                await _run_locked_worker(
+                    _validate_mutation_candidate,
+                    clone,
+                    candidate_path,
+                )
+                version, previous = _commit_mutation_candidate(record, clone)
+                clone = None
+                cleanup_required = False
+                await _run_locked_worker(_close_engine_safely, previous)
+                outcome = DraftBatchOutcome(
+                    document_id=document_id,
+                    draft_version=version,
+                    results=results,
+                )
+                return ok(outcome.model_dump(mode="json"))
+            finally:
+                if clone is not None:
+                    await _run_locked_worker(_close_engine_safely, clone)
+                if cleanup_required:
+                    await _run_locked_worker(shutil.rmtree, transaction_dir, True)
+
+    @mcp.tool(
+        title="Apply an atomic batch of Word document operations",
+        description="Apply 1 to 16 ordered ordinary draft mutations on one isolated process-local copy-on-write engine, validate the final candidate once, and advance draft_version exactly once. Every operation is validated against its standalone tool contract before the fork; read-only variants are rejected. For insert_image, pass authorized files in the top-level files array and reference them by file_index. Image files are staged before the document transaction and may still consume session quota if a later operation fails.",
+        annotations=DELETE,
+        meta=BATCH_FILE_META,
+    )
+    @_safe
+    async def apply_document_operations(
+        document_id: str,
+        operations: list[DraftBatchOperation] = Field(
+            min_length=1, max_length=DRAFT_BATCH_MAX_OPERATIONS
+        ),
+        files: list[DraftBatchFile] = Field(default_factory=list, max_length=DRAFT_BATCH_MAX_FILES),
+        expected_version: DRAFT_VERSION = None,
+    ) -> dict:
+        subject = current_subject()
+        require_scope("documents:write")
+        prepared = validate_batch_operations(document_id, expected_version, operations, files)
+
+        async def prepare_images_and_execute() -> dict:
+            prepared_image_paths: dict[int, Path] = {}
+            image_indexes = [
+                index
+                for index, (operation_name, _kwargs, _handler) in enumerate(prepared)
+                if operation_name == "insert_image"
+            ]
+            if image_indexes:
+                record = await runtime.store.get_document(subject, document_id)
+                runtime.store.require_version(record, expected_version)
+                session = await runtime.store.get_session(subject, record.session_id)
+                staged_by_reference: dict[tuple[str, str], Path] = {}
+                for index in image_indexes:
+                    file = prepared[index][1]["file"]
+                    if not isinstance(file, OpenAIFile):
+                        raise WordToolkitError(
+                            ErrorCode.INVALID_INPUT,
+                            "Batch image operation has an invalid file reference",
+                            {"operation_index": index, "operation": "insert_image"},
+                        )
+                    cache_key = (file.file_id, file.download_url)
+                    image_path = staged_by_reference.get(cache_key)
+                    if image_path is None:
+                        image_path = await _download_verified_image(runtime, session, file)
+                        staged_by_reference[cache_key] = image_path
+                    prepared_image_paths[index] = image_path
+            return await execute_batch_transaction(
+                document_id,
+                expected_version,
+                prepared,
+                prepared_image_paths,
+            )
+
+        worker = asyncio.create_task(prepare_images_and_execute())
+        try:
+            return await asyncio.shield(worker)
+        except asyncio.CancelledError as cancellation:
+            with contextlib.suppress(BaseException):
+                await _drain_worker(worker)
+            raise cancellation
 
     @mcp.tool(
         title="Compare two Word documents",
@@ -2291,6 +2669,111 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         required = registered.parameters.setdefault("required", [])
         if "expected_version" not in required:
             required.append("expected_version")
+
+    def inline_local_schema_refs(
+        value: Any,
+        definitions: dict[str, Any],
+        resolving: frozenset[str] = frozenset(),
+    ) -> Any:
+        if isinstance(value, list):
+            return [inline_local_schema_refs(item, definitions, resolving) for item in value]
+        if not isinstance(value, dict):
+            return value
+        reference = value.get("$ref")
+        if isinstance(reference, str) and reference.startswith("#/$defs/"):
+            name = reference.removeprefix("#/$defs/")
+            if name in resolving or name not in definitions:
+                raise RuntimeError(f"Cannot inline recursive or missing batch schema: {name}")
+            replacement = copy.deepcopy(definitions[name])
+            siblings = {key: item for key, item in value.items() if key != "$ref"}
+            replacement.update(siblings)
+            return inline_local_schema_refs(
+                replacement,
+                definitions,
+                resolving | {name},
+            )
+        return {
+            key: inline_local_schema_refs(item, definitions, resolving)
+            for key, item in value.items()
+            if key != "title"
+        }
+
+    batch_variants: list[dict[str, Any]] = []
+    for tool_name in ORDINARY_DRAFT_MUTATION_TOOLS:
+        source_tool = mcp._tool_manager.get_tool(tool_name)
+        if source_tool is None:
+            raise RuntimeError(f"Batch contract references an unknown tool: {tool_name}")
+        source_schema = copy.deepcopy(source_tool.parameters)
+        definitions = source_schema.pop("$defs", {})
+        if not isinstance(definitions, dict):
+            definitions = {}
+        properties = source_schema.get("properties")
+        if not isinstance(properties, dict):
+            raise RuntimeError(f"Batch source schema has no properties: {tool_name}")
+        properties.pop("document_id", None)
+        properties.pop("expected_version", None)
+        required = [
+            name
+            for name in source_schema.get("required", [])
+            if name not in {"document_id", "expected_version"}
+        ]
+        action_allowlist = DRAFT_BATCH_ACTIONS.get(tool_name)
+        if action_allowlist is not None:
+            action_schema = properties.get("action")
+            if not isinstance(action_schema, dict):
+                raise RuntimeError(f"Batch hybrid tool has no action schema: {tool_name}")
+            action_schema["enum"] = sorted(action_allowlist)
+            action_schema.pop("default", None)
+            if "action" not in required:
+                required.append("action")
+        if tool_name == "insert_image":
+            properties.pop("file", None)
+            required = [name for name in required if name != "file"]
+            properties["file_index"] = {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": DRAFT_BATCH_MAX_FILES - 1,
+            }
+            required.append("file_index")
+        argument_schema: dict[str, Any] = {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": inline_local_schema_refs(properties, definitions),
+        }
+        if required:
+            argument_schema["required"] = required
+        batch_variants.append(
+            {
+                "properties": {
+                    "operation": {"const": tool_name},
+                    "arguments": argument_schema,
+                },
+            }
+        )
+
+    batch_tool = mcp._tool_manager.get_tool("apply_document_operations")
+    if batch_tool is None:
+        raise RuntimeError("Batch contract references an unknown batch tool")
+    operations_schema = batch_tool.parameters["properties"]["operations"]
+    operations_schema["items"] = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["operation", "arguments"],
+        "properties": {
+            "operation": {"type": "string"},
+            "arguments": {"type": "object"},
+        },
+        "oneOf": batch_variants,
+    }
+    definitions = batch_tool.parameters.get("$defs")
+    if isinstance(definitions, dict):
+        files_schema = batch_tool.parameters["properties"].get("files")
+        if isinstance(files_schema, dict) and "items" in files_schema:
+            files_schema["items"] = inline_local_schema_refs(files_schema["items"], definitions)
+        definitions.pop("DraftBatchOperation", None)
+        definitions.pop("DraftBatchFile", None)
+        if not definitions:
+            batch_tool.parameters.pop("$defs")
 
     export_tool = mcp._tool_manager.get_tool("export_document")
     if export_tool is None:

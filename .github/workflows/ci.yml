@@ -73,7 +73,7 @@ jobs:
             exit 1
           fi
       - name: Reject generated remote-schema drift
-        run: git diff --exit-code -- schemas/mcp-tools.v2.json docs/TOOL-CATALOG.md
+        run: git diff --exit-code -- schemas/mcp-tools.v2.json schemas/draft-operations.v1.json docs/TOOL-CATALOG.md
       - run: uv run python scripts/generate_samples.py
       - run: uv run python scripts/advanced_torture_test.py
       - uses: actions/upload-artifact@v7

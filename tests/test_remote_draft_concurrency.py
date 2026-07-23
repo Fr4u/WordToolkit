@@ -471,7 +471,9 @@ async def test_invalid_mutation_candidate_is_rejected_before_engine_swap(
             ],
         }
 
-    monkeypatch.setattr(record.engine.validator.__class__, "validate", lambda self, path: reject_candidate(path))
+    monkeypatch.setattr(
+        record.engine.validator.__class__, "validate", lambda self, path: reject_candidate(path)
+    )
     failed = _tool_payload(
         await server.call_tool(
             "insert_paragraph",
@@ -488,6 +490,7 @@ async def test_invalid_mutation_candidate_is_rejected_before_engine_swap(
         "code": "OOXML_INVALID",
         "message": "Mutation candidate failed structural validation",
         "details": {
+            "phase": "candidate_validation",
             "errors": 2,
             "warnings": 1,
             "issue_codes": ["REL_TARGET_MISSING", "XML_INVALID"],

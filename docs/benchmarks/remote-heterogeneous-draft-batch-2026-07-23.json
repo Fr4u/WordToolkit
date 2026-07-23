@@ -1,0 +1,83 @@
+{
+  "benchmark": "remote_heterogeneous_draft_batch",
+  "date": "2026-07-23",
+  "host": {
+    "os": "Windows-10-10.0.19045-SP0",
+    "python": "3.13.0"
+  },
+  "samples_per_path": 15,
+  "operation_sequence": [
+    "format_paragraph",
+    "enable_track_changes",
+    "insert_paragraph"
+  ],
+  "scope": "FastMCP in-process dispatch through full process-local COW mutation path; document creation and close excluded; built-in validator only",
+  "schema_cost": {
+    "batch_input_schema_characters": 19088,
+    "complete_compact_catalog_before_characters": 57566,
+    "complete_compact_catalog_after_characters": 77439,
+    "catalog_delta_characters": 19873,
+    "catalog_delta_percent": 34.52,
+    "note": "The closed 33-variant schema is a discovery-context cost; request-size savings do not erase it. A regression cap keeps the batch input schema below 20,000 compact JSON characters."
+  },
+  "response_payload_cost": {
+    "representative_one_step_before_characters": 290,
+    "representative_one_step_after_characters": 102,
+    "delta_characters": -188,
+    "delta_percent": -64.83,
+    "note": "Deterministic compact JSON serialization of the same document_id, draft_version and empty step result before and after removing repeated contract/backend/atomicity/count and request-operation fields."
+  },
+  "sequential": {
+    "samples_ms": [
+      196.171,
+      193.87,
+      204.774,
+      195.93,
+      196.38,
+      189.234,
+      189.413,
+      188.2,
+      188.442,
+      185.783,
+      187.179,
+      188.291,
+      189.479,
+      189.871,
+      189.91
+    ],
+    "median_ms": 189.479,
+    "request_json_characters": 480,
+    "cow_commits": 3,
+    "version_increments": 3
+  },
+  "batch": {
+    "samples_ms": [
+      69.676,
+      70.829,
+      70.34,
+      69.849,
+      71.334,
+      71.098,
+      73.321,
+      71.474,
+      71.477,
+      80.191,
+      70.754,
+      70.433,
+      70.901,
+      71.633,
+      70.59
+    ],
+    "median_ms": 70.901,
+    "request_json_characters": 427,
+    "cow_commits": 1,
+    "version_increments": 1
+  },
+  "delta": {
+    "median_ms": -118.578,
+    "median_percent": -62.58,
+    "request_json_characters": -53,
+    "request_json_percent": -11.04,
+    "mcp_round_trips": -2
+  }
+}

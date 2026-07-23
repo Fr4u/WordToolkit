@@ -44,7 +44,7 @@ The MCP layer has no direct ZIP/XML manipulation. The document engine has no aut
 
 An OAuth `sub` claim is hashed to a non-reversible owner key. IDs have opaque random forms such as `ses_<base32>`, `doc_<base32>` and `art_<base32>`; they contain no path or user information. Every session has a root beneath the configured storage root. A document may only be resolved when its owner and live session match the caller.
 
-Existing-draft mutations require `expected_version`. A mismatch returns `VERSION_CONFLICT`, preventing two clients from silently overwriting the same draft. The 33 ordinary draft mutators execute as copy-on-write transactions under the same per-document lock: the active in-memory engine is snapshotted, the complete operation runs on an isolated clone, the candidate is serialized and structurally validated, and only then are the engine reference and version swapped. A partial operation failure or rejected candidate closes the clone and leaves the active engine, bytes and version unchanged. Successful DOCX publication increments the draft version and writes `versions/<document-id>/vN-<name>.docx`; the original upload is never overwritten. Per-document async locks serialize in-process mutation and publication.
+Existing-draft mutations require `expected_version`. A mismatch returns `VERSION_CONFLICT`, preventing two clients from silently overwriting the same draft. The 33 ordinary draft mutators execute as copy-on-write transactions under the same per-document lock: the active in-memory engine is snapshotted, the complete operation runs on an isolated clone, the candidate is serialized and structurally validated, and only then are the engine reference and version swapped. `apply_document_operations` composes 1-16 of those same typed operations on one clone and performs one final validation/swap/version advance. A partial operation failure or rejected candidate closes the clone and leaves the active engine, bytes and version unchanged. Successful DOCX publication increments the draft version and writes `versions/<document-id>/vN-<name>.docx`; the original upload is never overwritten. Per-document async locks serialize in-process mutation and publication.
 
 Sessions and artifacts expire independently. Cleanup closes XML trees and removes session directories. Artifact URLs contain owner, expiry and HMAC; download responses are private/no-store and content-sniffing is disabled.
 
@@ -92,6 +92,29 @@ The result is a compatibility check, not a promise of pixel equality with Micros
 The tool contract is versioned independently from the implementation. `schemas/mcp-tools.v2.json` is the current remote source of truth; v1 remains immutable. Additive optional fields are permitted within v2. A renamed tool, new required field, changed type, removed enum member or changed side effect requires a new major schema and migration note. Document migrations are explicit copy-on-write operations.
 
 Every operation that changes, publishes or closes an existing remote draft requires the caller's `expected_version`. The check and operation execute under the same document lock. A cancelled background engine call is drained before that lock is released; if a mutation finishes successfully after cancellation, its version still advances so the abandoned token cannot authorize a later write. Ordinary edits, save, repair and render use isolated engine forks. Ordinary edits additionally serialize and validate a candidate snapshot before swapping the active engine; publication swaps it only after validated output and all-or-nothing artifact registration. Stale input, partial edit failure, rejected validation and failed publication leave the active engine, version, current path and artifacts unchanged. DOCX export follows this rule; lossy Markdown export is read-only and does not advance the draft.
+
+The batch adapter is a closed provider-neutral command envelope, not a public
+`engine.call(method, args)` escape hatch. Its generated schema is derived from the same
+33 standalone tool contracts and uses hard `oneOf`/`const` variants with unknown fields
+forbidden. `schemas/draft-operations.v1.json` publishes that input schema together with
+the typed compact success data, stable error envelope, limits, permissions, side effects
+and examples; CI regenerates it from the registered tools and neutral Python models.
+Runtime validation still uses those tools' Pydantic argument models. Hybrid
+tools admit only mutating actions. Nested `document_id` and `expected_version` are
+forbidden because the transaction envelope owns them. The first contract deliberately
+has no reference grammar for consuming a prior operation's generated ID.
+
+The transaction is process-local document atomicity. Apps SDK file binding accepts only
+top-level tool fields, so the batch declares top-level `files` through
+`openai/fileParams`; each `insert_image` operation supplies a bounded `file_index`
+instead of a nested file object. The adapter stages and decodes each referenced file
+before taking the document lock. A complete staged upload can consume session quota even
+if a later batch operation fails, while the active document, engine and version remain
+unchanged. Cancellation drains staging and transaction work, and an interrupted or
+failed download removes its partial target. Results are ordered, bounded to 16 entries
+and projected to compact identifiers/counts/status. The response uses indexes to map
+results to the request and does not echo operation names, protocol constants or document
+text.
 
 Each committed clone owns its transaction workspace until a later engine swap or
 document close. Replacement cleanup is drained in a background worker while the document

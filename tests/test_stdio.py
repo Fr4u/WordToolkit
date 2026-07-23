@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+import httpx
 import pytest
 
 from wordtoolkit import __version__
+from wordtoolkit import runtime as runtime_module
 from wordtoolkit.config import Settings
 from wordtoolkit.runtime import ToolRuntime
 from wordtoolkit.server.stdio import build_stdio_server
@@ -139,3 +142,71 @@ async def test_local_stdio_accepts_explicit_local_file(
 
     assert copied.read_bytes() == source.read_bytes()
     assert copied.resolve().is_relative_to(session.root.resolve())
+
+
+@pytest.mark.asyncio
+async def test_remote_download_cancellation_removes_partial_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = ToolRuntime(Settings(storage_root=tmp_path / "storage"))
+    session = await runtime.session("download-test")
+    real_client = httpx.AsyncClient
+
+    class CancelledStream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield b"partial"
+            raise asyncio.CancelledError
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, stream=CancelledStream())
+
+    transport = httpx.MockTransport(handler)
+
+    def client_factory(**kwargs):
+        return real_client(transport=transport, **kwargs)
+
+    monkeypatch.setattr(runtime_module, "validate_remote_url", lambda *_args: None)
+    monkeypatch.setattr(runtime_module.httpx, "AsyncClient", client_factory)
+    reference = OpenAIFile(
+        download_url="https://files.example.test/input.docx",
+        file_id="file_cancelled",
+        file_name="input.docx",
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        await runtime.download_file(reference, session, extensions={".docx"})
+
+    assert not list((session.root / "uploads").glob("*"))
+
+
+@pytest.mark.asyncio
+async def test_remote_download_uses_response_mime_when_optional_name_is_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = ToolRuntime(Settings(storage_root=tmp_path / "storage"))
+    session = await runtime.session("mime-test")
+    real_client = httpx.AsyncClient
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "image/png"},
+            content=b"not-decoded-by-the-generic-downloader",
+        )
+
+    transport = httpx.MockTransport(handler)
+
+    def client_factory(**kwargs):
+        return real_client(transport=transport, **kwargs)
+
+    monkeypatch.setattr(runtime_module, "validate_remote_url", lambda *_args: None)
+    monkeypatch.setattr(runtime_module.httpx, "AsyncClient", client_factory)
+    reference = OpenAIFile(
+        download_url="https://files.example.test/download",
+        file_id="file_without_name",
+    )
+
+    downloaded = await runtime.download_file(reference, session, extensions={".png"})
+
+    assert downloaded.suffix == ".png"
+    assert downloaded.read_bytes() == b"not-decoded-by-the-generic-downloader"
