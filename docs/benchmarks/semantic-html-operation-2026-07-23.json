@@ -87,7 +87,17 @@
     "reason": "The in-app browser blocked the local file URL under its URL security policy; no bypass or alternate browser surface was used."
   },
   "hosted_ci": {
-    "performed": false,
-    "reason": "Pending publication of this worktree checkpoint."
+    "performed": true,
+    "run_id": 29983403319,
+    "conclusion": "success",
+    "passed_job_count": 5,
+    "windows_artifact_id": 8554085726,
+    "windows_archive_bytes": 36281531,
+    "windows_archive_sha256": "dbeef0225f8c8d6afdda0d15c68ebf3e942cbdf3dee81268add8a7516993f1ea",
+    "archive_matches_both_local_builds": true,
+    "expanded_file_count": 196,
+    "expanded_bytes": 85424800,
+    "expanded_tree_difference_count": 0,
+    "expanded_tree_manifest_sha256": "a2d7639b9b935785f0a922fc176406923569b9a9a556be87a616441cef55bf1d"
   }
 }

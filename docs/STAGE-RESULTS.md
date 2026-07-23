@@ -28,6 +28,10 @@
   ms median** and **302.14 ms p95/max**. All 15 artifacts were the same 3,628 bytes with
   one SHA-256. Static HTML-tree, CSP and external-resource checks passed. The in-app
   browser blocked `file://`, so no visual screenshot claim is made and no bypass was used.
+- Hosted CI run [`29983403319`](https://github.com/Fr4u/WordToolkit/actions/runs/29983403319)
+  passed all five jobs. Downloaded Windows artifact `8554085726` matched both local ZIPs
+  byte for byte and its normalized 196-file expanded tree had zero differences at the
+  recorded manifest SHA-256.
 
 ## WordToolkit 0.35.0 logical table graph — 2026-07-22
 
