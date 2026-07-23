@@ -23,10 +23,17 @@
 - Verified the final SVG slice with 408 Engine tests, 272 Native tests and the complete
   1,279-test Python/OOXML suite with 16 intentional skips; Ruff and the maintained
   28-module mypy lane are clean. Two supported Windows builds produced identical
-  196-file, 85,501,261-byte trees and identical 36,302,166-byte ZIPs at SHA-256
-  `608fa76a93d737d9434ea0573316ee8dbb4e8baba7300e49a727e4687589ce7a`; the expanded
+  196-file, 85,514,480-byte trees and identical 36,306,172-byte ZIPs at SHA-256
+  `5076fc4b41670ae05752ab36c0d23ff66fac7a2b8d753706b15473a478e4682a`; the expanded
   manifest and enabled personal-plugin cache matched at SHA-256
-  `18e02ad4487212d8d7429d2dc99360c742d183650737eea237d78015f5c7cfe9`.
+  `f9bfd22a28d04e509968f3fb799e2e283e9ff8e3ccabdb14fdbc7503c1bc7207`. Hosted run
+  `29992366785` passed all five jobs for commit `d6b663922a45f8e271872f61a63dffa86bf21256`;
+  artifact `8557592140` matched both pinned-SDK local ZIPs and expanded trees exactly. An
+  initial .NET SDK 10 package was rejected as release evidence after its self-contained
+  runtime differed from the repository-pinned .NET SDK 8.0.423 output.
+- Added an explicit `workflow_dispatch` trigger to the existing five-job CI workflow so a
+  named branch SHA can be verified when a pull-request webhook is not scheduled. Normal
+  pull-request and release triggers remain unchanged.
 - Added `wordtoolkit.render_ooxml_semantic_html/1.0` as the sixth public
   transport-neutral Engine/CLI/MCP operation. The dependency-free Engine creates a
   deterministic, self-contained HTML artifact from a saved DOCX/DOCM/DOTX/DOTM without

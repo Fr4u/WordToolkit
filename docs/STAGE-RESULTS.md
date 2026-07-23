@@ -26,13 +26,21 @@
 - Native package version: `0.36.0+codex.20260723100732`, with 15 exposed core/gateway
   tools and **89** native actions. Seven actions publish complete operation-version,
   permission, reversibility and output-schema metadata.
-- Two supported Windows builds produced byte-identical **196-file**,
-  **85,501,261-byte** expanded trees and byte-identical **36,302,166-byte** ZIPs. ZIP
-  SHA-256: `608fa76a93d737d9434ea0573316ee8dbb4e8baba7300e49a727e4687589ce7a`;
+- Two repository-pinned .NET SDK 8.0.423 Windows builds produced byte-identical
+  **196-file**, **85,514,480-byte** expanded trees and byte-identical
+  **36,306,172-byte** ZIPs. ZIP SHA-256:
+  `5076fc4b41670ae05752ab36c0d23ff66fac7a2b8d753706b15473a478e4682a`;
   expanded manifest SHA-256:
-  `18e02ad4487212d8d7429d2dc99360c742d183650737eea237d78015f5c7cfe9`.
+  `f9bfd22a28d04e509968f3fb799e2e283e9ff8e3ccabdb14fdbc7503c1bc7207`.
   The installed and enabled `wordtoolkit@personal` cache has the same version, file count,
   byte count and manifest with zero file differences from the built package.
+- Hosted CI run [`29992366785`](https://github.com/Fr4u/WordToolkit/actions/runs/29992366785)
+  passed all five jobs for commit `d6b663922a45f8e271872f61a63dffa86bf21256`.
+  Downloaded Windows artifact `8557592140` matched both pinned-SDK local ZIPs byte for
+  byte and its normalized 196-file tree had zero length/hash differences. The first local
+  package built under SDK 10.0.300 was rejected as release evidence after its bundled
+  self-contained runtime differed; the official SDK 8.0.423 archive was verified against
+  Microsoft release metadata before rebuilding.
 - The packaged executable selected the first semantic table in the checked-in Mammoth
   fixture under its exact fingerprint and created one **2,266-byte** SVG at SHA-256
   `b8e436cd184ab1b316321e305ad850f1f21a43e518428d6d7e9e54f6a48536d9`.
