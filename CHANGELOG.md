@@ -36,7 +36,8 @@
   `04af23655f262389c16a9b8eb94cc08d39173c5a9d80e74606929d26f9beb9e9`.
   The packaged self-contained executable returned the same five schema-valid matches,
   discovered the query action, wrote nothing to stderr and left the Word-process count
-  at zero.
+  at zero. Mandatory CI run `29973644971` passed all five jobs; its downloaded Windows
+  ZIP matched both local archives byte for byte at the same size and SHA-256.
 - Added `wordtoolkit.transform_ooxml_package/1.0` as the second public
   transport-neutral Engine/CLI/MCP operation. Its typed core can replace the first
   ordinary text occurrence across run boundaries, accept all supported tracked changes
