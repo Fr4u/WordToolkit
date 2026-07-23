@@ -99,7 +99,17 @@
     "reason": "The in-app browser blocked the local file URL under its URL security policy; no bypass or alternate browser surface was used."
   },
   "hosted_ci": {
-    "performed": false,
-    "reason": "Pending publication of the red-team privacy hardening checkpoint."
+    "performed": true,
+    "run_id": 29984588930,
+    "conclusion": "success",
+    "passed_job_count": 5,
+    "windows_artifact_id": 8554525092,
+    "windows_archive_bytes": 36281322,
+    "windows_archive_sha256": "8463738c94eeac9148d286ae71e0cdcefb96dcbe379a63956ceba664366a8882",
+    "archive_matches_both_local_builds": true,
+    "expanded_file_count": 196,
+    "expanded_bytes": 85424288,
+    "expanded_tree_difference_count": 0,
+    "expanded_tree_manifest_sha256": "61ee297700a7a68d0eb825587b2cca9fdedf0c935ef0d96168034798f01d3c6e"
   }
 }

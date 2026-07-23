@@ -28,8 +28,10 @@
   ms median** and **290.44 ms p95/max**. All 15 artifacts were the same 3,628 bytes with
   one SHA-256. Static HTML-tree, CSP and external-resource checks passed. The in-app
   browser blocked `file://`, so no visual screenshot claim is made and no bypass was used.
-- The pre-hardening hosted package matched its local builds. Hosted parity for the
-  red-team privacy fix is pending publication.
+- Hosted CI run [`29984588930`](https://github.com/Fr4u/WordToolkit/actions/runs/29984588930)
+  passed all five jobs. Downloaded Windows artifact `8554525092` matched both
+  red-team-hardened local ZIPs byte for byte and its normalized 196-file tree had zero
+  differences at the recorded manifest SHA-256.
 
 ## WordToolkit 0.35.0 logical table graph — 2026-07-22
 

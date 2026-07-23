@@ -40,8 +40,10 @@
   fixture to one deterministic 3,628-byte artifact across 15 cold processes at 254.66 ms
   median and 290.44 ms p95/max. Static HTML-tree, CSP and external-resource checks passed;
   the in-app browser blocked the local `file://` URL, so no visual-browser result is
-  claimed and no policy bypass was attempted. The pre-hardening hosted package matched its
-  local builds; hosted parity for the red-team privacy fix is pending publication.
+  claimed and no policy bypass was attempted. Hosted CI run `29984588930` passed all five
+  jobs; downloaded Windows artifact `8554525092` matched both red-team-hardened local ZIPs
+  byte for byte and its normalized expanded tree had zero differences at the recorded
+  manifest SHA-256.
 
 - Added the public comment-body operation pair
   `wordtoolkit.plan_ooxml_comment_body_edits/1.0` and
