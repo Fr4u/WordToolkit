@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       profile:
-        description: "smoke runs 10k/100k graph, MCE, binding and table points; scale adds 500k/999k graph targets and larger patches"
+        description: "smoke runs 10k/100k graph, MCE, binding, table and semantic HTML selection points; scale adds 500k/999k graph targets and larger patches"
         required: true
         default: smoke
         type: choice
@@ -38,6 +38,8 @@ jobs:
           dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- tables --target-nodes 100000 --output artifacts/benchmarks/tables-100k.json
           dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- mce --target-nodes 10000 --output artifacts/benchmarks/mce-10k.json
           dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- mce --target-nodes 100000 --output artifacts/benchmarks/mce-100k.json
+          dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- semantic-html --target-nodes 10000 --output artifacts/benchmarks/semantic-html-10k.json
+          dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- semantic-html --target-nodes 100000 --output artifacts/benchmarks/semantic-html-100k.json
           dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- patch --payload-mib 16 --parts 16 --output artifacts/benchmarks/patch-16mib.json
           dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- patch --payload-mib 64 --parts 64 --output artifacts/benchmarks/patch-64mib.json
       - name: Run high scale points

@@ -12,6 +12,16 @@
   fallbacks and makes unsupported drawings/extensions visible as placeholders. The
   result contract calls the artifact `semantic_preview_non_paginated`; it makes no claim
   of Word layout, typography, pagination or print fidelity.
+- Extended the same 1.0 renderer additively with fingerprint-bound `target_node_id`
+  selection. One semantic table, row, cell, paragraph, equation, drawing, revision or
+  other renderable subtree can now be emitted without its siblings. Missing, stale,
+  out-of-scope and non-renderable targets fail closed before output creation. Selected
+  rows, cells and semantic wrappers receive valid synthetic `table`/`tbody`/`tr`
+  context, reported separately as `fragment_wrapper`. The selection-aware traversal
+  applies the same normalization to nested tables, nested row/cell SDTs and row-level
+  revisions anywhere below the selected target; pure wrapper chains are flattened with
+  a warning and ambiguous mixed chains fail closed. Response metadata still returns no
+  document text, raw XML, properties or source paths.
 - Added the strict `render-package --request <json|->` CLI and lazy MCP adapter over the
   same renderer. The write is create-new and sibling-temporary, flushed before an atomic
   move, never overwrites an output, can bind an inspected package fingerprint, leaves the
@@ -27,23 +37,25 @@
   compact gateway intentionally removes it. Package-derived exception messages are never
   exposed as public reasons, so hostile ZIP entry names cannot escape through CLI or MCP
   errors; Engine and adapter regressions bind this privacy boundary.
-- Verified the semantic-HTML checkpoint with 393 Engine tests, 267 Native tests and the
-  complete 1,273-test Python/OOXML suite with 16 intentional skips; Ruff and the
+- Verified the fingerprint-bound selection checkpoint with 396 Engine tests, 269 Native
+  tests and the complete 1,276-test Python/OOXML suite with 16 intentional skips; Ruff and the
   maintained 28-module mypy lane are clean. Two supported Windows builds produced
-  identical 196-file, 85,424,288-byte trees and identical 36,281,322-byte ZIPs at
-  SHA-256 `8463738c94eeac9148d286ae71e0cdcefb96dcbe379a63956ceba664366a8882`;
+  identical 196-file, 85,442,968-byte trees and identical 36,285,575-byte ZIPs at
+  SHA-256 `a0737809d981cd739cade8f4036818408877afd903ff1049d538f29b4b99fb41`;
   expanded manifests matched at SHA-256
-  `61ee297700a7a68d0eb825587b2cca9fdedf0c935ef0d96168034798f01d3c6e`.
+  `a45a778680bf0c9773089556e8a88104d155ebbf044bd852a24f20155d0596e4`.
   The manifest is the UTF-8/LF, no-final-newline serialization of relative path,
   byte length and lowercase SHA-256 fields separated by tabs and sorted by path.
   The packaged executable discovered the lazy action and rendered the checked-in Mammoth
   fixture to one deterministic 3,628-byte artifact across 15 cold processes at 254.66 ms
   median and 290.44 ms p95/max. Static HTML-tree, CSP and external-resource checks passed;
   the in-app browser blocked the local `file://` URL, so no visual-browser result is
-  claimed and no policy bypass was attempted. Hosted CI run `29984588930` passed all five
-  jobs; downloaded Windows artifact `8554525092` matched both red-team-hardened local ZIPs
-  byte for byte and its normalized expanded tree had zero differences at the recorded
-  manifest SHA-256.
+  claimed and no policy bypass was attempted. The new packaged selection smoke rendered
+  the fingerprint-bound Mammoth table to a 3,742-byte artifact with one `table`, one
+  `tbody`, two `tr` and four cells under an HTML5 parser, zero invalid table ancestors,
+  no source mutation, no Word process and no fixture cell text in the JSON response.
+  Hosted CI run `29984588930` remains evidence only for the preceding whole-document
+  renderer package until the selection commit is pushed and requalified.
 
 - Added the public comment-body operation pair
   `wordtoolkit.plan_ooxml_comment_body_edits/1.0` and

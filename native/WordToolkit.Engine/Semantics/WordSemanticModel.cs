@@ -5,6 +5,16 @@ namespace WordToolkit.Engine.Semantics;
 
 public readonly record struct SemanticNodeId(string Value)
 {
+    public const int MaximumCharacters = 128;
+
+    public static bool HasValidSyntax(string? value) =>
+        value is not null
+        && value.Length is > 4 and <= MaximumCharacters
+        && value.StartsWith("wdn_", StringComparison.Ordinal)
+        && value.Skip(4).All(character =>
+            char.IsAsciiLetterOrDigit(character) || character is '_' or '-'
+        );
+
     public override string ToString() => Value;
 }
 

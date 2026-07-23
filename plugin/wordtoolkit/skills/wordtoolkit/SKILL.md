@@ -64,8 +64,15 @@ Use the lazy `render_ooxml_semantic_html` action when a saved Word package needs
 self-contained structural preview, accessibility inspection artifact, or diff companion
 without opening Word. Supply a new `.html` `output_path`; existing files are never
 overwritten. Keep `story_scope=main_document` unless headers, footers, notes, comments,
-or glossary text are genuinely needed. The artifact contains document text, but the MCP
-response returns only hashes, counts, warnings, and fidelity metadata. Treat
+or glossary text are genuinely needed. When only one table, row, cell, paragraph,
+equation, drawing, revision or other semantic subtree is needed, first obtain its exact
+`node_id` and `package_fingerprint` through semantic query, then pass that ID as
+`target_node_id` together with the fingerprint as `expected_package_fingerprint`.
+Never guess an ID or reuse it after the package changes. Selected and nested tables,
+rows, cells and pure row/cell wrapper chains receive synthetic valid HTML table context;
+inspect `fragment_wrapper` and warnings instead of treating wrappers as source content.
+Ambiguous mixed chains fail closed. The local artifact contains document text, but the MCP
+response returns only hashes, counts, warnings and bounded selection metadata. Treat
 `semantic_preview_non_paginated` literally: links are inert, fields expose cached result
 content rather than instructions, tracked changes are annotated, equations are linear
 text fallbacks, and drawings or unsupported extensions are visible placeholders. Never

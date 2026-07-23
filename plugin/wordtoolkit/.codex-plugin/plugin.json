@@ -1,6 +1,6 @@
 {
   "name": "wordtoolkit",
-  "version": "0.35.0+codex.20260723081441",
+  "version": "0.35.0+codex.20260723091515",
   "description": "Token-lean native Microsoft Word automation with 15 core/gateway tools and lazy access to 88 native actions.",
   "author": {
     "name": "WordToolkit contributors"
@@ -61,6 +61,7 @@
       "Typed OOXML Review Graph",
       "Native Semantic Diff",
       "Deterministic Semantic HTML Preview",
+      "Fingerprint-Bound Semantic HTML Selection",
       "Deterministic Reversible OPC Patches",
       "Authenticated Encrypted Patch Envelopes",
       "Patch Risk Authorization",
@@ -122,7 +123,8 @@
       "Inspect AlternateContent and compatibility rules without rewriting the saved package.",
       "Inspect table grids, merges, nesting and floating position without returning cell text.",
       "Rewrite only selected saved-DOCX comment bodies without changing anchors or thread metadata.",
-      "Render a saved Word package to deterministic semantic HTML without opening Word or claiming page fidelity."
+      "Render a saved Word package to deterministic semantic HTML without opening Word or claiming page fidelity.",
+      "Render only one fingerprint-bound semantic table, equation or other document subtree to HTML."
     ],
     "brandColor": "#23385D",
     "composerIcon": "./assets/wordtoolkit-icon.svg",

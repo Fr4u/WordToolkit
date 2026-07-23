@@ -235,7 +235,7 @@ layout teams. Their claims are not accepted as independent measurements.
 
 | Product | Documented strength | Known/structural limit | Evidence |
 |---|---|---|---|
-| Aspose.Words | Rich document DOM, broad import/export, fields, mail merge, page layout, per-page/shape rendering, PDF and image output without Word. | Closed source, commercial license, and its own layout engine; unsupported-feature preservation and Word parity must be tested on our corpus. | [features](https://docs.aspose.com/words/net/features/), [formats](https://docs.aspose.com/words/net/supported-document-formats/), [rendering](https://docs.aspose.com/words/net/rendering/) (B/C). |
+| Aspose.Words | Rich document DOM, broad import/export, fields, mail merge, page layout, PDF and image output without Word. Its public rendering API includes individual `ShapeRenderer` and `OfficeMathRenderer` objects, making object-level rendering a concrete competitor capability rather than a speculative feature. | Closed source, commercial license, and its own layout engine; unsupported-feature preservation and Word parity must be tested on our corpus. | [features](https://docs.aspose.com/words/net/features/), [formats](https://docs.aspose.com/words/net/supported-document-formats/), [rendering API](https://reference.aspose.com/words/net/aspose.words.rendering/) (B/C). |
 | GemBox.Document | Managed cross-platform DOM, import/export, pagination/rendering, PDF/images, and documented preservation of unsupported DOCX content. | Official documentation says DOCX support is not complete and equations are not exposed through its API. Performance figures are vendor measurements. | [introduction](https://www.gemboxsoftware.com/document/docs/introduction.html), [format support](https://www.gemboxsoftware.com/document/docs/supported-file-formats.html), [platforms](https://www.gemboxsoftware.com/document/docs/supported-platforms.html) (B/C). |
 | Spire.Doc | Broad .NET document creation, conversion, and manipulation surface without requiring Word. | Closed implementation, commercial constraints, and no independent evidence yet in this repository for lossless extension preservation or Word-identical pagination. | [Spire Office for .NET](https://www.e-iceblue.com/Introduce/spire-office-for-net.html) (C). |
 | Syncfusion DocIO | Large .NET Word-processing API and conversion ecosystem. | Closed implementation and license; fidelity, unsupported-part preservation, equations, and performance still need corpus measurements. | [DocIO overview](https://help.syncfusion.com/document-processing/word/word-library/net/overview) (C). |
@@ -252,6 +252,7 @@ WordToolkit core cannot quietly require them or copy their behavior by guesswork
 | Surface | Documented strength | Structural limit | Evidence |
 |---|---|---|---|
 | Google Docs API `documents.batchUpdate` | Cloud-native JSON document mutations with ordered requests, write controls and suggestion-view options. | It edits Google's document model, not the source DOCX package; import/export cannot be assumed to preserve opaque OPC parts or Word layout. | [`documents.batchUpdate`](https://developers.google.com/workspace/docs/api/reference/rest/v1/documents/batchUpdate) (B/D). |
+| Microsoft Word JavaScript `ExportRange` | Word-hosted fixed-format export supports the whole document, current page, explicit page ranges or the active selection. It is direct evidence that selection-scoped rendering/export belongs in a serious Word automation surface. | The API is host-dependent and fixed-format oriented; it does not provide a vendor-neutral semantic HTML subtree, stable package node locator or server-side layout engine. | [`Word.ExportRange`](https://learn.microsoft.com/en-us/javascript/api/word/word.exportrange?view=word-js-preview) (B/D). |
 | Adobe PDF Services / Extract API | Cloud PDF-to-DOCX, OCR, conversion and structured PDF extraction into JSON. | PDF is the source model. Extraction and conversion cannot reconstruct Word-specific package semantics or prove DOCX round-trip preservation. | [PDF Services overview](https://developer.adobe.com/document-services/docs/overview/pdf-services-api/), [API list](https://developer.adobe.com/document-services/docs/apis/), [Extract API](https://developer.adobe.com/document-services/docs/overview/pdf-extract-api/) (B/D). |
 
 ## AI-oriented CLI and MCP implementations
@@ -469,6 +470,14 @@ ID, lock, placeholder, temporary state, mutually exclusive control types and
 all live in the property set. Office 2010 and 2013 add checkbox/entity and repeating
 section vocabularies. The engine therefore keeps the semantic `w:sdt` identity but adds
 a separate typed binding graph instead of pushing raw property XML into the AI context.
+
+Content controls are not only inline wrappers. The SDK content models for
+[`SdtContentBlock`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.sdtcontentblock?view=openxml-3.0.1)
+and
+[`SdtContentRow`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.sdtcontentrow?view=openxml-3.0.1)
+permit tables and recursively nested SDTs/rows. A selection renderer must therefore
+normalize table context recursively through the chosen subtree; looking only at the
+target's immediate children produces invalid `tbody` placement on legal Word markup.
 
 The Office storage notes for
 [Custom XML](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oi29500/59d313b6-b9a8-4850-83f1-e87ad9abd509)

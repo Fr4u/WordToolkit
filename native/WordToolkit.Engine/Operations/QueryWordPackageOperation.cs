@@ -10,7 +10,7 @@ public static class QueryWordPackageContract
     public const string Contract = "wordtoolkit.query_ooxml_semantics/1.0";
     public const int MaximumPropertyValueCharacters = 160;
     public const int MaximumLocalPathCharacters = 32_767;
-    public const int MaximumSemanticNodeIdCharacters = 128;
+    public const int MaximumSemanticNodeIdCharacters = SemanticNodeId.MaximumCharacters;
     public const int MaximumSourcePartUriCharacters = 512;
     public const int MaximumSourcePathCharacters = 1_024;
 
@@ -712,7 +712,7 @@ public sealed class QueryWordPackageOperation
         RejectDuplicateKinds(query.Descendant?.Kinds, "descendant.kinds");
         if (
             query.WithinNodeId is { } withinNodeId
-            && !IsSemanticNodeId(withinNodeId.Value)
+            && !SemanticNodeId.HasValidSyntax(withinNodeId.Value)
         )
         {
             throw InvalidInput(
@@ -871,13 +871,6 @@ public sealed class QueryWordPackageOperation
         && value.StartsWith("wsi_", StringComparison.Ordinal)
         && value.Skip(4).All(character =>
             character is >= '0' and <= '9' or >= 'a' and <= 'f'
-        );
-
-    private static bool IsSemanticNodeId(string value) =>
-        value.Length is > 4 and <= QueryWordPackageContract.MaximumSemanticNodeIdCharacters
-        && value.StartsWith("wdn_", StringComparison.Ordinal)
-        && value.Skip(4).All(character =>
-            char.IsAsciiLetterOrDigit(character) || character is '_' or '-'
         );
 
     private static WordToolkitOperationException InvalidInput(

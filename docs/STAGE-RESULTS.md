@@ -11,27 +11,45 @@
   annotated, equations use bounded linear-text fallbacks, and drawings/extensions become
   visible placeholders. CSP, HTML escaping, a 256 MiB limit, adaptive block containers,
   create-new writes and a two-writer race regression harden the boundary.
-- Full Engine suite: **393 passed, 0 skipped**. Full Native suite: **267 passed, 0
-  skipped**. Full Python/OOXML suite: **1,273 passed, 16 intentional skips**; Ruff and
+- Added an additive, fingerprint-bound `target_node_id` mode to the same contract. It
+  renders one semantic subtree without siblings and rejects unbound, stale, missing,
+  out-of-scope or structurally non-renderable targets before output creation. Selected
+  rows, cells, nested tables, row-level revisions and recursively nested row/cell content
+  controls receive valid synthetic table context; ambiguous mixed wrapper chains fail
+  closed. Engine, CLI and MCP produce byte-identical selected artifacts and return no
+  selected text in their JSON responses.
+- On the checked-in 10,000-node synthetic benchmark path, the selected six-node table
+  produced a 3,074-byte artifact versus 541,043 bytes for the full document (0.5682%).
+  Two selected renders were byte-identical. Full-package projection still dominates
+  latency, so this is recorded as an artifact/content-scope reduction, not a matching
+  speedup claim.
+- Full Engine suite: **396 passed, 0 skipped**. Full Native suite: **269 passed, 0
+  skipped**. Full Python/OOXML suite: **1,276 passed, 16 intentional skips**; Ruff and
   the 28-module mypy lane are clean.
-- Native package version: `0.35.0+codex.20260723081441`, with 15 exposed core/gateway
+- Native package version: `0.35.0+codex.20260723091515`, with 15 exposed core/gateway
   tools and **88** native actions. Six actions now publish complete operation-version,
   permission, reversibility and output-schema metadata.
 - Two supported Windows builds produced byte-identical **196-file**,
-  **85,424,288-byte** expanded trees and byte-identical **36,281,322-byte** ZIPs. ZIP
-  SHA-256: `8463738c94eeac9148d286ae71e0cdcefb96dcbe379a63956ceba664366a8882`;
+  **85,442,968-byte** expanded trees and byte-identical **36,285,575-byte** ZIPs. ZIP
+  SHA-256: `a0737809d981cd739cade8f4036818408877afd903ff1049d538f29b4b99fb41`;
   expanded manifest SHA-256:
-  `61ee297700a7a68d0eb825587b2cca9fdedf0c935ef0d96168034798f01d3c6e`.
+  `a45a778680bf0c9773089556e8a88104d155ebbf044bd852a24f20155d0596e4`.
   The manifest format is sorted relative path, byte length and lowercase file SHA-256,
   tab-separated and serialized as UTF-8/LF without a final newline.
+- The packaged executable selected the real Mammoth table by semantic node ID under its
+  exact package fingerprint and created one 3,742-byte HTML artifact at SHA-256
+  `abb38860e9c0e2ad34bbec6131fe6438e64c8ee1ff7c2305fb49e3c1cded3c35`.
+  An HTML5 parser found one table, one body, two rows and four cells with zero invalid
+  table/body/row/cell parent relationships. The source hash and Word process count did
+  not change, and the JSON response contained none of the four fixture cell values.
 - Fifteen cold packaged processes rendered the checked-in Mammoth fixture at **254.66
   ms median** and **290.44 ms p95/max**. All 15 artifacts were the same 3,628 bytes with
   one SHA-256. Static HTML-tree, CSP and external-resource checks passed. The in-app
   browser blocked `file://`, so no visual screenshot claim is made and no bypass was used.
 - Hosted CI run [`29984588930`](https://github.com/Fr4u/WordToolkit/actions/runs/29984588930)
-  passed all five jobs. Downloaded Windows artifact `8554525092` matched both
-  red-team-hardened local ZIPs byte for byte and its normalized 196-file tree had zero
-  differences at the recorded manifest SHA-256.
+  remains the last completed proof for the preceding whole-document renderer checkpoint;
+  it is not evidence for the new selection package fingerprint. Current hosted parity is
+  recorded only after the selection commit is pushed and the mandatory workflow passes.
 
 ## WordToolkit 0.35.0 logical table graph — 2026-07-22
 

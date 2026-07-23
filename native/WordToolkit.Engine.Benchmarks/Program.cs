@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Rendering;
 using WordToolkit.Engine.Semantics;
 
 var options = Arguments.Parse(args);
@@ -14,8 +15,9 @@ var report = options.Scenario switch
     "tables" => RunTables(options),
     "mce" => RunMce(options),
     "patch" => RunPatch(options),
+    "semantic-html" => RunSemanticHtml(options),
     _ => throw new ArgumentException(
-        "scenario must be 'graph', 'bindings', 'tables', 'mce', or 'patch'"
+        "scenario must be 'graph', 'bindings', 'tables', 'mce', 'patch', or 'semantic-html'"
     ),
 };
 var json = JsonSerializer.Serialize(report, new JsonSerializerOptions
@@ -98,6 +100,116 @@ static object RunGraph(Arguments options)
     finally
     {
         File.Delete(path);
+    }
+}
+
+static object RunSemanticHtml(Arguments options)
+{
+    if (options.TargetNodes is < 100 or > 300_000)
+    {
+        throw new ArgumentOutOfRangeException(
+            nameof(options.TargetNodes),
+            "semantic HTML target must be between 100 and 300000 semantic nodes"
+        );
+    }
+    var paragraphCount = Math.Max(1, (options.TargetNodes - 12) / 3);
+    var path = TemporaryPath("semantic-html", ".docx");
+    var fullOutput = TemporaryPath("semantic-html-full", ".html");
+    var targetOutput = TemporaryPath("semantic-html-target", ".html");
+    var targetRepeatOutput = TemporaryPath("semantic-html-target-repeat", ".html");
+    try
+    {
+        var generation = Measure(() =>
+            WriteSemanticHtmlPackage(path, paragraphCount)
+        );
+        var package = new OpcPackageReader().Read(path);
+        var semantic = new WordSemanticProjector().Project(package);
+        var target = semantic.Nodes.Single(node =>
+            node.Kind == WordSemanticNodeKind.Table
+        );
+        Collect();
+        var baseline = MemorySnapshot.Capture();
+        var operation = new SemanticHtmlWordPackageOperation();
+        SemanticHtmlWordPackageResult? full = null;
+        SemanticHtmlWordPackageResult? selected = null;
+        SemanticHtmlWordPackageResult? selectedRepeat = null;
+        var fullRender = Measure(() =>
+            full = operation.Execute(
+                new SemanticHtmlWordPackageRequest(
+                    path,
+                    fullOutput,
+                    package.Fingerprint
+                )
+            )
+        );
+        var selectedRender = Measure(() =>
+            selected = operation.Execute(
+                new SemanticHtmlWordPackageRequest(
+                    path,
+                    targetOutput,
+                    package.Fingerprint,
+                    TargetNodeId: target.Id.Value
+                )
+            )
+        );
+        var selectedRepeatRender = Measure(() =>
+            selectedRepeat = operation.Execute(
+                new SemanticHtmlWordPackageRequest(
+                    path,
+                    targetRepeatOutput,
+                    package.Fingerprint,
+                    TargetNodeId: target.Id.Value
+                )
+            )
+        );
+        var final = MemorySnapshot.Capture();
+        return CommonReport(
+            "semantic_html_subtree",
+            new
+            {
+                requested_semantic_nodes = options.TargetNodes,
+                paragraphs = paragraphCount,
+                projected_nodes = semantic.NodeCount,
+                package_bytes = new FileInfo(path).Length,
+                target_kind = target.Kind.ToString(),
+                target_subtree_nodes = target.DescendantsAndSelf().Count(),
+                full_artifact_bytes = full!.ArtifactBytes,
+                selected_artifact_bytes = selected!.ArtifactBytes,
+                selected_to_full_artifact_ratio = Math.Round(
+                    (double)selected.ArtifactBytes / full.ArtifactBytes,
+                    6
+                ),
+                full_rendered_nodes = full.RenderedNodeCount,
+                selected_rendered_nodes = selected.RenderedNodeCount,
+                selection_applied = selected.SelectionApplied,
+                source_mutated = full.SourceMutated || selected.SourceMutated,
+                word_opened = full.WordOpened || selected.WordOpened,
+                deterministic_target_sha256 = selected.ArtifactSha256,
+                target_repeat_sha256 = selectedRepeat!.ArtifactSha256,
+                target_artifact_hashes_equal = string.Equals(
+                    selected.ArtifactSha256,
+                    selectedRepeat.ArtifactSha256,
+                    StringComparison.Ordinal
+                ),
+                target_artifact_bytes_equal = File.ReadAllBytes(targetOutput)
+                    .SequenceEqual(File.ReadAllBytes(targetRepeatOutput)),
+                timings_ms = new
+                {
+                    generate = generation.TotalMilliseconds,
+                    full_render = fullRender.TotalMilliseconds,
+                    selected_render = selectedRender.TotalMilliseconds,
+                    selected_repeat_render = selectedRepeatRender.TotalMilliseconds,
+                },
+                memory = MemoryReport(baseline, final),
+            }
+        );
+    }
+    finally
+    {
+        File.Delete(path);
+        File.Delete(fullOutput);
+        File.Delete(targetOutput);
+        File.Delete(targetRepeatOutput);
     }
 }
 
@@ -536,6 +648,26 @@ static void WriteGraphPackage(string path, int paragraphCount)
     writer.Write(PackageFixture.DocumentEnd);
 }
 
+static void WriteSemanticHtmlPackage(string path, int paragraphCount)
+{
+    using var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+    using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+    WriteTextEntry(archive, "[Content_Types].xml", PackageFixture.ContentTypes);
+    WriteTextEntry(archive, "_rels/.rels", PackageFixture.RootRelationships);
+    var entry = archive.CreateEntry("word/document.xml", CompressionLevel.Fastest);
+    using var stream = entry.Open();
+    using var writer = new StreamWriter(stream, new UTF8Encoding(false), 64 * 1024);
+    writer.Write(PackageFixture.DocumentStart);
+    for (var index = 0; index < paragraphCount; index++)
+    {
+        writer.Write("<w:p><w:r><w:t>Unselected paragraph ");
+        writer.Write(index);
+        writer.Write("</w:t></w:r></w:p>");
+    }
+    writer.Write("<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Selected table sentinel</w:t></w:r></w:p></w:tc></w:tr></w:tbl>");
+    writer.Write(PackageFixture.DocumentEnd);
+}
+
 static void WritePatchPackage(
     string path,
     long payloadBytes,
@@ -725,7 +857,7 @@ internal sealed record Arguments(
         if (args.Length == 0)
         {
             throw new ArgumentException(
-                "usage: graph --target-nodes N | bindings --target-nodes N | tables --target-nodes N | mce --target-nodes N | patch --payload-mib N [--parts N]"
+                "usage: graph --target-nodes N | bindings --target-nodes N | tables --target-nodes N | mce --target-nodes N | semantic-html --target-nodes N | patch --payload-mib N [--parts N]"
             );
         }
         var values = new Dictionary<string, string>(StringComparer.Ordinal);

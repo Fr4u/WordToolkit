@@ -27,12 +27,22 @@ public enum SemanticHtmlStoryScope
     AllTextStories,
 }
 
+public enum SemanticHtmlFragmentWrapper
+{
+    None,
+    TableBody,
+    TableBodyRow,
+    Table,
+    TableBodies,
+}
+
 public sealed record SemanticHtmlWordPackageRequest(
     string LocalPath,
     string OutputPath,
     string? ExpectedPackageFingerprint = null,
     SemanticHtmlStoryScope StoryScope = SemanticHtmlStoryScope.MainDocument,
-    string Language = "und"
+    string Language = "und",
+    string? TargetNodeId = null
 );
 
 public static class SemanticHtmlWordPackageJson
@@ -45,7 +55,8 @@ public static class SemanticHtmlWordPackageJson
             request.OutputPath,
             request.ExpectedPackageFingerprint,
             request.StoryScope,
-            request.Language
+            request.Language,
+            request.TargetNodeId
         );
     }
 
@@ -58,6 +69,7 @@ public static class SemanticHtmlWordPackageJson
         public SemanticHtmlStoryScope StoryScope { get; init; } =
             SemanticHtmlStoryScope.MainDocument;
         public string Language { get; init; } = "und";
+        public string? TargetNodeId { get; init; }
     }
 }
 
@@ -87,7 +99,13 @@ public sealed record SemanticHtmlWordPackageResult(
     bool ActiveContentExecuted,
     bool RawXmlReturned,
     bool DocumentTextReturned,
-    bool WordOpened
+    bool WordOpened,
+    bool? SelectionApplied,
+    string? TargetNodeId,
+    WordSemanticNodeKind? TargetKind,
+    string? TargetStoryKind,
+    SemanticHtmlFragmentWrapper? FragmentWrapper,
+    int? TargetRenderedNodeCount
 );
 
 public sealed class SemanticHtmlWordPackageOperation
@@ -169,6 +187,12 @@ public sealed class SemanticHtmlWordPackageOperation
                 );
             }
 
+            var selection = SemanticHtmlRenderSelection.Resolve(
+                semantic,
+                request.TargetNodeId,
+                request.StoryScope
+            );
+
             var styles = new WordStyleGraphBuilder().Build(
                 package,
                 semantic,
@@ -192,6 +216,7 @@ public sealed class SemanticHtmlWordPackageOperation
                 Path.GetFileName(paths.Input),
                 request.StoryScope,
                 request.Language,
+                selection,
                 cancellationToken
             );
 
@@ -251,7 +276,15 @@ public sealed class SemanticHtmlWordPackageOperation
                 ActiveContentExecuted: false,
                 RawXmlReturned: false,
                 DocumentTextReturned: false,
-                WordOpened: false
+                WordOpened: false,
+                SelectionApplied: selection is null ? null : true,
+                TargetNodeId: selection?.Target.Id.Value,
+                TargetKind: selection?.Target.Kind,
+                TargetStoryKind: selection?.StoryKind,
+                FragmentWrapper: selection?.Wrapper,
+                TargetRenderedNodeCount: selection is null
+                    ? null
+                    : rendered.Statistics.RenderedNodeCount
             );
         }
         catch (OperationCanceledException)
@@ -320,6 +353,21 @@ public sealed class SemanticHtmlWordPackageOperation
             throw InvalidInput(
                 "expected_package_fingerprint must be exactly 64 hexadecimal characters"
             );
+        }
+        if (request.TargetNodeId is not null)
+        {
+            if (!SemanticNodeId.HasValidSyntax(request.TargetNodeId))
+            {
+                throw InvalidInput(
+                    $"target_node_id must use the wdn_ prefix, contain only URL-safe identifier characters, and not exceed {SemanticNodeId.MaximumCharacters} characters"
+                );
+            }
+            if (request.ExpectedPackageFingerprint is null)
+            {
+                throw InvalidInput(
+                    "expected_package_fingerprint is required when target_node_id is supplied"
+                );
+            }
         }
         if (!Enum.IsDefined(request.StoryScope))
         {
@@ -514,6 +562,238 @@ internal sealed record SemanticHtmlRenderArtifact(
     IReadOnlyList<string> Warnings
 );
 
+internal static class SemanticHtmlTableFragment
+{
+    public static bool IsRowContainer(WordSemanticNode node) =>
+        node.Kind
+            is not WordSemanticNodeKind.Table
+            and not WordSemanticNodeKind.TableRow
+            and not WordSemanticNodeKind.TableCell
+        && node.Children.Count != 0
+        && node.Children.All(child =>
+            child.Kind == WordSemanticNodeKind.TableRow || IsRowContainer(child)
+        );
+
+    public static bool IsCellContainer(WordSemanticNode node) =>
+        node.Kind
+            is not WordSemanticNodeKind.Table
+            and not WordSemanticNodeKind.TableRow
+            and not WordSemanticNodeKind.TableCell
+        && node.Children.Count != 0
+        && node.Children.All(child =>
+            child.Kind == WordSemanticNodeKind.TableCell || IsCellContainer(child)
+        );
+
+    public static bool ContainsUncontainedRowOrCell(WordSemanticNode node)
+    {
+        if (node.Kind == WordSemanticNodeKind.Table)
+        {
+            return false;
+        }
+        foreach (var child in node.Children)
+        {
+            if (
+                child.Kind
+                    is WordSemanticNodeKind.TableRow or WordSemanticNodeKind.TableCell
+                || ContainsUncontainedRowOrCell(child)
+            )
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static bool IsSupportedTableChild(WordSemanticNode node) =>
+        node.Kind == WordSemanticNodeKind.TableRow
+        || IsRowContainer(node)
+        || IsCellContainer(node)
+        || !ContainsUncontainedRowOrCell(node);
+
+    public static bool IsSupportedRowChild(WordSemanticNode node) =>
+        node.Kind == WordSemanticNodeKind.TableCell
+        || IsCellContainer(node)
+        || !ContainsUncontainedRowOrCell(node);
+}
+
+internal sealed record SemanticHtmlRenderSelection(
+    WordSemanticNode Target,
+    WordSemanticNode StoryRoot,
+    string StoryKind,
+    SemanticHtmlFragmentWrapper Wrapper
+)
+{
+    public static SemanticHtmlRenderSelection? Resolve(
+        WordSemanticDocument document,
+        string? targetNodeId,
+        SemanticHtmlStoryScope storyScope
+    )
+    {
+        if (targetNodeId is null)
+        {
+            return null;
+        }
+        if (
+            !document.TryGetNode(new SemanticNodeId(targetNodeId), out var target)
+            || target is null
+        )
+        {
+            throw new WordToolkitOperationException(
+                "TARGET_NOT_FOUND",
+                "The requested semantic target does not exist in the fingerprint-bound package"
+            );
+        }
+        if (target.Kind == WordSemanticNodeKind.Document)
+        {
+            throw new WordToolkitOperationException(
+                "TARGET_NOT_RENDERABLE",
+                "The semantic document root is not a renderable story fragment"
+            );
+        }
+
+        var storyRoot = FindStoryRoot(document, target);
+        if (storyRoot is null)
+        {
+            throw new WordToolkitOperationException(
+                "TARGET_NOT_RENDERABLE",
+                "The requested semantic target does not belong to a renderable text story"
+            );
+        }
+        if (
+            storyScope == SemanticHtmlStoryScope.MainDocument
+            && (
+                storyRoot.Kind != WordSemanticNodeKind.Body
+                || !string.Equals(
+                    storyRoot.SourcePartUri,
+                    document.MainPartUri,
+                    StringComparison.Ordinal
+                )
+            )
+        )
+        {
+            throw new WordToolkitOperationException(
+                "TARGET_OUT_OF_SCOPE",
+                "The requested semantic target is outside story_scope"
+            );
+        }
+
+        if (
+            target.Kind == WordSemanticNodeKind.Table
+            && target.Children.Any(child =>
+                !SemanticHtmlTableFragment.IsSupportedTableChild(child)
+            )
+        )
+        {
+            throw new WordToolkitOperationException(
+                "TARGET_NOT_RENDERABLE",
+                "The requested table target contains an ambiguous nested row or cell wrapper"
+            );
+        }
+        if (
+            target.Kind == WordSemanticNodeKind.TableRow
+            && target.Children.Any(child =>
+                !SemanticHtmlTableFragment.IsSupportedRowChild(child)
+            )
+        )
+        {
+            throw new WordToolkitOperationException(
+                "TARGET_NOT_RENDERABLE",
+                "The requested table-row target contains an ambiguous nested cell wrapper"
+            );
+        }
+        var rowContainer = SemanticHtmlTableFragment.IsRowContainer(target);
+        var cellContainer = SemanticHtmlTableFragment.IsCellContainer(target);
+        if (
+            target.Kind
+                is not WordSemanticNodeKind.Table
+                and not WordSemanticNodeKind.TableRow
+                and not WordSemanticNodeKind.TableCell
+            && SemanticHtmlTableFragment.ContainsUncontainedRowOrCell(target)
+            && !rowContainer
+            && !cellContainer
+        )
+        {
+            throw new WordToolkitOperationException(
+                "TARGET_NOT_RENDERABLE",
+                "The requested semantic target mixes incompatible nested table fragments"
+            );
+        }
+
+        var wrapper = target.Kind switch
+        {
+            WordSemanticNodeKind.Table => SemanticHtmlFragmentWrapper.TableBodies,
+            WordSemanticNodeKind.TableRow => SemanticHtmlFragmentWrapper.TableBody,
+            WordSemanticNodeKind.TableCell => SemanticHtmlFragmentWrapper.TableBodyRow,
+            _ when rowContainer => SemanticHtmlFragmentWrapper.Table,
+            _ when cellContainer => SemanticHtmlFragmentWrapper.TableBodyRow,
+            _ => SemanticHtmlFragmentWrapper.None,
+        };
+        return new SemanticHtmlRenderSelection(
+            target,
+            storyRoot,
+            ResolveStoryKind(document, storyRoot),
+            wrapper
+        );
+    }
+
+    private static WordSemanticNode? FindStoryRoot(
+        WordSemanticDocument document,
+        WordSemanticNode node
+    )
+    {
+        WordSemanticNode? current = node;
+        while (current is not null)
+        {
+            if (IsStoryRoot(current.Kind))
+            {
+                return current;
+            }
+            if (
+                current.ParentId is null
+                || !document.TryGetNode(current.ParentId.Value, out current)
+            )
+            {
+                break;
+            }
+        }
+        return null;
+    }
+
+    private static string ResolveStoryKind(
+        WordSemanticDocument document,
+        WordSemanticNode storyRoot
+    ) =>
+        storyRoot.Properties.TryGetValue("story_kind", out var storyKind)
+            ? storyKind
+            : storyRoot.Kind == WordSemanticNodeKind.Body
+                && string.Equals(
+                    storyRoot.SourcePartUri,
+                    document.MainPartUri,
+                    StringComparison.Ordinal
+                )
+            ? "main_document"
+            : SnakeCase(storyRoot.Kind);
+
+    private static bool IsStoryRoot(WordSemanticNodeKind kind) =>
+        kind is WordSemanticNodeKind.Body
+            or WordSemanticNodeKind.Header
+            or WordSemanticNodeKind.Footer
+            or WordSemanticNodeKind.Footnotes
+            or WordSemanticNodeKind.Endnotes
+            or WordSemanticNodeKind.Comments
+            or WordSemanticNodeKind.GlossaryDocument;
+
+    private static string SnakeCase<T>(T value)
+        where T : struct, Enum =>
+        string.Concat(
+            value.ToString().Select((character, index) =>
+                char.IsUpper(character) && index != 0
+                    ? "_" + char.ToLowerInvariant(character)
+                    : char.ToLowerInvariant(character).ToString()
+            )
+        );
+}
+
 internal static class SemanticHtmlRenderer
 {
     public static SemanticHtmlRenderArtifact Render(
@@ -524,6 +804,7 @@ internal static class SemanticHtmlRenderer
         string inputFileName,
         SemanticHtmlStoryScope storyScope,
         string language,
+        SemanticHtmlRenderSelection? selection,
         CancellationToken cancellationToken
     )
     {
@@ -532,8 +813,16 @@ internal static class SemanticHtmlRenderer
         ArgumentNullException.ThrowIfNull(reviews);
         ArgumentNullException.ThrowIfNull(equations);
 
-        var state = new RenderState(document, styles, reviews, equations);
-        var builder = new StringBuilder(Math.Max(4_096, document.NodeCount * 32));
+        var state = new RenderState(
+            document,
+            styles,
+            reviews,
+            equations,
+            normalizeTableContexts: selection is not null
+        );
+        var estimatedNodeCount = selection?.Target.DescendantsAndSelf().Count()
+            ?? document.NodeCount;
+        var builder = new StringBuilder(Math.Max(4_096, estimatedNodeCount * 32));
         builder.Append("<!doctype html>\n<html lang=\"")
             .Append(Encode(language))
             .Append("\">\n<head>\n<meta charset=\"utf-8\">\n")
@@ -550,9 +839,20 @@ internal static class SemanticHtmlRenderer
             .Append("<aside class=\"wt-notice\" role=\"note\">Semantic, non-paginated preview. Visual parity with Microsoft Word is not claimed.</aside>\n")
             .Append("<main class=\"wt-document\" data-package-fingerprint=\"")
             .Append(Encode(document.PackageFingerprint))
-            .Append("\">\n");
+            .Append('"');
+        if (selection is not null)
+        {
+            builder.Append(" data-selection-applied=\"true\" data-target-node-id=\"")
+                .Append(Encode(selection.Target.Id.Value))
+                .Append("\" data-target-kind=\"")
+                .Append(Encode(SnakeCase(selection.Target.Kind)))
+                .Append("\"");
+        }
+        builder.Append(">\n");
 
-        var storyRoots = SelectStoryRoots(document, storyScope);
+        var storyRoots = selection is null
+            ? SelectStoryRoots(document, storyScope)
+            : [selection.StoryRoot];
         foreach (var root in storyRoots)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -563,19 +863,39 @@ internal static class SemanticHtmlRenderer
                 .Append(Encode(root.SourcePartUri))
                 .Append("\" aria-label=\"")
                 .Append(Encode(StoryLabel(root)))
-                .Append("\">\n");
+                .Append('"');
+            if (selection is not null)
+            {
+                builder.Append(" data-selection-root=\"true\" data-target-node-id=\"")
+                    .Append(Encode(selection.Target.Id.Value))
+                    .Append("\"");
+            }
+            builder.Append(">\n");
             if (storyScope == SemanticHtmlStoryScope.AllTextStories)
             {
                 builder.Append("<div class=\"wt-story-label\" aria-hidden=\"true\">")
                     .Append(Encode(StoryLabel(root)))
                     .Append("</div>\n");
             }
-            RenderNode(root, builder, state, cancellationToken);
+            if (selection is null)
+            {
+                RenderNode(root, builder, state, cancellationToken);
+            }
+            else
+            {
+                RenderFragmentRoot(selection, builder, state, cancellationToken);
+            }
             builder.Append("</section>\n");
         }
 
         builder.Append("</main>\n</body>\n</html>\n");
         var warnings = state.Warnings
+            .Concat(selection is null ? [] : ["SEMANTIC_SUBTREE_SELECTED"])
+            .Concat(
+                selection is null || selection.Wrapper == SemanticHtmlFragmentWrapper.None
+                    ? []
+                    : ["FRAGMENT_TABLE_CONTEXT_SYNTHESIZED"]
+            )
             .Concat(document.Warnings.Count == 0 ? [] : ["SEMANTIC_PROJECTION_WARNINGS"])
             .Concat(["SEMANTIC_PREVIEW_NON_PAGINATED", "VISUAL_FORMATTING_APPROXIMATED"])
             .Distinct(StringComparer.Ordinal)
@@ -603,6 +923,300 @@ internal static class SemanticHtmlRenderer
             ),
             warnings
         );
+    }
+
+    private static void RenderFragmentRoot(
+        SemanticHtmlRenderSelection selection,
+        StringBuilder builder,
+        RenderState state,
+        CancellationToken cancellationToken
+    )
+    {
+        switch (selection.Wrapper)
+        {
+            case SemanticHtmlFragmentWrapper.TableBodies:
+                RenderSelectedTable(
+                    selection.Target,
+                    builder,
+                    state,
+                    cancellationToken
+                );
+                break;
+            case SemanticHtmlFragmentWrapper.TableBody:
+                builder.Append("<table class=\"wt-table wt-fragment-context\"><tbody>");
+                RenderSelectedRow(selection.Target, builder, state, cancellationToken);
+                builder.Append("</tbody></table>\n");
+                break;
+            case SemanticHtmlFragmentWrapper.TableBodyRow
+                when selection.Target.Kind == WordSemanticNodeKind.TableCell:
+                builder.Append("<table class=\"wt-table wt-fragment-context\"><tbody><tr>");
+                RenderNode(selection.Target, builder, state, cancellationToken);
+                builder.Append("</tr></tbody></table>\n");
+                break;
+            case SemanticHtmlFragmentWrapper.Table:
+                builder.Append("<table class=\"wt-table wt-fragment-context\">");
+                RenderContextualFragmentContainer(
+                    "tbody",
+                    selection.Target,
+                    builder,
+                    state,
+                    cancellationToken
+                );
+                builder.Append("</table>\n");
+                break;
+            case SemanticHtmlFragmentWrapper.TableBodyRow:
+                builder.Append("<table class=\"wt-table wt-fragment-context\">");
+                RenderContextualFragmentContainer(
+                    "tbody",
+                    selection.Target,
+                    builder,
+                    state,
+                    cancellationToken,
+                    innerTag: "tr"
+                );
+                builder.Append("</table>\n");
+                break;
+            default:
+                RenderNode(selection.Target, builder, state, cancellationToken);
+                break;
+        }
+    }
+
+    private static void RenderSelectedTable(
+        WordSemanticNode table,
+        StringBuilder builder,
+        RenderState state,
+        CancellationToken cancellationToken,
+        bool countNode = true
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (countNode)
+        {
+            state.RenderedNodeCount++;
+        }
+        state.TableCount++;
+        state.Warnings.Add("FRAGMENT_TABLE_CONTEXT_SYNTHESIZED");
+        builder.Append("<table class=\"wt-table\" data-node-id=\"")
+            .Append(Encode(table.Id.Value))
+            .Append("\">");
+        var rawBodyOpen = false;
+        foreach (var child in table.Children.OrderBy(child => child.SourceOrder))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (child.Kind == WordSemanticNodeKind.TableRow)
+            {
+                if (!rawBodyOpen)
+                {
+                    builder.Append("<tbody class=\"wt-fragment-context\">");
+                    rawBodyOpen = true;
+                }
+                RenderSelectedRow(child, builder, state, cancellationToken);
+                continue;
+            }
+            if (rawBodyOpen)
+            {
+                builder.Append("</tbody>");
+                rawBodyOpen = false;
+            }
+
+            if (
+                child.Children.Count == 0
+                || SemanticHtmlTableFragment.IsRowContainer(child)
+            )
+            {
+                RenderContextualFragmentContainer(
+                    "tbody",
+                    child,
+                    builder,
+                    state,
+                    cancellationToken
+                );
+            }
+            else if (
+                SemanticHtmlTableFragment.IsCellContainer(child)
+            )
+            {
+                RenderContextualFragmentContainer(
+                    "tbody",
+                    child,
+                    builder,
+                    state,
+                    cancellationToken,
+                    innerTag: "tr"
+                );
+            }
+            else
+            {
+                state.Warnings.Add("TABLE_CHILD_CONTEXT_APPROXIMATED");
+                builder.Append("<tbody class=\"wt-fragment-context\"><tr><td>");
+                RenderNode(child, builder, state, cancellationToken);
+                builder.Append("</td></tr></tbody>");
+            }
+        }
+        if (rawBodyOpen)
+        {
+            builder.Append("</tbody>");
+        }
+        builder.Append("</table>\n");
+    }
+
+    private static void RenderSelectedRow(
+        WordSemanticNode row,
+        StringBuilder builder,
+        RenderState state,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        state.RenderedNodeCount++;
+        builder.Append("<tr class=\"wt-table-row\" data-node-id=\"")
+            .Append(Encode(row.Id.Value))
+            .Append("\">");
+        foreach (var child in row.Children.OrderBy(child => child.SourceOrder))
+        {
+            if (child.Kind == WordSemanticNodeKind.TableCell)
+            {
+                RenderNode(child, builder, state, cancellationToken);
+            }
+            else if (SemanticHtmlTableFragment.IsCellContainer(child))
+            {
+                state.Warnings.Add("NESTED_TABLE_FRAGMENT_WRAPPERS_FLATTENED");
+                _ = AccountContextualTarget(child, state);
+                RenderTableFragmentChildren(
+                    child,
+                    expectRows: false,
+                    builder,
+                    state,
+                    cancellationToken
+                );
+            }
+            else
+            {
+                state.Warnings.Add("TABLE_ROW_CHILD_CONTEXT_APPROXIMATED");
+                builder.Append("<td class=\"wt-fragment-context\">");
+                RenderNode(child, builder, state, cancellationToken);
+                builder.Append("</td>");
+            }
+        }
+        builder.Append("</tr>\n");
+    }
+
+    private static void RenderContextualFragmentContainer(
+        string tag,
+        WordSemanticNode target,
+        StringBuilder builder,
+        RenderState state,
+        CancellationToken cancellationToken,
+        string? innerTag = null
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var revisionKind = AccountContextualTarget(target, state);
+        builder.Append('<').Append(tag)
+            .Append(" class=\"wt-fragment-target wt-")
+            .Append(Encode(CssKind(target.Kind)));
+        if (revisionKind is not null)
+        {
+            builder.Append(" wt-revision-").Append(Encode(revisionKind));
+        }
+        builder.Append("\" data-node-id=\"")
+            .Append(Encode(target.Id.Value))
+            .Append('"');
+        if (revisionKind is not null)
+        {
+            builder.Append(" data-revision-kind=\"")
+                .Append(Encode(revisionKind))
+                .Append('"');
+        }
+        builder.Append('>');
+        if (innerTag is not null)
+        {
+            builder.Append('<').Append(innerTag).Append(" class=\"wt-fragment-context\">");
+        }
+        RenderTableFragmentChildren(
+            target,
+            expectRows: innerTag is null,
+            builder,
+            state,
+            cancellationToken
+        );
+        if (innerTag is not null)
+        {
+            builder.Append("</").Append(innerTag).Append('>');
+        }
+        builder.Append("</").Append(tag).Append(">\n");
+    }
+
+    private static string? AccountContextualTarget(
+        WordSemanticNode target,
+        RenderState state
+    )
+    {
+        state.RenderedNodeCount++;
+        string? revisionKind = null;
+        if (target.Kind == WordSemanticNodeKind.Revision)
+        {
+            state.Warnings.Add("TRACKED_REVISIONS_ANNOTATED");
+            revisionKind = state.Revisions.TryGetValue(target.Id, out var revision)
+                ? SnakeCase(revision.Kind)
+                : "unknown";
+            if (revision is null)
+            {
+                state.UnsupportedNodeCount++;
+                state.Warnings.Add("REVISION_MAPPING_MISSING");
+            }
+        }
+        else if (target.Kind == WordSemanticNodeKind.AlternateContent)
+        {
+            state.UnsupportedNodeCount++;
+            state.Warnings.Add("ALTERNATE_CONTENT_APPROXIMATED");
+        }
+        return revisionKind;
+    }
+
+    private static void RenderTableFragmentChildren(
+        WordSemanticNode container,
+        bool expectRows,
+        StringBuilder builder,
+        RenderState state,
+        CancellationToken cancellationToken
+    )
+    {
+        foreach (var child in container.Children.OrderBy(child => child.SourceOrder))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (expectRows && child.Kind == WordSemanticNodeKind.TableRow)
+            {
+                RenderSelectedRow(child, builder, state, cancellationToken);
+            }
+            else if (!expectRows && child.Kind == WordSemanticNodeKind.TableCell)
+            {
+                RenderNode(child, builder, state, cancellationToken);
+            }
+            else if (
+                expectRows
+                    ? SemanticHtmlTableFragment.IsRowContainer(child)
+                    : SemanticHtmlTableFragment.IsCellContainer(child)
+            )
+            {
+                state.Warnings.Add("NESTED_TABLE_FRAGMENT_WRAPPERS_FLATTENED");
+                _ = AccountContextualTarget(child, state);
+                RenderTableFragmentChildren(
+                    child,
+                    expectRows,
+                    builder,
+                    state,
+                    cancellationToken
+                );
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    "A validated table fragment contains an incompatible child."
+                );
+            }
+        }
     }
 
     private static IReadOnlyList<WordSemanticNode> SelectStoryRoots(
@@ -690,8 +1304,28 @@ internal static class SemanticHtmlRenderer
                 builder.Append("<br>\n");
                 break;
             case WordSemanticNodeKind.Table:
-                state.TableCount++;
-                RenderContainer("table", "wt-table", node, builder, state, cancellationToken);
+                if (state.NormalizeTableContexts)
+                {
+                    RenderSelectedTable(
+                        node,
+                        builder,
+                        state,
+                        cancellationToken,
+                        countNode: false
+                    );
+                }
+                else
+                {
+                    state.TableCount++;
+                    RenderContainer(
+                        "table",
+                        "wt-table",
+                        node,
+                        builder,
+                        state,
+                        cancellationToken
+                    );
+                }
                 break;
             case WordSemanticNodeKind.TableRow:
                 RenderContainer("tr", "wt-table-row", node, builder, state, cancellationToken);
@@ -995,10 +1629,12 @@ internal static class SemanticHtmlRenderer
             WordSemanticDocument document,
             WordStyleGraph styles,
             WordReviewGraph reviews,
-            WordEquationGraph equations
+            WordEquationGraph equations,
+            bool normalizeTableContexts
         )
         {
             _styles = styles;
+            NormalizeTableContexts = normalizeTableContexts;
             Revisions = reviews.Revisions
                 .Where(revision => revision.SemanticNodeId is not null)
                 .GroupBy(revision => revision.SemanticNodeId!.Value)
@@ -1031,6 +1667,7 @@ internal static class SemanticHtmlRenderer
 
         public Dictionary<SemanticNodeId, WordRevisionDefinition> Revisions { get; }
         public Dictionary<SemanticNodeId, WordEquationDefinition> Equations { get; }
+        public bool NormalizeTableContexts { get; }
         public HashSet<string> Warnings { get; } = new(StringComparer.Ordinal);
         public int RenderedStoryCount { get; set; }
         public int RenderedNodeCount { get; set; }

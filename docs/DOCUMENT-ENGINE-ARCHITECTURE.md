@@ -886,12 +886,26 @@ Rendering is a capability interface:
 
 The first implemented provider-neutral backend is
 `wordtoolkit.render_ooxml_semantic_html/1.0`. It creates deterministic self-contained
-HTML for the main body or all projected text stories, keeps links inert, does not load
-external resources or execute active content, and makes approximations explicit through
-warnings and placeholders. The response marks the created artifact as document-content
-bearing even though it returns only hashes, counts and warnings. Its fidelity class is
-`semantic_preview_non_paginated`; it is
+HTML for the main body, all projected text stories or one exact semantic subtree. A
+`target_node_id` is accepted only with the exact inspected package fingerprint, so stale
+locators fail before lookup. Story scope remains an authorization boundary: a header,
+footer, note, comment or glossary target is rejected under `main_document`. Selected
+rows, cells and semantic wrappers around them receive a synthetic HTML table context
+instead of leaking invalid top-level `tr` or `td` elements. The selection-aware traversal
+normalizes every nested table in the chosen subtree, groups raw rows into `tbody`, and
+flattens pure nested row/cell wrapper chains with an explicit warning; ambiguous mixed
+chains fail closed. Selection never expands to siblings. The renderer keeps links inert,
+does not load external resources or execute
+active content, and makes approximations explicit through warnings and placeholders.
+The response marks the created artifact as document-content bearing even though it
+returns only hashes, counts, warnings and bounded non-text selection metadata. Its
+fidelity class is `semantic_preview_non_paginated`; it is
 not an implementation of the page-layout promises described below.
+
+The 10,000-node synthetic benchmark rendered the six-node selected table into 3,074
+bytes instead of the 541,043-byte full artifact (0.5682%). It does not claim a comparable
+latency reduction: package reading, semantic projection and supporting graph construction
+still cover the whole package. Repeated selected renders were byte-identical.
 
 Render results include backend version, operating system, font inventory hash, locale,
 page settings, warnings, and a fidelity class. Visual regression compares page count,

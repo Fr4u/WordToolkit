@@ -198,7 +198,11 @@ internal static class RenderPackageCli
         "INVALID_INPUT" => 64,
         "NOT_FOUND" => 66,
         "INVALID_PACKAGE" or "INVALID_WORD_PACKAGE" or "PACKAGE_LIMIT" => 65,
-        "VERSION_CONFLICT" or "OUTPUT_EXISTS" => 75,
+        "VERSION_CONFLICT"
+            or "OUTPUT_EXISTS"
+            or "TARGET_NOT_FOUND"
+            or "TARGET_OUT_OF_SCOPE"
+            or "TARGET_NOT_RENDERABLE" => 75,
         "ACCESS_DENIED" => 77,
         "IO_ERROR" => 74,
         _ => 70,

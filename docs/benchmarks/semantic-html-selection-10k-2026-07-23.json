@@ -1,0 +1,46 @@
+{
+  "schema": "wordtoolkit-engine-benchmark-v1",
+  "scenario": "semantic_html_subtree",
+  "utc": "2026-07-23T07:18:08.6386585+00:00",
+  "runtime": ".NET 8.0.29",
+  "operating_system": "Microsoft Windows 10.0.19045",
+  "architecture": "X64",
+  "engine_version": "0.35.0",
+  "processor_count": 12,
+  "server_gc": false,
+  "measurements": {
+    "requested_semantic_nodes": 10000,
+    "paragraphs": 3329,
+    "projected_nodes": 9996,
+    "package_bytes": 10233,
+    "target_kind": "Table",
+    "target_subtree_nodes": 6,
+    "full_artifact_bytes": 541043,
+    "selected_artifact_bytes": 3074,
+    "selected_to_full_artifact_ratio": 0.005682,
+    "full_rendered_nodes": 9995,
+    "selected_rendered_nodes": 6,
+    "selection_applied": true,
+    "source_mutated": false,
+    "word_opened": false,
+    "deterministic_target_sha256": "3e8156f0430dddc41d120184c07cb4ec3f0ab18022fa5846c94ad71d33565291",
+    "target_repeat_sha256": "3e8156f0430dddc41d120184c07cb4ec3f0ab18022fa5846c94ad71d33565291",
+    "target_artifact_hashes_equal": true,
+    "target_artifact_bytes_equal": true,
+    "timings_ms": {
+      "generate": 10.9568,
+      "full_render": 447.5205,
+      "selected_render": 422.5091,
+      "selected_repeat_render": 338.7489
+    },
+    "memory": {
+      "baseline_managed_bytes": 9958464,
+      "final_managed_bytes": 31356112,
+      "retained_managed_delta_bytes": 21397648,
+      "allocated_delta_bytes": 315660304,
+      "baseline_working_set_bytes": 61882368,
+      "final_working_set_bytes": 116760576,
+      "process_peak_working_set_bytes": 117919744
+    }
+  }
+}

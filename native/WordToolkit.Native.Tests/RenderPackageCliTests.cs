@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using WordToolkit.Engine.Operations;
+using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Rendering;
 using WordToolkit.Engine.Semantics;
 using WordToolkit.Native.Protocol;
@@ -90,6 +91,8 @@ public sealed class RenderPackageCliTests
             Assert.False(mcpData.TryGetProperty("runtime", out _));
             Assert.False(mcpData.TryGetProperty("python_used", out _));
             Assert.False(mcpData.TryGetProperty("performance", out _));
+            Assert.False(cliJson.RootElement.TryGetProperty("selection_applied", out _));
+            Assert.False(mcpData.TryGetProperty("selection_applied", out _));
             Assert.Equal("dotnet-native", mcpFullData.GetProperty("runtime").GetString());
             Assert.False(mcpFullData.GetProperty("python_used").GetBoolean());
             Assert.True(mcpFullData.GetProperty("performance").GetProperty("total_ms").GetDouble() >= 0);
@@ -225,6 +228,133 @@ public sealed class RenderPackageCliTests
             Assert.Equal(0, host.InvocationCount);
             Assert.False(File.Exists(cliOutputPath));
             Assert.False(File.Exists(mcpOutputPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task EngineCliAndMcpRenderTheSameFingerprintBoundSemanticTarget()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var input = Path.Combine(directory, "target-source.docx");
+            var engineOutput = Path.Combine(directory, "target-engine.html");
+            var cliOutputPath = Path.Combine(directory, "target-cli.html");
+            var mcpOutputPath = Path.Combine(directory, "target-mcp.html");
+            CreatePackage(input);
+            var package = new OpcPackageReader().Read(input);
+            var semantic = new WordSemanticProjector().Project(package);
+            var target = Assert.Single(
+                semantic.Nodes,
+                node => node.Kind == WordSemanticNodeKind.Paragraph
+            );
+            var engine = new SemanticHtmlWordPackageOperation().Execute(
+                new SemanticHtmlWordPackageRequest(
+                    input,
+                    engineOutput,
+                    package.Fingerprint,
+                    TargetNodeId: target.Id.Value
+                )
+            );
+
+            var cliRequest = JsonSerializer.Serialize(
+                new
+                {
+                    local_path = input,
+                    output_path = cliOutputPath,
+                    expected_package_fingerprint = package.Fingerprint,
+                    target_node_id = target.Id.Value,
+                }
+            );
+            var cliOutput = new StringWriter();
+            var cliError = new StringWriter();
+            var cliExit = RenderPackageCli.Run(
+                ["--request", "-", "--format", "json"],
+                new StringReader(cliRequest),
+                cliOutput,
+                cliError
+            );
+            using var cliJson = JsonDocument.Parse(cliOutput.ToString());
+
+            var host = new NoInvokeHost();
+            var mcpResponse = await CallMcpAsync(
+                host,
+                new JsonObject
+                {
+                    ["local_path"] = input,
+                    ["output_path"] = mcpOutputPath,
+                    ["expected_package_fingerprint"] = package.Fingerprint,
+                    ["target_node_id"] = target.Id.Value,
+                }
+            );
+            var structured = mcpResponse
+                .GetProperty("result")
+                .GetProperty("structuredContent");
+            var mcpData = structured.GetProperty("data");
+
+            Assert.Equal(0, cliExit);
+            Assert.Equal(string.Empty, cliError.ToString());
+            Assert.True(engine.SelectionApplied is true);
+            Assert.True(cliJson.RootElement.GetProperty("selection_applied").GetBoolean());
+            Assert.True(mcpData.GetProperty("selection_applied").GetBoolean());
+            Assert.Equal(target.Id.Value, mcpData.GetProperty("target_node_id").GetString());
+            Assert.Equal("paragraph", mcpData.GetProperty("target_kind").GetString());
+            Assert.Equal("main_document", mcpData.GetProperty("target_story_kind").GetString());
+            Assert.Equal("none", mcpData.GetProperty("fragment_wrapper").GetString());
+            Assert.Equal(
+                engine.TargetRenderedNodeCount,
+                mcpData.GetProperty("target_rendered_node_count").GetInt32()
+            );
+            Assert.Equal(File.ReadAllBytes(engineOutput), File.ReadAllBytes(cliOutputPath));
+            Assert.Equal(File.ReadAllBytes(engineOutput), File.ReadAllBytes(mcpOutputPath));
+            Assert.DoesNotContain("Adapter parity", cliOutput.ToString(), StringComparison.Ordinal);
+            Assert.DoesNotContain("Adapter parity", structured.GetRawText(), StringComparison.Ordinal);
+            AssertMatchesPublishedClosedShape(structured);
+            Assert.Equal(0, host.InvocationCount);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void CliUsesConflictExitCodeForMissingFingerprintBoundTarget()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var input = Path.Combine(directory, "target-missing.docx");
+            var outputPath = Path.Combine(directory, "target-missing.html");
+            CreatePackage(input);
+            var package = new OpcPackageReader().Read(input);
+            var request = JsonSerializer.Serialize(
+                new
+                {
+                    local_path = input,
+                    output_path = outputPath,
+                    expected_package_fingerprint = package.Fingerprint,
+                    target_node_id = "wdn_missing",
+                }
+            );
+            var output = new StringWriter();
+            var error = new StringWriter();
+
+            var exitCode = RenderPackageCli.Run(
+                ["--request", "-"],
+                new StringReader(request),
+                output,
+                error
+            );
+
+            Assert.Equal(75, exitCode);
+            Assert.Equal(string.Empty, output.ToString());
+            Assert.Contains("TARGET_NOT_FOUND", error.ToString(), StringComparison.Ordinal);
+            Assert.False(File.Exists(outputPath));
         }
         finally
         {

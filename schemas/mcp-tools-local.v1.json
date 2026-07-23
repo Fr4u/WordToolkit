@@ -4338,7 +4338,7 @@
     {
       "name": "render_ooxml_semantic_html",
       "title": "Render a semantic HTML preview of a Word package",
-      "description": "Create a deterministic, self-contained semantic HTML artifact from one saved DOCX, DOCM, DOTX, or DOTM without opening Word. The vendor-neutral renderer preserves story, paragraph, table, revision, field-result and equation-text meaning, keeps hyperlinks inert, never loads external resources or executes active content, and writes only a new .html file. This is explicitly a non-paginated structural preview: it does not claim Microsoft Word layout, typography, drawing, pagination, or print fidelity.",
+      "description": "Create a deterministic, self-contained semantic HTML artifact from one saved DOCX, DOCM, DOTX, or DOTM without opening Word. Render the configured story scope or one fingerprint-bound semantic node such as a table, row, cell, paragraph, equation or drawing. The vendor-neutral renderer preserves story, paragraph, table, revision, field-result and equation-text meaning, keeps hyperlinks inert, never loads external resources or executes active content, and writes only a new .html file. This is explicitly a non-paginated structural preview: it does not claim Microsoft Word layout, typography, drawing, pagination, or print fidelity.",
       "operationVersion": "1.0",
       "permissions": {
         "filesystem": "read_input_package_and_create_new_html_output",
@@ -4382,9 +4382,22 @@
             "pattern": "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$",
             "default": "und",
             "description": "Compact BCP 47-style language tag used on the HTML root."
+          },
+          "target_node_id": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 128,
+            "pattern": "^wdn_[A-Za-z0-9_-]+$",
+            "description": "Optional exact semantic node ID from the same inspected package. Requires expected_package_fingerprint. Only this subtree is rendered; table rows and cells receive a synthetic valid HTML table context."
           }
         },
         "required": ["local_path", "output_path"],
+        "allOf": [
+          {
+            "if": {"required": ["target_node_id"]},
+            "then": {"required": ["expected_package_fingerprint"]}
+          }
+        ],
         "additionalProperties": false
       },
       "outputSchema": {
@@ -4427,6 +4440,12 @@
               "raw_xml_returned": {"const": false},
               "document_text_returned": {"const": false},
               "word_opened": {"const": false},
+              "selection_applied": {"type": "boolean", "description": "True only when target_node_id restricted rendering to one semantic subtree."},
+              "target_node_id": {"type": "string", "minLength": 5, "maxLength": 128, "pattern": "^wdn_[A-Za-z0-9_-]+$"},
+              "target_kind": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$", "maxLength": 64},
+              "target_story_kind": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$", "maxLength": 64},
+              "fragment_wrapper": {"enum": ["none", "table_body", "table_body_row", "table", "table_bodies"]},
+              "target_rendered_node_count": {"type": "integer", "minimum": 1},
               "runtime": {"const": "dotnet-native"},
               "python_used": {"const": false},
               "performance": {
@@ -4436,6 +4455,28 @@
                 "additionalProperties": false
               }
             },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {"selection_applied": {"const": true}},
+                  "required": ["selection_applied"]
+                },
+                "then": {
+                  "required": ["target_node_id", "target_kind", "target_story_kind", "fragment_wrapper", "target_rendered_node_count"]
+                },
+                "else": {
+                  "not": {
+                    "anyOf": [
+                      {"required": ["target_node_id"]},
+                      {"required": ["target_kind"]},
+                      {"required": ["target_story_kind"]},
+                      {"required": ["fragment_wrapper"]},
+                      {"required": ["target_rendered_node_count"]}
+                    ]
+                  }
+                }
+              }
+            ],
             "additionalProperties": false
           }
         },
