@@ -7,7 +7,8 @@ public sealed class WordToolkitOperationException : Exception
         string message,
         string? reason = null,
         bool retryable = false,
-        Exception? innerException = null
+        Exception? innerException = null,
+        object? details = null
     )
         : base(message, innerException)
     {
@@ -15,6 +16,7 @@ public sealed class WordToolkitOperationException : Exception
         Code = code;
         Reason = reason;
         Retryable = retryable;
+        Details = details;
     }
 
     public string Code { get; }
@@ -22,4 +24,10 @@ public sealed class WordToolkitOperationException : Exception
     public string? Reason { get; }
 
     public bool Retryable { get; }
+
+    public object? Details { get; }
 }
+
+public sealed record WordToolkitRecoveryDetails(
+    IReadOnlyList<string> RecoveryArtifactNames
+);

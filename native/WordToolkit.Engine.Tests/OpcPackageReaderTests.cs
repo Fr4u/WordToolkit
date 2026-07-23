@@ -631,6 +631,252 @@ public sealed class OpcPackageReaderTests
         }
     }
 
+    [Fact]
+    public void AtomicWriterRestoresNonCooperativeChangeAtCommitBoundary()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var destination = Path.Combine(directory, "document.docx");
+            using var originalPackage = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                ("word/document.xml", DocumentXml())
+            );
+            File.WriteAllBytes(destination, originalPackage.ToArray());
+            var reader = new OpcPackageReader();
+            var original = reader.Read(destination);
+            var mutation = new OpcPackageMutationBuilder(original).ReplacePart(
+                "/word/document.xml",
+                Encoding.UTF8.GetBytes(
+                    DocumentXml().Replace("<w:p />", "<w:p><w:r /></w:p>")
+                )
+            );
+            using var externalPackage = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                (
+                    "word/document.xml",
+                    DocumentXml().Replace(
+                        "<w:p />",
+                        "<w:p><w:r><w:t>external</w:t></w:r></w:p>"
+                    )
+                )
+            );
+            var externalBytes = externalPackage.ToArray();
+            var writer = new OpcAtomicPackageWriter(
+                reader,
+                new OpcPackageSerializer(),
+                path => File.WriteAllBytes(path, externalBytes)
+            );
+
+            var conflict = Assert.Throws<OpcPackageConcurrencyException>(() =>
+                writer.Write(
+                    destination,
+                    mutation,
+                    new OpcAtomicWriteOptions
+                    {
+                        ExpectedDestinationFingerprint = original.Fingerprint,
+                        KeepBackup = true,
+                    }
+                )
+            );
+
+            Assert.Contains("external version was restored", conflict.Message);
+            Assert.Equal(externalBytes, File.ReadAllBytes(destination));
+            Assert.Contains(
+                "external",
+                Encoding.UTF8.GetString(
+                    reader.Read(destination).Parts["/word/document.xml"].Entry.Content.Span
+                )
+            );
+            Assert.Empty(Directory.GetFiles(directory, "*.bak"));
+            Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
+            Assert.Empty(Directory.GetFiles(directory, "*.conflict"));
+
+            File.WriteAllBytes(destination, originalPackage.ToArray());
+            var deleteWriter = new OpcAtomicPackageWriter(
+                reader,
+                new OpcPackageSerializer(),
+                File.Delete
+            );
+            var deleted = Assert.Throws<OpcPackageConcurrencyException>(() =>
+                deleteWriter.Write(
+                    destination,
+                    mutation,
+                    new OpcAtomicWriteOptions
+                    {
+                        ExpectedDestinationFingerprint = original.Fingerprint,
+                    }
+                )
+            );
+            Assert.Contains("removed", deleted.Message);
+            Assert.False(File.Exists(destination));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AtomicWriterRetainsNewerChangeCreatedDuringCompensation()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var destination = Path.Combine(directory, "document.docx");
+            using var originalPackage = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                ("word/document.xml", DocumentXml())
+            );
+            File.WriteAllBytes(destination, originalPackage.ToArray());
+
+            var reader = new OpcPackageReader();
+            var original = reader.Read(destination);
+            var mutation = new OpcPackageMutationBuilder(original).ReplacePart(
+                "/word/document.xml",
+                Encoding.UTF8.GetBytes(
+                    DocumentXml().Replace(
+                        "<w:p />",
+                        "<w:p><w:r><w:t>candidate</w:t></w:r></w:p>"
+                    )
+                )
+            );
+            using var firstExternalPackage = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                (
+                    "word/document.xml",
+                    DocumentXml().Replace(
+                        "<w:p />",
+                        "<w:p><w:r><w:t>first external</w:t></w:r></w:p>"
+                    )
+                )
+            );
+            using var secondExternalPackage = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                (
+                    "word/document.xml",
+                    DocumentXml().Replace(
+                        "<w:p />",
+                        "<w:p><w:r><w:t>second external</w:t></w:r></w:p>"
+                    )
+                )
+            );
+            var firstExternalBytes = firstExternalPackage.ToArray();
+            var secondExternalBytes = secondExternalPackage.ToArray();
+            var writer = new OpcAtomicPackageWriter(
+                reader,
+                new OpcPackageSerializer(),
+                path => File.WriteAllBytes(path, firstExternalBytes),
+                path => File.WriteAllBytes(path, secondExternalBytes)
+            );
+
+            var recovery = Assert.Throws<OpcPackageRecoveryException>(() =>
+                writer.Write(
+                    destination,
+                    mutation,
+                    new OpcAtomicWriteOptions
+                    {
+                        ExpectedDestinationFingerprint = original.Fingerprint,
+                        KeepBackup = false,
+                    }
+                )
+            );
+
+            Assert.Equal(firstExternalBytes, File.ReadAllBytes(destination));
+            var recoveryPath = Assert.Single(recovery.RecoveryPaths);
+            Assert.EndsWith(".conflict", recoveryPath, StringComparison.Ordinal);
+            Assert.Equal(
+                Path.GetDirectoryName(destination),
+                Path.GetDirectoryName(recoveryPath)
+            );
+            Assert.Equal(secondExternalBytes, File.ReadAllBytes(recoveryPath));
+            Assert.DoesNotContain("candidate", Encoding.UTF8.GetString(
+                reader.Read(recoveryPath).Parts["/word/document.xml"].Entry.Content.Span
+            ));
+            Assert.Empty(Directory.GetFiles(directory, "*.bak"));
+            Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AtomicWriterDoesNotClaimMissingRecoveryArtifact()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var destination = Path.Combine(directory, "document.docx");
+            using var originalPackage = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                ("word/document.xml", DocumentXml())
+            );
+            File.WriteAllBytes(destination, originalPackage.ToArray());
+
+            var reader = new OpcPackageReader();
+            var original = reader.Read(destination);
+            var mutation = new OpcPackageMutationBuilder(original).ReplacePart(
+                "/word/document.xml",
+                Encoding.UTF8.GetBytes(
+                    DocumentXml().Replace("<w:p />", "<w:p><w:r /></w:p>")
+                )
+            );
+            using var externalPackage = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                (
+                    "word/document.xml",
+                    DocumentXml().Replace(
+                        "<w:p />",
+                        "<w:p><w:r><w:t>external</w:t></w:r></w:p>"
+                    )
+                )
+            );
+            var externalBytes = externalPackage.ToArray();
+            var writer = new OpcAtomicPackageWriter(
+                reader,
+                new OpcPackageSerializer(),
+                path => File.WriteAllBytes(path, externalBytes),
+                _ =>
+                {
+                    foreach (var path in Directory.GetFiles(directory, "*.bak"))
+                    {
+                        File.Delete(path);
+                    }
+                }
+            );
+
+            var recovery = Assert.Throws<OpcPackageRecoveryException>(() =>
+                writer.Write(
+                    destination,
+                    mutation,
+                    new OpcAtomicWriteOptions
+                    {
+                        ExpectedDestinationFingerprint = original.Fingerprint,
+                        KeepBackup = false,
+                    }
+                )
+            );
+
+            Assert.Empty(recovery.RecoveryPaths);
+            Assert.Contains("no recovery artifact", recovery.Message);
+            Assert.Empty(Directory.GetFiles(directory, "*.bak"));
+            Assert.Empty(Directory.GetFiles(directory, "*.conflict"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static MemoryStream BuildPackage(
         params (string Name, object Content)[] entries
     )

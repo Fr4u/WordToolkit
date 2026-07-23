@@ -175,6 +175,51 @@ result decoding retains additive v1 forward compatibility. Full MCP responses re
 legacy runtime timing fields only in the transport adapter; those fields are deliberately
 absent from deterministic operation data.
 
+The fourth shared operation exposes the existing seven-command semantic style
+transaction through the public Engine, JSON CLI and lazy MCP actions. Plan and apply use
+the same strict request parser and exact `wseplan_` intent identity; selectors are
+resolved inside the Engine, capped explicitly and rebuilt at apply time:
+
+```json
+{
+  "local_path": "tests/upstream/fixtures/lo_toc_with_styles.docx",
+  "expected_package_fingerprint": "f9759772a36c230823fdcf3f818749619d72f25afa6f6d92673202692dd657b9",
+  "commands": [
+    {
+      "type": "clone_style",
+      "source_style_id": "Normal",
+      "style_id": "DefinitionProof",
+      "name": "Definition proof"
+    }
+  ],
+  "include_details": true
+}
+```
+
+```powershell
+wordtoolkit-native style-package --mode plan --request .\examples\style-package.plan.request.json --format json
+wordtoolkit-native style-package --mode apply --request .\style-apply.json --format json
+```
+
+Supported command discriminators are `create_style`, `clone_style`,
+`consolidate_style`, `delete_unused_style`, `rename_style`, `set_style` and
+`set_style_where`. Apply requires the reviewed package fingerprint and plan ID, blocks
+signed packages, validates the exact candidate against its baseline with Microsoft Open
+XML SDK, writes atomically and retains a recovery backup by default. The dependency-free
+Engine fails closed with `VALIDATOR_REQUIRED` when no schema-validator adapter is
+supplied; `WordToolkit.OpenXmlSdk` provides the standard adapter without pulling the
+Microsoft dependency into the domain core. Neither CLI nor MCP invokes or launches
+Word. Request JSON is capped at 256 Ki characters; a transaction can resolve at most 200
+edits and change at most 200 package parts. Validation issue locations are withheld unless
+`include_details=true`. The atomic writer verifies the package displaced at commit time
+and restores it if a non-cooperative writer wins the final race. If another writer changes
+the destination during that compensation, WordToolkit preserves the newer bytes in an
+opaque sibling `.conflict` artifact and returns `RECOVERY_REQUIRED`; public error details
+contain at most two existing artifact names, never absolute paths or document content. The
+normative contracts are
+`wordtoolkit.plan_ooxml_semantic_edits/1.0` and
+`wordtoolkit.apply_ooxml_semantic_edits/1.0`.
+
 The complete lazy action set is:
 
 ```text

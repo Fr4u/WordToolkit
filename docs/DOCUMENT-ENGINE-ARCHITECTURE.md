@@ -939,9 +939,34 @@ operations. The third seam, `QueryWordPackageOperation`, now owns saved-package 
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
 
-This is deliberately honest about what is still absent. `metadata_coverage` reports one
-explicit output schema, permission record, reversibility record and per-operation version
-for the semantic query; the other 84 actions remain uncovered. Those fields are not
+The fourth seam is `StyleWordPackageOperation`. It moves style-command parsing, selector
+resolution, intent-bound plan identity, exact-candidate construction and atomic apply out
+of the Native partial class and into the vendor-neutral Engine. Seven high-level commands
+share one path: create, clone, consolidate, proven-unused delete, visible-name rename,
+exact assignment and bounded selector assignment. Apply always rebuilds the plan from the
+request and current package; no serialized mutation is trusted as executable authority.
+
+Microsoft schema validation is an injected capability rather than an Engine dependency.
+`WordToolkit.Engine.Validation.IWordPackageCandidateValidator` is the neutral boundary;
+`WordToolkit.OpenXmlSdk.MicrosoftOpenXmlPackageValidator` is the standard adapter. It
+compares bounded baseline and candidate error multisets and reports only introduced
+errors. A plan can expose that the adapter is absent, but apply refuses to persist with
+`VALIDATOR_REQUIRED`. This preserves the dependency direction while preventing the
+structural-only atomic writer from being mistaken for WordprocessingML schema proof.
+
+Atomic commit now verifies the backup produced by `File.Replace`, not only the destination
+read immediately before it. A mismatched displaced fingerprint proves that a
+non-cooperative process won the final TOCTOU window; the writer restores the displaced
+bytes, removes its candidate and reports a retryable conflict. Failed compensation is a
+distinct recovery-required state. A second change observed during compensation is moved
+to an opaque sibling `.conflict` artifact and deliberately retained, even when normal
+backup retention is disabled. Public diagnostics list only still-existing opaque artifact
+names, never their absolute paths or payloads; no artifact is claimed when none exists.
+
+This is deliberately honest about what is still absent. `metadata_coverage` reports three
+explicit output schemas, permission records, reversibility records and per-operation
+versions for semantic query plus semantic-style plan/apply; the other 82 actions remain
+uncovered. Those fields are not
 inferred from operation names. Format support is labelled operation-specific, and full
 input/output schemas remain behind `inspect_wordtoolkit_action`. The normative JSON shape is
 `schemas/wordtoolkit-capabilities.v1.schema.json`; the runtime embeds and hashes it.

@@ -17,6 +17,21 @@
   candidate validation, honest unsupported codes and zero Word invocation. The pinned
   42-scenario external run and raw result are documented in
   `COMPETITOR-BENCHMARK-2026-07-23.md`.
+- Semantic-style operation parity: Engine and native tests drive the versioned plan/apply
+  pair through direct .NET, strict JSON CLI and MCP. They cover all existing planner
+  stages, selector caps and empty-selection failure, exact fingerprint/intent binding,
+  validator-required fail-closed behavior, baseline-aware Microsoft schema checks,
+  signed/unsafe rejection inherited from the planner, atomic backup restoration,
+  opaque-entry preservation, suppression of untrusted validator messages, preserved MCP
+  schema-failure diagnostics, published output-schema conformance and zero Word-host
+invocation. A deterministic writer hook also places a non-cooperative change after the
+final pre-commit fingerprint check and proves that its exact bytes are restored rather
+than overwritten. A second hook writes a newer version during compensation and proves
+that the first displaced version returns to the destination, the newer version survives
+byte-for-byte in an opaque `.conflict` artifact even with backup retention disabled, and
+the artifact is not erased by cleanup. A separate failure case deletes the recovery
+backup before compensation and proves that no nonexistent artifact is advertised; public
+detail tests reject absolute paths and payload text.
 - AI capability contract: native tests verify the embedded schema/MCP/compatibility
   header, deterministic 64-hex digests, sorted paging, exact CLI/MCP data parity,
   JSON round-trip, fail-closed malformed/unknown input, sub-10,000-character default

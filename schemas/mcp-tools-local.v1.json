@@ -6606,8 +6606,18 @@
     },
     {
       "name": "plan_ooxml_semantic_edits",
-      "title": "Plan edits",
-      "description": "Validate a style plan.",
+      "title": "Plan semantic Word style edits",
+      "description": "Resolve and validate a bounded transaction of semantic Word style-definition and style-assignment commands against one fingerprinted saved package. The exact candidate is projected and checked with Microsoft Open XML SDK, no document text or raw XML is returned, the file is not changed, and Word is never opened.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_input_package",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
       "inputSchema": {
         "type": "object",
         "$defs": {
@@ -6749,7 +6759,8 @@
         },
         "properties": {
           "local_path": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 32767
           },
           "expected_package_fingerprint": {
             "type": "string",
@@ -6779,6 +6790,61 @@
         "required": ["local_path", "expected_package_fingerprint", "commands"],
         "additionalProperties": false
       },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "plan_id", "base_package_fingerprint", "result_package_fingerprint", "submitted_command_count", "selector_command_count", "selector_match_count", "style_definition_count", "style_consolidation_count", "style_deletion_count", "style_rename_count", "style_reference_update_count", "style_assignment_count", "operation_count", "changed_operation_count", "changed_part_count", "total_xml_byte_delta", "has_changes", "can_apply", "apply_blocked", "apply_blocked_reasons", "candidate_validation", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.plan_ooxml_semantic_edits/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "plan_id": {"type": "string", "pattern": "^wseplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "base_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "result_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "submitted_command_count": {"type": "integer", "minimum": 1, "maximum": 200},
+              "selector_command_count": {"type": "integer", "minimum": 0, "maximum": 16},
+              "selector_match_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "style_definition_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "style_consolidation_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "style_deletion_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "style_rename_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "style_reference_update_count": {"type": "integer", "minimum": 0},
+              "style_assignment_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "operation_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "changed_operation_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "changed_part_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "total_xml_byte_delta": {"type": "integer"},
+              "has_changes": {"type": "boolean"},
+              "can_apply": {"type": "boolean"},
+              "apply_blocked": {"type": "boolean"},
+              "apply_blocked_reasons": {"type": "array", "maxItems": 2, "uniqueItems": true, "items": {"enum": ["digital_signature_present", "schema_validator_unavailable", "microsoft_schema_validation_failed"]}},
+              "candidate_validation": {
+                "type": "object",
+                "required": ["performed", "valid", "no_new_errors", "error_count", "baseline_error_count", "candidate_error_count", "errors_truncated", "issues"],
+                "properties": {
+                  "performed": {"type": "boolean"}, "valid": {"type": "boolean"}, "no_new_errors": {"type": "boolean"},
+                  "error_count": {"type": "integer", "minimum": 0}, "baseline_error_count": {"type": "integer", "minimum": 0}, "candidate_error_count": {"type": "integer", "minimum": 0},
+                  "errors_truncated": {"type": "boolean"}, "not_performed_reason": {"type": "string", "maxLength": 128},
+                  "issues": {"type": "array", "maxItems": 200, "items": {"type": "object"}}
+                },
+                "additionalProperties": false
+              },
+              "operations": {"type": "array", "maxItems": 200, "items": {"type": "object"}},
+              "style_definition_operations": {"type": "array", "maxItems": 200, "items": {"type": "object"}},
+              "changed_parts": {"type": "array", "maxItems": 200, "items": {"type": "object"}},
+              "selector_resolutions": {"type": "array", "maxItems": 16, "items": {"type": "object"}},
+              "raw_xml_returned": {"const": false}, "mutation_performed": {"const": false}, "word_opened": {"const": false},
+              "runtime": {"const": "dotnet-native"}, "python_used": {"const": false},
+              "performance": {"type": "object", "required": ["total_ms"], "properties": {"total_ms": {"type": "number", "minimum": 0}}, "additionalProperties": false}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
       "annotations": {
         "readOnlyHint": true,
         "destructiveHint": false,
@@ -6788,8 +6854,19 @@
     },
     {
       "name": "apply_ooxml_semantic_edits",
-      "title": "Apply",
-      "description": "Apply.",
+      "title": "Apply reviewed semantic Word style edits",
+      "description": "Rebuild and atomically apply an exact reviewed semantic style plan to one fingerprinted saved Word package. The operation rejects plan drift, concurrent changes, digital signatures and new Microsoft Open XML schema errors, optionally retains a sibling recovery backup, returns no document text or raw XML, and never opens Word.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_write_input_package_and_optional_sibling_backup",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": true,
+        "mechanism": "atomic_sibling_backup",
+        "default": "retained"
+      },
       "inputSchema": {
         "type": "object",
         "$defs": {
@@ -6931,7 +7008,8 @@
         },
         "properties": {
           "local_path": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 32767
           },
           "expected_package_fingerprint": {
             "type": "string",
@@ -6969,6 +7047,36 @@
           "expected_plan_id",
           "commands"
         ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "plan_id", "applied", "no_op", "package_fingerprint", "backup_path", "changed_entry_names", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.apply_ooxml_semantic_edits/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "plan_id": {"type": "string", "pattern": "^wseplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "applied": {"type": "boolean"}, "no_op": {"type": "boolean"},
+              "operation_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "previous_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "predicted_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "backup_path": {"type": ["string", "null"]},
+              "changed_entry_names": {"type": "array", "maxItems": 200, "uniqueItems": true, "items": {"type": "string", "maxLength": 1024}},
+              "diagnostic_count": {"type": "integer", "minimum": 0},
+              "microsoft_schema_valid": {"type": "boolean"}, "microsoft_schema_no_new_errors": {"type": "boolean"},
+              "raw_xml_returned": {"const": false}, "mutation_performed": {"type": "boolean"}, "word_opened": {"const": false},
+              "runtime": {"const": "dotnet-native"}, "python_used": {"const": false},
+              "performance": {"type": "object", "required": ["total_ms"], "properties": {"total_ms": {"type": "number", "minimum": 0}}, "additionalProperties": false}
+            },
+            "additionalProperties": false
+          }
+        },
         "additionalProperties": false
       },
       "annotations": {

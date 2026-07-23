@@ -200,11 +200,19 @@ $engineAssembly = Join-Path $runtime "WordToolkit.Engine.dll"
 if (-not (Test-Path -LiteralPath $engineAssembly -PathType Leaf)) {
     throw "Published engine assembly is missing"
 }
+$openXmlSdkAssembly = Join-Path $runtime "WordToolkit.OpenXmlSdk.dll"
+if (-not (Test-Path -LiteralPath $openXmlSdkAssembly -PathType Leaf)) {
+    throw "Published Open XML SDK adapter assembly is missing"
+}
 
 # A deterministic compiler can still place an absolute CodeView/PDB path in a DLL.
 # Reject that leak here: it makes otherwise identical checkouts produce different ZIPs.
 $rootWithForwardSlashes = $root.Replace('\', '/')
-foreach ($assemblyPath in @($runtimeAssembly, $engineAssembly)) {
+foreach ($assemblyPath in @(
+    $runtimeAssembly,
+    $engineAssembly,
+    $openXmlSdkAssembly
+)) {
     $assemblyText = [Text.Encoding]::ASCII.GetString(
         [IO.File]::ReadAllBytes($assemblyPath)
     )

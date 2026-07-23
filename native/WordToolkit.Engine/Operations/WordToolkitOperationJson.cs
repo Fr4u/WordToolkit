@@ -8,7 +8,8 @@ public sealed record WordToolkitOperationError(
     string Code,
     string Message,
     string? Reason,
-    bool Retryable
+    bool Retryable,
+    object? Details = null
 )
 {
     public static WordToolkitOperationError FromException(
@@ -20,7 +21,8 @@ public sealed record WordToolkitOperationError(
             exception.Code,
             exception.Message,
             exception.Reason,
-            exception.Retryable
+            exception.Retryable,
+            exception.Details
         );
     }
 }

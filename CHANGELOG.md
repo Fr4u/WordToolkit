@@ -2,6 +2,54 @@
 
 ## Unreleased
 
+- Added the public semantic-style operation pair
+  `wordtoolkit.plan_ooxml_semantic_edits/1.0` and
+  `wordtoolkit.apply_ooxml_semantic_edits/1.0`. The dependency-free Engine now owns the
+  seven-command typed contract, strict variant-aware JSON parser, bounded selector
+  resolution, deterministic intent-bound plan ID, exact candidate projection and atomic
+  apply used by direct .NET callers, `style-package` JSON CLI and the existing lazy MCP
+  actions. Apply rebuilds the plan against the current package, rejects stale fingerprints,
+  plan drift and signed packages, keeps a recovery backup by default and never opens Word.
+  Requests are capped at 256 Ki characters, resolved edits and changed parts at 200 each,
+  and schema issue details are returned only when explicitly requested.
+- Added the neutral `IWordPackageCandidateValidator` boundary and the separate
+  `WordToolkit.OpenXmlSdk` adapter. The Engine remains independent of Microsoft and every
+  AI provider; plan reports an absent validator and apply fails closed with
+  `VALIDATOR_REQUIRED`. The standard adapter preserves the previous bounded
+  baseline-versus-candidate Microsoft 365 schema check and is now also reused by the
+  older Native package mutation paths instead of duplicating validation logic.
+- Hardened `OpcAtomicPackageWriter` against a non-cooperative last-millisecond writer.
+  After atomic replacement it verifies that the displaced package is the reviewed
+  fingerprint; on mismatch it restores those exact displaced bytes and returns
+  `VERSION_CONFLICT`. A second destination change during compensation is never silently
+  deleted: it is retained as an opaque sibling `.conflict` artifact and produces
+  `RECOVERY_REQUIRED`. Failed compensation reports only names of artifacts that still
+  exist, never an absolute path or document content, and claims no artifact when none was
+  retained.
+  Validator exceptions are now treated as untrusted and never copied into public error
+  text, while `OOXML_SCHEMA_INVALID` retains its bounded count/issue diagnostics for
+  existing MCP clients.
+- Added operation versions, explicit filesystem/network/Word permissions, reversibility
+  records and closed successful MCP output schemas for semantic-style plan/apply. The
+  actual compact plan and apply envelopes validate against Draft 2020-12, while capability
+  v1 keeps its existing closed summary shape and reports three metadata-complete actions.
+- Verified this semantic-style interoperability checkpoint with 385 Engine tests, 260
+  Native tests and the full 1,273-test Python/OOXML suite with 16 intentional skips;
+  Ruff and the maintained 28-module mypy lane are clean. The packaged executable planned
+  the checked-in real-DOCX request in a 1,811-character response, left the source bytes
+  and zero Word-process set unchanged, and completed 15 cold process runs at 747.58 ms
+  median and 779.22 ms p95. No historical before-change public style-CLI latency baseline
+  exists.
+- Ran packaged plan/apply against a disposable copy of the checked-in LibreOffice DOCX.
+  Apply reproduced the reviewed plan ID and predicted semantic fingerprint, changed only
+  `word/styles.xml`, passed Microsoft schema comparison, retained a byte-exact backup,
+  returned no XML, left the original fixture byte-identical and did not start Word.
+- Built the checkpoint twice through the supported Windows PowerShell path. Both builds
+  produced identical 196-file, 85,271,141-byte trees and identical 36,238,851-byte ZIPs
+  at SHA-256 `9a3fc1ae866ca9d5e1f9c1f40b21683491175b8e63125511f4dd6529bff6596e`;
+  expanded manifests also matched exactly at SHA-256
+  `cd728f01ea4da97e303a1ad488ebd79d64b3b21113bc80aee8438cc29d074104`.
+  `WordToolkit.OpenXmlSdk.dll` is present and the package contains zero Python files.
 - Added `wordtoolkit.query_ooxml_semantics/1.0` as the third public
   transport-neutral Engine/CLI/MCP operation. Direct saved-package and process-memory
   indexed queries now share one typed result builder and canonical JSON instead of an

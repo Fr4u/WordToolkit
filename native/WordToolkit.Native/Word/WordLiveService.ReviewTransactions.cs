@@ -1,11 +1,9 @@
 using System.Diagnostics;
 using System.Text.Json;
-using DocumentFormat.OpenXml;
-using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Validation;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Semantics;
 using WordToolkit.Native.Protocol;
+using WordToolkit.OpenXmlSdk;
 
 namespace WordToolkit.Native.Word;
 
@@ -516,83 +514,34 @@ internal sealed partial class WordLiveService
                 candidateStream,
                 candidateMutation
             );
-            var baseline = ValidateOpenXmlStream(baselineStream, cancellationToken);
-            var candidate = ValidateOpenXmlStream(candidateStream, cancellationToken);
-            if (baseline.Length > 500 || candidate.Length > 500)
-            {
-                return CandidateSchemaValidation.ValidationLimitExceeded(
-                    Math.Min(baseline.Length, 500),
-                    Math.Min(candidate.Length, 500)
-                );
-            }
-            var baselineCounts = baseline
-                .GroupBy(ValidationIssueKey)
-                .ToDictionary(group => group.Key, group => group.Count());
-            var newErrors = new List<CandidateValidationIssue>();
-            foreach (var issue in candidate)
-            {
-                var key = ValidationIssueKey(issue);
-                if (baselineCounts.TryGetValue(key, out var count) && count > 0)
-                {
-                    baselineCounts[key] = count - 1;
-                }
-                else
-                {
-                    newErrors.Add(issue);
-                }
-            }
-            return new CandidateSchemaValidation(
-                Performed: true,
-                CandidateValid: candidate.Length == 0,
-                NoNewErrors: newErrors.Count == 0,
-                ErrorCount: newErrors.Count,
-                BaselineErrorCount: baseline.Length,
-                CandidateErrorCount: candidate.Length,
-                ErrorsTruncated: false,
-                NotPerformedReason: null,
-                Issues: newErrors.Take(200).ToArray()
+            var validation = new MicrosoftOpenXmlPackageValidator().Validate(
+                baselineStream,
+                candidateStream,
+                cancellationToken
             );
-        }
-        catch (OpenXmlPackageException exception)
-        {
-            return CandidateSchemaValidation.OpenFailed(exception.GetType().Name);
+            return new CandidateSchemaValidation(
+                validation.Performed,
+                validation.CandidateValid,
+                validation.NoNewErrors,
+                validation.ErrorCount,
+                validation.BaselineErrorCount,
+                validation.CandidateErrorCount,
+                validation.ErrorsTruncated,
+                validation.NotPerformedReason,
+                validation.Issues.Select(issue => new CandidateValidationIssue(
+                    issue.Id,
+                    issue.ErrorType,
+                    issue.PartUri,
+                    issue.Path,
+                    issue.Node
+                )).ToArray()
+            );
         }
         catch (InvalidDataException exception)
         {
             return CandidateSchemaValidation.OpenFailed(exception.GetType().Name);
         }
     }
-
-    private static CandidateValidationIssue[] ValidateOpenXmlStream(
-        MemoryStream stream,
-        CancellationToken cancellationToken
-    )
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        stream.Position = 0;
-        using var document = WordprocessingDocument.Open(stream, false);
-        var validator = new OpenXmlValidator(FileFormatVersions.Microsoft365);
-        return validator.Validate(document)
-            .Take(501)
-            .Select(error => new CandidateValidationIssue(
-                error.Id,
-                error.ErrorType.ToString(),
-                error.Part?.Uri.ToString(),
-                error.Path?.XPath,
-                error.Node?.LocalName
-            ))
-            .ToArray();
-    }
-
-    private static string ValidationIssueKey(CandidateValidationIssue issue) =>
-        string.Join(
-            '\u001f',
-            issue.Id ?? string.Empty,
-            issue.ErrorType,
-            issue.PartUri ?? string.Empty,
-            issue.Path ?? string.Empty,
-            issue.Node ?? string.Empty
-        );
 
     private static object[] ReviewBlockItems(
         IEnumerable<WordReviewDecisionBlock> blocks,
@@ -615,6 +564,16 @@ internal sealed partial class WordLiveService
         path = BoundForResponse(issue.Path, 512),
         node = BoundForResponse(issue.Node, 128),
     };
+
+    private static string ValidationIssueKey(CandidateValidationIssue issue) =>
+        string.Join(
+            '\u001f',
+            issue.Id ?? string.Empty,
+            issue.ErrorType,
+            issue.PartUri ?? string.Empty,
+            issue.Path ?? string.Empty,
+            issue.Node ?? string.Empty
+        );
 
     private static string RequiredReviewPlanId(JsonElement arguments)
     {

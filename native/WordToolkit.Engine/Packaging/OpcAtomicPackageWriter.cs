@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 namespace WordToolkit.Engine.Packaging;
 
 public sealed record OpcAtomicWriteOptions
@@ -28,14 +30,27 @@ public sealed class OpcAtomicPackageWriter
 {
     private readonly OpcPackageReader _reader;
     private readonly OpcPackageSerializer _serializer;
+    private readonly Action<string>? _beforeAtomicReplace;
+    private readonly Action<string>? _beforeCompensatingReplace;
 
     public OpcAtomicPackageWriter(
         OpcPackageReader? reader = null,
         OpcPackageSerializer? serializer = null
+    ) : this(reader, serializer, beforeAtomicReplace: null)
+    {
+    }
+
+    internal OpcAtomicPackageWriter(
+        OpcPackageReader? reader,
+        OpcPackageSerializer? serializer,
+        Action<string>? beforeAtomicReplace,
+        Action<string>? beforeCompensatingReplace = null
     )
     {
         _reader = reader ?? new OpcPackageReader();
         _serializer = serializer ?? new OpcPackageSerializer();
+        _beforeAtomicReplace = beforeAtomicReplace;
+        _beforeCompensatingReplace = beforeCompensatingReplace;
     }
 
     public OpcAtomicWriteResult Write(
@@ -56,18 +71,24 @@ public sealed class OpcAtomicPackageWriter
             );
         Directory.CreateDirectory(directory);
 
-        var fileName = Path.GetFileName(destination);
         var transactionId = Guid.NewGuid().ToString("N");
         var temporaryPath = Path.Combine(
             directory,
-            $".{fileName}.wordtoolkit-{transactionId}.tmp"
+            $".wordtoolkit-{transactionId}.tmp"
         );
         var backupPath = Path.Combine(
             directory,
-            $".{fileName}.wordtoolkit-{transactionId}.bak"
+            $".wordtoolkit-{transactionId}.bak"
+        );
+        var displacedCandidatePath = Path.Combine(
+            directory,
+            $".wordtoolkit-{transactionId}.conflict"
         );
         var lockPath = destination + ".wordtoolkit.lock";
         string? retainedBackup = null;
+        var retainedRecoveryPaths = new HashSet<string>(
+            StringComparer.OrdinalIgnoreCase
+        );
 
         using var lockStream = new FileStream(
             lockPath,
@@ -124,6 +145,7 @@ public sealed class OpcAtomicPackageWriter
                         + $"'{candidate.Fingerprint}'."
                 );
             }
+            var candidateFileHash = HashFile(temporaryPath);
 
             AssertDestinationVersion(
                 destination,
@@ -143,15 +165,50 @@ public sealed class OpcAtomicPackageWriter
                     );
                 }
             }
-            else if (File.Exists(destination))
+            else
             {
-                File.Replace(
-                    temporaryPath,
-                    destination,
-                    backupPath,
-                    ignoreMetadataErrors: false
-                );
+                _beforeAtomicReplace?.Invoke(destination);
+                try
+                {
+                    File.Replace(
+                        temporaryPath,
+                        destination,
+                        backupPath,
+                        ignoreMetadataErrors: false
+                    );
+                }
+                catch (IOException) when (!File.Exists(destination))
+                {
+                    throw new OpcPackageConcurrencyException(
+                        "The destination was removed immediately before atomic replacement."
+                    );
+                }
                 retainedBackup = backupPath;
+                if (!FingerprintMatches(backupPath, expectedFingerprint))
+                {
+                    try
+                    {
+                        RestoreConcurrentDestination(
+                            destination,
+                            backupPath,
+                            displacedCandidatePath,
+                            candidateFileHash
+                        );
+                    }
+                    catch (OpcPackageRecoveryException recovery)
+                    {
+                        foreach (var recoveryPath in recovery.RecoveryPaths)
+                        {
+                            retainedRecoveryPaths.Add(recoveryPath);
+                        }
+                        retainedBackup = recovery.RecoveryPath;
+                        throw;
+                    }
+                    retainedBackup = null;
+                    throw new OpcPackageConcurrencyException(
+                        "The destination changed immediately before atomic replacement; the external version was restored."
+                    );
+                }
                 if (!options.KeepBackup)
                 {
                     try
@@ -170,11 +227,6 @@ public sealed class OpcAtomicPackageWriter
                     }
                 }
             }
-            else
-            {
-                File.Move(temporaryPath, destination);
-            }
-
             return new OpcAtomicWriteResult(
                 destination,
                 candidate.Fingerprint,
@@ -186,7 +238,15 @@ public sealed class OpcAtomicPackageWriter
         finally
         {
             TryDelete(temporaryPath);
-            if (!options.KeepBackup && retainedBackup is null)
+            if (!retainedRecoveryPaths.Contains(displacedCandidatePath))
+            {
+                TryDelete(displacedCandidatePath);
+            }
+            if (
+                !options.KeepBackup
+                && retainedBackup is null
+                && !retainedRecoveryPaths.Contains(backupPath)
+            )
             {
                 TryDelete(backupPath);
             }
@@ -194,6 +254,118 @@ public sealed class OpcAtomicPackageWriter
             lockStream.Dispose();
             TryDelete(lockPath);
         }
+    }
+
+    private bool FingerprintMatches(string path, string expectedFingerprint)
+    {
+        try
+        {
+            return string.Equals(
+                _reader.Read(path).Fingerprint,
+                expectedFingerprint,
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+        catch (Exception exception) when (
+            exception is IOException
+                or InvalidDataException
+                or UnauthorizedAccessException
+        )
+        {
+            return false;
+        }
+    }
+
+    private void RestoreConcurrentDestination(
+        string destination,
+        string backupPath,
+        string displacedCandidatePath,
+        byte[] expectedCandidateFileHash
+    )
+    {
+        try
+        {
+            var externalHash = HashFile(backupPath);
+            _beforeCompensatingReplace?.Invoke(destination);
+            File.Replace(
+                backupPath,
+                destination,
+                displacedCandidatePath,
+                ignoreMetadataErrors: false
+            );
+            var displacedHash = HashFile(displacedCandidatePath);
+            var restoredHash = HashFile(destination);
+            if (!displacedHash.AsSpan().SequenceEqual(expectedCandidateFileHash))
+            {
+                throw new OpcPackageRecoveryException(
+                    "A newer concurrent destination was displaced during compensation and was retained as a sibling recovery artifact.",
+                    [displacedCandidatePath],
+                    new IOException(
+                        "The displaced file is not the WordToolkit candidate."
+                    )
+                );
+            }
+            if (!restoredHash.AsSpan().SequenceEqual(externalHash))
+            {
+                throw new OpcPackageRecoveryException(
+                    "Concurrent destination recovery did not restore the displaced bytes; the displaced candidate was retained as a sibling recovery artifact.",
+                    [displacedCandidatePath],
+                    new IOException(
+                        "The restored destination does not match the displaced package."
+                    )
+                );
+            }
+        }
+        catch (OpcPackageRecoveryException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException
+        )
+        {
+            var recoveryPaths = ExistingRecoveryPaths(
+                backupPath,
+                displacedCandidatePath
+            );
+            throw new OpcPackageRecoveryException(
+                recoveryPaths.Count > 0
+                    ? "The destination changed during atomic commit and automatic recovery failed; one or more sibling recovery artifacts were retained."
+                    : "The destination changed during atomic commit and automatic recovery failed; no recovery artifact was available.",
+                recoveryPaths,
+                exception
+            );
+        }
+    }
+
+    private static IReadOnlyList<string> ExistingRecoveryPaths(
+        string backupPath,
+        string displacedCandidatePath
+    )
+    {
+        var paths = new List<string>(capacity: 2);
+        if (File.Exists(backupPath))
+        {
+            paths.Add(backupPath);
+        }
+        if (File.Exists(displacedCandidatePath))
+        {
+            paths.Add(displacedCandidatePath);
+        }
+        return paths;
+    }
+
+    private static byte[] HashFile(string path)
+    {
+        using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 128 * 1024,
+            FileOptions.SequentialScan
+        );
+        return SHA256.HashData(stream);
     }
 
     private void AssertDestinationVersion(
@@ -204,7 +376,13 @@ public sealed class OpcAtomicPackageWriter
     {
         if (!File.Exists(destination))
         {
-            return;
+            if (requireNewDestination)
+            {
+                return;
+            }
+            throw new OpcPackageConcurrencyException(
+                "The destination no longer exists."
+            );
         }
 
         if (requireNewDestination)
@@ -251,6 +429,27 @@ public sealed class OpcPackageConcurrencyException : IOException
         : base(message)
     {
     }
+}
+
+public sealed class OpcPackageRecoveryException : IOException
+{
+    public OpcPackageRecoveryException(
+        string message,
+        IReadOnlyList<string> recoveryPaths,
+        Exception innerException
+    ) : base(message, innerException)
+    {
+        ArgumentNullException.ThrowIfNull(recoveryPaths);
+        RecoveryPaths = recoveryPaths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(2)
+            .ToArray();
+    }
+
+    public IReadOnlyList<string> RecoveryPaths { get; }
+
+    public string? RecoveryPath => RecoveryPaths.FirstOrDefault();
 }
 
 public sealed class OpcPackageValidationException : IOException

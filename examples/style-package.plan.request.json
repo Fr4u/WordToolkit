@@ -1,0 +1,13 @@
+{
+  "local_path": "tests/upstream/fixtures/lo_toc_with_styles.docx",
+  "expected_package_fingerprint": "f9759772a36c230823fdcf3f818749619d72f25afa6f6d92673202692dd657b9",
+  "commands": [
+    {
+      "type": "clone_style",
+      "source_style_id": "Normal",
+      "style_id": "DefinitionProof",
+      "name": "Definition proof"
+    }
+  ],
+  "include_details": true
+}

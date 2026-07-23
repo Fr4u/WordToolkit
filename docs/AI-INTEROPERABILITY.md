@@ -75,7 +75,7 @@ instruction text is suppressed from node and ancestor/subtree previews unless th
 second opt-in is present. `disclosure` reports sensitive properties and sensitive text
 previews separately.
 
-This operation is also the first source-catalogue entry with `operationVersion`, a closed
+This operation was the first source-catalogue entry with `operationVersion`, a closed
 MCP successful `structuredContent` output schema, normalized filesystem/network/Word
 permissions and a reversibility record. Tool errors keep `isError=true`; current MCP SDKs
 skip output-schema validation for that error path. The paged capability manifest returns
@@ -87,6 +87,39 @@ This follows the pinned MCP 2025-06-18
 [`Tool.outputSchema`](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/schema/2025-06-18/schema.ts)
 contract and the official TypeScript SDK rule that successful structured content is
 validated while `isError=true` results skip output-schema validation.
+
+The fourth shared executable boundary consists of
+`wordtoolkit.plan_ooxml_semantic_edits/1.0` and
+`wordtoolkit.apply_ooxml_semantic_edits/1.0`. `StyleWordPackageOperation` owns all seven
+typed style commands, strict command/selector validation, selector expansion, deterministic
+intent hashing, exact-candidate projection, signature checks and atomic application.
+`StyleEditOperationJson` is the single closed JSON parser used by CLI and MCP; a field
+valid for one command variant is not silently accepted on another. `set_style_where`
+requires an explicit `max_matches`, rejects empty selection and cannot expand the whole
+transaction beyond 200 resolved operations. Request JSON is capped at 256 Ki characters,
+at most 200 package parts may change, and validation issue locations require the existing
+`include_details` opt-in.
+
+Schema validation crosses a deliberate dependency boundary. The plain `net8.0`
+`WordToolkit.Engine` project declares `IWordPackageCandidateValidator` but does not depend
+on Microsoft or any AI provider. `WordToolkit.OpenXmlSdk` implements the interface with
+Microsoft Open XML SDK 3.3.0 using bounded baseline-versus-candidate error comparison.
+Plan reports a missing validator; apply fails closed with `VALIDATOR_REQUIRED`. The
+native CLI and MCP inject the standard adapter, reject new schema errors, rebuild the
+reviewed plan against the current fingerprint and use the atomic writer with a retained
+backup by default. The backup is recovery evidence, not a claim that a public rollback
+operation already exists.
+
+The atomic writer also closes the last non-cooperative race it can observe without an OS
+transaction: after `File.Replace`, the displaced backup must still match the reviewed
+fingerprint. If it does not, the exact displaced bytes are restored and the operation
+returns `VERSION_CONFLICT`. If a second writer changes the destination during that
+compensation, the newer bytes are retained in an opaque sibling `.conflict` artifact and
+the operation returns `RECOVERY_REQUIRED` instead of deleting them. Failed compensation
+exposes at most two still-existing artifact names; it exposes neither absolute paths nor
+document content and omits details when no artifact exists. Exceptions thrown by an injected validator are untrusted
+and collapse to fixed `VALIDATION_FAILED` text. Bounded numeric/structural diagnostics are
+still preserved for an ordinary `OOXML_SCHEMA_INVALID` result.
 
 ## Version and compatibility
 
@@ -153,9 +186,9 @@ This keeps discovery bounded instead of paying for all 85 schemas.
 ## Metadata coverage is evidence, not decoration
 
 `metadata_coverage` counts canonical fields actually present in the embedded source.
-All 85 operations have input schemas and MCP effect annotations. The semantic query is
-the first operation with explicit output-schema, permission, reversibility and
-per-operation-version metadata; the remaining 84 are still uncovered. Missing metadata
+All 85 operations have input schemas and MCP effect annotations. Semantic query plus
+semantic-style plan and apply have explicit output-schema, permission, reversibility and
+per-operation-version metadata; the remaining 82 are still uncovered. Missing metadata
 is not permission to infer behavior from action names. An AI planner must inspect the
 chosen operation and obtain explicit user approval for risky mutations until normalized
 metadata is added to each source contract.
@@ -184,6 +217,7 @@ wordtoolkit-native capabilities --query review --limit 4 --format json
 wordtoolkit-native capabilities --schema --format json
 wordtoolkit-native inspect-package .\input.docx --include-details --format json
 wordtoolkit-native query-package --request .\query.json --format json
+wordtoolkit-native style-package --mode plan --request .\style-plan.json --format json
 wordtoolkit-native transform-package .\input.docx .\output.docx --operation accept_all_tracked_changes --format json
 ```
 
@@ -223,3 +257,9 @@ COM host.
   Engine/CLI/MCP result parity, local fingerprint error parity, closed request JSON,
   actual-result/output-schema conformance, output/permission discovery and zero Word-host
   invocation.
+- `native/WordToolkit.Engine.Tests/StyleWordPackageOperationTests.cs` proves public
+  plan/apply, strict variant JSON, selector bounds, validator fail-closed behavior,
+  baseline-aware Microsoft schema validation, opaque-part preservation and backup
+  restoration.
+- `native/WordToolkit.Native.Tests/StylePackageCliTests.cs` proves Engine/CLI/MCP plan
+  parity, JSON CLI apply, stable conflict exits and zero Word-host invocation.

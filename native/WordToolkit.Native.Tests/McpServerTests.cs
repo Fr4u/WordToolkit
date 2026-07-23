@@ -437,6 +437,24 @@ public sealed class McpServerTests
                 .GetProperty("destructiveHint")
                 .GetBoolean()
         );
+        Assert.Equal("1.0", planTool.GetProperty("operationVersion").GetString());
+        Assert.Equal(
+            "read_input_package",
+            planTool.GetProperty("permissions").GetProperty("filesystem").GetString()
+        );
+        Assert.False(
+            planTool.GetProperty("reversibility").GetProperty("applicable").GetBoolean()
+        );
+        Assert.Equal(
+            "wordtoolkit.plan_ooxml_semantic_edits/1.0",
+            planTool.GetProperty("outputSchema")
+                .GetProperty("properties")
+                .GetProperty("data")
+                .GetProperty("properties")
+                .GetProperty("operation_contract")
+                .GetProperty("const")
+                .GetString()
+        );
 
         var applyTool = apply.RootElement.GetProperty("tool");
         var applySchema = applyTool.GetProperty("inputSchema");
@@ -496,6 +514,21 @@ public sealed class McpServerTests
                 .GetProperty("destructiveHint")
                 .GetBoolean()
         );
+        Assert.Equal("1.0", applyTool.GetProperty("operationVersion").GetString());
+        Assert.Equal(
+            "atomic_sibling_backup",
+            applyTool.GetProperty("reversibility").GetProperty("mechanism").GetString()
+        );
+        Assert.Equal(
+            "wordtoolkit.apply_ooxml_semantic_edits/1.0",
+            applyTool.GetProperty("outputSchema")
+                .GetProperty("properties")
+                .GetProperty("data")
+                .GetProperty("properties")
+                .GetProperty("operation_contract")
+                .GetProperty("const")
+                .GetString()
+        );
         Assert.DoesNotContain(
             catalog.Tools,
             node => node?["name"]?.GetValue<string>() == "plan_ooxml_semantic_edits"
@@ -505,11 +538,11 @@ public sealed class McpServerTests
             node => node?["name"]?.GetValue<string>() == "apply_ooxml_semantic_edits"
         );
         Assert.True(
-            planTool.GetRawText().Length < 4_500,
+            planTool.GetRawText().Length < 9_000,
             $"Plan semantic edit action is too large: {planTool.GetRawText().Length} characters"
         );
         Assert.True(
-            applyTool.GetRawText().Length < 4_500,
+            applyTool.GetRawText().Length < 7_500,
             $"Apply semantic edit action is too large: {applyTool.GetRawText().Length} characters"
         );
 
