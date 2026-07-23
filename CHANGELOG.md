@@ -34,7 +34,9 @@
   `e1ef21c763cae801f48bcfa43d1513ff279936a8fd026e00b28a04133755afe8`.
   The package contains zero Python files; its CLI reports 85 actions and 15 exposed MCP
   tools, finds `transform_ooxml_package`, and changes neither the zero Word-process count
-  nor document state during discovery/help probes.
+  nor document state during discovery/help probes. Mandatory CI run `29970012359`
+  passed all five jobs; its downloaded Windows ZIP matched both local archives byte for
+  byte at the same size and SHA-256.
 - Added the first public transport-neutral operation,
   `wordtoolkit.inspect_ooxml_package/1.0`, to `WordToolkit.Engine`. Typed file and
   seekable-stream requests, results and stable errors now feed the .NET SDK surface,
