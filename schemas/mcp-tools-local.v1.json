@@ -32,6 +32,7 @@
       "inspect_ooxml_references",
       "inspect_ooxml_dependencies",
       "inspect_ooxml_charts",
+      "inspect_ooxml_figures",
       "inspect_ooxml_content_controls",
       "inspect_ooxml_tables",
       "inspect_ooxml_markup_compatibility",
@@ -5963,6 +5964,88 @@
             "type": "boolean",
             "default": true,
             "description": "Include at most 20 bounded chart diagnostics in non-issues views."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_ooxml_figures",
+      "title": "Inspect Word figures and captions",
+      "description": "Inspect a bounded, source-linked graph of logical figures, DrawingML/VML representations, accessibility metadata, resource relationships, caption paragraphs, SEQ fields, and evidence-scored figure-caption associations in a saved Word package. AlternateContent Choice/Fallback representations are grouped into one logical figure; without an application capability context no branch is reported as active or primary. Transitional and Strict OOXML are supported. Text, alternative text, style names, source paths, and relationship targets are redacted by default. The engine never opens Word, decodes binary resources, follows external targets, or executes active content; ambiguous proximity is reported instead of asserted as fact.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "figures", "representations", "captions", "associations", "resources", "issues"],
+            "default": "summary",
+            "description": "Return compact object-family counts, logical figures, physical representations, caption evidence, association decisions, resource metadata, or diagnostics."
+          },
+          "detail": {
+            "type": "string",
+            "enum": ["summary", "declared"],
+            "default": "summary",
+            "description": "Use declared for additional placement, DrawingML, unmodeled-payload, content-type, relationship-type, and hash metadata."
+          },
+          "figure_id": {
+            "type": "string",
+            "pattern": "^wdfig_[A-Za-z0-9_-]{20}$",
+            "maxLength": 128,
+            "description": "Optional exact logical figure ID from the same package fingerprint."
+          },
+          "caption_id": {
+            "type": "string",
+            "pattern": "^wdfc_[A-Za-z0-9_-]{20}$",
+            "maxLength": 128,
+            "description": "Optional exact caption ID from the same package fingerprint."
+          },
+          "object_kind": {
+            "type": "string",
+            "enum": ["picture", "chart", "diagram", "shape", "ink", "content_part", "embedded_object", "unknown"],
+            "description": "Optional exact logical object-family filter."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "include_text": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded figure names, title/description alternative text, caption labels/text, field results, and style names."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded part URIs, semantic node IDs, source paths/ordinals, relationship IDs/types, DrawingML URIs, content types, and resource hashes."
+          },
+          "include_relationship_targets": {
+            "type": "boolean",
+            "default": false,
+            "description": "Separately opt in to bounded internal part paths and declared external relationship targets. External targets are never followed."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include at most 20 bounded figure/caption diagnostics in non-issues views."
           }
         },
         "required": ["local_path"],

@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- Added the bounded, source-linked `WordFigureCaptionGraph` and lazy
+  `inspect_ooxml_figures` action. Transitional/Strict inline and anchored DrawingML,
+  VML and legacy-object representations now form stable logical figures with typed
+  placement, accessibility metadata and inert image/chart/diagram/content-part/OLE
+  resource relationships. `mc:AlternateContent` branches collapse into one logical
+  object while the public selection basis states that Choice is present but not
+  MCE-evaluated; no active or primary representation is invented. External targets and
+  embedded resources are never opened.
+- Added source-linked caption-style/`SEQ` candidates and a documented association
+  policy that selects only mutual unique-best evidence within the same story/container.
+  Ties stay ambiguous, weaker alternatives stay candidates and deleted/move-from
+  evidence is never selected. Figure, representation, resource, caption and association
+  objects now enter the shared dependency graph without upgrading non-selected
+  candidates to resolved edges.
+- Added independent text/source/relationship-target opt-ins, paging and default/gateway
+  payload caps for figure inspection, plus hostile relationship, metadata, revision,
+  ambiguity, Strict OOXML and fingerprint tests. A repeated 10,000-figure benchmark
+  exposed and removed quadratic caption, ambiguity and field scans; the checked-in
+  seven-sample 0.37.0 run with 10,000 distinct relationship IDs reports a 1,897.6 ms
+  median and 2,084.6 ms p95 figure-graph build on its recorded host.
+- Raised the development runtime/plugin line to 0.37.0 and capability discovery to 90
+  lazy/core actions. Figure/caption behavior, research sources, competitor differentials,
+  limits and honest exclusions are documented separately.
+- Two pinned-SDK 8.0.423 package builds produced byte-identical 196-file,
+  85,719,250-byte trees and 36,369,889-byte ZIPs at SHA-256
+  `addb0ac796b9c5e41e6174f2bd1937d9fe996ae88015a81af5b000968caa63c7`.
+  The enabled personal-plugin cache is an exact file/hash copy of that 0.37.0 package;
+  its executable reports 90 actions and the Figure/Caption action through the CLI.
 - Added `wordtoolkit.render_ooxml_semantic_svg/1.0` as the seventh public
   transport-neutral Engine/CLI/MCP operation and the second implementation of a shared
   native semantic-rendering backend contract. It requires both an exact semantic node

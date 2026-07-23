@@ -647,7 +647,7 @@ that no unrelated parts changed.
 ### Unified dependency graph
 
 `WordDependencyGraph` is the first shared cross-domain dependency spine. It does not
-flatten the existing typed graphs into anonymous strings. It joins nine proven domains:
+flatten the existing typed graphs into anonymous strings. It joins ten proven domains:
 
 - OPC package roots, parts and internal/external/invalid relationships;
 - source-linked semantic containment across every projected Word story;
@@ -658,6 +658,8 @@ flatten the existing typed graphs into anonymous strings. It joins nine proven d
 - story-scoped fields, bookmarks, nested fields and typed reference targets;
 - sections and effective header/footer story bindings;
 - classic Transitional/Strict DrawingML charts, series, axes and related package parts;
+- logical figures, declared DrawingML/VML/legacy representations, inert relationship
+  resources, caption candidates and evidence-scored association edges;
 - content controls, physical and built-in XML stores, resolved binding targets and
   repeating-section items;
 - nested table topology and source-linked vertical-merge continuation cells.
@@ -672,7 +674,7 @@ available as opt-in provenance.
 The builder binds every input graph to one exact package fingerprint, uses constant-time
 stable-ID collision checks, enforces node, edge, key and issue budgets, checks
 cancellation during traversal, and never executes a field or follows an external
-relationship. Coverage is explicit. DrawingML/VML layout, SmartArt, OLE, bibliography
+relationship. Coverage is explicit. Advanced DrawingML/VML layout, SmartArt, OLE, bibliography
 sources, active content, signatures, encryption and co-authoring sessions are still
 outside this graph. Office 2016 extended charts are preserved and
 diagnosed, but are not projected as classic chart nodes.
@@ -686,6 +688,31 @@ and query-plan joins; the dependency inspector itself is not any of those engine
 Filtering and paging use one cancellable pass
 and retain only the requested page instead of materializing every matching response
 object; summary counts retain only one accumulator per fixed edge kind.
+
+### Figure and caption graph
+
+`WordFigureCaptionGraph` projects source-linked `w:drawing`, `w:pict` and `w:object`
+containers across every projected Transitional or Strict Word story. Inline/anchor
+placement, bounded `docPr` accessibility metadata, VML fallback state and relationship
+resources stay typed. Multiple representations in one `mc:AlternateContent` group form
+one logical figure, but the summary representation records whether Choice was merely
+preferred rather than MCE-evaluated.
+
+Captions remain separate paragraph objects backed by caption-style and/or parsed `SEQ`
+evidence. Because OOXML declares no direct figure-caption relationship, the builder
+considers only nearby paragraphs in the same story and semantic container, scores the
+evidence, selects only a mutual unique best candidate and preserves ties as ambiguous.
+Deleted/move-from evidence cannot be selected. Figure, representation, resource,
+caption and association IDs are stable and package-fingerprint-bound.
+
+`inspect_ooxml_figures` is summary-first and paged. Accessibility/caption text, source
+provenance and relationship targets use independent opt-ins; raw XML and binary bytes
+have no response field. The package-only path never opens Word, decodes resources,
+follows external targets, evaluates fields or executes active content. The dependency
+graph consumes these objects without upgrading candidate/ambiguous associations to
+resolved edges. The full inference policy, limits, benchmark and exclusions are in
+`FIGURE-CAPTION-GRAPH.md`; source and competitor evidence is in
+`RESEARCH-FIGURES-CAPTIONS-2026.md`.
 
 ### Classic chart graph
 
@@ -1002,7 +1029,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 89 actions already have public SDK
+These are proved migration seams, not a claim that all 90 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
@@ -1106,6 +1133,8 @@ The current native mapping is therefore:
   `inspect_ooxml_content_controls`;
 - logical table/grid/merge/nesting/floating-position inspection -> lazy
   `inspect_ooxml_tables`;
+- logical figure/representation/resource and caption-association inspection -> lazy
+  `inspect_ooxml_figures`;
 - source-linked core/style/accessibility/security lint -> lazy
   `lint_ooxml_document`;
 - reviewed source-bound empty-title repair -> lazy `plan_ooxml_lint_repair`, then
@@ -1231,7 +1260,8 @@ No feature is “supported” until it passes the relevant gates:
 ### Phase 4 — hard Word structures
 
 - cross-format canonical equation AST, structural mutations and all import/export paths;
-- drawings, chart mutation, SmartArt, VML, OLE, Custom XML mutation, macros, and
+- drawing/figure/caption mutation, advanced geometry, chart mutation, SmartArt, VML,
+  OLE, Custom XML mutation, macros, and
   signatures;
 - accessibility, citations, bibliography, OCR, and policy scanners.
 

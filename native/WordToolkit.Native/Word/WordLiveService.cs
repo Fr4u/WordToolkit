@@ -185,6 +185,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_ooxml_figures" => InspectPackageFiguresAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_ooxml_content_controls" =>
                 InspectPackageContentControlsAsync(arguments, cancellationToken),
             "inspect_ooxml_tables" => InspectPackageTablesAsync(

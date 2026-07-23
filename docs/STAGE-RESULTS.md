@@ -1,5 +1,29 @@
 # Stage results
 
+## WordToolkit 0.37.0 Figure/Caption graph — 2026-07-23
+
+- Added a fingerprint-bound logical Figure/Caption graph, conservative
+  `mc:AlternateContent` handling, strict Transitional/Strict QName parsing, inert
+  internal/external resources and ambiguity-preserving caption association.
+- Default lazy output is redacted and issue-free unless requested; closed runtime input
+  validation matches the schema. Word, binary payloads, external targets and active
+  content are never opened or executed by this action.
+- Full Engine suite: **427 passed**. Full Native suite: **280 passed**. Python/OOXML:
+  **1,279 passed, 16 intentional skips**. Ruff and maintained 28-module mypy are clean.
+- The current 10,000-figure/10,000-distinct-relationship benchmark reports 1,897.6 ms
+  median and 2,084.6 ms p95 across seven graph builds. It retained 317,194,760 managed
+  bytes from the pre-read baseline and peaked at 1,251,549,184 bytes working set.
+- Two pinned .NET SDK 8.0.423 builds produced identical **196-file**,
+  **85,719,250-byte** trees and identical **36,369,889-byte** ZIPs at SHA-256
+  `addb0ac796b9c5e41e6174f2bd1937d9fe996ae88015a81af5b000968caa63c7`.
+  The enabled `wordtoolkit@personal` 0.37.0 cache has zero file/hash differences from
+  the built package and its installed CLI reports 90 actions.
+- Independent red teams found and forced fixes for quadratic relationship lookup,
+  hidden VML direct targets, mixed revisions, false MCE primacy, foreign namespaces,
+  unbounded QName collection, input-schema drift, repeated issue previews and error
+  provenance leaks. The remaining system-level dependency graph lacks a byte budget;
+  this slice does not pretend otherwise.
+
 ## WordToolkit 0.36.0 exact-target semantic SVG — 2026-07-23
 
 - Added `wordtoolkit.render_ooxml_semantic_svg/1.0` as the seventh transport-neutral

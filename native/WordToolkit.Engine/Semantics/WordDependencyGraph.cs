@@ -24,6 +24,10 @@ public enum WordDependencyNodeKind
     Chart,
     ChartSeries,
     ChartAxis,
+    Figure,
+    FigureRepresentation,
+    FigureResource,
+    Caption,
     ContentControl,
     CustomXmlStore,
     CustomXmlBindingTarget,
@@ -61,6 +65,12 @@ public enum WordDependencyEdgeKind
     ChartContainsSeries,
     ChartContainsAxis,
     ChartUsesPart,
+    DefinesFigure,
+    FigureHasRepresentation,
+    FigureUsesResource,
+    FigureResourceTargetsPart,
+    DefinesCaption,
+    FigureCaptionAssociation,
     DefinesContentControl,
     DefinesCustomXmlStore,
     ContentControlUsesStore,
@@ -123,6 +133,7 @@ public sealed record WordDependencyCoverage(
     bool References,
     bool Sections,
     bool Charts,
+    bool FiguresAndCaptions,
     bool ContentControlsAndCustomXml,
     bool TablesAndCellTopology,
     IReadOnlyList<string> ExplicitlyUnmodeledDomains
@@ -149,6 +160,7 @@ public sealed class WordDependencyGraph
         int referenceIssueCount,
         int unboundSectionStoryCount,
         int chartIssueCount,
+        int figureIssueCount,
         int contentControlIssueCount,
         int tableIssueCount
     )
@@ -165,6 +177,7 @@ public sealed class WordDependencyGraph
         ReferenceIssueCount = referenceIssueCount;
         UnboundSectionStoryCount = unboundSectionStoryCount;
         ChartIssueCount = chartIssueCount;
+        FigureIssueCount = figureIssueCount;
         ContentControlIssueCount = contentControlIssueCount;
         TableIssueCount = tableIssueCount;
         _nodesById = new ReadOnlyDictionary<string, WordDependencyNode>(
@@ -197,6 +210,8 @@ public sealed class WordDependencyGraph
     public int UnboundSectionStoryCount { get; }
 
     public int ChartIssueCount { get; }
+
+    public int FigureIssueCount { get; }
 
     public int ContentControlIssueCount { get; }
 
@@ -279,7 +294,7 @@ public sealed class WordDependencyGraphBuilder
     private static readonly IReadOnlyList<string> ExplicitlyUnmodeledDomains =
         new ReadOnlyCollection<string>(
             [
-                "drawingml_vml_layout",
+                "drawingml_vml_advanced_layout",
                 "smartart_diagrams",
                 "ole_embedded_packages",
                 "citations_bibliography_sources",
@@ -459,6 +474,13 @@ public sealed class WordDependencyGraphBuilder
         ArgumentNullException.ThrowIfNull(contentControls);
         ArgumentNullException.ThrowIfNull(tables);
         cancellationToken.ThrowIfCancellationRequested();
+        var figures = new WordFigureCaptionGraphBuilder().Build(
+            package,
+            semanticDocument,
+            references,
+            styles,
+            cancellationToken
+        );
         EnsureFingerprint(
             package.Fingerprint,
             semanticDocument.PackageFingerprint,
@@ -467,6 +489,7 @@ public sealed class WordDependencyGraphBuilder
             references.PackageFingerprint,
             sections.PackageFingerprint,
             charts.PackageFingerprint,
+            figures.PackageFingerprint,
             contentControls.PackageFingerprint,
             tables.PackageFingerprint
         );
@@ -536,6 +559,14 @@ public sealed class WordDependencyGraphBuilder
             reachableParts,
             cancellationToken
         );
+        AddFigureDependencies(
+            state,
+            package,
+            semanticDocument,
+            figures,
+            reachableParts,
+            cancellationToken
+        );
         AddContentControlDependencies(
             state,
             package,
@@ -566,6 +597,7 @@ public sealed class WordDependencyGraphBuilder
                 References: true,
                 Sections: true,
                 Charts: true,
+                FiguresAndCaptions: true,
                 ContentControlsAndCustomXml: true,
                 TablesAndCellTopology: true,
                 ExplicitlyUnmodeledDomains
@@ -576,6 +608,7 @@ public sealed class WordDependencyGraphBuilder
             references.Issues.Count,
             sections.UnboundStoryPartUris.Count,
             charts.Issues.Count,
+            figures.Issues.Count,
             contentControls.Issues.Count,
             tables.Issues.Count
         );
@@ -942,6 +975,233 @@ public sealed class WordDependencyGraphBuilder
                     sourceElementOrdinal: repeatingSection.SourceElementOrdinal
                 );
             }
+        }
+    }
+
+    private static void AddFigureDependencies(
+        BuildState state,
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordFigureCaptionGraph figures,
+        IReadOnlySet<string> reachableParts,
+        CancellationToken cancellationToken
+    )
+    {
+        var semanticById = semanticDocument.Nodes.ToDictionary(item => item.Id);
+        var figureNodeIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        var captionNodeIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        var resourceNodeIds = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var figure in figures.Figures)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var reachable = reachableParts.Contains(figure.PartUri);
+            var figureNodeId = state.AddNode(
+                WordDependencyNodeKind.Figure,
+                figure.Id,
+                isResolved: true,
+                isExternal: false,
+                reachable,
+                partUri: figure.PartUri,
+                sourceElementOrdinal: figure.SourceElementOrdinal
+            );
+            figureNodeIds.Add(figure.Id, figureNodeId);
+
+            foreach (var representation in figure.Representations)
+            {
+                if (!semanticById.TryGetValue(
+                    representation.SemanticNodeId,
+                    out var sourceSemantic
+                ))
+                {
+                    throw new WordDependencyProjectionException(
+                        "A figure representation has no source-linked drawing semantic node."
+                    );
+                }
+                var semanticNodeId = SemanticNode(state, sourceSemantic, reachable);
+                state.AddEdge(
+                    WordDependencyEdgeKind.DefinesFigure,
+                    semanticNodeId,
+                    figureNodeId,
+                    isResolved: true,
+                    isExternal: false,
+                    qualifier: representation.ObjectKind.ToString().ToLowerInvariant(),
+                    partUri: representation.PartUri,
+                    sourceElementOrdinal: representation.SourceElementOrdinal
+                );
+                var representationNodeId = state.AddNode(
+                    WordDependencyNodeKind.FigureRepresentation,
+                    representation.Id,
+                    isResolved: true,
+                    isExternal: false,
+                    reachable,
+                    partUri: representation.PartUri,
+                    sourceElementOrdinal: representation.SourceElementOrdinal,
+                    semanticNodeId: representation.SemanticNodeId,
+                    semanticKind: WordSemanticNodeKind.Drawing
+                );
+                state.AddEdge(
+                    WordDependencyEdgeKind.FigureHasRepresentation,
+                    figureNodeId,
+                    representationNodeId,
+                    isResolved: true,
+                    isExternal: false,
+                    qualifier: representation.Kind.ToString().ToLowerInvariant(),
+                    partUri: representation.PartUri,
+                    sourceElementOrdinal: representation.SourceElementOrdinal
+                );
+                foreach (var resource in representation.Resources)
+                {
+                    if (!resourceNodeIds.TryGetValue(resource.Id, out var resourceNodeId))
+                    {
+                        resourceNodeId = state.AddNode(
+                            WordDependencyNodeKind.FigureResource,
+                            resource.Id,
+                            isResolved: true,
+                            isExternal: resource.IsExternal,
+                            reachable,
+                            partUri: representation.PartUri,
+                            sourceElementOrdinal: resource.SourceElementOrdinal
+                        );
+                        resourceNodeIds.Add(resource.Id, resourceNodeId);
+                    }
+                    state.AddEdge(
+                        WordDependencyEdgeKind.FigureUsesResource,
+                        representationNodeId,
+                        resourceNodeId,
+                        isResolved: true,
+                        isExternal: resource.IsExternal,
+                        qualifier: resource.Role.ToString().ToLowerInvariant(),
+                        partUri: representation.PartUri,
+                        sourceElementOrdinal: resource.SourceElementOrdinal,
+                        relationshipId: resource.RelationshipId,
+                        relationshipType: resource.RelationshipType
+                    );
+
+                    string targetNodeId;
+                    if (resource.TargetPartUri is { } targetPartUri)
+                    {
+                        targetNodeId = PartNode(
+                            state,
+                            package,
+                            reachableParts,
+                            targetPartUri
+                        );
+                    }
+                    else
+                    {
+                        targetNodeId = state.AddNode(
+                            resource.IsExternal
+                                ? WordDependencyNodeKind.ExternalTarget
+                                : WordDependencyNodeKind.Part,
+                            resource.Target ?? $"missing-figure-resource:{resource.Id}",
+                            isResolved: false,
+                            isExternal: resource.IsExternal,
+                            isPackageReachable: false,
+                            partUri: resource.TargetPartUri
+                        );
+                    }
+                    state.AddEdge(
+                        WordDependencyEdgeKind.FigureResourceTargetsPart,
+                        resourceNodeId,
+                        targetNodeId,
+                        resource.IsResolved,
+                        resource.IsExternal,
+                        qualifier: resource.Role.ToString().ToLowerInvariant(),
+                        partUri: representation.PartUri,
+                        sourceElementOrdinal: resource.SourceElementOrdinal,
+                        relationshipId: resource.RelationshipId,
+                        relationshipType: resource.RelationshipType
+                    );
+                }
+            }
+        }
+
+        foreach (var caption in figures.Captions)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!semanticById.TryGetValue(caption.ParagraphNodeId, out var paragraph))
+            {
+                throw new WordDependencyProjectionException(
+                    "A caption has no source-linked paragraph semantic node."
+                );
+            }
+            var reachable = reachableParts.Contains(caption.PartUri);
+            var paragraphNodeId = SemanticNode(state, paragraph, reachable);
+            var captionNodeId = state.AddNode(
+                WordDependencyNodeKind.Caption,
+                caption.Id,
+                isResolved: true,
+                isExternal: false,
+                reachable,
+                partUri: caption.PartUri,
+                sourceElementOrdinal: caption.SourceElementOrdinal,
+                semanticNodeId: caption.ParagraphNodeId,
+                semanticKind: WordSemanticNodeKind.Paragraph
+            );
+            captionNodeIds.Add(caption.Id, captionNodeId);
+            state.AddEdge(
+                WordDependencyEdgeKind.DefinesCaption,
+                paragraphNodeId,
+                captionNodeId,
+                isResolved: true,
+                isExternal: false,
+                qualifier: caption.Kind.ToString().ToLowerInvariant(),
+                partUri: caption.PartUri,
+                sourceElementOrdinal: caption.SourceElementOrdinal
+            );
+        }
+
+        foreach (var association in figures.Associations)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                !figureNodeIds.TryGetValue(association.FigureId, out var figureNodeId)
+                || !captionNodeIds.TryGetValue(association.CaptionId, out var captionNodeId)
+            )
+            {
+                throw new WordDependencyProjectionException(
+                    "A figure-caption association has a missing endpoint."
+                );
+            }
+            state.AddEdge(
+                WordDependencyEdgeKind.FigureCaptionAssociation,
+                figureNodeId,
+                captionNodeId,
+                association.Status == WordFigureCaptionAssociationStatus.Selected,
+                isExternal: false,
+                qualifier: string.Join(
+                    ':',
+                    association.Status.ToString().ToLowerInvariant(),
+                    association.Confidence.ToString().ToLowerInvariant(),
+                    association.Direction.ToString().ToLowerInvariant(),
+                    association.Score.ToString(CultureInfo.InvariantCulture)
+                )
+            );
+        }
+
+        foreach (var issue in figures.Issues)
+        {
+            var nodeId = issue.FigureId is not null
+                && figureNodeIds.TryGetValue(issue.FigureId, out var figureNodeId)
+                    ? figureNodeId
+                    : issue.CaptionId is not null
+                        && captionNodeIds.TryGetValue(issue.CaptionId, out var captionNodeId)
+                            ? captionNodeId
+                            : null;
+            state.AddIssue(
+                $"WDF:{issue.Code}",
+                issue.Severity switch
+                {
+                    WordFigureIssueSeverity.Error => WordDependencyIssueSeverity.Error,
+                    WordFigureIssueSeverity.Warning => WordDependencyIssueSeverity.Warning,
+                    _ => WordDependencyIssueSeverity.Info,
+                },
+                issue.Message,
+                nodeId,
+                partUri: issue.PartUri,
+                sourceElementOrdinal: issue.SourceElementOrdinal
+            );
         }
     }
 

@@ -13,12 +13,13 @@ var report = options.Scenario switch
     "graph" => RunGraph(options),
     "bindings" => RunBindings(options),
     "tables" => RunTables(options),
+    "figures" => RunFigures(options),
     "mce" => RunMce(options),
     "patch" => RunPatch(options),
     "semantic-html" => RunSemanticHtml(options),
     "semantic-svg" => RunSemanticSvg(options),
     _ => throw new ArgumentException(
-        "scenario must be 'graph', 'bindings', 'tables', 'mce', 'patch', 'semantic-html', or 'semantic-svg'"
+        "scenario must be 'graph', 'bindings', 'tables', 'figures', 'mce', 'patch', 'semantic-html', or 'semantic-svg'"
     ),
 };
 var json = JsonSerializer.Serialize(report, new JsonSerializerOptions
@@ -93,6 +94,115 @@ static object RunGraph(Arguments options)
                     measured_total = read.TotalMilliseconds
                         + project.TotalMilliseconds
                         + build.TotalMilliseconds,
+                },
+                memory = MemoryReport(baseline, final),
+            }
+        );
+    }
+    finally
+    {
+        File.Delete(path);
+    }
+}
+
+static object RunFigures(Arguments options)
+{
+    if (options.TargetNodes is < 10 or > 100_000)
+    {
+        throw new ArgumentOutOfRangeException(
+            nameof(options.TargetNodes),
+            "figure target must be between 10 and the engine ceiling of 100000 logical figures"
+        );
+    }
+    const int repetitionCount = 7;
+    var maxXmlElements = checked(
+        (int)Math.Min(int.MaxValue, Math.Max(1_000_000L, options.TargetNodes * 45L))
+    );
+    var path = TemporaryPath("figures", ".docx");
+    try
+    {
+        var generation = Measure(() => WriteFigurePackage(path, options.TargetNodes));
+        Collect();
+        var baseline = MemorySnapshot.Capture();
+
+        OpcPackageSnapshot? package = null;
+        WordSemanticDocument? semantic = null;
+        WordReferenceGraph? references = null;
+        WordStyleGraph? styles = null;
+        var read = Measure(() => package = new OpcPackageReader().Read(path));
+        var project = Measure(() =>
+            semantic = new WordSemanticProjector(
+                new WordSemanticProjectionOptions
+                {
+                    MaxXmlCharacters = 256L * 1024 * 1024,
+                    MaxXmlElements = maxXmlElements,
+                    MaxTextCharacters = 64L * 1024 * 1024,
+                }
+            ).Project(package!)
+        );
+        var referenceBuild = Measure(() =>
+            references = new WordReferenceGraphBuilder().Build(package!, semantic!)
+        );
+        var styleBuild = Measure(() =>
+            styles = new WordStyleGraphBuilder().Build(package!, semantic!)
+        );
+        WordFigureCaptionGraph? graph = null;
+        var timings = new double[repetitionCount];
+        for (var index = 0; index < repetitionCount; index++)
+        {
+            timings[index] = Measure(() =>
+            {
+                graph = new WordFigureCaptionGraphBuilder().Build(
+                    package!,
+                    semantic!,
+                    references!,
+                    styles!
+                );
+            }).TotalMilliseconds;
+        }
+        Collect();
+        var final = MemorySnapshot.Capture();
+        var orderedTimings = timings.Order().ToArray();
+        var measuredGraph = graph ?? throw new InvalidOperationException(
+            "Figure benchmark did not produce a graph."
+        );
+        return CommonReport(
+            "figure_caption_graph",
+            new
+            {
+                requested_figures = options.TargetNodes,
+                configured_figure_ceiling = WordFigureCaptionGraphOptions.Default.MaxFigures,
+                configured_caption_ceiling = WordFigureCaptionGraphOptions.Default.MaxCaptions,
+                configured_association_ceiling = WordFigureCaptionGraphOptions.Default.MaxAssociations,
+                package_bytes = new FileInfo(path).Length,
+                package_parts = package!.Entries.Count,
+                semantic_nodes = semantic!.NodeCount,
+                reference_fields = references!.Fields.Count,
+                figures = measuredGraph.Figures.Count,
+                representations = measuredGraph.Figures.Sum(item => item.Representations.Count),
+                resources = measuredGraph.Figures.Sum(item => item.Resources.Count),
+                captions = measuredGraph.Captions.Count,
+                associations = measuredGraph.Associations.Count,
+                selected_associations = measuredGraph.Associations.Count(item =>
+                    item.Status == WordFigureCaptionAssociationStatus.Selected
+                ),
+                issues = measuredGraph.Issues.Count,
+                parsed_xml_bytes = measuredGraph.ParsedXmlBytes,
+                parsed_xml_elements = measuredGraph.ParsedXmlElements,
+                timings_ms = new
+                {
+                    generate = generation.TotalMilliseconds,
+                    package_read = read.TotalMilliseconds,
+                    semantic_projection = project.TotalMilliseconds,
+                    reference_build = referenceBuild.TotalMilliseconds,
+                    style_build = styleBuild.TotalMilliseconds,
+                    figure_build_samples = timings,
+                    figure_build_median = orderedTimings[repetitionCount / 2],
+                    figure_build_p95 = orderedTimings[^1],
+                    measured_setup_total = read.TotalMilliseconds
+                        + project.TotalMilliseconds
+                        + referenceBuild.TotalMilliseconds
+                        + styleBuild.TotalMilliseconds,
                 },
                 memory = MemoryReport(baseline, final),
             }
@@ -756,6 +866,53 @@ static void WriteGraphPackage(string path, int paragraphCount)
     writer.Write(PackageFixture.DocumentEnd);
 }
 
+static void WriteFigurePackage(string path, int figureCount)
+{
+    using var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+    using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+    WriteTextEntry(archive, "[Content_Types].xml", PackageFixture.ContentTypes);
+    WriteTextEntry(archive, "_rels/.rels", PackageFixture.RootRelationships);
+    var relationshipsEntry = archive.CreateEntry(
+        "word/_rels/document.xml.rels",
+        CompressionLevel.Fastest
+    );
+    using (var relationshipsStream = relationshipsEntry.Open())
+    using (var relationshipsWriter = new StreamWriter(
+        relationshipsStream,
+        new UTF8Encoding(false),
+        64 * 1024
+    ))
+    {
+        relationshipsWriter.Write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">");
+        for (var index = 0; index < figureCount; index++)
+        {
+            relationshipsWriter.Write("<Relationship Id=\"rIdImage");
+            relationshipsWriter.Write(index + 1);
+            relationshipsWriter.Write("\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/figure.bin\"/>");
+        }
+        relationshipsWriter.Write("</Relationships>");
+    }
+    WriteTextEntry(archive, "word/media/figure.bin", "shared-opaque-benchmark-resource");
+    var entry = archive.CreateEntry("word/document.xml", CompressionLevel.Fastest);
+    using var stream = entry.Open();
+    using var writer = new StreamWriter(stream, new UTF8Encoding(false), 64 * 1024);
+    writer.Write(PackageFixture.FigureDocumentStart);
+    for (var index = 0; index < figureCount; index++)
+    {
+        writer.Write("<w:p><w:r><w:drawing><wp:inline><wp:extent cx=\"914400\" cy=\"457200\"/><wp:docPr id=\"");
+        writer.Write(index + 1);
+        writer.Write("\" name=\"Figure ");
+        writer.Write(index + 1);
+        writer.Write("\" descr=\"Synthetic benchmark figure\"/><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic><pic:nvPicPr><pic:cNvPr id=\"0\" name=\"figure.bin\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"rIdImage");
+        writer.Write(index + 1);
+        writer.Write("\"/></pic:blipFill><pic:spPr/></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>");
+        writer.Write("<w:p><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> SEQ Figure \\* ARABIC </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t>");
+        writer.Write(index + 1);
+        writer.Write("</w:t></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>");
+    }
+    writer.Write(PackageFixture.DocumentEnd);
+}
+
 static void WriteSemanticHtmlPackage(string path, int paragraphCount)
 {
     using var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
@@ -965,7 +1122,7 @@ internal sealed record Arguments(
         if (args.Length == 0)
         {
             throw new ArgumentException(
-                "usage: graph --target-nodes N | bindings --target-nodes N | tables --target-nodes N | mce --target-nodes N | semantic-html --target-nodes N | patch --payload-mib N [--parts N]"
+                "usage: graph --target-nodes N | bindings --target-nodes N | tables --target-nodes N | figures --target-nodes N | mce --target-nodes N | semantic-html --target-nodes N | semantic-svg --target-nodes N | patch --payload-mib N [--parts N]"
             );
         }
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -1084,6 +1241,16 @@ internal static class PackageFixture
         """;
 
     internal const string DocumentEnd = "<w:sectPr/></w:body></w:document>";
+
+    internal const string FigureDocumentStart = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <w:document
+          xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+          xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+          xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+          xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>
+        """;
 
     internal const string MceDocumentStart = """
         <?xml version="1.0" encoding="UTF-8" standalone="yes"?>

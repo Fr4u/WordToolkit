@@ -139,12 +139,17 @@ The Docker image builds the Microsoft Open XML SDK validator. A Python-only run 
 11. Content-control binding scale claims use the checked-in `bindings` benchmark. Its
     100,000-control point must report every binding resolved and must disclose any
     benchmark-only resource limit raised above the production default.
+12. Figure/caption scale claims use the checked-in `figures` benchmark. It builds the
+    graph seven times over immutable projected inputs, reports median/p95, and must
+    produce the requested figures/captions plus uniquely selected associations without
+    diagnostics at the 10,000-object point.
 
 Run the binding-graph scale points without Word:
 
 ```powershell
 dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release -- bindings --target-nodes 10000
 dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release -- bindings --target-nodes 100000
+dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release -- figures --target-nodes 10000
 ```
 
 ## Interpreting visual results

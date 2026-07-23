@@ -149,6 +149,7 @@ internal sealed partial class WordLiveService
                     references = graph.ReferenceIssueCount,
                     unbound_section_stories = graph.UnboundSectionStoryCount,
                     charts = graph.ChartIssueCount,
+                    figures_and_captions = graph.FigureIssueCount,
                     content_controls = graph.ContentControlIssueCount,
                     tables = graph.TableIssueCount,
                 },
@@ -161,6 +162,7 @@ internal sealed partial class WordLiveService
                     references = graph.Coverage.References,
                     sections = graph.Coverage.Sections,
                     charts = graph.Coverage.Charts,
+                    figures_and_captions = graph.Coverage.FiguresAndCaptions,
                     content_controls_and_custom_xml = graph.Coverage
                         .ContentControlsAndCustomXml,
                     tables_and_cell_topology = graph.Coverage
@@ -218,6 +220,7 @@ internal sealed partial class WordLiveService
                 or WordNumberingLimitException
                 or WordReferenceLimitException
                 or WordSectionLimitException
+                or WordFigureLimitException
                 or WordContentControlLimitException
         )
         {
@@ -233,6 +236,7 @@ internal sealed partial class WordLiveService
                 or WordNumberingResolutionException
                 or WordReferenceProjectionException
                 or WordSectionProjectionException
+                or WordFigureProjectionException
                 or WordContentControlProjectionException
         )
         {

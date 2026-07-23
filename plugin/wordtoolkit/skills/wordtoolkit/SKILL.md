@@ -138,13 +138,29 @@ semantic object, style, numbering definition, field target or section story. Sta
 bounded `impact` neighborhood or filtered `edges`/`unresolved` page. Keep keys and source
 metadata redacted unless the next operation consumes them. The graph joins the
 explicitly reported OPC, semantic-containment, style, numbering, reference, section,
-classic-chart, content-control, physical/built-in XML-store, binding-target and
-repeating-section domains plus nested-table and vertical-merge topology. Its
+classic-chart, logical-figure/representation/resource/caption, content-control,
+physical/built-in XML-store, binding-target and repeating-section domains plus
+nested-table and vertical-merge topology. Its
 `explicitly_unmodeled_domains` list is a hard coverage
-boundary: absence of an edge for drawings, SmartArt, OLE, bibliography, active content,
+boundary: absence of an edge for advanced drawing layout, SmartArt, OLE, bibliography, active content,
 signatures, encryption or co-authoring is not proof that the dependency does not exist.
 This action never opens Word, executes a field, follows an external target, repairs a
 document or authorizes deleting an apparently unused node.
+Use lazy `inspect_ooxml_figures` instead of reading `w:drawing`, `w:pict`, `w:object`,
+`wp:*`, VML or nearby caption paragraphs yourself. Start with `view=summary`; page
+`figures`, `representations`, `captions`, `associations`, `resources` or `issues` only
+when the next decision consumes them. Narrow with an exact `wdfig_` or `wdfc_` ID or an
+object kind. Caption association is evidence-scored proximity inside one story and
+container, not a declared OOXML relationship: only a mutual unique best candidate is
+selected and ties remain ambiguous. Without an application capability context, no
+`mc:AlternateContent` branch is active or primary; use
+`inspect_ooxml_markup_compatibility` for branch evaluation.
+Accessibility/caption text, source provenance and relationship targets require three
+independent opt-ins. Raw XML and binary resources are never returned. The action never
+opens Word, decodes images or embedded packages, follows external targets, evaluates
+fields or executes active content. Deleted figures/captions remain visible but are not
+selected. Treat missing/ambiguous relationships and unmodeled payloads as evidence, not
+permission to guess or delete preserved content.
 Use lazy `inspect_ooxml_content_controls` instead of reading `w:sdt`, `dataBinding`,
 `customXml` or item-properties XML yourself. Start with `view=summary`; page `controls`,
 `stores`, `bindings`, `targets`, `repeating_sections` or `issues` only when the next
