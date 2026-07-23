@@ -50,6 +50,8 @@
   expanded manifests also matched exactly at SHA-256
   `cd728f01ea4da97e303a1ad488ebd79d64b3b21113bc80aee8438cc29d074104`.
   `WordToolkit.OpenXmlSdk.dll` is present and the package contains zero Python files.
+  Mandatory CI run `29977852683` passed all five jobs. Its downloaded 36,238,851-byte
+  Windows distributable matched both local ZIPs byte for byte at the same SHA-256.
 - Added `wordtoolkit.query_ooxml_semantics/1.0` as the third public
   transport-neutral Engine/CLI/MCP operation. Direct saved-package and process-memory
   indexed queries now share one typed result builder and canonical JSON instead of an
