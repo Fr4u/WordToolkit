@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- Added `wordtoolkit.render_ooxml_semantic_svg/1.0` as the seventh public
+  transport-neutral Engine/CLI/MCP operation and the second implementation of a shared
+  native semantic-rendering backend contract. It requires both an exact semantic node
+  ID and the inspected package fingerprint, creates only a new self-contained `.svg`,
+  emits real selectable SVG text with `title`, `desc` and ARIA structure, estimates
+  non-paginated flow/table geometry, and reports target subtree identity, backend,
+  media type, layout basis, text mode, canvas, fidelity and degradation metadata. The
+  static profile has no script, event handlers, `foreignObject`, active links, external
+  resources or font loading; field instructions remain suppressed. Standalone drawing,
+  marker and extension roots fail closed. Rendering is bounded before XML materialization
+  by 40,000 text lines, 100,000 generated SVG elements, a 1,000,000-pixel canvas dimension
+  and a 256 MiB artifact ceiling. The shared render path policy rejects UNC and Windows
+  device namespaces before any filesystem probe, preserving the declared no-network
+  boundary instead of risking implicit SMB access. The contract explicitly fixes `paginated`,
+  `exact_text_metrics` and `pixel_equivalence_claimed` to false rather than laundering
+  estimated geometry into a Word-fidelity claim. `render-package --backend semantic-svg`
+  and the lazy MCP action call the same Engine implementation; omitting `--backend`
+  preserves the historical HTML CLI path.
+- Verified the final SVG slice with 408 Engine tests, 272 Native tests and the complete
+  1,279-test Python/OOXML suite with 16 intentional skips; Ruff and the maintained
+  28-module mypy lane are clean. Two supported Windows builds produced identical
+  196-file, 85,501,261-byte trees and identical 36,302,166-byte ZIPs at SHA-256
+  `608fa76a93d737d9434ea0573316ee8dbb4e8baba7300e49a727e4687589ce7a`; the expanded
+  manifest and enabled personal-plugin cache matched at SHA-256
+  `18e02ad4487212d8d7429d2dc99360c742d183650737eea237d78015f5c7cfe9`.
 - Added `wordtoolkit.render_ooxml_semantic_html/1.0` as the sixth public
   transport-neutral Engine/CLI/MCP operation. The dependency-free Engine creates a
   deterministic, self-contained HTML artifact from a saved DOCX/DOCM/DOTX/DOTM without
@@ -27,7 +52,7 @@
   move, never overwrites an output, can bind an inspected package fingerprint, leaves the
   source byte-identical, and returns artifact hashes/counts rather than document text or
   XML in the response. The result explicitly marks that the local HTML artifact itself
-  contains document content. Capability discovery now covers 88 lazy/core actions and reports six actions with
+  contains document content. Capability discovery now covers 89 lazy/core actions and reports seven actions with
   complete operation-version, permission, reversibility and output-schema metadata.
 - Hardened the HTML boundary with output-name and 256 MiB artifact limits, a restrictive
   inline Content Security Policy, HTML escaping of every package-derived value, adaptive

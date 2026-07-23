@@ -255,6 +255,42 @@ WordToolkit core cannot quietly require them or copy their behavior by guesswork
 | Microsoft Word JavaScript `ExportRange` | Word-hosted fixed-format export supports the whole document, current page, explicit page ranges or the active selection. It is direct evidence that selection-scoped rendering/export belongs in a serious Word automation surface. | The API is host-dependent and fixed-format oriented; it does not provide a vendor-neutral semantic HTML subtree, stable package node locator or server-side layout engine. | [`Word.ExportRange`](https://learn.microsoft.com/en-us/javascript/api/word/word.exportrange?view=word-js-preview) (B/D). |
 | Adobe PDF Services / Extract API | Cloud PDF-to-DOCX, OCR, conversion and structured PDF extraction into JSON. | PDF is the source model. Extraction and conversion cannot reconstruct Word-specific package semantics or prove DOCX round-trip preservation. | [PDF Services overview](https://developer.adobe.com/document-services/docs/overview/pdf-services-api/), [API list](https://developer.adobe.com/document-services/docs/apis/), [Extract API](https://developer.adobe.com/document-services/docs/overview/pdf-extract-api/) (B/D). |
 
+### Differential object-rendering evidence — 2026-07-23
+
+The next renderer decision was checked against primary interfaces rather than product
+brochures. This is a bounded differential check, not a new claim to have surveyed every
+converter.
+
+- **FACT:** Word COM `Range.ExportAsFixedFormat` exports a range only to PDF or XPS; it
+  does not define semantic SVG or stable package-node rendering. Word JavaScript
+  `ExportRange` selects the whole document, current page, page range or active selection,
+  not an OOXML equation/table ID. Sources: [Word VBA
+  `Range.ExportAsFixedFormat`](https://learn.microsoft.com/en-us/office/vba/api/Word.range.exportasfixedformat),
+  [Word JavaScript
+  `ExportRange`](https://learn.microsoft.com/en-us/javascript/api/word/word.exportrange?view=word-js-preview).
+- **FACT:** LibreOffice UNO `XRenderable` exposes numbered render jobs through
+  `getRendererCount`, `getRenderer` and `render`; its contract does not promise a
+  Word-equivalent SVG for one semantic object. Source: [LibreOffice
+  `XRenderable`](https://api.libreoffice.org/docs/idl/ref/interfacecom_1_1sun_1_1star_1_1view_1_1XRenderable.html).
+- **FACT:** Aspose.Words exposes separate per-object `ShapeRenderer` and
+  `OfficeMathRenderer` APIs. That is concrete competitor evidence for true object-level
+  rendering, but it remains a closed licensed layout engine whose Word fidelity and text
+  mode need corpus tests. Sources: [Aspose
+  `ShapeRenderer`](https://reference.aspose.com/words/net/aspose.words.rendering/shaperenderer/),
+  [Aspose
+  `OfficeMathRenderer`](https://reference.aspose.com/words/net/aspose.words.rendering/officemathrenderer/).
+- **FACT:** SVG 2 text can remain selectable/searchable text, while glyph placement still
+  depends on fonts, CSS, kerning, bidi and the consuming renderer. SVG can also contain
+  scripts and external links, so safe generation requires an explicit static profile.
+  Sources: [W3C SVG 2 text](https://www.w3.org/TR/SVG2/text.html), [W3C SVG
+  integration](https://www.w3.org/TR/svg-integration/), [W3C SVG
+  linking](https://www.w3.org/TR/SVG/linking.html).
+- **DECISION:** the built-in `render_ooxml_semantic_svg/1.0` claims exact target identity
+  and deterministic semantic vector output only. It does not claim Word object bounds,
+  pagination, exact font metrics or pixel parity. Word PDF/XPS, LibreOffice best-effort
+  output and optional licensed per-object renderers remain separate backend classes with
+  their own version, environment, fidelity and security evidence.
+
 ## AI-oriented CLI and MCP implementations
 
 Pinned source snapshots were cloned under a temporary research directory. The original

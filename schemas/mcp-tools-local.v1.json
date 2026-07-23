@@ -14,6 +14,7 @@
       "inspect_ooxml_semantics",
       "query_ooxml_semantics",
       "render_ooxml_semantic_html",
+      "render_ooxml_semantic_svg",
       "manage_ooxml_semantic_index",
       "compare_ooxml_semantics",
       "plan_ooxml_patch",
@@ -4477,6 +4478,154 @@
                 }
               }
             ],
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "render_ooxml_semantic_svg",
+      "title": "Render one semantic Word object as safe SVG",
+      "description": "Create a deterministic, self-contained SVG artifact for one exact fingerprint-bound semantic node in a saved DOCX, DOCM, DOTX, or DOTM without opening Word. The built-in vendor-neutral backend renders real selectable text plus estimated flow or table geometry, keeps hyperlinks inert, suppresses field instructions, and never loads external resources or executes active content. It is a non-paginated semantic vector preview: exact target identity is enforced, but Microsoft Word typography, object bounds, pagination, and pixel equivalence are explicitly not claimed.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_input_package_and_create_new_svg_output",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": true,
+        "mechanism": "delete_created_output",
+        "default": "retained"
+      },
+      "limits": {
+        "artifact_bytes": 268435456,
+        "viewport_width_px": {"minimum": 320, "maximum": 4096},
+        "canvas_height_px": 1000000,
+        "generated_text_lines": 40000,
+        "generated_svg_elements": 100000
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "maxLength": 32767,
+            "description": "Absolute or workspace-relative path to one local DOCX, DOCM, DOTX, or DOTM."
+          },
+          "output_path": {
+            "type": "string",
+            "maxLength": 32767,
+            "pattern": "\\.[Ss][Vv][Gg]$",
+            "description": "New local .svg path. Existing files are never overwritten and the parent directory must already exist."
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$",
+            "description": "Required exact package fingerprint that binds target_node_id to the inspected package version."
+          },
+          "target_node_id": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 128,
+            "pattern": "^wdn_[A-Za-z0-9_-]+$",
+            "description": "Required exact semantic node ID from the fingerprint-bound package. Standalone drawings, marker nodes and unsupported extension roots fail closed."
+          },
+          "story_scope": {
+            "type": "string",
+            "enum": ["main_document", "all_text_stories"],
+            "default": "main_document",
+            "description": "Authorize a target in the main document body only, or in any projected text story. It never expands the selected subtree."
+          },
+          "language": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 35,
+            "pattern": "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$",
+            "default": "und",
+            "description": "Compact BCP 47-style language tag used as xml:lang on the SVG root."
+          },
+          "viewport_width_px": {
+            "type": "integer",
+            "minimum": 320,
+            "maximum": 4096,
+            "default": 1024,
+            "description": "Deterministic SVG canvas width. Text wrapping uses estimated metrics and is not Word layout."
+          }
+        },
+        "required": ["local_path", "output_path", "expected_package_fingerprint", "target_node_id"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "input_file_name", "output_file_name", "package_fingerprint", "artifact_sha256", "artifact_bytes", "artifact_media_type", "output_format", "backend", "backend_version", "fidelity_class", "layout_basis", "text_output_mode", "paginated", "exact_text_metrics", "pixel_equivalence_claimed", "story_scope", "selection_applied", "target_node_id", "target_kind", "target_story_kind", "target_subtree_fingerprint", "viewport_width_px", "viewport_height_px", "rendered_story_count", "rendered_node_count", "paragraph_count", "table_count", "equation_count", "drawing_placeholder_count", "unsupported_node_count", "warnings", "output_created", "source_mutated", "artifact_contains_document_content", "external_resources_loaded", "active_content_executed", "raw_xml_returned", "document_text_returned", "word_opened"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.render_ooxml_semantic_svg/1.0"},
+              "input_file_name": {"type": "string", "maxLength": 512},
+              "output_file_name": {"type": "string", "maxLength": 512},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "artifact_bytes": {"type": "integer", "minimum": 1, "maximum": 268435456},
+              "artifact_media_type": {"const": "image/svg+xml"},
+              "output_format": {"const": "svg"},
+              "backend": {"const": "wordtoolkit-semantic-svg"},
+              "backend_version": {"const": "1.0"},
+              "fidelity_class": {"const": "semantic_vector_preview_non_paginated"},
+              "layout_basis": {"const": "semantic_flow_estimated"},
+              "text_output_mode": {"const": "text"},
+              "paginated": {"const": false},
+              "exact_text_metrics": {"const": false},
+              "pixel_equivalence_claimed": {"const": false},
+              "story_scope": {"enum": ["main_document", "all_text_stories"]},
+              "selection_applied": {"const": true},
+              "target_node_id": {"type": "string", "minLength": 5, "maxLength": 128, "pattern": "^wdn_[A-Za-z0-9_-]+$"},
+              "target_kind": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$", "maxLength": 64},
+              "target_story_kind": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$", "maxLength": 64},
+              "target_subtree_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "viewport_width_px": {"type": "integer", "minimum": 320, "maximum": 4096},
+              "viewport_height_px": {"type": "integer", "minimum": 1, "maximum": 1000000},
+              "rendered_story_count": {"const": 1},
+              "rendered_node_count": {"type": "integer", "minimum": 1},
+              "paragraph_count": {"type": "integer", "minimum": 0},
+              "table_count": {"type": "integer", "minimum": 0},
+              "equation_count": {"type": "integer", "minimum": 0},
+              "drawing_placeholder_count": {"type": "integer", "minimum": 0},
+              "unsupported_node_count": {"type": "integer", "minimum": 0},
+              "warnings": {
+                "type": "array",
+                "maxItems": 32,
+                "uniqueItems": true,
+                "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]+$", "maxLength": 96}
+              },
+              "output_created": {"const": true},
+              "source_mutated": {"const": false},
+              "artifact_contains_document_content": {"const": true, "description": "The created local SVG artifact contains document content even though the MCP response does not return that content."},
+              "external_resources_loaded": {"const": false},
+              "active_content_executed": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "document_text_returned": {"const": false},
+              "word_opened": {"const": false},
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {
+                "type": "object",
+                "required": ["total_ms"],
+                "properties": {"total_ms": {"type": "number", "minimum": 0}},
+                "additionalProperties": false
+              }
+            },
             "additionalProperties": false
           }
         },

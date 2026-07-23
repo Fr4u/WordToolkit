@@ -8,7 +8,7 @@ internal static class RenderPackageCli
 {
     private const int MaximumRequestCharacters = 256 * 1024;
     private const string Usage =
-        "usage: wordtoolkit-native render-package --request <request.json|-> [--format json]";
+        "usage: wordtoolkit-native render-package --request <request.json|-> [--backend semantic-html|semantic-svg] [--format json]";
 
     public static int Run(
         IReadOnlyList<string> arguments,
@@ -24,6 +24,8 @@ internal static class RenderPackageCli
         }
 
         string? requestSource = null;
+        var backend = "semantic-html";
+        var backendSpecified = false;
         for (var index = 0; index < arguments.Count; index++)
         {
             var argument = arguments[index];
@@ -34,6 +36,17 @@ internal static class RenderPackageCli
             )
             {
                 requestSource = candidate;
+                continue;
+            }
+            if (
+                argument == "--backend"
+                && TryValue(arguments, ref index, out var backendCandidate)
+                && !backendSpecified
+                && backendCandidate is "semantic-html" or "semantic-svg"
+            )
+            {
+                backend = backendCandidate;
+                backendSpecified = true;
                 continue;
             }
             if (
@@ -56,9 +69,13 @@ internal static class RenderPackageCli
             var json = requestSource == "-"
                 ? ReadBounded(input)
                 : ReadRequestFile(requestSource);
-            var result = new SemanticHtmlWordPackageOperation().Execute(
-                SemanticHtmlWordPackageJson.ParseRequest(json)
-            );
+            object result = backend == "semantic-svg"
+                ? new SemanticSvgWordPackageOperation().Execute(
+                    SemanticSvgWordPackageJson.ParseRequest(json)
+                )
+                : new SemanticHtmlWordPackageOperation().Execute(
+                    SemanticHtmlWordPackageJson.ParseRequest(json)
+                );
             output.WriteLine(WordToolkitOperationJson.Serialize(result, indented: true));
             return 0;
         }
@@ -142,7 +159,7 @@ internal static class RenderPackageCli
                 error,
                 new WordToolkitOperationError(
                     "INTERNAL_ERROR",
-                    "The semantic HTML render operation failed",
+                    "The semantic render operation failed",
                     null,
                     Retryable: false
                 )

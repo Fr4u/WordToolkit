@@ -1,5 +1,53 @@
 # Stage results
 
+## WordToolkit 0.36.0 exact-target semantic SVG — 2026-07-23
+
+- Added `wordtoolkit.render_ooxml_semantic_svg/1.0` as the seventh transport-neutral
+  Engine/CLI/MCP operation. It requires the exact package fingerprint and semantic target
+  ID, then creates one deterministic, self-contained SVG with selectable text,
+  accessibility metadata and estimated flow/table geometry. The closed contract states
+  `paginated=false`, `exact_text_metrics=false` and `pixel_equivalence_claimed=false`.
+- HTML and SVG now share package preparation, target authorization, backend metadata and
+  atomic create-new publication while retaining their public 1.0 contracts. The SVG path
+  is bounded before final XML materialization at 40,000 text lines, 100,000 generated
+  elements, a 1,000,000-pixel canvas dimension and a 256 MiB artifact. UNC and Windows
+  device namespaces are rejected before any filesystem probe, preserving `network=none`.
+- Security regressions target the hostile text, external hyperlink and complex field
+  themselves: package text resembling `<script>` remains inert text, no active link or
+  external URI is emitted, cached field results survive and instructions remain absent.
+  Review annotations are backed by real review-graph evidence. Resource exhaustion,
+  stale/missing/out-of-scope targets and structurally non-renderable roots fail closed
+  without an output or temporary-file residue. Independent red-team review found no
+  remaining P0, P1 or P2 issue in the final diff.
+- Full Engine suite: **408 passed, 0 skipped**. Full Native suite: **272 passed, 0
+  skipped**. Full Python/OOXML suite: **1,279 passed, 16 intentional skips**. Ruff, the
+  maintained 28-module mypy lane, six HTML/SVG schema regressions and the modified-file
+  C# whitespace lane are clean.
+- Native package version: `0.36.0+codex.20260723100732`, with 15 exposed core/gateway
+  tools and **89** native actions. Seven actions publish complete operation-version,
+  permission, reversibility and output-schema metadata.
+- Two supported Windows builds produced byte-identical **196-file**,
+  **85,501,261-byte** expanded trees and byte-identical **36,302,166-byte** ZIPs. ZIP
+  SHA-256: `608fa76a93d737d9434ea0573316ee8dbb4e8baba7300e49a727e4687589ce7a`;
+  expanded manifest SHA-256:
+  `18e02ad4487212d8d7429d2dc99360c742d183650737eea237d78015f5c7cfe9`.
+  The installed and enabled `wordtoolkit@personal` cache has the same version, file count,
+  byte count and manifest with zero file differences from the built package.
+- The packaged executable selected the first semantic table in the checked-in Mammoth
+  fixture under its exact fingerprint and created one **2,266-byte** SVG at SHA-256
+  `b8e436cd184ab1b316321e305ad850f1f21a43e518428d6d7e9e54f6a48536d9`.
+  XML inspection found four real text nodes, zero script/`foreignObject` nodes and zero
+  active-link, event or external-URI attributes. The source hash and Word process count
+  did not change; the response contained no source/output path and none of the four
+  rendered text values.
+- The checked-in 10,000-node benchmark projected 9,996 nodes, selected one six-node table
+  and emitted a **1,305-byte** SVG seven times with one SHA-256
+  (`a1c854f359ad28b50c2661576b0a348cdc0f4e0a1e7ac21c155c2ba414fe2ad3`).
+  Median render time was **449.10 ms**, p95/max **844.87 ms**. The source stayed
+  byte-identical, Word did not open and all external/active-content flags remained false.
+  Whole-package projection still dominates; this is determinism and bounded-artifact
+  evidence, not a Word-layout or proportional speedup claim.
+
 ## WordToolkit 0.35.0 semantic HTML renderer — 2026-07-23
 
 - Added `wordtoolkit.render_ooxml_semantic_html/1.0` through one dependency-free Engine,

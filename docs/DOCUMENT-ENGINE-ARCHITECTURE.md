@@ -902,14 +902,50 @@ returns only hashes, counts, warnings and bounded non-text selection metadata. I
 fidelity class is `semantic_preview_non_paginated`; it is
 not an implementation of the page-layout promises described below.
 
+`wordtoolkit.render_ooxml_semantic_svg/1.0` is the second native backend on the same
+package-context, exact-target resolver and create-new artifact boundary. Unlike HTML it
+requires `target_node_id` and `expected_package_fingerprint`: the first SVG slice is an
+object/subtree renderer, not a hidden whole-document layout engine. The backend emits
+real SVG `text`, `title`, `desc` and ARIA groups, derives deterministic flow and table
+geometry from bounded semantic content, suppresses field instructions, keeps hyperlinks
+inert and has no script, event, `foreignObject`, image, font or external-resource path.
+Standalone drawings and nonvisual marker/extension roots fail closed; drawings and
+unknown extension islands below a supported target are visible placeholders with warning
+codes. Before the final XML tree is materialized, the renderer stops at 40,000 text lines,
+100,000 generated SVG elements or a 1,000,000-pixel canvas dimension; the published
+artifact shares the 256 MiB renderer ceiling. Its closed metadata fixes
+`layout_basis=semantic_flow_estimated`,
+`text_output_mode=text`, `paginated=false`, `exact_text_metrics=false` and
+`pixel_equivalence_claimed=false`. Exactness describes the fingerprint-bound selected
+semantic target, not Word typography, object bounds, pagination or pixels.
+
+Both native renderers implement one internal backend contract that records backend ID and
+version, output format/media type, fidelity class, pagination and text-metric claims, and
+active/external-resource behavior. Package reading, Word-content-type validation, semantic
+projection and style/review/equation graph construction are shared. HTML keeps its public
+1.0 request/result and byte output; HTML-only table fragment wrappers do not leak into the
+SVG contract. Both adapters reject UNC and Windows device-namespace input/output paths
+before the first filesystem existence check, so their `network=none` permission record is
+not undermined by implicit SMB access or outbound credential negotiation.
+
 The 10,000-node synthetic benchmark rendered the six-node selected table into 3,074
 bytes instead of the 541,043-byte full artifact (0.5682%). It does not claim a comparable
 latency reduction: package reading, semantic projection and supporting graph construction
 still cover the whole package. Repeated selected renders were byte-identical.
 
-Render results include backend version, operating system, font inventory hash, locale,
-page settings, warnings, and a fidelity class. Visual regression compares page count,
-text geometry, raster deltas, and object-level anchors where available.
+The first checked-in SVG point projects 9,996 nodes from a requested 10,000-node package,
+selects one six-node table and emits a 1,305-byte artifact. Seven isolated renders have
+identical bytes and SHA-256; the recorded median is 449.10 ms and p95/max is 844.87 ms.
+Package reading and semantic projection still cover the whole package, so this is a
+determinism and bounded-output point, not a claim of proportional selection latency or
+Word page-layout performance.
+
+Render results include backend version, format/media type, fidelity class, bounded target
+identity, warnings and explicit claims. A qualified layout backend must additionally
+record its operating system, font inventory hash, locale and page settings; the built-in
+semantic SVG backend records that font resolution was not performed instead of fabricating
+environment evidence. Visual regression compares page count, text geometry, raster deltas,
+and object-level anchors only where the selected backend actually exposes them.
 
 ## Low-token AI contract
 
@@ -966,7 +1002,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 88 actions already have public SDK
+These are proved migration seams, not a claim that all 89 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
@@ -1006,9 +1042,10 @@ to an opaque sibling `.conflict` artifact and deliberately retained, even when n
 backup retention is disabled. Public diagnostics list only still-existing opaque artifact
 names, never their absolute paths or payloads; no artifact is claimed when none exists.
 
-This is deliberately honest about what is still absent. `metadata_coverage` reports five
+This is deliberately honest about what is still absent. `metadata_coverage` reports seven
 explicit output schemas, permission records, reversibility records and per-operation
-versions for semantic query, semantic-style plan/apply and comment-body plan/apply; the other 82 actions remain
+versions for semantic query, semantic HTML/SVG rendering, semantic-style plan/apply and
+comment-body plan/apply; the other 82 actions remain
 uncovered. Those fields are not
 inferred from operation names. Format support is labelled operation-specific, and full
 input/output schemas remain behind `inspect_wordtoolkit_action`. The normative JSON shape is

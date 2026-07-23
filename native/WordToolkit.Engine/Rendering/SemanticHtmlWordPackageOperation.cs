@@ -110,16 +110,19 @@ public sealed record SemanticHtmlWordPackageResult(
 
 public sealed class SemanticHtmlWordPackageOperation
 {
-    private readonly OpcPackageReader _reader;
-    private readonly WordSemanticProjector _projector;
+    private readonly SemanticRenderPackageLoader _loader;
+    private readonly ISemanticRenderBackend<
+        SemanticHtmlBackendRequest,
+        SemanticHtmlRenderArtifact
+    > _backend;
 
     public SemanticHtmlWordPackageOperation(
         OpcPackageLimits? packageLimits = null,
         WordSemanticProjectionOptions? projectionOptions = null
     )
     {
-        _reader = new OpcPackageReader(packageLimits);
-        _projector = new WordSemanticProjector(projectionOptions);
+        _loader = new SemanticRenderPackageLoader(packageLimits, projectionOptions);
+        _backend = SemanticHtmlRenderBackend.Instance;
     }
 
     public SemanticHtmlWordPackageResult Execute(
@@ -133,128 +136,41 @@ public sealed class SemanticHtmlWordPackageOperation
         }
 
         var paths = ValidateAndResolve(request);
-        string? temporaryPath = null;
         try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            OpcPackageSnapshot package;
-            using (
-                var stream = new FileStream(
-                    paths.Input,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.Read
-                )
-            )
-            {
-                package = _reader.Read(stream, cancellationToken);
-            }
-
-            if (!package.IsStructurallyValid)
-            {
-                throw new WordToolkitOperationException(
-                    "INVALID_PACKAGE",
-                    "The OPC package failed structural validation"
-                );
-            }
-            if (
-                request.ExpectedPackageFingerprint is not null
-                && !string.Equals(
-                    request.ExpectedPackageFingerprint,
-                    package.Fingerprint,
-                    StringComparison.OrdinalIgnoreCase
-                )
-            )
-            {
-                throw new WordToolkitOperationException(
-                    "VERSION_CONFLICT",
-                    "The package does not match expected_package_fingerprint"
-                );
-            }
-
-            var semantic = _projector.Project(package, cancellationToken);
-            if (
-                !package.Parts.TryGetValue(semantic.MainPartUri, out var mainPart)
-                || !WordPackageConformance.IsMainContentTypeCompatibleWithFileName(
-                    Path.GetFileName(paths.Input),
-                    mainPart.ContentType
-                )
-            )
-            {
-                throw new WordToolkitOperationException(
-                    "INVALID_WORD_PACKAGE",
-                    "The file extension does not match the Word main-part content type"
-                );
-            }
+            var context = _loader.Load(
+                paths.Input,
+                request.ExpectedPackageFingerprint,
+                cancellationToken
+            );
 
             var selection = SemanticHtmlRenderSelection.Resolve(
-                semantic,
+                context.Document,
                 request.TargetNodeId,
                 request.StoryScope
             );
-
-            var styles = new WordStyleGraphBuilder().Build(
-                package,
-                semantic,
-                cancellationToken
-            );
-            var reviews = new WordReviewGraphBuilder().Build(
-                package,
-                semantic,
-                cancellationToken
-            );
-            var equations = new WordEquationGraphBuilder().Build(
-                package,
-                semantic,
-                cancellationToken
-            );
-            var rendered = SemanticHtmlRenderer.Render(
-                semantic,
-                styles,
-                reviews,
-                equations,
-                Path.GetFileName(paths.Input),
-                request.StoryScope,
-                request.Language,
-                selection,
+            var rendered = _backend.Render(
+                context,
+                new SemanticHtmlBackendRequest(
+                    request.StoryScope,
+                    request.Language,
+                    selection
+                ),
                 cancellationToken
             );
 
-            temporaryPath = CreateTemporaryPath(paths.Output);
-            using (
-                var output = new FileStream(
-                    temporaryPath,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.None,
-                    bufferSize: 64 * 1024,
-                    FileOptions.WriteThrough
-                )
-            )
-            {
-                output.Write(rendered.Bytes);
-                output.Flush(flushToDisk: true);
-            }
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                File.Move(temporaryPath, paths.Output, overwrite: false);
-            }
-            catch (IOException exception) when (File.Exists(paths.Output))
-            {
-                throw new WordToolkitOperationException(
-                    "OUTPUT_EXISTS",
-                    "The semantic HTML output already exists",
-                    innerException: exception
-                );
-            }
-            temporaryPath = null;
+            SemanticRenderArtifactPublisher.PublishCreateNew(
+                paths.Output,
+                rendered.Bytes,
+                "The semantic HTML output already exists",
+                cancellationToken
+            );
 
             return new SemanticHtmlWordPackageResult(
                 SemanticHtmlWordPackageContract.Contract,
                 Path.GetFileName(paths.Input),
                 Path.GetFileName(paths.Output),
-                package.Fingerprint,
+                context.Package.Fingerprint,
                 Convert.ToHexString(SHA256.HashData(rendered.Bytes)).ToLowerInvariant(),
                 rendered.Bytes.LongLength,
                 SemanticHtmlWordPackageContract.Backend,
@@ -299,20 +215,6 @@ public sealed class SemanticHtmlWordPackageOperation
         {
             throw MapFailure(exception);
         }
-        finally
-        {
-            if (temporaryPath is not null)
-            {
-                try
-                {
-                    File.Delete(temporaryPath);
-                }
-                catch (Exception)
-                {
-                    // Preserve the operation failure; cleanup is best effort.
-                }
-            }
-        }
     }
 
     private static (string Input, string Output) ValidateAndResolve(
@@ -336,6 +238,13 @@ public sealed class SemanticHtmlWordPackageOperation
             throw InvalidInput(
                 $"Paths cannot exceed {SemanticHtmlWordPackageContract.MaximumLocalPathCharacters} characters"
             );
+        }
+        if (
+            !SemanticRenderPathPolicy.IsAllowedLocalPath(request.LocalPath)
+            || !SemanticRenderPathPolicy.IsAllowedLocalPath(request.OutputPath)
+        )
+        {
+            throw InvalidInput("Render paths must be local and must not use UNC or device namespaces");
         }
         if (!InspectWordPackageContract.IsSupportedFileName(request.LocalPath))
         {
@@ -456,23 +365,6 @@ public sealed class SemanticHtmlWordPackageOperation
         }
     }
 
-    private static string CreateTemporaryPath(string outputPath)
-    {
-        var directory = Path.GetDirectoryName(outputPath)!;
-        for (var attempt = 0; attempt < 20; attempt++)
-        {
-            var candidate = Path.Combine(
-                directory,
-                $".wordtoolkit-render-{Guid.NewGuid():N}.tmp"
-            );
-            if (!File.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
-        throw new IOException("A private temporary output path could not be allocated.");
-    }
-
     private static WordToolkitOperationException MapFailure(Exception exception) =>
         exception switch
         {
@@ -562,6 +454,49 @@ internal sealed record SemanticHtmlRenderArtifact(
     IReadOnlyList<string> Warnings
 );
 
+internal sealed record SemanticHtmlBackendRequest(
+    SemanticHtmlStoryScope StoryScope,
+    string Language,
+    SemanticHtmlRenderSelection? Selection
+);
+
+internal sealed class SemanticHtmlRenderBackend
+    : ISemanticRenderBackend<SemanticHtmlBackendRequest, SemanticHtmlRenderArtifact>
+{
+    public static SemanticHtmlRenderBackend Instance { get; } = new();
+
+    private SemanticHtmlRenderBackend() { }
+
+    public SemanticRenderBackendDescriptor Descriptor { get; } = new(
+        SemanticHtmlWordPackageContract.Backend,
+        SemanticHtmlWordPackageContract.BackendVersion,
+        "html",
+        "text/html",
+        SemanticHtmlWordPackageContract.FidelityClass,
+        Paginated: false,
+        ExactTextMetrics: false,
+        LoadsExternalResources: false,
+        ExecutesActiveContent: false
+    );
+
+    public SemanticHtmlRenderArtifact Render(
+        SemanticRenderPackageContext context,
+        SemanticHtmlBackendRequest request,
+        CancellationToken cancellationToken
+    ) =>
+        SemanticHtmlRenderer.Render(
+            context.Document,
+            context.Styles,
+            context.Reviews,
+            context.Equations,
+            context.InputFileName,
+            request.StoryScope,
+            request.Language,
+            request.Selection,
+            cancellationToken
+        );
+}
+
 internal static class SemanticHtmlTableFragment
 {
     public static bool IsRowContainer(WordSemanticNode node) =>
@@ -633,49 +568,12 @@ internal sealed record SemanticHtmlRenderSelection(
         {
             return null;
         }
-        if (
-            !document.TryGetNode(new SemanticNodeId(targetNodeId), out var target)
-            || target is null
-        )
-        {
-            throw new WordToolkitOperationException(
-                "TARGET_NOT_FOUND",
-                "The requested semantic target does not exist in the fingerprint-bound package"
-            );
-        }
-        if (target.Kind == WordSemanticNodeKind.Document)
-        {
-            throw new WordToolkitOperationException(
-                "TARGET_NOT_RENDERABLE",
-                "The semantic document root is not a renderable story fragment"
-            );
-        }
-
-        var storyRoot = FindStoryRoot(document, target);
-        if (storyRoot is null)
-        {
-            throw new WordToolkitOperationException(
-                "TARGET_NOT_RENDERABLE",
-                "The requested semantic target does not belong to a renderable text story"
-            );
-        }
-        if (
-            storyScope == SemanticHtmlStoryScope.MainDocument
-            && (
-                storyRoot.Kind != WordSemanticNodeKind.Body
-                || !string.Equals(
-                    storyRoot.SourcePartUri,
-                    document.MainPartUri,
-                    StringComparison.Ordinal
-                )
-            )
-        )
-        {
-            throw new WordToolkitOperationException(
-                "TARGET_OUT_OF_SCOPE",
-                "The requested semantic target is outside story_scope"
-            );
-        }
+        var common = SemanticRenderTargetSelection.Resolve(
+            document,
+            targetNodeId,
+            storyScope == SemanticHtmlStoryScope.AllTextStories
+        );
+        var target = common.Target;
 
         if (
             target.Kind == WordSemanticNodeKind.Table
@@ -730,68 +628,11 @@ internal sealed record SemanticHtmlRenderSelection(
         };
         return new SemanticHtmlRenderSelection(
             target,
-            storyRoot,
-            ResolveStoryKind(document, storyRoot),
+            common.StoryRoot,
+            common.StoryKind,
             wrapper
         );
     }
-
-    private static WordSemanticNode? FindStoryRoot(
-        WordSemanticDocument document,
-        WordSemanticNode node
-    )
-    {
-        WordSemanticNode? current = node;
-        while (current is not null)
-        {
-            if (IsStoryRoot(current.Kind))
-            {
-                return current;
-            }
-            if (
-                current.ParentId is null
-                || !document.TryGetNode(current.ParentId.Value, out current)
-            )
-            {
-                break;
-            }
-        }
-        return null;
-    }
-
-    private static string ResolveStoryKind(
-        WordSemanticDocument document,
-        WordSemanticNode storyRoot
-    ) =>
-        storyRoot.Properties.TryGetValue("story_kind", out var storyKind)
-            ? storyKind
-            : storyRoot.Kind == WordSemanticNodeKind.Body
-                && string.Equals(
-                    storyRoot.SourcePartUri,
-                    document.MainPartUri,
-                    StringComparison.Ordinal
-                )
-            ? "main_document"
-            : SnakeCase(storyRoot.Kind);
-
-    private static bool IsStoryRoot(WordSemanticNodeKind kind) =>
-        kind is WordSemanticNodeKind.Body
-            or WordSemanticNodeKind.Header
-            or WordSemanticNodeKind.Footer
-            or WordSemanticNodeKind.Footnotes
-            or WordSemanticNodeKind.Endnotes
-            or WordSemanticNodeKind.Comments
-            or WordSemanticNodeKind.GlossaryDocument;
-
-    private static string SnakeCase<T>(T value)
-        where T : struct, Enum =>
-        string.Concat(
-            value.ToString().Select((character, index) =>
-                char.IsUpper(character) && index != 0
-                    ? "_" + char.ToLowerInvariant(character)
-                    : char.ToLowerInvariant(character).ToString()
-            )
-        );
 }
 
 internal static class SemanticHtmlRenderer

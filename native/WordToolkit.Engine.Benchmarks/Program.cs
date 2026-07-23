@@ -16,8 +16,9 @@ var report = options.Scenario switch
     "mce" => RunMce(options),
     "patch" => RunPatch(options),
     "semantic-html" => RunSemanticHtml(options),
+    "semantic-svg" => RunSemanticSvg(options),
     _ => throw new ArgumentException(
-        "scenario must be 'graph', 'bindings', 'tables', 'mce', 'patch', or 'semantic-html'"
+        "scenario must be 'graph', 'bindings', 'tables', 'mce', 'patch', 'semantic-html', or 'semantic-svg'"
     ),
 };
 var json = JsonSerializer.Serialize(report, new JsonSerializerOptions
@@ -210,6 +211,113 @@ static object RunSemanticHtml(Arguments options)
         File.Delete(fullOutput);
         File.Delete(targetOutput);
         File.Delete(targetRepeatOutput);
+    }
+}
+
+static object RunSemanticSvg(Arguments options)
+{
+    if (options.TargetNodes is < 100 or > 300_000)
+    {
+        throw new ArgumentOutOfRangeException(
+            nameof(options.TargetNodes),
+            "semantic SVG target must be between 100 and 300000 semantic nodes"
+        );
+    }
+    const int repetitionCount = 7;
+    var paragraphCount = Math.Max(1, (options.TargetNodes - 12) / 3);
+    var path = TemporaryPath("semantic-svg", ".docx");
+    var outputs = Enumerable.Range(0, repetitionCount)
+        .Select(index => TemporaryPath($"semantic-svg-{index}", ".svg"))
+        .ToArray();
+    try
+    {
+        var generation = Measure(() =>
+            WriteSemanticHtmlPackage(path, paragraphCount)
+        );
+        var sourceBefore = File.ReadAllBytes(path);
+        var package = new OpcPackageReader().Read(path);
+        var semantic = new WordSemanticProjector().Project(package);
+        var target = semantic.Nodes.Single(node =>
+            node.Kind == WordSemanticNodeKind.Table
+        );
+        Collect();
+        var baseline = MemorySnapshot.Capture();
+        var operation = new SemanticSvgWordPackageOperation();
+        var results = new SemanticSvgWordPackageResult[repetitionCount];
+        var timings = new double[repetitionCount];
+        for (var index = 0; index < repetitionCount; index++)
+        {
+            var current = index;
+            timings[index] = Measure(() =>
+            {
+                results[current] = operation.Execute(
+                    new SemanticSvgWordPackageRequest(
+                        path,
+                        outputs[current],
+                        package.Fingerprint,
+                        target.Id.Value
+                    )
+                );
+            }).TotalMilliseconds;
+        }
+        var final = MemorySnapshot.Capture();
+        var orderedTimings = timings.Order().ToArray();
+        var firstBytes = File.ReadAllBytes(outputs[0]);
+        return CommonReport(
+            "semantic_svg_subtree",
+            new
+            {
+                requested_semantic_nodes = options.TargetNodes,
+                paragraphs = paragraphCount,
+                projected_nodes = semantic.NodeCount,
+                package_bytes = new FileInfo(path).Length,
+                target_kind = target.Kind.ToString(),
+                target_subtree_nodes = target.DescendantsAndSelf().Count(),
+                artifact_bytes = results[0].ArtifactBytes,
+                viewport_width_px = results[0].ViewportWidthPx,
+                viewport_height_px = results[0].ViewportHeightPx,
+                rendered_nodes = results[0].RenderedNodeCount,
+                warning_count = results[0].Warnings.Count,
+                paginated = results[0].Paginated,
+                exact_text_metrics = results[0].ExactTextMetrics,
+                pixel_equivalence_claimed = results[0].PixelEquivalenceClaimed,
+                external_resources_loaded = results[0].ExternalResourcesLoaded,
+                active_content_executed = results[0].ActiveContentExecuted,
+                source_mutated = results.Any(result => result.SourceMutated),
+                source_bytes_equal = sourceBefore.SequenceEqual(File.ReadAllBytes(path)),
+                word_opened = results.Any(result => result.WordOpened),
+                repeat_count = repetitionCount,
+                deterministic_sha256 = results[0].ArtifactSha256,
+                artifact_hashes_equal = results.All(result =>
+                    string.Equals(
+                        result.ArtifactSha256,
+                        results[0].ArtifactSha256,
+                        StringComparison.Ordinal
+                    )
+                ),
+                artifact_bytes_equal = outputs.Skip(1).All(output =>
+                    firstBytes.SequenceEqual(File.ReadAllBytes(output))
+                ),
+                timings_ms = new
+                {
+                    generate = generation.TotalMilliseconds,
+                    samples = timings,
+                    median = orderedTimings[repetitionCount / 2],
+                    p95 = orderedTimings[^1],
+                    minimum = orderedTimings[0],
+                    maximum = orderedTimings[^1],
+                },
+                memory = MemoryReport(baseline, final),
+            }
+        );
+    }
+    finally
+    {
+        File.Delete(path);
+        foreach (var output in outputs)
+        {
+            File.Delete(output);
+        }
     }
 }
 
