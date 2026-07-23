@@ -20,6 +20,11 @@ Active request IDs are unique, capped at 64 and have independent cancellation to
 Cancellation cannot safely interrupt an arbitrary COM call already executing inside
 Microsoft Word. Queued calls observe cancellation before starting. If an executing call
 is cancelled, the host refuses new Word work until it returns and resets its COM proxy.
+An executing non-replayable operation reports `WORD_OPERATION_OUTCOME_UNKNOWN`, not
+successful cancellation. Non-replayable is the default and remains blocked after an
+unknown outcome until runtime restart, reconnect and inspection. Only explicitly proven
+read-only or idempotent delegates may reconnect once; cancellation is rechecked before
+that replay. Busy-call retries stop within the 30-second budget.
 If it remains hung, the supervisor must terminate and restart only
 `wordtoolkit-native.exe`; it must never kill `WINWORD.EXE`. After restart, callers must
 reconnect and re-inspect the document because the abandoned operation may have completed

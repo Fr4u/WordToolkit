@@ -899,7 +899,7 @@ internal sealed class WordObjectModelCatalog
         };
     }
 
-    private static string ClassifyEffect(
+    internal static string ClassifyEffect(
         string typeName,
         string memberName,
         string memberKind
@@ -946,7 +946,7 @@ internal sealed class WordObjectModelCatalog
         return memberKind is "property_get" or "variable" ? "read" : "unknown";
     }
 
-    private static WordMemberPolicy ClassifyPolicy(
+    internal static WordMemberPolicy ClassifyPolicy(
         string typeName,
         WordComMember member,
         string effect
@@ -1148,7 +1148,7 @@ internal sealed class WordObjectModelCatalog
     private static readonly string[] ViewMarkers =
         ["activate", "arrange", "display", "scroll", "select", "show", "view", "window", "zoom"];
     private static readonly string[] ReadPrefixes =
-        ["_default", "_newenum", "can", "compare", "compute", "count", "get", "has", "information", "is", "item"];
+        ["_default", "_newenum", "can", "compute", "count", "get", "has", "information", "is", "item"];
 }
 
 [ComImport]

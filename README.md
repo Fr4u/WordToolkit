@@ -37,7 +37,12 @@ The native runtime instead:
 - owns one persistent background STA thread for all Word COM work;
 - attaches to the existing `Word.Application` Running Object Table entry or starts Word through native COM when explicitly requested;
 - caches the Word application proxy for the process lifetime;
-- retries bounded `RPC_E_CALL_REJECTED` / busy-Word calls through `IOleMessageFilter`;
+- retries busy-Word calls every 100 ms for at most 30 seconds through
+  `IOleMessageFilter`;
+- defaults every COM delegate to non-replayable; only explicitly proven read-only or
+  idempotent calls may reconnect once. An uncertain operation fails with
+  `WORD_OPERATION_OUTCOME_UNKNOWN` and blocks further non-replayable work until the
+  WordToolkit runtime is restarted;
 - groups each mutation batch in one custom Word Undo record;
 - suspends screen updates during large transactions;
 - uses the Microsoft Open XML SDK directly for saved-DOCX validation.

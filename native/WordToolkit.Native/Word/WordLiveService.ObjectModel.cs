@@ -272,6 +272,7 @@ internal sealed partial class WordLiveService
             }
             var catalog = await _host.InvokeAsync(
                 application => WordObjectModelCatalog.Scan(application),
+                WordComReplaySafety.ReplaySafe,
                 cancellationToken,
                 launchIfMissing: false
             );
@@ -1268,6 +1269,7 @@ internal sealed partial class WordLiveService
                     }
                 }
             },
+            WordComReplaySafety.NonReplayable,
             cancellationToken
         );
     }
@@ -1500,18 +1502,18 @@ internal sealed partial class WordLiveService
             case JsonValueKind.False:
                 return false;
             case JsonValueKind.String:
-            {
-                var text = value.GetString() ?? "";
-                if (text.Length > 100_000)
                 {
-                    throw new NativeToolException(
-                        "LIMIT_EXCEEDED",
-                        "A member-operation string argument exceeds 100,000 characters",
-                        new { position, argument_index = argumentIndex }
-                    );
+                    var text = value.GetString() ?? "";
+                    if (text.Length > 100_000)
+                    {
+                        throw new NativeToolException(
+                            "LIMIT_EXCEEDED",
+                            "A member-operation string argument exceeds 100,000 characters",
+                            new { position, argument_index = argumentIndex }
+                        );
+                    }
+                    return text;
                 }
-                return text;
-            }
             case JsonValueKind.Number:
                 if (value.TryGetInt64(out var integer))
                 {

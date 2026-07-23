@@ -218,6 +218,7 @@ internal sealed partial class WordLiveService
                     performance = Performance(started),
                 };
             },
+            WordComReplaySafety.ReplaySafe,
             cancellationToken
         );
     }
@@ -354,6 +355,7 @@ internal sealed partial class WordLiveService
                     performance = Performance(started),
                 };
             },
+            WordComReplaySafety.ReplaySafe,
             cancellationToken
         );
     }
@@ -624,6 +626,7 @@ internal sealed partial class WordLiveService
                     performance = Performance(started),
                 };
             },
+            WordComReplaySafety.ReplaySafe,
             cancellationToken
         );
     }

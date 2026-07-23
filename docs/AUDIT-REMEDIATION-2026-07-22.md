@@ -15,6 +15,14 @@ engine objective is complete.
   remains responsive, and oversized lines cannot poison the next request.
 - A cancelled active COM call blocks new Word work. Recovery explicitly restarts only
   `wordtoolkit-native.exe`, never the user's Word process.
+- COM delegates are non-replayable by default and are never automatically repeated after
+  an uncertain disconnect. Cancellation after execution begins retains an ever-started
+  state even when completion races the cancellation continuation and returns non-
+  retryable `WORD_OPERATION_OUTCOME_UNKNOWN`. Further non-replayable work remains blocked
+  until runtime restart, reconnect and inspection. Only explicitly proven read-only or
+  idempotent delegates may reconnect once, after a fresh cancellation check. Word's
+  mutating `Document.Compare` is blocked rather than inferred as a `compare*` read. OLE
+  busy-call retry stays within a hard 30-second elapsed-time budget.
 - The native base version is centralized in `native/Directory.Build.props`; packaging
   fails if it disagrees with the plugin manifest. README distinguishes the 0.35
   development line from the immutable published 0.34 artifact.

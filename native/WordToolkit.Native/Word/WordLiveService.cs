@@ -416,6 +416,7 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 },
+                WordComReplaySafety.ReplaySafe,
                 cancellationToken
             );
         }
@@ -761,6 +762,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     performance = Performance(started),
                 };
             },
+            WordComReplaySafety.ReplaySafe,
             cancellationToken
         );
     }
@@ -815,6 +817,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     document = DocumentInfo(application, document),
                 };
             },
+            WordComReplaySafety.ReplaySafe,
             cancellationToken
         );
     }
@@ -903,6 +906,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     },
                 };
             },
+            WordComReplaySafety.ReplaySafe,
             cancellationToken
         );
     }
@@ -2370,6 +2374,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     Info = DocumentInfo(application, document),
                 };
             },
+            WordComReplaySafety.ReplaySafe,
             cancellationToken
         );
         var temporary = Path.Combine(
@@ -2492,6 +2497,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     document = DocumentInfo(application, document),
                 };
             },
+            WordComReplaySafety.ReplaySafe,
             cancellationToken
         );
     }

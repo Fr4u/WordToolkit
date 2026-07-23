@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- Removed automatic replay of mutating Word COM delegates after disconnect. COM work is
+  now non-replayable by default: only explicitly proven read-only or idempotent calls
+  may reconnect once. A disconnected non-replayable operation returns non-retryable
+  `WORD_OPERATION_OUTCOME_UNKNOWN`, and further non-replayable work remains blocked
+  until runtime restart, reconnect and inspection instead of risking a duplicate edit
+  against a stale live version.
+- A cancellation observed after a mutating COM call begins now reports the same unknown-
+  outcome state rather than claiming that Word cancelled the mutation. Recovery gating
+  remains active until every abandoned synchronous call returns. A queued request's
+  cancellation can no longer clear recovery owned by an earlier executing call, and
+  late COM completion cannot strand the host in recovery. Cancellation is registered
+  at submission time, so an already queued mutation cannot slip through while the
+  caller's cancellation continuation is still pending. The STA queue also waits for the
+  client-side result/error/cancellation decision before starting its next item, closing
+  callback scheduling races rather than merely making them less likely.
+- Bounded `IOleMessageFilter` busy-call retry to 30 seconds at 100 ms intervals. Added
+  twelve Windows host regressions covering no mutation replay, one replay-safe reconnect,
+  cancellation/completion races, cancellation before replay, sticky unknown outcome,
+  recovery ownership, `Document.Compare` policy and the hard OLE retry budget.
+- Removed `compare*` from the generic object-model read-prefix policy. Word's mutating
+  `Document.Compare` is now blocked instead of being mislabeled as a read. Generic
+  object-model execution remains non-replayable even when its current batch contains
+  only policy-approved reads.
+
 - Added a bounded, read-only bibliography graph for the Open XML 2006 and legacy Word
   2004/10 `Sources` formats. Collections, stable sources, typed identity/type/locale
   fields, scalar metadata, people and corporate contributors retain package provenance;
