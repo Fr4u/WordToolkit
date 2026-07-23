@@ -70,6 +70,30 @@ function Invoke-Tool {
     return $response.result.structuredContent.data
 }
 
+function Invoke-FullTool {
+    param(
+        [string]$Name,
+        [hashtable]$Arguments
+    )
+    $response = Invoke-Mcp `
+        -Method "tools/call" `
+        -Params @{
+            name = "execute_wordtoolkit_action"
+            arguments = @{
+                action = $Name
+                arguments = $Arguments
+                response_mode = "full"
+            }
+        }
+    if ($response.result.isError) {
+        throw (
+            $response.result.structuredContent.error |
+                ConvertTo-Json -Depth 20 -Compress
+        )
+    }
+    return $response.result.structuredContent.data
+}
+
 function Undo-One {
     param(
         [string]$DocumentId,
@@ -276,18 +300,43 @@ try {
     }
 
     $stage = "equation"
-    $equation = Invoke-Tool `
+    $fullIntegralDerivation = @'
+\begin{aligned}
+I&=\int x^3e^{2x}\sin(3x)\,dx\\
+&=\operatorname{Im}\int x^3e^{(2+3i)x}\,dx,\quad \lambda=2+3i\\
+J_3&=\int x^3e^{\lambda x}\,dx=\frac{x^3e^{\lambda x}}{\lambda}-\frac{3}{\lambda}J_2\\
+J_2&=\int x^2e^{\lambda x}\,dx=\frac{x^2e^{\lambda x}}{\lambda}-\frac{2}{\lambda}J_1\\
+J_1&=\int xe^{\lambda x}\,dx=\frac{xe^{\lambda x}}{\lambda}-\frac{1}{\lambda}J_0\\
+J_0&=\int e^{\lambda x}\,dx=\frac{e^{\lambda x}}{\lambda}\\
+J_3&=e^{\lambda x}\left(\frac{x^3}{\lambda}-\frac{3x^2}{\lambda^2}+\frac{6x}{\lambda^3}-\frac{6}{\lambda^4}\right)\\
+I&=\operatorname{Im}\left[e^{(2+3i)x}\left(\frac{x^3}{2+3i}-\frac{3x^2}{(2+3i)^2}+\frac{6x}{(2+3i)^3}-\frac{6}{(2+3i)^4}\right)\right]+C
+\end{aligned}
+'@
+    $equation = Invoke-FullTool `
         -Name "insert_live_word_equation" `
         -Arguments @{
             live_document_id = $documentId
-            value = "\frac{x^2+1}{\sqrt[3]{y}}+\sum_{i=1}^{n} i^2"
+            value = $fullIntegralDerivation
             input_format = "latex"
             display = $true
             target = "document_end"
+            verify_readback = $true
             expected_version = $version
         }
     $outstandingMutations++
     $version = [long]$equation.live_version
+    $equationReadback = $equation.operations[0].equation.readback
+    if (
+        -not $equation.operations[0].equation.native_verified -or
+        -not $equation.operations[0].equation.readback_verified -or
+        $equationReadback.nary_count -ne 6 -or
+        $equationReadback.differential_count -ne 6 -or
+        -not $equationReadback.differential_placement_verified -or
+        $equationReadback.expected_contract_sha256 -ne
+            $equationReadback.actual_contract_sha256
+    ) {
+        throw "Full complex integral derivation failed native OMath readback"
+    }
     $stage = "undo equation"
     $undone = Undo-One -DocumentId $documentId -Version $version
     $outstandingMutations--
@@ -296,6 +345,13 @@ try {
         passed = $true
         milliseconds = $equation.performance.total_ms
         equation_operations = $equation.equation_operation_count
+        nary_count = $equationReadback.nary_count
+        differential_count = $equationReadback.differential_count
+        differential_placement_verified =
+            $equationReadback.differential_placement_verified
+        canonical_contract_identical =
+            $equationReadback.expected_contract_sha256 -eq
+                $equationReadback.actual_contract_sha256
     }
 
     $report.final_version = $version
