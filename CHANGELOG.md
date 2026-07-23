@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+- Added `wordtoolkit.transform_ooxml_package/1.0` as the second public
+  transport-neutral Engine/CLI/MCP operation. Its typed core can replace the first
+  ordinary text occurrence across run boundaries, accept all supported tracked changes
+  or reject them without opening Word. It preserves untouched entries and opaque bytes,
+  excludes OfficeMath from text matching, refuses MCE/revision ambiguity, blocks signed
+  packages and output collisions, validates the complete candidate before atomic write
+  and returns one canonical result through SDK, `transform-package` CLI and MCP. Deleted
+  paragraph-mark acceptance and inserted paragraph-mark rejection now merge only a
+  proven-safe immediate following paragraph; paragraph properties or following revision
+  content make the shape unsupported rather than guessed.
+- Added a direct protocol-v1 `docx-platform-tests` adapter and pinned the neutral harness
+  at `fe0ee996...` against safe-docx `3615e213...`. Across the same 42 hidden-assertion
+  scenarios, WordToolkit recorded 19 pass, 2 invariant-pass and 21 honest unsupported;
+  safe-docx recorded 18, 2 and 22. Both produced zero failures, errors, divergent passes
+  or protocol mismatches. Exact commits, environment, commands, caveats and the raw
+  74,657-byte result at SHA-256
+  `e0103e86940d285027494fd86a7916007943cda31ccad68a52fcde858df324dd` are checked in.
+- Expanded the research matrix from eight to twelve pinned AI/Word repositories, split
+  Microsoft Copilot's public service APIs from the preview host-bound Office API plugin,
+  and added DevExpress, Telerik, TX Text Control, GroupDocs, Google Docs and Adobe PDF
+  Services. The audit still refuses a global leadership claim: the neutral corpus is
+  narrow and does not yet measure Word layout, preservation, tokens, latency or hostile
+  package security.
+- Verified this slice with 366 engine tests, 247 native-host tests and the complete 1,273
+  Python/OOXML tests with 16 intentional skips. Focused transform/protocol parity tests
+  cover cross-run replacement, first-only behavior, OfficeMath exclusion, MCE rejection,
+  accept/reject-all, clean no-op clone, signatures, output collisions, unsafe-input
+  decline, exact revision inverse and no Word invocation. Two local self-contained builds
+  produced identical 195-file, 85,150,302-byte trees and 36,200,235-byte ZIPs at SHA-256
+  `e1ef21c763cae801f48bcfa43d1513ff279936a8fd026e00b28a04133755afe8`.
+  The package contains zero Python files; its CLI reports 85 actions and 15 exposed MCP
+  tools, finds `transform_ooxml_package`, and changes neither the zero Word-process count
+  nor document state during discovery/help probes.
 - Added the first public transport-neutral operation,
   `wordtoolkit.inspect_ooxml_package/1.0`, to `WordToolkit.Engine`. Typed file and
   seekable-stream requests, results and stable errors now feed the .NET SDK surface,

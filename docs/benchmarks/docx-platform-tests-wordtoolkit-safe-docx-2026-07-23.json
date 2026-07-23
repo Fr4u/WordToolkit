@@ -1,0 +1,1967 @@
+{
+  "schemaVersion": 3,
+  "runTimestamp": "2026-07-23T00:30:25.620Z",
+  "dslVersion": "1.8",
+  "protocolVersion": 1,
+  "implementations": [
+    {
+      "adapterName": "wordtoolkit",
+      "adapterVersion": "0.35.0+git.65f75be"
+    },
+    {
+      "adapterName": "safe-docx",
+      "adapterVersion": "0.17.0+git.3615e2132672"
+    }
+  ],
+  "results": [
+    {
+      "scenarioGroup": "tracked-changes",
+      "scenarioId": "acceptDeletedParagraphMarkMergesParagraphs",
+      "scenarioTitle": "Accepting a deleted paragraph mark merges the paragraph with the following paragraph",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.5.15",
+        "clauseTitle": "del (Deleted Paragraph)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:pPr/w:rPr/w:del matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'First half second half' found at offset 0"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:pPr/w:rPr/w:del matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'First half second half' found at offset 0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tracked-changes",
+      "scenarioId": "acceptDeletedTableRowRemovesEntireRow",
+      "scenarioTitle": "Accepting a deleted table row removes the entire row",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.5.12",
+        "clauseTitle": "del (Deleted Table Row)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:tr matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:trPr/w:del matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:del matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:delText matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryExists",
+              "passed": true,
+              "detail": "//w:tbl/w:tr/w:tc//w:t[normalize-space(.)='Kept row'] matched 1 node(s) in word/document.xml; expected at least 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:t[contains(., 'Deleted row')] matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement accepting deleted table-row revisions"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tracked-changes",
+      "scenarioId": "acceptDeletionsRemovesDelContent",
+      "scenarioTitle": "Accepting deletions removes w:del wrappers and their content",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.5.14",
+        "clauseTitle": "del (Deleted Run Content)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:del matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:delText matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Kept text' found at offset 0"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:del matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:delText matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Kept text' found at offset 0"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tracked-changes",
+      "scenarioId": "acceptFormattingChangeKeepsNewRunProperties",
+      "scenarioTitle": "Accepting formatting changes keeps current run properties",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.5.31",
+        "clauseTitle": "rPrChange (Revision Information for Run Properties)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:rPrChange matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryExists",
+              "passed": true,
+              "detail": "//w:r/w:rPr/w:b matched 1 node(s) in word/document.xml; expected at least 1"
+            },
+            {
+              "assertionKind": "xpathQueryExists",
+              "passed": true,
+              "detail": "//w:r/w:rPr/w:i matched 1 node(s) in word/document.xml; expected at least 1"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Styled text' found at offset 0"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:rPrChange matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryExists",
+              "passed": true,
+              "detail": "//w:r/w:rPr/w:b matched 1 node(s) in word/document.xml; expected at least 1"
+            },
+            {
+              "assertionKind": "xpathQueryExists",
+              "passed": true,
+              "detail": "//w:r/w:rPr/w:i matched 1 node(s) in word/document.xml; expected at least 1"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Styled text' found at offset 0"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tracked-changes",
+      "scenarioId": "acceptInsertionsUnwrapsInsWrappers",
+      "scenarioTitle": "Accepting insertions unwraps w:ins and keeps run content",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.5.18",
+        "clauseTitle": "ins (Inserted Run Content)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:ins matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Kept text Inserted text' found at offset 0"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:ins matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Kept text Inserted text' found at offset 0"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tracked-changes",
+      "scenarioId": "acceptMoveRemovesSourceAndUnwrapsDestination",
+      "scenarioTitle": "Accepting a move removes the source content and unwraps the destination",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.5.22",
+        "clauseTitle": "moveFrom (Move Source Run Content)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:moveFrom matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:moveTo matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:moveFromRangeStart | //w:moveFromRangeEnd | //w:moveToRangeStart | //w:moveToRangeEnd matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Before ' found at offset 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'moved clause' found at offset 14"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:moveFrom matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:moveTo matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:moveFromRangeStart | //w:moveFromRangeEnd | //w:moveToRangeStart | //w:moveToRangeEnd matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Before ' found at offset 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'moved clause' found at offset 14"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tracked-changes",
+      "scenarioId": "acceptNestedDeletionInsideInsertion",
+      "scenarioTitle": "Accepting nested deletion inside insertion keeps surviving inserted text",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.5.18",
+        "clauseTitle": "ins (Inserted Run Content)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:ins matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:del matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:delText matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:t[contains(., 'remove-me')] matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Anchor Start end' found at offset 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Start end' found at offset 7"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'end' found at offset 13"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:ins matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:del matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:delText matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:t[contains(., 'remove-me')] matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Anchor Start end' found at offset 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Start end' found at offset 7"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'end' found at offset 13"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "comments",
+      "scenarioId": "addCommentBracketsRangeWithMatchingIds",
+      "scenarioTitle": "Adding a comment brackets the anchor range and records matching comment ids",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.4.4",
+        "clauseTitle": "commentRangeStart (Comment Anchor Range Start)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: addCommentOnFirstTextOccurrence"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'addCommentOnFirstTextOccurrence'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "generation",
+      "scenarioId": "appendParagraphAddsTrailingParagraph",
+      "scenarioTitle": "Appending a paragraph adds one trailing paragraph with the requested text",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.3.1.22",
+        "clauseTitle": "p (Paragraph)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: appendParagraphWithText"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'appendParagraphWithText'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "generation",
+      "scenarioId": "appendParagraphPreservesExistingContent",
+      "scenarioTitle": "Appending a paragraph preserves the existing opening paragraph",
+      "oracleKind": "metamorphic-invariant",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.3.1.22",
+        "clauseTitle": "p (Paragraph)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: appendParagraphWithText"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'appendParagraphWithText'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tables",
+      "scenarioId": "appendTableRowExtendsRowCountKeepingGrid",
+      "scenarioTitle": "Appending a table row extends row count while keeping the cell grid width",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.4.79",
+        "clauseTitle": "tr (Table Row)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: appendTableRow"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'appendTableRow'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "styles-numbering",
+      "scenarioId": "applyNamedParagraphStyleSetsPStyleReference",
+      "scenarioTitle": "Applying a named paragraph style sets a pStyle reference to the predefined style",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.3.1.27",
+        "clauseTitle": "pStyle (Referenced Paragraph Style)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: applyParagraphStyleToAnchor"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'applyParagraphStyleToAnchor'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "styles-numbering",
+      "scenarioId": "applyNumberingToParagraphAttachesNumPr",
+      "scenarioTitle": "Applying numbering to a paragraph attaches numbering properties that resolve through numbering.xml",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.3.1.19",
+        "clauseTitle": "numPr (Numbering Definition Instance Reference)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: applyNumberingToAnchorParagraph"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'applyNumberingToAnchorParagraph'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "comments",
+      "scenarioId": "commentPartRecordsAuthorInitialsAndText",
+      "scenarioTitle": "Adding a comment records author initials and comment text in the comments part",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.4.2",
+        "clauseTitle": "comment (Comment Content)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: addCommentOnFirstTextOccurrence"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'addCommentOnFirstTextOccurrence'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "generation",
+      "scenarioId": "composeCompatibilityMode15WritesCompatSetting",
+      "scenarioTitle": "Composing compatibility mode 15 writes the matching settings entry",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.15.3.4",
+        "clauseTitle": "compatSetting (Custom Compatibility Setting)"
+      },
+      "microsoftExtensionCitations": [
+        {
+          "standard": "MS-DOCX",
+          "section": "2.3.5",
+          "clauseTitle": "compatibilityMode"
+        }
+      ],
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: composeDocumentWithCompatibilityMode"
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryExists",
+              "passed": true,
+              "detail": "/w:settings/w:compat/w:compatSetting[@w:name='compatibilityMode' and @w:uri='http://schemas.microsoft.com/office/word' and @w:val='15'] matched 1 node(s) in word/settings.xml; expected at least 1"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Compatibility mode 15' found at offset 0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "generation",
+      "scenarioId": "composeFormattedRunCarriesBoldItalicSize",
+      "scenarioTitle": "Composing a formatted run carries bold italic and font size properties",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.3.2.1",
+        "clauseTitle": "b (Bold)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: composeDocumentWithParagraphs"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'composeDocumentWithParagraphs'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "generation",
+      "scenarioId": "composeHeaderTextAddsSectionHeaderReference",
+      "scenarioTitle": "Composing header text adds a default section header reference",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.10.5",
+        "clauseTitle": "headerReference (Header Reference)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: composeDocumentWithHeaderText"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'composeDocumentWithHeaderText'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "generation",
+      "scenarioId": "composeHyperlinkCreatesRelationshipReferencedLink",
+      "scenarioTitle": "Composing a hyperlink creates a relationship-referenced external link",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.16.22",
+        "clauseTitle": "hyperlink (Hyperlink)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: composeDocumentWithHyperlink"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'composeDocumentWithHyperlink'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "styles-numbering",
+      "scenarioId": "composeNumberedListResolvesToDecimalFormat",
+      "scenarioTitle": "Composing a numbered list produces paragraphs whose numbering resolves to decimal format",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.3.1.19",
+        "clauseTitle": "numPr (Numbering Definition Instance Reference)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: composeDocumentWithNumberedList"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'composeDocumentWithNumberedList'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "generation",
+      "scenarioId": "composeParagraphsProduceTextRuns",
+      "scenarioTitle": "Composing paragraphs produces one paragraph per requested text item",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.3.1.22",
+        "clauseTitle": "p (Paragraph)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: composeDocumentWithParagraphs"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'composeDocumentWithParagraphs'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "generation",
+      "scenarioId": "composeTableProducesGridMatchingCellMatrix",
+      "scenarioTitle": "Composing a table produces rows and cells matching the requested matrix",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.4.37",
+        "clauseTitle": "tbl (Table)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: composeDocumentWithTable"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'composeDocumentWithTable'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tables",
+      "scenarioId": "deleteTableRowRemovesRowAndContent",
+      "scenarioTitle": "Deleting a table row removes that row and its distinctive content",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.4.79",
+        "clauseTitle": "tr (Table Row)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: deleteTableRowAtIndex"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'deleteTableRowAtIndex'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "styles-numbering",
+      "scenarioId": "directFormattingDoesNotBakeIntoStyleDefinition",
+      "scenarioTitle": "Direct run formatting does not bake formatting into the paragraph style definition",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.7.4.17",
+        "clauseTitle": "style (Style Definition)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: formatFirstTextOccurrence"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'formatFirstTextOccurrence'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tables",
+      "scenarioId": "horizontalMergeSetsGridSpanKeepingGrid",
+      "scenarioTitle": "Horizontally merging cells records gridSpan while preserving the table grid",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.4.17",
+        "clauseTitle": "gridSpan (Grid Columns Spanned by Current Table Cell)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: mergeTableCellsInRow"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'mergeTableCellsInRow'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "generation",
+      "scenarioId": "insertParagraphAfterAnchorShiftsSubsequent",
+      "scenarioTitle": "Inserting a paragraph after an anchor shifts the following paragraph later",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.3.1.22",
+        "clauseTitle": "p (Paragraph)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: insertParagraphAfterAnchorText"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'insertParagraphAfterAnchorText'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tracked-changes",
+      "scenarioId": "rejectDeletionsRestoresDelContent",
+      "scenarioTitle": "Rejecting deletions restores w:delText content to body text",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.5.14",
+        "clauseTitle": "del (Deleted Run Content)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:del matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:delText matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Kept text Deleted text' found at offset 0"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:del matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:delText matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Kept text Deleted text' found at offset 0"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tracked-changes",
+      "scenarioId": "rejectFormattingChangeRestoresPriorRunProperties",
+      "scenarioTitle": "Rejecting formatting changes restores prior run properties",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.5.31",
+        "clauseTitle": "rPrChange (Revision Information for Run Properties)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:rPrChange matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:r/w:rPr/w:b matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryExists",
+              "passed": true,
+              "detail": "//w:r/w:rPr/w:i matched 1 node(s) in word/document.xml; expected at least 1"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Styled text' found at offset 0"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:rPrChange matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:r/w:rPr/w:b matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryExists",
+              "passed": true,
+              "detail": "//w:r/w:rPr/w:i matched 1 node(s) in word/document.xml; expected at least 1"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Styled text' found at offset 0"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tracked-changes",
+      "scenarioId": "rejectInsertedParagraphMarkMergesParagraphs",
+      "scenarioTitle": "Rejecting an inserted paragraph mark removes the mark and merges the paragraph with the following paragraph",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.5.20",
+        "clauseTitle": "ins (Inserted Paragraph)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:pPr/w:rPr/w:ins matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'First half second half' found at offset 0"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:pPr/w:rPr/w:ins matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'First half second half' found at offset 0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tracked-changes",
+      "scenarioId": "rejectInsertedTableRowRemovesEntireRow",
+      "scenarioTitle": "Rejecting an inserted table row removes the entire row",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.5.17",
+        "clauseTitle": "ins (Inserted Table Row)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:tr matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:trPr/w:ins matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:ins matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryExists",
+              "passed": true,
+              "detail": "//w:tbl/w:tr/w:tc//w:t[normalize-space(.)='Kept row'] matched 1 node(s) in word/document.xml; expected at least 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:t[contains(., 'Inserted row')] matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement rejecting inserted table-row revisions"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tracked-changes",
+      "scenarioId": "rejectInsertionsRemovesInsContent",
+      "scenarioTitle": "Rejecting insertions removes w:ins wrappers and their run content",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.5.18",
+        "clauseTitle": "ins (Inserted Run Content)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:ins matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:t[contains(text(), 'Inserted text')] matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Kept text' found at offset 0"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:ins matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:t[contains(text(), 'Inserted text')] matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Kept text' found at offset 0"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tracked-changes",
+      "scenarioId": "rejectMoveRestoresSourceRemovesDestination",
+      "scenarioTitle": "Rejecting a move restores the source content and removes the destination",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.5.22",
+        "clauseTitle": "moveFrom (Move Source Run Content)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:moveFrom matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:moveTo matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:moveFromRangeStart | //w:moveFromRangeEnd | //w:moveToRangeStart | //w:moveToRangeEnd matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Before moved clause' found at offset 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'moved clause' found at offset 7"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:moveFrom matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:moveTo matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:moveFromRangeStart | //w:moveFromRangeEnd | //w:moveToRangeStart | //w:moveToRangeEnd matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Before moved clause' found at offset 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'moved clause' found at offset 7"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tracked-changes",
+      "scenarioId": "rejectNestedDeletionInsideInsertion",
+      "scenarioTitle": "Rejecting nested deletion inside insertion removes the whole insertion",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.5.18",
+        "clauseTitle": "ins (Inserted Run Content)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:ins matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:del matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:delText matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:t[contains(., 'Start')] matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:t[contains(., 'remove-me')] matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:t[contains(., 'end')] matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Anchor ' found at offset 0"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:ins matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:del matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:delText matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:t[contains(., 'Start')] matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:t[contains(., 'remove-me')] matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:t[contains(., 'end')] matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Anchor ' found at offset 0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tracked-changes",
+      "scenarioId": "rejectParagraphPropertiesChangeRestoresPrior",
+      "scenarioTitle": "Rejecting a paragraph-properties change restores the prior properties",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.5.29",
+        "clauseTitle": "pPrChange (Revision Information for Paragraph Properties)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:pPrChange matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:pPr/w:jc matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Paragraph text' found at offset 0"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:pPrChange matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:pPr/w:jc matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Paragraph text' found at offset 0"
+            },
+            {
+              "assertionKind": "canonicalXmlEquals",
+              "passed": true,
+              "detail": "canonical forms are identical"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "comments",
+      "scenarioId": "removeAllCommentsStripsAnchorsKeepsText",
+      "scenarioTitle": "Removing all comments strips comment anchors while keeping the commented text",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.13.4.5",
+        "clauseTitle": "commentReference (Comment Content Reference Mark)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: removeAllComments"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'removeAllComments'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "find-replace",
+      "scenarioId": "replaceFirstOccurrencePreservesOffsets",
+      "scenarioTitle": "Replacing the first occurrence places the new text at the matched offset",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.3.3.31",
+        "clauseTitle": "t (Text)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'sixty' found at offset 15"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:t[contains(text(), 'thirty')] matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Payment due in sixty days' found at offset 0"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'sixty' found at offset 15"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:t[contains(text(), 'thirty')] matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Payment due in sixty days' found at offset 0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "find-replace",
+      "scenarioId": "replaceTextAcrossRunBoundary",
+      "scenarioTitle": "Replacing text spanning a run boundary places the replacement at the matched offset",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.3.3.31",
+        "clauseTitle": "t (Text)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'clause' found at offset 6"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:p[contains(., 'target')] matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Alpha-clause-tail' found at offset 0"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'clause' found at offset 6"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:p[contains(., 'target')] matched 0 node(s) in word/document.xml; expected 0"
+            },
+            {
+              "assertionKind": "documentTextContainsAtOffset",
+              "passed": true,
+              "detail": "'Alpha-clause-tail' found at offset 0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tables",
+      "scenarioId": "replaceTextInsideTableCellPreservesStructure",
+      "scenarioTitle": "Replacing text inside a table cell preserves table structure and adjacent cell text",
+      "oracleKind": "metamorphic-invariant",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.4.66",
+        "clauseTitle": "tc (Table Cell)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "invariant-pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:tbl/w:tr matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:tbl/w:tr/w:tc matched 2 node(s) in word/document.xml; expected 2"
+            },
+            {
+              "assertionKind": "xpathElementTextEquals",
+              "passed": true,
+              "detail": "visible descendant w:t text \"Neighbor cell remains\"; expected \"Neighbor cell remains\""
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "invariant-pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:tbl/w:tr matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:tbl/w:tr/w:tc matched 2 node(s) in word/document.xml; expected 2"
+            },
+            {
+              "assertionKind": "xpathElementTextEquals",
+              "passed": true,
+              "detail": "visible descendant w:t text \"Neighbor cell remains\"; expected \"Neighbor cell remains\""
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tables",
+      "scenarioId": "replaceTextInsideTableCellUpdatesTargetText",
+      "scenarioTitle": "Replacing text inside a table cell updates the target text",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.3.3.31",
+        "clauseTitle": "t (Text)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathElementTextEquals",
+              "passed": true,
+              "detail": "visible descendant w:t text \"Invoice total sixty dollars\"; expected \"Invoice total sixty dollars\""
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body//w:t[contains(., 'Invoice total thirty dollars')] matched 0 node(s) in word/document.xml; expected 0"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathElementTextEquals",
+              "passed": true,
+              "detail": "visible descendant w:t text \"Invoice total sixty dollars\"; expected \"Invoice total sixty dollars\""
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body//w:t[contains(., 'Invoice total thirty dollars')] matched 0 node(s) in word/document.xml; expected 0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "styles-numbering",
+      "scenarioId": "setDefaultFooterTextAddsFooterReference",
+      "scenarioTitle": "Setting default footer text adds a default footer reference and footer part",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.10.2",
+        "clauseTitle": "footerReference (Footer Reference)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: setDefaultFooterText"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'setDefaultFooterText'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "tables",
+      "scenarioId": "setTableCellTextReplacesCellContentOnly",
+      "scenarioTitle": "Setting table cell text replaces only the addressed cell content",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.4.66",
+        "clauseTitle": "tc (Table Cell)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "unsupported",
+          "reason": "unsupported operation: setTableCellText"
+        },
+        "safe-docx": {
+          "status": "unsupported",
+          "reason": "safe-docx adapter does not implement operation 'setTableCellText'"
+        }
+      }
+    },
+    {
+      "scenarioGroup": "content-controls",
+      "scenarioId": "unrelatedTextEditPreservesInlineContentControlStructure",
+      "scenarioTitle": "An unrelated text edit preserves one inline content control with valid known structure",
+      "oracleKind": "ecma-conformance",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 1,
+        "section": "17.5.2.31",
+        "clauseTitle": "sdt (Inline-Level Structured Document Tag)"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathElementTextEquals",
+              "passed": true,
+              "detail": "visible descendant w:t text \"Edit target: sixty days. Controlled text sentinel Paragraph tail.\"; expected \"Edit target: sixty days. Controlled text sentinel Paragraph tail.\""
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body//w:sdt matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p/w:sdt[w:sdtPr/w:id[@w:val='54'] and w:sdtPr/w:tag[@w:val='dpt-inline-sdt']] matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p/w:sdt[w:sdtPr/w:id[@w:val='54'] and w:sdtPr/w:tag[@w:val='dpt-inline-sdt']][count(*)=2 and *[1][self::w:sdtPr] and *[2][self::w:sdtContent]] matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p/w:sdt[w:sdtPr/w:id[@w:val='54'] and w:sdtPr/w:tag[@w:val='dpt-inline-sdt']]/w:sdtPr[count(w:alias)=1 and count(w:id)=1 and count(w:tag)=1]/w:alias[@w:val='Opaque inline control'][following-sibling::w:tag[1][@w:val='dpt-inline-sdt' and following-sibling::w:id[1][@w:val='54']]] matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathElementTextEquals",
+              "passed": true,
+              "detail": "visible descendant w:t text \"Controlled text sentinel\"; expected \"Controlled text sentinel\""
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathElementTextEquals",
+              "passed": true,
+              "detail": "visible descendant w:t text \"Edit target: sixty days. Controlled text sentinel Paragraph tail.\"; expected \"Edit target: sixty days. Controlled text sentinel Paragraph tail.\""
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body//w:sdt matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p/w:sdt[w:sdtPr/w:id[@w:val='54'] and w:sdtPr/w:tag[@w:val='dpt-inline-sdt']] matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p/w:sdt[w:sdtPr/w:id[@w:val='54'] and w:sdtPr/w:tag[@w:val='dpt-inline-sdt']][count(*)=2 and *[1][self::w:sdtPr] and *[2][self::w:sdtContent]] matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p/w:sdt[w:sdtPr/w:id[@w:val='54'] and w:sdtPr/w:tag[@w:val='dpt-inline-sdt']]/w:sdtPr[count(w:alias)=1 and count(w:id)=1 and count(w:tag)=1]/w:alias[@w:val='Opaque inline control'][following-sibling::w:tag[1][@w:val='dpt-inline-sdt' and following-sibling::w:id[1][@w:val='54']]] matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathElementTextEquals",
+              "passed": true,
+              "detail": "visible descendant w:t text \"Controlled text sentinel\"; expected \"Controlled text sentinel\""
+            }
+          ]
+        }
+      }
+    },
+    {
+      "scenarioGroup": "content-controls",
+      "scenarioId": "unrelatedTextEditPreservesOpaqueInlineContentControl",
+      "scenarioTitle": "An unrelated text edit preserves declared opaque sentinels on one inline content control",
+      "oracleKind": "metamorphic-invariant",
+      "specCitation": {
+        "standard": "ECMA-376",
+        "edition": 5,
+        "part": 3,
+        "section": "7.2",
+        "clauseTitle": "Ignorable Attribute"
+      },
+      "outcomes": {
+        "wordtoolkit": {
+          "status": "invariant-pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathElementTextEquals",
+              "passed": true,
+              "detail": "visible descendant w:t text \"Edit target: sixty days. Controlled text sentinel Paragraph tail.\"; expected \"Edit target: sixty days. Controlled text sentinel Paragraph tail.\""
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body//w:sdt matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p/w:sdt[w:sdtPr/w:id[@w:val='54'] and w:sdtPr/w:tag[@w:val='dpt-inline-sdt']] matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "ignorableNamespaceDeclared",
+              "passed": true,
+              "detail": "target or ancestor mc:Ignorable resolves urn:open-agreements:docx-platform-tests:inline-content-control"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p/w:sdt[w:sdtPr/w:id[@w:val='54'] and w:sdtPr/w:tag[@w:val='dpt-inline-sdt']][@*[local-name()='opaqueAttribute' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and .='opaque-attribute-sentinel']] matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p/w:sdt[w:sdtPr/w:id[@w:val='54'] and w:sdtPr/w:tag[@w:val='dpt-inline-sdt']]/w:sdtPr/*[local-name()='opaqueExtension' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and @*[local-name()='sentinel' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and .='extension-child-sentinel']][preceding-sibling::*[1][self::w:tag[@w:val='dpt-inline-sdt']]][following-sibling::*[1][self::w:id[@w:val='54']]] matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p/w:sdt[w:sdtPr/w:id[@w:val='54'] and w:sdtPr/w:tag[@w:val='dpt-inline-sdt']]/w:sdtPr/*[local-name()='opaqueExtension' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control']/*[local-name()='payload' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control']/*[local-name()='nested' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and @*[local-name()='sentinel' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and .='nested-payload-sentinel'] and normalize-space(.)='opaque payload sentinel'] matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p/w:sdt[w:sdtPr/w:id[@w:val='54'] and w:sdtPr/w:tag[@w:val='dpt-inline-sdt']]/w:sdtPr/*[local-name()='opaqueExtension' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control']/*[1][local-name()='before' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and @*[local-name()='sentinel' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and .='first-child-sentinel']][following-sibling::*[1][local-name()='payload' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control']][following-sibling::*[2][local-name()='after' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and @*[local-name()='sentinel' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and .='last-child-sentinel']]] matched 1 node(s) in word/document.xml; expected 1"
+            }
+          ]
+        },
+        "safe-docx": {
+          "status": "invariant-pass",
+          "assertionResults": [
+            {
+              "assertionKind": "xpathElementTextEquals",
+              "passed": true,
+              "detail": "visible descendant w:t text \"Edit target: sixty days. Controlled text sentinel Paragraph tail.\"; expected \"Edit target: sixty days. Controlled text sentinel Paragraph tail.\""
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body//w:sdt matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p/w:sdt[w:sdtPr/w:id[@w:val='54'] and w:sdtPr/w:tag[@w:val='dpt-inline-sdt']] matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "ignorableNamespaceDeclared",
+              "passed": true,
+              "detail": "target or ancestor mc:Ignorable resolves urn:open-agreements:docx-platform-tests:inline-content-control"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p/w:sdt[w:sdtPr/w:id[@w:val='54'] and w:sdtPr/w:tag[@w:val='dpt-inline-sdt']][@*[local-name()='opaqueAttribute' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and .='opaque-attribute-sentinel']] matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p/w:sdt[w:sdtPr/w:id[@w:val='54'] and w:sdtPr/w:tag[@w:val='dpt-inline-sdt']]/w:sdtPr/*[local-name()='opaqueExtension' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and @*[local-name()='sentinel' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and .='extension-child-sentinel']][preceding-sibling::*[1][self::w:tag[@w:val='dpt-inline-sdt']]][following-sibling::*[1][self::w:id[@w:val='54']]] matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p/w:sdt[w:sdtPr/w:id[@w:val='54'] and w:sdtPr/w:tag[@w:val='dpt-inline-sdt']]/w:sdtPr/*[local-name()='opaqueExtension' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control']/*[local-name()='payload' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control']/*[local-name()='nested' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and @*[local-name()='sentinel' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and .='nested-payload-sentinel'] and normalize-space(.)='opaque payload sentinel'] matched 1 node(s) in word/document.xml; expected 1"
+            },
+            {
+              "assertionKind": "xpathQueryCount",
+              "passed": true,
+              "detail": "//w:body/w:p/w:sdt[w:sdtPr/w:id[@w:val='54'] and w:sdtPr/w:tag[@w:val='dpt-inline-sdt']]/w:sdtPr/*[local-name()='opaqueExtension' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control']/*[1][local-name()='before' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and @*[local-name()='sentinel' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and .='first-child-sentinel']][following-sibling::*[1][local-name()='payload' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control']][following-sibling::*[2][local-name()='after' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and @*[local-name()='sentinel' and namespace-uri()='urn:open-agreements:docx-platform-tests:inline-content-control' and .='last-child-sentinel']]] matched 1 node(s) in word/document.xml; expected 1"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

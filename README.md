@@ -105,6 +105,27 @@ var result = new InspectWordPackageOperation().Execute(
 Console.WriteLine(WordToolkitOperationJson.Serialize(result));
 ```
 
+The second shared operation performs three high-level, source-preserving transforms
+without launching Word: replace the first ordinary text occurrence, accept all supported
+tracked changes, or reject them. Input and output paths must differ, an existing output
+is never overwritten, signed packages are blocked and the complete candidate is parsed
+and validated before atomic persistence:
+
+```powershell
+wordtoolkit-native transform-package .\input.docx .\output.docx `
+  --operation replace_first_text_occurrence `
+  --find-text "old text" --replace-text "new text" --format json
+
+wordtoolkit-native transform-package .\review.docx .\accepted.docx `
+  --operation accept_all_tracked_changes --format json
+```
+
+Successful data uses `wordtoolkit.transform_ooxml_package/1.0`. Ordinary text matching
+may cross run boundaries but excludes OfficeMath and fails closed around tracked-change
+or markup-compatibility ambiguity. The same core backs a protocol-v1 adapter for the
+neutral `docx-platform-tests` harness. Its pinned comparison and raw result are in
+[`docs/COMPETITOR-BENCHMARK-2026-07-23.md`](docs/COMPETITOR-BENCHMARK-2026-07-23.md).
+
 Stream labels are portable leaf names capped at 512 characters, and Word validity additionally
 requires the filename extension to agree with the main content type. MCP rejects unknown
 arguments instead of silently ignoring misspelled closed-schema fields.
@@ -122,6 +143,7 @@ create_live_word_document
 open_live_word_document
 connect_live_word_document
 inspect_ooxml_package
+transform_ooxml_package
 inspect_ooxml_semantics
 query_ooxml_semantics
 manage_ooxml_semantic_index

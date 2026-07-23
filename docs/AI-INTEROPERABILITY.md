@@ -35,6 +35,22 @@ redact package part names and relationship IDs; bounded locations require the ex
 for compatibility. An explicit JSON output schema is not yet present in the source
 catalogue; the typed .NET result and codec do not erase that remaining manifest gap.
 
+The second executable contract is `wordtoolkit.transform_ooxml_package/1.0`. Its typed
+request chooses `replace_first_text_occurrence`, `accept_all_tracked_changes` or
+`reject_all_tracked_changes`, always writes to a distinct new path and returns the exact
+result fingerprint. SDK, CLI and MCP share the same core and canonical JSON. Untouched
+entries keep their source bytes; signed packages, existing outputs, ambiguous MCE or
+revision text and unsafe review shapes fail closed. The replace operation can span
+ordinary WordprocessingML runs but excludes OfficeMath. Review-all uses the existing
+source-preserving review planner, requires zero remaining revisions/move ranges in the
+candidate and retains exact inverse proof internally.
+
+The same operation also sits behind `wordtoolkit-native docx-platform-adapter`, a direct
+implementation of `docx-platform-tests` protocol v1. That process receives only the
+neutral operation JSON and input package, never the scenario assertions or expected
+output. Codes 0/1/2/3 mean success/error/unsupported/protocol mismatch. This adapter is
+a test interoperability seam, not a third mutation implementation.
+
 ## Version and compatibility
 
 The response identifies:
@@ -123,6 +139,7 @@ CLI:
 wordtoolkit-native capabilities --query review --limit 4 --format json
 wordtoolkit-native capabilities --schema --format json
 wordtoolkit-native inspect-package .\input.docx --include-details --format json
+wordtoolkit-native transform-package .\input.docx .\output.docx --operation accept_all_tracked_changes --format json
 ```
 
 The CLI prints the canonical manifest data to standard output. Usage and validation
@@ -145,3 +162,10 @@ COM host.
 - `native/WordToolkit.Native.Tests/InspectPackageCliTests.cs` proves byte-normalized
   SDK/CLI/MCP success parity, closed MCP arguments, stable error codes and the
   no-Word-invocation boundary.
+- `native/WordToolkit.Engine.Tests/TransformWordPackageOperationTests.cs` proves
+  cross-run first-only replacement, opaque-entry preservation, OfficeMath exclusion,
+  MCE/revision ambiguity rejection, accept/reject-all, signature/output collision gates
+  and clean-package cloning.
+- `native/WordToolkit.Native.Tests/TransformPackageCliTests.cs` proves canonical
+  Engine/CLI/MCP parity, closed arguments, protocol-v1 exit semantics, honest unsafe-input
+  decline and the no-Word-invocation boundary.

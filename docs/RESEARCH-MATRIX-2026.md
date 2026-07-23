@@ -1,4 +1,4 @@
-# Word document-engine research matrix (2026-07-22)
+# Word document-engine research matrix (2026-07-23)
 
 This document records evidence that shapes WordToolkit's document-engine design. It is
 not a vendor scorecard disguised as science. A feature advertised on a landing page is
@@ -26,8 +26,9 @@ The comparison uses these axes:
   low-token mutation;
 - evidence quality: implementation and regression evidence rather than README breadth.
 
-Scores are intentionally omitted until the shared corpus and benchmark harness exist.
-Writing `5/5` before measuring is theatre.
+Broad product scores are intentionally omitted. One pinned 42-scenario neutral harness
+checkpoint now exists, but converting that narrow intersection into a universal `5/5`
+would still be theatre.
 
 ## The hard constraints imposed by the format
 
@@ -187,7 +188,8 @@ its name alone.
 | Word JavaScript add-ins | Cross-platform Word-hosted commands, content controls, ranges, and OOXML coercion where the typed API is insufficient. | Capability varies by Word requirement set; it still needs a Word host and does not expose the complete package graph. | [Word add-ins](https://learn.microsoft.com/en-us/office/dev/add-ins/word/), [OOXML in add-ins](https://learn.microsoft.com/en-us/office/dev/add-ins/word/create-better-add-ins-for-word-with-office-open-xml), [requirement sets](https://learn.microsoft.com/office/dev/add-ins/develop/office-versions-and-requirement-sets) (B). |
 | Microsoft Graph | Storage, version, sharing, permissions, and download/upload around a Word file represented as a DriveItem. | Graph exposes a workbook object model for Excel, but not an equivalent Word content DOM. Package editing remains the client's job. | [DriveItem](https://learn.microsoft.com/en-us/graph/api/resources/driveitem?view=graph-rest-1.0) (B). |
 | Office Scripts | Managed cloud automation for Excel workbooks. | It is not a Word automation surface. Treating it as one is a category error. | [Office Scripts documentation](https://learn.microsoft.com/en-us/office/dev/scripts/) (B). |
-| Microsoft 365 Copilot in Word | Drafting, rewriting, summarizing, and user-facing transformations inside Word. | Product capability, not a public lossless OOXML engine or transaction API. | [Microsoft 365 Copilot app card](https://learn.microsoft.com/en-us/microsoft-365/copilot/microsoft-365-copilot-application-card) (B). |
+| Microsoft 365 Copilot APIs | Retrieval, usage reporting, package management and agent integration around Microsoft 365 Copilot. | The public API families are not a Word package graph, lossless OOXML editor, layout engine or document transaction API. | [Copilot APIs overview](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/copilot-apis-overview) (B). |
+| Copilot declarative-agent Office API plugin (preview) | A declarative agent can call Office JavaScript APIs in the currently open Word, Excel or PowerPoint document. | Host-bound preview on Windows and web, not Mac; it acts through the open Office application and still does not expose a standalone lossless OPC/OOXML engine. | [Build API plugins with Office APIs](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/build-api-plugins-local-office-api) (B). |
 
 WordToolkit therefore keeps Word COM as an authoritative Windows execution and
 verification backend, not as the only representation of a document.
@@ -235,16 +237,28 @@ layout teams. Their claims are not accepted as independent measurements.
 | GemBox.Document | Managed cross-platform DOM, import/export, pagination/rendering, PDF/images, and documented preservation of unsupported DOCX content. | Official documentation says DOCX support is not complete and equations are not exposed through its API. Performance figures are vendor measurements. | [introduction](https://www.gemboxsoftware.com/document/docs/introduction.html), [format support](https://www.gemboxsoftware.com/document/docs/supported-file-formats.html), [platforms](https://www.gemboxsoftware.com/document/docs/supported-platforms.html) (B/C). |
 | Spire.Doc | Broad .NET document creation, conversion, and manipulation surface without requiring Word. | Closed implementation, commercial constraints, and no independent evidence yet in this repository for lossless extension preservation or Word-identical pagination. | [Spire Office for .NET](https://www.e-iceblue.com/Introduce/spire-office-for-net.html) (C). |
 | Syncfusion DocIO | Large .NET Word-processing API and conversion ecosystem. | Closed implementation and license; fidelity, unsupported-part preservation, equations, and performance still need corpus measurements. | [DocIO overview](https://help.syncfusion.com/document-processing/word/word-library/net/overview) (C). |
+| DevExpress Office File API / RichEdit Document Server | Server-side rich document model with DOC/DOCX/RTF/HTML import/export and PDF/image rendering routes. | Closed implementation and independent layout engine; exact unknown-part preservation, Word pagination, equation fidelity and repair behavior remain corpus questions. | [Word Processing Document API formats](https://docs.devexpress.com/OfficeFileAPI/15441/word-processing-document-api/import-and-export) (B/C). |
+| Telerik RadWordsProcessing | Typed `RadFlowDocument` model with DOCX, RTF, HTML and text import/export plus PDF export. | Importing into and exporting from its own flow model does not by itself prove byte-preserving arbitrary-DOCX round trips or Word-identical layout. | [RadWordsProcessing overview](https://www.telerik.com/document-processing-libraries/documentation/libraries/radwordsprocessing/overview) (B/C). |
+| TX Text Control | Mature server/editor control for DOC/DOCX/RTF/PDF workflows, mail merge and interactive editing. | Closed commercial runtime. Its PDF-import documentation explicitly describes reconstructing semantic structure from appearance/positions as heuristic, so PDF-to-DOCX cannot be treated as lossless recovery. | [ASP.NET introduction](https://docs.textcontrol.com/textcontrol/asp-dotnet/article.aspnet.introduction.htm), [PDF import limits](https://docs.textcontrol.com/textcontrol/windows-forms/article.techarticle.pdf.htm) (B/C). |
+| GroupDocs.Editor | Converts supported documents into editable HTML and back through an intermediate representation. | That model is useful for browser editing, but the documented route does not establish preservation of arbitrary OOXML parts, Word-only semantics or pagination. | [GroupDocs.Editor for .NET](https://docs.groupdocs.com/editor/net/) (B/C). |
 
-Aspose, GemBox, Spire, and Syncfusion belong in an optional benchmark/adaptor lane. A
-public WordToolkit core cannot quietly require them or copy their behavior by guesswork.
+These commercial engines belong in an optional benchmark/adaptor lane. A public
+WordToolkit core cannot quietly require them or copy their behavior by guesswork.
+
+### Cloud document and conversion APIs
+
+| Surface | Documented strength | Structural limit | Evidence |
+|---|---|---|---|
+| Google Docs API `documents.batchUpdate` | Cloud-native JSON document mutations with ordered requests, write controls and suggestion-view options. | It edits Google's document model, not the source DOCX package; import/export cannot be assumed to preserve opaque OPC parts or Word layout. | [`documents.batchUpdate`](https://developers.google.com/workspace/docs/api/reference/rest/v1/documents/batchUpdate) (B/D). |
+| Adobe PDF Services / Extract API | Cloud PDF-to-DOCX, OCR, conversion and structured PDF extraction into JSON. | PDF is the source model. Extraction and conversion cannot reconstruct Word-specific package semantics or prove DOCX round-trip preservation. | [PDF Services overview](https://developer.adobe.com/document-services/docs/overview/pdf-services-api/), [API list](https://developer.adobe.com/document-services/docs/apis/), [Extract API](https://developer.adobe.com/document-services/docs/overview/pdf-extract-api/) (B/D). |
 
 ## AI-oriented CLI and MCP implementations
 
-Pinned source snapshots were cloned under a temporary research directory and the
-AI/Word repository heads were rechecked on 2026-07-22. Repository metadata is volatile;
-commit IDs make the observations
-reproducible.
+Pinned source snapshots were cloned under a temporary research directory. The original
+eight AI/Word repository heads were rechecked on 2026-07-23 and four additional current
+competitors were inspected. Repository metadata is volatile; commit IDs make the
+observations reproducible. This is a bounded search set, not a claim that every GitHub
+repository containing `docx`, `Word` or `MCP` has been found.
 
 | Project and snapshot | Observed architecture and strength | Observed failure boundary | Evidence |
 |---|---|---|---|
@@ -256,18 +270,37 @@ reproducible.
 | [hongkongkiwi/docx-mcp](https://github.com/hongkongkiwi/docx-mcp) `d3fbbcfd7c93b0403de65d31f733c01b1cb2234f` | Small Rust package with an attractive standalone deployment story. | Source inspection found placeholder feature flags and placeholder rendering/TOC behavior behind broad README claims. Marketing breadth is not implementation evidence. | A |
 | [mcp-msoffice-interop-word](https://github.com/mario-andreschak/mcp-msoffice-interop-word) `e50e339f1ac11fde6904addebef8c0b070879160` | Thin TypeScript/winax bridge to desktop Word. | Raw COM enums, basic failure handling, no package model, transactions, version tokens, validation, or semantic locators. | A |
 | [OfficeMCP](https://github.com/OfficeMCP/OfficeMCP) `188140dc784f53d66da566696072f47d29fa795a` | Generic access to Office automation. | Its generic tool executes supplied Python with `exec` against COM objects. That is an arbitrary-code-execution boundary, not a safe document API. No detected repository license at the research snapshot. | A |
+| [safe-docx](https://github.com/UseJunior/safe-docx) `3615e2132672386bad2979e3f3fd20bdd9fe5e32` (`0.17.0`) | Serious Apache-2.0 TypeScript competitor: session-backed compact reads, stable IDs, tracked and clean saves, comparison, comments, notes, revisions, layout/export routes, archive guards, 26 MCP tools and an existing `docx-platform-tests` adapter. | It does not claim a visual editor, native layout engine or pixel-exact pagination. Source and trust artifacts record unsupported revision families, ignored real-Word fixtures and validation that is not proof Word opens without repair; checked-in trust counts were stale at the pin. | A |
+| [LegalRabbit DOCX MCP](https://github.com/LegalRabbit-AI/legalrabbit-docx-mcp) `a1c9be831f0e161c8965392968702e3735680daa` | Plugin metadata and downloadable binaries advertise comments, tracked changes, offline use and token savings. | The repository contains no implementation source or regression tests; the downloadable binaries are roughly 70–105 MB. Architecture, preservation and token claims cannot be audited independently from this snapshot. | C |
+| [che-word-mcp](https://github.com/PsychQuant/che-word-mcp) `b59d5f24fb9524b04f0ccac40e6b1abca40adef5` | Native macOS Swift implementation over `ooxml-swift`, with a broad declared capability surface and 41 test files. | One server file exceeds 10,000 lines; direct tools are a small subset of the advertised surface. Script export upgrades only the main document, rich/legacy documents can demote the whole main part to raw data, real fixtures and tracked-change tests are skipped, and `listCustomXmlParts` is still an empty stub. | A |
+| [word-mcp](https://github.com/juanocampo400/word-mcp) `16ab829e32e1520e72f2eda5e78e29fb8c99892c` (`0.1.0`) | Accessible Windows Python bridge combining `python-docx` and `pywin32` COM across a broad common-edit surface. | The pinned repository has no tests. Mutations depend on positional indices and direct saves, with no package graph, version tokens, atomic persistence, rollback or preservation proof. | A |
 
-The 2026-07-22 head refresh found the other seven pinned AI/Word repositories unchanged.
-OfficeCLI was 28 commits ahead of the prior `0b3557b...` snapshot; the changed files were
-mostly Excel, PowerPoint, formula, installer and preview work. No Word handler changed in
-that range. The atomic-writer change above is recorded because persistence semantics are
-part of the comparison contract, even when a release contains no new Word feature.
+The 2026-07-23 refresh found all original eight pins unchanged from their 2026-07-22
+snapshot. The earlier OfficeCLI movement from `0b3557b...` to `e7916a2...` remains
+recorded because persistence semantics are part of the comparison contract even when a
+release contains no new Word handler.
 
 The useful ideas are clear: OfficeCLI's compact gateway and resident mode, docx-cli's
 locators and benchmark methodology, SecurityRonin's regression discipline, and live
 Word automation for authoritative operations. Their limitations are equally useful:
-flat tool catalogs, unsafe generic code execution, in-place overwrites, weak versioning,
-and ASTs that silently flatten what they do not understand.
+flat tool catalogs, unsafe generic code execution, binary-only claims, in-place
+overwrites, weak versioning, and ASTs that silently flatten what they do not understand.
+
+## Neutral public conformance checkpoint
+
+The Apache-2.0 [`docx-platform-tests`](https://github.com/kklimuk/docx-platform-tests)
+harness was pinned at `fe0ee99602e6f982255ecaa2b45d4936a7f46150`. Its protocol-v1
+runner supplied the same operation and input DOCX to both adapters without exposing the
+assertions or expected output. WordToolkit at `65f75be...` produced 19 `pass`, 2
+`invariant-pass` and 21 honest `unsupported` outcomes; safe-docx at `3615e2...`
+produced 18, 2 and 22 respectively across 42 scenarios. Neither adapter produced a
+failure, execution error, divergent pass or protocol mismatch.
+
+The one-row lead is narrow evidence, not a verdict. WordToolkit uniquely passed the
+accept-deleted-table-row and reject-inserted-table-row scenarios; safe-docx uniquely
+passed compatibility-mode-15 composition. Both passed safe paragraph-mark merge cases.
+The exact pins, environment, protocol, commands, SHA-256, caveats and raw result live in
+[`COMPETITOR-BENCHMARK-2026-07-23.md`](COMPETITOR-BENCHMARK-2026-07-23.md) (A).
 
 ## Comparison evidence and adopted boundary
 
@@ -561,7 +594,10 @@ credible when those behaviors are measured in public tests.
 
 ## Benchmark obligations
 
-The next benchmark corpus must contain at least:
+The first neutral checkpoint covers 42 scenarios and 21 operation names through a public
+protocol, with exact pins and raw results. It closes the `no public benchmark at all`
+gap; it does not close the benchmark obligation. The next corpus expansion must contain
+at least:
 
 - strict and transitional WordprocessingML;
 - `mc:AlternateContent`, unknown namespaces, and Microsoft extension parts;
@@ -584,15 +620,17 @@ numbers stay marked `unverified` until the same harness produces them.
 
 ## Research still open
 
-- Run licensed evaluation builds of Aspose, GemBox, Spire, and Syncfusion against the
-  same corpus; current entries are documentation-backed, not independent benchmarks.
-- Inspect commercial cloud conversion APIs, additional editor servers, OCR engines, and
-  more dedicated PDF-to-DOCX pipelines at pinned versions. Build an adversarial corpus to
-  measure reading order, tables, equations, floating objects, fonts, and accessibility.
+- Run licensed evaluation builds of Aspose, GemBox, Spire, Syncfusion, DevExpress,
+  Telerik, TX Text Control and GroupDocs against the same corpus; current entries are
+  documentation-backed, not independent benchmarks.
+- Exercise Google Docs import/export, Adobe PDF Services and additional cloud editor,
+  OCR and PDF-to-DOCX routes at pinned API versions. Build an adversarial corpus to
+  measure reading order, tables, equations, floating objects, fonts and accessibility.
 - Record Word-version capability probes for COM, JavaScript requirement sets, equation
   imports, field updates, PDF export, and CompareDocuments.
-- Measure OfficeCLI and docx-cli round-trip preservation rather than relying on source
-  inspection alone.
+- Extend the protocol adapter set beyond safe-docx to OfficeCLI, docx-cli and other
+  source-inspected implementations, then measure round-trip preservation rather than
+  relying on README or source inspection alone.
 - Separate licensing compatibility from technical capability for every optional adapter.
 
 The matrix is deliberately unfinished. Declaring the search complete while those rows

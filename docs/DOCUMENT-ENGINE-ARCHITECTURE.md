@@ -907,7 +907,7 @@ The same gateway accepts `view=schema`, while the CLI accepts `--schema`, to ret
 exact embedded normative JSON Schema string and its UTF-8 SHA-256. This keeps the
 default catalogue small without handing independent clients an unverifiable digest.
 
-The first transport-neutral executable operation is now
+The first transport-neutral executable operation is
 `wordtoolkit.inspect_ooxml_package/1.0`. `WordToolkit.Engine.Operations` owns its typed
 request, deterministic result, bounded file/seekable-stream execution, stable error
 codes and canonical `snake_case` JSON codec. `wordtoolkit-native inspect-package` and
@@ -916,6 +916,17 @@ constructs the COM host; the MCP host exists for the wider live-action surface, 
 operation does not invoke it or launch Word. Legacy MCP runtime/timing fields remain at
 the adapter edge and are stripped from compact canonical data.
 
+The second operation is `wordtoolkit.transform_ooxml_package/1.0`. It owns three bounded
+high-level intents: replace the first source-linked text occurrence, accept every
+supported tracked change and reject every supported tracked change. It never overwrites
+the input or an existing output, blocks signed packages, validates and reparses the
+candidate before atomic persistence and preserves untouched entry bytes. Text matching
+may cross ordinary run boundaries but excludes OfficeMath and refuses revision/MCE
+ambiguity. Review-all delegates to the same source-preserving review graph and planner;
+unsafe revision shapes fail closed. The native CLI, MCP adapter and public
+`docx-platform-tests` protocol-v1 adapter all call this core rather than carrying private
+transform logic.
+
 Inspection and semantic projection now share exact Word-package identity rules:
 Transitional or Strict `officeDocument` relationship, one internal resolved main part,
 one of the four extension-compatible Word main content types, and a Transitional or
@@ -923,8 +934,8 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-This is one proved migration seam, not a claim that all 85 actions already have public
-SDK operations. Per-operation JSON output schemas, a generic dispatcher and the
+These are two proved migration seams, not a claim that all 85 actions already have
+public SDK operations. Per-operation JSON output schemas, a generic dispatcher and the
 remaining operation migrations are still open work.
 
 This is deliberately honest about what is still absent. `metadata_coverage` reports

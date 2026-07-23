@@ -9,6 +9,14 @@
 - Native MCP host: `WordToolkit.Native.Tests` covers the compact/lazy tool catalog,
   input validation, response compaction, cancellation and service contracts without
   starting Microsoft Word.
+- Public operation parity: Engine and native tests drive
+  `wordtoolkit.transform_ooxml_package/1.0` through the typed SDK, CLI, MCP and neutral
+  protocol-v1 adapter. They cover canonical parity, cross-run first-only replacement,
+  OfficeMath exclusion, MCE/revision ambiguity rejection, opaque-entry preservation,
+  accept/reject-all, exact paragraph-mark merge inverse, signatures, output collisions,
+  candidate validation, honest unsupported codes and zero Word invocation. The pinned
+  42-scenario external run and raw result are documented in
+  `COMPETITOR-BENCHMARK-2026-07-23.md`.
 - AI capability contract: native tests verify the embedded schema/MCP/compatibility
   header, deterministic 64-hex digests, sorted paging, exact CLI/MCP data parity,
   JSON round-trip, fail-closed malformed/unknown input, sub-10,000-character default
