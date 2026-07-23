@@ -24,23 +24,24 @@
   inline/block/table-row containers, inert hyperlinks, suppressed field instructions and
   an atomic create-new race test. Compact MCP responses and full gateway responses now
   both conform to the same closed output schema; telemetry is optional because the
-  compact gateway intentionally removes it.
-- Verified the semantic-HTML checkpoint with 392 Engine tests, 266 Native tests and the
+  compact gateway intentionally removes it. Package-derived exception messages are never
+  exposed as public reasons, so hostile ZIP entry names cannot escape through CLI or MCP
+  errors; Engine and adapter regressions bind this privacy boundary.
+- Verified the semantic-HTML checkpoint with 393 Engine tests, 267 Native tests and the
   complete 1,273-test Python/OOXML suite with 16 intentional skips; Ruff and the
   maintained 28-module mypy lane are clean. Two supported Windows builds produced
-  identical 196-file, 85,424,800-byte trees and identical 36,281,531-byte ZIPs at
-  SHA-256 `dbeef0225f8c8d6afdda0d15c68ebf3e942cbdf3dee81268add8a7516993f1ea`;
+  identical 196-file, 85,424,288-byte trees and identical 36,281,322-byte ZIPs at
+  SHA-256 `8463738c94eeac9148d286ae71e0cdcefb96dcbe379a63956ceba664366a8882`;
   expanded manifests matched at SHA-256
-  `a2d7639b9b935785f0a922fc176406923569b9a9a556be87a616441cef55bf1d`.
+  `61ee297700a7a68d0eb825587b2cca9fdedf0c935ef0d96168034798f01d3c6e`.
   The manifest is the UTF-8/LF, no-final-newline serialization of relative path,
   byte length and lowercase SHA-256 fields separated by tabs and sorted by path.
   The packaged executable discovered the lazy action and rendered the checked-in Mammoth
-  fixture to one deterministic 3,628-byte artifact across 15 cold processes at 252.18 ms
-  median and 302.14 ms p95/max. Static HTML-tree, CSP and external-resource checks passed;
+  fixture to one deterministic 3,628-byte artifact across 15 cold processes at 254.66 ms
+  median and 290.44 ms p95/max. Static HTML-tree, CSP and external-resource checks passed;
   the in-app browser blocked the local `file://` URL, so no visual-browser result is
-  claimed and no policy bypass was attempted. Hosted CI run `29983403319` passed all five
-  jobs; downloaded Windows artifact `8554085726` matched both local ZIPs byte for byte and
-  its normalized expanded tree had zero differences at the recorded manifest SHA-256.
+  claimed and no policy bypass was attempted. The pre-hardening hosted package matched its
+  local builds; hosted parity for the red-team privacy fix is pending publication.
 
 - Added the public comment-body operation pair
   `wordtoolkit.plan_ooxml_comment_body_edits/1.0` and

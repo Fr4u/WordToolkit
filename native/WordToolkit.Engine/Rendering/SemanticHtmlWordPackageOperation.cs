@@ -264,7 +264,7 @@ public sealed class SemanticHtmlWordPackageOperation
         }
         catch (Exception exception)
         {
-            throw MapFailure(exception, paths.Input, paths.Output);
+            throw MapFailure(exception);
         }
         finally
         {
@@ -425,42 +425,21 @@ public sealed class SemanticHtmlWordPackageOperation
         throw new IOException("A private temporary output path could not be allocated.");
     }
 
-    private static WordToolkitOperationException MapFailure(
-        Exception exception,
-        string inputPath,
-        string outputPath
-    ) =>
+    private static WordToolkitOperationException MapFailure(Exception exception) =>
         exception switch
         {
-            WordSemanticLimitException limit => PackageLimit(limit, inputPath, outputPath),
-            WordStyleLimitException limit => PackageLimit(limit, inputPath, outputPath),
-            WordReviewLimitException limit => PackageLimit(limit, inputPath, outputPath),
-            WordEquationLimitException limit => PackageLimit(limit, inputPath, outputPath),
-            OpcPackageLimitException limit => PackageLimit(limit, inputPath, outputPath),
-            WordSemanticProjectionException projection => InvalidWordPackage(
-                projection,
-                inputPath,
-                outputPath
-            ),
-            WordEquationProjectionException projection => InvalidWordPackage(
-                projection,
-                inputPath,
-                outputPath
-            ),
-            WordStyleProjectionException projection => InvalidWordPackage(
-                projection,
-                inputPath,
-                outputPath
-            ),
-            WordReviewProjectionException projection => InvalidWordPackage(
-                projection,
-                inputPath,
-                outputPath
-            ),
+            WordSemanticLimitException limit => PackageLimit(limit),
+            WordStyleLimitException limit => PackageLimit(limit),
+            WordReviewLimitException limit => PackageLimit(limit),
+            WordEquationLimitException limit => PackageLimit(limit),
+            OpcPackageLimitException limit => PackageLimit(limit),
+            WordSemanticProjectionException projection => InvalidWordPackage(projection),
+            WordEquationProjectionException projection => InvalidWordPackage(projection),
+            WordStyleProjectionException projection => InvalidWordPackage(projection),
+            WordReviewProjectionException projection => InvalidWordPackage(projection),
             InvalidDataException invalid => new WordToolkitOperationException(
                 "INVALID_PACKAGE",
                 "The file is not a readable OPC ZIP package",
-                SafeReason(invalid.Message, inputPath, outputPath),
                 innerException: invalid
             ),
             UnauthorizedAccessException denied => new WordToolkitOperationException(
@@ -481,12 +460,11 @@ public sealed class SemanticHtmlWordPackageOperation
             IOException io => new WordToolkitOperationException(
                 "IO_ERROR",
                 "The semantic HTML artifact could not be written",
-                SafeReason(io.Message, inputPath, outputPath),
                 retryable: true,
                 innerException: io
             ),
             ArgumentException invalid => InvalidInput(
-                Bound(invalid.Message, 512) ?? "Invalid render request",
+                "The semantic HTML render request is invalid",
                 invalid
             ),
             _ => new WordToolkitOperationException(
@@ -496,48 +474,19 @@ public sealed class SemanticHtmlWordPackageOperation
             ),
         };
 
-    private static WordToolkitOperationException PackageLimit(
-        Exception exception,
-        string inputPath,
-        string outputPath
-    ) =>
+    private static WordToolkitOperationException PackageLimit(Exception exception) =>
         new(
             "PACKAGE_LIMIT",
             "The package exceeds a bounded semantic rendering limit",
-            SafeReason(exception.Message, inputPath, outputPath),
             innerException: exception
         );
 
-    private static WordToolkitOperationException InvalidWordPackage(
-        Exception exception,
-        string inputPath,
-        string outputPath
-    ) =>
+    private static WordToolkitOperationException InvalidWordPackage(Exception exception) =>
         new(
             "INVALID_WORD_PACKAGE",
             "The package cannot be projected as a Word semantic document",
-            SafeReason(exception.Message, inputPath, outputPath),
             innerException: exception
         );
-
-    private static string? SafeReason(
-        string? message,
-        string inputPath,
-        string outputPath
-    )
-    {
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            return null;
-        }
-        var safe = message
-            .Replace(inputPath, "<input>", StringComparison.OrdinalIgnoreCase)
-            .Replace(outputPath, "<output>", StringComparison.OrdinalIgnoreCase);
-        return Bound(safe, 512);
-    }
-
-    private static string? Bound(string? value, int maxCharacters) =>
-        value is null || value.Length <= maxCharacters ? value : value[..maxCharacters];
 
     private static bool IsSha256(string value) =>
         value.Length == 64 && value.All(Uri.IsHexDigit);

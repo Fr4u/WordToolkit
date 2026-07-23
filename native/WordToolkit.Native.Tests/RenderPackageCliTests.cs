@@ -172,6 +172,66 @@ public sealed class RenderPackageCliTests
         );
     }
 
+    [Fact]
+    public async Task PackageDerivedEntryNamesNeverLeakThroughCliOrMcpErrors()
+    {
+        const string marker = "CLIENT-ACME-SSN";
+        var directory = TemporaryDirectory();
+        try
+        {
+            var input = Path.Combine(directory, "private-name.docx");
+            var cliOutputPath = Path.Combine(directory, "cli.html");
+            var mcpOutputPath = Path.Combine(directory, "mcp.html");
+            CreateCompressionRatioBomb(input, marker);
+
+            var cliRequest = JsonSerializer.Serialize(new
+            {
+                local_path = input,
+                output_path = cliOutputPath,
+            });
+            var cliOutput = new StringWriter();
+            var cliError = new StringWriter();
+            var cliExit = RenderPackageCli.Run(
+                ["--request", "-"],
+                new StringReader(cliRequest),
+                cliOutput,
+                cliError
+            );
+
+            Assert.Equal(65, cliExit);
+            Assert.Equal(string.Empty, cliOutput.ToString());
+            Assert.DoesNotContain(marker, cliError.ToString(), StringComparison.Ordinal);
+            using (var cliErrorJson = JsonDocument.Parse(cliError.ToString()))
+            {
+                var error = cliErrorJson.RootElement.GetProperty("error");
+                Assert.Equal("PACKAGE_LIMIT", error.GetProperty("code").GetString());
+                Assert.False(error.TryGetProperty("reason", out _));
+                Assert.False(error.TryGetProperty("details", out _));
+            }
+
+            var host = new NoInvokeHost();
+            var mcpResponse = await CallMcpAsync(
+                host,
+                new JsonObject
+                {
+                    ["local_path"] = input,
+                    ["output_path"] = mcpOutputPath,
+                }
+            );
+            var mcpJson = mcpResponse.GetRawText();
+
+            Assert.DoesNotContain(marker, mcpJson, StringComparison.Ordinal);
+            Assert.Contains("PACKAGE_LIMIT", mcpJson, StringComparison.Ordinal);
+            Assert.Equal(0, host.InvocationCount);
+            Assert.False(File.Exists(cliOutputPath));
+            Assert.False(File.Exists(mcpOutputPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static async Task<JsonElement> CallMcpAsync(
         NoInvokeHost host,
         JsonObject arguments,
@@ -284,6 +344,22 @@ public sealed class RenderPackageCliTests
         var entry = archive.CreateEntry(name, CompressionLevel.Optimal);
         using var target = entry.Open();
         target.Write(Encoding.UTF8.GetBytes(content));
+    }
+
+    private static void CreateCompressionRatioBomb(string path, string marker)
+    {
+        using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
+        var entry = archive.CreateEntry(
+            $"secret/{marker}.xml",
+            CompressionLevel.Optimal
+        );
+        using var target = entry.Open();
+        var zeros = new byte[1024 * 1024];
+        for (var index = 0; index < 8; index++)
+        {
+            target.Write(zeros);
+        }
     }
 
     private static string TemporaryDirectory()

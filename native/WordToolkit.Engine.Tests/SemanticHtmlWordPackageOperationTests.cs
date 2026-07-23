@@ -235,6 +235,40 @@ public sealed class SemanticHtmlWordPackageOperationTests
         }
     }
 
+    [Fact]
+    public void PackageDerivedEntryNamesNeverEnterPublicErrors()
+    {
+        const string marker = "CLIENT-ACME-SSN";
+        var directory = TemporaryDirectory();
+        try
+        {
+            var input = Path.Combine(directory, "private-name.docx");
+            var output = Path.Combine(directory, "private-name.html");
+            using (var stream = new FileStream(input, FileMode.CreateNew, FileAccess.Write))
+            using (var archive = new ZipArchive(stream, ZipArchiveMode.Create))
+            {
+                WriteEntry(archive, $"secret/{marker}.xml", "private");
+            }
+            var operation = new SemanticHtmlWordPackageOperation(
+                new OpcPackageLimits { MaxEntryUncompressedBytes = 1 }
+            );
+
+            var exception = Assert.Throws<WordToolkitOperationException>(() =>
+                operation.Execute(new SemanticHtmlWordPackageRequest(input, output))
+            );
+
+            Assert.Equal("PACKAGE_LIMIT", exception.Code);
+            Assert.Null(exception.Reason);
+            Assert.DoesNotContain(marker, exception.Message, StringComparison.Ordinal);
+            Assert.Null(exception.Details);
+            Assert.False(File.Exists(output));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static void CreatePackage(string path)
     {
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
