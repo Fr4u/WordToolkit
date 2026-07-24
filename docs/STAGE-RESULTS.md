@@ -35,6 +35,9 @@
   `available` probes and zero issues without changing `live_version`. The full response
   passed the installed action's own output schema and contained none of the forbidden
   content/path/user/licence field names.
+- Hosted CI run `30123410969` on code head `9e96323` passed all five jobs. The downloaded
+  Windows artifact contained the exact local distributable: 36,857,975 bytes and SHA-256
+  `746201dcc9b7ea1b4147a8388df539d212589bce58dbb015da978d4db568d3b2`.
 
 Research and exact limits are recorded in
 [`RESEARCH-LIVE-WORD-VERSION-PROFILE-2026.md`](RESEARCH-LIVE-WORD-VERSION-PROFILE-2026.md).

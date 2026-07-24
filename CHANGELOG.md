@@ -27,6 +27,9 @@
   compatibility mode 15, save format 12, four available probes and zero issues without
   advancing `live_version`. Its full response passed the installed output schema and
   exposed no document-content, path, user-identity or licence-identity field.
+- Hosted CI run `30123410969` on code head `9e96323` passed all five jobs. Its clean
+  Windows artifact reproduced the local 36,857,975-byte ZIP and SHA-256
+  `746201dcc9b7ea1b4147a8388df539d212589bce58dbb015da978d4db568d3b2` exactly.
 
 - Added bounded encrypted-OOXML detection across direct Engine, strict
   `inspect-encryption` CLI and lazy `inspect_ooxml_encryption` MCP under one closed
