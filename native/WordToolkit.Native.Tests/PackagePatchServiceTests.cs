@@ -1,9 +1,12 @@
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using WordToolkit.Engine.Operations;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Native.Protocol;
 using WordToolkit.Native.Word;
+using WordToolkit.OpenXmlSdk;
 
 namespace WordToolkit.Native.Tests;
 
@@ -669,6 +672,105 @@ public sealed class PackagePatchServiceTests
                 plan.BeforeFingerprint,
                 new OpcPackageReader().Read(files.BeforePath).Fingerprint
             );
+        }
+        finally
+        {
+            files.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task RollbackSdkCliAndMcpShareOneCanonicalPlanAndCliApplyPath()
+    {
+        var files = CreatePatchFiles("before text", "after text");
+        try
+        {
+            var service = Service();
+            var forwardPlan = await Plan(service, files);
+            var artifact = files.NewArtifactPath("rollback-parity");
+            using var created = await CreateArtifact(
+                service,
+                files,
+                forwardPlan,
+                artifact
+            );
+            await ApplyForward(service, files.BeforePath, artifact, forwardPlan);
+            var planRequestJson = JsonSerializer.Serialize(new
+            {
+                local_path = files.BeforePath,
+                patch_path = artifact,
+                expected_package_fingerprint = forwardPlan.AfterFingerprint,
+                expected_patch_id = forwardPlan.PatchId,
+            });
+
+            var direct = new PatchRollbackWordPackageOperation(
+                new MicrosoftOpenXmlPackageValidator()
+            ).Plan(PatchRollbackOperationJson.ParsePlanRequest(planRequestJson));
+            var directNode = WordToolkitOperationJson.SerializeToNode(direct);
+
+            var cliOutput = new StringWriter();
+            var cliError = new StringWriter();
+            Assert.Equal(
+                0,
+                PatchRollbackPackageCli.Run(
+                    ["--mode", "plan", "--request", "-", "--format", "json"],
+                    new StringReader(planRequestJson),
+                    cliOutput,
+                    cliError
+                )
+            );
+            Assert.Equal(string.Empty, cliError.ToString());
+            var cliNode = JsonNode.Parse(cliOutput.ToString());
+
+            using var mcpArguments = JsonDocument.Parse(planRequestJson);
+            var mcpResult = await service.CallAsync(
+                "plan_ooxml_patch_rollback",
+                mcpArguments.RootElement,
+                CancellationToken.None
+            );
+            var mcpNode = JsonNode.Parse(JsonSerializer.Serialize(mcpResult))!.AsObject();
+            mcpNode.Remove("runtime");
+            mcpNode.Remove("python_used");
+            mcpNode.Remove("performance");
+
+            Assert.True(JsonNode.DeepEquals(directNode, cliNode));
+            Assert.True(JsonNode.DeepEquals(directNode, mcpNode));
+            Assert.NotNull(mcpNode["risk"]!["activex_operation_count"]);
+            Assert.Null(mcpNode["risk"]!["active_x_operation_count"]);
+
+            var applyRequestJson = JsonSerializer.Serialize(new
+            {
+                local_path = files.BeforePath,
+                patch_path = artifact,
+                expected_package_fingerprint = forwardPlan.AfterFingerprint,
+                expected_patch_id = forwardPlan.PatchId,
+                expected_rollback_plan_id = direct.RollbackPlanId,
+                keep_backup = true,
+            });
+            cliOutput.GetStringBuilder().Clear();
+            cliError.GetStringBuilder().Clear();
+            Assert.Equal(
+                0,
+                PatchRollbackPackageCli.Run(
+                    ["--mode", "apply", "--request", "-", "--format", "json"],
+                    new StringReader(applyRequestJson),
+                    cliOutput,
+                    cliError
+                )
+            );
+            Assert.Equal(string.Empty, cliError.ToString());
+            var apply = JsonNode.Parse(cliOutput.ToString())!.AsObject();
+            Assert.True(apply["rolled_back"]!.GetValue<bool>());
+            Assert.Equal(
+                forwardPlan.BeforeFingerprint,
+                apply["package_fingerprint"]!.GetValue<string>()
+            );
+            var backupPath = apply["backup_path"]!.GetValue<string>();
+            Assert.Equal(
+                forwardPlan.AfterFingerprint,
+                new OpcPackageReader().Read(backupPath).Fingerprint
+            );
+            files.Track(backupPath);
         }
         finally
         {

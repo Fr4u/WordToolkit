@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Moved saved-package patch rollback behind the public transport-neutral
+  `PatchRollbackWordPackageOperation`. Direct .NET, the new strict
+  `patch-rollback-package --mode plan|apply --request <json|->` CLI and both lazy MCP
+  actions now share one closed JSON parser, one destination-bound `wtrollback_` identity,
+  one semantic/risk/type/schema proof, one authorization decision and one atomic writer.
+  The old Native-only reverse branch was removed instead of retained as a second source
+  of truth. Changed rollback without an injected schema validator fails closed; exact
+  no-op rollback remains non-mutating.
+- Added six direct Engine regressions plus one SDK/CLI/MCP parity regression covering
+  exact restoration and redo backup, stale fingerprints, cross-path plan rejection,
+  active-content authorization, validator absence, no-op behavior, closed JSON and
+  canonical result equality. A seventh Engine regression keeps destination binding
+  case-sensitive on case-sensitive filesystems. The full checkpoint passes 511 Engine,
+  395 Native and 1309
+  Python tests with 16 intentional skips.
+- Packaged and enabled `0.39.0+codex.20260724165517`. Two pinned-SDK builds, the personal
+  marketplace source and the enabled cache are identical at 196 files and 87,150,234
+  bytes. Both 36,755,923-byte ZIPs are byte-identical at SHA-256
+  `c9216579cede83aec95cab4b895a30008d9c33fcfb28ba0ea3163566e937648d`.
+  Installed discovery reports 109 actions, 15 exposed MCP tools and 22 explicit
+  contracts; the installed executable reports the exact version and the new CLI help.
+
 - Added public saved-package rollback as the separate lazy
   `plan_ooxml_patch_rollback` and `apply_ooxml_patch_rollback` actions. They derive the
   exact reverse from the reviewed original `.wtpatch`, require the current result

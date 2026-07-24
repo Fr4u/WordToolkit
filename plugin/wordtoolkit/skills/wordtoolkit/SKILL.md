@@ -492,6 +492,13 @@ redo evidence. A stale result package, changed artifact, different destination p
 validation truncation or result-type mismatch fails closed. Neither action opens Word
 or returns raw payloads/XML.
 
+For a local automation client, the exact same contract is available through direct .NET
+`PatchRollbackWordPackageOperation` or
+`wordtoolkit-native patch-rollback-package --mode plan|apply --request <json|->`.
+Do not translate or broaden the MCP request: all three surfaces share one strict JSON
+parser and reject unknown fields. A changed rollback without the Open XML SDK validator
+is blocked; only an exact no-op may proceed without schema validation.
+
 Use `inspect_ooxml_patch` when only artifact integrity or a bounded operation page is
 needed. It never returns payload bytes or raw XML. A `.wtpatch` is exact for OPC entry
 names and uncompressed before/after payloads, not for ZIP compression metadata or record

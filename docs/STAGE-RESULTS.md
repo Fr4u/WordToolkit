@@ -1,5 +1,32 @@
 # Stage results
 
+## Transport-neutral package rollback convergence — 2026-07-24
+
+- Added public Engine plan/apply contracts and `PatchRollbackWordPackageOperation` for
+  saved-package rollback. It owns reverse derivation, exact current/artifact identity,
+  destination-bound plan IDs, semantic/risk/type/schema evidence, authorization gates,
+  no-op semantics and atomic publication without opening Word.
+- Added one strict JSON codec shared by direct .NET callers, the new non-interactive
+  `patch-rollback-package` CLI and the existing lazy MCP plan/apply actions. Unknown
+  fields fail closed. The Native adapter now supplies only the Microsoft Open XML SDK
+  validator and runtime timing metadata; its private reverse-planning branch was removed.
+- Seven direct Engine regressions cover exact restore plus redo backup, stale and cross-path
+  state, case-sensitive destination binding, active-content authorization, no-op behavior,
+  validator absence and closed JSON.
+  One Native regression proves canonical plan-result parity across SDK, CLI and MCP and
+  then applies the reviewed rollback through the CLI. The full checkpoint passes 511
+  Engine, 395 Native and 1309 Python tests with 16 intentional skips.
+- Pinned SDK 8.0.423 produced two byte-identical 196-file, 87,150,234-byte trees and two
+  byte-identical 36,755,923-byte ZIPs at SHA-256
+  `c9216579cede83aec95cab4b895a30008d9c33fcfb28ba0ea3163566e937648d`.
+  Build, personal marketplace source and enabled `0.39.0+codex.20260724165517` cache have
+  zero path/length/hash differences. Installed discovery reports 109 actions, 15 exposed
+  MCP tools and 22 explicit contracts. Executable, runtime, Engine and Open XML SDK
+  adapter SHA-256 values are `8bcb384c8f4dd4fea526c9e4c2ac81935d4542e1c7dc7436a4812d5f1dd2aabb`,
+  `71f12542a6da3f22b3fe6e9b04234ed33448978c99a64139c2f46e1b75c61fbe`,
+  `b0e93320b14ebe247988ef6b62d5ac5429df87b98df87fcd70d9cc509c5ddb42` and
+  `e6ce1df006670abba3f630304f31dd4d3a6aa80fa3a9d92d2af768741f9f4125`.
+
 ## Public destination-bound saved-package rollback — 2026-07-24
 
 - Added `plan_ooxml_patch_rollback` and `apply_ooxml_patch_rollback`. The caller supplies

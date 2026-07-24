@@ -9,7 +9,7 @@ namespace WordToolkit.Native;
 internal static class Program
 {
     private const string Usage =
-        "usage: wordtoolkit-native [capabilities [--schema | [--query <text>] [--offset <n>] [--limit <n>]] [--format json] | inspect-package <path> [--include-details] [--max-items <1..200>] [--format json] | query-package --request <query.json|-> [--format json] | render-package --request <request.json|-> [--backend semantic-html|semantic-svg] [--format json] | style-package --mode <plan|apply> --request <request.json|-> [--format json] | comment-body-package --mode <plan|apply> --request <request.json|-> [--format json] | transform-package <input> <output> --operation <name> [--find-text <text> --replace-text <text>] [--format json] | docx-platform-adapter --protocol-version 1 --operation <operation.json> --input <input.docx> --output <output.docx> | --create-test-document <path> | --benchmark-active-word]";
+        "usage: wordtoolkit-native [capabilities [--schema | [--query <text>] [--offset <n>] [--limit <n>]] [--format json] | inspect-package <path> [--include-details] [--max-items <1..200>] [--format json] | query-package --request <query.json|-> [--format json] | render-package --request <request.json|-> [--backend semantic-html|semantic-svg] [--format json] | style-package --mode <plan|apply> --request <request.json|-> [--format json] | comment-body-package --mode <plan|apply> --request <request.json|-> [--format json] | patch-rollback-package --mode <plan|apply> --request <request.json|-> [--format json] | transform-package <input> <output> --operation <name> [--find-text <text> --replace-text <text>] [--format json] | docx-platform-adapter --protocol-version 1 --operation <operation.json> --input <input.docx> --output <output.docx> | --create-test-document <path> | --benchmark-active-word]";
 
     public static async Task<int> Main(string[] args)
     {
@@ -86,6 +86,16 @@ internal static class Program
         if (args.Length >= 1 && args[0] == "comment-body-package")
         {
             return CommentBodyPackageCli.Run(
+                args[1..],
+                Console.In,
+                Console.Out,
+                Console.Error
+            );
+        }
+
+        if (args.Length >= 1 && args[0] == "patch-rollback-package")
+        {
+            return PatchRollbackPackageCli.Run(
                 args[1..],
                 Console.In,
                 Console.Out,

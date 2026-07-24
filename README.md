@@ -667,6 +667,21 @@ must still equal the original patch result, package type and baseline-versus-can
 validation are rechecked, publication is atomic, and the default backup contains the
 pre-rollback state as redo evidence. Neither action opens Word or returns payloads/XML.
 
+This rollback is no longer private MCP plumbing. The public
+`PatchRollbackWordPackageOperation` owns the typed plan/apply requests, deterministic
+result, policy gates, destination-bound identity, candidate validation and atomic write.
+Direct .NET, lazy MCP and the strict non-interactive JSON CLI execute that same code:
+
+```powershell
+wordtoolkit-native patch-rollback-package --mode plan --request .\rollback-plan.json --format json
+wordtoolkit-native patch-rollback-package --mode apply --request .\rollback-apply.json --format json
+Get-Content .\rollback-plan.json -Raw | wordtoolkit-native patch-rollback-package --mode plan --request - --format json
+```
+
+Unknown JSON fields are rejected. A changed package without an injected schema validator
+cannot be applied; the standard CLI/MCP adapter injects `MicrosoftOpenXmlPackageValidator`.
+The Engine itself remains independent of Microsoft Open XML SDK and Word COM.
+
 Saved-package three-way merge requires an explicit common ancestor. It automatically
 selects one-sided changes, coalesces byte-identical branch changes and can combine
 disjoint source-linked text-leaf edits in the same XML part only after proving that each

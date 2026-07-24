@@ -1243,6 +1243,16 @@ match, unselected bodies and all review metadata must remain invariant, changed 
 must be comment-definition parts, Microsoft schema comparison must introduce no errors,
 and neither response may return comment text or raw XML.
 
+The sixth seam is `PatchRollbackWordPackageOperation`. It reads the reviewed original
+`.wtpatch`, derives its reverse internally, rebuilds the semantic/risk/type/schema proof,
+binds the exact normalized destination path into `wtrollback_`, and publishes only through
+the atomic package writer. The public Engine contracts, strict
+`patch-rollback-package` JSON CLI and lazy MCP actions share one parser, one plan identity,
+one policy decision and one result projection. The Native adapter contributes only the
+Open XML SDK validator plus runtime timing fields; it no longer contains a second reverse
+planning or rollback implementation. No-op rollback remains non-mutating, and a changed
+rollback without a validator fails closed.
+
 Microsoft schema validation is an injected capability rather than an Engine dependency.
 `WordToolkit.Engine.Validation.IWordPackageCandidateValidator` is the neutral boundary;
 `WordToolkit.OpenXmlSdk.MicrosoftOpenXmlPackageValidator` is the standard adapter. It

@@ -1,6 +1,6 @@
 {
   "name": "wordtoolkit",
-  "version": "0.39.0+codex.20260724161042",
+  "version": "0.39.0+codex.20260724165517",
   "description": "Token-lean native Microsoft Word automation with 15 core/gateway tools and lazy access to 109 native actions.",
   "author": {
     "name": "WordToolkit contributors"
@@ -79,6 +79,7 @@
       "Deterministic Semantic SVG Preview",
       "Fingerprint-Bound Semantic SVG Selection",
       "Deterministic Reversible OPC Patches",
+      "Transport-Neutral Patch Rollback",
       "Authenticated Encrypted Patch Envelopes",
       "Patch Risk Authorization",
       "Guarded Three-Way Package Merge",
