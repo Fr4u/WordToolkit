@@ -14,19 +14,28 @@ public sealed class LiveCaptionAndTableOfFiguresTests
         var table = catalog
             .InspectAction("insert_live_word_table_of_figures")["tool"]!
             .AsObject();
+        var update = catalog
+            .InspectAction("update_live_word_reference_tables")["tool"]!
+            .AsObject();
 
         Assert.Equal("1.0", caption["operationVersion"]!.GetValue<string>());
         Assert.Equal("1.0", table["operationVersion"]!.GetValue<string>());
+        Assert.Equal("1.0", update["operationVersion"]!.GetValue<string>());
         Assert.False(caption["annotations"]!["readOnlyHint"]!.GetValue<bool>());
         Assert.False(table["annotations"]!["readOnlyHint"]!.GetValue<bool>());
+        Assert.False(update["annotations"]!["readOnlyHint"]!.GetValue<bool>());
         Assert.False(caption["inputSchema"]!["additionalProperties"]!.GetValue<bool>());
         Assert.False(table["inputSchema"]!["additionalProperties"]!.GetValue<bool>());
+        Assert.False(update["inputSchema"]!["additionalProperties"]!.GetValue<bool>());
         Assert.NotNull(caption["permissions"]);
         Assert.NotNull(caption["reversibility"]);
         Assert.NotNull(caption["outputSchema"]);
         Assert.NotNull(table["permissions"]);
         Assert.NotNull(table["reversibility"]);
         Assert.NotNull(table["outputSchema"]);
+        Assert.NotNull(update["permissions"]);
+        Assert.NotNull(update["reversibility"]);
+        Assert.NotNull(update["outputSchema"]);
     }
 
     [Fact]
@@ -240,6 +249,165 @@ public sealed class LiveCaptionAndTableOfFiguresTests
         Assert.Equal(0, host.Application.ActiveDocument.TablesOfFigures.Count);
     }
 
+    [Fact]
+    public async Task UpdatesEveryNativeReferenceTableWithoutReturningResultText()
+    {
+        await using var host = new CaptionFakeHost();
+        var document = host.Application.ActiveDocument;
+        document.TablesOfContents.Seed(1);
+        document.TablesOfFigures.Seed(1);
+        document.TablesOfAuthorities.Seed(1);
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        using var arguments = ReferenceTableArguments(documentId, version);
+
+        var result = await service.CallAsync(
+            "update_live_word_reference_tables",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        var raw = JsonSerializer.Serialize(result, JsonDefaults.Compact);
+        using var json = JsonDocument.Parse(raw);
+        var data = json.RootElement;
+
+        Assert.Equal(
+            "wordtoolkit.update_live_word_reference_tables/1.0",
+            data.GetProperty("operation_contract").GetString()
+        );
+        Assert.Equal(version + 1, data.GetProperty("live_version").GetInt64());
+        Assert.Equal(3, data.GetProperty("updated_count").GetInt32());
+        Assert.Equal(
+            1,
+            data.GetProperty("updated_counts").GetProperty("tables_of_contents").GetInt32()
+        );
+        Assert.Equal(
+            1,
+            data.GetProperty("updated_counts").GetProperty("tables_of_figures").GetInt32()
+        );
+        Assert.Equal(
+            1,
+            data.GetProperty("updated_counts").GetProperty("tables_of_authorities").GetInt32()
+        );
+        Assert.Equal(
+            1,
+            data.GetProperty("counts_before").GetProperty("tables_of_contents").GetInt32()
+        );
+        Assert.True(data.GetProperty("ranges_and_fields_verified").GetBoolean());
+        Assert.False(data.GetProperty("raw_field_code_returned").GetBoolean());
+        Assert.False(data.GetProperty("result_text_returned").GetBoolean());
+        Assert.Equal(1, document.TablesOfContents.Item(1).UpdateCount);
+        Assert.Equal(1, document.TablesOfFigures.Item(1).UpdateCount);
+        Assert.Equal(1, document.TablesOfAuthorities.Item(1).UpdateCount);
+        Assert.Equal(1, document.RepaginateCount);
+        Assert.Equal(1, host.Application.UndoRecord.StartCount);
+        Assert.Equal(1, host.Application.UndoRecord.EndCount);
+        Assert.True(host.Application.ScreenUpdating);
+    }
+
+    [Fact]
+    public async Task UpdatesOnlyOneExactReferenceTableIndexWithoutRepagination()
+    {
+        await using var host = new CaptionFakeHost();
+        var document = host.Application.ActiveDocument;
+        document.TablesOfFigures.Seed(2);
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        using var arguments = ReferenceTableArguments(
+            documentId,
+            version,
+            kind: "table_of_figures",
+            index: 2,
+            repaginate: false
+        );
+
+        var result = await service.CallAsync(
+            "update_live_word_reference_tables",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(result, JsonDefaults.Compact));
+
+        Assert.Equal(1, json.RootElement.GetProperty("updated_count").GetInt32());
+        Assert.Equal(0, document.TablesOfFigures.Item(1).UpdateCount);
+        Assert.Equal(1, document.TablesOfFigures.Item(2).UpdateCount);
+        Assert.Equal(0, document.RepaginateCount);
+        Assert.False(
+            json.RootElement.GetProperty("repagination").GetProperty("performed").GetBoolean()
+        );
+    }
+
+    [Fact]
+    public async Task RejectsMissingReferenceTablesBeforeUndo()
+    {
+        await using var host = new CaptionFakeHost();
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        using var arguments = ReferenceTableArguments(documentId, version);
+
+        var error = await Assert.ThrowsAsync<NativeToolException>(
+            () =>
+                service.CallAsync(
+                    "update_live_word_reference_tables",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("INVALID_INPUT", error.ErrorCode);
+        Assert.Equal(0, host.Application.UndoRecord.StartCount);
+    }
+
+    [Fact]
+    public async Task RejectsMoreThanOneHundredTwentyEightReferenceTablesBeforeUndo()
+    {
+        await using var host = new CaptionFakeHost();
+        host.Application.ActiveDocument.TablesOfContents.Seed(129);
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        using var arguments = ReferenceTableArguments(documentId, version);
+
+        var error = await Assert.ThrowsAsync<NativeToolException>(
+            () =>
+                service.CallAsync(
+                    "update_live_word_reference_tables",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("LIMIT_EXCEEDED", error.ErrorCode);
+        Assert.Equal(0, host.Application.UndoRecord.StartCount);
+    }
+
+    [Fact]
+    public async Task RollsBackEveryReferenceTableWhenReadbackBecomesInvalid()
+    {
+        await using var host = new CaptionFakeHost();
+        var document = host.Application.ActiveDocument;
+        document.TablesOfContents.Seed(1);
+        document.TablesOfFigures.Seed(1);
+        document.TablesOfFigures.Item(1).InvalidateRangeOnUpdate = true;
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        using var arguments = ReferenceTableArguments(documentId, version);
+
+        var error = await Assert.ThrowsAsync<NativeToolException>(
+            () =>
+                service.CallAsync(
+                    "update_live_word_reference_tables",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("VALIDATION_FAILED", error.ErrorCode);
+        Assert.Equal(0, document.TablesOfContents.Item(1).UpdateCount);
+        Assert.Equal(0, document.TablesOfFigures.Item(1).UpdateCount);
+        Assert.True(document.TablesOfFigures.Item(1).Range.End > 0);
+        Assert.Equal(1, document.UndoCount);
+        Assert.True(host.Application.ScreenUpdating);
+    }
+
     private static JsonDocument CaptionArguments(
         string documentId,
         long version,
@@ -252,6 +420,26 @@ public sealed class LiveCaptionAndTableOfFiguresTests
                     live_document_id = documentId,
                     expected_version = version,
                     selection_token = selectionToken,
+                }
+            )
+        );
+
+    private static JsonDocument ReferenceTableArguments(
+        string documentId,
+        long version,
+        string kind = "all",
+        int? index = null,
+        bool repaginate = true
+    ) =>
+        JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = version,
+                    kind,
+                    index,
+                    repaginate,
                 }
             )
         );
@@ -345,14 +533,15 @@ public sealed class CaptionFakeDocument
 {
     private readonly CaptionFakeApplication _application;
     private int _undoFieldCount;
-    private int _undoTableOfFiguresCount;
     private const string Body = "Document body with one selected object and enough context for hashing.\r";
 
     public CaptionFakeDocument(CaptionFakeApplication application)
     {
         _application = application;
         Fields = new CaptionFakeFields();
+        TablesOfContents = new CaptionFakeReferenceTables();
         TablesOfFigures = new CaptionFakeTablesOfFigures(this);
+        TablesOfAuthorities = new CaptionFakeReferenceTables();
     }
 
     public string Name => "Captions.docx";
@@ -365,7 +554,9 @@ public sealed class CaptionFakeDocument
     public int ProtectionType => -1;
     public CaptionFakeRange Content => Range(0, Body.Length);
     public CaptionFakeFields Fields { get; }
+    public CaptionFakeReferenceTables TablesOfContents { get; }
     public CaptionFakeTablesOfFigures TablesOfFigures { get; }
+    public CaptionFakeReferenceTables TablesOfAuthorities { get; }
     public CaptionFakeCountCollection Paragraphs { get; } = new(2);
     public CaptionFakeCountCollection OMaths { get; } = new(0);
     public CaptionFakeCountCollection Tables { get; } = new(1);
@@ -380,11 +571,14 @@ public sealed class CaptionFakeDocument
     public string LastCaptionLabel { get; private set; } = "";
     public string LastCaptionTitle { get; private set; } = "";
     public int UndoCount { get; private set; }
+    public int RepaginateCount { get; private set; }
 
     public CaptionFakeRange Range(int start, int end) =>
         new(this, start, end, Body[start..Math.Min(end, Body.Length)]);
 
     public void Activate() => _application.ActiveDocument = this;
+
+    public void Repaginate() => RepaginateCount++;
 
     public void InsertCaption(object label, string title)
     {
@@ -405,7 +599,9 @@ public sealed class CaptionFakeDocument
     public void BeginUndoSnapshot()
     {
         _undoFieldCount = Fields.Count;
-        _undoTableOfFiguresCount = TablesOfFigures.Count;
+        TablesOfContents.CaptureUndoSnapshot();
+        TablesOfFigures.CaptureUndoSnapshot();
+        TablesOfAuthorities.CaptureUndoSnapshot();
     }
 
     public bool Undo(int count)
@@ -415,7 +611,9 @@ public sealed class CaptionFakeDocument
             return false;
         }
         Fields.Trim(_undoFieldCount);
-        TablesOfFigures.Trim(_undoTableOfFiguresCount);
+        TablesOfContents.RestoreUndoSnapshot();
+        TablesOfFigures.RestoreUndoSnapshot();
+        TablesOfAuthorities.RestoreUndoSnapshot();
         UndoCount++;
         return true;
     }
@@ -526,15 +724,64 @@ public sealed class CaptionFakeFieldCode
     public string Text { get; }
 }
 
+public sealed class CaptionFakeReferenceTables
+{
+    private readonly List<CaptionFakeReferenceTable> _items = [];
+    private int _undoCount;
+
+    public int Count => _items.Count;
+    public CaptionFakeReferenceTable Item(int index) => _items[index - 1];
+
+    public void Seed(int count)
+    {
+        for (var index = 0; index < count; index++)
+        {
+            var start = 20 + (_items.Count * 20);
+            _items.Add(new CaptionFakeReferenceTable(start, start + 12));
+        }
+    }
+
+    public void CaptureUndoSnapshot()
+    {
+        _undoCount = _items.Count;
+        foreach (var item in _items)
+        {
+            item.CaptureUndoSnapshot();
+        }
+    }
+
+    public void RestoreUndoSnapshot()
+    {
+        if (_items.Count > _undoCount)
+        {
+            _items.RemoveRange(_undoCount, _items.Count - _undoCount);
+        }
+        foreach (var item in _items)
+        {
+            item.RestoreUndoSnapshot();
+        }
+    }
+}
+
 public sealed class CaptionFakeTablesOfFigures
 {
     private readonly CaptionFakeDocument _document;
     private readonly List<CaptionFakeTableOfFigures> _items = [];
+    private int _undoCount;
 
     public CaptionFakeTablesOfFigures(CaptionFakeDocument document) => _document = document;
     public int Count => _items.Count;
     public string LastCaption { get; private set; } = "";
     public CaptionFakeTableOfFigures Item(int index) => _items[index - 1];
+
+    public void Seed(int count)
+    {
+        for (var index = 0; index < count; index++)
+        {
+            var start = 40 + (_items.Count * 20);
+            _items.Add(new CaptionFakeTableOfFigures(start, start + 12));
+        }
+    }
 
     public CaptionFakeTableOfFigures Add(
         CaptionFakeRange range,
@@ -558,19 +805,71 @@ public sealed class CaptionFakeTablesOfFigures
         return table;
     }
 
-    public void Trim(int count) => _items.RemoveRange(count, _items.Count - count);
+    public void CaptureUndoSnapshot()
+    {
+        _undoCount = _items.Count;
+        foreach (var item in _items)
+        {
+            item.CaptureUndoSnapshot();
+        }
+    }
+
+    public void RestoreUndoSnapshot()
+    {
+        if (_items.Count > _undoCount)
+        {
+            _items.RemoveRange(_undoCount, _items.Count - _undoCount);
+        }
+        foreach (var item in _items)
+        {
+            item.RestoreUndoSnapshot();
+        }
+    }
 }
 
-public sealed class CaptionFakeTableOfFigures
+public class CaptionFakeReferenceTable
 {
-    public CaptionFakeTableOfFigures(int start, int end)
+    private int _undoStart;
+    private int _undoEnd;
+    private int _undoUpdateCount;
+
+    public CaptionFakeReferenceTable(int start, int end)
     {
         Range = new CaptionFakeTableOfFiguresRange(start, end);
     }
 
     public CaptionFakeTableOfFiguresRange Range { get; }
-    public bool Updated { get; private set; }
-    public void Update() => Updated = true;
+    public bool Updated => UpdateCount > 0;
+    public int UpdateCount { get; private set; }
+    public bool InvalidateRangeOnUpdate { get; set; }
+
+    public void Update()
+    {
+        UpdateCount++;
+        if (InvalidateRangeOnUpdate)
+        {
+            Range.Invalidate();
+        }
+    }
+
+    public void CaptureUndoSnapshot()
+    {
+        _undoStart = Range.Start;
+        _undoEnd = Range.End;
+        _undoUpdateCount = UpdateCount;
+    }
+
+    public void RestoreUndoSnapshot()
+    {
+        Range.Restore(_undoStart, _undoEnd);
+        UpdateCount = _undoUpdateCount;
+    }
+}
+
+public sealed class CaptionFakeTableOfFigures : CaptionFakeReferenceTable
+{
+    public CaptionFakeTableOfFigures(int start, int end)
+        : base(start, end) { }
 }
 
 public sealed class CaptionFakeTableOfFiguresRange
@@ -581,10 +880,18 @@ public sealed class CaptionFakeTableOfFiguresRange
         End = end;
     }
 
-    public int Start { get; }
-    public int End { get; }
+    public int Start { get; private set; }
+    public int End { get; private set; }
     public CaptionFakeCountCollection Fields { get; } = new(1);
     public CaptionFakeTableOfFiguresRange Duplicate => this;
+
+    public void Invalidate() => End = Start;
+
+    public void Restore(int start, int end)
+    {
+        Start = start;
+        End = end;
+    }
 }
 
 public sealed class CaptionFakeUndoRecord

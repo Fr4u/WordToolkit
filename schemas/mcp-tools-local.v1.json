@@ -91,6 +91,7 @@
       "insert_live_word_fields",
       "insert_live_word_caption",
       "insert_live_word_table_of_figures",
+      "update_live_word_reference_tables",
       "insert_live_word_image",
       "insert_live_word_comment",
       "insert_live_word_note",
@@ -11609,6 +11610,123 @@
               },
               "native_verified": {"const": true},
               "raw_field_code_returned": {"const": false},
+              "raw_com_objects_returned": {"const": false},
+              "document": {"type": "object"},
+              "performance": {"type": "object"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "update_live_word_reference_tables",
+      "title": "Update native Word reference tables",
+      "description": "Update existing native Word tables of contents, tables of figures, and tables of authorities in one guarded operation. The action can target every supported table or one exact kind and one-based index, optionally repaginates first, verifies collection counts plus every refreshed field range, and rolls back the whole custom Undo record on mismatch. It never accepts or returns field instructions, table result text, or raw COM objects.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "none",
+        "network": "none",
+        "microsoft_word": "mutate_existing_connected_document_reference_tables_in_one_guarded_undo_record"
+      },
+      "reversibility": {
+        "applicable": true,
+        "mechanism": "single_custom_word_undo_record_with_automatic_rollback_before_return_on_failed_verification"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "live_document_id": {"type": "string", "minLength": 1, "maxLength": 128},
+          "expected_version": {"type": "integer", "minimum": 0},
+          "kind": {
+            "type": "string",
+            "enum": ["all", "table_of_contents", "table_of_figures", "table_of_authorities"],
+            "default": "all"
+          },
+          "index": {
+            "anyOf": [
+              {"type": "integer", "minimum": 1, "maximum": 10000},
+              {"type": "null"}
+            ],
+            "default": null,
+            "description": "Optional one-based index. Allowed only when kind selects one exact collection."
+          },
+          "repaginate": {"type": "boolean", "default": true},
+          "optimize_screen_updates": {"type": "boolean", "default": true}
+        },
+        "required": ["live_document_id", "expected_version"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "live_document_id", "live_version", "requested_kind", "requested_index", "updated_count", "updated_counts", "counts_before", "counts_after", "repagination", "ranges_and_fields_verified", "native_verified", "raw_field_code_returned", "result_text_returned", "raw_com_objects_returned", "document", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.update_live_word_reference_tables/1.0"},
+              "live_document_id": {"type": "string", "maxLength": 128},
+              "live_version": {"type": "integer", "minimum": 0},
+              "requested_kind": {"enum": ["all", "table_of_contents", "table_of_figures", "table_of_authorities"]},
+              "requested_index": {
+                "anyOf": [
+                  {"type": "integer", "minimum": 1, "maximum": 10000},
+                  {"type": "null"}
+                ]
+              },
+              "updated_count": {"type": "integer", "minimum": 1, "maximum": 128},
+              "updated_counts": {
+                "type": "object",
+                "required": ["tables_of_contents", "tables_of_figures", "tables_of_authorities"],
+                "properties": {
+                  "tables_of_contents": {"type": "integer", "minimum": 0, "maximum": 128},
+                  "tables_of_figures": {"type": "integer", "minimum": 0, "maximum": 128},
+                  "tables_of_authorities": {"type": "integer", "minimum": 0, "maximum": 128}
+                },
+                "additionalProperties": false
+              },
+              "counts_before": {
+                "type": "object",
+                "required": ["tables_of_contents", "tables_of_figures", "tables_of_authorities"],
+                "properties": {
+                  "tables_of_contents": {"type": "integer", "minimum": 0},
+                  "tables_of_figures": {"type": "integer", "minimum": 0},
+                  "tables_of_authorities": {"type": "integer", "minimum": 0}
+                },
+                "additionalProperties": false
+              },
+              "counts_after": {
+                "type": "object",
+                "required": ["tables_of_contents", "tables_of_figures", "tables_of_authorities"],
+                "properties": {
+                  "tables_of_contents": {"type": "integer", "minimum": 0},
+                  "tables_of_figures": {"type": "integer", "minimum": 0},
+                  "tables_of_authorities": {"type": "integer", "minimum": 0}
+                },
+                "additionalProperties": false
+              },
+              "repagination": {
+                "type": "object",
+                "required": ["requested", "performed"],
+                "properties": {
+                  "requested": {"type": "boolean"},
+                  "performed": {"type": "boolean"}
+                },
+                "additionalProperties": false
+              },
+              "ranges_and_fields_verified": {"const": true},
+              "native_verified": {"const": true},
+              "raw_field_code_returned": {"const": false},
+              "result_text_returned": {"const": false},
               "raw_com_objects_returned": {"const": false},
               "document": {"type": "object"},
               "performance": {"type": "object"}

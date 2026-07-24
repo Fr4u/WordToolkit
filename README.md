@@ -58,6 +58,13 @@ field instructions. Built-in labels are resolved by the installed Word language;
 labels must already exist. Both operations use one custom Undo record, verify native
 field/collection counts, return no caption text or raw field code, and roll back when
 Word does not produce the requested structure.
+`update_live_word_reference_tables` refreshes existing native tables of contents,
+figures and authorities, either as one bounded all-kind transaction or by exact kind and
+index. It repaginates by default, updates at most 128 objects, verifies every native
+range and field collection, preserves all three collection counts and returns neither
+generated table text nor field instructions.
+See [Guarded live reference-table update](docs/RESEARCH-LIVE-REFERENCE-TABLE-UPDATE-2026.md)
+for the Word object-model evidence, safety contract and verified limits.
 
 This is an advanced but experimental OOXML engine, not a verified claim of market leadership or complete Microsoft Word equivalence. Unsupported domains and release evidence are listed explicitly in [Known limitations](docs/KNOWN-LIMITATIONS.md) and [Testing](docs/TESTING.md).
 
@@ -137,7 +144,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 101-action schema set into model context. The normative shape is
+not flatten the 102-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and

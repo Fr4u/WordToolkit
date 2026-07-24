@@ -2,7 +2,7 @@
 
 The current remote Python service source of truth is `schemas/mcp-tools.v2.json`; `schemas/mcp-tools.v1.json` remains the immutable historical contract. The provider-neutral heterogeneous mutation contract, including executable input/success/error examples, is generated as `schemas/draft-operations.v1.json`. The native Windows plugin has a separate, deliberately hand-reviewed source in `schemas/mcp-tools-local.v1.json`; `WordToolkit.Native.Tests` validates that catalog and this exporter never overwrites it. Every exported remote tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.
 
-The native catalog currently contains 101 actions behind 15 core/gateway tools. Rare
+The native catalog currently contains 102 actions behind 15 core/gateway tools. Rare
 saved-package inspectors remain lazy so their schemas do not enter model context until
 needed. `inspect_ooxml_active_content` is read-only and closed-world: it inventories
 typed OLE/ActiveX/VBA/embedded-package/customization/signature metadata without opening
@@ -27,6 +27,12 @@ text. Node creation/deletion/reordering and layout/style/color mutation remain u
 mutations. They resolve localized built-in or exact existing custom caption labels,
 create native `SEQ`/table-of-figures fields through Word, verify collection counts and
 roll back on mismatch. Neither action accepts raw field instructions or returns caption
+text.
+`update_live_word_reference_tables` refreshes existing native tables of contents,
+figures and authorities through Word. It selects all supported objects or one exact kind
+and one-based index, caps a transaction at 128 objects, optionally repaginates, verifies
+stable collection counts and readable field ranges, and rolls the custom Undo record
+back on any mismatch. It never accepts or returns field instructions or generated table
 text.
 `plan_ooxml_format` and `apply_ooxml_format` are also lazy. They expose one explicit,
 bounded policy that removes scalar direct formatting proven redundant against the

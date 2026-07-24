@@ -195,6 +195,34 @@ public sealed class WordReferenceGraphTests
     }
 
     [Fact]
+    public void ReadsWordGeneratedTableOfAuthoritiesEntryFromItsLongCitationSwitch()
+    {
+        using var bytes = BuildPackage(
+            """
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body><w:p>
+                <w:fldSimple w:instr=" TA \l &quot;Alpha przeciwko Beta&quot; \s &quot;Alpha v. Beta&quot; \c 1 ">
+                  <w:r><w:t/></w:r>
+                </w:fldSimple>
+              </w:p></w:body>
+            </w:document>
+            """
+        );
+        var (package, semantic) = ReadSnapshots(bytes);
+
+        var graph = new WordReferenceGraphBuilder().Build(package, semantic);
+
+        var field = Assert.Single(graph.Fields);
+        Assert.Equal("TA", field.FieldType);
+        Assert.Equal(WordFieldClassification.Index, field.Classification);
+        var edge = Assert.Single(graph.Edges);
+        Assert.Equal(WordReferenceEdgeKind.Generates, edge.Kind);
+        Assert.Equal(WordReferenceTargetKind.IndexEntry, edge.TargetKind);
+        Assert.Equal("Alpha przeciwko Beta", edge.TargetKey);
+        Assert.DoesNotContain(graph.Issues, issue => issue.Code == "FIELD_TARGET_MISSING");
+    }
+
+    [Fact]
     public void AcceptsStrictBookmarkAndSimpleRefMarkup()
     {
         using var bytes = BuildPackage(

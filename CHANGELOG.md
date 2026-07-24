@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+- Added `wordtoolkit.update_live_word_reference_tables/1.0` as native action 102.
+  It updates existing Word `TablesOfContents`, `TablesOfFigures` and
+  `TablesOfAuthorities` together or by exact kind/index, touches at most 128 objects,
+  optionally repaginates, requires the live version and uses one non-replayable custom
+  Undo record. Stable collection counts plus every reacquired field range are mandatory;
+  mismatch requests one rollback. The response returns no field instruction, generated
+  table text or raw COM object.
+- Added five focused fake-COM regressions for all-kind refresh, exact index selection,
+  no-target rejection, the 128-object ceiling, privacy and rollback after invalid native
+  readback. The closed versioned action contract raises catalogue coverage to 102 input
+  schemas/effect records and 15 explicit output/permission/reversibility/version records.
+- Fixed a real saved-package reference-graph false positive: Word-generated `TA` fields
+  identify their long citation through the `\l` switch rather than a positional operand.
+  The new regression preserves a typed `IndexEntry` edge without emitting
+  `FIELD_TARGET_MISSING` for valid Word syntax.
+- Full local gates pass 498 Engine, 351 Native and 1,309 Python tests with 16 intentional
+  skips; Ruff and C# formatting checks pass. Installed build
+  `0.39.0+codex.20260724100603` reports 102 actions, 15 exposed MCP tools and 15 explicit
+  metadata contracts. Build output, personal source and enabled cache each contain the
+  same 196 files with zero path/length/hash differences.
+- The final installed runtime updated one native contents table, one table of figures and
+  one table of authorities together in Word 16.0. Counts stayed 1/1/1, repagination and
+  native range/field verification succeeded, the live version advanced once and the
+  Microsoft Open XML SDK reported zero errors. Saved-package inspection found 15
+  complete fields (`TOC` 2, `PAGEREF` 9, `SEQ` 2, `TA` 1, `TOA` 1), zero issues and no
+  external or application-invoking fields. The four-page Word PDF shows populated
+  contents, table and authorities lists with legible leaders/page numbers and no clipping
+  or overlap.
+- The 16,891-byte DOCX has SHA-256
+  `d8e2bb820e821bcd77bbd9d800e786749260316face98259a51fc05aa5f83263`; the
+  80,453-byte PDF has SHA-256
+  `8bef6305acb5d5d4d51d8fb2e5b1381521ff86c38d4109a453ce0afb062ee141`. The
+  36,663,305-byte self-contained ZIP has SHA-256
+  `8a8fcdaf462a07f6bf5de1f4a2512d70ba522a002b822e5686a9813cf6ef9466`.
+
 - Added `wordtoolkit.insert_live_word_caption/1.0` and
   `wordtoolkit.insert_live_word_table_of_figures/1.0` as native actions 100 and 101.
   Both require optimistic live-version control, use one non-replayable custom Word Undo

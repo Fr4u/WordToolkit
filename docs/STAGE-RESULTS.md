@@ -1,5 +1,41 @@
 # Stage results
 
+## Guarded update of native reference tables — 2026-07-24
+
+- Added `wordtoolkit.update_live_word_reference_tables/1.0` as native action 102. One
+  request selects all native contents/figures/authorities tables or one exact kind and
+  one-based index, rejects more than 128 objects, repaginates by default and performs the
+  native full `Update` inside one custom Undo record. It requires the current live
+  version, rechecks all three collection counts and every resulting field range, rolls
+  back on mismatch and returns no generated table text, raw field instruction or COM
+  object.
+- Five new fake-COM regressions cover all-kind success and response privacy, exact-index
+  selection without repagination, zero targets, the 128-object ceiling and full rollback
+  after invalid post-update readback. A separate Engine regression fixes valid
+  Word-generated `TA \l ... \s ... \c ...` fields so the long citation creates the
+  typed index-entry edge without a false `FIELD_TARGET_MISSING` warning.
+- Full local gates pass **498 Engine tests**, **351 Native tests** and **1,309 Python
+  tests** with **16 intentional skips**. Ruff and C# formatting checks pass. Capability
+  discovery reports **102 actions**, **15 exposed MCP tools** and **15 explicit metadata
+  contracts**.
+- The final installed `0.39.0+codex.20260724100603` runtime updated one
+  `TablesOfContents`, one `TablesOfFigures` and one `TablesOfAuthorities` object together
+  in Word 16.0. Counts before/after stayed 1/1/1, repagination and range/field readback
+  succeeded, and Microsoft Open XML SDK validation returned zero errors.
+- Independent saved-package inspection found **15 complete native fields**: two `TOC`,
+  nine nested `PAGEREF`, two `SEQ`, one `TA` and one `TOA`; issue, external-field and
+  application-invoking-field counts are all zero. The 16,891-byte DOCX has SHA-256
+  `d8e2bb820e821bcd77bbd9d800e786749260316face98259a51fc05aa5f83263`.
+- Word exported a four-page, 80,453-byte PDF at SHA-256
+  `8bef6305acb5d5d4d51d8fb2e5b1381521ff86c38d4109a453ce0afb062ee141`.
+  All four 150-DPI page rasters were inspected: the contents table, table list,
+  authorities entry, captions, leaders and page numbers are present and legible, with no
+  clipping, overlap, black glyph boxes or broken page margins.
+- Build output, personal source and enabled cache each contain the same **196 files** and
+  **86,772,501 bytes**, with zero path/length/hash differences. The self-contained
+  36,663,305-byte ZIP has SHA-256
+  `8a8fcdaf462a07f6bf5de1f4a2512d70ba522a002b822e5686a9813cf6ef9466`.
+
 ## Native captions and table of figures — 2026-07-24
 
 - Added `wordtoolkit.insert_live_word_caption/1.0` and

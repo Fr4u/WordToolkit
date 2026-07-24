@@ -271,12 +271,22 @@ of composing `SEQ` or `TOC` field instructions yourself:
 3. Repeat for the required objects with a fresh selection/version after every mutation.
 4. Call `insert_live_word_table_of_figures` with the current version. Its default target
    is `document_end`; `target=cursor` additionally requires a fresh collapsed selection.
+5. To refresh existing native tables of contents, figures or authorities, call
+   `update_live_word_reference_tables` with the current version. Leave `kind=all` to
+   update every supported collection, or select one exact kind and optional one-based
+   `index`. One request updates at most 128 objects and repaginates first by default.
 
 Both actions use native Word fields in one custom Undo record, verify the resulting
 collection/field counts, and roll back on mismatch. They never accept raw field code,
 create a global custom label or return caption text. A table of figures is rejected when
 the document has no matching native captions. Save, validate and render the result before
 calling the document complete.
+The reference-table update action likewise uses one custom Undo record, keeps the three
+collection counts stable, verifies every resulting range and field collection, and
+returns no field instructions or generated table text. It deliberately performs the
+native full `Update` operation. Do not invent one cross-kind page-number-only flag:
+Word exposes that narrower operation for contents and figures, but not with the same
+contract for a table of authorities.
 Use lazy `inspect_ooxml_content_controls` instead of reading `w:sdt`, `dataBinding`,
 `customXml` or item-properties XML yourself. Start with `view=summary`; page `controls`,
 `stores`, `bindings`, `targets`, `repeating_sections` or `issues` only when the next

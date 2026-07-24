@@ -16,6 +16,7 @@ internal sealed partial class WordLiveService
     private const int WordFieldSequence = 12;
     private const int CaptionFieldScanLimit = 50_000;
     private const int CaptionLabelScanLimit = 1_024;
+    private const int ReferenceTableUpdateLimit = 128;
     private const int CaptionTitleLimit = 4_096;
     private const int CustomCaptionLabelLimit = 256;
     private static readonly Regex SequenceFieldLabelPattern = new(
@@ -336,6 +337,309 @@ internal sealed partial class WordLiveService
         );
     }
 
+    private async Task<object> UpdateReferenceTablesAsync(
+        JsonElement arguments,
+        CancellationToken cancellationToken
+    )
+    {
+        var record = Record(arguments.String("live_document_id"));
+        var expectedVersion = arguments.NullableInt64("expected_version")
+            ?? throw new NativeToolException(
+                "INVALID_INPUT",
+                "expected_version is required for reference-table updates"
+            );
+        var kind = arguments.String("kind", "all");
+        if (
+            kind is not (
+                "all"
+                or "table_of_contents"
+                or "table_of_figures"
+                or "table_of_authorities"
+            )
+        )
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "kind must be all, table_of_contents, table_of_figures, or table_of_authorities"
+            );
+        }
+        var indexValue = arguments.NullableInt64("index");
+        int? requestedIndex = null;
+        if (indexValue is not null)
+        {
+            if (indexValue.Value is < 1 or > 10_000)
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "index must be between 1 and 10,000"
+                );
+            }
+            if (kind == "all")
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "index requires one exact reference-table kind"
+                );
+            }
+            requestedIndex = (int)indexValue.Value;
+        }
+        var repaginate = arguments.Boolean("repaginate", true);
+        var optimizeScreenUpdates = arguments.Boolean("optimize_screen_updates", true);
+        CheckVersion(record, expectedVersion);
+        var started = Stopwatch.GetTimestamp();
+
+        return await _host.InvokeAsync<object>(
+            application =>
+            {
+                CheckVersion(record, expectedVersion);
+                dynamic document = ResolveDocument(application, record);
+                RequireEditable(document);
+                var countsBefore = CaptureReferenceTableCounts((object)document);
+                var targets = ResolveReferenceTableTargets(
+                    (object)document,
+                    kind,
+                    requestedIndex,
+                    countsBefore
+                );
+                foreach (var target in targets)
+                {
+                    ValidateReferenceTableObject(target.Native, target.Kind, target.Index);
+                }
+
+                dynamic? undoRecord = null;
+                var undoStarted = false;
+                bool? originalScreenUpdating = null;
+                try
+                {
+                    if (optimizeScreenUpdates)
+                    {
+                        originalScreenUpdating = (bool)application.ScreenUpdating;
+                        application.ScreenUpdating = false;
+                    }
+                    undoRecord = application.UndoRecord;
+                    undoRecord.StartCustomRecord("WordToolkit: update native reference tables");
+                    undoStarted = true;
+                    var repaginationPerformed = false;
+                    if (repaginate)
+                    {
+                        document.Repaginate();
+                        repaginationPerformed = true;
+                    }
+                    foreach (var target in targets)
+                    {
+                        dynamic native = target.Native;
+                        native.Update();
+                    }
+
+                    var countsAfter = CaptureReferenceTableCounts((object)document);
+                    if (countsAfter != countsBefore)
+                    {
+                        throw new NativeToolException(
+                            "VALIDATION_FAILED",
+                            "Word changed a reference-table collection during update",
+                            new
+                            {
+                                before = ReferenceTableCountsPayload(countsBefore),
+                                after = ReferenceTableCountsPayload(countsAfter),
+                            }
+                        );
+                    }
+                    foreach (var target in targets)
+                    {
+                        dynamic collection = ResolveReferenceTableCollection(
+                            (object)document,
+                            target.Kind
+                        );
+                        dynamic native = collection.Item(target.Index);
+                        ValidateReferenceTableObject(native, target.Kind, target.Index);
+                    }
+                    undoRecord.EndCustomRecord();
+                    undoStarted = false;
+                    record.Version++;
+                    InvalidateSelectionGrants(record.Id);
+                    InvalidateRangeGrants(record.Id);
+                    InvalidateUndoGrants(record.Id);
+                    return new
+                    {
+                        operation_contract = "wordtoolkit.update_live_word_reference_tables/1.0",
+                        live_document_id = record.Id,
+                        live_version = record.Version,
+                        requested_kind = kind,
+                        requested_index = requestedIndex,
+                        updated_count = targets.Count,
+                        updated_counts = new
+                        {
+                            tables_of_contents = targets.Count(item =>
+                                item.Kind == "table_of_contents"
+                            ),
+                            tables_of_figures = targets.Count(item =>
+                                item.Kind == "table_of_figures"
+                            ),
+                            tables_of_authorities = targets.Count(item =>
+                                item.Kind == "table_of_authorities"
+                            ),
+                        },
+                        counts_before = ReferenceTableCountsPayload(countsBefore),
+                        counts_after = ReferenceTableCountsPayload(countsAfter),
+                        repagination = new
+                        {
+                            requested = repaginate,
+                            performed = repaginationPerformed,
+                        },
+                        ranges_and_fields_verified = true,
+                        native_verified = true,
+                        raw_field_code_returned = false,
+                        result_text_returned = false,
+                        raw_com_objects_returned = false,
+                        document = DocumentInfo(application, document),
+                        performance = Performance(started),
+                    };
+                }
+                catch
+                {
+                    Rollback(document, undoRecord, ref undoStarted);
+                    throw;
+                }
+                finally
+                {
+                    if (originalScreenUpdating is not null)
+                    {
+                        application.ScreenUpdating = originalScreenUpdating.Value;
+                    }
+                }
+            },
+            WordComReplaySafety.NonReplayable,
+            cancellationToken
+        );
+    }
+
+    private static ReferenceTableCounts CaptureReferenceTableCounts(object documentObject)
+    {
+        dynamic document = documentObject;
+        return new ReferenceTableCounts(
+            (int)document.TablesOfContents.Count,
+            (int)document.TablesOfFigures.Count,
+            (int)document.TablesOfAuthorities.Count
+        );
+    }
+
+    private static object ReferenceTableCountsPayload(ReferenceTableCounts counts) =>
+        new
+        {
+            tables_of_contents = counts.TablesOfContents,
+            tables_of_figures = counts.TablesOfFigures,
+            tables_of_authorities = counts.TablesOfAuthorities,
+        };
+
+    private static List<ReferenceTableTarget> ResolveReferenceTableTargets(
+        object documentObject,
+        string requestedKind,
+        int? requestedIndex,
+        ReferenceTableCounts counts
+    )
+    {
+        dynamic document = documentObject;
+        var kinds = requestedKind == "all"
+            ? new[]
+            {
+                "table_of_contents",
+                "table_of_figures",
+                "table_of_authorities",
+            }
+            : new[] { requestedKind };
+        var requestedCount = requestedIndex is not null
+            ? 1L
+            : kinds.Sum(kind => (long)counts.ForKind(kind));
+        if (requestedCount == 0)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "The live document has no matching reference tables to update"
+            );
+        }
+        if (requestedCount > ReferenceTableUpdateLimit)
+        {
+            throw new NativeToolException(
+                "LIMIT_EXCEEDED",
+                $"One reference-table update is limited to {ReferenceTableUpdateLimit} objects"
+            );
+        }
+
+        var targets = new List<ReferenceTableTarget>((int)requestedCount);
+        foreach (var kind in kinds)
+        {
+            dynamic collection = ResolveReferenceTableCollection(
+                (object)document,
+                kind
+            );
+            var count = counts.ForKind(kind);
+            if (requestedIndex is not null)
+            {
+                if (requestedIndex.Value > count)
+                {
+                    throw new NativeToolException(
+                        "INVALID_INPUT",
+                        "The requested reference-table index does not exist"
+                    );
+                }
+                targets.Add(
+                    new ReferenceTableTarget(
+                        kind,
+                        requestedIndex.Value,
+                        (object)collection.Item(requestedIndex.Value)
+                    )
+                );
+                continue;
+            }
+            for (var index = 1; index <= count; index++)
+            {
+                targets.Add(
+                    new ReferenceTableTarget(kind, index, (object)collection.Item(index))
+                );
+            }
+        }
+        return targets;
+    }
+
+    private static object ResolveReferenceTableCollection(
+        object documentObject,
+        string kind
+    )
+    {
+        dynamic document = documentObject;
+        return kind switch
+        {
+            "table_of_contents" => (object)document.TablesOfContents,
+            "table_of_figures" => (object)document.TablesOfFigures,
+            "table_of_authorities" => (object)document.TablesOfAuthorities,
+            _ => throw new NativeToolException(
+                "INVALID_INPUT",
+                "Unsupported reference-table kind"
+            ),
+        };
+    }
+
+    private static void ValidateReferenceTableObject(
+        object nativeObject,
+        string kind,
+        int index
+    )
+    {
+        dynamic native = nativeObject;
+        dynamic range = native.Range.Duplicate;
+        var start = (int)range.Start;
+        var end = (int)range.End;
+        var fieldCount = (int)range.Fields.Count;
+        if (start < 0 || end <= start || fieldCount < 1)
+        {
+            throw new NativeToolException(
+                "VALIDATION_FAILED",
+                "A native reference table has no readable field range",
+                new { kind, index, start, end, field_count = fieldCount }
+            );
+        }
+    }
+
     private static CaptionLabelResolution ResolveCaptionLabel(
         dynamic application,
         string captionKind,
@@ -551,4 +855,22 @@ internal sealed partial class WordLiveService
     );
 
     private sealed record CaptionPositionResolution(int Value, string Name);
+
+    private sealed record ReferenceTableTarget(string Kind, int Index, object Native);
+
+    private sealed record ReferenceTableCounts(
+        int TablesOfContents,
+        int TablesOfFigures,
+        int TablesOfAuthorities
+    )
+    {
+        public int ForKind(string kind) =>
+            kind switch
+            {
+                "table_of_contents" => TablesOfContents,
+                "table_of_figures" => TablesOfFigures,
+                "table_of_authorities" => TablesOfAuthorities,
+                _ => 0,
+            };
+    }
 }

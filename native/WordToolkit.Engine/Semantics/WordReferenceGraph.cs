@@ -1104,10 +1104,18 @@ public sealed class WordReferenceGraphBuilder
                 break;
             case "XE":
             case "TC":
-            case "TA":
                 AddRequiredTypedEdge(
                     field,
                     firstArgument,
+                    WordReferenceEdgeKind.Generates,
+                    WordReferenceTargetKind.IndexEntry,
+                    state
+                );
+                break;
+            case "TA":
+                AddRequiredTypedEdge(
+                    field,
+                    SwitchOperand(field.Tokens, "\\l"),
                     WordReferenceEdgeKind.Generates,
                     WordReferenceTargetKind.IndexEntry,
                     state

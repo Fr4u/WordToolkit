@@ -48,6 +48,9 @@ path, save-policy and confirmation checks.
 | `insert_live_word_bookmarks` | Insert and verify up to 200 native named ranges in one transaction. |
 | `preflight_live_word_fields` | Validate an allowlisted native-field batch without attaching to Word. |
 | `insert_live_word_fields` | Insert and update up to 200 allowlisted native Word fields in one transaction. |
+| `insert_live_word_caption` | Insert one localized native caption with a real `SEQ` field and guarded readback. |
+| `insert_live_word_table_of_figures` | Create and optionally update one native table of figures from existing captions. |
+| `update_live_word_reference_tables` | Refresh existing contents, figures and authorities tables in one bounded guarded transaction. |
 | `insert_live_word_image` | Embed one bounded local image as a native inline shape. |
 | `insert_live_word_comment` | Add one native comment to a fresh token-verified range or selection. |
 | `insert_live_word_note` | Add one native footnote or endnote. |
@@ -62,6 +65,17 @@ path, save-policy and confirmation checks.
 | `close_live_word_document` | Close one connected document using an explicit save/discard policy. |
 | `quit_word_application` | Quit Word only with explicit confirmation and a save/discard-all policy. |
 | `disconnect_live_word_document` | Release only the WordToolkit handle. |
+
+`update_live_word_reference_tables` targets all existing tables of contents, figures
+and authorities by default, or one exact collection and optional one-based index. It
+updates at most 128 objects, calls Word repagination first unless disabled, and performs
+the native full `Update` on each object. The operation requires the current
+`expected_version`, uses one custom Undo record and verifies that all three collection
+counts remain unchanged and every refreshed object still owns a readable non-empty
+field range. It returns counts and verification flags only: no table result text, field
+instructions or COM objects. A single cross-kind `page_numbers_only` option is
+intentionally absent because Word does not expose that narrower operation uniformly for
+all three object families.
 
 For visually stable UnicodeMath, fractional coefficients must use explicit
 multiplication. Write `1/3·(x^2+1)^(3/2)`, not
