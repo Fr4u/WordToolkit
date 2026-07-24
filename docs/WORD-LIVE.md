@@ -20,6 +20,7 @@ path, save-policy and confirmation checks.
 | `map_live_word_structures` | Inventory all Word stories and broad document collections without returning content. |
 | `inspect_live_word_structure_items` | Read one bounded page of semantic metadata from any mapped native collection. |
 | `inspect_live_word_drawing_layout` | Read Word-executed floating, inline, group and optional SmartArt layout without returning COM or XML. |
+| `inspect_live_word_version_profile` | Read raw Word version/build, document compatibility/save format and bounded feature-member probes without content or identity. |
 | `prepare_live_word_smartart_text_edits` | Resolve one exact SmartArt root and issue one-time tokens bound to the complete node structure and text context. |
 | `apply_live_word_smartart_text_edits` | Replace up to 32 token-verified single-line SmartArt node texts in one Undo record with exact readback and rollback. |
 | `inspect_live_word_equation_learning` | Inspect privacy-preserving aggregate native-equation outcomes. |
@@ -257,6 +258,26 @@ view and current connected version. Traversal IDs are runtime locators, not dura
 IDs. Word may normalize declared DrawingML/VML group nodes into different runtime shape
 types, so package and live inspection must remain separate and both discrepancies must be
 reported.
+
+## Connected Word version profile
+
+`inspect_live_word_version_profile` reads only the already connected application's raw
+`Application.Version` and `Application.Build`, plus the document's numeric
+`CompatibilityMode` and `SaveFormat`. It conservatively maps the documented major versions
+11, 12, 14 and 15 to Word 2003, 2007, 2010 and 2013. Major version 16 is reported only as
+`word_16_generation`, because that value alone does not identify a product edition.
+
+Four independent property-access probes report `available`, `unavailable` or
+`probe_failed` for `UndoRecord`, `OMathAutoCorrect`, `SmartArtLayouts` and document
+`ContentControls`. They do not mutate a document or enumerate a collection. Availability
+only proves that the current COM object exposed that member; it is not a promise that every
+operation behaves the same across builds, channels, locale, document modes or policies.
+Each failed read produces a fixed issue code instead of returning exception text.
+
+The response contains no document text, path, raw COM object, user identity or licence
+identity, does not start Word and uses no network. Compatibility profiles follow the
+documented `WdCompatibilityMode` values 11, 12, 14, 15 and 65535; unknown values remain
+unknown instead of being coerced into a newer profile.
 
 ## Guarded SmartArt node text
 

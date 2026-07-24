@@ -67,6 +67,7 @@
       "map_live_word_structures",
       "inspect_live_word_structure_items",
       "inspect_live_word_drawing_layout",
+      "inspect_live_word_version_profile",
       "prepare_live_word_smartart_text_edits",
       "apply_live_word_smartart_text_edits",
       "inspect_live_word_equation_learning",
@@ -10863,6 +10864,137 @@
               "disclosure": {"type": "object"},
               "document": {"type": "object"},
               "performance": {"type": "object"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "inspect_live_word_version_profile",
+      "title": "Inspect connected Word version profile",
+      "description": "Read a token-lean, versioned profile from the already connected Microsoft Word application and document. Returns raw Application.Version and Application.Build values, a conservative major-version family, the document compatibility mode and save format, plus four non-mutating property-access probes for UndoRecord, native OMath, SmartArt, and content controls. It never reads document text, paths, user identity, license identity, or raw COM objects. A successful property probe is evidence of member availability only, not a guarantee that every operation behaves identically across builds.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "none",
+        "network": "none",
+        "microsoft_word": "read_connected_word_environment_without_content"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "live_document_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": ["live_document_id"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "live_document_id", "live_version", "backend", "application", "document", "probes", "issues", "interpretation", "security", "runtime", "python_used", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.inspect_live_word_version_profile/1.0"},
+              "live_document_id": {"type": "string", "maxLength": 128},
+              "live_version": {"type": "integer", "minimum": 0},
+              "backend": {"const": "microsoft_word_com"},
+              "application": {
+                "type": "object",
+                "required": ["version", "build", "major_version", "version_family", "product_edition_inferred"],
+                "properties": {
+                  "version": {"type": ["string", "null"], "maxLength": 64},
+                  "build": {"type": ["string", "null"], "maxLength": 64},
+                  "major_version": {"type": ["integer", "null"], "minimum": 0},
+                  "version_family": {"enum": ["word_2003", "word_2007", "word_2010", "word_2013", "word_16_generation", "unknown"]},
+                  "product_edition_inferred": {"const": false}
+                },
+                "additionalProperties": false
+              },
+              "document": {
+                "type": "object",
+                "required": ["compatibility_mode", "compatibility_profile", "legacy_feature_restrictions_documented", "save_format"],
+                "properties": {
+                  "compatibility_mode": {"type": ["integer", "null"]},
+                  "compatibility_profile": {"enum": ["word_2003", "word_2007", "word_2010", "word_2013", "current", "unknown"]},
+                  "legacy_feature_restrictions_documented": {"type": ["boolean", "null"]},
+                  "save_format": {"type": ["integer", "null"]}
+                },
+                "additionalProperties": false
+              },
+              "probes": {
+                "type": "object",
+                "required": ["content_controls", "native_omath", "smartart", "undo_record"],
+                "properties": {
+                  "content_controls": {"$ref": "#/$defs/versionProfileProbe"},
+                  "native_omath": {"$ref": "#/$defs/versionProfileProbe"},
+                  "smartart": {"$ref": "#/$defs/versionProfileProbe"},
+                  "undo_record": {"$ref": "#/$defs/versionProfileProbe"}
+                },
+                "additionalProperties": false
+              },
+              "issues": {
+                "type": "array",
+                "maxItems": 8,
+                "uniqueItems": true,
+                "items": {
+                  "enum": ["APPLICATION_VERSION_PROBE_FAILED", "APPLICATION_BUILD_PROBE_FAILED", "DOCUMENT_COMPATIBILITY_MODE_PROBE_FAILED", "DOCUMENT_SAVE_FORMAT_PROBE_FAILED", "CONTENT_CONTROLS_PROBE_FAILED", "NATIVE_OMATH_PROBE_FAILED", "SMARTART_PROBE_FAILED", "UNDO_RECORD_PROBE_FAILED"]
+                }
+              },
+              "interpretation": {
+                "type": "object",
+                "required": ["version_identity_is_feature_guarantee", "runtime_probe_scope", "runtime_probe_result_is_feature_behavior_guarantee"],
+                "properties": {
+                  "version_identity_is_feature_guarantee": {"const": false},
+                  "runtime_probe_scope": {"const": "property_access_only"},
+                  "runtime_probe_result_is_feature_behavior_guarantee": {"const": false}
+                },
+                "additionalProperties": false
+              },
+              "security": {
+                "type": "object",
+                "required": ["reads_document_content", "returns_document_content", "returns_paths", "returns_user_or_license_identity", "opens_word", "uses_network"],
+                "properties": {
+                  "reads_document_content": {"const": false},
+                  "returns_document_content": {"const": false},
+                  "returns_paths": {"const": false},
+                  "returns_user_or_license_identity": {"const": false},
+                  "opens_word": {"const": false},
+                  "uses_network": {"const": false}
+                },
+                "additionalProperties": false
+              },
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {"type": "object"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "$defs": {
+          "versionProfileProbe": {
+            "type": "object",
+            "required": ["status", "property_access_succeeded"],
+            "properties": {
+              "status": {"enum": ["available", "unavailable", "probe_failed"]},
+              "property_access_succeeded": {"type": "boolean"}
             },
             "additionalProperties": false
           }

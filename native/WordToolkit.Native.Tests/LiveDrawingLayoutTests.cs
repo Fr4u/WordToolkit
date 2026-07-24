@@ -458,19 +458,40 @@ internal sealed class DrawingLayoutFakeHost : IWordComHost
 
 public sealed class DrawingLayoutFakeApplication
 {
+    private readonly DrawingLayoutFakeUndoRecord _undoRecord;
+
     public DrawingLayoutFakeApplication()
     {
         ActiveDocument = new DrawingLayoutFakeDocument(this, SensitiveReads);
         Documents = new DrawingLayoutFakeDocuments(ActiveDocument);
-        UndoRecord = new DrawingLayoutFakeUndoRecord(this);
+        _undoRecord = new DrawingLayoutFakeUndoRecord(this);
     }
 
     public DrawingLayoutFakeSensitiveReads SensitiveReads { get; } = new();
     public DrawingLayoutFakeDocument ActiveDocument { get; set; }
     public DrawingLayoutFakeDocuments Documents { get; }
     public DrawingLayoutFakeWindow ActiveWindow { get; } = new();
-    public DrawingLayoutFakeUndoRecord UndoRecord { get; }
+    public DrawingLayoutFakeUndoRecord UndoRecord =>
+        FailUndoRecordProbe ? throw new InvalidOperationException() : _undoRecord;
+    public string Version => FailVersionProbe ? throw new InvalidOperationException() : VersionValue;
+    public string Build => FailBuildProbe ? throw new InvalidOperationException() : BuildValue;
+    public object OMathAutoCorrect =>
+        FailOMathProbe ? throw new InvalidOperationException() : new object();
+    public object? SmartArtLayouts =>
+        FailSmartArtProbe
+            ? throw new InvalidOperationException()
+            : NullSmartArtProbe
+                ? null
+                : new object();
     public bool ScreenUpdating { get; set; } = true;
+    public string VersionValue { get; set; } = "16.0";
+    public string BuildValue { get; set; } = "16.0.19426.20186";
+    public bool FailVersionProbe { get; set; }
+    public bool FailBuildProbe { get; set; }
+    public bool FailOMathProbe { get; set; }
+    public bool FailSmartArtProbe { get; set; }
+    public bool NullSmartArtProbe { get; set; }
+    public bool FailUndoRecordProbe { get; set; }
 }
 
 public sealed class DrawingLayoutFakeDocuments
@@ -512,8 +533,18 @@ public sealed class DrawingLayoutFakeDocument
     public string Path => @"C:\Fixtures";
     public bool Saved => true;
     public bool ReadOnly => false;
-    public int CompatibilityMode => 15;
+    public int CompatibilityMode =>
+        FailCompatibilityModeProbe ? throw new InvalidOperationException() : CompatibilityModeValue;
+    public int SaveFormat => FailSaveFormatProbe ? throw new InvalidOperationException() : 16;
     public int ProtectionType => -1;
+    public DrawingLayoutFakeCountCollection ContentControls =>
+        FailContentControlsProbe
+            ? throw new InvalidOperationException()
+            : new DrawingLayoutFakeCountCollection(0);
+    public bool FailCompatibilityModeProbe { get; set; }
+    public int CompatibilityModeValue { get; set; } = 15;
+    public bool FailSaveFormatProbe { get; set; }
+    public bool FailContentControlsProbe { get; set; }
     public DrawingLayoutFakeCollection<DrawingLayoutFakeShape> Shapes { get; }
     public DrawingLayoutFakeCollection<DrawingLayoutFakeInlineShape> InlineShapes { get; }
     public DrawingLayoutFakeCountCollection Paragraphs { get; } = new(3);

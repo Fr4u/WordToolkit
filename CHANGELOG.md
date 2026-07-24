@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- Added lazy `inspect_live_word_version_profile` behind the closed read-only
+  `wordtoolkit.inspect_live_word_version_profile/1.0` contract. It returns raw
+  `Application.Version`/`Build`, document `CompatibilityMode`/`SaveFormat`, a conservative
+  version family and independent property-access probes for UndoRecord, native OMath,
+  SmartArt and content controls. It reads no document content or path, returns no user or
+  licence identity, never starts Word, and never infers a product edition from Word 16.0.
+- Probe failures are isolated and reduced to eight fixed codes; explicit unknown values
+  remain JSON `null`, while member availability is expressly not called a behavioural
+  guarantee. The native catalog now has 114 actions and 27 complete metadata contracts;
+  the explicit gap remains 87.
+- Four new native regressions cover the closed contract, successful projection, all three
+  probe states, partial COM failure, explicit-null preservation, content/path privacy and
+  pre-COM rejection of unknown fields. A fifth regression covers every documented mapping
+  plus unknown future values. The native checkpoint is 419/419 on the pinned
+  SDK 8.0.423.
+- Packaged and enabled `0.39.0+codex.20260724220014`. Two pinned-SDK builds produced
+  byte-identical 196-file, 87,475,140-byte trees and byte-identical 36,857,975-byte ZIPs
+  at SHA-256 `746201dcc9b7ea1b4147a8388df539d212589bce58dbb015da978d4db568d3b2`;
+  neither tree contains Python. Build, personal source and enabled cache have zero
+  path/length/hash differences, and installed discovery reports 114 actions, 15 tools
+  and 27 complete contracts.
+- The installed lazy MCP attached to a real Word 16.0 build 16.0.20131 document, returned
+  compatibility mode 15, save format 12, four available probes and zero issues without
+  advancing `live_version`. Its full response passed the installed output schema and
+  exposed no document-content, path, user-identity or licence-identity field.
+
 - Added bounded encrypted-OOXML detection across direct Engine, strict
   `inspect-encryption` CLI and lazy `inspect_ooxml_encryption` MCP under one closed
   `wordtoolkit.inspect_ooxml_encryption/1.0` contract. The cross-platform parser validates

@@ -355,6 +355,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_live_word_version_profile" => InspectVersionProfileAsync(
+                arguments,
+                cancellationToken
+            ),
             "prepare_live_word_smartart_text_edits" => PrepareSmartArtTextEditsAsync(
                 arguments,
                 cancellationToken

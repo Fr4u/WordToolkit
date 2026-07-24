@@ -1,5 +1,44 @@
 # Stage results
 
+## Connected Word version profile — 2026-07-24
+
+- Added lazy `wordtoolkit.inspect_live_word_version_profile/1.0` for an already connected
+  Word document. It reports raw application version/build, a conservative major family,
+  document compatibility/save-format integers and property-access probes for UndoRecord,
+  OMath, SmartArt and content controls.
+- The operation reads no document content/path/user/licence identity, opens no Word process,
+  uses no network and returns no raw COM object. Major 16 is deliberately labelled only
+  `word_16_generation`; product edition inference is fixed to false.
+- Each COM read is isolated. Failed probes return one of eight fixed issue codes, unknown
+  scalar values remain explicit JSON nulls, and `available` is documented only as property
+  access evidence rather than behavioural proof.
+- Four new regressions cover the closed contract, successful Word 16.0 projection, all
+  three probe states, partial failure, null preservation, fixed-code privacy, zero
+  sensitive-text reads and rejection before COM dispatch. The full Native suite is
+  419/419 using `C:\Users\Admin\.dotnet8\dotnet.exe` from pinned SDK 8.0.423. A fifth
+  regression exercises all documented family mappings plus an unknown future value.
+- The catalog now contains 114 actions, 15 core/gateway tools and 27 complete metadata
+  contracts; 87 actions remain explicitly uncovered.
+- Two package builds produced identical 196-file, 87,475,140-byte trees with zero Python
+  files and identical 36,857,975-byte ZIPs at SHA-256
+  `746201dcc9b7ea1b4147a8388df539d212589bce58dbb015da978d4db568d3b2`.
+  Their executable, runtime assembly, Engine assembly and Open XML SDK adapter hashes are
+  `d4fc2cc507450b155f83ac3ff7624e60c947958e81bde18fcb30dc54eb285751`,
+  `8e6153a9a855bd2e25ef866a907569d749fd10b9a682c8844b3ef237af7e5bfc`,
+  `5e42720f4712a943fe6d6fef534f420eec79dc7479db1cd6d5b695926027662b` and
+  `d4edf6ff4ca3864a7ca42913b6eec429403830adcae87ba1f7853e15f032f5cb`.
+- Installed and enabled `0.39.0+codex.20260724220014`; build, personal source and enabled
+  cache contain the same 196 files with zero path/length/hash differences. Installed
+  discovery reports 114 actions, 15 exposed tools and 27 complete metadata contracts.
+- A real installed lazy-MCP call attached to the current Word process and returned
+  `Version=16.0`, `Build=16.0.20131`, compatibility mode 15, save format 12, four
+  `available` probes and zero issues without changing `live_version`. The full response
+  passed the installed action's own output schema and contained none of the forbidden
+  content/path/user/licence field names.
+
+Research and exact limits are recorded in
+[`RESEARCH-LIVE-WORD-VERSION-PROFILE-2026.md`](RESEARCH-LIVE-WORD-VERSION-PROFILE-2026.md).
+
 ## Bounded OOXML encryption detection — 2026-07-24
 
 - Added a neutral `wordtoolkit.inspect_ooxml_encryption/1.0` Engine operation, strict

@@ -43,6 +43,14 @@ does not pretend that Word-normalized runtime objects preserve the exact declare
 node kinds. The package graph and live layout are complementary evidence, not competing
 sources of truth.
 
+The read-only `inspect_live_word_version_profile` action records the connected Word
+application's raw `Version` and `Build`, the document's `CompatibilityMode` and
+`SaveFormat`, and four bounded property-access probes for UndoRecord, native OMath,
+SmartArt and content controls. It returns no document text, path, user or licence identity.
+Word `16.0` is deliberately labelled only as the `word_16_generation`; the operation does
+not invent a Microsoft 365, 2019, 2021 or 2024 product edition from an ambiguous major
+version, and a successful probe is not presented as behavioral proof.
+
 The live `prepare_live_word_smartart_text_edits` and
 `apply_live_word_smartart_text_edits` actions add a narrow mutation path for existing
 single-line node text. One-time tokens bind the exact Word root, layout/style/color,
@@ -156,7 +164,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 113-action schema set into model context. The normative shape is
+not flatten the 114-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -447,6 +455,7 @@ inspect_live_word_document
 map_live_word_structures
 inspect_live_word_structure_items
 inspect_live_word_drawing_layout
+inspect_live_word_version_profile
 inspect_live_word_equation_learning
 inspect_live_word_structure_learning
 inspect_live_word_object_model_types

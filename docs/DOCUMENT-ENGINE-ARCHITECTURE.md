@@ -1228,7 +1228,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 113 actions already have public SDK
+These are proved migration seams, not a claim that all 114 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
@@ -1291,11 +1291,12 @@ to an opaque sibling `.conflict` artifact and deliberately retained, even when n
 backup retention is disabled. Public diagnostics list only still-existing opaque artifact
 names, never their absolute paths or payloads; no artifact is claimed when none exists.
 
-This is deliberately honest about what is still absent. `metadata_coverage` reports 24
+This is deliberately honest about what is still absent. `metadata_coverage` reports 27
 explicit output schemas, permission records, reversibility records and per-operation
 versions, including extension-catalog inspection, semantic query, semantic HTML/SVG
 rendering, semantic-style plan/apply, comment-body plan/apply, formatter, live structure
-mutations, saved-package rollback and Flat OPC conversion; the other 87 actions remain
+mutations, live Word version profiling, saved-package rollback and Flat OPC conversion;
+the other 87 actions remain
 uncovered. Those fields are not
 inferred from operation names. Format support is labelled operation-specific, and full
 input/output schemas remain behind `inspect_wordtoolkit_action`. The normative JSON shape is

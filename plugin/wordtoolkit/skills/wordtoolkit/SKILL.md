@@ -255,6 +255,19 @@ durable package IDs. Word may normalize declared OOXML groups or diagrams into d
 runtime object kinds, so compare the live projection with `inspect_ooxml_figures` or
 `inspect_ooxml_diagrams` when provenance matters and report disagreements instead of
 forcing a false one-to-one join.
+
+Before a decision depends on the installed Word build or the document's compatibility
+mode, call lazy `inspect_live_word_version_profile` for the current
+`live_document_id`. It returns raw `Application.Version` and `Application.Build`, the
+numeric `CompatibilityMode` and `SaveFormat`, and independent property-access probes for
+UndoRecord, native OMath, SmartArt and content controls. Treat `available` only as proof
+that the property was exposed on that live COM object; it is not proof that a mutation or
+render is behaviorally identical across builds. Never infer Microsoft 365, Word 2019,
+2021 or 2024 from `16.0`; the action deliberately reports only
+`word_16_generation`. A `probe_failed` result is missing evidence, not permission to fall
+back to raw COM. The action reads no document content or path, returns no user/licence
+identity, does not launch Word and never changes `live_version`.
+
 To change SmartArt node text, do not edit `word/diagrams/data*.xml` directly. A package
 can contain both the DiagramML data model and a synchronized persisted drawing, so a
 single-part rewrite can leave two incompatible versions of the same diagram. Use this

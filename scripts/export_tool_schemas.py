@@ -126,7 +126,7 @@ async def main() -> None:
     ]
     lines.extend(
         """
-The native catalog currently contains 113 actions behind 15 core/gateway tools. Rare
+The native catalog currently contains 114 actions behind 15 core/gateway tools. Rare
 saved-package inspectors remain lazy so their schemas do not enter model context until
 needed. `inspect_wordtoolkit_extensions` exposes the bounded, content-free registry
 catalog without loading assemblies, reading a document or opening Word.
@@ -154,6 +154,10 @@ opt-ins. `inspect_live_word_drawing_layout` is the complementary connected-Word 
 It asks Word to repaginate and returns bounded reference-aware
 shape/inline/group/SmartArt object layout without COM or XML. Text is not read without
 opt-in; screen pixels are capped, viewport-dependent and never called page geometry.
+`inspect_live_word_version_profile` reads the connected Word version/build, document
+compatibility/save format and four property-access probes without content, paths, user or
+licence identity. It never infers a product edition from ambiguous Word 16.0 and never
+presents member availability as a behavioral guarantee.
 `prepare_live_word_smartart_text_edits` and `apply_live_word_smartart_text_edits` add a
 narrow live mutation path for node text. Tokens bind one node to the complete
 Word-executed SmartArt structure and text context; apply performs exact readback in one
