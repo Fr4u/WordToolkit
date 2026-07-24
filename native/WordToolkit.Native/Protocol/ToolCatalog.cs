@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using WordToolkit.Engine.Observability;
 
 namespace WordToolkit.Native.Protocol;
 
@@ -146,6 +147,34 @@ internal sealed partial class ToolCatalog
 
     public bool IsAction(string name) => _allTools.ContainsKey(name);
 
+    public WordOperationDescriptor GetObservationDescriptor(string name)
+    {
+        JsonObject tool = _allTools.TryGetValue(name, out var registered)
+            ? registered
+            : name switch
+            {
+                SearchActionsName => SearchActionsTool(),
+                InspectActionName => InspectActionTool(),
+                ExecuteActionName => ExecuteActionTool(),
+                CapabilitiesName => CapabilitiesTool(),
+                _ => throw new ArgumentOutOfRangeException(nameof(name)),
+            };
+        var annotations = tool["annotations"]?.AsObject()
+            ?? throw new InvalidOperationException(
+                $"Native action '{name}' is missing effect annotations"
+            );
+        return new WordOperationDescriptor(
+            name,
+            tool["operationVersion"]?.GetValue<string>() ?? "1.0",
+            new WordOperationEffects(
+                RequiredAnnotation(annotations, "readOnlyHint"),
+                RequiredAnnotation(annotations, "destructiveHint"),
+                RequiredAnnotation(annotations, "idempotentHint"),
+                RequiredAnnotation(annotations, "openWorldHint")
+            )
+        );
+    }
+
     public JsonObject InspectAction(string name)
     {
         if (!_allTools.TryGetValue(name, out var tool))
@@ -234,6 +263,18 @@ internal sealed partial class ToolCatalog
 
     public static bool IsCapabilitiesGateway(string name) =>
         string.Equals(name, CapabilitiesName, StringComparison.Ordinal);
+
+    private static bool RequiredAnnotation(JsonObject annotations, string name)
+    {
+        var value = annotations[name];
+        if (value?.GetValueKind() is not JsonValueKind.True and not JsonValueKind.False)
+        {
+            throw new InvalidOperationException(
+                $"Native action is missing required Boolean MCP annotation '{name}'"
+            );
+        }
+        return value.GetValue<bool>();
+    }
 
     private static JsonObject CompactSchema(JsonObject source)
     {

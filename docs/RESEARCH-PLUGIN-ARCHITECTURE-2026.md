@@ -79,7 +79,7 @@ independent oracle.
 `inspect_wordtoolkit_extensions` MCP expose one typed, bounded and content-free result.
 The operation reads no document, opens no Word instance, performs no assembly discovery,
 uses no network and returns no implementation type or path. The normal capability
-manifest now contains 111 actions, 15 exposed MCP tools and 24 actions with complete
+manifest now contains 112 actions, 15 exposed MCP tools and 25 actions with complete
 operation version, permission, reversibility and output-schema metadata.
 
 ## Evidence
@@ -93,9 +93,9 @@ operation version, permission, reversibility and output-schema metadata.
 - Existing style, comment, review, patch and rollback suites exercise the registry-backed
   Open XML SDK validator through the production transaction paths.
 - Two SDK 8.0.423 builds are byte-identical. The enabled personal plugin
-  `0.39.0+codex.20260724191908`, its marketplace source and the build contain the same 196
-  files and 87,285,844 bytes with zero path/length/hash differences. The installed EXE
-  reports 111 actions and 24 complete metadata contracts; its real lazy-MCP call returns
+  `0.39.0+codex.20260724201229`, its marketplace source and the build contain the same 196
+  files and 87,396,612 bytes with zero path/length/hash differences. The installed EXE
+  reports 112 actions and 25 complete metadata contracts; its real lazy-MCP call returns
   catalog SHA-256
   `dfb26f3c1da808d94ebfac6782fff391f9e174e7c606235a9e05de6dc2b234bd`
   with `loads_assemblies=false` and `opens_word=false`.

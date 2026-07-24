@@ -2,10 +2,13 @@
 
 The current remote Python service source of truth is `schemas/mcp-tools.v2.json`; `schemas/mcp-tools.v1.json` remains the immutable historical contract. The provider-neutral heterogeneous mutation contract, including executable input/success/error examples, is generated as `schemas/draft-operations.v1.json`. The native Windows plugin has a separate, deliberately hand-reviewed source in `schemas/mcp-tools-local.v1.json`; `WordToolkit.Native.Tests` validates that catalog and this exporter never overwrites it. Every exported remote tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.
 
-The native catalog currently contains 111 actions behind 15 core/gateway tools. Rare
+The native catalog currently contains 112 actions behind 15 core/gateway tools. Rare
 saved-package inspectors remain lazy so their schemas do not enter model context until
 needed. `inspect_wordtoolkit_extensions` exposes the bounded, content-free registry
 catalog without loading assemblies, reading a document or opening Word.
+`inspect_wordtoolkit_observability` exposes only opt-in, content-free runtime health and
+bounded audit events; arguments, paths, document content and relationship targets have
+no response field, while correlation IDs and record hashes require separate opt-ins.
 `convert_ooxml_flat_opc` is a lazy, create-new transport operation shared by
 Engine, CLI and MCP. It converts Word OPC packages to or from bounded Flat OPC XML,
 blocks signatures, never opens Word, verifies semantic/relationship parity before

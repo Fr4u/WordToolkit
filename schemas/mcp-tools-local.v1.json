@@ -13,6 +13,7 @@
       "transform_ooxml_package",
       "convert_ooxml_flat_opc",
       "inspect_wordtoolkit_extensions",
+      "inspect_wordtoolkit_observability",
       "inspect_ooxml_semantics",
       "query_ooxml_semantics",
       "render_ooxml_semantic_html",
@@ -4468,6 +4469,429 @@
                     "const": false
                   },
                   "loads_assemblies": {
+                    "const": false
+                  },
+                  "opens_word": {
+                    "const": false
+                  },
+                  "uses_network": {
+                    "const": false
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_wordtoolkit_observability",
+      "title": "Inspect WordToolkit observability",
+      "description": "Return bounded runtime telemetry and content-free audit health or a small page of safe operation events. This action never reads a document, opens Word, returns arguments, paths, text, XML, relationship targets or binaries, and never uses the network. Correlation IDs and record hashes are separate opt-ins.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "none",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "view": {
+            "enum": [
+              "summary",
+              "events"
+            ],
+            "default": "summary"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 32,
+            "default": 12
+          },
+          "include_correlation": {
+            "type": "boolean",
+            "default": false
+          },
+          "include_record_hashes": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "operation_contract",
+              "snapshot_contract",
+              "view",
+              "telemetry_enabled",
+              "audit_enabled",
+              "memory_capacity",
+              "sink_queue_capacity",
+              "retention_seconds",
+              "sink",
+              "counters",
+              "integrity",
+              "events",
+              "paging",
+              "security"
+            ],
+            "properties": {
+              "operation_contract": {
+                "const": "wordtoolkit.inspect_observability/1.0"
+              },
+              "snapshot_contract": {
+                "const": "wordtoolkit.observability.snapshot/1.0"
+              },
+              "view": {
+                "enum": [
+                  "summary",
+                  "events"
+                ]
+              },
+              "telemetry_enabled": {
+                "type": "boolean"
+              },
+              "audit_enabled": {
+                "type": "boolean"
+              },
+              "memory_capacity": {
+                "type": "integer",
+                "minimum": 16,
+                "maximum": 4096
+              },
+              "sink_queue_capacity": {
+                "type": "integer",
+                "minimum": 16,
+                "maximum": 4096
+              },
+              "retention_seconds": {
+                "type": "integer",
+                "minimum": 60,
+                "maximum": 31536000
+              },
+              "sink": {
+                "type": "object",
+                "required": [
+                  "sink_id",
+                  "kind",
+                  "durable",
+                  "external_network",
+                  "returns_document_content",
+                  "returns_paths"
+                ],
+                "properties": {
+                  "sink_id": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "kind": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "durable": {
+                    "type": "boolean"
+                  },
+                  "external_network": {
+                    "const": false
+                  },
+                  "returns_document_content": {
+                    "const": false
+                  },
+                  "returns_paths": {
+                    "const": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "counters": {
+                "type": "object",
+                "required": [
+                  "attempted_operation_count",
+                  "succeeded_operation_count",
+                  "rejected_operation_count",
+                  "cancelled_operation_count",
+                  "failed_operation_count",
+                  "abandoned_operation_count",
+                  "retained_audit_event_count",
+                  "dropped_by_capacity_count",
+                  "dropped_by_retention_count",
+                  "telemetry_emission_failure_count",
+                  "sink_write_success_count",
+                  "sink_write_failure_count",
+                  "sink_queue_drop_count"
+                ],
+                "properties": {
+                  "attempted_operation_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "succeeded_operation_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "rejected_operation_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "cancelled_operation_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "failed_operation_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "abandoned_operation_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "retained_audit_event_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "dropped_by_capacity_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "dropped_by_retention_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "telemetry_emission_failure_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "sink_write_success_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "sink_write_failure_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "sink_queue_drop_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "last_telemetry_failure_utc": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "last_sink_failure_utc": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "integrity": {
+                "type": "object",
+                "required": [
+                  "algorithm",
+                  "append_chain",
+                  "authenticated"
+                ],
+                "properties": {
+                  "algorithm": {
+                    "const": "SHA-256"
+                  },
+                  "append_chain": {
+                    "const": true
+                  },
+                  "authenticated": {
+                    "const": false
+                  },
+                  "first_retained_previous_sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "last_record_sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "events": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "sequence",
+                    "occurred_utc",
+                    "duration_microseconds",
+                    "operation_name",
+                    "operation_version",
+                    "effects",
+                    "outcome"
+                  ],
+                  "properties": {
+                    "sequence": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "occurred_utc": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "duration_microseconds": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "operation_name": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_]{0,127}$"
+                    },
+                    "operation_version": {
+                      "type": "string",
+                      "pattern": "^[0-9]+\\.[0-9]+$"
+                    },
+                    "effects": {
+                      "type": "object",
+                      "required": [
+                        "read_only",
+                        "destructive",
+                        "idempotent",
+                        "open_world"
+                      ],
+                      "properties": {
+                        "read_only": {
+                          "type": "boolean"
+                        },
+                        "destructive": {
+                          "type": "boolean"
+                        },
+                        "idempotent": {
+                          "type": "boolean"
+                        },
+                        "open_world": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "outcome": {
+                      "enum": [
+                        "succeeded",
+                        "rejected",
+                        "cancelled",
+                        "failed",
+                        "abandoned"
+                      ]
+                    },
+                    "error_code": {
+                      "type": "string",
+                      "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+                    },
+                    "correlation_id": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{32}$"
+                    },
+                    "previous_record_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "record_sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "paging": {
+                "type": "object",
+                "required": [
+                  "offset",
+                  "limit",
+                  "returned"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 32
+                  },
+                  "returned": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 32
+                  },
+                  "next_offset": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "additionalProperties": false
+              },
+              "security": {
+                "type": "object",
+                "required": [
+                  "reads_document",
+                  "returns_document_content",
+                  "returns_arguments",
+                  "returns_paths",
+                  "returns_relationship_targets",
+                  "opens_word",
+                  "uses_network"
+                ],
+                "properties": {
+                  "reads_document": {
+                    "const": false
+                  },
+                  "returns_document_content": {
+                    "const": false
+                  },
+                  "returns_arguments": {
+                    "const": false
+                  },
+                  "returns_paths": {
+                    "const": false
+                  },
+                  "returns_relationship_targets": {
                     "const": false
                   },
                   "opens_word": {

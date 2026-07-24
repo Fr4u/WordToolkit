@@ -1,5 +1,54 @@
 # Stage results
 
+## Content-free observability and local audit spine — 2026-07-24
+
+- Added a versioned neutral-Engine observability contract around .NET `ActivitySource`
+  and `Meter`. Telemetry is opt-in, has no exporter dependency and admits only registered
+  operation identity, version, fixed effects, normalized outcome and error code. Arguments,
+  document text, XML, paths, relationship targets and package fingerprints have no event
+  or metric field; hostile unknown action names collapse to one fixed dimension.
+- Added independent `off`, bounded-memory and local-JSONL audit modes. A bounded
+  nonblocking channel isolates document operations from slow or throwing sinks; queue
+  drops and write failures remain visible. Throwing host activity/metric listeners are
+  contained and counted rather than replacing the operation result. Memory capacity and 1–365-day technical
+  retention are explicit. The local sink is write-through and never exposes its directory
+  through public metadata.
+- Added a closed `wordtoolkit.audit.event/1.0` format with source-ordered sequence,
+  random correlation and an unkeyed SHA-256 append chain. The chain is deliberately
+  marked unauthenticated: it detects an inconsistent observed segment but is not a
+  signature, trusted timestamp or compliance proof. Strict `audit-log verify` rejects
+  duplicate/unknown fields, malformed lines, size/event/line overflow, sequence gaps and
+  hash drift while returning neither the input path nor event bodies.
+- Added lazy `inspect_wordtoolkit_observability` as native action 112 and explicit metadata
+  contract 25. Its summary-first response opens no Word instance and reads no document;
+  event pages stop at 32, while correlation IDs and record hashes require separate opt-ins.
+- Added Engine and Native regressions for opt-in behavior, redaction, dimension
+  allowlisting, chain mutation, capacity/retention, concurrency, slow/throwing sinks,
+  queue overflow, strict JSONL parsing, real `ActivitySource`/`Meter` dimensions,
+  environment configuration, MCP dispatch, lazy schema closure and path-free CLI output.
+  Remote export, authenticated/external anchoring, transaction-durable mutation evidence,
+  legal hold, access audit, secure deletion and cross-segment manifests remain open.
+- Full Release evidence is 553/553 Engine tests, 410/410 Native tests and 1309 passed
+  Python tests with 16 intentional skips. Ruff is clean, mypy reports no issues in the
+  maintained 29-file layer, .NET format and `git diff --check` are clean, the generated
+  catalog is stable, and the real observability result validates against its Draft
+  2020-12 output schema.
+- Two SDK 8.0.423 builds produced byte-identical 196-file, 87,396,612-byte trees and
+  byte-identical 36,831,975-byte ZIPs at SHA-256
+  `2028f140497c272032e5fd24084602a8e6716998adf92f4b9049a74aae70084f`.
+  Executable, runtime, Engine and Open XML SDK adapter SHA-256 values are
+  `af6a52742333822dd61b7d16749bf12d34f81add41bc4f4f8f42e8be4c736396`,
+  `c33bc6fbd48e8fb2ecb2ae52f31afc7444e875d2167bb32342ef49a5b948187a`,
+  `8cd004a43e7f6bbe8a5c665ff7828293323bc896819bbfe84782c10fb76a2932` and
+  `5605101e4485fd186785d7c206eef3f995903a9dd8dd9ec1b1f575d556172ece`.
+  Build, personal source and enabled `0.39.0+codex.20260724201229` cache contain the
+  same 196 files with zero path/length/hash differences and no Python runtime files.
+  Installed discovery is enabled and reports the exact stamped version, 112 operations,
+  15 exposed tools and 25 explicit contracts. Its real memory-audit MCP smoke returned
+  `wordtoolkit.inspect_observability/1.0`, one prior safe event, `bounded_memory`, and
+  false content/argument/path disclosure. A separate real JSONL smoke verified two
+  persisted events and did not disclose its configured directory.
+
 ## Trusted extension registry foundation — 2026-07-24
 
 - Added explicit, allowlisted and versioned registration in the neutral Engine for
@@ -22,7 +71,7 @@
 - Added one shared content-free catalog operation across direct Engine, native
   `extensions` CLI and lazy `inspect_wordtoolkit_extensions` MCP. Its checked-in input and
   output schemas pass Draft 2020-12 meta-validation and accept the real CLI envelope. The
-  action catalog now reports 111 actions, 15 exposed tools and 24 complete metadata
+  action catalog now reports 112 actions, 15 exposed tools and 25 complete metadata
   contracts, leaving the metadata gap unchanged at 87.
 - Full local evidence is 539/539 Engine tests, 403/403 Native tests and 1309 passed Python
   tests with 16 intentional skips. Ruff is clean, mypy reports no issues in 29 source
@@ -37,8 +86,8 @@
   `e7e224524a0923712136da70b71777034596a2638c49cb092f52d4637970a8df` and
   `8f8f9c012df596779963048dac494cd49185ce157b7672b37160c3614487c813`.
   Build, personal source and enabled `0.39.0+codex.20260724191908` cache have zero
-  path/length/hash differences. Installed discovery reports 111 actions, 15 exposed tools
-  and 24 explicit contracts; the installed MCP extension call returns the exact catalog
+  path/length/hash differences. Installed discovery at that checkpoint reported 111 actions,
+  15 exposed tools and 24 explicit contracts; the installed MCP extension call returned the exact catalog
   hash `dfb26f3c1da808d94ebfac6782fff391f9e174e7c606235a9e05de6dc2b234bd`.
 
 ## Bounded Flat OPC transport convergence — 2026-07-24

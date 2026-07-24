@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Reflection;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Native.Documents;
 using WordToolkit.Native.Protocol;
 using WordToolkit.Native.Word;
@@ -9,7 +10,7 @@ namespace WordToolkit.Native;
 internal static class Program
 {
     private const string Usage =
-        "usage: wordtoolkit-native [capabilities [--schema | [--query <text>] [--offset <n>] [--limit <n>]] [--format json] | extensions [--query <text>] [--offset <n>] [--limit <1..32>] [--format json] | inspect-package <path> [--include-details] [--max-items <1..200>] [--format json] | query-package --request <query.json|-> [--format json] | render-package --request <request.json|-> [--backend semantic-html|semantic-svg] [--format json] | style-package --mode <plan|apply> --request <request.json|-> [--format json] | comment-body-package --mode <plan|apply> --request <request.json|-> [--format json] | patch-rollback-package --mode <plan|apply> --request <request.json|-> [--format json] | transform-package <input> <output> --operation <name> [--find-text <text> --replace-text <text>] [--format json] | flat-opc-package <input> <output> --direction <to_flat_opc|from_flat_opc> [--format json] | docx-platform-adapter --protocol-version 1 --operation <operation.json> --input <input.docx> --output <output.docx> | --create-test-document <path> | --benchmark-active-word]";
+        "usage: wordtoolkit-native [capabilities [--schema | [--query <text>] [--offset <n>] [--limit <n>]] [--format json] | extensions [--query <text>] [--offset <n>] [--limit <1..32>] [--format json] | audit-log verify <path> [--max-bytes <n>] [--max-events <n>] [--format json] | inspect-package <path> [--include-details] [--max-items <1..200>] [--format json] | query-package --request <query.json|-> [--format json] | render-package --request <request.json|-> [--backend semantic-html|semantic-svg] [--format json] | style-package --mode <plan|apply> --request <request.json|-> [--format json] | comment-body-package --mode <plan|apply> --request <request.json|-> [--format json] | patch-rollback-package --mode <plan|apply> --request <request.json|-> [--format json] | transform-package <input> <output> --operation <name> [--find-text <text> --replace-text <text>] [--format json] | flat-opc-package <input> <output> --direction <to_flat_opc|from_flat_opc> [--format json] | docx-platform-adapter --protocol-version 1 --operation <operation.json> --input <input.docx> --output <output.docx> | --create-test-document <path> | --benchmark-active-word]";
 
     public static async Task<int> Main(string[] args)
     {
@@ -51,6 +52,11 @@ internal static class Program
         if (args.Length >= 1 && args[0] == "extensions")
         {
             return ExtensionCatalogCli.Run(args[1..], Console.Out, Console.Error);
+        }
+
+        if (args.Length >= 1 && args[0] == "audit-log")
+        {
+            return AuditLogCli.Run(args[1..], Console.Out, Console.Error);
         }
 
         if (args.Length >= 1 && args[0] == "inspect-package")
@@ -139,13 +145,19 @@ internal static class Program
             return 64;
         }
 
+        using var observabilityHost = NativeObservabilityHost.CreateFromEnvironment();
         await using var host = new WordComHost();
-        var service = new WordLiveService(host);
+        var service = new WordLiveService(
+            host,
+            () => new WordOperationResourceLease(),
+            observabilityHost.Observability
+        );
         var server = new McpServer(
             Console.In,
             Console.Out,
             ToolCatalog.LoadNativeWordTools(),
-            service
+            service,
+            observability: observabilityHost.Observability
         );
         await server.RunAsync();
         return 0;

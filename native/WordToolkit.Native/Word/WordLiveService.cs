@@ -8,6 +8,7 @@ using System.Text.Json;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Validation;
+using WordToolkit.Engine.Observability;
 using WordToolkit.Engine.Resources;
 using WordToolkit.Native.Equations;
 using WordToolkit.Native.Protocol;
@@ -64,6 +65,7 @@ internal sealed partial class WordLiveService : IToolHandler
     );
     private readonly IWordComHost _host;
     private readonly Func<WordOperationResourceLease> _operationResourceLeaseFactory;
+    private readonly WordOperationObservability _observability;
     private readonly ConcurrentDictionary<string, LiveDocumentRecord> _records = new();
     private readonly ConcurrentDictionary<string, QuarantinedLiveDocumentRecord> _quarantinedRecords =
         new();
@@ -77,18 +79,36 @@ internal sealed partial class WordLiveService : IToolHandler
     private readonly object _semanticIndexGate = new();
 
     public WordLiveService(IWordComHost host)
-        : this(host, () => new WordOperationResourceLease())
+        : this(
+            host,
+            () => new WordOperationResourceLease(),
+            WordOperationObservability.Disabled
+        )
     { }
 
     internal WordLiveService(
         IWordComHost host,
         Func<WordOperationResourceLease> operationResourceLeaseFactory
     )
+        : this(
+            host,
+            operationResourceLeaseFactory,
+            WordOperationObservability.Disabled
+        )
+    { }
+
+    internal WordLiveService(
+        IWordComHost host,
+        Func<WordOperationResourceLease> operationResourceLeaseFactory,
+        WordOperationObservability observability
+    )
     {
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(operationResourceLeaseFactory);
+        ArgumentNullException.ThrowIfNull(observability);
         _host = host;
         _operationResourceLeaseFactory = operationResourceLeaseFactory;
+        _observability = observability;
     }
 
     public Task<object> CallAsync(
@@ -123,6 +143,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 cancellationToken
             ),
             "inspect_wordtoolkit_extensions" => InspectExtensionsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_wordtoolkit_observability" => InspectObservabilityAsync(
                 arguments,
                 cancellationToken
             ),

@@ -1220,7 +1220,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 111 actions already have public SDK
+These are proved migration seams, not a claim that all 112 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
@@ -1448,11 +1448,37 @@ forbidden. The research and remaining boundary are recorded in
 
 ## Telemetry and privacy
 
-Telemetry is opt-in and content-minimizing. Allowed defaults are operation name, engine
-version, backend capability ID, duration, byte counts, diagnostic codes, and success.
-Document text, paths, relationship targets, author names, comments, and binary hashes are
-excluded unless a user explicitly enables a debugging bundle. Debug bundles have an
-expiry and redaction report.
+The first native observability spine is now implemented. `WordOperationObservability`
+publishes opt-in `ActivitySource` traces plus one counter and one duration histogram
+through the built-in .NET APIs; the Engine depends on no exporter and performs no network
+I/O. Metric dimensions are restricted to the finite registered operation name and
+normalized outcome. Activity tags add only operation version and fixed MCP effect flags.
+Paths, document IDs, arguments, text, XML, author/comment values, relationship targets,
+package fingerprints and binaries have no telemetry field.
+
+Audit recording is independently configured as `off`, bounded process memory or local
+JSON Lines. A closed `wordtoolkit.audit.event/1.0` record carries sequence, timestamp,
+duration, random/W3C correlation, registered operation identity, fixed effects, normalized
+outcome/error code and an unkeyed SHA-256 append chain. Every supplied dimension is
+syntax-validated; hostile unknown action names collapse to a fixed value. The chain is
+reported as unauthenticated because it is tamper-evident continuity, not a signature or
+non-repudiation claim.
+
+Sink writes run on a single bounded background channel. The document path never waits on
+file I/O; saturation and write failures are counted separately. Exceptions from host
+activity/metric listeners are also contained and counted so instrumentation cannot replace
+a document result. Memory capacity and
+retention are bounded. The local sink rotates bounded UTF-8 JSONL segments, prunes by an
+explicit 1–365-day technical retention setting and never publishes its directory.
+`inspect_wordtoolkit_observability` returns summary-first health or at most 32 safe events;
+correlation and record hashes are independent opt-ins. `audit-log verify` strictly checks
+one bounded segment without returning its path or event bodies.
+
+This is a foundation, not the finished compliance story. Durable audit atomicity with a
+Word transaction, signed/external chain anchoring, legal hold, access auditing, secure
+deletion, cross-segment verification and explicit remote-export policy remain open. The
+primary-source rationale and threat boundary are recorded in
+`docs/RESEARCH-OBSERVABILITY-AUDIT-2026.md`.
 
 ## Quality gates
 

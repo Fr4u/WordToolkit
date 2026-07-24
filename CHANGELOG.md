@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+- Added a privacy-minimizing observability spine to `WordToolkit.Engine`. Versioned
+  `ActivitySource` and `Meter` producers are opt-in and use only registered operation name,
+  normalized outcome, operation version and fixed effect flags. Audit independently supports
+  `off`, bounded memory or local JSONL. Arguments, document text, XML, paths, relationship
+  targets and package fingerprints have no telemetry or audit field, and no network exporter
+  ships with the runtime.
+- Sink I/O now runs behind a bounded nonblocking channel, so a slow or throwing sink cannot
+  hold or replace a document operation. Capacity drops, retention drops, queue overflow and
+  sink failures are explicit counters. Throwing host activity/metric listeners are also
+  contained and counted. Audit events form a source-ordered unkeyed SHA-256
+  append chain that is honestly marked unauthenticated rather than dressed up as compliance.
+- Added lazy `inspect_wordtoolkit_observability` behind the closed
+  `wordtoolkit.inspect_observability/1.0` contract and strict local
+  `audit-log verify`. The inspector returns bounded content-free health data, requires
+  separate opt-ins for correlations and hashes, opens no Word instance and reads no
+  document. The verifier rejects malformed/unknown/duplicate fields, bounds bytes/events/
+  line length and omits both the source path and event bodies.
+- The native catalog now contains 112 actions, 15 exposed tools and 25 complete metadata
+  contracts; 87 actions remain explicitly uncovered. New Engine and Native tests cover
+  privacy, hostile dimensions, tampering, concurrency, retention, slow/throwing sinks,
+  queue overflow, metrics/traces, environment configuration, real MCP dispatch and strict
+  verifier bounds. Authenticated anchoring, transaction-durable evidence, remote export,
+  legal hold, access audit, secure deletion and cross-segment manifests remain open.
+- Packaged and enabled `0.39.0+codex.20260724201229`. Two pinned SDK 8.0.423 builds are
+  byte-identical at 196 files and 87,396,612 bytes; both 36,831,975-byte ZIPs have SHA-256
+  `2028f140497c272032e5fd24084602a8e6716998adf92f4b9049a74aae70084f`.
+  Build output, personal source and enabled cache have zero path/length/hash differences.
+  The full checkpoint passes 553 Engine, 410 Native and 1309 Python tests with 16
+  intentional skips. Installed CLI/MCP discovery reports 112 actions, 15 exposed tools,
+  25 complete contracts and the exact stamped runtime version; installed observability
+  smokes prove bounded memory and verified JSONL modes without content or path disclosure.
+
 - Added the first fail-closed extension registry in `WordToolkit.Engine`. Hosts must
   explicitly allow extension IDs, trust/isolation modes, interface kinds and compatible
   engine/interface versions before registration. Capabilities declare exact permissions,
@@ -19,8 +51,8 @@
   `inspect_wordtoolkit_extensions` MCP behind one
   `wordtoolkit.inspect_extensions/1.0` contract. The bounded result reads no document,
   opens no Word instance, scans or loads no assembly, uses no network and returns no
-  implementation type or path. The native catalog now contains 111 actions, 15 exposed
-  tools and 24 complete metadata contracts; 87 actions remain explicitly uncovered.
+  implementation type or path. The native catalog now contains 112 actions, 15 exposed
+  tools and 25 complete metadata contracts; 87 actions remain explicitly uncovered.
 - Added research and threat-model documentation stating that `AssemblyLoadContext` is not
   a security boundary. The current host accepts only trusted in-process modules with
   cooperative cancellation; untrusted/out-of-process loading remains rejected until a

@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using WordToolkit.Engine.Observability;
 
 namespace WordToolkit.Native.Protocol;
 
@@ -19,6 +20,7 @@ internal sealed class McpServer
     private readonly TextWriter _output;
     private readonly ToolCatalog _catalog;
     private readonly IToolHandler _handler;
+    private readonly WordOperationObservability _observability;
     private readonly int _maxMessageCharacters;
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _activeRequests =
         new(StringComparer.Ordinal);
@@ -30,7 +32,8 @@ internal sealed class McpServer
         TextWriter output,
         ToolCatalog catalog,
         IToolHandler handler,
-        int maxMessageCharacters = DefaultMaxMessageCharacters
+        int maxMessageCharacters = DefaultMaxMessageCharacters,
+        WordOperationObservability? observability = null
     )
     {
         if (maxMessageCharacters < 128)
@@ -41,6 +44,7 @@ internal sealed class McpServer
         _output = output;
         _catalog = catalog;
         _handler = handler;
+        _observability = observability ?? WordOperationObservability.Disabled;
         _maxMessageCharacters = maxMessageCharacters;
     }
 
@@ -269,6 +273,7 @@ internal sealed class McpServer
         CancellationToken cancellationToken
     )
     {
+        WordOperationAuditScope? observation = null;
         var parameterObject = parameters as JsonObject;
         var name = parameterObject?["name"]?.GetValue<string>();
         if (string.IsNullOrWhiteSpace(name))
@@ -284,7 +289,8 @@ internal sealed class McpServer
         {
             if (ToolCatalog.IsCapabilitiesGateway(name))
             {
-                return RpcResult(
+                observation = BeginObservation(name);
+                var response = RpcResult(
                     id,
                     ToolResult(
                         ok: true,
@@ -292,9 +298,12 @@ internal sealed class McpServer
                         error: null
                     )
                 );
+                observation.CompleteSucceeded();
+                return response;
             }
             if (ToolCatalog.IsSearchGateway(name))
             {
+                observation = BeginObservation(name);
                 var root = argumentsDocument.RootElement;
                 var query = root.TryGetProperty("query", out var queryNode)
                     ? queryNode.GetString() ?? ""
@@ -304,7 +313,7 @@ internal sealed class McpServer
                     && maxNode.TryGetInt32(out var requestedMaximum)
                         ? requestedMaximum
                         : 8;
-                return RpcResult(
+                var response = RpcResult(
                     id,
                     ToolResult(
                         ok: true,
@@ -312,11 +321,14 @@ internal sealed class McpServer
                         error: null
                     )
                 );
+                observation.CompleteSucceeded();
+                return response;
             }
             if (ToolCatalog.IsInspectGateway(name))
             {
+                observation = BeginObservation(name);
                 var action = RequiredString(argumentsDocument.RootElement, "action");
-                return RpcResult(
+                var response = RpcResult(
                     id,
                     ToolResult(
                         ok: true,
@@ -324,6 +336,8 @@ internal sealed class McpServer
                         error: null
                     )
                 );
+                observation.CompleteSucceeded();
+                return response;
             }
 
             var actionName = name;
@@ -332,6 +346,7 @@ internal sealed class McpServer
             if (ToolCatalog.IsExecuteGateway(name))
             {
                 actionName = RequiredString(argumentsDocument.RootElement, "action");
+                observation = BeginObservation(actionName);
                 if (!_catalog.IsAction(actionName))
                 {
                     throw new NativeToolException(
@@ -373,6 +388,15 @@ internal sealed class McpServer
                 }
             }
 
+            observation ??= BeginObservation(actionName);
+            if (!_catalog.IsAction(actionName))
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "Unknown WordToolkit action"
+                );
+            }
+
             var data = await _handler.CallAsync(
                 actionName,
                 actionArguments,
@@ -381,10 +405,14 @@ internal sealed class McpServer
             var responseData = fullResponse
                 ? JsonSerializer.SerializeToNode(data, JsonDefaults.Compact)
                 : ToolResponseCompactor.Compact(actionName, data);
-            return RpcResult(id, ToolResult(ok: true, responseData, error: null));
+            var success = RpcResult(id, ToolResult(ok: true, responseData, error: null));
+            observation.CompleteSucceeded();
+            return success;
         }
         catch (NativeToolException exception)
         {
+            observation ??= BeginObservation(name);
+            observation.CompleteRejected(exception.ErrorCode);
             var error = new
             {
                 code = exception.ErrorCode,
@@ -396,10 +424,14 @@ internal sealed class McpServer
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            observation ??= BeginObservation(name);
+            observation.CompleteCancelled();
             throw;
         }
         catch (Exception exception)
         {
+            observation ??= BeginObservation(name);
+            observation.CompleteFailed();
             Console.Error.WriteLine(
                 $"WordToolkit.Native tool failure ({name}): {exception.GetType().Name}"
             );
@@ -412,6 +444,42 @@ internal sealed class McpServer
             };
             return RpcResult(id, ToolResult(ok: false, data: null, error));
         }
+        finally
+        {
+            observation?.Dispose();
+        }
+    }
+
+    private WordOperationAuditScope BeginObservation(string? name)
+    {
+        WordOperationDescriptor descriptor;
+        if (
+            name is not null
+            && (
+                _catalog.IsAction(name)
+                || ToolCatalog.IsCapabilitiesGateway(name)
+                || ToolCatalog.IsSearchGateway(name)
+                || ToolCatalog.IsInspectGateway(name)
+                || ToolCatalog.IsExecuteGateway(name)
+            )
+        )
+        {
+            descriptor = _catalog.GetObservationDescriptor(name);
+        }
+        else
+        {
+            descriptor = new WordOperationDescriptor(
+                "wordtoolkit_unknown_action",
+                "1.0",
+                new WordOperationEffects(
+                    ReadOnly: false,
+                    Destructive: false,
+                    Idempotent: false,
+                    OpenWorld: false
+                )
+            );
+        }
+        return _observability.Begin(descriptor);
     }
 
     private static JsonObject ToolResult(bool ok, object? data, object? error)

@@ -156,7 +156,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 111-action schema set into model context. The normative shape is
+not flatten the 112-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -177,6 +177,29 @@ resource ceilings, but no implementation type or assembly path. `trusted_in_proc
 means full process trust, not a sandbox; `cooperative` timeout is cancellation, not safe
 preemption. See
 [`docs/RESEARCH-PLUGIN-ARCHITECTURE-2026.md`](docs/RESEARCH-PLUGIN-ARCHITECTURE-2026.md).
+
+Runtime observability is explicit and content-free. Telemetry and audit persistence are
+off by default. Enable local counters and traces with
+`WORDTOOLKIT_TELEMETRY_ENABLED=true`; choose `WORDTOOLKIT_AUDIT_MODE=memory` for a
+bounded process-local chain or `jsonl` plus `WORDTOOLKIT_AUDIT_DIRECTORY` for a local
+write-through JSON Lines sink. The recorder accepts only registered operation names,
+versions, fixed effects, outcomes and normalized error codes. It never records arguments,
+document text, package XML, file paths or relationship targets, and the shipped sink never
+uses the network. Inspect only the bounded runtime health view through lazy
+`inspect_wordtoolkit_observability`; correlation IDs and record hashes require separate
+opt-ins. A local log segment can be checked without returning its path or event bodies:
+
+```powershell
+wordtoolkit-native audit-log verify .\audit\wordtoolkit-audit-20260724-node-000001.jsonl --format json
+```
+
+The SHA-256 append chain detects accidental or unsophisticated record mutation; it is not
+authenticated evidence and does not survive deletion, truncation or coordinated rewriting.
+The asynchronous bounded sink queue never blocks a document operation: telemetry-listener
+failure, overflow and sink failure become explicit counters rather than replacing the
+document result. Remote export, legal hold, cryptographic sealing and
+transaction-durable compliance logging are not implemented. See
+[`docs/RESEARCH-OBSERVABILITY-AUDIT-2026.md`](docs/RESEARCH-OBSERVABILITY-AUDIT-2026.md).
 
 The first public operation shared by the cross-platform .NET engine, CLI and MCP is
 saved-package inspection. It does not create a Word COM host in SDK/CLI use, does not

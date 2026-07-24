@@ -27,6 +27,15 @@ uses no network and returns no implementation type or path. Treat
 `trusted_in_process` and `cooperative` literally. They are not a sandbox or a hard-kill
 timeout; untrusted and out-of-process providers are not implemented.
 
+Use lazy `inspect_wordtoolkit_observability` only to diagnose runtime health. Start with
+`view=summary`; request a small event page only when counts are insufficient. Audit is off
+by default, retained events are bounded, and correlation IDs plus record hashes are separate
+opt-ins. The contract never returns document content, arguments, package XML, file paths or
+relationship targets. It also does not prove authenticated or transaction-durable logging.
+Do not request observability before or after every ordinary operation: that wastes tokens
+and changes no document state. Local JSONL segments are verified outside MCP with
+`wordtoolkit-native audit-log verify <path> --format json`.
+
 ## Token discipline
 
 - Generate a coherent document section in the model, then send one

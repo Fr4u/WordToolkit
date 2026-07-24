@@ -163,7 +163,7 @@ The response identifies:
 - `protocols.mcp`: MCP protocol version retained from that same schema;
 - `compatibility_policy`: the source schema's declared compatibility rule;
 - `source.schema_sha256`: exact embedded local schema bytes;
-- `source.native_action_contract_sha256`: canonical native 111-action subset, core
+- `source.native_action_contract_sha256`: canonical native 112-action subset, core
   exposure registry and header;
 - `source.capability_schema_sha256`: normative capability JSON Schema bytes.
 
@@ -212,13 +212,13 @@ coverage gaps visible.
 
 The manifest does not return full input schemas. After selecting one operation, call
 `inspect_wordtoolkit_action`; execute only after validating its schema and effect hints.
-This keeps discovery bounded instead of paying for all 111 schemas.
+This keeps discovery bounded instead of paying for all 112 schemas.
 
 ## Metadata coverage is evidence, not decoration
 
 `metadata_coverage` counts canonical fields actually present in the embedded source.
-All 111 operations have input schemas and MCP effect annotations. Extension catalog
-inspection, semantic query,
+All 112 operations have input schemas and MCP effect annotations. Extension catalog and
+observability inspection, semantic query,
 semantic HTML/SVG rendering, semantic-style plan/apply, comment-body plan/apply and the
 safe formatter plan/apply plus the Word-executed drawing-layout inspector and guarded
 SmartArt text prepare/apply pair, native caption/table-of-figures/table-of-contents
@@ -231,6 +231,13 @@ the remaining 87 are still uncovered. Missing metadata
 is not permission to infer behavior from action names. An AI planner must inspect the
 chosen operation and obtain explicit user approval for risky mutations until normalized
 metadata is added to each source contract.
+
+`inspect_wordtoolkit_observability` is a runtime-health action, not a document query.
+Its summary-first result is bounded and excludes arguments, document content, package
+XML, paths and relationship targets. Event correlation IDs and record hashes are
+independent opt-ins. Audit remains off unless the host explicitly chooses bounded memory
+or local JSONL mode; no remote exporter exists. The append chain is explicitly
+unauthenticated, so an AI must not present it as signed compliance evidence.
 
 ## Format and backend qualification
 
