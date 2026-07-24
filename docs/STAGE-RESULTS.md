@@ -1,5 +1,39 @@
 # Stage results
 
+## Guarded live SmartArt text — 2026-07-24
+
+- Added `wordtoolkit.prepare_live_word_smartart_text_edits/1.0` and
+  `wordtoolkit.apply_live_word_smartart_text_edits/1.0` as native actions 98 and 99.
+  Preparation reads a bounded complete root, returns at most 32 nodes and issues
+  one-time tokens bound to Word root identity, layout/style/color, structure and every
+  node text hash. Apply uses one non-replayable custom Undo record, exact post-write
+  readback and automatic rollback. Stable no-ops do not mutate Word state.
+- Nine focused drawing/SmartArt tests pass, including real mutation semantics in the COM
+  fake, stale-context rejection before Undo, rollback on normalized readback, privacy and
+  stable no-op. Full local gates pass **497 Engine tests**, **339 Native tests** and
+  **1,309 Python tests** with **16 intentional skips**. Ruff passes.
+- The installed `0.39.0+codex.20260724084026` runtime edited one native five-node
+  SmartArt through the real MCP STDIO boundary. Live version advanced from 0 to 1,
+  structure fingerprint remained unchanged, the exact new text was read back, the file
+  saved and Microsoft Open XML SDK validation returned zero errors.
+- The 20,482-byte source and 20,512-byte result have SHA-256
+  `152df1fc626f24e4900f7a8a748cb5cd1e2638fbed31bd4089050fada8488737` and
+  `4b2a39bc136582fbc615c45ff23bcdf84c188dfa9c86ab6d002fa0e3c8a8388f`.
+  Word updated both DiagramML `data1.xml` and persisted `drawing1.xml`; both contain the
+  new text exactly once and the old text zero times after save.
+- Word exported 23,892-byte before and 23,183-byte after PDFs. Their one-page 144-DPI
+  rasters retain the same five box bounds; the new three-line text remains inside its
+  original box without clipping or overlap.
+- Two pinned SDK builds produced byte-identical **196-file**, **86,690,088-byte** trees
+  and **36,645,859-byte** archives at SHA-256
+  `bb3ccf021e2135a1ca89c83920fcdd3c7aa73713936ac65db22febbe90096cf4`.
+  The personal source and enabled cache have zero path/length/hash differences. Installed
+  discovery reports **99 actions**, **15 exposed MCP tools** and **12 explicit metadata
+  contracts**.
+- General SmartArt authoring is still absent. The new slice does not create/delete/reorder
+  nodes, change hierarchy or mutate layout/style/color, and it does not claim a durable
+  DiagramML-to-COM node identity or cross-version pixel parity.
+
 ## Group-aware safe saved-package formatter — 2026-07-24
 
 - Added `wordtoolkit.plan_ooxml_format/1.0` and

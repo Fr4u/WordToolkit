@@ -20,6 +20,8 @@ path, save-policy and confirmation checks.
 | `map_live_word_structures` | Inventory all Word stories and broad document collections without returning content. |
 | `inspect_live_word_structure_items` | Read one bounded page of semantic metadata from any mapped native collection. |
 | `inspect_live_word_drawing_layout` | Read Word-executed floating, inline, group and optional SmartArt layout without returning COM or XML. |
+| `prepare_live_word_smartart_text_edits` | Resolve one exact SmartArt root and issue one-time tokens bound to the complete node structure and text context. |
+| `apply_live_word_smartart_text_edits` | Replace up to 32 token-verified single-line SmartArt node texts in one Undo record with exact readback and rollback. |
 | `inspect_live_word_equation_learning` | Inspect privacy-preserving aggregate native-equation outcomes. |
 | `inspect_live_word_structure_learning` | Inspect aggregate native-type scan evidence and the adaptive rescan policy. |
 | `inspect_live_word_object_model_types` | Query a paged catalog of types in the installed Word COM type library. |
@@ -87,7 +89,7 @@ recognized. The converter emits U+2146 `ⅆ` and an invisible Word operand group
 or leaving it outside the integral body. A generic plain `d` is not silently
 reinterpreted as a differential.
 
-These 49 native desktop tools are absent from the remote HTTP MCP server.
+These 51 native desktop actions are absent from the remote HTTP MCP server.
 
 ## Native find and transactional replace
 
@@ -166,6 +168,25 @@ view and current connected version. Traversal IDs are runtime locators, not dura
 IDs. Word may normalize declared DrawingML/VML group nodes into different runtime shape
 types, so package and live inspection must remain separate and both discrepancies must be
 reported.
+
+## Guarded SmartArt node text
+
+Use the exact story/collection/source locator returned by the drawing-layout inspector;
+the traversal-only `wdlo_` value is not a mutation identity. Preparation reads the full
+bounded SmartArt text context and issues one-time tokens bound to the live version, Word
+shape/range identity, layout/style/color IDs, complete node structure and every node text
+hash. Text previews remain opt-in.
+
+Apply accepts at most 32 unique single-line replacements from one prepared root. It
+rechecks the complete context before opening one custom Undo record, writes through
+Word's `SmartArtNode.TextFrame2.TextRange.Text`, then demands exact target readback,
+unchanged structure and unchanged untargeted text. Any mismatch requests one bounded
+Undo. Exact no-ops do not create Undo entries, repaginate or advance the version.
+
+This is text mutation only. Node creation, deletion, reorder, hierarchy changes and
+layout/style/color edits remain unsupported. The real-Word fixture and persisted-drawing
+synchronization evidence are recorded in
+`docs/RESEARCH-SMARTART-TEXT-EDITING-2026.md`.
 
 ## Guarded WordToolkit Undo
 

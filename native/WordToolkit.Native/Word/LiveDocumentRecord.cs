@@ -35,3 +35,18 @@ internal sealed record RangeGrant(
     int End,
     string ContextHash
 );
+
+internal sealed record SmartArtTextEditGrant(
+    string Token,
+    string DocumentId,
+    long Version,
+    string StoryType,
+    int StoryLinkIndex,
+    string CollectionKind,
+    int SourceIndex,
+    int NodeIndex,
+    string RootStructureFingerprint,
+    string RootContextFingerprint,
+    string NodeTextHash,
+    IReadOnlyList<string> BaselineNodeTextHashes
+);

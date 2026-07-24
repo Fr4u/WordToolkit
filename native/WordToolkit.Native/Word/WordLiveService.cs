@@ -68,6 +68,9 @@ internal sealed partial class WordLiveService : IToolHandler
     private readonly ConcurrentDictionary<string, SelectionGrant> _selectionGrants = new();
     private readonly ConcurrentDictionary<string, UndoGrant> _undoGrants = new();
     private readonly ConcurrentDictionary<string, RangeGrant> _rangeGrants = new();
+    private readonly ConcurrentDictionary<string, SmartArtTextEditGrant> _smartArtTextEditGrants =
+        new();
+    private readonly byte[] _smartArtFingerprintKey = RandomNumberGenerator.GetBytes(32);
     private readonly ConcurrentDictionary<string, CachedSemanticIndex> _semanticIndexes = new();
     private readonly object _semanticIndexGate = new();
 
@@ -303,6 +306,14 @@ internal sealed partial class WordLiveService : IToolHandler
                 cancellationToken
             ),
             "inspect_live_word_drawing_layout" => InspectDrawingLayoutAsync(
+                arguments,
+                cancellationToken
+            ),
+            "prepare_live_word_smartart_text_edits" => PrepareSmartArtTextEditsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_live_word_smartart_text_edits" => ApplySmartArtTextEditsAsync(
                 arguments,
                 cancellationToken
             ),
@@ -3383,6 +3394,7 @@ internal sealed partial class WordLiveService : IToolHandler
         _selectionGrants.Clear();
         _undoGrants.Clear();
         _rangeGrants.Clear();
+        _smartArtTextEditGrants.Clear();
         _reviewGrants.Clear();
         return result;
     }
@@ -4367,6 +4379,19 @@ internal sealed partial class WordLiveService : IToolHandler
         )
         {
             _selectionGrants.TryRemove(pair.Key, out _);
+        }
+        InvalidateSmartArtTextEditGrants(documentId);
+    }
+
+    private void InvalidateSmartArtTextEditGrants(string documentId)
+    {
+        foreach (
+            var pair in _smartArtTextEditGrants.Where(
+                item => item.Value.DocumentId == documentId
+            )
+        )
+        {
+            _smartArtTextEditGrants.TryRemove(pair.Key, out _);
         }
     }
 

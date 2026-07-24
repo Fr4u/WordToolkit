@@ -61,6 +61,8 @@
       "map_live_word_structures",
       "inspect_live_word_structure_items",
       "inspect_live_word_drawing_layout",
+      "prepare_live_word_smartart_text_edits",
+      "apply_live_word_smartart_text_edits",
       "inspect_live_word_equation_learning",
       "inspect_live_word_structure_learning",
       "inspect_live_word_object_model_types",
@@ -9329,6 +9331,150 @@
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "prepare_live_word_smartart_text_edits",
+      "title": "Prepare guarded SmartArt text edits",
+      "description": "Resolve one exact SmartArt root through the connected Microsoft Word instance and issue bounded, one-time tokens for editable single-line nodes. The action reads the full bounded node text set to fingerprint the entire diagram, but returns text only when include_text=true. Tokens are bound to the live document version, exact story/collection locator, full node structure, full text context, and one node text hash. No raw COM objects or XML are returned.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "none",
+        "network": "none",
+        "microsoft_word": "read_connected_document_smartart_text_and_issue_ephemeral_edit_tokens"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "live_document_id": {"type": "string", "minLength": 1, "maxLength": 128},
+          "story_type": {
+            "enum": ["main_text", "footnotes", "endnotes", "comments", "text_frames", "even_page_headers", "primary_headers", "even_page_footers", "primary_footers", "first_page_headers", "first_page_footers", "footnote_separator", "footnote_continuation_separator", "footnote_continuation_notice", "endnote_separator", "endnote_continuation_separator", "endnote_continuation_notice"]
+          },
+          "story_link_index": {"type": "integer", "minimum": 0, "maximum": 999, "default": 0},
+          "collection_kind": {"enum": ["floating", "inline"]},
+          "source_index": {"type": "integer", "minimum": 1, "maximum": 10000},
+          "node_offset": {"type": "integer", "minimum": 0, "maximum": 127, "default": 0},
+          "max_nodes": {"type": "integer", "minimum": 1, "maximum": 32, "default": 16},
+          "include_text": {
+            "type": "boolean",
+            "default": false,
+            "description": "Return bounded node text previews. The full bounded node text set is read even when false because stale-token protection fingerprints the complete SmartArt context."
+          },
+          "max_text_chars": {"type": "integer", "minimum": 1, "maximum": 512, "default": 160}
+        },
+        "required": ["live_document_id", "story_type", "collection_kind", "source_index"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "live_document_id", "live_version", "locator", "root", "page", "nodes", "disclosure", "document", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.prepare_live_word_smartart_text_edits/1.0"},
+              "live_document_id": {"type": "string", "maxLength": 128},
+              "live_version": {"type": "integer", "minimum": 0},
+              "locator": {"type": "object"},
+              "root": {"type": "object"},
+              "page": {"type": "object"},
+              "nodes": {"type": "array", "maxItems": 32, "items": {"type": "object"}},
+              "disclosure": {"type": "object"},
+              "document": {"type": "object"},
+              "performance": {"type": "object"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "apply_live_word_smartart_text_edits",
+      "title": "Apply guarded SmartArt text edits",
+      "description": "Apply up to 32 one-time, token-verified single-line SmartArt node text replacements through Microsoft Word in one custom Undo record. Before mutation it rechecks the live document version, exact root locator, complete node structure, every node text hash, and token uniqueness. After mutation it requires exact readback, unchanged structure, and unchanged untargeted nodes; any mismatch triggers one bounded Word Undo. It does not add, delete, reorder, restyle, or relayout SmartArt nodes.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "none",
+        "network": "none",
+        "microsoft_word": "mutate_connected_document_smartart_text_in_one_guarded_undo_record"
+      },
+      "reversibility": {
+        "applicable": true,
+        "mechanism": "single_custom_word_undo_record_with_automatic_rollback_before_return_on_failed_verification"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "live_document_id": {"type": "string", "minLength": 1, "maxLength": 128},
+          "expected_version": {"type": "integer", "minimum": 0},
+          "edits": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 32,
+            "items": {
+              "type": "object",
+              "properties": {
+                "smartart_node_token": {"type": "string", "minLength": 1, "maxLength": 128},
+                "replacement_text": {"type": "string", "maxLength": 4096, "pattern": "^[^\\r\\n\\u0000]*$"}
+              },
+              "required": ["smartart_node_token", "replacement_text"],
+              "additionalProperties": false
+            }
+          },
+          "repaginate": {"type": "boolean", "default": true},
+          "optimize_screen_updates": {"type": "boolean", "default": true}
+        },
+        "required": ["live_document_id", "expected_version", "edits"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "live_document_id", "live_version", "mutated", "changed_count", "unchanged_count", "repagination", "locator", "before", "after", "edits", "raw_xml_returned", "raw_com_objects_returned", "document", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.apply_live_word_smartart_text_edits/1.0"},
+              "live_document_id": {"type": "string", "maxLength": 128},
+              "live_version": {"type": "integer", "minimum": 0},
+              "mutated": {"type": "boolean"},
+              "changed_count": {"type": "integer", "minimum": 0, "maximum": 32},
+              "unchanged_count": {"type": "integer", "minimum": 0, "maximum": 32},
+              "repagination": {"type": "object"},
+              "locator": {"type": "object"},
+              "before": {"type": "object"},
+              "after": {"type": "object"},
+              "edits": {"type": "array", "maxItems": 32, "items": {"type": "object"}},
+              "raw_xml_returned": {"const": false},
+              "raw_com_objects_returned": {"const": false},
+              "document": {"type": "object"},
+              "performance": {"type": "object"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
         "openWorldHint": true
       }
     },

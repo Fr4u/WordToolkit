@@ -3,7 +3,9 @@
 `WordDiagramGraph` is the saved-package model for native Word SmartArt. It treats a
 diagram as structured DiagramML rather than a picture or an opaque XML island. The layer
 is read-only: it proves structure and dependencies but does not claim that Office layout
-execution, visual rendering or mutation is solved.
+execution or visual rendering is solved. A separate live-Word slice now supports guarded
+single-line node-text replacement; it does not turn this saved-package graph into a
+mutation API.
 
 ## Modeled surface
 
@@ -60,11 +62,14 @@ execute Office layout, mutate the package, open external targets or run Python.
 
 ## Honest boundary
 
-This slice does not execute Office's diagram layout algorithms, reconstruct arbitrary
-rendered geometry, choose a fallback based on a target application's capabilities, edit
-SmartArt, synchronize the persisted drawing after a change or prove pixel parity with
-Word. The package layer still preserves those parts, while this graph reports what is
-known and what is unresolved.
+This saved-package slice does not execute Office's diagram layout algorithms, reconstruct
+arbitrary rendered geometry, choose a fallback based on a target application's
+capabilities, edit SmartArt or prove pixel parity with Word. The live
+`prepare_live_word_smartart_text_edits` / `apply_live_word_smartart_text_edits` pair can
+replace bounded single-line node text through Microsoft Word so Word synchronizes the
+data model and persisted drawing. It still cannot create/delete/reorder nodes, change
+layout/style/color or provide a durable DiagramML-to-runtime node join. See
+`docs/RESEARCH-SMARTART-TEXT-EDITING-2026.md`.
 
 ## Standards anchors
 

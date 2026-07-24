@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Added guarded live SmartArt text preparation and apply as native actions 98 and 99.
+  Preparation binds one-time node tokens to the exact Word story/collection locator,
+  shape/range identity, layout/style/color IDs, complete bounded node structure and every
+  node text hash. Apply requires the live version, consumes unique tokens, writes through
+  Word in one custom Undo record and rolls back unless exact target readback, unchanged
+  structure and unchanged untargeted text all hold. Exact no-ops create no Undo entry,
+  repagination or version increment.
+- Kept the claim narrow: single-line node text up to 4,096 characters is supported;
+  node creation/deletion/reordering/hierarchy and layout/style/color mutation remain
+  unsupported. The saved-package SmartArt graph remains read-only.
+- Proved the installed path on a real five-node SmartArt document. Word changed both
+  `word/diagrams/data1.xml` and the persisted `word/diagrams/drawing1.xml`; each moved
+  from exactly one old-text occurrence to exactly one new-text occurrence. Microsoft
+  Open XML SDK validation reports zero errors, and before/after Word PDFs retain the same
+  five visual boxes with the new text unclipped.
+- Two pinned .NET SDK 8.0.423 builds produced identical 196-file, 86,690,088-byte trees
+  and 36,645,859-byte ZIPs at SHA-256
+  `bb3ccf021e2135a1ca89c83920fcdd3c7aa73713936ac65db22febbe90096cf4`.
+  Personal source and enabled cache are path/length/hash-identical; installed discovery
+  reports 99 actions, 15 exposed tools and 12 explicit metadata contracts.
+- Full gates pass 497 Engine, 339 Native and 1,309 Python tests, with 16 intentional
+  Python skips. Ruff passes.
+
 - Added a fail-closed saved-package formatter as native actions 96 and 97.
   `plan_ooxml_format` previews one explicit `remove_redundant_direct_formatting`
   policy; `apply_ooxml_format` rebuilds the exact output-bound plan and creates only a

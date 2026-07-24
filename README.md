@@ -43,6 +43,15 @@ does not pretend that Word-normalized runtime objects preserve the exact declare
 node kinds. The package graph and live layout are complementary evidence, not competing
 sources of truth.
 
+The live `prepare_live_word_smartart_text_edits` and
+`apply_live_word_smartart_text_edits` actions add a narrow mutation path for existing
+single-line node text. One-time tokens bind the exact Word root, layout/style/color,
+complete structure and every node text hash. Apply uses one Undo record and requires
+exact target readback plus unchanged untargeted nodes. It does not create, delete,
+reorder or restyle SmartArt. A real Word proof shows synchronized DiagramML data and
+persisted drawing parts; see
+[Guarded live SmartArt text editing](docs/RESEARCH-SMARTART-TEXT-EDITING-2026.md).
+
 This is an advanced but experimental OOXML engine, not a verified claim of market leadership or complete Microsoft Word equivalence. Unsupported domains and release evidence are listed explicitly in [Known limitations](docs/KNOWN-LIMITATIONS.md) and [Testing](docs/TESTING.md).
 
 The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtual environment, an interpreter bootstrap, or a per-call helper process. Its MCP command points directly to:
@@ -94,7 +103,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 49 tested Word Live actions plus 48 standalone,
+The runtime implements 51 tested Word Live actions plus 48 standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus four token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -121,7 +130,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 97-action schema set into model context. The normative shape is
+not flatten the 99-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -474,7 +483,7 @@ This is a stable conservative cumulative accounting contract, not an exact CLR h
 peak-live-memory or resident-set guarantee. Repeated parsers deliberately consume the
 same shared lease; immutable shared parsed-story storage remains missing. Durable joins
 from saved-package declarations to Word-executed drawing objects, complete off-screen page
-geometry, final text flow, SmartArt mutation, active-content binary internals/execution, cryptographic
+geometry, final text flow, general SmartArt structural/layout mutation, active-content binary internals/execution, cryptographic
 signature validation/resigning, encrypted packages and co-authoring remain openly
 unmodeled. Bibliography source projection is implemented, but rendering, mutation and
 source-type-specific required-field validation are not.
@@ -841,9 +850,12 @@ pwsh -NoProfile -File native/scripts/live-full-capabilities-timed.ps1 `
   -RuntimeExecutable dist/wordtoolkit/runtime/win-x64/wordtoolkit-native.exe
 ```
 
-This creates timestamped DOCX and PDF evidence, exercises all 49 live actions through
+This creates timestamped DOCX and PDF evidence, exercises the original 49 live actions through
 the lazy public gateways, requests full responses only for assertions, checks the
 default compact equation preflight separately, and closes its own test document.
+The guarded SmartArt text pair has a separate real-Word MCP proof because the existing
+acceptance fixture predates SmartArt creation; see
+[`docs/RESEARCH-SMARTART-TEXT-EDITING-2026.md`](docs/RESEARCH-SMARTART-TEXT-EDITING-2026.md).
 
 ## Workspace cleanup
 

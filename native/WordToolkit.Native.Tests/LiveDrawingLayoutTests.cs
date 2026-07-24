@@ -199,6 +199,229 @@ public sealed class LiveDrawingLayoutTests
         );
     }
 
+    [Fact]
+    public void PublishesGuardedSmartArtTextEditContracts()
+    {
+        var catalog = ToolCatalog.LoadNativeWordTools();
+        var prepare = catalog
+            .InspectAction("prepare_live_word_smartart_text_edits")["tool"]!
+            .AsObject();
+        var apply = catalog
+            .InspectAction("apply_live_word_smartart_text_edits")["tool"]!
+            .AsObject();
+
+        Assert.Equal("1.0", prepare["operationVersion"]!.GetValue<string>());
+        Assert.Equal("1.0", apply["operationVersion"]!.GetValue<string>());
+        Assert.True(prepare["annotations"]!["readOnlyHint"]!.GetValue<bool>());
+        Assert.False(apply["annotations"]!["readOnlyHint"]!.GetValue<bool>());
+        Assert.Equal(
+            32,
+            apply["inputSchema"]!["properties"]!["edits"]!["maxItems"]!.GetValue<int>()
+        );
+        Assert.False(
+            apply["inputSchema"]!["additionalProperties"]!.GetValue<bool>()
+        );
+        Assert.NotNull(prepare["outputSchema"]);
+        Assert.NotNull(apply["outputSchema"]);
+    }
+
+    [Fact]
+    public async Task AppliesOneTokenVerifiedSmartArtTextEditAndRepaginatesOnce()
+    {
+        await using var host = new DrawingLayoutFakeHost();
+        var service = new WordLiveService(host);
+        var documentId = await ConnectAsync(service);
+        var (token, version) = await PrepareSmartArtNodeAsync(service, documentId);
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = version,
+                    edits = new[]
+                    {
+                        new
+                        {
+                            smartart_node_token = token,
+                            replacement_text = "Etap zweryfikowany",
+                        },
+                    },
+                }
+            )
+        );
+
+        var result = await service.CallAsync(
+            "apply_live_word_smartart_text_edits",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(result, JsonDefaults.Compact));
+        var data = json.RootElement;
+
+        Assert.Equal(
+            "wordtoolkit.apply_live_word_smartart_text_edits/1.0",
+            data.GetProperty("operation_contract").GetString()
+        );
+        Assert.True(data.GetProperty("mutated").GetBoolean());
+        Assert.Equal(1, data.GetProperty("changed_count").GetInt32());
+        Assert.Equal(version + 1, data.GetProperty("live_version").GetInt64());
+        Assert.Equal("Etap zweryfikowany", host.Application.ActiveDocument.SmartArtTextRange.TextValue);
+        Assert.Equal(1, host.Application.ActiveDocument.RepaginateCount);
+        Assert.True(host.Application.ScreenUpdating);
+        Assert.Equal(1, host.Application.UndoRecord.StartCount);
+        Assert.Equal(1, host.Application.UndoRecord.EndCount);
+        Assert.Equal(0, host.Application.ActiveDocument.UndoCount);
+    }
+
+    [Fact]
+    public async Task RejectsAStaleSmartArtContextBeforeStartingUndo()
+    {
+        await using var host = new DrawingLayoutFakeHost();
+        var service = new WordLiveService(host);
+        var documentId = await ConnectAsync(service);
+        var (token, version) = await PrepareSmartArtNodeAsync(service, documentId);
+        host.Application.ActiveDocument.SmartArtTextRange.ForceText("Zmiana zewnętrzna");
+        using var arguments = SmartArtApplyArguments(
+            documentId,
+            version,
+            token,
+            "Nowy tekst"
+        );
+
+        var error = await Assert.ThrowsAsync<NativeToolException>(
+            () =>
+                service.CallAsync(
+                    "apply_live_word_smartart_text_edits",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("VERSION_CONFLICT", error.ErrorCode);
+        Assert.Equal(0, host.Application.UndoRecord.StartCount);
+        Assert.Equal("Zmiana zewnętrzna", host.Application.ActiveDocument.SmartArtTextRange.TextValue);
+    }
+
+    [Fact]
+    public async Task RollsBackWhenWordDoesNotPreserveExactSmartArtText()
+    {
+        await using var host = new DrawingLayoutFakeHost();
+        var service = new WordLiveService(host);
+        var documentId = await ConnectAsync(service);
+        var (token, version) = await PrepareSmartArtNodeAsync(service, documentId);
+        host.Application.ActiveDocument.SmartArtTextRange.WriteTransform = text => text + "!";
+        using var arguments = SmartArtApplyArguments(
+            documentId,
+            version,
+            token,
+            "Tekst żądany"
+        );
+
+        var error = await Assert.ThrowsAsync<NativeToolException>(
+            () =>
+                service.CallAsync(
+                    "apply_live_word_smartart_text_edits",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("VALIDATION_FAILED", error.ErrorCode);
+        Assert.Equal("Etap A", host.Application.ActiveDocument.SmartArtTextRange.TextValue);
+        Assert.Equal(1, host.Application.ActiveDocument.UndoCount);
+        Assert.Equal(1, host.Application.UndoRecord.StartCount);
+        Assert.Equal(1, host.Application.UndoRecord.EndCount);
+        Assert.True(host.Application.ScreenUpdating);
+    }
+
+    [Fact]
+    public async Task StableSmartArtNoOpDoesNotCreateUndoRepaginateOrAdvanceVersion()
+    {
+        await using var host = new DrawingLayoutFakeHost();
+        var service = new WordLiveService(host);
+        var documentId = await ConnectAsync(service);
+        var (token, version) = await PrepareSmartArtNodeAsync(service, documentId);
+        using var arguments = SmartArtApplyArguments(documentId, version, token, "Etap A");
+
+        var result = await service.CallAsync(
+            "apply_live_word_smartart_text_edits",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(result, JsonDefaults.Compact));
+        var data = json.RootElement;
+
+        Assert.False(data.GetProperty("mutated").GetBoolean());
+        Assert.Equal(0, data.GetProperty("changed_count").GetInt32());
+        Assert.Equal(version, data.GetProperty("live_version").GetInt64());
+        Assert.Equal(0, host.Application.UndoRecord.StartCount);
+        Assert.Equal(0, host.Application.ActiveDocument.RepaginateCount);
+    }
+
+    private static async Task<(string Token, long Version)> PrepareSmartArtNodeAsync(
+        WordLiveService service,
+        string documentId
+    )
+    {
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    story_type = "main_text",
+                    story_link_index = 0,
+                    collection_kind = "floating",
+                    source_index = 2,
+                    include_text = false,
+                }
+            )
+        );
+        var result = await service.CallAsync(
+            "prepare_live_word_smartart_text_edits",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(result, JsonDefaults.Compact));
+        var data = json.RootElement;
+        Assert.True(
+            data.GetProperty("disclosure")
+                .GetProperty("sensitive_text_read_for_guarding")
+                .GetBoolean()
+        );
+        Assert.False(
+            data.GetProperty("disclosure").GetProperty("sensitive_text_returned").GetBoolean()
+        );
+        Assert.False(data.GetProperty("nodes")[0].TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String);
+        return (
+            data.GetProperty("nodes")[0].GetProperty("smartart_node_token").GetString()!,
+            data.GetProperty("live_version").GetInt64()
+        );
+    }
+
+    private static JsonDocument SmartArtApplyArguments(
+        string documentId,
+        long version,
+        string token,
+        string replacementText
+    ) =>
+        JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = version,
+                    edits = new[]
+                    {
+                        new
+                        {
+                            smartart_node_token = token,
+                            replacement_text = replacementText,
+                        },
+                    },
+                }
+            )
+        );
+
     private static async Task<string> ConnectAsync(WordLiveService service)
     {
         using var arguments = JsonDocument.Parse("""{"use_active":true,"activate":true}""");
@@ -239,12 +462,15 @@ public sealed class DrawingLayoutFakeApplication
     {
         ActiveDocument = new DrawingLayoutFakeDocument(this, SensitiveReads);
         Documents = new DrawingLayoutFakeDocuments(ActiveDocument);
+        UndoRecord = new DrawingLayoutFakeUndoRecord(this);
     }
 
     public DrawingLayoutFakeSensitiveReads SensitiveReads { get; } = new();
     public DrawingLayoutFakeDocument ActiveDocument { get; set; }
     public DrawingLayoutFakeDocuments Documents { get; }
     public DrawingLayoutFakeWindow ActiveWindow { get; } = new();
+    public DrawingLayoutFakeUndoRecord UndoRecord { get; }
+    public bool ScreenUpdating { get; set; } = true;
 }
 
 public sealed class DrawingLayoutFakeDocuments
@@ -265,6 +491,7 @@ public sealed class DrawingLayoutFakeDocuments
 public sealed class DrawingLayoutFakeDocument
 {
     private readonly DrawingLayoutFakeApplication _application;
+    private string[]? _undoSmartArtTexts;
 
     public DrawingLayoutFakeDocument(
         DrawingLayoutFakeApplication application,
@@ -300,6 +527,9 @@ public sealed class DrawingLayoutFakeDocument
     public DrawingLayoutFakeCountCollection Sections { get; } = new(1);
     public DrawingLayoutFakeStoryRanges StoryRanges { get; } = new();
     public int RepaginateCount { get; private set; }
+    public int UndoCount { get; private set; }
+    public DrawingLayoutFakeTextRange SmartArtTextRange =>
+        Shapes.Item(2).SmartArt!.AllNodes.Item(1).TextFrame2.TextRange;
 
     public void Activate()
     {
@@ -309,6 +539,56 @@ public sealed class DrawingLayoutFakeDocument
     public void Repaginate()
     {
         RepaginateCount++;
+    }
+
+    public void BeginUndoSnapshot()
+    {
+        var smartArt = Shapes.Item(2).SmartArt!;
+        _undoSmartArtTexts = Enumerable.Range(1, smartArt.AllNodes.Count)
+            .Select(index => smartArt.AllNodes.Item(index).TextFrame2.TextRange.TextValue)
+            .ToArray();
+    }
+
+    public bool Undo(int count)
+    {
+        if (count != 1 || _undoSmartArtTexts is null)
+        {
+            return false;
+        }
+        var smartArt = Shapes.Item(2).SmartArt!;
+        for (var index = 1; index <= _undoSmartArtTexts.Length; index++)
+        {
+            smartArt.AllNodes.Item(index).TextFrame2.TextRange.ForceText(
+                _undoSmartArtTexts[index - 1]
+            );
+        }
+        UndoCount++;
+        _undoSmartArtTexts = null;
+        return true;
+    }
+}
+
+public sealed class DrawingLayoutFakeUndoRecord
+{
+    private readonly DrawingLayoutFakeApplication _application;
+
+    public DrawingLayoutFakeUndoRecord(DrawingLayoutFakeApplication application)
+    {
+        _application = application;
+    }
+
+    public int StartCount { get; private set; }
+    public int EndCount { get; private set; }
+
+    public void StartCustomRecord(string name)
+    {
+        StartCount++;
+        _application.ActiveDocument.BeginUndoSnapshot();
+    }
+
+    public void EndCustomRecord()
+    {
+        EndCount++;
     }
 }
 
@@ -448,6 +728,7 @@ public sealed class DrawingLayoutFakeShape
         };
 
     public int Type { get; }
+    public int ID => Type == 24 ? 202 : 101;
     public string Name
     {
         get
@@ -585,7 +866,7 @@ public sealed class DrawingLayoutFakeTextFrame
 
 public sealed class DrawingLayoutFakeTextRange
 {
-    private readonly string _text;
+    private string _text;
     private readonly DrawingLayoutFakeSensitiveReads _sensitiveReads;
 
     public DrawingLayoutFakeTextRange(
@@ -604,6 +885,18 @@ public sealed class DrawingLayoutFakeTextRange
             _sensitiveReads.Count++;
             return _text;
         }
+        set
+        {
+            _text = WriteTransform is null ? value : WriteTransform(value);
+        }
+    }
+
+    public string TextValue => _text;
+    public Func<string, string>? WriteTransform { get; set; }
+
+    public void ForceText(string value)
+    {
+        _text = value;
     }
 }
 

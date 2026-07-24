@@ -2,7 +2,7 @@
 
 The current remote Python service source of truth is `schemas/mcp-tools.v2.json`; `schemas/mcp-tools.v1.json` remains the immutable historical contract. The provider-neutral heterogeneous mutation contract, including executable input/success/error examples, is generated as `schemas/draft-operations.v1.json`. The native Windows plugin has a separate, deliberately hand-reviewed source in `schemas/mcp-tools-local.v1.json`; `WordToolkit.Native.Tests` validates that catalog and this exporter never overwrites it. Every exported remote tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.
 
-The native catalog currently contains 97 actions behind 15 core/gateway tools. Rare
+The native catalog currently contains 99 actions behind 15 core/gateway tools. Rare
 saved-package inspectors remain lazy so their schemas do not enter model context until
 needed. `inspect_ooxml_active_content` is read-only and closed-world: it inventories
 typed OLE/ActiveX/VBA/embedded-package/customization/signature metadata without opening
@@ -18,6 +18,11 @@ text or raw XML; model keys, keyed fingerprints and source provenance are separa
 Word to repaginate and returns bounded reference-aware shape/inline/group/SmartArt object
 layout without COM or XML. Text is not read without opt-in; screen pixels are capped,
 viewport-dependent and never called page geometry.
+`prepare_live_word_smartart_text_edits` and `apply_live_word_smartart_text_edits`
+add a narrow live mutation path for node text. Tokens bind one node to the complete
+Word-executed SmartArt structure and text context; apply performs exact readback in one
+Undo record and rolls back if Word changes structure, an untargeted node or the requested
+text. Node creation/deletion/reordering and layout/style/color mutation remain unsupported.
 `plan_ooxml_format` and `apply_ooxml_format` are also lazy. They expose one explicit,
 bounded policy that removes scalar direct formatting proven redundant against the
 resolved cascade. Font, color, underline and shading elements additionally require a

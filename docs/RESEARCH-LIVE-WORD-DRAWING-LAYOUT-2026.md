@@ -135,7 +135,11 @@ Word application was left running.
 
 This slice does not provide an off-screen page-render tree, final text-line collision mesh,
 pixel-perfect raster, font-substitution report, printer-independent layout, durable joins
-between runtime shapes and `wdsh_`/DiagramML IDs, shape/SmartArt mutation, or cross-version
-layout equivalence. The dependency graph still does not contain live runtime nodes. Those
-gaps remain explicit; the new action narrows the old blanket "rendered layout missing"
-statement to a concrete live object-model capability with named omissions.
+between runtime shapes and `wdsh_`/DiagramML IDs, general shape mutation, structural or
+layout/style/color SmartArt mutation, or cross-version layout equivalence. A separate
+guarded live pair now replaces bounded single-line SmartArt node text and proves Word
+synchronization of one real fixture; see
+`docs/RESEARCH-SMARTART-TEXT-EDITING-2026.md`. The dependency graph still does not contain
+live runtime nodes. Those gaps remain explicit; the drawing-layout action narrows the old
+blanket "rendered layout missing" statement to a concrete live object-model capability
+with named omissions.

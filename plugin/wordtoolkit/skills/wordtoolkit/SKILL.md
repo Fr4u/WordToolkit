@@ -234,6 +234,31 @@ durable package IDs. Word may normalize declared OOXML groups or diagrams into d
 runtime object kinds, so compare the live projection with `inspect_ooxml_figures` or
 `inspect_ooxml_diagrams` when provenance matters and report disagreements instead of
 forcing a false one-to-one join.
+To change SmartArt node text, do not edit `word/diagrams/data*.xml` directly. A package
+can contain both the DiagramML data model and a synchronized persisted drawing, so a
+single-part rewrite can leave two incompatible versions of the same diagram. Use this
+live Word workflow instead:
+
+1. Obtain the exact `story_type`, `story_link_index`, `collection_kind` and
+   `source_index` from `inspect_live_word_drawing_layout`. Do not use the traversal-only
+   `wdlo_` identifier as the mutation target.
+2. Call `prepare_live_word_smartart_text_edits` for that exact root. It reads at most 128
+   nodes and 65,536 total text characters to bind the complete structure and text context.
+   It returns at most 32 node records and one-time tokens only for existing single-line
+   text no longer than 4,096 characters. Leave `include_text=false` unless the user must
+   review a bounded preview; guarding still reads the text even when it is not returned.
+3. Call `apply_live_word_smartart_text_edits` with the current `expected_version` and up
+   to 32 unique `{smartart_node_token,replacement_text}` items from one prepared root.
+   Replacement text may be empty but must remain single-line and at most 4,096 characters.
+4. Treat `VERSION_CONFLICT` as a hard request for a fresh inspect/prepare cycle. Apply
+   rechecks the whole root, changes text through Word in one custom Undo record, then
+   demands exact target readback, unchanged node structure and unchanged untargeted text.
+   Any mismatch requests one bounded Undo. An exact no-op creates no Undo entry, performs
+   no repagination and does not advance the live version.
+
+This path edits text only. It does not add, delete, reorder, promote or demote nodes and
+does not change diagram layout, style or color. Save, validate and render through Word
+before claiming the document is complete.
 Use lazy `inspect_ooxml_content_controls` instead of reading `w:sdt`, `dataBinding`,
 `customXml` or item-properties XML yourself. Start with `view=summary`; page `controls`,
 `stores`, `bindings`, `targets`, `repeating_sections` or `issues` only when the next
