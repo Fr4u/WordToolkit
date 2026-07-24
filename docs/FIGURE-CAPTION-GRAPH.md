@@ -39,9 +39,20 @@ understood namespaces; its mere presence does not prove that Word selected it. U
 
 ## Placement, accessibility and resources
 
-Modern placement retains declared extent, distances, relative height, behind-document,
-layout-in-cell and overlap flags, wrap kind, horizontal/vertical reference, alignment
-and EMU offset. Legacy VML retains its bounded style string. Preferred dimensions and
+Modern placement retains declared extent, anchor distances, relative stacking height,
+behind-document, layout-in-cell, overlap, simple-position and lock flags. Horizontal
+and vertical positioning preserve the reference frame and the declared alignment or
+EMU offset. Effect extents, simple-position coordinates, Office 2010 relative width
+and height (normalized to thousandths of a percent), wrap-side and wrap-distance
+metadata are typed. Tight/through wrapping polygons preserve a bounded start point and
+line-point list.
+
+Legacy VML placement is no longer only an opaque style string. Known declarations for
+position mode, left/top/width/height, z-order, horizontal/vertical alignment and
+reference frames, tenth-percent offsets, wrap mode/distances, bounded `wrapcoords`
+polygons and visibility are parsed into typed fields. Physical `pt`, `pc`, `in`, `cm`,
+`mm` and `px` lengths are normalized to EMU while their bounded lexical source is retained for trusted consumers. Unknown
+style declarations remain untouched in the saved OPC bytes. Preferred dimensions and
 coordinates are declarations, not a promise of final page geometry.
 
 Non-visual drawing properties retain bounded name, title, description, hidden and
@@ -127,6 +138,9 @@ Sensitive fields are split into independent opt-ins:
 - `include_text` exposes bounded accessibility/caption metadata;
 - `include_source` exposes part paths, semantic IDs, XML paths and ordinals;
 - `include_relationship_targets` exposes bounded relationship targets;
+- `include_geometry`, valid only with `view=representations` and `detail=declared`,
+  exposes at most 128 declared DrawingML or VML wrapping-polygon points per
+  representation;
 - `include_issues` explicitly adds a bounded issue preview to a non-issue view; it is
   false by default so pagination does not repeat diagnostics.
 
@@ -144,9 +158,10 @@ it must implement an equivalent redacted projection.
 
 Production defaults cap projected stories at 256, logical figures/captions at 100,000
 each, representations at 200,000, resources/associations at 500,000 each, issues at
-10,000, one story part at 128 MiB, aggregate story XML at 512 MiB, parsed elements at
-5,000,000 and selected retained string metadata at 32 Mi characters. Relationship IDs
-also have a 4,096-character hard ceiling before graph retention. Cancellation is
+10,000, one wrapping polygon at 4,096 line points, one story part at 128 MiB,
+aggregate story XML at 512 MiB, parsed elements at 5,000,000 and selected retained
+string metadata at 32 Mi characters. Relationship IDs also have a 4,096-character
+hard ceiling before graph retention. Cancellation is
 checked at bounded intervals across package projection, XML parsing, representation and
 caption extraction, and response selection. Caption text is counted while streaming
 into a `MaxTextCharacters` buffer, so the metadata ceiling is enforced before an
@@ -168,7 +183,8 @@ benchmark belongs to the contract rather than a release-note ornament.
 
 This slice is read-only. It does not insert or edit figures/captions, renumber `SEQ`
 fields, generate a table of figures, evaluate MCE against a particular Word version,
-calculate final anchor geometry, group shapes, parse DrawingML geometry/effects,
+calculate rendered anchor geometry, execute page layout, group shapes, parse DrawingML
+shape paths/effects,
 inspect image pixels, synchronize chart workbooks, interpret SmartArt, activate OLE,
 render a page or prove visual equivalence across Word versions. Unsupported payloads
 remain in the OPC snapshot and are reported; lack of a typed child model is never

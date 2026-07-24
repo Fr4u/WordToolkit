@@ -727,9 +727,10 @@ summary returns only the compact `{model, used, maximum}` byte-budget tuple. Res
 formulas and paired measurements are recorded in
 `RESEARCH-DEPENDENCY-GRAPH-MEMORY-2026.md`.
 
-Coverage is explicit. Active-content payload/declaration/ActiveX topology is inside the
-graph, while active-content binary internals/execution, advanced DrawingML/VML layout,
-SmartArt, signature cryptographic validation/resigning, encryption and co-authoring
+Coverage is explicit. Active-content payload/declaration/ActiveX topology, declared
+DrawingML/VML placement and SmartArt structure/topology are inside the graph, while
+active-content binary internals/execution, rendered drawing geometry/layout execution,
+SmartArt layout execution/rendering/mutation, signature cryptographic validation/resigning, encryption and co-authoring
 sessions remain outside it. Bibliography collection/source nodes and unique-tag `CITATION` resolution are inside the
 graph; bibliography rendering and mutation are not. Office 2016 extended charts are preserved and
 diagnosed, but are not projected as classic chart nodes.
@@ -748,8 +749,11 @@ object; summary counts retain only one accumulator per fixed edge kind.
 
 `WordFigureCaptionGraph` projects source-linked `w:drawing`, `w:pict` and `w:object`
 containers across every projected Transitional or Strict Word story. Inline/anchor
-placement, bounded `docPr` accessibility metadata, VML fallback state and relationship
-resources stay typed. Multiple representations in one `mc:AlternateContent` group form
+placement includes declared reference frames, offsets, effect extents, relative sizes,
+wrapping modes and bounded wrap polygons. Known VML positioning, sizing, z-order and
+wrapping declarations are normalized into typed values while the original bounded style
+remains available to trusted code. `docPr` accessibility metadata, fallback state and
+relationship resources stay typed. Multiple representations in one `mc:AlternateContent` group form
 one logical figure, but the summary representation records whether Choice was merely
 preferred rather than MCE-evaluated.
 
@@ -761,8 +765,9 @@ Deleted/move-from evidence cannot be selected. Figure, representation, resource,
 caption and association IDs are stable and package-fingerprint-bound.
 
 `inspect_ooxml_figures` is summary-first and paged. Accessibility/caption text, source
-provenance and relationship targets use independent opt-ins; raw XML and binary bytes
-have no response field. The package-only path never opens Word, decodes resources,
+provenance, relationship targets and wrap-polygon coordinates use independent opt-ins;
+raw XML and binary bytes have no response field. Every placement projection says that
+it is declared data, not rendered geometry. The package-only path never opens Word, decodes resources,
 follows external targets, evaluates fields or executes active content. The dependency
 graph consumes these objects without upgrading candidate/ambiguous associations to
 resolved edges. The full inference policy, limits, benchmark and exclusions are in

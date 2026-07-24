@@ -360,7 +360,94 @@ public sealed class FigurePackageInspectionTests
         }
     }
 
-    private static string CreateTemporaryPackage(bool ambiguous = false)
+    [Fact]
+    public async Task DeclaredLayoutStaysCompactAndPolygonCoordinatesRequireOptIn()
+    {
+        var path = CreateTemporaryPackage(advancedLayout: true);
+        try
+        {
+            var host = new NoInvokeHost();
+            var service = new WordLiveService(host);
+            using var compactArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "representations",
+                    detail = "declared",
+                })
+            );
+            var compactResult = await service.CallAsync(
+                "inspect_ooxml_figures",
+                compactArguments.RootElement,
+                CancellationToken.None
+            );
+            using var compactJson = JsonDocument.Parse(JsonSerializer.Serialize(compactResult));
+            var compactRoot = compactJson.RootElement;
+            Assert.False(compactRoot.GetProperty("geometry_included").GetBoolean());
+            var compactPlacement = Assert.Single(
+                compactRoot.GetProperty("items").EnumerateArray()
+            ).GetProperty("placement");
+            Assert.True(compactPlacement.GetProperty("declared_only_not_rendered_geometry").GetBoolean());
+            Assert.Equal(
+                2,
+                compactPlacement.GetProperty("wrap")
+                    .GetProperty("polygon_line_point_count")
+                    .GetInt32()
+            );
+            Assert.Equal(
+                JsonValueKind.Null,
+                compactPlacement.GetProperty("wrap")
+                    .GetProperty("polygon_line_points")
+                    .ValueKind
+            );
+
+            using var fullArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "representations",
+                    detail = "declared",
+                    include_geometry = true,
+                })
+            );
+            var fullResult = await service.CallAsync(
+                "inspect_ooxml_figures",
+                fullArguments.RootElement,
+                CancellationToken.None
+            );
+            using var fullJson = JsonDocument.Parse(JsonSerializer.Serialize(fullResult));
+            var fullRoot = fullJson.RootElement;
+            Assert.True(fullRoot.GetProperty("geometry_included").GetBoolean());
+            var wrap = Assert.Single(fullRoot.GetProperty("items").EnumerateArray())
+                .GetProperty("placement")
+                .GetProperty("wrap");
+            Assert.Equal(2, wrap.GetProperty("polygon_line_points").GetArrayLength());
+            Assert.False(wrap.GetProperty("polygon_line_points_truncated").GetBoolean());
+            Assert.True(fullRoot.GetRawText().Length < 10_000);
+            Assert.Equal(0, host.InvocationCount);
+
+            using var invalidArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new { local_path = path, include_geometry = true })
+            );
+            var invalid = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "inspect_ooxml_figures",
+                    invalidArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("INVALID_INPUT", invalid.ErrorCode);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    private static string CreateTemporaryPackage(
+        bool ambiguous = false,
+        bool advancedLayout = false
+    )
     {
         var path = Path.Combine(
             Path.GetTempPath(),
@@ -400,17 +487,33 @@ public sealed class FigurePackageInspectionTests
                 </wp:inline></w:drawing></w:r>
                 """
             : string.Empty;
-        AddEntry(
-            archive,
-            "word/document.xml",
-            $$"""
-            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-              xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
-              xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
-              xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"
-              xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-              <w:body>
-                <w:p><w:r><w:drawing><wp:inline>
+        var firstDrawing = advancedLayout
+            ? """
+                <w:r><w:drawing><wp:anchor distT="0" distB="0" distL="114300" distR="114300"
+                  simplePos="0" relativeHeight="251658240" behindDoc="0" locked="1"
+                  layoutInCell="1" allowOverlap="1">
+                  <wp:simplePos x="0" y="0"/>
+                  <wp:positionH relativeFrom="margin"><wp:align>center</wp:align></wp:positionH>
+                  <wp:positionV relativeFrom="paragraph"><wp:posOffset>202364</wp:posOffset></wp:positionV>
+                  <wp:extent cx="914400" cy="457200"/>
+                  <wp:effectExtent l="100" t="200" r="300" b="400"/>
+                  <wp:wrapTight wrapText="bothSides"><wp:wrapPolygon edited="1">
+                    <wp:start x="0" y="0"/><wp:lineTo x="21600" y="0"/><wp:lineTo x="21600" y="21600"/>
+                  </wp:wrapPolygon></wp:wrapTight>
+                  <wp:docPr id="1" name="PRIVATE FIGURE NAME" title="PRIVATE FIGURE TITLE" descr="SECRET ALT DESCRIPTION"/>
+                  <wp:cNvGraphicFramePr/>
+                  <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                    <pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="private.png"/><pic:cNvPicPr/></pic:nvPicPr>
+                      <pic:blipFill><a:blip r:link="rIdExternal"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+                      <pic:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>
+                    </pic:pic>
+                  </a:graphicData></a:graphic>
+                  <wp14:sizeRelH relativeFrom="margin"><wp14:pctWidth>50000</wp14:pctWidth></wp14:sizeRelH>
+                  <wp14:sizeRelV relativeFrom="margin"><wp14:pctHeight>25000</wp14:pctHeight></wp14:sizeRelV>
+                </wp:anchor></w:drawing></w:r>
+                """
+            : """
+                <w:r><w:drawing><wp:inline>
                   <wp:extent cx="914400" cy="457200"/>
                   <wp:docPr id="1" name="PRIVATE FIGURE NAME" title="PRIVATE FIGURE TITLE" descr="SECRET ALT DESCRIPTION"/>
                   <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
@@ -419,7 +522,20 @@ public sealed class FigurePackageInspectionTests
                       <pic:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>
                     </pic:pic>
                   </a:graphicData></a:graphic>
-                </wp:inline></w:drawing></w:r>{{secondDrawing}}</w:p>
+                </wp:inline></w:drawing></w:r>
+                """;
+        AddEntry(
+            archive,
+            "word/document.xml",
+            $$"""
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+              xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+              xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing"
+              xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+              xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"
+              xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+              <w:body>
+                <w:p>{{firstDrawing}}{{secondDrawing}}</w:p>
                 <w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr>
                   <w:r><w:fldChar w:fldCharType="begin"/></w:r>
                   <w:r><w:instrText xml:space="preserve"> SEQ Figure \* ARABIC </w:instrText></w:r>

@@ -1,5 +1,28 @@
 # Stage results
 
+## Declared DrawingML/VML placement — 2026-07-24
+
+- Extended the existing `WordFigureCaptionGraph` instead of creating a second layout
+  model. DrawingML anchors now retain typed simple position, reference frames,
+  alignment/offset, effect extents, stacking/overlap flags, Office 2010 relative size,
+  wrap side/distances and bounded tight/through polygons. Microsoft 365 validation of
+  the canonical anchor fixture reports zero errors.
+- Known VML position, margin/size, z-order, relative-frame, tenth-percent, wrap-distance,
+  visibility and `wrapcoords` declarations are typed. Physical lengths normalize to EMU;
+  arbitrary enum-like strings are not projected as trusted values. DrawingML and VML
+  polygons share a 4,096-point source limit and operation-wide resource accounting.
+- `inspect_ooxml_figures` returns declared scalar placement only with
+  `detail=declared`; exact polygon coordinates additionally require
+  `include_geometry=true`, `view=representations` and are capped at 128 points per
+  response item. Every placement says it is declared data, not rendered geometry. The
+  package path never opens Word or runs layout.
+- The former `drawingml_vml_advanced_layout` omission is gone. The dependency graph now
+  names only `drawingml_vml_rendered_geometry_and_layout_execution` as the remaining
+  boundary.
+- Full gates pass **486 Engine tests**, **324 Native tests** and **1,309 Python/OOXML
+  tests** with 16 intentional environment/model skips. Release builds are pending for
+  this source checkpoint. Ruff is clean and mypy passes all 29 maintained Python files.
+
 ## Native SmartArt graph and compact inspector — 2026-07-24
 
 - Added `WordDiagramGraph`, a bounded read-only model for Transitional and Strict

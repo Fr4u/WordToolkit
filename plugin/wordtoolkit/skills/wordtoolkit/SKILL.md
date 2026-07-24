@@ -172,7 +172,7 @@ source and resolved CITATION domains, typed active-content payloads/declarations
 ActiveX binary bindings, core/extended/custom document properties, persistent document
 variables and their proven field reads plus nested-table and vertical-merge topology. Its
 `explicitly_unmodeled_domains` list is a hard coverage
-  boundary: absence of an edge for advanced drawing layout, SmartArt layout execution/
+  boundary: absence of an edge for rendered drawing geometry/layout execution, SmartArt layout execution/
   rendering/mutation, active-content binary internals/execution, cryptographic signature
   validation, encryption or co-authoring is not proof that the dependency does not exist.
 The summary's `byte_budget` remains the graph-local deterministic boundary. Its separate
@@ -195,12 +195,17 @@ container, not a declared OOXML relationship: only a mutual unique best candidat
 selected and ties remain ambiguous. Without an application capability context, no
 `mc:AlternateContent` branch is active or primary; use
 `inspect_ooxml_markup_compatibility` for branch evaluation.
-Accessibility/caption text, source provenance and relationship targets require three
-independent opt-ins. Raw XML and binary resources are never returned. The action never
-opens Word, decodes images or embedded packages, follows external targets, evaluates
-fields or executes active content. Deleted figures/captions remain visible but are not
-selected. Treat missing/ambiguous relationships and unmodeled payloads as evidence, not
-permission to guess or delete preserved content.
+Declared DrawingML placement includes reference frames, offsets, effect extents,
+relative sizes and bounded wrap polygons; known VML positioning and wrapping declarations
+are normalized but remain declarations rather than rendered page geometry.
+Accessibility/caption text, source provenance, relationship targets and wrapping-polygon
+coordinates require four independent opt-ins. Use `include_geometry=true` only with
+`view=representations` and `detail=declared`; it returns at most 128 line points per
+representation. Raw XML and binary resources are never returned. The action never opens
+Word, executes page layout, decodes images or embedded packages, follows external targets,
+evaluates fields or executes active content. Deleted figures/captions remain visible but
+are not selected. Treat missing/ambiguous relationships and unmodeled payloads as evidence,
+not permission to guess or delete preserved content.
 Use lazy `inspect_ooxml_content_controls` instead of reading `w:sdt`, `dataBinding`,
 `customXml` or item-properties XML yourself. Start with `view=summary`; page `controls`,
 `stores`, `bindings`, `targets`, `repeating_sections` or `issues` only when the next

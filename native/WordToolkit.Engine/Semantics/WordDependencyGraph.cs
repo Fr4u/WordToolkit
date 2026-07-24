@@ -650,7 +650,7 @@ public sealed class WordDependencyGraphBuilder
     private static readonly IReadOnlyList<string> ExplicitlyUnmodeledDomains =
         new ReadOnlyCollection<string>(
             [
-                "drawingml_vml_advanced_layout",
+                "drawingml_vml_rendered_geometry_and_layout_execution",
                 "active_content_binary_internals_and_execution",
                 "signature_cryptographic_validation_and_resigning",
                 "encrypted_package_adapter",

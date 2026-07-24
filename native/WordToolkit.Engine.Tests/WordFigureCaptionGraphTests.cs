@@ -1,5 +1,8 @@
 using System.IO.Compression;
 using System.Text;
+using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Validation;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Semantics;
 
@@ -7,6 +10,114 @@ namespace WordToolkit.Engine.Tests;
 
 public sealed class WordFigureCaptionGraphTests
 {
+    [Fact]
+    public void ProjectsDeclaredDrawingMlAnchorGeometryWithoutExecutingLayout()
+    {
+        using var bytes = BuildPackage(AnchoredPictureDrawing());
+        using (var document = WordprocessingDocument.Open(bytes, false))
+        {
+            Assert.Empty(
+                new OpenXmlValidator(FileFormatVersions.Microsoft365).Validate(document)
+            );
+        }
+        bytes.Position = 0;
+
+        var graph = new WordFigureCaptionGraphBuilder().Build(
+            new OpcPackageReader().Read(bytes)
+        );
+
+        var placement = Assert.Single(Assert.Single(graph.Figures).Representations).Placement;
+        Assert.Equal(WordFigureRepresentationKind.DrawingAnchor, placement.Kind);
+        Assert.Equal(114300, placement.DistanceLeftEmu);
+        Assert.False(placement.UseSimplePosition);
+        Assert.True(placement.Locked);
+        Assert.Equal(new WordFigurePointDefinition(0, 0), placement.SimplePosition);
+        Assert.Equal(
+            new WordFigureEffectExtentDefinition(100, 200, 300, 400),
+            placement.EffectExtent
+        );
+        Assert.Equal("margin", placement.HorizontalPosition?.RelativeFrom);
+        Assert.Equal("center", placement.HorizontalPosition?.Alignment);
+        Assert.Equal("paragraph", placement.VerticalPosition?.RelativeFrom);
+        Assert.Equal(202364, placement.VerticalPosition?.OffsetEmu);
+        var wrap = Assert.IsType<WordFigureWrapDefinition>(placement.Wrap);
+        Assert.Equal("wrapTight", wrap.Kind);
+        Assert.Equal("bothSides", wrap.TextSide);
+        Assert.True(wrap.PolygonEdited);
+        Assert.Equal(new WordFigurePointDefinition(0, 0), wrap.PolygonStart);
+        Assert.Equal(2, wrap.PolygonLinePoints.Count);
+        Assert.Equal(21600, wrap.PolygonLinePoints[1].YEmu);
+        Assert.Equal(50000, placement.RelativeWidthSize?.PercentageThousandthsOfPercent);
+        Assert.Equal(25000, placement.RelativeHeightSize?.PercentageThousandthsOfPercent);
+        Assert.DoesNotContain(graph.Issues, item => item.Severity == WordFigureIssueSeverity.Error);
+    }
+
+    [Fact]
+    public void ProjectsKnownVmlPlacementDeclarationsIntoTypedValues()
+    {
+        const string body = """
+            <w:p><w:r><w:pict>
+              <v:shape id="legacy" alt="Legacy" wrapcoords="0,0 21600,0 21600,21600 0,21600" style="position:absolute;left:3pt;top:4pt;margin-left:1in;margin-top:2.5cm;width:72pt;height:36pt;z-index:7;mso-position-horizontal:center;mso-position-horizontal-relative:page;mso-position-vertical:top;mso-position-vertical-relative:margin;mso-left-percent:250;mso-top-percent:125;mso-wrap-mode:square;mso-wrap-edited:t;mso-wrap-distance-left:6pt;visibility:hidden">
+                <v:imagedata o:relid="rIdImage"/>
+              </v:shape>
+            </w:pict></w:r></w:p>
+            """;
+        using var bytes = BuildPackage(body);
+
+        var placement = Assert.Single(
+            Assert.Single(
+                new WordFigureCaptionGraphBuilder().Build(
+                    new OpcPackageReader().Read(bytes)
+                ).Figures
+            ).Representations
+        ).Placement;
+
+        var vml = Assert.IsType<WordVmlPlacementDefinition>(placement.Vml);
+        Assert.Equal("absolute", vml.PositionMode);
+        Assert.Equal(38100, vml.Left?.Emu);
+        Assert.Equal(50800, vml.Top?.Emu);
+        Assert.Equal(914400, vml.MarginLeft?.Emu);
+        Assert.Equal(900000, vml.MarginTop?.Emu);
+        Assert.Equal(914400, vml.Width?.Emu);
+        Assert.Equal(457200, vml.Height?.Emu);
+        Assert.Equal(7, vml.ZIndex);
+        Assert.Equal("center", vml.HorizontalPosition);
+        Assert.Equal("page", vml.HorizontalRelativeFrom);
+        Assert.Equal(250, vml.LeftPercentageTenths);
+        Assert.Equal("square", vml.WrapMode);
+        Assert.True(vml.WrapEdited);
+        Assert.Equal(76200, vml.WrapDistanceLeft?.Emu);
+        Assert.Equal(4, vml.WrapCoordinates.Count);
+        Assert.Equal(new WordVmlPointDefinition(21600, 21600), vml.WrapCoordinates[2]);
+        Assert.Equal("hidden", vml.Visibility);
+        Assert.False(vml.SourceTruncated);
+    }
+
+    [Fact]
+    public void DiagnosesMalformedDeclaredGeometryAndBoundsPolygonSize()
+    {
+        var malformed = AnchoredPictureDrawing()
+            .Replace("<wp:lineTo x=\"21600\" y=\"21600\"/>", "<wp:lineTo x=\"broken\"/>", StringComparison.Ordinal)
+            .Replace("<wp:posOffset>202364</wp:posOffset>", "<wp:posOffset>broken</wp:posOffset>", StringComparison.Ordinal)
+            .Replace("wrapText=\"bothSides\"", "wrapText=\"PRIVATE-TEXT\"", StringComparison.Ordinal);
+        using var malformedBytes = BuildPackage(malformed);
+        var graph = new WordFigureCaptionGraphBuilder().Build(
+            new OpcPackageReader().Read(malformedBytes)
+        );
+        Assert.Contains(graph.Issues, item => item.Code == "FIGURE_WRAP_POLYGON_POINT_INVALID");
+        Assert.Contains(graph.Issues, item => item.Code == "FIGURE_POSITION_OFFSET_INVALID");
+        Assert.Contains(graph.Issues, item => item.Code == "FIGURE_WRAP_TEXT_SIDE_INVALID");
+        Assert.Null(Assert.Single(Assert.Single(graph.Figures).Representations).Placement.Wrap?.TextSide);
+
+        using var boundedBytes = BuildPackage(AnchoredPictureDrawing());
+        var package = new OpcPackageReader().Read(boundedBytes);
+        Assert.Throws<WordFigureLimitException>(() =>
+            new WordFigureCaptionGraphBuilder(
+                new WordFigureCaptionGraphOptions { MaxWrapPolygonPoints = 1 }
+            ).Build(package)
+        );
+    }
+
     [Fact]
     public void ProjectsSourceLinkedPictureCaptionAccessibilityAndResource()
     {
@@ -72,6 +183,14 @@ public sealed class WordFigureCaptionGraphTests
         Assert.Single(dependencies.Edges, edge =>
             edge.Kind == WordDependencyEdgeKind.FigureResourceTargetsPart
             && edge.IsResolved
+        );
+        Assert.DoesNotContain(
+            "drawingml_vml_advanced_layout",
+            dependencies.Coverage.ExplicitlyUnmodeledDomains
+        );
+        Assert.Contains(
+            "drawingml_vml_rendered_geometry_and_layout_execution",
+            dependencies.Coverage.ExplicitlyUnmodeledDomains
         );
     }
 
@@ -576,6 +695,42 @@ public sealed class WordFigureCaptionGraphTests
         string? description,
         bool strict = false
     ) => $"<w:p><w:r>{PictureDrawing(relationshipId, drawingId, title, description, strict)}</w:r></w:p>";
+
+    private static string AnchoredPictureDrawing() => """
+        <w:p><w:r><w:drawing>
+          <wp:anchor xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing"
+            xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+            distT="0" distB="0" distL="114300" distR="114300" simplePos="0"
+            relativeHeight="251658240" behindDoc="0" locked="1" layoutInCell="1" allowOverlap="1">
+            <wp:simplePos x="0" y="0"/>
+            <wp:positionH relativeFrom="margin"><wp:align>center</wp:align></wp:positionH>
+            <wp:positionV relativeFrom="paragraph"><wp:posOffset>202364</wp:posOffset></wp:positionV>
+            <wp:extent cx="914400" cy="457200"/>
+            <wp:effectExtent l="100" t="200" r="300" b="400"/>
+            <wp:wrapTight wrapText="bothSides">
+              <wp:wrapPolygon edited="1">
+                <wp:start x="0" y="0"/>
+                <wp:lineTo x="21600" y="0"/>
+                <wp:lineTo x="21600" y="21600"/>
+              </wp:wrapPolygon>
+            </wp:wrapTight>
+            <wp:docPr id="9" name="Anchored picture" descr="Declared geometry"/>
+            <wp:cNvGraphicFramePr/>
+            <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+              <pic:pic>
+                <pic:nvPicPr><pic:cNvPr id="0" name="image.png"/><pic:cNvPicPr/></pic:nvPicPr>
+                <pic:blipFill><a:blip r:embed="rIdImage"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+                <pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="457200"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>
+              </pic:pic>
+            </a:graphicData></a:graphic>
+            <wp14:sizeRelH relativeFrom="margin"><wp14:pctWidth>50000</wp14:pctWidth></wp14:sizeRelH>
+            <wp14:sizeRelV relativeFrom="margin"><wp14:pctHeight>25000</wp14:pctHeight></wp14:sizeRelV>
+          </wp:anchor>
+        </w:drawing></w:r></w:p>
+        """;
 
     private static string PictureDrawing(
         string relationshipId,

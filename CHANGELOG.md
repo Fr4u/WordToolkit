@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Extended the existing figure representation model instead of adding a duplicate
+  layout graph. DrawingML anchors now type simple position, reference-frame alignment
+  or offset, effect extents, relative size, wrapping side/distances and bounded tight/
+  through polygons. Known VML position, size, z-order, percent, wrapping and visibility
+  declarations and bounded VML `wrapcoords` polygons are normalized, including physical
+  lengths to EMU.
+- Extended lazy `inspect_ooxml_figures` with a declared-placement projection and a
+  separate `include_geometry` opt-in capped at 128 polygon line points per response
+  item. The response states that these values are declarations, never rendered page
+  coordinates, and the package-only path still does not open Word or execute layout.
+- Replaced the broad `drawingml_vml_advanced_layout` dependency-coverage omission with
+  the precise `drawingml_vml_rendered_geometry_and_layout_execution` boundary. Valid
+  Microsoft 365 anchor fixtures, malformed-coordinate diagnostics, polygon safety limits
+  and compact native response gates cover the new contract.
+
 - Added `WordDiagramGraph`, a bounded native SmartArt model for Transitional and Strict
   diagram data, points, connections, layout/style/color relationships and persisted
   drawings. Point text is counted and discarded; unsafe XML, malformed cardinality,

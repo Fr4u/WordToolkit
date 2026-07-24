@@ -109,6 +109,73 @@ public sealed record WordFigurePositionDefinition(
     long? OffsetEmu
 );
 
+public sealed record WordFigurePointDefinition(
+    long? XEmu,
+    long? YEmu
+);
+
+public sealed record WordFigureEffectExtentDefinition(
+    long? LeftEmu,
+    long? TopEmu,
+    long? RightEmu,
+    long? BottomEmu
+);
+
+public sealed record WordFigureWrapDefinition(
+    string Kind,
+    string? TextSide,
+    long? DistanceTopEmu,
+    long? DistanceBottomEmu,
+    long? DistanceLeftEmu,
+    long? DistanceRightEmu,
+    bool? PolygonEdited,
+    WordFigurePointDefinition? PolygonStart,
+    IReadOnlyList<WordFigurePointDefinition> PolygonLinePoints
+);
+
+public sealed record WordFigureRelativeSizeDefinition(
+    string? RelativeFrom,
+    long? PercentageThousandthsOfPercent
+);
+
+public sealed record WordFigureLengthDefinition(
+    string LexicalValue,
+    long? Emu
+);
+
+public sealed record WordVmlPointDefinition(
+    long? X,
+    long? Y
+);
+
+public sealed record WordVmlPlacementDefinition(
+    string? PositionMode,
+    WordFigureLengthDefinition? Left,
+    WordFigureLengthDefinition? Top,
+    WordFigureLengthDefinition? MarginLeft,
+    WordFigureLengthDefinition? MarginTop,
+    WordFigureLengthDefinition? MarginRight,
+    WordFigureLengthDefinition? MarginBottom,
+    WordFigureLengthDefinition? Width,
+    WordFigureLengthDefinition? Height,
+    long? ZIndex,
+    string? HorizontalPosition,
+    string? HorizontalRelativeFrom,
+    string? VerticalPosition,
+    string? VerticalRelativeFrom,
+    int? LeftPercentageTenths,
+    int? TopPercentageTenths,
+    string? WrapMode,
+    bool? WrapEdited,
+    WordFigureLengthDefinition? WrapDistanceTop,
+    WordFigureLengthDefinition? WrapDistanceBottom,
+    WordFigureLengthDefinition? WrapDistanceLeft,
+    WordFigureLengthDefinition? WrapDistanceRight,
+    IReadOnlyList<WordVmlPointDefinition> WrapCoordinates,
+    string? Visibility,
+    bool SourceTruncated
+);
+
 public sealed record WordFigurePlacementDefinition(
     WordFigureRepresentationKind Kind,
     long? WidthEmu,
@@ -121,9 +188,17 @@ public sealed record WordFigurePlacementDefinition(
     bool? BehindDocument,
     bool? LayoutInCell,
     bool? AllowOverlap,
+    bool? UseSimplePosition,
+    bool? Locked,
     string? WrapKind,
+    WordFigureWrapDefinition? Wrap,
+    WordFigurePointDefinition? SimplePosition,
+    WordFigureEffectExtentDefinition? EffectExtent,
     WordFigurePositionDefinition? HorizontalPosition,
     WordFigurePositionDefinition? VerticalPosition,
+    WordFigureRelativeSizeDefinition? RelativeWidthSize,
+    WordFigureRelativeSizeDefinition? RelativeHeightSize,
+    WordVmlPlacementDefinition? Vml,
     string? LegacyStyle
 );
 
@@ -332,6 +407,8 @@ public sealed record WordFigureCaptionGraphOptions
 
     public int MaxCaptionParagraphDistance { get; init; } = 2;
 
+    public int MaxWrapPolygonPoints { get; init; } = 4_096;
+
     internal void Validate()
     {
         if (
@@ -348,6 +425,7 @@ public sealed record WordFigureCaptionGraphOptions
             || MaxAggregateElements <= 0
             || MaxTextCharacters <= 0
             || MaxMetadataCharacters <= 0
+            || MaxWrapPolygonPoints <= 0
             || MaxCaptionParagraphDistance < 0
         )
         {
@@ -369,6 +447,45 @@ public sealed record WordFigureCaptionGraphOptions
 
 public sealed class WordFigureCaptionGraphBuilder
 {
+    private static readonly IReadOnlySet<string> HorizontalPositionReferences =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "character", "column", "insideMargin", "leftMargin", "margin",
+            "outsideMargin", "page", "rightMargin",
+        };
+    private static readonly IReadOnlySet<string> VerticalPositionReferences =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "bottomMargin", "insideMargin", "line", "margin", "outsideMargin",
+            "page", "paragraph", "topMargin",
+        };
+    private static readonly IReadOnlySet<string> HorizontalAlignments =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "center", "inside", "left", "outside", "right",
+        };
+    private static readonly IReadOnlySet<string> VerticalAlignments =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "bottom", "center", "inside", "outside", "top",
+        };
+    private static readonly IReadOnlySet<string> WrapTextSides =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "bothSides", "largest", "left", "right",
+        };
+    private static readonly IReadOnlySet<string> HorizontalRelativeSizeReferences =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "insideMargin", "leftMargin", "margin", "outsideMargin", "page",
+            "rightMargin",
+        };
+    private static readonly IReadOnlySet<string> VerticalRelativeSizeReferences =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "bottomMargin", "insideMargin", "margin", "outsideMargin", "page",
+            "topMargin",
+        };
     private const string TransitionalWordNamespace =
         "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
     private const string StrictWordNamespace =
@@ -401,6 +518,8 @@ public sealed class WordFigureCaptionGraphBuilder
         "http://purl.oclc.org/ooxml/drawingml/diagram";
     private const string Word2010Namespace =
         "http://schemas.microsoft.com/office/word/2010/wordml";
+    private const string WordprocessingDrawing2010Namespace =
+        "http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing";
     private const string WordprocessingShapeNamespace =
         "http://schemas.microsoft.com/office/word/2010/wordprocessingShape";
     private const string DecorativeNamespace =
@@ -852,7 +971,15 @@ public sealed class WordFigureCaptionGraphBuilder
             alternateGroupId,
             branch,
             drawingId,
-            ParsePlacement(kind, placementElement, vmlShape, state, partUri, ordinal),
+            ParsePlacement(
+                kind,
+                placementElement,
+                vmlShape,
+                state,
+                partUri,
+                ordinal,
+                cancellationToken
+            ),
             accessibility,
             resources,
             unmodeled
@@ -1193,9 +1320,11 @@ public sealed class WordFigureCaptionGraphBuilder
         XElement? vmlShape,
         BuildState state,
         string partUri,
-        int ordinal
+        int ordinal,
+        CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var extent = placement?.Elements()
             .FirstOrDefault(item => IsWordprocessingDrawingElement(item, "extent"));
         var width = ParseLong(AttributeByLocal(extent, "cx"));
@@ -1210,11 +1339,28 @@ public sealed class WordFigureCaptionGraphBuilder
                 ordinal
             );
         }
-        var wrap = placement?.Elements().FirstOrDefault(item =>
+        var wrapElements = placement?.Elements().Where(item =>
             IsWordprocessingDrawingElement(item)
             && item.Name.LocalName is "wrapNone" or "wrapSquare" or "wrapThrough"
                 or "wrapTight" or "wrapTopAndBottom"
-        )?.Name.LocalName;
+        ).ToArray() ?? [];
+        if (wrapElements.Length > 1)
+        {
+            state.AddIssue(
+                "FIGURE_WRAP_CARDINALITY_INVALID",
+                WordFigureIssueSeverity.Error,
+                "A floating DrawingML object declares more than one text-wrapping mode.",
+                partUri,
+                ordinal
+            );
+        }
+        var wrap = wrapElements.FirstOrDefault();
+        var legacyStyle = BoundMetadata(
+            AttributeByLocal(vmlShape, "style"),
+            _options.MaxTextCharacters,
+            state,
+            out var legacyStyleTruncated
+        );
         return new WordFigurePlacementDefinition(
             kind,
             width,
@@ -1227,21 +1373,193 @@ public sealed class WordFigureCaptionGraphBuilder
             ParseOnOff(AttributeByLocal(placement, "behindDoc")),
             ParseOnOff(AttributeByLocal(placement, "layoutInCell")),
             ParseOnOff(AttributeByLocal(placement, "allowOverlap")),
-            wrap,
-            ParsePosition(placement, "positionH"),
-            ParsePosition(placement, "positionV"),
-            BoundMetadata(
-                AttributeByLocal(vmlShape, "style"),
-                _options.MaxTextCharacters,
+            ParseOnOff(AttributeByLocal(placement, "simplePos")),
+            ParseOnOff(AttributeByLocal(placement, "locked")),
+            wrap?.Name.LocalName,
+            ParseWrap(wrap, state, partUri, ordinal, cancellationToken),
+            ParsePoint(
+                placement?.Elements().FirstOrDefault(item =>
+                    IsWordprocessingDrawingElement(item, "simplePos")
+                ),
                 state,
-                out _
-            )
+                partUri,
+                ordinal,
+                "FIGURE_SIMPLE_POSITION_INVALID"
+            ),
+            ParseEffectExtent(placement, state, partUri, ordinal),
+            ParsePosition(placement, "positionH", state, partUri, ordinal),
+            ParsePosition(placement, "positionV", state, partUri, ordinal),
+            ParseRelativeSize(placement, "sizeRelH", "pctWidth", state, partUri, ordinal),
+            ParseRelativeSize(placement, "sizeRelV", "pctHeight", state, partUri, ordinal),
+            ParseVmlPlacement(
+                vmlShape,
+                legacyStyle,
+                legacyStyleTruncated,
+                state,
+                partUri,
+                ordinal,
+                cancellationToken
+            ),
+            legacyStyle
         );
+    }
+
+    private WordFigureWrapDefinition? ParseWrap(
+        XElement? wrap,
+        BuildState state,
+        string partUri,
+        int ordinal,
+        CancellationToken cancellationToken
+    )
+    {
+        if (wrap is null)
+        {
+            return null;
+        }
+        var polygons = wrap.Elements()
+            .Where(item => IsWordprocessingDrawingElement(item, "wrapPolygon"))
+            .ToArray();
+        if (polygons.Length > 1)
+        {
+            state.AddIssue(
+                "FIGURE_WRAP_POLYGON_CARDINALITY_INVALID",
+                WordFigureIssueSeverity.Error,
+                "A DrawingML wrap mode declares more than one wrapping polygon.",
+                partUri,
+                ordinal
+            );
+        }
+        var polygon = polygons.FirstOrDefault();
+        var starts = polygon?.Elements()
+            .Where(item => IsWordprocessingDrawingElement(item, "start"))
+            .ToArray() ?? [];
+        var lineElements = polygon?.Elements()
+            .Where(item => IsWordprocessingDrawingElement(item, "lineTo"))
+            .ToArray() ?? [];
+        if (lineElements.Length > _options.MaxWrapPolygonPoints)
+        {
+            throw new WordFigureLimitException(
+                $"A figure wrapping polygon exceeds {_options.MaxWrapPolygonPoints} points."
+            );
+        }
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.FiguresAndCaptions,
+            lineElements.Length,
+            64
+        );
+        if (polygon is not null && starts.Length != 1)
+        {
+            state.AddIssue(
+                "FIGURE_WRAP_POLYGON_START_INVALID",
+                WordFigureIssueSeverity.Error,
+                "A DrawingML wrapping polygon must declare exactly one start point.",
+                partUri,
+                ordinal
+            );
+        }
+        var points = lineElements.Select(item =>
+            ParsePoint(
+                item,
+                state,
+                partUri,
+                ordinal,
+                "FIGURE_WRAP_POLYGON_POINT_INVALID"
+            ) ?? new WordFigurePointDefinition(null, null)
+        ).ToArray();
+        return new WordFigureWrapDefinition(
+            wrap.Name.LocalName,
+            NormalizeDeclaredToken(
+                AttributeByLocal(wrap, "wrapText"),
+                WrapTextSides,
+                state,
+                partUri,
+                ordinal,
+                "FIGURE_WRAP_TEXT_SIDE_INVALID",
+                "DrawingML wrapText contains an unsupported side value."
+            ),
+            ParseLong(AttributeByLocal(wrap, "distT")),
+            ParseLong(AttributeByLocal(wrap, "distB")),
+            ParseLong(AttributeByLocal(wrap, "distL")),
+            ParseLong(AttributeByLocal(wrap, "distR")),
+            ParseOnOff(AttributeByLocal(polygon, "edited")),
+            starts.Length == 0
+                ? null
+                : ParsePoint(
+                    starts[0],
+                    state,
+                    partUri,
+                    ordinal,
+                    "FIGURE_WRAP_POLYGON_POINT_INVALID"
+                ),
+            new ReadOnlyCollection<WordFigurePointDefinition>(points)
+        );
+    }
+
+    private static WordFigurePointDefinition? ParsePoint(
+        XElement? element,
+        BuildState state,
+        string partUri,
+        int ordinal,
+        string issueCode
+    )
+    {
+        if (element is null)
+        {
+            return null;
+        }
+        var x = ParseLong(AttributeByLocal(element, "x"));
+        var y = ParseLong(AttributeByLocal(element, "y"));
+        if (x is null || y is null)
+        {
+            state.AddIssue(
+                issueCode,
+                WordFigureIssueSeverity.Error,
+                "A declared DrawingML point must contain integer x and y coordinates.",
+                partUri,
+                ordinal
+            );
+        }
+        return new WordFigurePointDefinition(x, y);
+    }
+
+    private static WordFigureEffectExtentDefinition? ParseEffectExtent(
+        XElement? placement,
+        BuildState state,
+        string partUri,
+        int ordinal
+    )
+    {
+        var element = placement?.Elements().FirstOrDefault(item =>
+            IsWordprocessingDrawingElement(item, "effectExtent")
+        );
+        if (element is null)
+        {
+            return null;
+        }
+        var left = ParseLong(AttributeByLocal(element, "l"));
+        var top = ParseLong(AttributeByLocal(element, "t"));
+        var right = ParseLong(AttributeByLocal(element, "r"));
+        var bottom = ParseLong(AttributeByLocal(element, "b"));
+        if (left is null || top is null || right is null || bottom is null)
+        {
+            state.AddIssue(
+                "FIGURE_EFFECT_EXTENT_INVALID",
+                WordFigureIssueSeverity.Error,
+                "Drawing effect extents must contain integer l, t, r, and b values.",
+                partUri,
+                ordinal
+            );
+        }
+        return new WordFigureEffectExtentDefinition(left, top, right, bottom);
     }
 
     private static WordFigurePositionDefinition? ParsePosition(
         XElement? placement,
-        string localName
+        string localName,
+        BuildState state,
+        string partUri,
+        int ordinal
     )
     {
         var position = placement?.Elements()
@@ -1250,14 +1568,479 @@ public sealed class WordFigureCaptionGraphBuilder
         {
             return null;
         }
+        var alignments = position.Elements()
+            .Where(item => IsWordprocessingDrawingElement(item, "align"))
+            .ToArray();
+        var offsets = position.Elements()
+            .Where(item => IsWordprocessingDrawingElement(item, "posOffset"))
+            .ToArray();
+        if (alignments.Length + offsets.Length != 1)
+        {
+            state.AddIssue(
+                "FIGURE_POSITION_CHOICE_INVALID",
+                WordFigureIssueSeverity.Error,
+                "A DrawingML position must declare exactly one alignment or numeric offset.",
+                partUri,
+                ordinal
+            );
+        }
+        var offset = offsets.Length == 0 ? null : ParseLong(offsets[0].Value);
+        if (offsets.Length != 0 && offset is null)
+        {
+            state.AddIssue(
+                "FIGURE_POSITION_OFFSET_INVALID",
+                WordFigureIssueSeverity.Error,
+                "A DrawingML position offset must be an integer EMU value.",
+                partUri,
+                ordinal
+            );
+        }
+        var referenceValues = localName == "positionH"
+            ? HorizontalPositionReferences
+            : VerticalPositionReferences;
+        var alignmentValues = localName == "positionH"
+            ? HorizontalAlignments
+            : VerticalAlignments;
         return new WordFigurePositionDefinition(
-            AttributeByLocal(position, "relativeFrom"),
-            position.Elements()
-                .FirstOrDefault(item => IsWordprocessingDrawingElement(item, "align"))?.Value,
-            ParseLong(position.Elements()
-                .FirstOrDefault(item => IsWordprocessingDrawingElement(item, "posOffset"))?.Value)
+            NormalizeDeclaredToken(
+                AttributeByLocal(position, "relativeFrom"),
+                referenceValues,
+                state,
+                partUri,
+                ordinal,
+                "FIGURE_POSITION_REFERENCE_INVALID",
+                "DrawingML position relativeFrom contains an unsupported value."
+            ),
+            NormalizeDeclaredToken(
+                alignments.FirstOrDefault()?.Value.Trim(),
+                alignmentValues,
+                state,
+                partUri,
+                ordinal,
+                "FIGURE_POSITION_ALIGNMENT_INVALID",
+                "DrawingML alignment contains an unsupported value."
+            ),
+            offset
         );
     }
+
+    private static WordFigureRelativeSizeDefinition? ParseRelativeSize(
+        XElement? placement,
+        string localName,
+        string percentageLocalName,
+        BuildState state,
+        string partUri,
+        int ordinal
+    )
+    {
+        var elements = placement?.Elements().Where(item =>
+            item.Name.NamespaceName == WordprocessingDrawing2010Namespace
+            && item.Name.LocalName == localName
+        ).ToArray() ?? [];
+        if (elements.Length == 0)
+        {
+            return null;
+        }
+        if (elements.Length > 1)
+        {
+            state.AddIssue(
+                "FIGURE_RELATIVE_SIZE_CARDINALITY_INVALID",
+                WordFigureIssueSeverity.Error,
+                "A DrawingML anchor declares a relative-size axis more than once.",
+                partUri,
+                ordinal
+            );
+        }
+        var element = elements[0];
+        var percentageElements = element.Elements().Where(item =>
+            item.Name.NamespaceName == WordprocessingDrawing2010Namespace
+            && item.Name.LocalName == percentageLocalName
+        ).ToArray();
+        var percentage = percentageElements.Length == 1
+            ? ParsePositivePercentage(percentageElements[0].Value)
+            : null;
+        if (percentageElements.Length != 1 || percentage is null)
+        {
+            state.AddIssue(
+                "FIGURE_RELATIVE_SIZE_INVALID",
+                WordFigureIssueSeverity.Error,
+                "A DrawingML relative size must contain one non-negative percentage.",
+                partUri,
+                ordinal
+            );
+        }
+        return new WordFigureRelativeSizeDefinition(
+            NormalizeDeclaredToken(
+                AttributeByLocal(element, "relativeFrom"),
+                localName == "sizeRelH"
+                    ? HorizontalRelativeSizeReferences
+                    : VerticalRelativeSizeReferences,
+                state,
+                partUri,
+                ordinal,
+                "FIGURE_RELATIVE_SIZE_REFERENCE_INVALID",
+                "DrawingML relative size contains an unsupported reference frame."
+            ),
+            percentage
+        );
+    }
+
+    private static string? NormalizeDeclaredToken(
+        string? value,
+        IReadOnlySet<string> supported,
+        BuildState state,
+        string partUri,
+        int ordinal,
+        string issueCode,
+        string issueMessage
+    )
+    {
+        if (value is null)
+        {
+            return null;
+        }
+        if (supported.Contains(value))
+        {
+            state.AddMetadata(value.Length);
+            return value;
+        }
+        state.AddIssue(
+            issueCode,
+            WordFigureIssueSeverity.Error,
+            issueMessage,
+            partUri,
+            ordinal
+        );
+        return null;
+    }
+
+    private static long? ParsePositivePercentage(string value)
+    {
+        var candidate = value.Trim();
+        if (candidate.EndsWith('%'))
+        {
+            if (!decimal.TryParse(
+                candidate[..^1],
+                NumberStyles.Number,
+                CultureInfo.InvariantCulture,
+                out var percent
+            ) || percent < 0 || percent > long.MaxValue / 1_000m)
+            {
+                return null;
+            }
+            var scaled = percent * 1_000m;
+            return scaled == decimal.Truncate(scaled)
+                ? decimal.ToInt64(scaled)
+                : null;
+        }
+        return long.TryParse(candidate, NumberStyles.Integer, CultureInfo.InvariantCulture, out var raw)
+            && raw >= 0
+                ? raw
+                : null;
+    }
+
+    private WordVmlPlacementDefinition? ParseVmlPlacement(
+        XElement? vmlShape,
+        string? style,
+        bool sourceTruncated,
+        BuildState state,
+        string partUri,
+        int ordinal,
+        CancellationToken cancellationToken
+    )
+    {
+        var wrapCoordinates = AttributeByLocal(vmlShape, "wrapcoords");
+        if (style is null && wrapCoordinates is null)
+        {
+            return null;
+        }
+        var declarations = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var segment in (style ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var separator = segment.IndexOf(':');
+            if (separator <= 0)
+            {
+                continue;
+            }
+            var name = segment[..separator].Trim();
+            var value = segment[(separator + 1)..].Trim();
+            if (KnownVmlPlacementProperties.Contains(name))
+            {
+                declarations[name] = BoundVmlToken(value, state);
+            }
+        }
+        return new WordVmlPlacementDefinition(
+            NormalizeVmlToken(
+                declarations.GetValueOrDefault("position"),
+                "static", "absolute", "relative"
+            ),
+            ParseVmlLength(declarations.GetValueOrDefault("left")),
+            ParseVmlLength(declarations.GetValueOrDefault("top")),
+            ParseVmlLength(declarations.GetValueOrDefault("margin-left")),
+            ParseVmlLength(declarations.GetValueOrDefault("margin-top")),
+            ParseVmlLength(declarations.GetValueOrDefault("margin-right")),
+            ParseVmlLength(declarations.GetValueOrDefault("margin-bottom")),
+            ParseVmlLength(declarations.GetValueOrDefault("width")),
+            ParseVmlLength(declarations.GetValueOrDefault("height")),
+            ParseLong(declarations.GetValueOrDefault("z-index")),
+            NormalizeVmlToken(
+                declarations.GetValueOrDefault("mso-position-horizontal"),
+                "absolute", "left", "center", "right", "inside", "outside"
+            ),
+            NormalizeVmlToken(
+                declarations.GetValueOrDefault("mso-position-horizontal-relative"),
+                "margin", "page", "text", "char", "left-margin", "right-margin",
+                "inner-margin-area", "outer-margin-area"
+            ),
+            NormalizeVmlToken(
+                declarations.GetValueOrDefault("mso-position-vertical"),
+                "absolute", "center", "bottom", "top", "inside", "outside"
+            ),
+            NormalizeVmlToken(
+                declarations.GetValueOrDefault("mso-position-vertical-relative"),
+                "margin", "page", "text", "line", "top-margin", "bottom-margin",
+                "inner-margin-area", "outer-margin-area"
+            ),
+            ParseInt(declarations.GetValueOrDefault("mso-left-percent")),
+            ParseInt(declarations.GetValueOrDefault("mso-top-percent")),
+            NormalizeVmlToken(
+                declarations.GetValueOrDefault("mso-wrap-mode"),
+                "square", "tight", "through", "top-and-bottom", "none"
+            ),
+            ParseVmlBoolean(declarations.GetValueOrDefault("mso-wrap-edited")),
+            ParseVmlLength(declarations.GetValueOrDefault("mso-wrap-distance-top")),
+            ParseVmlLength(declarations.GetValueOrDefault("mso-wrap-distance-bottom")),
+            ParseVmlLength(declarations.GetValueOrDefault("mso-wrap-distance-left")),
+            ParseVmlLength(declarations.GetValueOrDefault("mso-wrap-distance-right")),
+            ParseVmlWrapCoordinates(
+                wrapCoordinates,
+                state,
+                partUri,
+                ordinal,
+                cancellationToken
+            ),
+            NormalizeVmlToken(
+                declarations.GetValueOrDefault("visibility"),
+                "visible", "hidden", "inherit"
+            ),
+            sourceTruncated
+        );
+    }
+
+    private static string BoundVmlToken(string value, BuildState state)
+    {
+        state.AddMetadata(value.Length);
+        return value.Length <= 128 ? value : value[..128];
+    }
+
+    private static string? NormalizeVmlToken(string? value, params string[] supported)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+        var normalized = value.ToLowerInvariant();
+        return supported.Contains(normalized, StringComparer.Ordinal)
+            ? normalized
+            : null;
+    }
+
+    private static readonly IReadOnlySet<string> KnownVmlPlacementProperties =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "position",
+            "left",
+            "top",
+            "margin-left",
+            "margin-top",
+            "margin-right",
+            "margin-bottom",
+            "width",
+            "height",
+            "z-index",
+            "mso-position-horizontal",
+            "mso-position-horizontal-relative",
+            "mso-position-vertical",
+            "mso-position-vertical-relative",
+            "mso-left-percent",
+            "mso-top-percent",
+            "mso-wrap-mode",
+            "mso-wrap-edited",
+            "mso-wrap-distance-top",
+            "mso-wrap-distance-bottom",
+            "mso-wrap-distance-left",
+            "mso-wrap-distance-right",
+            "visibility",
+        };
+
+    private IReadOnlyList<WordVmlPointDefinition> ParseVmlWrapCoordinates(
+        string? value,
+        BuildState state,
+        string partUri,
+        int ordinal,
+        CancellationToken cancellationToken
+    )
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return Array.Empty<WordVmlPointDefinition>();
+        }
+        var coordinates = new List<long?>();
+        var index = 0;
+        var invalid = false;
+        while (index < value.Length)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            while (index < value.Length && (char.IsWhiteSpace(value[index]) || value[index] == ','))
+            {
+                index++;
+                if ((index & 4095) == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+            }
+            if (index >= value.Length)
+            {
+                break;
+            }
+            var start = index;
+            if (value[index] is '+' or '-')
+            {
+                index++;
+            }
+            var digitStart = index;
+            while (index < value.Length && char.IsDigit(value[index]))
+            {
+                index++;
+                if ((index & 4095) == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+            }
+            if (digitStart == index)
+            {
+                invalid = true;
+                while (index < value.Length && !char.IsWhiteSpace(value[index]) && value[index] != ',')
+                {
+                    index++;
+                    if ((index & 4095) == 0)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+                }
+                coordinates.Add(null);
+            }
+            else
+            {
+                coordinates.Add(ParseLong(value[start..index]));
+            }
+            if ((long)coordinates.Count > (long)_options.MaxWrapPolygonPoints * 2)
+            {
+                throw new WordFigureLimitException(
+                    $"A VML wrapping polygon exceeds {_options.MaxWrapPolygonPoints} points."
+                );
+            }
+        }
+        if ((coordinates.Count & 1) != 0)
+        {
+            invalid = true;
+            coordinates.Add(null);
+        }
+        if (invalid || coordinates.Any(item => item is null))
+        {
+            state.AddIssue(
+                "FIGURE_VML_WRAP_COORDINATES_INVALID",
+                WordFigureIssueSeverity.Error,
+                "VML wrapcoords must contain a bounded list of integer x,y coordinate pairs.",
+                partUri,
+                ordinal
+            );
+        }
+        var points = new WordVmlPointDefinition[coordinates.Count / 2];
+        for (var coordinateIndex = 0; coordinateIndex < coordinates.Count; coordinateIndex += 2)
+        {
+            points[coordinateIndex / 2] = new WordVmlPointDefinition(
+                coordinates[coordinateIndex],
+                coordinates[coordinateIndex + 1]
+            );
+        }
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.FiguresAndCaptions,
+            points.Length,
+            64
+        );
+        cancellationToken.ThrowIfCancellationRequested();
+        return new ReadOnlyCollection<WordVmlPointDefinition>(points);
+    }
+
+    private static bool? ParseVmlBoolean(string? value) => value?.ToLowerInvariant() switch
+    {
+        "1" or "true" or "t" or "on" => true,
+        "0" or "false" or "f" or "off" => false,
+        null => null,
+        _ => null,
+    };
+
+    private static WordFigureLengthDefinition? ParseVmlLength(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+        var lexical = value.Trim();
+        var numberLength = 0;
+        while (
+            numberLength < lexical.Length
+            && (
+                char.IsDigit(lexical[numberLength])
+                || lexical[numberLength] is '+' or '-' or '.'
+            )
+        )
+        {
+            numberLength++;
+        }
+        var numberText = lexical[..numberLength];
+        var unit = lexical[numberLength..].Trim().ToLowerInvariant();
+        long? emu = null;
+        if (
+            decimal.TryParse(
+                numberText,
+                NumberStyles.Number,
+                CultureInfo.InvariantCulture,
+                out var number
+            )
+        )
+        {
+            decimal? factor = unit switch
+            {
+                "pt" => 12_700m,
+                "pc" => 152_400m,
+                "in" => 914_400m,
+                "cm" => 360_000m,
+                "mm" => 36_000m,
+                "px" => 9_525m,
+                _ => null,
+            };
+            if (factor is not null)
+            {
+                var scaled = number * factor.Value;
+                if (scaled >= long.MinValue && scaled <= long.MaxValue)
+                {
+                    emu = decimal.ToInt64(decimal.Round(scaled, 0, MidpointRounding.AwayFromZero));
+                }
+            }
+        }
+        return new WordFigureLengthDefinition(
+            lexical.Length <= 128 ? lexical : lexical[..128],
+            emu
+        );
+    }
+
+    private static int? ParseInt(string? value) =>
+        int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var result)
+            ? result
+            : null;
 
     private static bool IsRepresentationElement(XElement element) =>
         IsWordElement(element)
@@ -1392,8 +2175,12 @@ public sealed class WordFigureCaptionGraphBuilder
     private static bool IsFigureInfrastructureElement(XElement element) =>
         IsWordprocessingDrawingElement(element)
             && element.Name.LocalName is "inline" or "anchor" or "extent" or "docPr"
+                or "cNvGraphicFramePr"
                 or "positionH" or "positionV" or "align" or "posOffset" or "wrapNone"
                 or "wrapSquare" or "wrapThrough" or "wrapTight" or "wrapTopAndBottom"
+                or "simplePos" or "effectExtent" or "wrapPolygon" or "start" or "lineTo"
+        || element.Name.NamespaceName == WordprocessingDrawing2010Namespace
+            && element.Name.LocalName is "sizeRelH" or "sizeRelV" or "pctWidth" or "pctHeight"
         || IsDrawingMainElement(element)
             && element.Name.LocalName is "graphic" or "graphicData";
 

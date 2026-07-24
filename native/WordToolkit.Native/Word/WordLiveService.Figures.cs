@@ -75,6 +75,14 @@ internal sealed partial class WordLiveService
         var includeSource = arguments.Boolean("include_source", false);
         var includeTargets = arguments.Boolean("include_relationship_targets", false);
         var includeIssues = arguments.Boolean("include_issues", false);
+        var includeGeometry = arguments.Boolean("include_geometry", false);
+        if (includeGeometry && (view != "representations" || detail != "declared"))
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "include_geometry requires view=representations and detail=declared"
+            );
+        }
 
         try
         {
@@ -136,6 +144,7 @@ internal sealed partial class WordLiveService
                 includeText,
                 includeSource,
                 includeTargets,
+                includeGeometry,
                 (int)offset,
                 (int)maximum
             );
@@ -179,6 +188,7 @@ internal sealed partial class WordLiveService
                 text_included = includeText,
                 source_included = includeSource,
                 relationship_targets_included = includeTargets,
+                geometry_included = includeGeometry,
                 view,
                 detail,
                 figure_id = figureId,
@@ -272,6 +282,7 @@ internal sealed partial class WordLiveService
             ["include_source"] = JsonValueKind.True,
             ["include_relationship_targets"] = JsonValueKind.True,
             ["include_issues"] = JsonValueKind.True,
+            ["include_geometry"] = JsonValueKind.True,
         };
         foreach (var property in arguments.EnumerateObject())
         {
@@ -381,6 +392,7 @@ internal sealed partial class WordLiveService
         bool includeText,
         bool includeSource,
         bool includeTargets,
+        bool includeGeometry,
         int offset,
         int maximum
     )
@@ -410,7 +422,14 @@ internal sealed partial class WordLiveService
                 break;
             case "representations":
                 items = figures.SelectMany(figure => figure.Representations.Select(item =>
-                    RepresentationItem(figure, item, detail, includeText, includeSource)
+                    RepresentationItem(
+                        figure,
+                        item,
+                        detail,
+                        includeText,
+                        includeSource,
+                        includeGeometry
+                    )
                 ));
                 matchedCount = figures.Sum(item => item.Representations.Count);
                 break;
@@ -505,7 +524,8 @@ internal sealed partial class WordLiveService
         WordFigureRepresentationDefinition representation,
         string detail,
         bool includeText,
-        bool includeSource
+        bool includeSource,
+        bool includeGeometry
     ) => new
     {
         figure_id = figure.Id,
@@ -522,6 +542,9 @@ internal sealed partial class WordLiveService
         wrap_kind = detail == "declared" ? representation.Placement.WrapKind : null,
         behind_document = detail == "declared"
             ? representation.Placement.BehindDocument
+            : null,
+        placement = detail == "declared"
+            ? FigurePlacementItem(representation.Placement, includeGeometry, includeSource)
             : null,
         non_visual_drawing_id = detail == "declared" && includeSource
             ? representation.NonVisualDrawingId
@@ -554,6 +577,137 @@ internal sealed partial class WordLiveService
             ? representation.SourceElementOrdinal
             : (int?)null,
     };
+
+    private static object FigurePlacementItem(
+        WordFigurePlacementDefinition placement,
+        bool includeGeometry,
+        bool includeSource
+    ) => new
+    {
+        kind = ToSnakeCase(placement.Kind.ToString()),
+        width_emu = placement.WidthEmu,
+        height_emu = placement.HeightEmu,
+        distance_top_emu = placement.DistanceTopEmu,
+        distance_bottom_emu = placement.DistanceBottomEmu,
+        distance_left_emu = placement.DistanceLeftEmu,
+        distance_right_emu = placement.DistanceRightEmu,
+        relative_height_order = placement.RelativeHeight,
+        behind_document = placement.BehindDocument,
+        layout_in_cell = placement.LayoutInCell,
+        allow_overlap = placement.AllowOverlap,
+        use_simple_position = placement.UseSimplePosition,
+        locked = placement.Locked,
+        simple_position = PointItem(placement.SimplePosition),
+        effect_extent = placement.EffectExtent is null
+            ? null
+            : new
+            {
+                left_emu = placement.EffectExtent.LeftEmu,
+                top_emu = placement.EffectExtent.TopEmu,
+                right_emu = placement.EffectExtent.RightEmu,
+                bottom_emu = placement.EffectExtent.BottomEmu,
+            },
+        horizontal_position = PositionItem(placement.HorizontalPosition),
+        vertical_position = PositionItem(placement.VerticalPosition),
+        relative_width = RelativeSizeItem(placement.RelativeWidthSize),
+        relative_height = RelativeSizeItem(placement.RelativeHeightSize),
+        wrap = WrapItem(placement.Wrap, includeGeometry),
+        vml = VmlPlacementItem(placement.Vml, includeGeometry, includeSource),
+        declared_only_not_rendered_geometry = true,
+    };
+
+    private static object? PointItem(WordFigurePointDefinition? point) => point is null
+        ? null
+        : new { x_emu = point.XEmu, y_emu = point.YEmu };
+
+    private static object? PositionItem(WordFigurePositionDefinition? position) =>
+        position is null
+            ? null
+            : new
+            {
+                relative_from = position.RelativeFrom,
+                alignment = position.Alignment,
+                offset_emu = position.OffsetEmu,
+            };
+
+    private static object? RelativeSizeItem(WordFigureRelativeSizeDefinition? size) =>
+        size is null
+            ? null
+            : new
+            {
+                relative_from = size.RelativeFrom,
+                percentage_thousandths_of_percent = size.PercentageThousandthsOfPercent,
+            };
+
+    private static object? WrapItem(WordFigureWrapDefinition? wrap, bool includeGeometry) =>
+        wrap is null
+            ? null
+            : new
+            {
+                kind = wrap.Kind,
+                text_side = wrap.TextSide,
+                distance_top_emu = wrap.DistanceTopEmu,
+                distance_bottom_emu = wrap.DistanceBottomEmu,
+                distance_left_emu = wrap.DistanceLeftEmu,
+                distance_right_emu = wrap.DistanceRightEmu,
+                polygon_edited = wrap.PolygonEdited,
+                polygon_line_point_count = wrap.PolygonLinePoints.Count,
+                polygon_start = includeGeometry ? PointItem(wrap.PolygonStart) : null,
+                polygon_line_points = includeGeometry
+                    ? wrap.PolygonLinePoints.Take(128).Select(PointItem).ToArray()
+                    : null,
+                polygon_line_points_truncated = includeGeometry
+                    && wrap.PolygonLinePoints.Count > 128,
+            };
+
+    private static object? VmlPlacementItem(
+        WordVmlPlacementDefinition? vml,
+        bool includeGeometry,
+        bool includeSource
+    ) => vml is null
+        ? null
+        : new
+        {
+            position_mode = vml.PositionMode,
+            left = LengthItem(vml.Left, includeSource),
+            top = LengthItem(vml.Top, includeSource),
+            margin_left = LengthItem(vml.MarginLeft, includeSource),
+            margin_top = LengthItem(vml.MarginTop, includeSource),
+            margin_right = LengthItem(vml.MarginRight, includeSource),
+            margin_bottom = LengthItem(vml.MarginBottom, includeSource),
+            width = LengthItem(vml.Width, includeSource),
+            height = LengthItem(vml.Height, includeSource),
+            z_index = vml.ZIndex,
+            horizontal_position = vml.HorizontalPosition,
+            horizontal_relative_from = vml.HorizontalRelativeFrom,
+            vertical_position = vml.VerticalPosition,
+            vertical_relative_from = vml.VerticalRelativeFrom,
+            left_percentage_tenths = vml.LeftPercentageTenths,
+            top_percentage_tenths = vml.TopPercentageTenths,
+            wrap_mode = vml.WrapMode,
+            wrap_edited = vml.WrapEdited,
+            wrap_distance_top = LengthItem(vml.WrapDistanceTop, includeSource),
+            wrap_distance_bottom = LengthItem(vml.WrapDistanceBottom, includeSource),
+            wrap_distance_left = LengthItem(vml.WrapDistanceLeft, includeSource),
+            wrap_distance_right = LengthItem(vml.WrapDistanceRight, includeSource),
+            wrap_coordinate_count = vml.WrapCoordinates.Count,
+            wrap_coordinates = includeGeometry
+                ? vml.WrapCoordinates.Take(128).Select(item => new { x = item.X, y = item.Y }).ToArray()
+                : null,
+            wrap_coordinates_truncated = includeGeometry && vml.WrapCoordinates.Count > 128,
+            visibility = vml.Visibility,
+            source_truncated = vml.SourceTruncated,
+        };
+
+    private static object? LengthItem(WordFigureLengthDefinition? length, bool includeSource) =>
+        length is null
+            ? null
+            : new
+            {
+                emu = length.Emu,
+                lexical_value = includeSource ? length.LexicalValue : null,
+                source_unit_recognized = length.Emu is not null,
+            };
 
     private static object CaptionItem(
         WordCaptionDefinition caption,
