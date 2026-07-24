@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 using WordToolkit.Engine.Operations;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Semantics;
@@ -292,7 +294,15 @@ internal static class SemanticRenderArtifactPublisher
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                File.Move(temporaryPath, outputPath, overwrite: false);
+                // File.Move(overwrite: false) is not a no-clobber primitive on
+                // every platform: two concurrent Unix callers can both pass
+                // the managed existence check before rename(2), allowing the
+                // later rename to replace the first artifact. A hard-link
+                // publication is an atomic create-new directory operation on
+                // the same filesystem. The temporary file is already closed,
+                // flushed and never written again before its private link is
+                // removed.
+                PublishNoClobberHardLink(temporaryPath, outputPath);
             }
             catch (IOException exception) when (File.Exists(outputPath))
             {
@@ -302,7 +312,21 @@ internal static class SemanticRenderArtifactPublisher
                     innerException: exception
                 );
             }
-            temporaryPath = null;
+            try
+            {
+                File.Delete(temporaryPath);
+                temporaryPath = null;
+            }
+            catch (IOException)
+            {
+                // The public artifact is already complete. The finally block
+                // retries cleanup without turning a successful publication
+                // into an ambiguous operation failure.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Same retry policy as the I/O case above.
+            }
         }
         finally
         {
@@ -336,4 +360,51 @@ internal static class SemanticRenderArtifactPublisher
         }
         throw new IOException("A private temporary output path could not be allocated.");
     }
+
+    private static void PublishNoClobberHardLink(
+        string temporaryPath,
+        string outputPath
+    )
+    {
+        int error;
+        if (OperatingSystem.IsWindows())
+        {
+            if (CreateHardLinkWindows(outputPath, temporaryPath, IntPtr.Zero))
+            {
+                return;
+            }
+            error = Marshal.GetLastWin32Error();
+        }
+        else
+        {
+            if (CreateHardLinkUnix(temporaryPath, outputPath) == 0)
+            {
+                return;
+            }
+            error = Marshal.GetLastWin32Error();
+        }
+        throw new IOException(
+            "Atomic create-new artifact publication failed.",
+            new Win32Exception(error)
+        );
+    }
+
+    [DllImport(
+        "kernel32.dll",
+        EntryPoint = "CreateHardLinkW",
+        CharSet = CharSet.Unicode,
+        SetLastError = true
+    )]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CreateHardLinkWindows(
+        string newFileName,
+        string existingFileName,
+        IntPtr securityAttributes
+    );
+
+    [DllImport("libc", EntryPoint = "link", SetLastError = true)]
+    private static extern int CreateHardLinkUnix(
+        string existingPath,
+        string newPath
+    );
 }

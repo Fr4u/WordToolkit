@@ -19,15 +19,20 @@
   CLI/MCP/direct parity. The full checkpoint passes 531 Engine, 399 Native and 1309 Python
   tests with 16 intentional skips; Ruff, mypy over 29 maintained modules and .NET format
   verification are clean.
-- Pinned SDK 8.0.423 produced two byte-identical 196-file, 87,202,753-byte trees and two
-  byte-identical 36,776,286-byte ZIPs at SHA-256
-  `7fd729e17287e04f2ce649a52f5bada0e2b821351bb093ebf49038500347f857`.
+- Hosted Linux then exposed an older cross-platform create-new race in the shared semantic
+  renderer: two writers could both pass `File.Move(overwrite:false)` and report success.
+  Publication now atomically creates a same-filesystem hard link from the closed, flushed
+  temporary artifact, so exactly one writer can create the public directory entry. The
+  existing race regression passes 20 repeated local runs before the full suite.
+- Pinned SDK 8.0.423 produced two byte-identical 196-file, 87,203,265-byte trees and two
+  byte-identical 36,776,448-byte ZIPs at SHA-256
+  `58e65922b03e6c81240cfe128827b8d74f66646b1781bcb247e7716cb151b4ef`.
   Executable, runtime, Engine and Open XML SDK adapter SHA-256 values are
-  `6c4bb6a01015e923c1c3cb8878437b3d00767fb006afb66f74c7d82d81080649`,
-  `68c39bfe75f0e32332fcdf9d20e41204fd8117ed326ea247be872b1f4fefa510`,
-  `65c4b76c1b85140184db9cc3f6e3cfe704c48043dfed8feadfc08c024c9bf99a` and
-  `fff1e65df1b678b508e22724e0a5d4271805f9301bf85cb562037911dda44fd9`.
-  Build output, personal source and enabled `0.39.0+codex.20260724181412` cache have zero
+  `384053b7da94b71c372797ae134f1e60132d54ce0dc60523df57f83fc9c79196`,
+  `f7c2627bcfbd8865f0d9107af327f7e488802ffef9e7cafdfb7a4fdbbf9876c6`,
+  `120bcf4d1c54087c0e34c611b0ccba84f7b5f82fe6ce025652bca8591a216e8b` and
+  `b9a1d1fd63982c6da20460c99e4266ed0a970ec85d07be02b14a3a5f513b5035`.
+  Build output, personal source and enabled `0.39.0+codex.20260724184043` cache have zero
   path/length/hash differences. Installed discovery reports 110 actions, 15 exposed MCP
   tools and 23 explicit contracts; its real-DOCX round trip has semantic parity, zero
   package errors and zero orphan parts.

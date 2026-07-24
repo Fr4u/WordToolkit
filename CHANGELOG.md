@@ -21,10 +21,16 @@
   inside the part. The full checkpoint passes 531 Engine, 399 Native and 1309 Python
   tests with 16 intentional skips; Ruff, maintained-source mypy and all changed .NET
   projects are clean.
-- Packaged and enabled `0.39.0+codex.20260724181412`. Two pinned-SDK builds, the personal
-  marketplace source and enabled cache are identical at 196 files and 87,202,753 bytes.
-  Both 36,776,286-byte ZIPs are byte-identical at SHA-256
-  `7fd729e17287e04f2ce649a52f5bada0e2b821351bb093ebf49038500347f857`.
+- Replaced renderer publication through `File.Move(overwrite:false)` after hosted Linux
+  proved that two concurrent create-new writers could both succeed and the later Unix
+  rename could replace the first artifact. `SemanticRenderArtifactPublisher` now creates
+  the public name as an atomic same-filesystem hard link to the closed, flushed temporary
+  file, so a pre-existing or concurrently won destination fails without clobbering. The
+  race regression passes 20 repeated local runs and the full suites.
+- Packaged and enabled `0.39.0+codex.20260724184043`. Two pinned-SDK builds, the personal
+  marketplace source and enabled cache are identical at 196 files and 87,203,265 bytes.
+  Both 36,776,448-byte ZIPs are byte-identical at SHA-256
+  `58e65922b03e6c81240cfe128827b8d74f66646b1781bcb247e7716cb151b4ef`.
   Installed discovery reports 110 actions, 15 exposed MCP tools and 23 explicit
   contracts; the installed runtime exported and re-imported the bundled advanced DOCX
   with semantic parity, zero package errors and zero orphan parts.
