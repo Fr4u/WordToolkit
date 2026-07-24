@@ -481,6 +481,17 @@ For a portable saved-package patch, use this strict lazy workflow:
    ID. Set only the individual risk authorizations the user accepted and keep the
    recovery backup by default.
 
+To roll back that applied artifact, do not copy the backup over the document and do not
+craft a reverse patch. Call `plan_ooxml_patch_rollback` with the exact current package
+fingerprint and the original `patch_id`. Review its derived `reverse_patch_id`, distinct
+destination-bound `rollback_plan_id`, semantic/risk/schema evidence, hard blocks and
+required authorizations. Then call `apply_ooxml_patch_rollback` with the same current
+fingerprint, original patch ID and exact rollback-plan ID. Set only accepted individual
+authorizations and keep the default backup: it contains the pre-rollback state and is
+redo evidence. A stale result package, changed artifact, different destination path,
+validation truncation or result-type mismatch fails closed. Neither action opens Word
+or returns raw payloads/XML.
+
 Use `inspect_ooxml_patch` when only artifact integrity or a bounded operation page is
 needed. It never returns payload bytes or raw XML. A `.wtpatch` is exact for OPC entry
 names and uncompressed before/after payloads, not for ZIP compression metadata or record

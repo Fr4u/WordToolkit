@@ -1,5 +1,34 @@
 # Stage results
 
+## Public destination-bound saved-package rollback — 2026-07-24
+
+- Added `plan_ooxml_patch_rollback` and `apply_ooxml_patch_rollback`. The caller supplies
+  the exact current package fingerprint and original artifact `patch_id`; the runtime
+  verifies that the package is still the original result, derives `Reverse()` internally
+  and returns a distinct destination-bound `wtrollback_` plan ID.
+- Apply rebuilds the complete reverse candidate, requires the same fingerprint, source
+  patch ID and rollback-plan ID, re-runs semantic/risk/package-type/Open XML validation,
+  enforces separate signature, active-content, external-relationship, opaque-binary and
+  new-error authorizations, then uses the existing atomic writer. The default backup
+  contains the pre-rollback state and can support an explicit redo decision.
+- The response exposes filenames, IDs, fingerprints, counts and bounded evidence only;
+  no patch payload, raw XML or Word process crosses the action boundary. Exact no-op
+  rollback performs no write and creates no backup.
+- Eleven focused service regressions now cover forward patch behavior plus exact rollback,
+  backup contents, stale result state, plan/path binding, macro authorization, no-op
+  behavior, privacy and closed versioned contracts. The full checkpoint passes 504
+  Engine tests, 394 Native tests and 1309 Python tests with 16 intentional skips; both
+  changed .NET projects pass `dotnet format --verify-no-changes`, and both new output
+  schemas pass Draft 2020-12 meta-validation.
+- Installed runtime `0.39.0+codex.20260724161042` is enabled and reports 109 actions, 15
+  exposed tools and 22 explicit metadata contracts. Build output, personal marketplace
+  source and enabled cache each contain the same 196 files and 87,093,417 bytes with zero
+  path/length/hash differences. A second same-checkout output tree also has zero
+  differences and its 36,739,798-byte ZIP is byte-identical at SHA-256
+  `77b8216c597e2462aafbffdaf0f60110841b171385ba35c0b505cdd4fc298609`.
+  This proves reproducibility within the pinned host/toolchain and checkout; a second
+  clean checkout remains a separate release gate.
+
 ## Independent recovery with semantic rollback proof — 2026-07-24
 
 - Failed `apply_live_word_operations` publication no longer ends with Word's Undo as the

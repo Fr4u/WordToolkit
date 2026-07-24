@@ -10,6 +10,38 @@ namespace WordToolkit.Native.Tests;
 public sealed class PackagePatchServiceTests
 {
     [Fact]
+    public void RollbackActionsPublishExplicitClosedContracts()
+    {
+        var catalog = ToolCatalog.LoadNativeWordTools();
+        var plan = catalog.InspectAction("plan_ooxml_patch_rollback")["tool"]!.AsObject();
+        var apply = catalog.InspectAction("apply_ooxml_patch_rollback")["tool"]!.AsObject();
+
+        Assert.Equal("1.0", plan["operationVersion"]!.GetValue<string>());
+        Assert.Equal("1.0", apply["operationVersion"]!.GetValue<string>());
+        Assert.False(plan["inputSchema"]!["additionalProperties"]!.GetValue<bool>());
+        Assert.False(apply["inputSchema"]!["additionalProperties"]!.GetValue<bool>());
+        Assert.False(plan["outputSchema"]!["additionalProperties"]!.GetValue<bool>());
+        Assert.False(apply["outputSchema"]!["additionalProperties"]!.GetValue<bool>());
+        Assert.Equal(
+            "^wtrollback_[A-Za-z0-9_-]+$",
+            apply["inputSchema"]!["properties"]!["expected_rollback_plan_id"]!["pattern"]!.GetValue<string>()
+        );
+        Assert.Equal(
+            "wordtoolkit.plan_ooxml_patch_rollback/1.0",
+            plan["outputSchema"]!["properties"]!["data"]!["properties"]!["operation_contract"]!["const"]!.GetValue<string>()
+        );
+        Assert.Equal(
+            "wordtoolkit.apply_ooxml_patch_rollback/1.0",
+            apply["outputSchema"]!["properties"]!["data"]!["properties"]!["operation_contract"]!["const"]!.GetValue<string>()
+        );
+        Assert.False(plan["reversibility"]!["applicable"]!.GetValue<bool>());
+        Assert.Equal(
+            "reverse_patch_with_destination_bound_plan_and_atomic_redo_backup",
+            apply["reversibility"]!["mechanism"]!.GetValue<string>()
+        );
+    }
+
+    [Fact]
     public async Task PlanIsCompactSemanticRiskAwareAndNeverOpensWord()
     {
         var files = CreatePatchFiles("before text", "after text");
@@ -379,6 +411,271 @@ public sealed class PackagePatchServiceTests
         }
     }
 
+    [Fact]
+    public async Task AppliedPatchCanBeRolledBackExactlyWithRecoveryBackup()
+    {
+        var files = CreatePatchFiles("before text", "after text");
+        try
+        {
+            var service = Service();
+            var plan = await Plan(service, files);
+            var artifact = files.NewArtifactPath("rollback");
+            using var created = await CreateArtifact(service, files, plan, artifact);
+            await ApplyForward(service, files.BeforePath, artifact, plan);
+
+            var rollbackPlan = await PlanRollback(
+                service,
+                files.BeforePath,
+                artifact,
+                plan
+            );
+            Assert.StartsWith("wtrollback_", rollbackPlan.RollbackPlanId);
+            Assert.StartsWith("wtpatch_", rollbackPlan.ReversePatchId);
+            Assert.NotEqual(plan.PatchId, rollbackPlan.ReversePatchId);
+            Assert.True(rollbackPlan.CanRollback);
+            Assert.Empty(rollbackPlan.HardBlockCodes);
+            Assert.True(rollbackPlan.SerializedLength < 5_000);
+            Assert.False(rollbackPlan.ContainsFixtureText);
+
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = files.BeforePath,
+                patch_path = artifact,
+                expected_package_fingerprint = plan.AfterFingerprint,
+                expected_patch_id = plan.PatchId,
+                expected_rollback_plan_id = rollbackPlan.RollbackPlanId,
+                keep_backup = true,
+            }));
+            var result = await service.CallAsync(
+                "apply_ooxml_patch_rollback",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            using var json = ToJson(result);
+            var root = json.RootElement;
+            var backupPath = root.GetProperty("backup_path").GetString();
+
+            Assert.True(root.GetProperty("rolled_back").GetBoolean());
+            Assert.Equal(plan.PatchId, root.GetProperty("source_patch_id").GetString());
+            Assert.Equal(
+                plan.BeforeFingerprint,
+                root.GetProperty("package_fingerprint").GetString()
+            );
+            Assert.NotNull(backupPath);
+            Assert.True(File.Exists(backupPath));
+            Assert.Equal(
+                plan.BeforeFingerprint,
+                new OpcPackageReader().Read(files.BeforePath).Fingerprint
+            );
+            Assert.Equal(
+                plan.AfterFingerprint,
+                new OpcPackageReader().Read(backupPath!).Fingerprint
+            );
+            Assert.False(root.GetProperty("word_opened").GetBoolean());
+            Assert.DoesNotContain("before text", root.GetRawText(), StringComparison.Ordinal);
+            Assert.DoesNotContain("after text", root.GetRawText(), StringComparison.Ordinal);
+            files.Track(backupPath!);
+        }
+        finally
+        {
+            files.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task RollbackRejectsStalePackageAndPlanFromAnotherDestination()
+    {
+        var files = CreatePatchFiles("before text", "after text");
+        try
+        {
+            var service = Service();
+            var plan = await Plan(service, files);
+            var artifact = files.NewArtifactPath("rollback-bound");
+            using var created = await CreateArtifact(service, files, plan, artifact);
+            await ApplyForward(service, files.BeforePath, artifact, plan);
+
+            using var staleArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = files.BeforePath,
+                patch_path = artifact,
+                expected_package_fingerprint = plan.BeforeFingerprint,
+                expected_patch_id = plan.PatchId,
+            }));
+            var stale = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "plan_ooxml_patch_rollback",
+                    staleArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("VERSION_CONFLICT", stale.ErrorCode);
+
+            var reviewed = await PlanRollback(
+                service,
+                files.BeforePath,
+                artifact,
+                plan
+            );
+            var otherPath = files.Stem + "-rollback-other.docx";
+            File.Copy(files.BeforePath, otherPath);
+            files.Track(otherPath);
+            using var wrongPathArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = otherPath,
+                patch_path = artifact,
+                expected_package_fingerprint = plan.AfterFingerprint,
+                expected_patch_id = plan.PatchId,
+                expected_rollback_plan_id = reviewed.RollbackPlanId,
+            }));
+            var mismatch = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "apply_ooxml_patch_rollback",
+                    wrongPathArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+
+            Assert.Equal("PLAN_MISMATCH", mismatch.ErrorCode);
+            Assert.Equal(
+                plan.AfterFingerprint,
+                new OpcPackageReader().Read(otherPath).Fingerprint
+            );
+        }
+        finally
+        {
+            files.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task MacroRollbackRequiresItsSpecificAuthorization()
+    {
+        var files = CreatePatchFiles(
+            "same",
+            "same",
+            beforeMacro: [1, 2, 3],
+            afterMacro: [1, 2, 4]
+        );
+        try
+        {
+            var service = Service();
+            var plan = await Plan(service, files);
+            var artifact = files.NewArtifactPath("macro-rollback");
+            using var created = await CreateArtifact(service, files, plan, artifact);
+            await ApplyForward(
+                service,
+                files.BeforePath,
+                artifact,
+                plan,
+                allowActiveContentChanges: true
+            );
+            var rollbackPlan = await PlanRollback(
+                service,
+                files.BeforePath,
+                artifact,
+                plan
+            );
+
+            Assert.False(rollbackPlan.CanRollback);
+            Assert.Contains(
+                "allow_active_content_changes",
+                rollbackPlan.RequiredAuthorizations
+            );
+            using var blockedArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = files.BeforePath,
+                patch_path = artifact,
+                expected_package_fingerprint = plan.AfterFingerprint,
+                expected_patch_id = plan.PatchId,
+                expected_rollback_plan_id = rollbackPlan.RollbackPlanId,
+            }));
+            var blocked = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "apply_ooxml_patch_rollback",
+                    blockedArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("PATCH_POLICY_BLOCKED", blocked.ErrorCode);
+
+            using var allowedArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = files.BeforePath,
+                patch_path = artifact,
+                expected_package_fingerprint = plan.AfterFingerprint,
+                expected_patch_id = plan.PatchId,
+                expected_rollback_plan_id = rollbackPlan.RollbackPlanId,
+                allow_active_content_changes = true,
+                keep_backup = false,
+            }));
+            var rolledBack = await service.CallAsync(
+                "apply_ooxml_patch_rollback",
+                allowedArguments.RootElement,
+                CancellationToken.None
+            );
+            using var rollbackJson = ToJson(rolledBack);
+            Assert.True(
+                rollbackJson.RootElement.GetProperty("rolled_back").GetBoolean()
+            );
+            Assert.Equal(
+                plan.BeforeFingerprint,
+                new OpcPackageReader().Read(files.BeforePath).Fingerprint
+            );
+        }
+        finally
+        {
+            files.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task NoOpRollbackDoesNotMutateOrCreateBackup()
+    {
+        var files = CreatePatchFiles("same text", "same text");
+        try
+        {
+            var service = Service();
+            var plan = await Plan(service, files);
+            var artifact = files.NewArtifactPath("noop-rollback");
+            using var created = await CreateArtifact(service, files, plan, artifact);
+            var rollbackPlan = await PlanRollback(
+                service,
+                files.BeforePath,
+                artifact,
+                plan
+            );
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = files.BeforePath,
+                patch_path = artifact,
+                expected_package_fingerprint = plan.AfterFingerprint,
+                expected_patch_id = plan.PatchId,
+                expected_rollback_plan_id = rollbackPlan.RollbackPlanId,
+                keep_backup = true,
+            }));
+            var result = await service.CallAsync(
+                "apply_ooxml_patch_rollback",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            using var json = ToJson(result);
+            var root = json.RootElement;
+
+            Assert.False(root.GetProperty("rolled_back").GetBoolean());
+            Assert.True(root.GetProperty("no_op").GetBoolean());
+            Assert.False(root.GetProperty("mutation_performed").GetBoolean());
+            Assert.Equal(JsonValueKind.Null, root.GetProperty("backup_path").ValueKind);
+            Assert.Equal(
+                plan.BeforeFingerprint,
+                new OpcPackageReader().Read(files.BeforePath).Fingerprint
+            );
+        }
+        finally
+        {
+            files.Dispose();
+        }
+    }
+
     private static WordLiveService Service() => new(new NoInvokeHost());
 
     private static async Task<PatchPlanResult> Plan(
@@ -465,6 +762,72 @@ public sealed class PackagePatchServiceTests
                 .EnumerateArray()
                 .Select(item => item.GetString()!)
                 .ToArray()
+        );
+    }
+
+    private static async Task ApplyForward(
+        WordLiveService service,
+        string packagePath,
+        string artifactPath,
+        PatchPlanResult plan,
+        bool allowActiveContentChanges = false
+    )
+    {
+        var applyPlan = await PlanApply(service, packagePath, artifactPath, plan);
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            local_path = packagePath,
+            patch_path = artifactPath,
+            expected_package_fingerprint = plan.BeforeFingerprint,
+            expected_patch_id = plan.PatchId,
+            expected_apply_plan_id = applyPlan.ApplyPlanId,
+            allow_active_content_changes = allowActiveContentChanges,
+            keep_backup = false,
+        }));
+        _ = await service.CallAsync(
+            "apply_ooxml_patch",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+    }
+
+    private static async Task<PatchRollbackPlanResult> PlanRollback(
+        WordLiveService service,
+        string packagePath,
+        string artifactPath,
+        PatchPlanResult plan
+    )
+    {
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            local_path = packagePath,
+            patch_path = artifactPath,
+            expected_package_fingerprint = plan.AfterFingerprint,
+            expected_patch_id = plan.PatchId,
+        }));
+        var result = await service.CallAsync(
+            "plan_ooxml_patch_rollback",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var json = ToJson(result);
+        var root = json.RootElement;
+        var serialized = root.GetRawText();
+        return new PatchRollbackPlanResult(
+            root.GetProperty("rollback_plan_id").GetString()!,
+            root.GetProperty("reverse_patch_id").GetString()!,
+            root.GetProperty("default_policy").GetProperty("can_rollback").GetBoolean(),
+            root.GetProperty("required_authorizations")
+                .EnumerateArray()
+                .Select(item => item.GetString()!)
+                .ToArray(),
+            root.GetProperty("hard_block_codes")
+                .EnumerateArray()
+                .Select(item => item.GetString()!)
+                .ToArray(),
+            serialized.Length,
+            serialized.Contains("before text", StringComparison.Ordinal)
+                || serialized.Contains("after text", StringComparison.Ordinal)
         );
     }
 
@@ -565,6 +928,16 @@ public sealed class PackagePatchServiceTests
         bool CanApply,
         IReadOnlyList<string> RequiredAuthorizations,
         IReadOnlyList<string> HardBlockCodes
+    );
+
+    private sealed record PatchRollbackPlanResult(
+        string RollbackPlanId,
+        string ReversePatchId,
+        bool CanRollback,
+        IReadOnlyList<string> RequiredAuthorizations,
+        IReadOnlyList<string> HardBlockCodes,
+        int SerializedLength,
+        bool ContainsFixtureText
     );
 
     private sealed class PatchFiles : IDisposable

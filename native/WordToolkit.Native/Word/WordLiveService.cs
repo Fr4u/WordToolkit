@@ -162,6 +162,14 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "plan_ooxml_patch_rollback" => PlanPackagePatchRollbackAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_patch_rollback" => ApplyPackagePatchRollbackAsync(
+                arguments,
+                cancellationToken
+            ),
             "plan_ooxml_merge" => PlanPackageMergeAsync(
                 arguments,
                 cancellationToken

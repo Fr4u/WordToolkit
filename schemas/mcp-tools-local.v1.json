@@ -22,6 +22,8 @@
       "inspect_ooxml_patch",
       "plan_ooxml_patch_apply",
       "apply_ooxml_patch",
+      "plan_ooxml_patch_rollback",
+      "apply_ooxml_patch_rollback",
       "plan_ooxml_merge",
       "apply_ooxml_merge",
       "inspect_ooxml_sections",
@@ -5196,6 +5198,368 @@
           "expected_patch_id",
           "expected_apply_plan_id"
         ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "plan_ooxml_patch_rollback",
+      "title": "Plan safe rollback of an applied Word package patch",
+      "description": "Read an original .wtpatch artifact, derive its exact reverse patch, require the current saved package to match the original result fingerprint, recompute semantic, risk, package-type, and Open XML validation evidence, and return a deterministic destination-bound rollback-plan ID. The operation writes nothing and never opens Word.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_input_package_and_patch_artifact",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "maxLength": 32767,
+            "description": "Existing DOCX, DOCM, DOTX, or DOTM currently in the original patch result state."
+          },
+          "patch_path": {
+            "type": "string",
+            "maxLength": 32767,
+            "pattern": "\\.[Ww][Tt][Pp][Aa][Tt][Cc][Hh]$"
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$",
+            "description": "Exact current package fingerprint; for an unchanged applied patch this is the original result fingerprint."
+          },
+          "expected_patch_id": {
+            "type": "string",
+            "pattern": "^wtpatch_[A-Za-z0-9_-]+$",
+            "maxLength": 96,
+            "description": "Patch ID of the original forward artifact, not a caller-crafted reverse patch."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "operations", "risks", "schema_errors"],
+            "default": "summary"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 50
+          },
+          "include_hashes": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "local_path",
+          "patch_path",
+          "expected_package_fingerprint",
+          "expected_patch_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "$defs": {
+          "fingerprint": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "authorization": {
+            "enum": [
+              "allow_digital_signature_invalidation",
+              "allow_active_content_changes",
+              "allow_external_relationship_changes",
+              "allow_opaque_binary_changes",
+              "allow_new_structural_errors"
+            ]
+          },
+          "change_counts": {
+            "type": "object",
+            "required": ["added", "removed", "moved", "text_changed", "properties_changed", "structure_changed", "unmodeled_markup_changed"],
+            "properties": {
+              "added": {"type": "integer", "minimum": 0},
+              "removed": {"type": "integer", "minimum": 0},
+              "moved": {"type": "integer", "minimum": 0},
+              "text_changed": {"type": "integer", "minimum": 0},
+              "properties_changed": {"type": "integer", "minimum": 0},
+              "structure_changed": {"type": "integer", "minimum": 0},
+              "unmodeled_markup_changed": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": false
+          },
+          "semantic": {
+            "type": "object",
+            "required": ["diff_id", "package_equivalent", "semantically_equivalent", "matching_complete", "package_entry_difference_count", "semantic_difference_count", "unclassified_projected_entry_count", "change_counts"],
+            "properties": {
+              "diff_id": {"type": "string", "pattern": "^wddiff_[A-Za-z0-9_-]+$"},
+              "package_equivalent": {"type": "boolean"},
+              "semantically_equivalent": {"type": "boolean"},
+              "matching_complete": {"type": "boolean"},
+              "package_entry_difference_count": {"type": "integer", "minimum": 0},
+              "semantic_difference_count": {"type": "integer", "minimum": 0},
+              "unclassified_projected_entry_count": {"type": "integer", "minimum": 0},
+              "change_counts": {"$ref": "#/$defs/change_counts"}
+            },
+            "additionalProperties": false
+          },
+          "risk": {
+            "type": "object",
+            "required": ["item_count", "block_item_count", "review_item_count", "digital_signatures_present", "digital_signature_material_changed", "macro_operation_count", "embedded_object_operation_count", "activex_operation_count", "external_relationship_added_count", "external_relationship_removed_count", "opaque_binary_operation_count", "custom_xml_operation_count", "infrastructure_operation_count", "baseline_structural_error_count", "candidate_structural_error_count", "new_structural_error_count"],
+            "properties": {
+              "item_count": {"type": "integer", "minimum": 0},
+              "block_item_count": {"type": "integer", "minimum": 0},
+              "review_item_count": {"type": "integer", "minimum": 0},
+              "digital_signatures_present": {"type": "boolean"},
+              "digital_signature_material_changed": {"type": "boolean"},
+              "macro_operation_count": {"type": "integer", "minimum": 0},
+              "embedded_object_operation_count": {"type": "integer", "minimum": 0},
+              "activex_operation_count": {"type": "integer", "minimum": 0},
+              "external_relationship_added_count": {"type": "integer", "minimum": 0},
+              "external_relationship_removed_count": {"type": "integer", "minimum": 0},
+              "opaque_binary_operation_count": {"type": "integer", "minimum": 0},
+              "custom_xml_operation_count": {"type": "integer", "minimum": 0},
+              "infrastructure_operation_count": {"type": "integer", "minimum": 0},
+              "baseline_structural_error_count": {"type": "integer", "minimum": 0},
+              "candidate_structural_error_count": {"type": "integer", "minimum": 0},
+              "new_structural_error_count": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": false
+          },
+          "validation": {
+            "type": "object",
+            "required": ["performed", "candidate_valid", "no_new_errors", "new_error_count", "baseline_error_count", "candidate_error_count", "errors_truncated"],
+            "properties": {
+              "performed": {"type": "boolean"},
+              "candidate_valid": {"type": "boolean"},
+              "no_new_errors": {"type": "boolean"},
+              "new_error_count": {"type": "integer", "minimum": 0},
+              "baseline_error_count": {"type": "integer", "minimum": 0},
+              "candidate_error_count": {"type": "integer", "minimum": 0},
+              "errors_truncated": {"type": "boolean"},
+              "not_performed_reason": {"type": ["string", "null"], "maxLength": 128}
+            },
+            "additionalProperties": false
+          },
+          "policy": {
+            "type": "object",
+            "required": ["can_rollback", "block_codes"],
+            "properties": {
+              "can_rollback": {"type": "boolean"},
+              "block_codes": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}}
+            },
+            "additionalProperties": false
+          },
+          "performance": {
+            "type": "object",
+            "required": ["total_ms"],
+            "properties": {
+              "total_ms": {"type": "number", "minimum": 0}
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "patch_file_name", "source_patch_id", "reverse_patch_id", "rollback_plan_id", "current_package_fingerprint", "restored_package_fingerprint", "operation_count", "no_op", "semantic", "risk", "openxml_schema_validation", "default_policy", "hard_block_codes", "required_authorizations", "view", "filtered_item_count", "offset", "returned_item_count", "items", "hashes_included", "raw_payloads_returned", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.plan_ooxml_patch_rollback/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "patch_file_name": {"type": "string", "maxLength": 512},
+              "source_patch_id": {"type": "string", "pattern": "^wtpatch_[A-Za-z0-9_-]+$"},
+              "reverse_patch_id": {"type": "string", "pattern": "^wtpatch_[A-Za-z0-9_-]+$"},
+              "rollback_plan_id": {"type": "string", "pattern": "^wtrollback_[A-Za-z0-9_-]+$"},
+              "current_package_fingerprint": {"$ref": "#/$defs/fingerprint"},
+              "restored_package_fingerprint": {"$ref": "#/$defs/fingerprint"},
+              "operation_count": {"type": "integer", "minimum": 0},
+              "no_op": {"type": "boolean"},
+              "semantic": {"$ref": "#/$defs/semantic"},
+              "risk": {"$ref": "#/$defs/risk"},
+              "openxml_schema_validation": {"$ref": "#/$defs/validation"},
+              "default_policy": {"$ref": "#/$defs/policy"},
+              "hard_block_codes": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
+              "required_authorizations": {"type": "array", "maxItems": 5, "uniqueItems": true, "items": {"$ref": "#/$defs/authorization"}},
+              "view": {"enum": ["summary", "operations", "risks", "schema_errors"]},
+              "filtered_item_count": {"type": "integer", "minimum": 0},
+              "offset": {"type": "integer", "minimum": 0},
+              "returned_item_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "next_offset": {"type": ["integer", "null"], "minimum": 0},
+              "items": {"type": "array", "maxItems": 200, "items": {"type": "object", "maxProperties": 12}},
+              "hashes_included": {"type": "boolean"},
+              "raw_payloads_returned": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"const": false},
+              "word_opened": {"const": false},
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {"$ref": "#/$defs/performance"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "apply_ooxml_patch_rollback",
+      "title": "Atomically roll back an applied Word package patch",
+      "description": "Rebuild the exact reverse of an original .wtpatch artifact and atomically restore the saved Word package after verifying its current fingerprint, source patch ID, destination-bound rollback-plan ID, risk authorizations, result type, and Open XML validation. Keeps a redo-capable recovery backup by default, returns no payloads or XML, and never opens Word.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_patch_and_read_write_input_package_with_optional_backup",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": true,
+        "mechanism": "reverse_patch_with_destination_bound_plan_and_atomic_redo_backup",
+        "default": "keep_backup"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "maxLength": 32767
+          },
+          "patch_path": {
+            "type": "string",
+            "maxLength": 32767,
+            "pattern": "\\.[Ww][Tt][Pp][Aa][Tt][Cc][Hh]$"
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "expected_patch_id": {
+            "type": "string",
+            "pattern": "^wtpatch_[A-Za-z0-9_-]+$",
+            "maxLength": 96
+          },
+          "expected_rollback_plan_id": {
+            "type": "string",
+            "pattern": "^wtrollback_[A-Za-z0-9_-]+$",
+            "maxLength": 96
+          },
+          "allow_digital_signature_invalidation": {
+            "type": "boolean",
+            "default": false
+          },
+          "allow_active_content_changes": {
+            "type": "boolean",
+            "default": false
+          },
+          "allow_external_relationship_changes": {
+            "type": "boolean",
+            "default": false
+          },
+          "allow_opaque_binary_changes": {
+            "type": "boolean",
+            "default": false
+          },
+          "allow_new_structural_errors": {
+            "type": "boolean",
+            "default": false
+          },
+          "keep_backup": {
+            "type": "boolean",
+            "default": true,
+            "description": "Retain the atomic writer's sibling backup containing the pre-rollback state, so it can serve as explicit redo evidence."
+          }
+        },
+        "required": [
+          "local_path",
+          "patch_path",
+          "expected_package_fingerprint",
+          "expected_patch_id",
+          "expected_rollback_plan_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "$defs": {
+          "fingerprint": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "authorization": {
+            "enum": [
+              "allow_digital_signature_invalidation",
+              "allow_active_content_changes",
+              "allow_external_relationship_changes",
+              "allow_opaque_binary_changes",
+              "allow_new_structural_errors"
+            ]
+          },
+          "performance": {
+            "type": "object",
+            "required": ["total_ms"],
+            "properties": {
+              "total_ms": {"type": "number", "minimum": 0}
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "patch_file_name", "source_patch_id", "reverse_patch_id", "rollback_plan_id", "rolled_back", "no_op", "package_fingerprint", "backup_path", "changed_entry_names", "explicit_authorizations", "raw_payloads_returned", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.apply_ooxml_patch_rollback/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "patch_file_name": {"type": "string", "maxLength": 512},
+              "source_patch_id": {"type": "string", "pattern": "^wtpatch_[A-Za-z0-9_-]+$"},
+              "reverse_patch_id": {"type": "string", "pattern": "^wtpatch_[A-Za-z0-9_-]+$"},
+              "rollback_plan_id": {"type": "string", "pattern": "^wtrollback_[A-Za-z0-9_-]+$"},
+              "rolled_back": {"type": "boolean"},
+              "no_op": {"type": "boolean"},
+              "previous_package_fingerprint": {"$ref": "#/$defs/fingerprint"},
+              "package_fingerprint": {"$ref": "#/$defs/fingerprint"},
+              "predicted_package_fingerprint": {"$ref": "#/$defs/fingerprint"},
+              "backup_path": {"type": ["string", "null"], "maxLength": 32767},
+              "changed_entry_names": {"type": "array", "maxItems": 20000, "uniqueItems": true, "items": {"type": "string", "maxLength": 512}},
+              "diagnostic_count": {"type": "integer", "minimum": 0},
+              "digital_signatures_may_be_invalidated": {"type": "boolean"},
+              "explicit_authorizations": {"type": "array", "maxItems": 5, "uniqueItems": true, "items": {"$ref": "#/$defs/authorization"}},
+              "raw_payloads_returned": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"type": "boolean"},
+              "word_opened": {"const": false},
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {"$ref": "#/$defs/performance"}
+            },
+            "additionalProperties": false
+          }
+        },
         "additionalProperties": false
       },
       "annotations": {

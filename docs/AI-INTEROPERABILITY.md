@@ -136,8 +136,10 @@ Microsoft Open XML SDK 3.3.0 using bounded baseline-versus-candidate error compa
 Plan reports a missing validator; apply fails closed with `VALIDATOR_REQUIRED`. The
 native CLI and MCP inject the standard adapter, reject new schema errors, rebuild the
 reviewed plan against the current fingerprint and use the atomic writer with a retained
-backup by default. The backup is recovery evidence, not a claim that a public rollback
-operation already exists.
+backup by default. The backup is recovery evidence. Public rollback is a separate
+`plan_ooxml_patch_rollback` -> `apply_ooxml_patch_rollback` transaction that derives the
+reverse patch from the original artifact, binds its own plan ID to the exact destination
+and re-runs the same validation and independent risk gates.
 
 The atomic writer also closes the last non-cooperative race it can observe without an OS
 transaction: after `File.Replace`, the displaced backup must still match the reviewed
@@ -161,7 +163,7 @@ The response identifies:
 - `protocols.mcp`: MCP protocol version retained from that same schema;
 - `compatibility_policy`: the source schema's declared compatibility rule;
 - `source.schema_sha256`: exact embedded local schema bytes;
-- `source.native_action_contract_sha256`: canonical native 107-action subset, core
+- `source.native_action_contract_sha256`: canonical native 109-action subset, core
   exposure registry and header;
 - `source.capability_schema_sha256`: normative capability JSON Schema bytes.
 
@@ -210,17 +212,18 @@ coverage gaps visible.
 
 The manifest does not return full input schemas. After selecting one operation, call
 `inspect_wordtoolkit_action`; execute only after validating its schema and effect hints.
-This keeps discovery bounded instead of paying for all 107 schemas.
+This keeps discovery bounded instead of paying for all 109 schemas.
 
 ## Metadata coverage is evidence, not decoration
 
 `metadata_coverage` counts canonical fields actually present in the embedded source.
-All 107 operations have input schemas and MCP effect annotations. Semantic query,
+All 109 operations have input schemas and MCP effect annotations. Semantic query,
 semantic HTML/SVG rendering, semantic-style plan/apply, comment-body plan/apply and the
 safe formatter plan/apply plus the Word-executed drawing-layout inspector and guarded
 SmartArt text prepare/apply pair, native caption/table-of-figures/table-of-contents
 insertion, native authority-citation marking/table-of-authorities insertion, native
-index-entry/index insertion and guarded reference-table update have explicit
+index-entry/index insertion, guarded reference-table update and the saved-package
+patch rollback plan/apply pair have explicit
 output-schema, permission, reversibility and
 per-operation-version metadata;
 the remaining 87 are still uncovered. Missing metadata

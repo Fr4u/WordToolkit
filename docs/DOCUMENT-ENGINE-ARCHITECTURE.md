@@ -617,7 +617,7 @@ budgets; and compression bombs. An expected patch ID obtained during planning is
 authenticity boundary: hashes alone detect corruption, while the separately retained ID
 detects a maliciously rebuilt artifact.
 
-The lazy native path is deliberately split into five actions:
+The lazy native path is deliberately split into seven actions:
 
 1. `plan_ooxml_patch` recomputes package, semantic and security evidence and returns a
    summary by default;
@@ -630,7 +630,13 @@ The lazy native path is deliberately split into five actions:
    semantic diff and risk analyzer, and compares baseline/candidate Microsoft Open XML
    SDK validation before returning a deterministic apply-plan ID;
 5. `apply_ooxml_patch` requires base fingerprint, patch ID and apply-plan ID, then uses
-   the existing atomic package writer and retains a recovery backup by default.
+   the existing atomic package writer and retains a recovery backup by default;
+6. `plan_ooxml_patch_rollback` verifies that the destination still equals the original
+   patch result, derives `Reverse()` internally and binds semantic, risk, format and
+   schema evidence to a distinct destination-bound `wtrollback_` plan ID;
+7. `apply_ooxml_patch_rollback` rebuilds that reverse plan, requires the exact original
+   `patch_id` and rollback-plan ID, enforces the same independent authorizations, writes
+   atomically and retains the pre-rollback state as redo-capable backup by default.
 
 Signature invalidation, VBA/macro/OLE/embedded/ActiveX material, external relationship
 targets, opaque binaries and newly introduced OPC or Open XML errors are separate policy
@@ -1214,7 +1220,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 107 actions already have public SDK
+These are proved migration seams, not a claim that all 109 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
@@ -1332,6 +1338,8 @@ The current native mapping is therefore:
 - bounded patch integrity/operation inspection -> lazy `inspect_ooxml_patch`;
 - patch application evidence and policy planning -> lazy `plan_ooxml_patch_apply`;
 - atomic exact package patch application -> lazy `apply_ooxml_patch`;
+- exact package patch rollback planning -> lazy `plan_ooxml_patch_rollback`;
+- atomic exact package patch rollback -> lazy `apply_ooxml_patch_rollback`;
 - guarded ancestor/left/right merge planning -> lazy `plan_ooxml_merge`;
 - create-new, destination-bound merge application -> lazy `apply_ooxml_merge`;
 - text-only `document.plan` -> lazy `plan_ooxml_text_edits`;

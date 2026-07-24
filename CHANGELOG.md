@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- Added public saved-package rollback as the separate lazy
+  `plan_ooxml_patch_rollback` and `apply_ooxml_patch_rollback` actions. They derive the
+  exact reverse from the reviewed original `.wtpatch`, require the current result
+  fingerprint and original patch ID, bind a distinct `wtrollback_` plan to the normalized
+  destination path, and re-run semantic, risk, package-type and baseline-aware Open XML
+  validation before atomic publication. Risk authorizations remain independent and false
+  by default; the success backup retains the pre-rollback state as redo evidence.
+- Added closed versioned request/result, permission and reversibility metadata for both
+  rollback actions. The native catalogue now contains 109 actions, 15 exposed MCP tools
+  and 22 explicit metadata contracts; the remaining metadata gap stays visible at 87.
+- Added rollback regressions for exact fingerprint restoration and backup contents,
+  stale current state, destination-bound plan mismatch, macro authorization, no-op
+  non-mutation, response privacy/size and the public contract surface. These operations
+  never open Word and never return patch payloads or raw XML. The full checkpoint passes
+  504 Engine, 394 Native and 1309 Python tests with 16 intentional skips; both changed
+  .NET projects are format-clean and both new output schemas pass Draft 2020-12
+  meta-validation.
+- Packaged and enabled `0.39.0+codex.20260724161042`. Installed discovery reports 109
+  actions, 15 exposed tools and 22 explicit metadata contracts. Build, personal source
+  and enabled cache are identical at 196 files and 87,093,417 bytes. A second
+  same-checkout package build produced an identical tree and identical 36,739,798-byte
+  ZIP at SHA-256 `77b8216c597e2462aafbffdaf0f60110841b171385ba35c0b505cdd4fc298609`;
+  clean-checkout reproducibility is still not claimed.
+
 - Added an independent baseline-restoration path for failed
   `apply_live_word_operations` publication. The staged batch now retains its original Flat
   OPC snapshot in process; after a failed or unproven Undo, WordToolkit opens that snapshot

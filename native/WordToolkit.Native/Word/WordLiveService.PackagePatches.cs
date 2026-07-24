@@ -214,21 +214,10 @@ internal sealed partial class WordLiveService
             };
         }
 
-        cancellationToken.ThrowIfCancellationRequested();
-        var mutation = context.Patch.CreateMutation(
-            context.BasePackage,
+        var result = WritePackagePatch(
+            context,
+            arguments.Boolean("keep_backup", true),
             cancellationToken
-        );
-        var result = new OpcAtomicPackageWriter().Write(
-            context.PackagePath,
-            mutation,
-            new OpcAtomicWriteOptions
-            {
-                ExpectedDestinationFingerprint = context.BasePackage.Fingerprint,
-                ExpectedResultFingerprint = context.Patch.ResultPackageFingerprint,
-                AllowStructuralErrors = !context.CandidatePackage.IsStructurallyValid,
-                KeepBackup = arguments.Boolean("keep_backup", true),
-            }
         );
         return new
         {
@@ -247,6 +236,182 @@ internal sealed partial class WordLiveService
             digital_signatures_may_be_invalidated =
                 context.Plan.RiskAssessment.DigitalSignaturesPresent,
             explicit_authorizations = ExplicitAuthorizationNames(policy),
+            word_opened = false,
+            runtime = "dotnet-native",
+            python_used = false,
+            performance = new
+            {
+                total_ms = Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+            },
+        };
+    });
+
+    private static Task<object> PlanPackagePatchRollbackAsync(
+        JsonElement arguments,
+        CancellationToken cancellationToken
+    ) => ExecutePackagePatchAction(() =>
+    {
+        var started = Stopwatch.GetTimestamp();
+        var request = ParsePackagePatchPageRequest(arguments, allowSchemaView: true);
+        var context = BuildPackagePatchApplyPlan(
+            arguments,
+            cancellationToken,
+            reverse: true
+        );
+        var page = PackagePatchPlanPage(context.Plan, request, context.Validation);
+        var defaultBlocks = PackagePatchBlockCodes(
+            context,
+            new WordPackagePatchApplyPolicy()
+        );
+        var hardBlocks = PackagePatchHardBlockCodes(context);
+        return new
+        {
+            operation_contract = "wordtoolkit.plan_ooxml_patch_rollback/1.0",
+            file_name = Path.GetFileName(context.PackagePath),
+            patch_file_name = Path.GetFileName(context.PatchPath),
+            source_patch_id = context.SourcePatchId,
+            reverse_patch_id = context.Patch.PatchId,
+            rollback_plan_id = context.ApplyPlanId,
+            current_package_fingerprint = context.Patch.BasePackageFingerprint,
+            restored_package_fingerprint = context.Patch.ResultPackageFingerprint,
+            operation_count = context.Patch.OperationCount,
+            no_op = context.Patch.IsNoOp,
+            semantic = SemanticPatchSummary(context.Plan.SemanticDiff),
+            risk = PackagePatchRiskSummary(context.Plan.RiskAssessment),
+            openxml_schema_validation = SchemaValidationSummary(context.Validation),
+            default_policy = new
+            {
+                can_rollback = defaultBlocks.Count == 0,
+                block_codes = defaultBlocks,
+            },
+            hard_block_codes = hardBlocks,
+            required_authorizations = RequiredAuthorizationNames(
+                context.Plan.RiskAssessment,
+                SchemaValidationHasNewErrors(context.Validation),
+                hasChanges: !context.Patch.IsNoOp
+            ),
+            view = request.View,
+            filtered_item_count = page.FilteredCount,
+            offset = page.Offset,
+            returned_item_count = page.Items.Length,
+            next_offset = page.NextOffset,
+            items = page.Items,
+            hashes_included = request.IncludeHashes,
+            raw_payloads_returned = false,
+            raw_xml_returned = false,
+            mutation_performed = false,
+            word_opened = false,
+            runtime = "dotnet-native",
+            python_used = false,
+            performance = new
+            {
+                total_ms = Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+            },
+        };
+    });
+
+    private static Task<object> ApplyPackagePatchRollbackAsync(
+        JsonElement arguments,
+        CancellationToken cancellationToken
+    ) => ExecutePackagePatchAction(() =>
+    {
+        var started = Stopwatch.GetTimestamp();
+        var expectedRollbackPlanId = RequiredPatchPlanId(
+            arguments,
+            "expected_rollback_plan_id",
+            "wtrollback_",
+            "patch rollback-plan ID"
+        );
+        var context = BuildPackagePatchApplyPlan(
+            arguments,
+            cancellationToken,
+            reverse: true
+        );
+        if (!string.Equals(
+                context.ApplyPlanId,
+                expectedRollbackPlanId,
+                StringComparison.Ordinal
+            ))
+        {
+            throw new NativeToolException(
+                "PLAN_MISMATCH",
+                "The current package and patch do not reproduce the reviewed rollback-plan ID"
+            );
+        }
+
+        var policy = ParsePackagePatchPolicy(arguments);
+        var blocks = PackagePatchBlockCodes(context, policy);
+        if (blocks.Count != 0)
+        {
+            throw new NativeToolException(
+                "PATCH_POLICY_BLOCKED",
+                "The rollback requires authorization or failed a non-overridable safety check",
+                new
+                {
+                    source_patch_id = context.SourcePatchId,
+                    reverse_patch_id = context.Patch.PatchId,
+                    rollback_plan_id = context.ApplyPlanId,
+                    block_codes = blocks,
+                }
+            );
+        }
+
+        if (context.Patch.IsNoOp)
+        {
+            return new
+            {
+                operation_contract = "wordtoolkit.apply_ooxml_patch_rollback/1.0",
+                file_name = Path.GetFileName(context.PackagePath),
+                patch_file_name = Path.GetFileName(context.PatchPath),
+                source_patch_id = context.SourcePatchId,
+                reverse_patch_id = context.Patch.PatchId,
+                rollback_plan_id = context.ApplyPlanId,
+                rolled_back = false,
+                no_op = true,
+                package_fingerprint = context.BasePackage.Fingerprint,
+                backup_path = (string?)null,
+                changed_entry_names = Array.Empty<string>(),
+                explicit_authorizations = ExplicitAuthorizationNames(policy),
+                raw_payloads_returned = false,
+                raw_xml_returned = false,
+                mutation_performed = false,
+                word_opened = false,
+                runtime = "dotnet-native",
+                python_used = false,
+                performance = new
+                {
+                    total_ms = Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+                },
+            };
+        }
+
+        var result = WritePackagePatch(
+            context,
+            arguments.Boolean("keep_backup", true),
+            cancellationToken
+        );
+        return new
+        {
+            operation_contract = "wordtoolkit.apply_ooxml_patch_rollback/1.0",
+            file_name = Path.GetFileName(context.PackagePath),
+            patch_file_name = Path.GetFileName(context.PatchPath),
+            source_patch_id = context.SourcePatchId,
+            reverse_patch_id = context.Patch.PatchId,
+            rollback_plan_id = context.ApplyPlanId,
+            rolled_back = true,
+            no_op = false,
+            previous_package_fingerprint = context.BasePackage.Fingerprint,
+            package_fingerprint = result.Fingerprint,
+            predicted_package_fingerprint = context.Patch.ResultPackageFingerprint,
+            backup_path = result.BackupPath,
+            changed_entry_names = result.ChangedEntryNames,
+            diagnostic_count = result.Diagnostics.Count,
+            digital_signatures_may_be_invalidated =
+                context.Plan.RiskAssessment.DigitalSignaturesPresent,
+            explicit_authorizations = ExplicitAuthorizationNames(policy),
+            raw_payloads_returned = false,
+            raw_xml_returned = false,
+            mutation_performed = true,
             word_opened = false,
             runtime = "dotnet-native",
             python_used = false,
@@ -299,7 +464,8 @@ internal sealed partial class WordLiveService
 
     private static PackagePatchApplyContext BuildPackagePatchApplyPlan(
         JsonElement arguments,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        bool reverse = false
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -310,14 +476,15 @@ internal sealed partial class WordLiveService
             "expected_package_fingerprint"
         );
         var expectedPatchId = RequiredPackagePatchId(arguments, "expected_patch_id");
-        var patch = ReadPackagePatch(patchPath, cancellationToken);
-        if (!string.Equals(patch.PatchId, expectedPatchId, StringComparison.Ordinal))
+        var sourcePatch = ReadPackagePatch(patchPath, cancellationToken);
+        if (!string.Equals(sourcePatch.PatchId, expectedPatchId, StringComparison.Ordinal))
         {
             throw new NativeToolException(
                 "PLAN_MISMATCH",
                 "The patch artifact does not match expected_patch_id"
             );
         }
+        var patch = reverse ? sourcePatch.Reverse() : sourcePatch;
 
         var reader = new OpcPackageReader();
         var package = reader.Read(packagePath, cancellationToken);
@@ -358,7 +525,8 @@ internal sealed partial class WordLiveService
             plan,
             validation,
             packagePath,
-            formatHardBlocks
+            formatHardBlocks,
+            reverse
         );
         return new PackagePatchApplyContext(
             packagePath,
@@ -366,10 +534,35 @@ internal sealed partial class WordLiveService
             package,
             candidate,
             patch,
+            sourcePatch.PatchId,
             plan,
             validation,
             formatHardBlocks,
             applyPlanId
+        );
+    }
+
+    private static OpcAtomicWriteResult WritePackagePatch(
+        PackagePatchApplyContext context,
+        bool keepBackup,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var mutation = context.Patch.CreateMutation(
+            context.BasePackage,
+            cancellationToken
+        );
+        return new OpcAtomicPackageWriter().Write(
+            context.PackagePath,
+            mutation,
+            new OpcAtomicWriteOptions
+            {
+                ExpectedDestinationFingerprint = context.BasePackage.Fingerprint,
+                ExpectedResultFingerprint = context.Patch.ResultPackageFingerprint,
+                AllowStructuralErrors = !context.CandidatePackage.IsStructurallyValid,
+                KeepBackup = keepBackup,
+            }
         );
     }
 
@@ -838,12 +1031,15 @@ internal sealed partial class WordLiveService
         WordPackagePatchPlan plan,
         CandidateSchemaValidation validation,
         string destinationPath,
-        IReadOnlyList<string> formatHardBlocks
+        IReadOnlyList<string> formatHardBlocks,
+        bool reverse = false
     )
     {
         var fields = new List<string>
         {
-            "wordtoolkit-package-patch-apply-plan-v1",
+            reverse
+                ? "wordtoolkit-package-patch-rollback-plan-v1"
+                : "wordtoolkit-package-patch-apply-plan-v1",
             plan.Patch.PatchId,
             plan.Patch.BasePackageFingerprint,
             plan.Patch.ResultPackageFingerprint,
@@ -869,7 +1065,8 @@ internal sealed partial class WordLiveService
                 issue.Node ?? string.Empty
             )));
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\u001f', fields)));
-        return "wtapply_" + Convert.ToBase64String(digest.AsSpan(0, 18))
+        return (reverse ? "wtrollback_" : "wtapply_")
+            + Convert.ToBase64String(digest.AsSpan(0, 18))
             .TrimEnd('=')
             .Replace('+', '-')
             .Replace('/', '_');
@@ -1088,13 +1285,26 @@ internal sealed partial class WordLiveService
     }
 
     private static string RequiredApplyPlanId(JsonElement arguments)
+        => RequiredPatchPlanId(
+            arguments,
+            "expected_apply_plan_id",
+            "wtapply_",
+            "patch apply-plan ID"
+        );
+
+    private static string RequiredPatchPlanId(
+        JsonElement arguments,
+        string argumentName,
+        string prefix,
+        string label
+    )
     {
-        _ = arguments.Required("expected_apply_plan_id");
-        var value = arguments.String("expected_apply_plan_id");
+        _ = arguments.Required(argumentName);
+        var value = arguments.String(argumentName);
         if (
             value.Length is < 16 or > 96
-            || !value.StartsWith("wtapply_", StringComparison.Ordinal)
-            || value[8..].Any(character =>
+            || !value.StartsWith(prefix, StringComparison.Ordinal)
+            || value[prefix.Length..].Any(character =>
                 !char.IsAsciiLetterOrDigit(character)
                 && character is not '_' and not '-'
             )
@@ -1102,7 +1312,7 @@ internal sealed partial class WordLiveService
         {
             throw new NativeToolException(
                 "INVALID_INPUT",
-                "expected_apply_plan_id is not a valid patch apply-plan ID"
+                $"{argumentName} is not a valid {label}"
             );
         }
         return value;
@@ -1304,6 +1514,7 @@ internal sealed partial class WordLiveService
         OpcPackageSnapshot BasePackage,
         OpcPackageSnapshot CandidatePackage,
         OpcPackagePatch Patch,
+        string SourcePatchId,
         WordPackagePatchPlan Plan,
         CandidateSchemaValidation Validation,
         IReadOnlyList<string> FormatHardBlockCodes,

@@ -156,7 +156,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 107-action schema set into model context. The normative shape is
+not flatten the 109-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -332,6 +332,8 @@ create_ooxml_patch
 inspect_ooxml_patch
 plan_ooxml_patch_apply
 apply_ooxml_patch
+plan_ooxml_patch_rollback
+apply_ooxml_patch_rollback
 plan_ooxml_merge
 apply_ooxml_merge
 inspect_ooxml_sections
@@ -655,6 +657,15 @@ relationships, opaque binaries and new structural errors have independent explic
 authorizations. Validation truncation, an SDK-open failure or a result-type/extension
 mismatch cannot be overridden. Successful replacement is atomic and retains a recovery
 backup by default; a no-op does not touch the file.
+
+Rollback is a separate reviewed transaction, not an inference from that backup. Call
+`plan_ooxml_patch_rollback` with the current package fingerprint and the original
+artifact's `patch_id`; WordToolkit derives the exact reverse patch internally and returns
+a destination-bound `rollback_plan_id`. Then call `apply_ooxml_patch_rollback` with that
+exact ID and only the individually accepted risk authorizations. The current package
+must still equal the original patch result, package type and baseline-versus-candidate
+validation are rechecked, publication is atomic, and the default backup contains the
+pre-rollback state as redo evidence. Neither action opens Word or returns payloads/XML.
 
 Saved-package three-way merge requires an explicit common ancestor. It automatically
 selects one-sided changes, coalesces byte-identical branch changes and can combine
