@@ -42,13 +42,18 @@
   `d4e341d892cdaac0b4ba1fed1582bffba522ce2691845d52a7908d17ccaf7776` and
   `f2f2ece3b2a662c4f2316b43f4a343a714743ade1310df3f9db526f38b44b657`.
 - Installed and enabled `0.39.0+codex.20260724210114` has zero path/length/hash
-  differences across build, personal source and cache. Its runtime reports 113 actions
+  differences across build, personal source and cache. Its runtime reports 113 actions,
   15 exposed tools and 26 complete metadata contracts. The packaged and enabled-cache
   Engine assemblies share the exact Engine hash above; the same source revision passed the
   licensed Word probe.
   A separate installed strict-CLI/lazy-MCP smoke on a generated valid OPC package returned
   `wordtoolkit.inspect_ooxml_encryption/1.0`, validated against the output schema returned
   by the installed action inspector, exposed no path and used no Python in the runtime.
+- Hosted CI run `30121281344` passed Linux Engine, Python/rendering, Windows Native/package,
+  Open XML validator and remote-container jobs. The clean Windows artifact is exactly
+  36,851,090 bytes with SHA-256
+  `9ac60e38c5263ddae3ca6b0202f77e620223b2bd68a8e05b15b5ae94ec67867e`,
+  matching both local archives byte for byte.
 
 Research and exact limitations are recorded in
 [`RESEARCH-OOXML-ENCRYPTION-DETECTION-2026.md`](RESEARCH-OOXML-ENCRYPTION-DETECTION-2026.md).

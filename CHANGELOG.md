@@ -29,6 +29,8 @@
   Installed discovery reports 113 actions, 15 tools and 26 complete contracts. The same
   source revision passed the real Word probe above; a real lazy MCP call from the installed
   runtime validated against its inspected output schema and returned no path.
+  Hosted CI run `30121281344` passed all five jobs; its clean Windows artifact is the same
+  36,851,090 bytes with the same SHA-256 as both local archives.
 
 - Added a privacy-minimizing observability spine to `WordToolkit.Engine`. Versioned
   `ActivitySource` and `Meter` producers are opt-in and use only registered operation name,
