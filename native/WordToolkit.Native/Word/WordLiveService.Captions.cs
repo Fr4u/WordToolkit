@@ -355,12 +355,13 @@ internal sealed partial class WordLiveService
                 or "table_of_contents"
                 or "table_of_figures"
                 or "table_of_authorities"
+                or "index"
             )
         )
         {
             throw new NativeToolException(
                 "INVALID_INPUT",
-                "kind must be all, table_of_contents, table_of_figures, or table_of_authorities"
+                "kind must be all, table_of_contents, table_of_figures, table_of_authorities, or index"
             );
         }
         var indexValue = arguments.NullableInt64("index");
@@ -461,7 +462,7 @@ internal sealed partial class WordLiveService
                     InvalidateUndoGrants(record.Id);
                     return new
                     {
-                        operation_contract = "wordtoolkit.update_live_word_reference_tables/1.0",
+                        operation_contract = "wordtoolkit.update_live_word_reference_tables/1.1",
                         live_document_id = record.Id,
                         live_version = record.Version,
                         requested_kind = kind,
@@ -478,6 +479,7 @@ internal sealed partial class WordLiveService
                             tables_of_authorities = targets.Count(item =>
                                 item.Kind == "table_of_authorities"
                             ),
+                            indexes = targets.Count(item => item.Kind == "index"),
                         },
                         counts_before = ReferenceTableCountsPayload(countsBefore),
                         counts_after = ReferenceTableCountsPayload(countsAfter),
@@ -519,7 +521,8 @@ internal sealed partial class WordLiveService
         return new ReferenceTableCounts(
             (int)document.TablesOfContents.Count,
             (int)document.TablesOfFigures.Count,
-            (int)document.TablesOfAuthorities.Count
+            (int)document.TablesOfAuthorities.Count,
+            (int)document.Indexes.Count
         );
     }
 
@@ -529,6 +532,7 @@ internal sealed partial class WordLiveService
             tables_of_contents = counts.TablesOfContents,
             tables_of_figures = counts.TablesOfFigures,
             tables_of_authorities = counts.TablesOfAuthorities,
+            indexes = counts.Indexes,
         };
 
     private static List<ReferenceTableTarget> ResolveReferenceTableTargets(
@@ -545,6 +549,7 @@ internal sealed partial class WordLiveService
                 "table_of_contents",
                 "table_of_figures",
                 "table_of_authorities",
+                "index",
             }
             : new[] { requestedKind };
         var requestedCount = requestedIndex is not null
@@ -612,6 +617,7 @@ internal sealed partial class WordLiveService
             "table_of_contents" => (object)document.TablesOfContents,
             "table_of_figures" => (object)document.TablesOfFigures,
             "table_of_authorities" => (object)document.TablesOfAuthorities,
+            "index" => (object)document.Indexes,
             _ => throw new NativeToolException(
                 "INVALID_INPUT",
                 "Unsupported reference-table kind"
@@ -861,7 +867,8 @@ internal sealed partial class WordLiveService
     private sealed record ReferenceTableCounts(
         int TablesOfContents,
         int TablesOfFigures,
-        int TablesOfAuthorities
+        int TablesOfAuthorities,
+        int Indexes
     )
     {
         public int ForKind(string kind) =>
@@ -870,6 +877,7 @@ internal sealed partial class WordLiveService
                 "table_of_contents" => TablesOfContents,
                 "table_of_figures" => TablesOfFigures,
                 "table_of_authorities" => TablesOfAuthorities,
+                "index" => Indexes,
                 _ => 0,
             };
     }

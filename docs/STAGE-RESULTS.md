@@ -1,5 +1,70 @@
 # Stage results
 
+## Verified mixed-operation rollback and equation staging — 2026-07-24
+
+- Replaced the false `Undo(1)` success assumption in the shared mixed text/equation
+  mutation path with an exact pre-mutation checkpoint and mandatory post-Undo proof.
+  The checkpoint covers live version, Word save state, main-story text, target/context
+  WordOpenXML, range boundaries and paragraph/equation/table/field/bookmark/shape/comment/
+  note/section counts. A false or throwing Undo, failed custom-record closure, unreadable
+  state or any mismatch now returns `ROLLBACK_FAILED` and quarantines both the handle and
+  document identity instead of exposing a reusable version-zero lie.
+- Every equation in a batch is built, styled and read back in an unsaved hidden Word
+  staging document before the target is touched. A staging failure discards that document
+  and preserves target content, counts, live version and handle. Publication still uses
+  verified rollback because target-side Word normalization can fail independently.
+- Seven adversarial fake-COM regressions cover exact rollback, residue after a no-op or
+  partial Undo, false/throwing Undo, failed custom-record closure, handle invalidation,
+  reconnect blocking, explicit quarantine release and isolated staging rejection. Full
+  release gates pass **504 Engine**, **378 Native** and **1,309 Python tests**, with **16
+  intentional Python skips**; Ruff lint and all four C# format verifiers pass.
+- A real Word 16.0 failure probe proved the original defect rather than merely simulating
+  it: Word returned `false` from `Undo(1)` after a post-payload validation failure and the
+  target changed from one empty paragraph to 33 paragraphs. Runtime
+  `0.39.0+codex.20260724131918` returned `ROLLBACK_FAILED`, reported the structural/hash
+  mismatch names, invalidated the handle and blocked inspection until explicit quarantine
+  release. The contaminated unsaved document was deliberately neither saved nor closed.
+- The final installed `0.39.0+codex.20260724132826` runtime then staged and published the
+  full eight-line complex derivation of `int x^3 e^(2x) sin(3x) dx`. Native and semantic
+  readback both passed; six n-ary integrals and six correctly placed differentials were
+  counted, and expected/actual contract SHA-256 values were identical at
+  `d736af3f7abfdce5d381bf23d5bd2d5ececeb8bac6cd8cf1d001f41a8dd8c708`.
+  The saved package contains two paragraphs and one native OMath object; Microsoft Open
+  XML SDK validation reports zero errors.
+- The exact 14,332-byte DOCX proof has SHA-256
+  `3206be53194410220de5afb4304bb280a16fdf80320fb59f01d6e94ee7de64f7`.
+  Word's one-page 61,013-byte PDF has SHA-256
+  `020f9ece9711fbe40bacdf6bc8b544a3c9019e959e4bbf48452c73c13860ee2b`.
+  Its 180-DPI page was inspected directly: all eight aligned lines are legible, integral
+  differentials stay on the baseline, and there is no raw `eqarray(...)`, clipping,
+  overlap or broken glyph.
+- Build output, personal source and enabled cache contain the same **196 files** and
+  **86,962,059 bytes**, with zero path/length/hash differences. Installed discovery
+  reports **107 actions**, **15 exposed tools** and **20 explicit metadata contracts**.
+  The 36,709,200-byte ZIP SHA-256 is
+  `bf6b236f7f9191559d4cb3a16ff49b8013d2daf527187a728dbb202c6861ebfc`;
+  executable, runtime assembly, Engine assembly and SDK adapter SHA-256 values are
+  `4ade449b2ef2dc6fb44a649c120e6866574a68586019b57b939c802df1ee8a42`,
+  `e30f0ae103c0d84f7106a8b362f6b18f24d801a4f6ed2aba61360528f30b8174`,
+  `b653e2e59d9bed94016ed2787fc9d64b7f9f0a55ed2776df9bcb852ccc37080c`
+  and `e4d0fbe83f8d66105d84417705142da82fa3db64ec2027b98957aa9e0c6fdbe8`.
+
+## Native index entries and indexes — 2026-07-24
+
+- Added guarded native `XE` marking and `INDEX` insertion as actions 106 and 107.
+  High-level inputs cover up to eight hierarchy levels, cross-references, an existing
+  bookmark page range, page-number emphasis, heading separators, indented/run-in layout,
+  zero-to-four columns, accented-letter grouping and six tab leaders. Neither action
+  accepts raw field instructions or returns entry/bookmark/cross-reference/generated
+  index text.
+- Both actions require the current live version and one fresh target token where needed,
+  run in one non-replayable custom Undo record, verify exact native collection/field
+  deltas and option readback, and roll back on mismatch. Reference-table contract 1.1 now
+  updates native indexes alongside contents, figures and authorities.
+- Saved-package reference and dependency graphs now resolve complete non-deleted `XE`
+  entries to concrete complete `INDEX` field nodes. Real-Word, package, PDF and release
+  evidence for this slice is recorded only after those gates complete.
+
 ## Native authority citations and table of authorities — 2026-07-24
 
 - Added `wordtoolkit.mark_live_word_authority_citation/1.0` and

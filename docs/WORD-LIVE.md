@@ -53,7 +53,9 @@ path, save-policy and confirmation checks.
 | `insert_live_word_table_of_contents` | Create, optionally repaginate and update one native contents table from semantic heading settings. |
 | `mark_live_word_authority_citation` | Mark one fresh non-empty range as a native category-bound table-of-authorities entry. |
 | `insert_live_word_table_of_authorities` | Create, optionally repaginate and update one native authority table for one or all categories with verified separators and leaders. |
-| `update_live_word_reference_tables` | Refresh existing contents, figures and authorities tables in one bounded guarded transaction. |
+| `mark_live_word_index_entry` | Mark one fresh token-bound location as a native hierarchical XE entry, cross-reference or bookmark page range. |
+| `insert_live_word_index` | Create, optionally repaginate and update one native index with verified semantic layout options. |
+| `update_live_word_reference_tables` | Refresh existing contents, figures, authorities and indexes in one bounded guarded transaction. |
 | `insert_live_word_image` | Embed one bounded local image as a native inline shape. |
 | `insert_live_word_comment` | Add one native comment to a fresh token-verified range or selection. |
 | `insert_live_word_note` | Add one native footnote or endnote. |
@@ -68,6 +70,26 @@ path, save-policy and confirmation checks.
 | `close_live_word_document` | Close one connected document using an explicit save/discard policy. |
 | `quit_word_application` | Quit Word only with explicit confirmation and a save/discard-all policy. |
 | `disconnect_live_word_document` | Release only the WordToolkit handle. |
+
+## Verified rollback and quarantine
+
+The mixed text/equation path does not equate an attempted `Document.Undo(1)` with a
+successful rollback. First, every native equation is built, styled and read back in one
+unsaved hidden Word staging document. A failure there discards the stage before the
+target receives any content. Before target mutation, `apply_live_word_operations` and
+the native equation insertion paths capture the live version, saved state, main-story text hash,
+exact target and bounded-context text/OOXML hashes, content/target/context boundaries,
+and paragraph, equation, table, field, bookmark, inline/floating shape, comment,
+footnote, endnote and section counts. After a failed native build or readback, the custom
+Undo record must close, `Undo(1)` must return `true`, and every captured value must match.
+
+If any proof is missing, the operation returns `ROLLBACK_FAILED` with the original error
+code, Undo outcome, mismatch names and before/after structural summaries. It does not
+return document text, OOXML or the hashes. The original live handle is removed and kept
+as a quarantine tombstone. Calls through that handle and attempts to reconnect the same
+open document return `LIVE_DOCUMENT_QUARANTINED`. A deliberate
+`disconnect_live_word_document` clears the tombstone without closing Word; this is an
+acknowledgement of unsafe state, not evidence that the document repaired itself.
 
 `insert_live_word_table_of_contents` inserts at the document start by default, or at the
 document end or a fresh token-verified collapsed cursor. It accepts heading levels 1–9,
@@ -94,16 +116,31 @@ created native object. It also requires one exact non-empty range and at least o
 Failed readback requests one Undo. Citation text, separator values, generated table text,
 field instructions and COM objects do not cross the tool boundary.
 
-`update_live_word_reference_tables` targets all existing tables of contents, figures
-and authorities by default, or one exact collection and optional one-based index. It
+`mark_live_word_index_entry` requires exactly one fresh selection or range token. Omitted
+main-entry text is derived from the target; explicit text permits a collapsed cursor.
+Up to eight colon-free `subentries` form a Word hierarchy without making the model write
+field syntax. A cross-reference is mutually exclusive with an existing-bookmark page
+range and page-number bold/italic options. WordToolkit calls `Indexes.MarkEntry`, then
+requires one new type-4 field with the exact code range and parsed option readback. Entry,
+bookmark and cross-reference text remain private.
+
+`insert_live_word_index` targets the document start/end or a fresh collapsed cursor and
+requires at least one complete native `XE`. It maps semantic heading separators,
+`indented|run_in`, zero-to-four columns, accented-letter grouping and six leader choices
+to `Indexes.Add`, then reads all options back from the resulting `Index`. It optionally
+repaginates and updates, requires one unique non-empty type-8 field range and rolls back
+on any mismatch. Generated index text and field instructions are never returned.
+
+`update_live_word_reference_tables` targets all existing tables of contents, figures,
+authorities and indexes by default, or one exact collection and optional one-based index. It
 updates at most 128 objects, calls Word repagination first unless disabled, and performs
 the native full `Update` on each object. The operation requires the current
-`expected_version`, uses one custom Undo record and verifies that all three collection
+`expected_version`, uses one custom Undo record and verifies that all four collection
 counts remain unchanged and every refreshed object still owns a readable non-empty
 field range. It returns counts and verification flags only: no table result text, field
 instructions or COM objects. A single cross-kind `page_numbers_only` option is
 intentionally absent because Word does not expose that narrower operation uniformly for
-all three object families.
+all four object families.
 
 For visually stable UnicodeMath, fractional coefficients must use explicit
 multiplication. Write `1/3·(x^2+1)^(3/2)`, not

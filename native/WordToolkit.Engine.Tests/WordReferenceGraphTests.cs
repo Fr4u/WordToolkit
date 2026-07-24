@@ -246,6 +246,74 @@ public sealed class WordReferenceGraphTests
     }
 
     [Fact]
+    public void ResolvesNativeIndexEntryAgainstCompleteIndexField()
+    {
+        using var bytes = BuildPackage(
+            """
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body>
+                <w:p><w:fldSimple w:instr=" XE &quot;Analiza:Całki&quot; "><w:r><w:t/></w:r></w:fldSimple></w:p>
+                <w:p><w:fldSimple w:instr=" INDEX \\h &quot;A&quot; "><w:r><w:t>Analiza, 1</w:t></w:r></w:fldSimple></w:p>
+              </w:body>
+            </w:document>
+            """
+        );
+        var (package, semantic) = ReadSnapshots(bytes);
+
+        var graph = new WordReferenceGraphBuilder().Build(package, semantic);
+
+        Assert.Equal(2, graph.Fields.Count);
+        var edge = Assert.Single(graph.Edges);
+        Assert.True(edge.IsResolved);
+        Assert.Equal(WordReferenceEdgeKind.Generates, edge.Kind);
+        Assert.Equal(WordReferenceTargetKind.IndexEntry, edge.TargetKind);
+        Assert.Equal("Analiza:Całki", edge.TargetKey);
+    }
+
+    [Fact]
+    public void ResolvesIndexEntryOnlyAgainstMatchingIndexType()
+    {
+        using var bytes = BuildPackage(
+            """
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body>
+                <w:p><w:fldSimple w:instr=" XE &quot;Analiza&quot; \f &quot;A&quot; "><w:r><w:t/></w:r></w:fldSimple></w:p>
+                <w:p><w:fldSimple w:instr=" INDEX \f &quot;B&quot; "><w:r><w:t>Inny indeks</w:t></w:r></w:fldSimple></w:p>
+              </w:body>
+            </w:document>
+            """
+        );
+        var (package, semantic) = ReadSnapshots(bytes);
+
+        var graph = new WordReferenceGraphBuilder().Build(package, semantic);
+
+        var edge = Assert.Single(graph.Edges);
+        Assert.False(edge.IsResolved);
+        Assert.Equal(WordReferenceTargetKind.IndexEntry, edge.TargetKind);
+    }
+
+    [Fact]
+    public void DoesNotResolveIndexEntryAgainstDeletedIndexField()
+    {
+        using var bytes = BuildPackage(
+            """
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body>
+                <w:p><w:fldSimple w:instr=" XE &quot;Analiza&quot; "><w:r><w:t/></w:r></w:fldSimple></w:p>
+                <w:del w:id="1" w:author="x"><w:p><w:fldSimple w:instr=" INDEX "><w:r><w:delText>Analiza, 1</w:delText></w:r></w:fldSimple></w:p></w:del>
+              </w:body>
+            </w:document>
+            """
+        );
+        var (package, semantic) = ReadSnapshots(bytes);
+
+        var graph = new WordReferenceGraphBuilder().Build(package, semantic);
+
+        var edge = Assert.Single(graph.Edges);
+        Assert.False(edge.IsResolved);
+    }
+
+    [Fact]
     public void AcceptsStrictBookmarkAndSimpleRefMarkup()
     {
         using var bytes = BuildPackage(

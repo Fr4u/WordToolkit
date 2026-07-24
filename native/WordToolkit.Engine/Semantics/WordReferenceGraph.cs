@@ -1106,6 +1106,15 @@ public sealed class WordReferenceGraphBuilder
                 );
                 break;
             case "XE":
+                AddRequiredTypedEdge(
+                    field,
+                    firstArgument,
+                    WordReferenceEdgeKind.Generates,
+                    WordReferenceTargetKind.IndexEntry,
+                    state,
+                    isResolved: HasMatchingIndex(field, state.Fields)
+                );
+                break;
             case "TC":
                 AddRequiredTypedEdge(
                     field,
@@ -1290,6 +1299,60 @@ public sealed class WordReferenceGraphBuilder
             )
             && (tableCategory == 0 || tableCategory == entryCategory)
         );
+    }
+
+    private static bool HasMatchingIndex(
+        MutableField indexEntry,
+        IReadOnlyList<MutableField> fields
+    )
+    {
+        if (
+            indexEntry.IsInDeletedContent
+            || !TryIndexEntryType(indexEntry.Tokens, out var entryType)
+        )
+        {
+            return false;
+        }
+        return fields.Any(field =>
+            !field.IsInDeletedContent
+            && field.Status == WordFieldStatus.Complete
+            && field.InstructionParseComplete
+            && string.Equals(field.FieldType, "INDEX", StringComparison.OrdinalIgnoreCase)
+            && TryIndexEntryType(field.Tokens, out var indexType)
+            && string.Equals(entryType, indexType, StringComparison.OrdinalIgnoreCase)
+        );
+    }
+
+    private static bool TryIndexEntryType(
+        IReadOnlyList<WordFieldToken> tokens,
+        out string entryType
+    )
+    {
+        var indexes = tokens
+            .Select((token, index) => (token, index))
+            .Where(item =>
+                item.token.Kind == WordFieldTokenKind.Switch
+                && string.Equals(item.token.Value, "\\f", StringComparison.OrdinalIgnoreCase)
+            )
+            .Select(item => item.index)
+            .ToArray();
+        if (indexes.Length == 0)
+        {
+            entryType = "i";
+            return true;
+        }
+        if (
+            indexes.Length != 1
+            || indexes[0] + 1 >= tokens.Count
+            || tokens[indexes[0] + 1].Kind == WordFieldTokenKind.Switch
+            || string.IsNullOrWhiteSpace(tokens[indexes[0] + 1].Value)
+        )
+        {
+            entryType = "";
+            return false;
+        }
+        entryType = tokens[indexes[0] + 1].Value;
+        return true;
     }
 
     private static bool TryAuthorityCategory(

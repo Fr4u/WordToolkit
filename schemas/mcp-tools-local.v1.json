@@ -94,6 +94,8 @@
       "insert_live_word_table_of_contents",
       "mark_live_word_authority_citation",
       "insert_live_word_table_of_authorities",
+      "mark_live_word_index_entry",
+      "insert_live_word_index",
       "update_live_word_reference_tables",
       "insert_live_word_image",
       "insert_live_word_comment",
@@ -11235,7 +11237,7 @@
     {
       "name": "apply_live_word_operations",
       "title": "Apply a fast mixed batch directly in open Microsoft Word",
-      "description": "Append up to 200 interleaved text and native-equation operations in one COM attachment and Undo transaction. The batch is preflighted, inserted once and rolled back on text styling, OMath, bold-scope, count or bounded-readback failure.",
+      "description": "Append up to 200 interleaved text and native-equation operations in one COM attachment and custom Undo transaction. Every equation is first built and verified in an unsaved hidden staging document. Before target mutation the runtime fingerprints document content, target/context OOXML, range boundaries and structural counts. A failed target batch must return to that exact state; otherwise it returns ROLLBACK_FAILED, invalidates the handle and quarantines the document until explicit disconnect.",
       "inputSchema": {
         "properties": {
           "live_document_id": {
@@ -11882,10 +11884,150 @@
       "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true}
     },
     {
+      "name": "mark_live_word_index_entry",
+      "title": "Mark a native Word index entry",
+      "description": "Mark one exact token-verified Word range as a native XE index-entry field. Omitted main-entry text is derived from the target; explicit hierarchical subentries, a cross-reference, or an existing bookmark-backed page range are semantic options. The action uses Indexes.MarkEntry in one custom Undo record, verifies the exact field type, code range and parsed option readback, and rolls back on mismatch. Entry, bookmark, cross-reference and raw field-code text are never returned.",
+      "operationVersion": "1.0",
+      "permissions": {"filesystem": "none", "network": "none", "microsoft_word": "mutate_one_verified_connected_document_range_with_native_index_entry"},
+      "reversibility": {"applicable": true, "mechanism": "single_custom_word_undo_record_with_automatic_rollback_before_return_on_failed_verification"},
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "live_document_id": {"type": "string", "minLength": 1, "maxLength": 128},
+          "expected_version": {"type": "integer", "minimum": 0},
+          "selection_token": {"type": "string", "maxLength": 128, "default": ""},
+          "range_token": {"type": "string", "maxLength": 128, "default": ""},
+          "main_entry": {"type": "string", "maxLength": 4096, "pattern": "^[^:\\r\\n\\u0000]*$", "default": "", "description": "Empty derives the main entry from the exact target text. A literal colon is reserved for hierarchy; use subentries instead."},
+          "subentries": {"type": "array", "maxItems": 8, "items": {"type": "string", "minLength": 1, "maxLength": 4096, "pattern": "^[^:\\r\\n\\u0000]+$"}, "default": []},
+          "cross_reference": {"type": "string", "maxLength": 4096, "pattern": "^[^\\r\\n\\u0000]*$", "default": "", "description": "Optional displayed cross-reference. It cannot be combined with bookmark_name or page-number formatting."},
+          "bookmark_name": {"type": "string", "maxLength": 40, "pattern": "^[^\\r\\n\\u0000]*$", "default": "", "description": "Optional existing native Word bookmark whose range supplies the page span."},
+          "bold_page_number": {"type": "boolean", "default": false},
+          "italic_page_number": {"type": "boolean", "default": false},
+          "optimize_screen_updates": {"type": "boolean", "default": true}
+        },
+        "required": ["live_document_id", "expected_version"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "live_document_id", "live_version", "target_source", "main_entry_source", "main_entry_length", "subentry_count", "entry_length", "cross_reference", "bookmark_page_range", "bold_page_number", "italic_page_number", "field_count_before", "field_count_after", "index_entry_field_index", "native_verified", "entry_text_returned", "bookmark_name_returned", "cross_reference_text_returned", "raw_field_code_returned", "raw_com_objects_returned", "document", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.mark_live_word_index_entry/1.0"},
+              "live_document_id": {"type": "string", "maxLength": 128},
+              "live_version": {"type": "integer", "minimum": 0},
+              "target_source": {"enum": ["selection_token", "range_token"]},
+              "main_entry_source": {"enum": ["explicit", "target_text"]},
+              "main_entry_length": {"type": "integer", "minimum": 1, "maximum": 4096},
+              "subentry_count": {"type": "integer", "minimum": 0, "maximum": 8},
+              "entry_length": {"type": "integer", "minimum": 1, "maximum": 4096},
+              "cross_reference": {"type": "boolean"},
+              "bookmark_page_range": {"type": "boolean"},
+              "bold_page_number": {"type": "boolean"},
+              "italic_page_number": {"type": "boolean"},
+              "field_count_before": {"type": "integer", "minimum": 0, "maximum": 49999},
+              "field_count_after": {"type": "integer", "minimum": 1, "maximum": 50000},
+              "index_entry_field_index": {"type": "integer", "minimum": 1, "maximum": 50000},
+              "native_verified": {"const": true},
+              "entry_text_returned": {"const": false},
+              "bookmark_name_returned": {"const": false},
+              "cross_reference_text_returned": {"const": false},
+              "raw_field_code_returned": {"const": false},
+              "raw_com_objects_returned": {"const": false},
+              "document": {"type": "object"},
+              "performance": {"type": "object"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true}
+    },
+    {
+      "name": "insert_live_word_index",
+      "title": "Insert a native Word index",
+      "description": "Insert one native editable Word index at the document start/end or a token-verified collapsed cursor. The action requires at least one complete XE entry; accepts semantic heading, alignment, type, column, accented-letter and tab-leader options; uses Indexes.Add in one custom Undo record; optionally repaginates and updates; verifies native option readback plus the exact INDEX field range; and rolls back on mismatch. It never accepts or returns raw field code or generated index text.",
+      "operationVersion": "1.0",
+      "permissions": {"filesystem": "none", "network": "none", "microsoft_word": "mutate_connected_document_with_one_native_index_in_guarded_undo_record"},
+      "reversibility": {"applicable": true, "mechanism": "single_custom_word_undo_record_with_automatic_rollback_before_return_on_failed_verification"},
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "live_document_id": {"type": "string", "minLength": 1, "maxLength": 128},
+          "expected_version": {"type": "integer", "minimum": 0},
+          "target": {"type": "string", "enum": ["cursor", "document_start", "document_end"], "default": "document_end"},
+          "selection_token": {"type": "string", "maxLength": 128, "default": "", "description": "Required only for target=cursor; the current selection must be collapsed."},
+          "heading_separator": {"type": "string", "enum": ["none", "blank_line", "letter", "lowercase_letter", "uppercase_letter"], "default": "letter"},
+          "right_align_page_numbers": {"type": "boolean", "default": true},
+          "index_type": {"type": "string", "enum": ["indented", "run_in"], "default": "indented"},
+          "number_of_columns": {"type": "integer", "minimum": 0, "maximum": 4, "default": 1, "description": "Zero inherits the document section column count."},
+          "separate_accented_letter_headings": {"type": "boolean", "default": false},
+          "tab_leader": {"type": "string", "enum": ["spaces", "dots", "dashes", "lines", "heavy", "middle_dot"], "default": "dots"},
+          "repaginate": {"type": "boolean", "default": true},
+          "update": {"type": "boolean", "default": true},
+          "optimize_screen_updates": {"type": "boolean", "default": true}
+        },
+        "required": ["live_document_id", "expected_version"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "live_document_id", "live_version", "target", "index_entry_count", "index_count_before", "index_count_after", "index_collection_index", "inserted_range", "inserted_field_count", "updated", "repagination", "options", "native_verified", "raw_field_code_returned", "result_text_returned", "raw_com_objects_returned", "document", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.insert_live_word_index/1.0"},
+              "live_document_id": {"type": "string", "maxLength": 128},
+              "live_version": {"type": "integer", "minimum": 0},
+              "target": {"enum": ["cursor", "document_start", "document_end"]},
+              "index_entry_count": {"type": "integer", "minimum": 1, "maximum": 50000},
+              "index_count_before": {"type": "integer", "minimum": 0, "maximum": 9999},
+              "index_count_after": {"type": "integer", "minimum": 1, "maximum": 10000},
+              "index_collection_index": {"type": "integer", "minimum": 1, "maximum": 10000},
+              "inserted_range": {"type": "object", "required": ["start", "end"], "properties": {"start": {"type": "integer", "minimum": 0}, "end": {"type": "integer", "minimum": 1}}, "additionalProperties": false},
+              "inserted_field_count": {"type": "integer", "minimum": 1},
+              "updated": {"type": "boolean"},
+              "repagination": {"type": "object", "required": ["requested", "performed"], "properties": {"requested": {"type": "boolean"}, "performed": {"type": "boolean"}}, "additionalProperties": false},
+              "options": {
+                "type": "object",
+                "required": ["heading_separator", "right_align_page_numbers", "index_type", "number_of_columns", "separate_accented_letter_headings", "tab_leader"],
+                "properties": {
+                  "heading_separator": {"enum": ["none", "blank_line", "letter", "lowercase_letter", "uppercase_letter"]},
+                  "right_align_page_numbers": {"type": "boolean"},
+                  "index_type": {"enum": ["indented", "run_in"]},
+                  "number_of_columns": {"type": "integer", "minimum": 0, "maximum": 4},
+                  "separate_accented_letter_headings": {"type": "boolean"},
+                  "tab_leader": {"enum": ["spaces", "dots", "dashes", "lines", "heavy", "middle_dot"]}
+                },
+                "additionalProperties": false
+              },
+              "native_verified": {"const": true},
+              "raw_field_code_returned": {"const": false},
+              "result_text_returned": {"const": false},
+              "raw_com_objects_returned": {"const": false},
+              "document": {"type": "object"},
+              "performance": {"type": "object"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true}
+    },
+    {
       "name": "update_live_word_reference_tables",
       "title": "Update native Word reference tables",
-      "description": "Update existing native Word tables of contents, tables of figures, and tables of authorities in one guarded operation. The action can target every supported table or one exact kind and one-based index, optionally repaginates first, verifies collection counts plus every refreshed field range, and rolls back the whole custom Undo record on mismatch. It never accepts or returns field instructions, table result text, or raw COM objects.",
-      "operationVersion": "1.0",
+      "description": "Update existing native Word tables of contents, tables of figures, tables of authorities, and indexes in one guarded operation. The action can target every supported table/index or one exact kind and one-based collection index, optionally repaginates first, verifies collection counts plus every refreshed field range, and rolls back the whole custom Undo record on mismatch. It never accepts or returns field instructions, generated result text, or raw COM objects.",
+      "operationVersion": "1.1",
       "permissions": {
         "filesystem": "none",
         "network": "none",
@@ -11902,7 +12044,7 @@
           "expected_version": {"type": "integer", "minimum": 0},
           "kind": {
             "type": "string",
-            "enum": ["all", "table_of_contents", "table_of_figures", "table_of_authorities"],
+            "enum": ["all", "table_of_contents", "table_of_figures", "table_of_authorities", "index"],
             "default": "all"
           },
           "index": {
@@ -11928,10 +12070,10 @@
             "type": "object",
             "required": ["operation_contract", "live_document_id", "live_version", "requested_kind", "requested_index", "updated_count", "updated_counts", "counts_before", "counts_after", "repagination", "ranges_and_fields_verified", "native_verified", "raw_field_code_returned", "result_text_returned", "raw_com_objects_returned", "document", "performance"],
             "properties": {
-              "operation_contract": {"const": "wordtoolkit.update_live_word_reference_tables/1.0"},
+              "operation_contract": {"const": "wordtoolkit.update_live_word_reference_tables/1.1"},
               "live_document_id": {"type": "string", "maxLength": 128},
               "live_version": {"type": "integer", "minimum": 0},
-              "requested_kind": {"enum": ["all", "table_of_contents", "table_of_figures", "table_of_authorities"]},
+              "requested_kind": {"enum": ["all", "table_of_contents", "table_of_figures", "table_of_authorities", "index"]},
               "requested_index": {
                 "anyOf": [
                   {"type": "integer", "minimum": 1, "maximum": 10000},
@@ -11941,31 +12083,34 @@
               "updated_count": {"type": "integer", "minimum": 1, "maximum": 128},
               "updated_counts": {
                 "type": "object",
-                "required": ["tables_of_contents", "tables_of_figures", "tables_of_authorities"],
+                "required": ["tables_of_contents", "tables_of_figures", "tables_of_authorities", "indexes"],
                 "properties": {
                   "tables_of_contents": {"type": "integer", "minimum": 0, "maximum": 128},
                   "tables_of_figures": {"type": "integer", "minimum": 0, "maximum": 128},
-                  "tables_of_authorities": {"type": "integer", "minimum": 0, "maximum": 128}
+                  "tables_of_authorities": {"type": "integer", "minimum": 0, "maximum": 128},
+                  "indexes": {"type": "integer", "minimum": 0, "maximum": 128}
                 },
                 "additionalProperties": false
               },
               "counts_before": {
                 "type": "object",
-                "required": ["tables_of_contents", "tables_of_figures", "tables_of_authorities"],
+                "required": ["tables_of_contents", "tables_of_figures", "tables_of_authorities", "indexes"],
                 "properties": {
                   "tables_of_contents": {"type": "integer", "minimum": 0},
                   "tables_of_figures": {"type": "integer", "minimum": 0},
-                  "tables_of_authorities": {"type": "integer", "minimum": 0}
+                  "tables_of_authorities": {"type": "integer", "minimum": 0},
+                  "indexes": {"type": "integer", "minimum": 0}
                 },
                 "additionalProperties": false
               },
               "counts_after": {
                 "type": "object",
-                "required": ["tables_of_contents", "tables_of_figures", "tables_of_authorities"],
+                "required": ["tables_of_contents", "tables_of_figures", "tables_of_authorities", "indexes"],
                 "properties": {
                   "tables_of_contents": {"type": "integer", "minimum": 0},
                   "tables_of_figures": {"type": "integer", "minimum": 0},
-                  "tables_of_authorities": {"type": "integer", "minimum": 0}
+                  "tables_of_authorities": {"type": "integer", "minimum": 0},
+                  "indexes": {"type": "integer", "minimum": 0}
                 },
                 "additionalProperties": false
               },

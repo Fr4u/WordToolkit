@@ -65,6 +65,8 @@ internal sealed partial class WordLiveService : IToolHandler
     private readonly IWordComHost _host;
     private readonly Func<WordOperationResourceLease> _operationResourceLeaseFactory;
     private readonly ConcurrentDictionary<string, LiveDocumentRecord> _records = new();
+    private readonly ConcurrentDictionary<string, QuarantinedLiveDocumentRecord> _quarantinedRecords =
+        new();
     private readonly ConcurrentDictionary<string, SelectionGrant> _selectionGrants = new();
     private readonly ConcurrentDictionary<string, UndoGrant> _undoGrants = new();
     private readonly ConcurrentDictionary<string, RangeGrant> _rangeGrants = new();
@@ -408,6 +410,11 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "mark_live_word_index_entry" => MarkIndexEntryAsync(
+                arguments,
+                cancellationToken
+            ),
+            "insert_live_word_index" => InsertIndexAsync(arguments, cancellationToken),
             "update_live_word_reference_tables" => UpdateReferenceTablesAsync(
                 arguments,
                 cancellationToken
@@ -595,6 +602,7 @@ internal sealed partial class WordLiveService : IToolHandler
                 var name = DocumentName(document);
                 var fullName = DocumentFullName(document);
                 var identity = NormalizeIdentity(fullName, name);
+                ThrowIfDocumentIdentityQuarantined(identity);
                 var record = _records.Values.SingleOrDefault(
                     item => NormalizeIdentity(item.FullName, item.Name) == identity
                 );
@@ -673,6 +681,7 @@ internal sealed partial class WordLiveService : IToolHandler
                 var resolvedFullName = DocumentFullName(document);
                 var hwnd = ActiveWindowHwnd(application);
                 var identity = NormalizeIdentity(resolvedFullName, name);
+                ThrowIfDocumentIdentityQuarantined(identity);
                 var record = _records.Values.SingleOrDefault(
                     item => NormalizeIdentity(item.FullName, item.Name) == identity
                 );
@@ -2818,7 +2827,14 @@ internal sealed partial class WordLiveService : IToolHandler
                     selectionToken,
                     replaceSelection
                 );
+                StagePreparedEquations(application, operations);
                 var insertionStart = (int)targetRange.Start;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(
+                    document,
+                    insertionStart,
+                    (int)targetRange.End,
+                    record.Version
+                );
                 var pieces = new List<string>(operations.Count);
                 var segments = new List<(int Start, int End)>(operations.Count);
                 var offset = 0;
@@ -2848,6 +2864,7 @@ internal sealed partial class WordLiveService : IToolHandler
                 var beforeEquations = (int)document.OMaths.Count;
                 dynamic? undoRecord = null;
                 var undoStarted = false;
+                var mutationAttempted = false;
                 bool? originalScreenUpdating = null;
                 var results = new object?[operations.Count];
                 var textRanges = new Dictionary<int, object>();
@@ -2862,6 +2879,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     undoRecord = application.UndoRecord;
                     undoRecord.StartCustomRecord("WordToolkit: native mixed live batch");
                     undoStarted = true;
+                    mutationAttempted = true;
                     targetRange.Text = payload;
 
                     for (var index = 0; index < operations.Count; index++)
@@ -2894,68 +2912,11 @@ internal sealed partial class WordLiveService : IToolHandler
                         var index = equationIndexes[reverse];
                         var equationOperation = (PreparedEquationOperation)operations[index];
                         var segment = segments[index];
-                        dynamic equationRange = document.Range(
+                        builtEquations[index] = BuildVerifiedNativeEquation(
+                            document,
                             insertionStart + segment.Start,
-                            insertionStart + segment.End
-                        );
-                        dynamic added = document.OMaths.Add(equationRange);
-                        dynamic equation = added.OMaths.Item(1);
-                        equation.BuildUp();
-                        EquationStyleRewriteResult? styleRewrite = null;
-                        EquationStyleVerification? styleVerification = null;
-                        string readbackXml = "";
-                        if (equationOperation.HasFormatting)
-                        {
-                            var equationStart = (int)equation.Range.Start;
-                            styleRewrite = EquationStyleRewriter.Rewrite(
-                                (string?)equation.Range.WordOpenXML ?? "",
-                                equationOperation.StyleCounts
-                            );
-                            dynamic rewriteRange = equation.Range.Duplicate;
-                            rewriteRange.InsertXML(styleRewrite.WordOpenXml);
-                            dynamic rewrittenEquations = rewriteRange.OMaths;
-                            if ((int)rewrittenEquations.Count != 1)
-                            {
-                                throw new NativeToolException(
-                                    "EQUATION_INVALID",
-                                    "Microsoft Word did not preserve exactly one styled native equation",
-                                    new
-                                    {
-                                        equation_count = (int)rewrittenEquations.Count,
-                                        equation_start = equationStart,
-                                    }
-                                );
-                            }
-                            equation = rewrittenEquations.Item(1);
-                        }
-                        equation.Type = equationOperation.Display ? 0 : 1;
-                        if (styleRewrite is not null)
-                        {
-                            readbackXml = (string?)equation.Range.WordOpenXML ?? "";
-                            styleVerification = EquationStyleRewriter.Verify(
-                                readbackXml,
-                                styleRewrite
-                            );
-                        }
-                        EquationReadbackVerification? readback = null;
-                        if (equationOperation.VerifyReadback)
-                        {
-                            if (readbackXml.Length == 0)
-                            {
-                                readbackXml =
-                                    (string?)equation.Range.WordOpenXML ?? "";
-                            }
-                            readback = EquationReadbackVerifier.Verify(
-                                readbackXml,
-                                equationOperation.Linear
-                            );
-                        }
-                        builtEquations[index] = new BuiltEquationResult(
-                            (object)equation,
-                            equationOperation,
-                            readback,
-                            styleRewrite,
-                            styleVerification
+                            insertionStart + segment.End,
+                            equationOperation
                         );
                     }
                     var afterEquations = (int)document.OMaths.Count;
@@ -3077,7 +3038,7 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
                     foreach (
                         var equationOperation in operations.OfType<PreparedEquationOperation>()
@@ -3089,7 +3050,15 @@ internal sealed partial class WordLiveService : IToolHandler
                             static (_, current) => current + 1
                         );
                     }
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        mutationAttempted,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -3101,6 +3070,157 @@ internal sealed partial class WordLiveService : IToolHandler
                 }
             },
             cancellationToken
+        );
+    }
+
+    private static void StagePreparedEquations(
+        dynamic application,
+        IReadOnlyList<PreparedOperation> operations
+    )
+    {
+        var equationOperations = operations.OfType<PreparedEquationOperation>().ToArray();
+        if (equationOperations.Length == 0)
+        {
+            return;
+        }
+
+        dynamic? previousActiveDocument = null;
+        dynamic? stagingDocument = null;
+        Exception? stagingFailure = null;
+        try
+        {
+            try
+            {
+                previousActiveDocument = application.ActiveDocument;
+            }
+            catch
+            {
+                // Word can have no active document during a window transition.
+            }
+            stagingDocument = application.Documents.Add(Visible: false);
+            foreach (var operation in equationOperations)
+            {
+                var insertionStart = Math.Max(0, (int)stagingDocument.Content.End - 1);
+                dynamic payloadRange = stagingDocument.Range(insertionStart, insertionStart);
+                payloadRange.Text = operation.Value + "\r";
+                var beforeEquations = (int)stagingDocument.OMaths.Count;
+                _ = BuildVerifiedNativeEquation(
+                    stagingDocument,
+                    insertionStart,
+                    insertionStart + operation.Value.Length,
+                    operation
+                );
+                var afterEquations = (int)stagingDocument.OMaths.Count;
+                if (afterEquations != beforeEquations + 1)
+                {
+                    throw new NativeToolException(
+                        "EQUATION_INVALID",
+                        "Microsoft Word did not create exactly one native equation in the isolated staging document",
+                        new
+                        {
+                            before = beforeEquations,
+                            after = afterEquations,
+                            expected = 1,
+                            target_document_mutated = false,
+                        }
+                    );
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            stagingFailure = exception;
+            throw;
+        }
+        finally
+        {
+            if (stagingDocument is not null)
+            {
+                try
+                {
+                    stagingDocument.Close(WordDoNotSaveChanges);
+                }
+                catch when (stagingFailure is not null)
+                {
+                    // The original staging failure remains authoritative; the target was untouched.
+                }
+            }
+            if (previousActiveDocument is not null)
+            {
+                try
+                {
+                    previousActiveDocument.Activate();
+                }
+                catch when (stagingFailure is not null)
+                {
+                    // The original staging failure remains authoritative.
+                }
+            }
+        }
+    }
+
+    private static BuiltEquationResult BuildVerifiedNativeEquation(
+        dynamic document,
+        int start,
+        int end,
+        PreparedEquationOperation equationOperation
+    )
+    {
+        dynamic equationRange = document.Range(start, end);
+        dynamic added = document.OMaths.Add(equationRange);
+        dynamic equation = added.OMaths.Item(1);
+        equation.BuildUp();
+        EquationStyleRewriteResult? styleRewrite = null;
+        EquationStyleVerification? styleVerification = null;
+        string readbackXml = "";
+        if (equationOperation.HasFormatting)
+        {
+            var equationStart = (int)equation.Range.Start;
+            styleRewrite = EquationStyleRewriter.Rewrite(
+                (string?)equation.Range.WordOpenXML ?? "",
+                equationOperation.StyleCounts
+            );
+            dynamic rewriteRange = equation.Range.Duplicate;
+            rewriteRange.InsertXML(styleRewrite.WordOpenXml);
+            dynamic rewrittenEquations = rewriteRange.OMaths;
+            if ((int)rewrittenEquations.Count != 1)
+            {
+                throw new NativeToolException(
+                    "EQUATION_INVALID",
+                    "Microsoft Word did not preserve exactly one styled native equation",
+                    new
+                    {
+                        equation_count = (int)rewrittenEquations.Count,
+                        equation_start = equationStart,
+                    }
+                );
+            }
+            equation = rewrittenEquations.Item(1);
+        }
+        equation.Type = equationOperation.Display ? 0 : 1;
+        if (styleRewrite is not null)
+        {
+            readbackXml = (string?)equation.Range.WordOpenXML ?? "";
+            styleVerification = EquationStyleRewriter.Verify(readbackXml, styleRewrite);
+        }
+        EquationReadbackVerification? readback = null;
+        if (equationOperation.VerifyReadback)
+        {
+            if (readbackXml.Length == 0)
+            {
+                readbackXml = (string?)equation.Range.WordOpenXML ?? "";
+            }
+            readback = EquationReadbackVerifier.Verify(
+                readbackXml,
+                equationOperation.Linear
+            );
+        }
+        return new BuiltEquationResult(
+            (object)equation,
+            equationOperation,
+            readback,
+            styleRewrite,
+            styleVerification
         );
     }
 
@@ -3415,6 +3535,7 @@ internal sealed partial class WordLiveService : IToolHandler
             cancellationToken
         );
         _records.Clear();
+        _quarantinedRecords.Clear();
         _selectionGrants.Clear();
         _undoGrants.Clear();
         _rangeGrants.Clear();
@@ -3426,12 +3547,26 @@ internal sealed partial class WordLiveService : IToolHandler
     private Task<object> DisconnectAsync(JsonElement arguments)
     {
         var id = arguments.String("live_document_id");
-        _ = Record(id);
-        _records.TryRemove(id, out _);
+        var disconnected = _records.TryRemove(id, out _);
+        var quarantineCleared = _quarantinedRecords.TryRemove(id, out _);
+        if (!disconnected && !quarantineCleared)
+        {
+            throw new NativeToolException(
+                "DOCUMENT_NOT_FOUND",
+                "The Word Live document handle was not found"
+            );
+        }
         InvalidateSelectionGrants(id);
         InvalidateRangeGrants(id);
         InvalidateUndoGrants(id);
-        return Task.FromResult<object>(new { live_document_id = id, disconnected = true });
+        return Task.FromResult<object>(
+            new
+            {
+                live_document_id = id,
+                disconnected = true,
+                quarantine_cleared = quarantineCleared,
+            }
+        );
     }
 
     internal async Task<bool> UndoBenchmarkTransactionAsync(
@@ -3832,14 +3967,55 @@ internal sealed partial class WordLiveService : IToolHandler
 
     private LiveDocumentRecord Record(string id)
     {
-        if (id.Length == 0 || !_records.TryGetValue(id, out var record))
+        if (id.Length == 0)
         {
             throw new NativeToolException(
                 "DOCUMENT_NOT_FOUND",
                 "The Word Live document handle was not found"
             );
         }
-        return record;
+        if (_records.TryGetValue(id, out var record))
+        {
+            return record;
+        }
+        if (_quarantinedRecords.ContainsKey(id))
+        {
+            throw new NativeToolException(
+                "LIVE_DOCUMENT_QUARANTINED",
+                "The Word Live document handle was invalidated after rollback could not be proven",
+                new
+                {
+                    live_document_id = id,
+                    reason_code = "ROLLBACK_FAILED",
+                    requires_explicit_disconnect = true,
+                }
+            );
+        }
+        throw new NativeToolException(
+            "DOCUMENT_NOT_FOUND",
+            "The Word Live document handle was not found"
+        );
+    }
+
+    private void ThrowIfDocumentIdentityQuarantined(string identity)
+    {
+        var quarantine = _quarantinedRecords.Values.FirstOrDefault(
+            item => NormalizeIdentity(item.FullName, item.Name) == identity
+        );
+        if (quarantine is null)
+        {
+            return;
+        }
+        throw new NativeToolException(
+            "LIVE_DOCUMENT_QUARANTINED",
+            "This open Word document is quarantined because rollback could not be proven",
+            new
+            {
+                live_document_id = quarantine.Id,
+                reason_code = "ROLLBACK_FAILED",
+                requires_explicit_disconnect = true,
+            }
+        );
     }
 
     private static void CheckVersion(LiveDocumentRecord record, long? expectedVersion)

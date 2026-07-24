@@ -444,6 +444,33 @@ public sealed class WordDependencyGraphTests
     }
 
     [Fact]
+    public void ResolvesIndexEntriesToConcreteNativeIndexFieldNodes()
+    {
+        using var bytes = BuildPackage(
+            documentBody: """
+            <w:p><w:fldSimple w:instr=" XE &quot;Analiza:Całki&quot; \f &quot;a&quot; "><w:r><w:t/></w:r></w:fldSimple></w:p>
+            <w:p><w:fldSimple w:instr=" INDEX \f &quot;A&quot; \h &quot;A&quot; "><w:r><w:t>Analiza, 1</w:t></w:r></w:fldSimple></w:p>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+
+        var graph = new WordDependencyGraphBuilder().Build(package, semantic);
+
+        var edge = Assert.Single(
+            graph.Edges,
+            item =>
+                item.Kind == WordDependencyEdgeKind.FieldReference
+                && item.Qualifier is not null
+                && item.Qualifier.Contains("native_index", StringComparison.Ordinal)
+        );
+        Assert.True(edge.IsResolved);
+        Assert.True(graph.TryGetNode(edge.TargetNodeId, out var target));
+        Assert.Equal(WordDependencyNodeKind.Field, target!.Kind);
+        Assert.DoesNotContain(graph.Issues, issue => issue.Code == "WDG030");
+    }
+
+    [Fact]
     public void EnforcesNodeAndFingerprintBoundaries()
     {
         using var bytes = BuildPackage(documentBody: "<w:p/>");

@@ -9,6 +9,12 @@ internal sealed class LiveDocumentRecord
     public long Version { get; set; }
 }
 
+internal sealed record QuarantinedLiveDocumentRecord(
+    string Id,
+    string Name,
+    string FullName
+);
+
 internal sealed record SelectionGrant(
     string Token,
     string DocumentId,

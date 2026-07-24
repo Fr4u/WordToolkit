@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+- Fixed the P0 atomicity defect in the native mixed text/equation transaction. The
+  runtime no longer treats a single attempted `Document.Undo(1)` as proof of rollback.
+  It snapshots live version/save state, main-story text, exact target and bounded-context
+  OOXML, range boundaries and structural counts before mutation, then requires a true
+  Undo result and an exact post-Undo match. Any unclosed custom record, false/throwing
+  Undo, unreadable state or mismatch returns `ROLLBACK_FAILED`, invalidates the handle
+  and blocks reconnection to the quarantined document identity until explicit disconnect.
+- Every requested native equation is now built, styled and read back in an unsaved hidden
+  Word staging document before target publication. A staging failure closes the temporary
+  document and leaves target content, counts, version and handle unchanged; target-side
+  rollback verification remains mandatory because publication can still fail.
+- Added adversarial fake-COM coverage for exact rollback, content/OMath residue, partial
+  rollback, `Undo=false`, thrown Undo, failed custom-record closure, handle invalidation,
+  reconnect blocking and explicit quarantine release. Failure diagnostics return only
+  codes, mismatch names and structural summaries; document text, OOXML and hashes stay
+  private.
+- Real Word 16.0 reproduced the underlying failure: `Undo(1)` returned `false` and a
+  nominally empty target retained 33 paragraphs. The runtime returned `ROLLBACK_FAILED`,
+  quarantined the identity and refused further inspection until explicit release. The
+  final installed `0.39.0+codex.20260724132826` build subsequently staged, published,
+  saved, SDK-validated and PDF-rendered the eight-line complex integral derivation with
+  six native integrals, six correctly placed differentials and equal expected/readback
+  contract hashes.
+- Full gates pass 504 Engine, 378 Native and 1,309 Python tests with 16 intentional
+  skips; Ruff lint and all four C# format verifiers pass. The enabled package exposes
+  107 actions, 15 tools and 20 explicit metadata contracts. Build/source/cache trees are
+  identical at 196 files and 86,962,059 bytes; the 36,709,200-byte ZIP SHA-256 is
+  `bf6b236f7f9191559d4cb3a16ff49b8013d2daf527187a728dbb202c6861ebfc`.
+
+- Added `wordtoolkit.mark_live_word_index_entry/1.0` and
+  `wordtoolkit.insert_live_word_index/1.0` as native actions 106 and 107. They create
+  token-bound native `XE` marks and one editable `INDEX` through Word, expose hierarchy,
+  cross-reference/bookmark-page-range and semantic layout options, verify exact native
+  readback in one Undo record and return no entry, bookmark, cross-reference, generated
+  index or field-code text.
+- Extended `wordtoolkit.update_live_word_reference_tables` to contract 1.1 so indexes
+  participate in all-kind and exact-kind updates. Saved-package reference/dependency
+  graphs now resolve complete, non-deleted `XE` entries to concrete complete `INDEX`
+  field nodes.
 - Added `wordtoolkit.mark_live_word_authority_citation/1.0` and
   `wordtoolkit.insert_live_word_table_of_authorities/1.1` as native actions 104 and 105.
   They use fresh token-bound targets, categories 1–16 or all-category insertion,

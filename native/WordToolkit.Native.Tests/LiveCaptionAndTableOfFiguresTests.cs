@@ -32,7 +32,7 @@ public sealed class LiveCaptionAndTableOfFiguresTests
         Assert.Equal("1.0", contents["operationVersion"]!.GetValue<string>());
         Assert.Equal("1.0", citation["operationVersion"]!.GetValue<string>());
         Assert.Equal("1.1", authorities["operationVersion"]!.GetValue<string>());
-        Assert.Equal("1.0", update["operationVersion"]!.GetValue<string>());
+        Assert.Equal("1.1", update["operationVersion"]!.GetValue<string>());
         Assert.False(caption["annotations"]!["readOnlyHint"]!.GetValue<bool>());
         Assert.False(table["annotations"]!["readOnlyHint"]!.GetValue<bool>());
         Assert.False(contents["annotations"]!["readOnlyHint"]!.GetValue<bool>());
@@ -718,7 +718,7 @@ public sealed class LiveCaptionAndTableOfFiguresTests
         var data = json.RootElement;
 
         Assert.Equal(
-            "wordtoolkit.update_live_word_reference_tables/1.0",
+            "wordtoolkit.update_live_word_reference_tables/1.1",
             data.GetProperty("operation_contract").GetString()
         );
         Assert.Equal(version + 1, data.GetProperty("live_version").GetInt64());
@@ -735,6 +735,7 @@ public sealed class LiveCaptionAndTableOfFiguresTests
             1,
             data.GetProperty("updated_counts").GetProperty("tables_of_authorities").GetInt32()
         );
+        Assert.Equal(0, data.GetProperty("updated_counts").GetProperty("indexes").GetInt32());
         Assert.Equal(
             1,
             data.GetProperty("counts_before").GetProperty("tables_of_contents").GetInt32()
@@ -989,6 +990,7 @@ public sealed class CaptionFakeDocument
         TablesOfContents = new CaptionFakeReferenceTables(this);
         TablesOfFigures = new CaptionFakeTablesOfFigures(this);
         TablesOfAuthorities = new CaptionFakeReferenceTables(this);
+        Indexes = new CaptionFakeIndexes(this);
     }
 
     public string Name => "Captions.docx";
@@ -1004,10 +1006,11 @@ public sealed class CaptionFakeDocument
     public CaptionFakeReferenceTables TablesOfContents { get; }
     public CaptionFakeTablesOfFigures TablesOfFigures { get; }
     public CaptionFakeReferenceTables TablesOfAuthorities { get; }
+    public CaptionFakeIndexes Indexes { get; }
     public CaptionFakeCountCollection Paragraphs { get; } = new(2);
     public CaptionFakeCountCollection OMaths { get; } = new(0);
     public CaptionFakeCountCollection Tables { get; } = new(1);
-    public CaptionFakeCountCollection Bookmarks { get; } = new(0);
+    public CaptionFakeBookmarks Bookmarks { get; } = new();
     public CaptionFakeCountCollection InlineShapes { get; } = new(1);
     public CaptionFakeCountCollection Shapes { get; } = new(0);
     public CaptionFakeCountCollection Comments { get; } = new(0);
@@ -1049,6 +1052,7 @@ public sealed class CaptionFakeDocument
         TablesOfContents.CaptureUndoSnapshot();
         TablesOfFigures.CaptureUndoSnapshot();
         TablesOfAuthorities.CaptureUndoSnapshot();
+        Indexes.CaptureUndoSnapshot();
     }
 
     public bool Undo(int count)
@@ -1061,6 +1065,7 @@ public sealed class CaptionFakeDocument
         TablesOfContents.RestoreUndoSnapshot();
         TablesOfFigures.RestoreUndoSnapshot();
         TablesOfAuthorities.RestoreUndoSnapshot();
+        Indexes.RestoreUndoSnapshot();
         UndoCount++;
         return true;
     }
@@ -1187,6 +1192,145 @@ public sealed class CaptionFakeFieldCode
     public int Start { get; }
     public int End { get; }
     public CaptionFakeFieldCode Duplicate => this;
+}
+
+public sealed class CaptionFakeIndexes
+{
+    private readonly CaptionFakeDocument _document;
+    private readonly List<CaptionFakeIndex> _items = [];
+    private int _undoCount;
+
+    public CaptionFakeIndexes(CaptionFakeDocument document) => _document = document;
+
+    public int Count => _items.Count;
+    public CaptionFakeIndex Item(int index) => _items[index - 1];
+    public bool SuppressMarkedEntry { get; set; }
+    public bool SuppressAddedField { get; set; }
+    public bool SuppressTabLeaderChange { get; set; }
+
+    public CaptionFakeField MarkEntry(
+        CaptionFakeRange range,
+        string entry,
+        object entryAutoText,
+        object crossReference,
+        object crossReferenceAutoText,
+        object bookmarkName,
+        bool bold,
+        bool italic,
+        object reading
+    )
+    {
+        var code = $" XE \"{entry.Replace("\"", "\"\"")}\"";
+        if (crossReference is string crossReferenceText && crossReferenceText.Length > 0)
+        {
+            code += $" \\t \"{crossReferenceText.Replace("\"", "\"\"")}\"";
+        }
+        if (bookmarkName is string bookmarkText && bookmarkText.Length > 0)
+        {
+            code += $" \\r {bookmarkText}";
+        }
+        if (bold)
+        {
+            code += " \\b";
+        }
+        if (italic)
+        {
+            code += " \\i";
+        }
+        code += " ";
+        return SuppressMarkedEntry
+            ? new CaptionFakeField(code, 4, range.End, range.End + code.Length)
+            : _document.Fields.Add(code, 4, range.End);
+    }
+
+    public CaptionFakeIndex Add(
+        CaptionFakeRange range,
+        int headingSeparator,
+        bool rightAlignPageNumbers,
+        int type,
+        int numberOfColumns,
+        bool accentedLetters,
+        object sortBy,
+        object indexLanguage
+    )
+    {
+        var native = new CaptionFakeIndex(
+            range.Start,
+            range.Start + 20,
+            SuppressAddedField ? 0 : 1
+        )
+        {
+            IgnoreTabLeaderChanges = SuppressTabLeaderChange,
+        };
+        _items.Add(native);
+        return native;
+    }
+
+    public void Seed(int count)
+    {
+        for (var index = 0; index < count; index++)
+        {
+            var start = 60 + (_items.Count * 20);
+            _items.Add(new CaptionFakeIndex(start, start + 12));
+        }
+    }
+
+    public void CaptureUndoSnapshot()
+    {
+        _undoCount = _items.Count;
+        foreach (var item in _items)
+        {
+            item.CaptureUndoSnapshot();
+        }
+    }
+
+    public void RestoreUndoSnapshot()
+    {
+        if (_items.Count > _undoCount)
+        {
+            _items.RemoveRange(_undoCount, _items.Count - _undoCount);
+        }
+        foreach (var item in _items)
+        {
+            item.RestoreUndoSnapshot();
+        }
+    }
+}
+
+public sealed class CaptionFakeIndex : CaptionFakeReferenceTable
+{
+    public CaptionFakeIndex(
+        int start,
+        int end,
+        int fieldCount = 1,
+        int headingSeparator = 2,
+        bool rightAlignPageNumbers = true,
+        int type = 0,
+        int numberOfColumns = 1,
+        bool accentedLetters = false
+    )
+        : base(start, end, fieldCount, 8)
+    {
+        HeadingSeparator = headingSeparator;
+        RightAlignPageNumbers = rightAlignPageNumbers;
+        Type = type;
+        NumberOfColumns = numberOfColumns;
+        AccentedLetters = accentedLetters;
+    }
+
+    public int HeadingSeparator { get; set; }
+    public bool RightAlignPageNumbers { get; set; }
+    public int Type { get; set; }
+    public int NumberOfColumns { get; set; }
+    public bool AccentedLetters { get; set; }
+}
+
+public sealed class CaptionFakeBookmarks
+{
+    private readonly HashSet<string> _names = new(StringComparer.OrdinalIgnoreCase);
+    public int Count => _names.Count;
+    public bool Exists(string name) => _names.Contains(name);
+    public void Seed(string name) => _names.Add(name);
 }
 
 public sealed class CaptionFakeReferenceTables

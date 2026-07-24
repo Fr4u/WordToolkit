@@ -284,24 +284,30 @@ of composing `SEQ` or `TOC` field instructions yourself:
    specification requires another bounded separator or one of the six semantic leaders.
    The action verifies every native separator/display option by readback and rolls back
    if Word does not preserve the requested settings.
-7. To refresh existing native tables of contents, figures or authorities, call
+7. To build a native alphabetical index, obtain one fresh selection or range token per
+   entry and call `mark_live_word_index_entry`. Omitted main text comes from the target;
+   use `subentries` for hierarchy. A cross-reference is mutually exclusive with an
+   existing-bookmark page range and page-number emphasis. After at least one complete
+   mark, call `insert_live_word_index` with semantic heading/type/column/accent/leader
+   options. Never compose raw `XE` or `INDEX` instructions.
+8. To refresh existing native tables of contents, figures, authorities or indexes, call
    `update_live_word_reference_tables` with the current version. Leave `kind=all` to
    update every supported collection, or select one exact kind and optional one-based
    `index`. One request updates at most 128 objects and repaginates first by default.
 
-The caption, figure-table, contents-table and authority-table actions use native Word
+The caption, figure-table, contents-table, authority-table and index actions use native Word
 fields in one custom Undo record, verify the resulting collection/field counts, and roll
 back on mismatch. They never accept raw field code, create a global custom label or
 return generated table, caption or citation text. A table of figures is rejected when
 the document has no matching native captions; a table of authorities is rejected when
 it has no matching native authority entries. Save, validate and render the result before
 calling the document complete.
-The reference-table update action likewise uses one custom Undo record, keeps the three
+The reference-table update action likewise uses one custom Undo record, keeps the four
 collection counts stable, verifies every resulting range and field collection, and
 returns no field instructions or generated table text. It deliberately performs the
 native full `Update` operation. Do not invent one cross-kind page-number-only flag:
 Word exposes that narrower operation for contents and figures, but not with the same
-contract for a table of authorities.
+contract for every supported family.
 Use lazy `inspect_ooxml_content_controls` instead of reading `w:sdt`, `dataBinding`,
 `customXml` or item-properties XML yourself. Start with `view=summary`; page `controls`,
 `stores`, `bindings`, `targets`, `repeating_sections` or `issues` only when the next
@@ -650,8 +656,18 @@ action opens Word or returns XML/document text.
 7. Finish with `disconnect_live_word_document`. Close or quit only when the
    user explicitly asks; those actions require their guarded policies.
 
-`apply_live_word_operations` is the default authoring tool. It creates native
-text and editable OMath in one Word Undo transaction and rolls back on failure.
+`apply_live_word_operations` is the default authoring tool. It first builds and verifies
+every requested native equation in an unsaved hidden Word staging document; a staging
+failure closes that document and leaves the target untouched. It then creates native
+text and editable OMath in one target Word Undo transaction. Before target mutation it fingerprints
+the main-story content, exact target and bounded OOXML context, range boundaries,
+save state and structural counts. On failure, the original error remains authoritative
+only when Word's Undo returns success and the complete snapshot matches exactly. If
+Undo throws, returns false, cannot be closed safely, or leaves any mismatch, the action
+returns `ROLLBACK_FAILED`, invalidates the live handle and quarantines that document
+identity. Do not reconnect or continue editing a quarantined document. Inspect it in
+Word, then call `disconnect_live_word_document` only as an explicit acknowledgement
+before any fresh connection.
 
 ## Lazy actions
 

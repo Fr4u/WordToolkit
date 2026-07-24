@@ -123,9 +123,67 @@ async def main() -> None:
         "",
         "The current remote Python service source of truth is `schemas/mcp-tools.v2.json`; `schemas/mcp-tools.v1.json` remains the immutable historical contract. The provider-neutral heterogeneous mutation contract, including executable input/success/error examples, is generated as `schemas/draft-operations.v1.json`. The native Windows plugin has a separate, deliberately hand-reviewed source in `schemas/mcp-tools-local.v1.json`; `WordToolkit.Native.Tests` validates that catalog and this exporter never overwrites it. Every exported remote tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.",
         "",
-        "| Tool | Read only | Destructive | Idempotent | File inputs |",
-        "|---|---:|---:|---:|---|",
     ]
+    lines.extend(
+        """
+The native catalog currently contains 107 actions behind 15 core/gateway tools. Rare
+saved-package inspectors remain lazy so their schemas do not enter model context until
+needed. `inspect_ooxml_active_content` is read-only and closed-world: it inventories
+typed OLE/ActiveX/VBA/embedded-package/customization/signature metadata without opening
+Word, payloads or external targets. Its names, relationship targets, hashes and source
+locations require independent opt-ins; raw XML and active-content values are unavailable.
+`inspect_ooxml_properties` separately models core, extended and custom properties. It
+validates package reachability, declared scalar types and custom identity, redacts custom
+names and every value by default, and never evaluates a field or decodes a complex value.
+`inspect_ooxml_diagrams` models native SmartArt data, points, connections and related
+layout/style/color/persisted-drawing parts. It never executes layout or returns point
+text or raw XML; model keys, keyed fingerprints and source provenance are separate
+opt-ins. `inspect_live_word_drawing_layout` is the complementary connected-Word action.
+It asks Word to repaginate and returns bounded reference-aware
+shape/inline/group/SmartArt object layout without COM or XML. Text is not read without
+opt-in; screen pixels are capped, viewport-dependent and never called page geometry.
+`prepare_live_word_smartart_text_edits` and `apply_live_word_smartart_text_edits` add a
+narrow live mutation path for node text. Tokens bind one node to the complete
+Word-executed SmartArt structure and text context; apply performs exact readback in one
+Undo record and rolls back if Word changes structure, an untargeted node or the requested
+text. Node creation/deletion/reordering and layout/style/color mutation remain unsupported.
+`insert_live_word_caption`, `insert_live_word_table_of_figures` and
+`insert_live_word_table_of_contents` are guarded live Word mutations. The first two
+resolve localized built-in or exact existing custom caption labels. The contents action
+accepts only semantic heading levels, source flags and presentation options. They create
+native Word fields, verify collection counts and exact field ranges and roll back on
+mismatch. None accepts raw field instructions or returns generated table/caption text.
+`mark_live_word_authority_citation` binds one fresh non-empty selection or range to one
+native `TA` entry in category 1..16. `insert_live_word_table_of_authorities` creates one
+native `TOA` for an exact category or all categories. It defaults to a real tab with
+dotted leaders, verifies every separator/display option by native readback and rolls the
+single custom Undo record back on mismatch. Neither action returns citation text,
+separator values, generated table text, field instructions or COM objects.
+`mark_live_word_index_entry` binds one fresh selection or range to a native `XE` field,
+supports a bounded hierarchy, cross-reference, existing bookmark page range and bold or
+italic page numbers, and verifies the exact generated field. `insert_live_word_index`
+creates one native default-type `INDEX` from existing complete entries and verifies
+heading separation, layout, columns, accented-letter handling and tab leader by native
+readback. Neither action accepts raw field code or returns entry/index text.
+`update_live_word_reference_tables` refreshes existing native tables of contents,
+figures, authorities and indexes through Word. It selects all supported objects or one
+exact kind and one-based index, caps a transaction at 128 objects, optionally repaginates,
+verifies stable collection counts and readable field ranges, and rolls the custom Undo
+record back on any mismatch. It never accepts or returns field instructions or generated
+table text.
+`plan_ooxml_format` and `apply_ooxml_format` are also lazy. They expose one explicit,
+bounded policy that removes scalar direct formatting proven redundant against the
+resolved cascade. Font, color, underline and shading elements additionally require a
+bounded candidate-by-candidate package reparse and group-equivalence proof; unresolved
+table/revision/unmodeled cascade layers are skipped. The actions validate the cumulative
+isolated candidate and create only a new output. They do not open Word, return document
+content, overwrite a file or turn XML pretty-printing into a false claim of document
+formatting.
+
+| Tool | Read only | Destructive | Idempotent | File inputs |
+|---|---:|---:|---:|---|
+        """.strip().splitlines()
+    )
     for tool in tools:
         annotations = tool.annotations
         meta = tool.meta or {}

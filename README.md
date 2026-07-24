@@ -53,23 +53,27 @@ persisted drawing parts; see
 [Guarded live SmartArt text editing](docs/RESEARCH-SMARTART-TEXT-EDITING-2026.md).
 
 The live `insert_live_word_caption`, `insert_live_word_table_of_figures`,
-`insert_live_word_table_of_contents`, `mark_live_word_authority_citation` and
-`insert_live_word_table_of_authorities` actions add native Word captions, authority
-marks and editable reference tables without asking the model to write field
+`insert_live_word_table_of_contents`, `mark_live_word_authority_citation`,
+`insert_live_word_table_of_authorities`, `mark_live_word_index_entry` and
+`insert_live_word_index` actions add native Word captions, authority/index marks and
+editable reference tables without asking the model to write field
 instructions. Built-in caption labels are resolved by the installed Word language;
 custom labels must already exist. The contents action accepts semantic heading levels
 and source flags, not a raw `TOC` instruction. Authority marks require an exact fresh
 range or selection; table insertion accepts one category or all categories and defaults
-to a native tab with dotted leaders. These operations use one custom Undo record, verify
-native field/collection counts and exact table-option readback, return no generated
-table, caption or citation text and roll back when Word does not produce the requested
-structure.
+to a native tab with dotted leaders. Index marks accept explicit hierarchy, a
+cross-reference or an existing bookmark page range; index insertion accepts semantic
+heading, type, column, accented-letter and leader settings. These operations use one
+custom Undo record, verify native field/collection counts and exact option readback,
+return no generated table, caption, citation or index-entry text and roll back when Word
+does not produce the requested structure.
 `update_live_word_reference_tables` refreshes existing native tables of contents,
-figures and authorities, either as one bounded all-kind transaction or by exact kind and
-index. It repaginates by default, updates at most 128 objects, verifies every native
-range and field collection, preserves all three collection counts and returns neither
-generated table text nor field instructions.
+figures, authorities and indexes, either as one bounded all-kind transaction or by exact
+kind and index. It repaginates by default, updates at most 128 objects, verifies every
+native range and field collection, preserves all four collection counts and returns
+neither generated result text nor field instructions.
 See [Guarded native authority citations and table of authorities](docs/RESEARCH-LIVE-TABLE-OF-AUTHORITIES-2026.md),
+[Guarded native index entries and indexes](docs/RESEARCH-LIVE-INDEX-2026.md),
 [Guarded live reference-table update](docs/RESEARCH-LIVE-REFERENCE-TABLE-UPDATE-2026.md)
 and [Native table-of-contents insertion](docs/RESEARCH-LIVE-TABLE-OF-CONTENTS-INSERTION-2026.md)
 for the Word object-model evidence, safety contracts and verified limits.
@@ -152,7 +156,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 105-action schema set into model context. The normative shape is
+not flatten the 107-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -396,6 +400,8 @@ insert_live_word_table_of_figures
 insert_live_word_table_of_contents
 mark_live_word_authority_citation
 insert_live_word_table_of_authorities
+mark_live_word_index_entry
+insert_live_word_index
 update_live_word_reference_tables
 insert_live_word_image
 insert_live_word_comment
@@ -751,6 +757,19 @@ counts, native verification and compact document state. They do not echo the
 generated text or equations back into the model context. Set
 `response_mode="full"` through the lazy execution gateway only when exact
 diagnostic detail is needed.
+
+Failure is not allowed to masquerade as atomicity. Every native equation is first built,
+styled and read back in an unsaved hidden Word staging document. If that isolated gate
+fails, the staging document is discarded and the target is untouched. Before the first
+target write, the native path records the main-story text hash, exact target and bounded-context OOXML
+hashes, content/target/context boundaries, save state and paragraph, equation, table,
+field, bookmark, shape, comment, note and section counts. After one bounded Undo, every
+value must match. A thrown/false Undo, an unclosed custom record, unreadable verification
+state or any mismatch produces `ROLLBACK_FAILED` instead of the original equation/style
+error. The live handle is removed and the document identity is quarantined; subsequent
+inspection, mutation and automatic reconnection fail with `LIVE_DOCUMENT_QUARANTINED`
+until `disconnect_live_word_document` explicitly clears the quarantine. No document
+text, OOXML or fingerprints are returned in the diagnostic.
 
 ## Native equations
 

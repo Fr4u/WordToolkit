@@ -3651,6 +3651,54 @@ public sealed class WordDependencyGraphBuilder
             }
             if (
                 edge.TargetKind == WordReferenceTargetKind.IndexEntry
+                && fieldsById.TryGetValue(edge.SourceFieldId, out var indexEntry)
+                && string.Equals(
+                    indexEntry.FieldType,
+                    "XE",
+                    StringComparison.OrdinalIgnoreCase
+                )
+                && !indexEntry.IsInDeletedContent
+                && TryIndexEntryType(indexEntry.Tokens, out var entryType)
+            )
+            {
+                var indexTargets = references.Fields
+                    .Where(field =>
+                        !field.IsInDeletedContent
+                        && field.Status == WordFieldStatus.Complete
+                        && field.InstructionParseComplete
+                        && string.Equals(
+                            field.FieldType,
+                            "INDEX",
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                        && TryIndexEntryType(field.Tokens, out var indexType)
+                        && string.Equals(
+                            entryType,
+                            indexType,
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                        && fieldNodes.ContainsKey(field.Id)
+                    )
+                    .ToArray();
+                if (indexTargets.Length > 0)
+                {
+                    foreach (var indexTarget in indexTargets)
+                    {
+                        state.AddEdge(
+                            WordDependencyEdgeKind.FieldReference,
+                            sourceNodeId,
+                            fieldNodes[indexTarget.Id],
+                            isResolved: true,
+                            isExternal: false,
+                            qualifier: $"{edge.Kind}:{edge.TargetKind}:typed_native_index",
+                            relationshipId: edge.Id
+                        );
+                    }
+                    continue;
+                }
+            }
+            if (
+                edge.TargetKind == WordReferenceTargetKind.IndexEntry
                 && fieldsById.TryGetValue(edge.SourceFieldId, out var authorityEntry)
                 && string.Equals(
                     authorityEntry.FieldType,
@@ -3839,6 +3887,38 @@ public sealed class WordDependencyGraphBuilder
             category = default;
             return false;
         }
+        return true;
+    }
+
+    private static bool TryIndexEntryType(
+        IReadOnlyList<WordFieldToken> tokens,
+        out string entryType
+    )
+    {
+        var indexes = tokens
+            .Select((token, index) => (token, index))
+            .Where(item =>
+                item.token.Kind == WordFieldTokenKind.Switch
+                && string.Equals(item.token.Value, "\\f", StringComparison.OrdinalIgnoreCase)
+            )
+            .Select(item => item.index)
+            .ToArray();
+        if (indexes.Length == 0)
+        {
+            entryType = "i";
+            return true;
+        }
+        if (
+            indexes.Length != 1
+            || indexes[0] + 1 >= tokens.Count
+            || tokens[indexes[0] + 1].Kind == WordFieldTokenKind.Switch
+            || string.IsNullOrWhiteSpace(tokens[indexes[0] + 1].Value)
+        )
+        {
+            entryType = "";
+            return false;
+        }
+        entryType = tokens[indexes[0] + 1].Value;
         return true;
     }
 
