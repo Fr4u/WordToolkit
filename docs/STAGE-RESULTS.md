@@ -43,6 +43,9 @@
   `5605101e4485fd186785d7c206eef3f995903a9dd8dd9ec1b1f575d556172ece`.
   Build, personal source and enabled `0.39.0+codex.20260724201229` cache contain the
   same 196 files with zero path/length/hash differences and no Python runtime files.
+  The clean hosted-Windows CI package job then produced the same 36,831,975-byte
+  distributable with the same SHA-256, closing the separate-checkout reproducibility gap
+  for this exact commit and supported packaging lane.
   Installed discovery is enabled and reports the exact stamped version, 112 operations,
   15 exposed tools and 25 explicit contracts. Its real memory-audit MCP smoke returned
   `wordtoolkit.inspect_observability/1.0`, one prior safe event, `bounded_memory`, and

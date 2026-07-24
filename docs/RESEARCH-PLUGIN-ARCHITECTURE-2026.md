@@ -99,6 +99,9 @@ operation version, permission, reversibility and output-schema metadata.
   catalog SHA-256
   `dfb26f3c1da808d94ebfac6782fff391f9e174e7c606235a9e05de6dc2b234bd`
   with `loads_assemblies=false` and `opens_word=false`.
+- The clean hosted-Windows package job for commit `0226954` reproduced the exact local
+  36,831,975-byte distributable at SHA-256
+  `2028f140497c272032e5fd24084602a8e6716998adf92f4b9049a74aae70084f`.
 
 ## Honest limits
 

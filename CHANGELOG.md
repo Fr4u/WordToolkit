@@ -29,6 +29,7 @@
   byte-identical at 196 files and 87,396,612 bytes; both 36,831,975-byte ZIPs have SHA-256
   `2028f140497c272032e5fd24084602a8e6716998adf92f4b9049a74aae70084f`.
   Build output, personal source and enabled cache have zero path/length/hash differences.
+  The clean hosted-Windows CI artifact is the same 36,831,975 bytes with the same SHA-256.
   The full checkpoint passes 553 Engine, 410 Native and 1309 Python tests with 16
   intentional skips. Installed CLI/MCP discovery reports 112 actions, 15 exposed tools,
   25 complete contracts and the exact stamped runtime version; installed observability
