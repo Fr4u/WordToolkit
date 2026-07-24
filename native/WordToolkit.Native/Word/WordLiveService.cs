@@ -118,6 +118,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "convert_ooxml_flat_opc" => ConvertFlatOpcPackageAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_ooxml_semantics" => InspectPackageSemanticsAsync(
                 arguments,
                 cancellationToken

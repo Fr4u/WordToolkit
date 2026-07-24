@@ -126,9 +126,13 @@ async def main() -> None:
     ]
     lines.extend(
         """
-The native catalog currently contains 109 actions behind 15 core/gateway tools. Rare
+The native catalog currently contains 110 actions behind 15 core/gateway tools. Rare
 saved-package inspectors remain lazy so their schemas do not enter model context until
-needed. `inspect_ooxml_active_content` is read-only and closed-world: it inventories
+needed. `convert_ooxml_flat_opc` is a lazy, create-new transport operation shared by
+Engine, CLI and MCP. It converts Word OPC packages to or from bounded Flat OPC XML,
+blocks signatures, never opens Word, verifies semantic/relationship parity before
+publication and returns only hashes, counts and filenames.
+`inspect_ooxml_active_content` is read-only and closed-world: it inventories
 typed OLE/ActiveX/VBA/embedded-package/customization/signature metadata without opening
 Word, payloads or external targets. Its names, relationship targets, hashes and source
 locations require independent opt-ins; raw XML and active-content values are unavailable.

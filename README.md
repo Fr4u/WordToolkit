@@ -156,7 +156,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 109-action schema set into model context. The normative shape is
+not flatten the 110-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -206,6 +206,26 @@ may cross run boundaries but excludes OfficeMath and fails closed around tracked
 or markup-compatibility ambiguity. The same core backs a protocol-v1 adapter for the
 neutral `docx-platform-tests` harness. Its pinned comparison and raw result are in
 [`docs/COMPETITOR-BENCHMARK-2026-07-23.md`](docs/COMPETITOR-BENCHMARK-2026-07-23.md).
+
+The Flat OPC transport seam is also shared by direct .NET, CLI and lazy MCP. Export
+accepts DOCX, DOCM, DOTX or DOTM and creates a new `.xml`; import accepts that Flat OPC
+XML and creates a new Word package whose extension must match the main-part content
+type. The outer XML is parsed under DTD, depth, part-count and decoded-byte limits,
+binary and AltChunk parts remain binary, `[Content_Types].xml` is reconstructed, signed
+packages are blocked and publication occurs only after the Word semantic and relationship
+graphs round-trip. Existing outputs are never overwritten and the response contains
+hashes/counts, not document XML:
+
+```powershell
+wordtoolkit-native flat-opc-package .\input.docx .\transport.xml `
+  --direction to_flat_opc --format json
+wordtoolkit-native flat-opc-package .\transport.xml .\restored.docx `
+  --direction from_flat_opc --format json
+```
+
+The contract is `wordtoolkit.convert_ooxml_flat_opc/1.0`; design evidence and the
+published corruption corpus are described in
+[`docs/RESEARCH-FLAT-OPC-ADAPTER-2026.md`](docs/RESEARCH-FLAT-OPC-ADAPTER-2026.md).
 
 The third shared operation is the read-only semantic object query contract
 `wordtoolkit.query_ooxml_semantics/1.0`. One Engine implementation backs direct .NET

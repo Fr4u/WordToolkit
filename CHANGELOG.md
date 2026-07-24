@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+- Added a bounded Flat OPC transport owned by `WordToolkit.Engine`. The streaming codec
+  prohibits DTDs and external resolution, enforces outer XML and decoded package budgets,
+  rejects duplicate/case-colliding/traversal part names, validates XML payloads, preserves
+  binary and XML-typed AltChunk payloads, rebuilds `[Content_Types].xml` and writes a
+  deterministic OPC package. Signed packages fail closed because XML reserialization
+  would invalidate their signatures.
+- Added `FlatOpcWordPackageOperation`, the strict `flat-opc-package` CLI and lazy
+  `convert_ooxml_flat_opc` MCP action behind one `wordtoolkit.convert_ooxml_flat_opc/1.0`
+  contract. Every conversion is create-new, isolated behind a sibling temporary file and
+  published only after Word-package validation plus exact part-name, content-type,
+  relationship, binary-byte and XML-tree parity. Responses expose bounded hashes/counts,
+  never document XML, and never open Word.
+- Published a 13-case hostile Flat OPC corpus and added Microsoft Open XML SDK
+  interoperability, direct/CLI/MCP parity and bundled real-DOCX round-trip regressions.
+  A real-corpus false `RESULT_MISMATCH` exposed declaration-sensitive `XDocument`
+  comparison; the guard now ignores only the XML declaration while retaining every node
+  inside the part. The full checkpoint passes 531 Engine, 399 Native and 1309 Python
+  tests with 16 intentional skips; Ruff, maintained-source mypy and all changed .NET
+  projects are clean.
+- Packaged and enabled `0.39.0+codex.20260724181412`. Two pinned-SDK builds, the personal
+  marketplace source and enabled cache are identical at 196 files and 87,202,753 bytes.
+  Both 36,776,286-byte ZIPs are byte-identical at SHA-256
+  `7fd729e17287e04f2ce649a52f5bada0e2b821351bb093ebf49038500347f857`.
+  Installed discovery reports 110 actions, 15 exposed MCP tools and 23 explicit
+  contracts; the installed runtime exported and re-imported the bundled advanced DOCX
+  with semantic parity, zero package errors and zero orphan parts.
+
 - Moved saved-package patch rollback behind the public transport-neutral
   `PatchRollbackWordPackageOperation`. Direct .NET, the new strict
   `patch-rollback-package --mode plan|apply --request <json|->` CLI and both lazy MCP

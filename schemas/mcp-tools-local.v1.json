@@ -11,6 +11,7 @@
       "connect_live_word_document",
       "inspect_ooxml_package",
       "transform_ooxml_package",
+      "convert_ooxml_flat_opc",
       "inspect_ooxml_semantics",
       "query_ooxml_semantics",
       "render_ooxml_semantic_html",
@@ -3981,6 +3982,184 @@
             }
           }
         ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "convert_ooxml_flat_opc",
+      "title": "Convert a Word package to or from Flat OPC",
+      "description": "Create a new bounded Flat OPC XML transport from DOCX, DOCM, DOTX, or DOTM, or reconstruct a new matching Word package without opening Word. The native Engine streams package XML under DTD, depth, part-count, decoded-byte and Base64 limits, rebuilds content types, preserves binary and AltChunk payloads, blocks signed packages, verifies the Word semantic graph and exact relationship graph, and publishes only after semantic round-trip proof. Existing files are never overwritten and raw XML is never returned to the AI.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_input_create_new_output",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": true,
+        "mechanism": "delete_created_output",
+        "default": "retained"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "maxLength": 32767,
+            "description": "Existing DOCX, DOCM, DOTX, or DOTM for to_flat_opc; existing .xml Flat OPC file for from_flat_opc."
+          },
+          "output_path": {
+            "type": "string",
+            "maxLength": 32767,
+            "description": "New .xml path for to_flat_opc or a new Word package path whose extension matches the Flat OPC main-part content type."
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "to_flat_opc",
+              "from_flat_opc"
+            ]
+          }
+        },
+        "required": [
+          "local_path",
+          "output_path",
+          "direction"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "operation_contract",
+              "direction",
+              "input_file_name",
+              "output_file_name",
+              "input_sha256",
+              "output_sha256",
+              "source_package_fingerprint",
+              "result_package_fingerprint",
+              "package_semantically_equivalent",
+              "part_count",
+              "xml_part_count",
+              "binary_part_count",
+              "total_part_bytes",
+              "structurally_valid",
+              "digital_signatures_present",
+              "raw_xml_returned",
+              "word_opened",
+              "runtime",
+              "python_used",
+              "performance"
+            ],
+            "properties": {
+              "operation_contract": {
+                "const": "wordtoolkit.convert_ooxml_flat_opc/1.0"
+              },
+              "direction": {
+                "enum": [
+                  "to_flat_opc",
+                  "from_flat_opc"
+                ]
+              },
+              "input_file_name": {
+                "type": "string",
+                "maxLength": 512
+              },
+              "output_file_name": {
+                "type": "string",
+                "maxLength": 512
+              },
+              "input_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "output_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "source_package_fingerprint": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "result_package_fingerprint": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "package_semantically_equivalent": {
+                "const": true
+              },
+              "part_count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20000
+              },
+              "xml_part_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 20000
+              },
+              "binary_part_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 20000
+              },
+              "total_part_bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 536870912
+              },
+              "structurally_valid": {
+                "const": true
+              },
+              "digital_signatures_present": {
+                "const": false
+              },
+              "raw_xml_returned": {
+                "const": false
+              },
+              "word_opened": {
+                "const": false
+              },
+              "runtime": {
+                "const": "dotnet-native"
+              },
+              "python_used": {
+                "const": false
+              },
+              "performance": {
+                "type": "object",
+                "required": [
+                  "total_ms"
+                ],
+                "properties": {
+                  "total_ms": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
         "additionalProperties": false
       },
       "annotations": {

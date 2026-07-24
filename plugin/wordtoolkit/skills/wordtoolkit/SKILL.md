@@ -499,6 +499,22 @@ Do not translate or broaden the MCP request: all three surfaces share one strict
 parser and reject unknown fields. A changed rollback without the Open XML SDK validator
 is blocked; only an exact no-op may proceed without schema validation.
 
+For a create-new Flat OPC transport, use lazy `convert_ooxml_flat_opc` with exactly
+`local_path`, `output_path` and `direction`. `to_flat_opc` accepts DOCX, DOCM, DOTX or
+DOTM and requires a new `.xml` output. `from_flat_opc` accepts that `.xml` and requires
+a new Word package whose extension matches its main-part content type. The neutral
+Engine streams the outer XML under DTD, depth, part-count and decoded-byte limits,
+reconstructs `[Content_Types].xml`, keeps binary and AltChunk payloads binary, blocks
+signed packages and publishes only after part/content-type/relationship/payload-semantic
+round-trip proof. The response contains hashes, filenames and counts, never raw XML.
+Do not use this operation as a signature-preserving archive format: XML lexical bytes
+may be reserialized even though tree semantics are verified.
+
+The exact same operation is available to local automation through direct .NET
+`FlatOpcWordPackageOperation` or
+`wordtoolkit-native flat-opc-package <input> <output> --direction to_flat_opc|from_flat_opc`.
+All three surfaces create a new file and never overwrite an existing destination.
+
 Use `inspect_ooxml_patch` when only artifact integrity or a bounded operation page is
 needed. It never returns payload bytes or raw XML. A `.wtpatch` is exact for OPC entry
 names and uncompressed before/after payloads, not for ZIP compression metadata or record

@@ -1220,7 +1220,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 109 actions already have public SDK
+These are proved migration seams, not a claim that all 110 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
@@ -1252,6 +1252,19 @@ one policy decision and one result projection. The Native adapter contributes on
 Open XML SDK validator plus runtime timing fields; it no longer contains a second reverse
 planning or rollback implementation. No-op rollback remains non-mutating, and a changed
 rollback without a validator fails closed.
+
+The Flat OPC seam is owned by `FlatOpcPackageCodec` and
+`FlatOpcWordPackageOperation`. The Engine parses the outer Microsoft XML package
+incrementally with DTD disabled and explicit XML, part-count, URI, decoded Base64,
+per-part and aggregate limits. It never treats `[Content_Types].xml` as an embedded
+Flat OPC part; it rebuilds that manifest from exact `pkg:contentType` declarations.
+Export keeps relationship parts typed, preserves opaque and malformed-XML payloads as
+binary, and forces XML-typed AltChunk targets to remain binary. Both directions write
+to an isolated create-new sibling, reopen the result, project it as a Word package and
+compare the complete part/content-type/relationship graph plus XML tree or exact binary
+payload semantics before publication. Direct .NET, `flat-opc-package` CLI and lazy MCP
+call the same operation. Byte identity of XML serialization is deliberately not claimed,
+so packages containing signatures are blocked.
 
 Microsoft schema validation is an injected capability rather than an Engine dependency.
 `WordToolkit.Engine.Validation.IWordPackageCandidateValidator` is the neutral boundary;
@@ -1431,7 +1444,8 @@ No feature is “supported” until it passes the relevant gates:
   initial tests passing**;
 - lossless no-op and single-part-edit preservation tests — **implemented, initial tests
   passing**;
-- Flat OPC adapter and corruption corpus.
+- Flat OPC adapter and versioned corruption corpus — **implemented, initial tests
+  passing; full OPC URI conformance and broader producer/version corpus remain**.
 
 ### Phase 2 — semantic spine
 

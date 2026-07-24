@@ -18,6 +18,10 @@ public sealed record OpcPackageLimits
 
     public long MaxMetadataXmlCharacters { get; init; } = 64L * 1024 * 1024;
 
+    public long MaxFlatOpcXmlCharacters { get; init; } = 768L * 1024 * 1024;
+
+    public int MaxFlatOpcXmlDepth { get; init; } = 512;
+
     public int MaxMetadataXmlElements { get; init; } = 1_000_000;
 
     public int MaxContentTypeDeclarations { get; init; } = 50_000;
@@ -61,6 +65,16 @@ public sealed record OpcPackageLimits
         if (MaxMetadataXmlCharacters <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(MaxMetadataXmlCharacters));
+        }
+
+        if (MaxFlatOpcXmlCharacters <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxFlatOpcXmlCharacters));
+        }
+
+        if (MaxFlatOpcXmlDepth <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxFlatOpcXmlDepth));
         }
 
         if (MaxMetadataXmlElements <= 0)
