@@ -179,6 +179,7 @@ New-Item -ItemType Directory -Path $runtime -Force | Out-Null
     -p:PublishReadyToRun=false `
     -p:DebugType=None `
     -p:DebugSymbols=false `
+    "-p:InformationalVersion=$([string]$manifest.version)" `
     "-p:WordToolkitLocalSchemaPath=$normalizedSchema" `
     -o $runtime
 if ($LASTEXITCODE -ne 0) {

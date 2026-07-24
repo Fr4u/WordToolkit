@@ -420,6 +420,10 @@ public sealed class WordSettingsGraphBuilder
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(semanticDocument);
         cancellationToken.ThrowIfCancellationRequested();
+        WordOperationResourceAccounting.ChargeProjectionBase(
+            _resourceLease,
+            WordOperationResourceStage.Settings
+        );
         if (
             !string.Equals(
                 package.Fingerprint,
@@ -1240,7 +1244,7 @@ public sealed class WordSettingsGraphBuilder
                     part.Entry.Content,
                     options,
                     _resourceLease,
-                    WordOperationResourceStage.Sections,
+                    WordOperationResourceStage.Settings,
                     cancellationToken
                 );
         }

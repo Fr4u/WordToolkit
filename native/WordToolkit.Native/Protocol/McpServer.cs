@@ -11,7 +11,7 @@ internal sealed class McpServer
     private static readonly string ServerVersion =
         typeof(McpServer).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion.Split('+', 2)[0]
+            ?.InformationalVersion
         ?? "0.0.0";
     internal const int DefaultMaxMessageCharacters = 8 * 1024 * 1024;
     internal const int MaxConcurrentRequests = 64;

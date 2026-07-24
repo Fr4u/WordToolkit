@@ -36,6 +36,7 @@
       "inspect_ooxml_figures",
       "inspect_ooxml_content_controls",
       "inspect_ooxml_active_content",
+      "inspect_ooxml_properties",
       "inspect_ooxml_tables",
       "inspect_ooxml_markup_compatibility",
       "lint_ooxml_document",
@@ -5834,7 +5835,7 @@
     {
       "name": "inspect_ooxml_dependencies",
       "title": "Inspect the Word document dependency graph",
-      "description": "Inspect one source-linked dependency graph spanning OPC reachability, semantic containment, styles, numbering, fields/bookmarks, bibliography sources and resolved CITATION tags, section stories, classic charts, logical figures/resources/captions, content controls/Custom XML bindings, nested-table topology, and typed active-content declarations, payloads and ActiveX bindings without opening Word. Unresolved and external targets remain explicit; external targets are never followed. Binary active content is never decoded or executed, embedded packages are never opened, and signature presence is not cryptographic validation. One operation-wide accounted resource lease covers bounded ZIP/OPC admission and metadata, XML parsing, semantic and typed projections, while the graph keeps its independent local byte budget and compact adjacency. Keys and source are redacted by default, views are paged, and unmodeled domains stay explicit.",
+      "description": "Inspect one source-linked dependency graph spanning OPC reachability, semantic containment, styles, numbering, fields/bookmarks, bibliography sources and resolved CITATION tags, core/extended/custom properties, persistent document variables and resolved DOCPROPERTY/DOCVARIABLE fields, section stories, classic charts, logical figures/resources/captions, content controls/Custom XML bindings, nested-table topology, and typed active-content declarations, payloads and ActiveX bindings without opening Word. Unresolved and external targets remain explicit; external targets are never followed. Fields and active content are never executed, binary payloads are never decoded, embedded packages are never opened, and signature presence is not cryptographic validation. One operation-wide accounted resource lease covers bounded ZIP/OPC admission and metadata, XML parsing, semantic and typed projections, while the graph keeps its independent local byte budget and compact adjacency. Keys and source are redacted by default, views are paged, and unmodeled domains stay explicit.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5884,7 +5885,9 @@
               "bibliography_source",
               "active_content_payload",
               "active_content_declaration",
-              "active_x_control"
+              "active_x_control",
+              "document_property",
+              "document_variable"
             ],
             "description": "Optional exact node-kind filter for the nodes view."
           },
@@ -5942,7 +5945,9 @@
               "defines_active_content_declaration",
               "active_content_declaration_uses_payload",
               "defines_active_x_control",
-              "active_x_control_uses_binary_payload"
+              "active_x_control_uses_binary_payload",
+              "defines_document_property",
+              "defines_document_variable"
             ],
             "description": "Optional exact edge-kind filter for edge, unresolved, and impact views."
           },
@@ -6343,6 +6348,96 @@
             "type": "boolean",
             "default": true,
             "description": "Include at most 20 bounded active-content diagnostics in non-issues views."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "resourceAccounting": {
+        "operation": {
+          "engineModel": "word_operation_accounted_v1",
+          "mcpModel": "wop1",
+          "responseField": "operation_budget",
+          "defaultMaximumAccountedBytes": 671088640
+        },
+        "limitErrorCode": "PACKAGE_LIMIT"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_ooxml_properties",
+      "title": "Inspect Word document properties",
+      "description": "Inspect a bounded typed graph of OPC core properties, Office extended application properties, and typed custom properties in a saved Word package without opening Word or evaluating fields. Exact relationship types, exact content types, Transitional and Strict property namespaces, custom-property IDs, format IDs, scalar variant types, duplicate names/IDs, and lexical values are validated. Custom names, scalar values, keyed fingerprints, and source provenance require independent opt-ins. Raw XML, complex vector/array/binary values, and field results are never returned. One shared operation resource budget and a 32 KiB projected-item ceiling keep AI context bounded.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "properties", "parts", "issues"],
+            "default": "summary",
+            "description": "Return compact family/type counts, typed properties, source-part metadata, or diagnostics."
+          },
+          "property_id": {
+            "type": "string",
+            "pattern": "^wdp_[a-f0-9]{24}$",
+            "maxLength": 28,
+            "description": "Optional exact document-property ID from the same package fingerprint."
+          },
+          "property_family": {
+            "type": "string",
+            "enum": ["core", "extended", "custom"],
+            "description": "Optional exact core, extended, or custom property-family filter."
+          },
+          "value_kind": {
+            "type": "string",
+            "enum": ["text", "integer", "unsigned_integer", "floating_point", "decimal", "boolean", "date_time", "currency", "error_code", "class_id", "binary", "vector", "array", "variant", "empty", "unknown"],
+            "description": "Optional exact declared value-kind filter. Complex values are classified but never decoded or returned."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 30
+          },
+          "include_names": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded custom-property names. Standard core and extended property names are non-sensitive schema identifiers and remain visible."
+          },
+          "include_values": {
+            "type": "boolean",
+            "default": false,
+            "description": "Separately opt in to at most 2,048 characters of each validated scalar value. Complex, binary, vector, array, variant and raw XML values remain unavailable."
+          },
+          "include_hashes": {
+            "type": "boolean",
+            "default": false,
+            "description": "Separately opt in to process-keyed 16-hex fingerprints of names and scalar values plus source-part SHA-256 in the parts view."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Separately opt in to bounded part URIs, content types, custom numeric property IDs, format IDs, and XML element ordinals."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include at most 50 bounded property diagnostics beside the selected view."
           }
         },
         "required": ["local_path"],

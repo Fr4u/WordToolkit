@@ -164,6 +164,8 @@ internal sealed partial class WordLiveService
                     tables = graph.TableIssueCount,
                     bibliography = graph.BibliographyIssueCount,
                     active_content = graph.ActiveContentIssueCount,
+                    document_properties = graph.DocumentPropertyIssueCount,
+                    settings = graph.SettingsIssueCount,
                 },
                 coverage = new
                 {
@@ -181,6 +183,8 @@ internal sealed partial class WordLiveService
                         .TablesAndCellTopology,
                     bibliography_sources = graph.Coverage.BibliographySources,
                     active_content = graph.Coverage.ActiveContent,
+                    document_properties_and_variables = graph.Coverage
+                        .DocumentPropertiesAndVariables,
                     explicitly_unmodeled_domains = graph.Coverage
                         .ExplicitlyUnmodeledDomains,
                 },

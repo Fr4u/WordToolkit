@@ -663,7 +663,7 @@ that no unrelated parts changed.
 ### Unified dependency graph
 
 `WordDependencyGraph` is the first shared cross-domain dependency spine. It does not
-flatten the existing typed graphs into anonymous strings. It joins ten proven domains:
+flatten the existing typed graphs into anonymous strings. It joins the proven domains:
 
 - OPC package roots, parts and internal/external/invalid relationships;
 - source-linked semantic containment across every projected Word story;
@@ -678,6 +678,11 @@ flatten the existing typed graphs into anonymous strings. It joins ten proven do
   resources, caption candidates and evidence-scored association edges;
 - content controls, physical and built-in XML stores, resolved binding targets and
   repeating-section items;
+- bibliography collections/sources and uniquely resolved `CITATION` fields;
+- active-content payloads, declarations and ActiveX binary bindings without decoding
+  or executing their payloads;
+- core, extended and custom document properties plus persistent settings document
+  variables, with resolved `DOCPROPERTY` and `DOCVARIABLE` reads;
 - nested table topology and source-linked vertical-merge continuation cells.
 
 Every node and edge has a deterministic content-derived `wddn_` or `wdde_` identity.
@@ -814,6 +819,25 @@ declaration and ActiveX nodes plus their typed edges. This proves metadata topol
 the engine does not open Word or embedded packages, execute code, decode binaries,
 follow external targets, validate signature cryptography, remove/re-sign material or
 authorize mutation. The complete contract is in `ACTIVE-CONTENT-GRAPH.md`.
+
+### Document property graph
+
+`WordDocumentPropertyGraph` keeps OPC core properties, Office extended application
+properties and custom typed properties as three distinct source-linked families. Exact
+root relationships, content types and Transitional/Strict namespaces are mandatory.
+Custom `pid`, `fmtid`, case-insensitive name uniqueness, one typed value child and the
+lexical form of scalar values are validated; duplicate or malformed evidence remains
+diagnosed and cannot enter the field-resolution index.
+
+Complex vector/array/variant/binary values are classified without being decoded or
+returned. Lazy `inspect_ooxml_properties` is summary-first and independently gates
+custom names, scalar values, process-keyed fingerprints and source provenance. It never
+opens Word, evaluates a field or returns raw XML. `DOCPROPERTY` resolves only to one
+reachable, valid scalar property. Persistent `w:docVar` values remain a separate
+settings object and unique `DOCVARIABLE` reads terminate at their own dependency nodes;
+`SET`/`ASK` are not falsely promoted into persistent definitions. One shared `wop1`
+lease spans OPC, settings and property projection. The complete contract and Microsoft
+sources are in `DOCUMENT-PROPERTY-GRAPH.md`.
 
 ### Initial document linter
 
@@ -1106,7 +1130,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 92 actions already have public SDK
+These are proved migration seams, not a claim that all 93 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.

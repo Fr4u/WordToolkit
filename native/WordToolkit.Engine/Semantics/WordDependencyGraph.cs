@@ -37,6 +37,8 @@ public enum WordDependencyNodeKind
     ActiveContentPayload,
     ActiveContentDeclaration,
     ActiveXControl,
+    DocumentProperty,
+    DocumentVariable,
 }
 
 public enum WordDependencyEdgeKind
@@ -93,6 +95,8 @@ public enum WordDependencyEdgeKind
     ActiveContentDeclarationUsesPayload,
     DefinesActiveXControl,
     ActiveXControlUsesBinaryPayload,
+    DefinesDocumentProperty,
+    DefinesDocumentVariable,
 }
 
 public enum WordDependencyIssueSeverity
@@ -152,6 +156,7 @@ public sealed record WordDependencyCoverage(
     bool TablesAndCellTopology,
     bool BibliographySources,
     bool ActiveContent,
+    bool DocumentPropertiesAndVariables,
     IReadOnlyList<string> ExplicitlyUnmodeledDomains
 );
 
@@ -272,7 +277,9 @@ public sealed class WordDependencyGraph
         int contentControlIssueCount,
         int tableIssueCount,
         int bibliographyIssueCount,
-        int activeContentIssueCount
+        int activeContentIssueCount,
+        int documentPropertyIssueCount,
+        int settingsIssueCount
     )
     {
         var nodeArray = nodes as WordDependencyNode[] ?? nodes.ToArray();
@@ -296,6 +303,8 @@ public sealed class WordDependencyGraph
         TableIssueCount = tableIssueCount;
         BibliographyIssueCount = bibliographyIssueCount;
         ActiveContentIssueCount = activeContentIssueCount;
+        DocumentPropertyIssueCount = documentPropertyIssueCount;
+        SettingsIssueCount = settingsIssueCount;
         var nodeIndexes = new Dictionary<string, int>(nodeArray.Length, StringComparer.Ordinal);
         for (var index = 0; index < nodeArray.Length; index++)
         {
@@ -363,6 +372,10 @@ public sealed class WordDependencyGraph
     public int BibliographyIssueCount { get; }
 
     public int ActiveContentIssueCount { get; }
+
+    public int DocumentPropertyIssueCount { get; }
+
+    public int SettingsIssueCount { get; }
 
     public bool TryGetNode(string nodeId, out WordDependencyNode? node)
     {
@@ -861,6 +874,19 @@ public sealed class WordDependencyGraphBuilder
             package,
             cancellationToken
         );
+        var documentProperties = (_resourceLease is null
+            ? new WordDocumentPropertyGraphBuilder()
+            : new WordDocumentPropertyGraphBuilder(null, _resourceLease)).Build(
+            package,
+            cancellationToken
+        );
+        var settings = (_resourceLease is null
+            ? new WordSettingsGraphBuilder()
+            : new WordSettingsGraphBuilder(null, _resourceLease)).Build(
+            package,
+            semanticDocument,
+            cancellationToken
+        );
         EnsureFingerprint(
             package.Fingerprint,
             semanticDocument.PackageFingerprint,
@@ -873,7 +899,9 @@ public sealed class WordDependencyGraphBuilder
             contentControls.PackageFingerprint,
             tables.PackageFingerprint,
             bibliography.PackageFingerprint,
-            activeContent.PackageFingerprint
+            activeContent.PackageFingerprint,
+            documentProperties.PackageFingerprint,
+            settings.PackageFingerprint
         );
 
         var state = new BuildState(_options, _resourceLease);
@@ -925,6 +953,14 @@ public sealed class WordDependencyGraphBuilder
             reachableParts,
             cancellationToken
         );
+        var documentMetadataNodes = AddDocumentPropertyDependencies(
+            state,
+            package,
+            documentProperties,
+            settings,
+            reachableParts,
+            cancellationToken
+        );
         AddReferenceDependencies(
             state,
             package,
@@ -932,6 +968,8 @@ public sealed class WordDependencyGraphBuilder
             references,
             bibliography,
             bibliographySourceNodes,
+            documentProperties,
+            documentMetadataNodes,
             reachableParts,
             cancellationToken
         );
@@ -1001,6 +1039,7 @@ public sealed class WordDependencyGraphBuilder
                 TablesAndCellTopology: true,
                 BibliographySources: true,
                 ActiveContent: true,
+                DocumentPropertiesAndVariables: true,
                 ExplicitlyUnmodeledDomains
             ),
             resourceUsage,
@@ -1016,9 +1055,156 @@ public sealed class WordDependencyGraphBuilder
             contentControls.Issues.Count,
             tables.Issues.Count,
             bibliography.Issues.Count,
-            activeContent.Issues.Count
+            activeContent.Issues.Count,
+            documentProperties.Issues.Count,
+            settings.Issues.Count
         );
     }
+
+    private static DocumentMetadataDependencyNodes AddDocumentPropertyDependencies(
+        BuildState state,
+        OpcPackageSnapshot package,
+        WordDocumentPropertyGraph documentProperties,
+        WordSettingsGraph settings,
+        IReadOnlySet<string> reachableParts,
+        CancellationToken cancellationToken
+    )
+    {
+        var propertyNodeIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var property in documentProperties.Properties)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var partNodeId = PartNode(
+                state,
+                package,
+                reachableParts,
+                property.PartUri
+            );
+            var resolved = property.IsStructurallyValid
+                && property.IsUniquelyNamed
+                && property.IsPackageReachable;
+            var propertyNodeId = state.AddNode(
+                WordDependencyNodeKind.DocumentProperty,
+                property.Id,
+                resolved,
+                isExternal: false,
+                property.IsPackageReachable,
+                partUri: property.PartUri,
+                sourceElementOrdinal: property.SourceElementOrdinal
+            );
+            propertyNodeIds.Add(property.Id, propertyNodeId);
+            state.AddEdge(
+                WordDependencyEdgeKind.DefinesDocumentProperty,
+                partNodeId,
+                propertyNodeId,
+                resolved,
+                isExternal: false,
+                qualifier: string.Join(
+                    ':',
+                    property.Family.ToString().ToLowerInvariant(),
+                    property.ValueKind.ToString().ToLowerInvariant()
+                ),
+                partUri: property.PartUri,
+                sourceElementOrdinal: property.SourceElementOrdinal
+            );
+        }
+
+        var variableNodeIds = new Dictionary<string, string>(
+            StringComparer.OrdinalIgnoreCase
+        );
+        if (settings.SettingsPartUri is { } settingsPartUri)
+        {
+            var partNodeId = PartNode(
+                state,
+                package,
+                reachableParts,
+                settingsPartUri
+            );
+            var nameCounts = settings.DocumentVariables
+                .GroupBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(item => item.Key, item => item.Count(), StringComparer.OrdinalIgnoreCase);
+            foreach (var variable in settings.DocumentVariables)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var resolved = !string.IsNullOrWhiteSpace(variable.Name)
+                    && nameCounts[variable.Name] == 1;
+                var variableNodeId = state.AddNode(
+                    WordDependencyNodeKind.DocumentVariable,
+                    string.Join(
+                        ':',
+                        settingsPartUri,
+                        variable.SourceElementOrdinal.ToString(
+                            CultureInfo.InvariantCulture
+                        ),
+                        variable.Name
+                    ),
+                    resolved,
+                    isExternal: false,
+                    isPackageReachable: reachableParts.Contains(settingsPartUri),
+                    partUri: settingsPartUri,
+                    sourceElementOrdinal: variable.SourceElementOrdinal
+                );
+                state.AddEdge(
+                    WordDependencyEdgeKind.DefinesDocumentVariable,
+                    partNodeId,
+                    variableNodeId,
+                    resolved,
+                    isExternal: false,
+                    partUri: settingsPartUri,
+                    sourceElementOrdinal: variable.SourceElementOrdinal
+                );
+                if (resolved)
+                {
+                    variableNodeIds.Add(variable.Name, variableNodeId);
+                }
+                else
+                {
+                    state.AddIssue(
+                        "WDG070",
+                        WordDependencyIssueSeverity.Warning,
+                        "A document-variable name is missing or ambiguous.",
+                        nodeId: variableNodeId,
+                        partUri: settingsPartUri,
+                        sourceElementOrdinal: variable.SourceElementOrdinal
+                    );
+                }
+            }
+        }
+
+        foreach (var issue in documentProperties.Issues)
+        {
+            state.AddIssue(
+                $"WDP:{issue.Code}",
+                issue.Severity switch
+                {
+                    WordDocumentPropertyIssueSeverity.Error =>
+                        WordDependencyIssueSeverity.Error,
+                    WordDocumentPropertyIssueSeverity.Warning =>
+                        WordDependencyIssueSeverity.Warning,
+                    _ => WordDependencyIssueSeverity.Info,
+                },
+                issue.Message,
+                nodeId: issue.PropertyId is not null
+                    && propertyNodeIds.TryGetValue(
+                        issue.PropertyId,
+                        out var propertyNodeId
+                    )
+                        ? propertyNodeId
+                        : null,
+                partUri: issue.PartUri,
+                sourceElementOrdinal: issue.SourceElementOrdinal
+            );
+        }
+        return new DocumentMetadataDependencyNodes(
+            propertyNodeIds,
+            variableNodeIds
+        );
+    }
+
+    private sealed record DocumentMetadataDependencyNodes(
+        IReadOnlyDictionary<string, string> PropertiesById,
+        IReadOnlyDictionary<string, string> VariablesByName
+    );
 
     private static void AddActiveContentDependencies(
         BuildState state,
@@ -3038,6 +3224,8 @@ public sealed class WordDependencyGraphBuilder
         WordReferenceGraph references,
         WordBibliographyGraph bibliography,
         IReadOnlyDictionary<string, string> bibliographySourceNodes,
+        WordDocumentPropertyGraph documentProperties,
+        DocumentMetadataDependencyNodes documentMetadataNodes,
         IReadOnlySet<string> reachableParts,
         CancellationToken cancellationToken
     )
@@ -3181,6 +3369,34 @@ public sealed class WordDependencyGraphBuilder
             )
             {
                 targetNodeId = bibliographyNodeId;
+                resolved = true;
+            }
+            else if (
+                edge.TargetKind == WordReferenceTargetKind.DocumentProperty
+                && documentProperties.TryResolveFieldProperty(
+                    edge.TargetKey,
+                    out var property
+                )
+                && property is not null
+                && documentMetadataNodes.PropertiesById.TryGetValue(
+                    property.Id,
+                    out var propertyNodeId
+                )
+            )
+            {
+                targetNodeId = propertyNodeId;
+                resolved = true;
+            }
+            else if (
+                edge.TargetKind == WordReferenceTargetKind.DocumentVariable
+                && edge.Kind == WordReferenceEdgeKind.Reads
+                && documentMetadataNodes.VariablesByName.TryGetValue(
+                    edge.TargetKey,
+                    out var variableNodeId
+                )
+            )
+            {
+                targetNodeId = variableNodeId;
                 resolved = true;
             }
             else

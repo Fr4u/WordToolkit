@@ -1,5 +1,33 @@
 # Stage results
 
+## Typed document properties and field dependencies — 2026-07-24
+
+- Added a bounded read-only graph for OPC core, Office extended and custom typed
+  properties. Exact relationship/content-type families, Strict/Transitional namespaces,
+  standard custom `fmtid`, numeric `pid`, duplicate case-insensitive names/IDs, one typed
+  value child and scalar lexical forms are validated. Invalid values remain diagnosed
+  and cannot resolve a field; complex/binary values are classified without decoding.
+- Added lazy `inspect_ooxml_properties` as native action 93. Summary-first paging, exact
+  `wdp_`/family/type filters and a 32 KiB projected-item ceiling keep the response
+  bounded. Custom names, scalar values, HMAC equality fingerprints and source provenance
+  have four independent opt-ins. Raw XML, complex values and field results are absent;
+  the action never opens Word or mutates the package.
+- Integrated document-property and persistent-document-variable definition nodes with
+  `DOCPROPERTY` and `DOCVARIABLE` reads in the unified dependency graph. `SET`/`ASK` are
+  not misrepresented as persistent definitions. The nine-producer golden oracle now
+  records the added definition edges; its existing non-property counts remain unchanged.
+- Focused verification passes all 14 property/dependency and complete-golden-oracle
+  cases. The full gates pass **471 Engine tests**, **318 Native tests** and
+  **1,309 Python tests** with 16 intentional environment/model skips. Ruff is clean;
+  mypy is clean across the maintained 29-file `src/wordtoolkit` layer. The broader
+  historical `scripts` directory is not part of that mypy claim and still has known
+  typing debt. Fresh installed-package proof is recorded only after the release build
+  below is completed.
+- Release packaging now embeds the complete manifest SemVer, including build metadata,
+  into the native assembly. `--version`, MCP `serverInfo.version` and
+  `toolkit_version` therefore identify the exact installed build instead of collapsing
+  every package to the same base version.
+
 ## Typed active-content metadata graph — 2026-07-24
 
 - Added a bounded read-only graph for legacy/ISO Word OLE declarations, embedded and

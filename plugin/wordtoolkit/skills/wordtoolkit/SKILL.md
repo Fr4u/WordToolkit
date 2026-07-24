@@ -146,6 +146,18 @@ Open XML 2006 and legacy Word 2004/10 bibliography namespaces, validates typed s
 identity/type/LCID evidence and never opens Word, evaluates fields, executes bibliography
 XSLT or follows an external target. It is read-only: it does not refresh citations,
 render a formatted bibliography or authorize source deletion.
+Use lazy `inspect_ooxml_properties` instead of opening `docProps/core.xml`,
+`docProps/app.xml`, a custom-properties part or settings variables by hand. Start with
+`view=summary`; page `properties`, `parts` or `issues` only when the next decision needs
+them. Narrow by one exact `wdp_` ID, property family or declared value kind. Standard
+core/extended schema names are visible, but custom names, scalar values, process-keyed
+fingerprints and source provenance require four independent opt-ins. Complex, binary,
+vector, array and variant values are classified but never decoded or returned. Duplicate
+names/IDs and invalid scalar lexemes fail closed for field resolution. This inspector
+does not open Word, evaluate or refresh fields, mutate a property or return raw XML.
+Use `inspect_ooxml_dependencies` when the question is which `DOCPROPERTY` or persistent
+`DOCVARIABLE` field depends on which source; do not treat `SET` or `ASK` as a persistent
+variable definition.
 Use lazy `inspect_ooxml_dependencies` when the task asks what depends on a part,
 semantic object, style, numbering definition, field target or section story. Start with
 `view=summary`; use `view=nodes` only to obtain one stable `wddn_` ID, then request a
@@ -156,8 +168,9 @@ decision. The graph joins the
 explicitly reported OPC, semantic-containment, style, numbering, reference, section,
 classic-chart, logical-figure/representation/resource/caption, content-control,
 physical/built-in XML-store, binding-target, repeating-section, bibliography collection,
-source and resolved CITATION domains, typed active-content payloads/declarations and
-ActiveX binary bindings plus nested-table and vertical-merge topology. Its
+source and resolved CITATION domains, typed active-content payloads/declarations,
+ActiveX binary bindings, core/extended/custom document properties, persistent document
+variables and their proven field reads plus nested-table and vertical-merge topology. Its
 `explicitly_unmodeled_domains` list is a hard coverage
 boundary: absence of an edge for advanced drawing layout, SmartArt, active-content
 binary internals/execution, cryptographic signature validation, encryption or
@@ -166,7 +179,7 @@ The summary's `byte_budget` remains the graph-local deterministic boundary. Its 
 `operation_budget` (`wop1`) is one shared 640 MiB accounted lease spanning ZIP/OPC
 admission and metadata,
 lossless XML reservations, semantic/style/numbering/reference/section/chart/figure/
-content-control/table/bibliography/active-content projections and the final graph. Treat `PACKAGE_LIMIT` as a hard
+content-control/table/bibliography/active-content/property/settings projections and the final graph. Treat `PACKAGE_LIMIT` as a hard
 stop; an operation-budget error reports only the bounded stage and attempted charge.
 Do not retry with broader output or call this an exact CLR heap, peak-live-memory or
 resident-set limit. Accounting is cumulative and conservative; repeated XML projection

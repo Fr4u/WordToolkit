@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Preserve the plugin manifest build metadata in the packaged native runtime and expose
+  the exact identity through `--version`, MCP initialization and capabilities.
+- Require the OPC `dcterms:created` and `dcterms:modified` nodes to declare an
+  `xsi:type` QName resolving to `dcterms:W3CDTF`; missing or rebound annotations now
+  fail closed instead of entering the field-property index.
+
 - Fixed native Word build-up for adjacent LaTeX factors after a structured base.
   The converter now emits an inert parsing boundary between forms such as
   `x^3e^{2x}`, `e^{2x}\sin(3x)`, a fraction followed by a variable, or a scripted
@@ -14,6 +20,22 @@
   `\int x^3e^{2x}\sin(3x)\,dx`: all six native n-ary integrals and all six integral-
   owned differentials survive with identical canonical contracts. The differential,
   symbol and structural gates remain enabled; the fix does not weaken verification.
+
+- Added `WordDocumentPropertyGraph`, a bounded source-linked model for OPC core,
+  Office extended and typed custom properties. Exact relationships/content types,
+  Transitional/Strict namespaces, custom `pid`/`fmtid`, duplicate names/IDs and scalar
+  lexical forms are validated. Complex/binary values are classified without decoding,
+  and malformed or ambiguous properties cannot enter the field-resolution index.
+- Added lazy `inspect_ooxml_properties` as native action 93 with summary/property/part/
+  issue views, exact filters and independent custom-name/value/hash/source opt-ins. Raw
+  XML, complex values and field results are unavailable; Word is never opened and the
+  package is never mutated. One shared `wop1` lease and a 32 KiB projected-item ceiling
+  bound the operation.
+- Added document-property and persistent-document-variable nodes to the unified
+  dependency graph. Valid unique `DOCPROPERTY` and `DOCVARIABLE` reads resolve to their
+  concrete sources; `SET`/`ASK`, duplicate sources and invalid lexical values remain
+  unresolved. The nine-producer semantic golden corpus now records the new typed
+  definition edges.
 
 - Added a bounded, read-only active-content metadata graph for legacy/ISO OLE
   declarations, linked/embedded targets, ActiveX XML/binary bindings, embedded-package

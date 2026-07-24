@@ -75,6 +75,16 @@ response field. Names, declared targets, payload hashes and source locations req
 four independent opt-ins. This inventory is evidence for policy; it does not authorize
 extraction, execution, deletion, signature invalidation or mutation.
 
+The local `inspect_ooxml_properties` path is a separate metadata boundary. It admits
+only exact core/extended/custom package relationships and content types, rejects DTDs
+and external XML resolution, validates custom identity and scalar lexical forms, and
+shares the bounded operation lease. Custom names, scalar values, process-keyed equality
+fingerprints and source provenance require four independent opt-ins. Complex, binary,
+vector, array and variant payloads are never decoded or returned. The action never opens
+Word, evaluates a field or changes the package. A `wdp_` selector and a short HMAC
+fingerprint are routing/equality evidence, not a confidentiality boundary or a durable
+cross-process identifier.
+
 ## Renderer controls
 
 LibreOffice receives fixed argv with `shell=False`, a one-use profile, bounded runtime, a restricted HOME and no automatic external relationship retrieval by WordToolkit. The container runs as an unprivileged user with a writable data directory. Production deployment should add a read-only root filesystem, seccomp/AppArmor, CPU/memory quotas and egress rules that allow only the identity provider and authorized OpenAI file hosts.

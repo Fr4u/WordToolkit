@@ -265,6 +265,7 @@ public enum WordReferenceTargetKind
 {
     Bookmark,
     Sequence,
+    DocumentProperty,
     DocumentVariable,
     MergeField,
     Citation,
@@ -1061,6 +1062,15 @@ public sealed class WordReferenceGraphBuilder
                     firstArgument,
                     WordReferenceEdgeKind.Reads,
                     WordReferenceTargetKind.DocumentVariable,
+                    state
+                );
+                break;
+            case "DOCPROPERTY":
+                AddRequiredTypedEdge(
+                    field,
+                    firstArgument,
+                    WordReferenceEdgeKind.Reads,
+                    WordReferenceTargetKind.DocumentProperty,
                     state
                 );
                 break;

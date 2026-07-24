@@ -154,6 +154,20 @@ redact them by default and never return protection hashes or salts.
 [DocumentProtection](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.documentprotection?view=openxml-3.0.1) and
 [DocumentVariables](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.documentvariables?view=openxml-3.0.1) (B).
 
+Document metadata is not one untyped map. OPC core properties, Office extended
+application properties and custom properties occupy separate parts and vocabularies.
+Microsoft's custom-property example shows the fixed property-set `fmtid`, integer
+`pid` values starting at 2, and a value element whose name carries the type. Microsoft's
+extended-property example reads application metadata through the dedicated extended
+part. This justifies three typed families, exact relationship/content-type admission,
+lexical validation and an explicit refusal to decode complex values through a generic
+string interface. `w:docVars` remains a settings child and must not be mistaken for the
+custom-property part.
+[Set a custom property](https://learn.microsoft.com/en-us/office/open-xml/word/how-to-set-a-custom-property-in-a-word-processing-document),
+[retrieve application property values](https://learn.microsoft.com/en-us/office/open-xml/word/how-to-retrieve-application-property-values-from-a-word-processing-document),
+[`CustomFilePropertiesPart`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.packaging.wordprocessingdocument.customfilepropertiespart?view=openxml-3.0.1), and
+[`DocumentVariables`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.documentvariables?view=openxml-3.0.1) (B).
+
 Fields are not paragraph-local strings. Microsoft's complex-field model requires a
 begin and end, permits an optional separator, explicitly supports nested fields, and
 treats an unclosed field at the end of a document story as no field. The older binary

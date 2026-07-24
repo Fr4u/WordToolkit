@@ -136,7 +136,7 @@ internal sealed partial class ToolCatalog
     private static string RuntimeVersion =>
         typeof(ToolCatalog).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-            ?.InformationalVersion.Split('+', 2)[0]
+            ?.InformationalVersion
         ?? "0.0.0";
 
     private static class CapabilityManifest

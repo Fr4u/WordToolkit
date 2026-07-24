@@ -17,6 +17,15 @@ package/VBA signature parts. It never decodes a binary, opens an embedded packag
 executes a macro, follows an external target or treats signature presence as proof of
 cryptographic validity. See [the active-content graph contract](docs/ACTIVE-CONTENT-GRAPH.md).
 
+Core, extended and custom document properties now have a separate typed graph rather
+than an opaque XML bucket. Exact OPC relationships/content types, Strict/Transitional
+namespaces, custom `pid`/`fmtid`, declared scalar types, duplicate names and lexical
+values are validated before a property can resolve `DOCPROPERTY`. Persistent
+`w:docVar` values remain a distinct settings domain and resolve `DOCVARIABLE` only when
+unambiguous. Lazy inspection redacts custom names and every value by default and never
+opens Word, evaluates fields, returns raw XML or decodes complex values. See [the
+document-property graph contract](docs/DOCUMENT-PROPERTY-GRAPH.md).
+
 The saved-package core also exposes a source-linked Figure/Caption graph. It collapses
 DrawingML/VML `mc:AlternateContent` branches into one logical figure without claiming
 that `mc:Choice` was evaluated, records inert internal/external resources, and links
@@ -101,7 +110,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 92-action schema set into model context. The normative shape is
+not flatten the 93-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -297,6 +306,7 @@ inspect_ooxml_charts
 inspect_ooxml_figures
 inspect_ooxml_content_controls
 inspect_ooxml_active_content
+inspect_ooxml_properties
 inspect_ooxml_tables
 inspect_ooxml_markup_compatibility
 resolve_ooxml_formatting
@@ -421,9 +431,10 @@ projected stories, explicit paragraph/run/table style use, style inheritance/def
 numbering definitions and uses, field/bookmark targets, section header/footer bindings,
 classic charts/series/axes/related parts, logical figures/representations/resources and
 caption candidates/associations, content controls, physical and built-in XML
-stores, resolved binding targets, repeating-section topology, nested tables and
-vertical-merge continuation cells, typed active-content payloads/declarations and
-ActiveX binary bindings into one deterministic
+stores, resolved binding targets, repeating-section topology, nested tables,
+vertical-merge continuation cells, bibliography sources, typed active-content
+payloads/declarations, ActiveX binary bindings, core/extended/custom document
+properties and persistent document variables into one deterministic
 graph. Missing and external targets remain explicit
 nodes; every edge endpoint is verified. The graph has a deterministic 128 MiB
 accounted-byte budget, a 65,536-character metadata ceiling and compact incoming/outgoing
@@ -436,7 +447,7 @@ accounting boundary without returning allocation detail. The saved-package inspe
 creates one 640 MiB `word_operation_accounted_v1` lease before ZIP central-directory
 materialization and passes it through OPC admission/metadata, lossless XML reservations, semantic projection, styles,
 numbering, references, sections/settings, charts, figures/captions, content controls,
-tables, bibliography, active content and the final graph. The compact
+tables, bibliography, active content, document properties/settings and the final graph. The compact
 `operation_budget: {model, used, maximum}` uses
 alias `wop1`; exhaustion remains `PACKAGE_LIMIT` with a bounded stage and attempted
 charge. ZIP count/size preflight and package-entry/XML working-set charges happen before

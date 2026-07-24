@@ -127,6 +127,7 @@ public sealed class McpServerTests
                 "inspect_ooxml_figures",
                 "inspect_ooxml_content_controls",
                 "inspect_ooxml_active_content",
+                "inspect_ooxml_properties",
                 "inspect_ooxml_tables",
                 "inspect_ooxml_markup_compatibility",
                 "lint_ooxml_document",
@@ -181,7 +182,7 @@ public sealed class McpServerTests
         ) + "\n";
         var output = new StringWriter();
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(92, catalog.ActionCount);
+        Assert.Equal(93, catalog.ActionCount);
         var server = new McpServer(
             new StringReader(input),
             output,
@@ -634,6 +635,41 @@ public sealed class McpServerTests
             );
             Assert.True(kindsSchema.GetProperty("uniqueItems").GetBoolean());
         }
+    }
+
+    [Fact]
+    public void DocumentPropertySchemaCoversEveryEngineValueKind()
+    {
+        var catalog = ToolCatalog.LoadNativeWordTools();
+        using var document = JsonDocument.Parse(
+            catalog.InspectAction("inspect_ooxml_properties").ToJsonString()
+        );
+        var tool = document.RootElement.GetProperty("tool");
+        var properties = tool.GetProperty("inputSchema").GetProperty("properties");
+        var valueKinds = properties.GetProperty("value_kind")
+            .GetProperty("enum")
+            .EnumerateArray()
+            .Select(item => item.GetString())
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(
+            Enum.GetNames<WordDocumentPropertyValueKind>()
+                .Select(ToSnakeCase)
+                .Order(StringComparer.Ordinal),
+            valueKinds
+        );
+        Assert.False(
+            properties.GetProperty("include_values").GetProperty("default")
+                .GetBoolean()
+        );
+        Assert.Equal(
+            "wop1",
+            tool.GetProperty("resourceAccounting")
+                .GetProperty("operation")
+                .GetProperty("mcpModel")
+                .GetString()
+        );
     }
 
     [Fact]
