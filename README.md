@@ -770,12 +770,22 @@ records a whole-document Flat OPC hash, main-story and linked-story hashes, exac
 and bounded-context OOXML hashes, content/target/context boundaries, save state and
 paragraph, equation, table, field, bookmark, shape, comment, note and section counts.
 SmartArt and review-property paths add dedicated state fingerprints. After one bounded
-Undo, every value must match. A thrown/false Undo, an unclosed custom record, unreadable
-verification state or any mismatch produces `ROLLBACK_FAILED` instead of the original
-operation error. The live handle is removed and the document identity is quarantined; subsequent
-inspection, mutation and automatic reconnection fail with `LIVE_DOCUMENT_QUARANTINED`
-until `disconnect_live_word_document` explicitly clears the quarantine. No document
-text, OOXML or fingerprints are returned in the diagnostic.
+Undo, every value must match. For `apply_live_word_operations`, an unproven Undo also
+triggers an independent recovery attempt: WordToolkit opens the retained baseline Flat OPC
+in a separate hidden document and copies its main story back through cross-document
+`Range.FormattedText`, excluding Word's mandatory final paragraph mark. Acceptance requires
+exact boundaries, counts and text plus two stable reads of a semantic whole-document Flat
+OPC hash. That hash ignores only WordprocessingML `w:rsid*` session metadata; it does not
+ignore paragraph identities, equations, fields, bookmarks or content. `Document.Saved` is
+restored only after every other comparison passes and is then checked again.
+
+A thrown/false Undo, an unclosed custom record, unreadable verification state, failed
+independent restore or any residual mismatch produces `ROLLBACK_FAILED` instead of the
+original operation error. This remains true when visible text and OMath were cleaned but
+Word normalized some other package state. The live handle is removed and the document
+identity is quarantined; subsequent inspection, mutation and automatic reconnection fail
+with `LIVE_DOCUMENT_QUARANTINED` until `disconnect_live_word_document` explicitly clears
+the quarantine. No document text, OOXML or fingerprints are returned in the diagnostic.
 
 ## Native equations
 

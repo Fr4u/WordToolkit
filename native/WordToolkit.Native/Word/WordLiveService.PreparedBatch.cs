@@ -160,6 +160,7 @@ internal sealed partial class WordLiveService
                 (object)stagingDocument,
                 (object)publicationRange,
                 temporaryPath,
+                flatOpc,
                 publicationEnd - publicationStart,
                 RollbackSha256(stagedText),
                 operationRanges,
@@ -221,6 +222,108 @@ internal sealed partial class WordLiveService
             null,
             targetMutationAttempted
         );
+    }
+
+    internal static void RestoreLiveMainStoryFromFlatOpc(
+        dynamic application,
+        dynamic targetDocument,
+        string flatOpc
+    )
+    {
+        if (flatOpc.Length == 0)
+        {
+            throw new NativeToolException(
+                "ROLLBACK_FAILED",
+                "The independent live recovery snapshot is empty"
+            );
+        }
+        var temporaryPath = Path.Combine(
+            Path.GetTempPath(),
+            $"wordtoolkit-live-recovery-{Guid.NewGuid():N}.xml"
+        );
+        dynamic? recoveryDocument = null;
+        Exception? failure = null;
+        var trackRevisionsRead = false;
+        var originalTrackRevisions = false;
+        try
+        {
+            File.WriteAllText(temporaryPath, flatOpc, new UTF8Encoding(false));
+            var originalAutomationSecurity = (int)application.AutomationSecurity;
+            var originalUpdateLinksAtOpen = (bool)application.Options.UpdateLinksAtOpen;
+            try
+            {
+                application.AutomationSecurity = OfficeAutomationSecurityForceDisable;
+                application.Options.UpdateLinksAtOpen = false;
+                recoveryDocument = application.Documents.Open(
+                    FileName: temporaryPath,
+                    ConfirmConversions: false,
+                    ReadOnly: true,
+                    AddToRecentFiles: false,
+                    Revert: false,
+                    Visible: false,
+                    OpenAndRepair: false,
+                    NoEncodingDialog: true
+                );
+            }
+            finally
+            {
+                application.Options.UpdateLinksAtOpen = originalUpdateLinksAtOpen;
+                application.AutomationSecurity = originalAutomationSecurity;
+            }
+
+            originalTrackRevisions = (bool)targetDocument.TrackRevisions;
+            trackRevisionsRead = true;
+            if (originalTrackRevisions)
+            {
+                targetDocument.TrackRevisions = false;
+            }
+            dynamic sourceContent = recoveryDocument.Content;
+            dynamic targetContent = targetDocument.Content;
+            var sourceStart = (int)sourceContent.Start;
+            var sourceEnd = Math.Max(sourceStart, (int)sourceContent.End - 1);
+            var targetStart = (int)targetContent.Start;
+            var targetEnd = Math.Max(targetStart, (int)targetContent.End - 1);
+            dynamic sourceRange = recoveryDocument.Range(sourceStart, sourceEnd);
+            dynamic targetRange = targetDocument.Range(targetStart, targetEnd);
+            targetRange.FormattedText = sourceRange.FormattedText;
+            if (originalTrackRevisions)
+            {
+                targetDocument.TrackRevisions = true;
+            }
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
+        finally
+        {
+            if (trackRevisionsRead)
+            {
+                try
+                {
+                    targetDocument.TrackRevisions = originalTrackRevisions;
+                }
+                catch when (failure is not null)
+                {
+                    // The recovery failure remains authoritative and will quarantine the handle.
+                }
+            }
+            CloseStagingArtifacts(
+                recoveryDocument,
+                temporaryPath,
+                failure,
+                targetMutationAttempted: true
+            );
+            try
+            {
+                targetDocument.Activate();
+            }
+            catch when (failure is not null)
+            {
+                // The rollback verifier will report the unavailable live state.
+            }
+        }
     }
 
     private static void CloseStagingArtifacts(
@@ -549,6 +652,7 @@ internal sealed partial class WordLiveService
         object Document,
         object PublicationRange,
         string TemporaryPath,
+        string BaselineFlatOpc,
         int PublicationLength,
         string TextSha256,
         IReadOnlyList<StagedOperationRange> OperationRanges,

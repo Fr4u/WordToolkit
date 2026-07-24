@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Added an independent baseline-restoration path for failed
+  `apply_live_word_operations` publication. The staged batch now retains its original Flat
+  OPC snapshot in process; after a failed or unproven Undo, WordToolkit opens that snapshot
+  as a separate hidden, read-only recovery document and copies its main story back through
+  cross-document `Range.FormattedText` before deciding whether the target is safe.
+- Recovery acceptance now requires two stable reads of a namespace-aware semantic Flat OPC
+  hash, in addition to exact target/context boundaries, text fingerprints and structural
+  counts. The semantic profile ignores only WordprocessingML `w:rsid*` session metadata;
+  paragraph identities, content, fields, bookmarks, equations and every other element and
+  attribute still participate in the proof.
+- The original operation error remains authoritative only when Undo or the independent
+  restore proves the complete checkpoint. `Document.Saved` is restored only after every
+  other recovery comparison passes and is then rechecked. Any unstable snapshot, cleanup
+  exception or residual mismatch returns `ROLLBACK_FAILED`, invalidates the handle and
+  quarantines the document identity. Diagnostics expose only mismatch names and recovery
+  status flags, never source content, OOXML or fingerprints.
+- Added fake-COM proof that an `Undo=false` batch can be recovered independently with zero
+  residual equations and an unchanged version. A forced real Word 16.0 test proves the
+  harder boundary: the same recovery removes contaminated text and native OMath, but Word
+  still normalizes the package beyond `w:rsid*`; WordToolkit therefore keeps returning
+  `ROLLBACK_FAILED` and quarantining that state instead of declaring a false exact rollback.
+
 - Replaced equation-only preflight with complete heterogeneous batch staging for
   `apply_live_word_operations`. WordToolkit now writes the current document's read-only
   Flat OPC snapshot to an isolated temporary clone, clears only the clone's main story,
@@ -24,15 +46,16 @@
   partial/visible-only Undo path. The real Word 16.0 acceptance now publishes two
   independently formatted paragraphs plus the eight-line complex integral derivation in
   one batch and re-verifies all six integrals and six correctly placed differentials.
-- Full release gates pass 504 Engine, 386 Native and 1,309 Python tests with 16
-  intentional skips; Ruff passes. Independent recovery after a partially applied
-  `FormattedText` assignment when Word also lacks byte-exact Undo remains open; that state
-  is reported as `ROLLBACK_FAILED` and quarantined rather than misrepresented as atomic.
-- Enabled runtime `0.39.0+codex.20260724145815` reports 107 actions, 15 exposed tools and
+- Full release gates pass 504 Engine, 389 Native and 1,309 Python tests with 16
+  intentional skips; Ruff passes. Independent recovery is now attempted after a partially
+  applied `FormattedText` assignment, but acceptance still requires full semantic package
+  equivalence. Visible cleanup without that proof is reported as `ROLLBACK_FAILED` and
+  quarantined rather than misrepresented as atomic.
+- Enabled runtime `0.39.0+codex.20260724154131` reports 107 actions, 15 exposed tools and
   20 explicit metadata contracts. Build, personal marketplace source and enabled cache
-  are identical at 196 files and 87,034,206 bytes with zero path, length or hash
-  differences. The 36,728,895-byte ZIP SHA-256 is
-  `a50ce87d6af00dae4e8ffe502b6969de70aeceb4d2f920f42038da3af6c13586`.
+  are identical at 196 files and 87,050,540 bytes with zero path, length or hash
+  differences. The 36,731,827-byte ZIP SHA-256 is
+  `88fe233ed24107866d757677f809f80732427acf140859576dec0f3f74642c55`.
 
 - Removed the legacy live rollback helper that swallowed failed custom-record closure and
   `Document.Undo(1)` exceptions. Every current custom-Undo mutation family now uses one

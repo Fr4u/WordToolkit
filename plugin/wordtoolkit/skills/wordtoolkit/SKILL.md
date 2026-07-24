@@ -667,13 +667,18 @@ fingerprints the whole-document Flat OPC, main-story content, every linked story
 exact target and bounded OOXML context, range boundaries, save state and structural
 counts. The same verified rollback/quarantine contract covers every current live
 mutation family; SmartArt and review-property actions add dedicated state fingerprints.
-On failure, the original error remains authoritative only when Word's Undo returns
-success and the complete snapshot matches exactly. If Undo throws, returns false,
-cannot be closed safely, or leaves any mismatch, the action returns `ROLLBACK_FAILED`,
-invalidates the live handle and quarantines that document identity. Do not reconnect or
-continue editing a quarantined document. Inspect it in Word, then call
-`disconnect_live_word_document` only as an explicit acknowledgement before any fresh
-connection.
+On failure, the original error remains authoritative only when recovery matches the
+complete snapshot. WordToolkit first checks one bounded Undo. For
+`apply_live_word_operations`, an unproven Undo additionally opens the retained baseline
+Flat OPC in a separate hidden recovery document and copies its main story back through
+cross-document `FormattedText`. Acceptance requires exact boundaries, counts, text and a
+stable semantic whole-document hash that ignores only WordprocessingML `w:rsid*` session
+metadata. Restore the saved flag only after every other check passes. If recovery throws,
+cannot be verified, or leaves any mismatch, the action returns `ROLLBACK_FAILED`,
+invalidates the live handle and quarantines that document identity even when the visible
+text looks clean. Do not reconnect or continue editing a quarantined document. Inspect it
+in Word, then call `disconnect_live_word_document` only as an explicit acknowledgement
+before any fresh connection.
 
 ## Lazy actions
 

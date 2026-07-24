@@ -3281,7 +3281,13 @@ internal sealed partial class WordLiveService : IToolHandler
                         mutationAttempted,
                         rollbackSnapshot,
                         record,
-                        effectiveException
+                        effectiveException,
+                        independentRestore: (Action)(() =>
+                            RestoreLiveMainStoryFromFlatOpc(
+                                application,
+                                document,
+                                staged!.BaselineFlatOpc
+                            ))
                     );
                     throw effectiveException;
                 }

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Xml;
 using WordToolkit.Native.Protocol;
 
 namespace WordToolkit.Native.Word;
@@ -42,6 +43,18 @@ internal sealed partial class WordLiveService
         dynamic targetRange = document.Range(targetStart, targetEnd);
         dynamic contextRange = document.Range(contextStart, contextEnd);
 
+        var documentWordOpenXml = RollbackDocumentWordOpenXml(
+            document,
+            content,
+            strictComReadback
+        );
+        var contentWordOpenXml = RollbackWordOpenXml(content, strictComReadback);
+        var targetWordOpenXml = RollbackWordOpenXml(targetRange, strictComReadback);
+        var contextWordOpenXml = RollbackWordOpenXml(contextRange, strictComReadback);
+        var storyDigest = CaptureRollbackStoryDigest(document, strictComReadback);
+        var documentSemanticWordOpenXmlSha256 = RollbackStableSemanticSha256(
+            () => RollbackDocumentWordOpenXml(document, content, strictComReadback)
+        );
         return new LiveRollbackSnapshot(
             liveVersion,
             RollbackSaved(document, strictComReadback),
@@ -62,14 +75,15 @@ internal sealed partial class WordLiveService
             RollbackCount((object)document, strictComReadback, static value => (int)value.Footnotes.Count, DocumentFootnoteCount),
             RollbackCount((object)document, strictComReadback, static value => (int)value.Endnotes.Count, DocumentEndnoteCount),
             RollbackCount((object)document, strictComReadback, static value => (int)value.Sections.Count, DocumentSectionCount),
-            RollbackSha256(RollbackDocumentWordOpenXml(document, content, strictComReadback)),
+            RollbackSha256(documentWordOpenXml),
+            documentSemanticWordOpenXmlSha256,
             RollbackSha256((string?)content.Text ?? ""),
-            RollbackSha256(RollbackWordOpenXml(content, strictComReadback)),
+            RollbackSha256(contentWordOpenXml),
             RollbackSha256((string?)targetRange.Text ?? ""),
-            RollbackSha256(RollbackWordOpenXml(targetRange, strictComReadback)),
+            RollbackSha256(targetWordOpenXml),
             RollbackSha256((string?)contextRange.Text ?? ""),
-            RollbackSha256(RollbackWordOpenXml(contextRange, strictComReadback)),
-            CaptureRollbackStoryDigest(document, strictComReadback)
+            RollbackSha256(contextWordOpenXml),
+            storyDigest
         );
     }
 
@@ -137,7 +151,8 @@ internal sealed partial class WordLiveService
     {
         if (!strictComReadback)
         {
-            return new RollbackStoryDigest(0, RollbackSha256("test-double-stories"));
+            var testDoubleDigest = RollbackSha256("test-double-stories");
+            return new RollbackStoryDigest(0, testDoubleDigest);
         }
 
         var records = new List<RollbackStoryRecord>();
@@ -159,6 +174,7 @@ internal sealed partial class WordLiveService
                         }
                     );
                 }
+                var storyWordOpenXml = RollbackWordOpenXml(current, strictComReadback);
                 records.Add(
                     new RollbackStoryRecord(
                         (int)current.StoryType,
@@ -166,7 +182,7 @@ internal sealed partial class WordLiveService
                         (int)current.Start,
                         (int)current.End,
                         RollbackSha256((string?)current.Text ?? ""),
-                        RollbackSha256(RollbackWordOpenXml(current, strictComReadback))
+                        RollbackSha256(storyWordOpenXml)
                     )
                 );
                 current = current.NextStoryRange;
@@ -200,7 +216,8 @@ internal sealed partial class WordLiveService
         Exception originalException,
         string? supplementalBaseline = null,
         Func<string>? supplementalStateReader = null,
-        string supplementalDifferenceName = "supplemental_state_sha256"
+        string supplementalDifferenceName = "supplemental_state_sha256",
+        Action? independentRestore = null
     )
     {
         if (!mutationAttempted)
@@ -326,6 +343,9 @@ internal sealed partial class WordLiveService
         var differences = (afterUndo is null
             ? new[] { "rollback_snapshot_unavailable" }
             : baseline.Differences(afterUndo).ToArray()).ToList();
+        var recoveryDifferences = (afterUndo is null
+            ? new[] { "rollback_snapshot_unavailable" }
+            : baseline.RecoveryDifferences(afterUndo).ToArray()).ToList();
         if (
             supplementalStateReader is not null
             && (
@@ -339,6 +359,7 @@ internal sealed partial class WordLiveService
         )
         {
             differences.Add(supplementalDifferenceName);
+            recoveryDifferences.Add(supplementalDifferenceName);
         }
         if (
             endRecordError is null
@@ -346,11 +367,111 @@ internal sealed partial class WordLiveService
             && undoError is null
             && undoReturned is true
             && afterUndo is not null
-            && differences.Count == 0
+            && recoveryDifferences.Count == 0
         )
         {
             record.Version = baseline.LiveVersion;
             return;
+        }
+
+        var independentRestoreAttempted = false;
+        var independentRestoreCompleted = false;
+        Exception? independentRestoreError = null;
+        LiveRollbackSnapshot? afterIndependentRestore = null;
+        Exception? independentRestoreVerificationError = null;
+        string? afterIndependentRestoreSupplemental = null;
+        Exception? independentRestoreSupplementalError = null;
+        if (endRecordError is null && changedBeforeUndo && independentRestore is not null)
+        {
+            independentRestoreAttempted = true;
+            try
+            {
+                independentRestore();
+                independentRestoreCompleted = true;
+            }
+            catch (Exception exception)
+            {
+                independentRestoreError = exception;
+            }
+            try
+            {
+                afterIndependentRestore = CaptureLiveRollbackSnapshot(
+                    document,
+                    baseline.TargetStart,
+                    baseline.TargetEnd,
+                    baseline.LiveVersion
+                );
+            }
+            catch (Exception exception)
+            {
+                independentRestoreVerificationError = exception;
+            }
+            if (supplementalStateReader is not null)
+            {
+                try
+                {
+                    afterIndependentRestoreSupplemental = supplementalStateReader();
+                }
+                catch (Exception exception)
+                {
+                    independentRestoreSupplementalError = exception;
+                }
+            }
+
+            recoveryDifferences = (afterIndependentRestore is null
+                ? new[] { "rollback_snapshot_unavailable" }
+                : baseline.RecoveryDifferences(
+                    afterIndependentRestore,
+                    ignoreSavedState: true
+                ).ToArray()).ToList();
+            if (
+                supplementalStateReader is not null
+                && (
+                    independentRestoreSupplementalError is not null
+                    || !string.Equals(
+                        supplementalBaseline,
+                        afterIndependentRestoreSupplemental,
+                        StringComparison.Ordinal
+                    )
+                )
+            )
+            {
+                recoveryDifferences.Add(supplementalDifferenceName);
+            }
+            if (
+                independentRestoreError is null
+                && independentRestoreVerificationError is null
+                && independentRestoreSupplementalError is null
+                && afterIndependentRestore is not null
+                && recoveryDifferences.Count == 0
+            )
+            {
+                try
+                {
+                    document.Saved = baseline.Saved;
+                    afterIndependentRestore = CaptureLiveRollbackSnapshot(
+                        document,
+                        baseline.TargetStart,
+                        baseline.TargetEnd,
+                        baseline.LiveVersion
+                    );
+                    recoveryDifferences = baseline.RecoveryDifferences(
+                        afterIndependentRestore
+                    ).ToList();
+                }
+                catch (Exception exception)
+                {
+                    independentRestoreVerificationError = exception;
+                }
+                if (
+                    independentRestoreVerificationError is null
+                    && recoveryDifferences.Count == 0
+                )
+                {
+                    record.Version = baseline.LiveVersion;
+                    return;
+                }
+            }
         }
 
         QuarantineLiveDocument(record);
@@ -371,12 +492,23 @@ internal sealed partial class WordLiveService
                 undo_returned = undoReturned,
                 undo_failed = undoError is not null,
                 rollback_verification_failed = afterUndoVerificationError is not null
-                    || afterUndoSupplementalError is not null,
+                    || afterUndoSupplementalError is not null
+                    || independentRestoreVerificationError is not null
+                    || independentRestoreSupplementalError is not null,
                 pre_undo_verification_failed = beforeUndoVerificationError is not null
                     || beforeUndoSupplementalError is not null,
                 differences,
+                recovery_differences = recoveryDifferences,
+                recovery_equivalence_profile = "all_state_except_word_rsid_session_metadata",
+                independent_restore_attempted = independentRestoreAttempted,
+                independent_restore_completed = independentRestoreCompleted,
+                independent_restore_failed = independentRestoreError is not null,
+                independent_restore_exception_type = independentRestoreError?.GetType().Name,
+                independent_restore_error_code = independentRestoreError is NativeToolException restoreNative
+                    ? restoreNative.ErrorCode
+                    : null,
                 baseline = baseline.StructuralSummary(),
-                observed = afterUndo?.StructuralSummary(),
+                observed = (afterIndependentRestore ?? afterUndo)?.StructuralSummary(),
                 handle_invalidated = true,
                 document_quarantined = true,
                 requires_explicit_disconnect = true,
@@ -403,6 +535,155 @@ internal sealed partial class WordLiveService
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)))
             .ToLowerInvariant();
     }
+
+    internal static string RollbackSemanticSha256(string value)
+    {
+        try
+        {
+            var canonical = new StringBuilder(value.Length);
+            using var input = new StringReader(value);
+            using var reader = XmlReader.Create(
+                input,
+                new XmlReaderSettings
+                {
+                    DtdProcessing = DtdProcessing.Prohibit,
+                    XmlResolver = null,
+                    IgnoreComments = false,
+                    IgnoreProcessingInstructions = false,
+                    IgnoreWhitespace = false,
+                    MaxCharactersInDocument = Math.Max(1, value.Length + 1L),
+                }
+            );
+            while (!reader.EOF)
+            {
+                if (reader.NodeType == XmlNodeType.None)
+                {
+                    reader.Read();
+                    continue;
+                }
+                if (
+                    reader.NodeType == XmlNodeType.Element
+                    && IsVolatileWordSessionElement(reader.NamespaceURI, reader.LocalName)
+                )
+                {
+                    reader.Skip();
+                    continue;
+                }
+                AppendCanonicalXmlNode(canonical, reader);
+                reader.Read();
+            }
+            return RollbackSha256(canonical.ToString());
+        }
+        catch (XmlException)
+        {
+            return RollbackSha256("unparsed-word-open-xml\0" + value);
+        }
+    }
+
+    private static string RollbackStableSemanticSha256(Func<string> readWordOpenXml)
+    {
+        string? previous = null;
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            var observed = RollbackSemanticSha256(readWordOpenXml());
+            if (string.Equals(previous, observed, StringComparison.Ordinal))
+            {
+                return observed;
+            }
+            previous = observed;
+        }
+        throw new NativeToolException(
+            "ROLLBACK_SNAPSHOT_UNSTABLE",
+            "Microsoft Word did not return a stable semantic Flat OPC projection for the rollback checkpoint",
+            new
+            {
+                attempts = 4,
+                raw_document_content_returned = false,
+            }
+        );
+    }
+
+    private static void AppendCanonicalXmlNode(StringBuilder canonical, XmlReader reader)
+    {
+        switch (reader.NodeType)
+        {
+            case XmlNodeType.Element:
+                {
+                    AppendCanonicalValue(canonical, "E");
+                    AppendCanonicalValue(canonical, reader.NamespaceURI);
+                    AppendCanonicalValue(canonical, reader.LocalName);
+                    var attributes = new List<(string NamespaceUri, string LocalName, string Value)>();
+                    if (reader.MoveToFirstAttribute())
+                    {
+                        do
+                        {
+                            if (
+                                reader.NamespaceURI == "http://www.w3.org/2000/xmlns/"
+                                || IsVolatileWordSessionAttribute(
+                                    reader.NamespaceURI,
+                                    reader.LocalName
+                                )
+                            )
+                            {
+                                continue;
+                            }
+                            attributes.Add((reader.NamespaceURI, reader.LocalName, reader.Value));
+                        }
+                        while (reader.MoveToNextAttribute());
+                        reader.MoveToElement();
+                    }
+                    foreach (
+                        var attribute in attributes.OrderBy(static value => value.NamespaceUri, StringComparer.Ordinal)
+                            .ThenBy(static value => value.LocalName, StringComparer.Ordinal)
+                    )
+                    {
+                        AppendCanonicalValue(canonical, "A");
+                        AppendCanonicalValue(canonical, attribute.NamespaceUri);
+                        AppendCanonicalValue(canonical, attribute.LocalName);
+                        AppendCanonicalValue(canonical, attribute.Value);
+                    }
+                    AppendCanonicalValue(canonical, reader.IsEmptyElement ? "1" : "0");
+                    break;
+                }
+            case XmlNodeType.EndElement:
+                AppendCanonicalValue(canonical, "Z");
+                AppendCanonicalValue(canonical, reader.NamespaceURI);
+                AppendCanonicalValue(canonical, reader.LocalName);
+                break;
+            case XmlNodeType.Text:
+            case XmlNodeType.CDATA:
+            case XmlNodeType.Whitespace:
+            case XmlNodeType.SignificantWhitespace:
+                AppendCanonicalValue(canonical, "T" + (int)reader.NodeType);
+                AppendCanonicalValue(canonical, reader.Value);
+                break;
+            case XmlNodeType.Comment:
+                AppendCanonicalValue(canonical, "C");
+                AppendCanonicalValue(canonical, reader.Value);
+                break;
+            case XmlNodeType.ProcessingInstruction:
+                AppendCanonicalValue(canonical, "P");
+                AppendCanonicalValue(canonical, reader.Name);
+                AppendCanonicalValue(canonical, reader.Value);
+                break;
+            case XmlNodeType.XmlDeclaration:
+                AppendCanonicalValue(canonical, "D");
+                AppendCanonicalValue(canonical, reader.Value);
+                break;
+        }
+    }
+
+    private static void AppendCanonicalValue(StringBuilder canonical, string value)
+    {
+        canonical.Append(value.Length).Append(':').Append(value);
+    }
+
+    private static bool IsVolatileWordSessionElement(string namespaceUri, string localName) =>
+        namespaceUri == "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        && localName.StartsWith("rsid", StringComparison.Ordinal);
+
+    private static bool IsVolatileWordSessionAttribute(string namespaceUri, string localName) =>
+        IsVolatileWordSessionElement(namespaceUri, localName);
 }
 
 internal sealed record LiveRollbackSnapshot(
@@ -426,6 +707,7 @@ internal sealed record LiveRollbackSnapshot(
     int EndnoteCount,
     int SectionCount,
     string DocumentWordOpenXmlSha256,
+    string DocumentSemanticWordOpenXmlSha256,
     string ContentTextSha256,
     string ContentWordOpenXmlSha256,
     string TargetTextSha256,
@@ -518,6 +800,46 @@ internal sealed record LiveRollbackSnapshot(
         return differences;
     }
 
+    public IReadOnlyList<string> RecoveryDifferences(
+        LiveRollbackSnapshot observed,
+        bool ignoreSavedState = false
+    )
+    {
+        var differences = new List<string>();
+        if (!ignoreSavedState)
+        {
+            AddDifference(differences, "saved", Saved, observed.Saved);
+        }
+        AddDifference(differences, "content_start", ContentStart, observed.ContentStart);
+        AddDifference(differences, "content_end", ContentEnd, observed.ContentEnd);
+        AddDifference(differences, "target_start", TargetStart, observed.TargetStart);
+        AddDifference(differences, "target_end", TargetEnd, observed.TargetEnd);
+        AddDifference(differences, "context_start", ContextStart, observed.ContextStart);
+        AddDifference(differences, "context_end", ContextEnd, observed.ContextEnd);
+        AddDifference(differences, "paragraph_count", ParagraphCount, observed.ParagraphCount);
+        AddDifference(differences, "equation_count", EquationCount, observed.EquationCount);
+        AddDifference(differences, "table_count", TableCount, observed.TableCount);
+        AddDifference(differences, "field_count", FieldCount, observed.FieldCount);
+        AddDifference(differences, "bookmark_count", BookmarkCount, observed.BookmarkCount);
+        AddDifference(differences, "inline_shape_count", InlineShapeCount, observed.InlineShapeCount);
+        AddDifference(differences, "shape_count", ShapeCount, observed.ShapeCount);
+        AddDifference(differences, "comment_count", CommentCount, observed.CommentCount);
+        AddDifference(differences, "footnote_count", FootnoteCount, observed.FootnoteCount);
+        AddDifference(differences, "endnote_count", EndnoteCount, observed.EndnoteCount);
+        AddDifference(differences, "section_count", SectionCount, observed.SectionCount);
+        AddDifference(
+            differences,
+            "document_semantic_word_open_xml_sha256",
+            DocumentSemanticWordOpenXmlSha256,
+            observed.DocumentSemanticWordOpenXmlSha256
+        );
+        AddDifference(differences, "content_text_sha256", ContentTextSha256, observed.ContentTextSha256);
+        AddDifference(differences, "target_text_sha256", TargetTextSha256, observed.TargetTextSha256);
+        AddDifference(differences, "context_text_sha256", ContextTextSha256, observed.ContextTextSha256);
+        AddDifference(differences, "story_range_count", StoryDigest.RangeCount, observed.StoryDigest.RangeCount);
+        return differences;
+    }
+
     public object StructuralSummary()
     {
         return new
@@ -538,6 +860,7 @@ internal sealed record LiveRollbackSnapshot(
             endnote_count = EndnoteCount,
             section_count = SectionCount,
             document_word_open_xml_verified_by_hash = true,
+            document_semantic_word_open_xml_verified_by_hash = true,
             content_text_verified_by_hash = true,
             content_word_open_xml_verified_by_hash = true,
             target_word_open_xml_verified_by_hash = true,

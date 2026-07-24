@@ -17,7 +17,10 @@ public sealed class LiveOperationRollbackTests
 
         var error = await ApplyFailingBatchAsync(service, documentId);
 
-        Assert.Equal("EQUATION_INVALID", error.ErrorCode);
+        Assert.True(
+            error.ErrorCode == "EQUATION_INVALID",
+            JsonSerializer.Serialize(error.Details, JsonDefaults.Compact)
+        );
         Assert.Equal("\r", host.Application.ActiveDocument.RawText);
         Assert.Equal(1, host.Application.ActiveDocument.Paragraphs.Count);
         Assert.Equal(0, host.Application.ActiveDocument.OMaths.Count);
@@ -35,6 +38,70 @@ public sealed class LiveOperationRollbackTests
             JsonSerializer.Serialize(result, JsonDefaults.Compact)
         );
         Assert.Equal(0, resultJson.RootElement.GetProperty("live_version").GetInt64());
+    }
+
+    [Fact]
+    public async Task IndependentBaselineRecoveryRepairsTargetWhenUndoReturnsFalse()
+    {
+        await using var host = new RollbackFakeHost(
+            RollbackBehavior.ReturnFalse,
+            failIndependentRestore: false
+        );
+        var service = new WordLiveService(host);
+        var documentId = await ConnectAsync(service);
+        host.Application.ActiveDocument.Saved = false;
+
+        var error = await ApplyFailingBatchAsync(service, documentId);
+
+        Assert.True(
+            error.ErrorCode == "EQUATION_INVALID",
+            JsonSerializer.Serialize(error.Details, JsonDefaults.Compact)
+        );
+        Assert.Equal("\r", host.Application.ActiveDocument.RawText);
+        Assert.Equal(1, host.Application.ActiveDocument.Paragraphs.Count);
+        Assert.Equal(0, host.Application.ActiveDocument.OMaths.Count);
+        Assert.Equal(1, host.Application.ActiveDocument.UndoCount);
+        Assert.Equal(2, host.Application.ActiveDocument.FormattedTextAssignments);
+        Assert.Equal(2, host.Application.Documents.OpenCount);
+        Assert.False(host.Application.ActiveDocument.Saved);
+
+        using var inspectArguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(new { live_document_id = documentId })
+        );
+        var result = await service.CallAsync(
+            "inspect_live_word_document",
+            inspectArguments.RootElement,
+            CancellationToken.None
+        );
+        using var resultJson = JsonDocument.Parse(
+            JsonSerializer.Serialize(result, JsonDefaults.Compact)
+        );
+        Assert.Equal(0, resultJson.RootElement.GetProperty("live_version").GetInt64());
+    }
+
+    [Fact]
+    public void SemanticRollbackHashIgnoresOnlyWordRsidSessionMetadata()
+    {
+        const string before =
+            "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:w14=\"urn:w14\"><w:body><w:p w:rsidR=\"00000001\" w14:paraId=\"A\"><w:r><w:t>tekst</w:t></w:r></w:p></w:body><w:rsids><w:rsidRoot w:val=\"00000001\"/><w:rsid w:val=\"00000002\"/></w:rsids></w:document>";
+        const string onlySessionIdsChanged =
+            "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:w14=\"urn:w14\"><w:body><w:p w:rsidR=\"FFFFFFFF\" w14:paraId=\"A\"><w:r><w:t>tekst</w:t></w:r></w:p></w:body><w:rsids><w:rsidRoot w:val=\"AAAAAAAA\"/><w:rsid w:val=\"BBBBBBBB\"/></w:rsids></w:document>";
+        const string stableIdentityChanged =
+            "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:w14=\"urn:w14\"><w:body><w:p w:rsidR=\"FFFFFFFF\" w14:paraId=\"B\"><w:r><w:t>tekst</w:t></w:r></w:p></w:body><w:rsids><w:rsidRoot w:val=\"AAAAAAAA\"/></w:rsids></w:document>";
+        const string contentChanged =
+            "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:w14=\"urn:w14\"><w:body><w:p w:rsidR=\"FFFFFFFF\" w14:paraId=\"A\"><w:r><w:t>skażenie</w:t></w:r></w:p></w:body><w:rsids/></w:document>";
+
+        var baseline = WordLiveService.RollbackSemanticSha256(before);
+
+        Assert.Equal(
+            baseline,
+            WordLiveService.RollbackSemanticSha256(onlySessionIdsChanged)
+        );
+        Assert.NotEqual(
+            baseline,
+            WordLiveService.RollbackSemanticSha256(stableIdentityChanged)
+        );
+        Assert.NotEqual(baseline, WordLiveService.RollbackSemanticSha256(contentChanged));
     }
 
     [Theory]
@@ -452,7 +519,8 @@ internal sealed class RollbackFakeHost : IWordComHost
         bool failTargetPublication = true,
         bool failPublicationBeforeMutation = false,
         bool driftTargetDuringStaging = false,
-        bool failStagingOpen = false
+        bool failStagingOpen = false,
+        bool failIndependentRestore = true
     )
     {
         Application = new RollbackFakeApplication(
@@ -461,7 +529,8 @@ internal sealed class RollbackFakeHost : IWordComHost
             failTargetPublication,
             failPublicationBeforeMutation,
             driftTargetDuringStaging,
-            failStagingOpen
+            failStagingOpen,
+            failIndependentRestore
         );
     }
 
@@ -488,12 +557,14 @@ public sealed class RollbackFakeApplication
         bool failTargetPublication,
         bool failPublicationBeforeMutation,
         bool driftTargetDuringStaging,
-        bool failStagingOpen
+        bool failStagingOpen,
+        bool failIndependentRestore
     )
     {
         FailStagingEquation = failStagingEquation;
         DriftTargetDuringStaging = driftTargetDuringStaging;
         FailStagingOpen = failStagingOpen;
+        FailIndependentRestore = failIndependentRestore;
         ActiveDocument = new RollbackFakeDocument(
             this,
             rollbackBehavior,
@@ -515,6 +586,7 @@ public sealed class RollbackFakeApplication
     public bool FailStagingEquation { get; }
     public bool DriftTargetDuringStaging { get; }
     public bool FailStagingOpen { get; }
+    public bool FailIndependentRestore { get; }
 }
 
 public sealed class RollbackFakeOptions
@@ -536,6 +608,7 @@ public sealed class RollbackFakeDocuments
     public int Count => 1;
     public RollbackFakeDocument? LastStagingDocument { get; private set; }
     public string? LastStagingPath { get; private set; }
+    public int OpenCount { get; private set; }
 
     public RollbackFakeDocument Item(int index) =>
         index == 1 ? _document : throw new IndexOutOfRangeException();
@@ -565,6 +638,7 @@ public sealed class RollbackFakeDocuments
         bool NoEncodingDialog = true
     )
     {
+        OpenCount++;
         LastStagingPath = FileName;
         if (_document.Application.FailStagingOpen)
         {
@@ -580,6 +654,7 @@ public sealed class RollbackFakeDocuments
             failPublicationBeforeMutation: false,
             Path.GetFileName(FileName)
         );
+        staging.IsRecoverySource = OpenCount > 1;
         _document.Application.ActiveDocument = staging;
         LastStagingDocument = staging;
         if (_document.Application.DriftTargetDuringStaging)
@@ -623,7 +698,7 @@ public sealed class RollbackFakeDocument
     public string Name => _name;
     public string FullName => @"C:\Fixtures\" + _name;
     public string Path => @"C:\Fixtures";
-    public bool Saved { get; private set; } = true;
+    public bool Saved { get; set; } = true;
     public bool ReadOnly => false;
     public bool Final => false;
     public bool TrackRevisions { get; set; }
@@ -657,6 +732,7 @@ public sealed class RollbackFakeDocument
     public bool FailEquationBuild => _failEquationBuild;
     public RollbackFakeApplication Application => _application;
     internal bool HiddenOpenXmlResidue => _hiddenOpenXmlResidue;
+    internal bool IsRecoverySource { get; set; }
 
     public RollbackFakeRange Range(int start, int end) => new(this, start, end);
 
@@ -735,6 +811,13 @@ public sealed class RollbackFakeDocument
     )
     {
         FormattedTextAssignments++;
+        if (source.Document.IsRecoverySource && _application.FailIndependentRestore)
+        {
+            throw new NativeToolException(
+                "ROLLBACK_FAILED",
+                "Fake Word rejected the independent baseline restoration"
+            );
+        }
         if (_failPublicationBeforeMutation)
         {
             throw new NativeToolException(
@@ -744,7 +827,9 @@ public sealed class RollbackFakeDocument
         }
         Replace(start, end, source.Text);
         OMaths.ReplaceRangeFrom(start, end, source);
-        if (_failEquationBuild)
+        _hiddenOpenXmlResidue = source.Document.HiddenOpenXmlResidue;
+        Saved = source.Document.Saved;
+        if (_failEquationBuild && !source.Document.IsRecoverySource)
         {
             throw new NativeToolException(
                 "EQUATION_INVALID",
@@ -774,6 +859,7 @@ public sealed class RollbackFakeRange
 
     public int Start { get; private set; }
     public int End { get; private set; }
+    internal RollbackFakeDocument Document => _document;
     public string Text
     {
         get => _document.Read(Start, End);

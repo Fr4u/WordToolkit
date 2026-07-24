@@ -1,5 +1,44 @@
 # Stage results
 
+## Independent recovery with semantic rollback proof — 2026-07-24
+
+- Failed `apply_live_word_operations` publication no longer ends with Word's Undo as the
+  only recovery mechanism. The staged batch retains the baseline Flat OPC in process and,
+  when Undo fails or cannot prove restoration, opens it as a separate hidden, read-only
+  Word document and copies the baseline main story back into the target with one
+  cross-document `Range.FormattedText` assignment.
+- Recovery equivalence now combines exact content/target/context boundaries and hashes,
+  save state and structural counts with a namespace-aware whole-document semantic Flat OPC
+  hash. It ignores only WordprocessingML attributes whose local name starts with `rsid`.
+  Two consecutive semantic reads must match; four unstable reads return
+  `ROLLBACK_SNAPSHOT_UNSTABLE`. `Document.Saved` is restored only after the rest of the
+  checkpoint matches and is then verified again.
+- A fake-COM fault-injection test forces `Undo=false`, performs the independent restoration
+  and proves clean text, zero equations, unchanged `live_version=0` and a reusable handle.
+  The failure remains the original `EQUATION_INVALID` because complete recovery was proved.
+  Existing false, throwing, no-op, partial and visible-only Undo cases still fail closed
+  when the independent path fails or leaves state drift.
+- A forced real Word 16.0 test starts with native OMath, contaminates the target without
+  Undo and performs the same Flat OPC recovery. Main-story text, paragraph count and OMath
+  count return exactly to baseline, but the semantic whole-document Flat OPC hash still
+  differs beyond `w:rsid*`. That document remains quarantined. The result proves useful
+  cleanup, not package-exact recovery, and prevents a clean-looking document from being
+  mislabeled as transactionally restored.
+- Current gates pass **504 Engine**, **389 Native** and **1,309 Python tests**, with **16
+  intentional Python skips**; Ruff and both modified C# project format verifiers pass.
+  Full package-exact restoration or a sanctioned live document-identity swap remains the
+  open boundary.
+- Enabled runtime `0.39.0+codex.20260724154131` reports **107 actions**, **15 exposed
+  tools** and **20 explicit metadata contracts**. Build, personal marketplace source and
+  enabled cache contain the same **196 files** and **87,050,540 bytes**, with zero path,
+  length or SHA-256 differences. The **36,731,827-byte** ZIP SHA-256 is
+  `88fe233ed24107866d757677f809f80732427acf140859576dec0f3f74642c55`;
+  executable, native runtime assembly, Engine assembly and Open XML SDK adapter hashes are
+  `7239581ad34ecde54a192f70339d672e200507574a6023e450aa9ebb9784f841`,
+  `318bbbbf411f979a4b308f0dc24ec003be324f041b83d0db2a4e2915296b1f9e`,
+  `4e37936da2c499d7ebd79dbf94b572ce2509e0786f703f7abdeaed997ca7f09d`
+  and `bdab24fb5ec8a5b0eae51cae2b3cf85258e363cd8a5f7d033dd1e47c54000068`.
+
 ## Complete staged live-batch publication — 2026-07-24
 
 - Replaced equation-only staging with a full Flat OPC clone of the current target. Text,
@@ -17,21 +56,22 @@
   custom-record closure, isolated equation rejection, success through exactly one target
   assignment with zero target-side OMath builds, rejection before target mutation,
   failed-open artifact deletion and hidden target drift during staging. The full gates
-  pass **504 Engine**, **386 Native**
+  pass **504 Engine**, **389 Native**
   and **1,309 Python tests**, with **16 intentional Python skips**; Ruff passes.
 - Real Word 16.0 published two independently formatted paragraphs and the eight-line
   complex integral derivation in one staged batch. Post-publication semantic readback
   proved all six native integrals, all six differentials and their lower-baseline
   placement. This is direct Word evidence, not only fake-COM evidence.
-- Installed runtime `0.39.0+codex.20260724145815` reports 107 actions, 15 exposed tools
+- Installed runtime `0.39.0+codex.20260724154131` reports 107 actions, 15 exposed tools
   and 20 explicit metadata contracts. Build, personal marketplace source and enabled
-  cache are identical at 196 files and 87,034,206 bytes with zero path, length or hash
-  differences. The 36,728,895-byte ZIP SHA-256 is
-  `a50ce87d6af00dae4e8ffe502b6969de70aeceb4d2f920f42038da3af6c13586`.
-- One boundary remains open: a partially applied `FormattedText` publication cannot yet
-  be independently reconstructed when Word also lacks byte-exact Undo. WordToolkit now
-  reports `ROLLBACK_FAILED` and quarantines that state; it does not call the document
-  clean or allow the agent to continue.
+  cache are identical at 196 files and 87,050,540 bytes with zero path, length or hash
+  differences. The 36,731,827-byte ZIP SHA-256 is
+  `88fe233ed24107866d757677f809f80732427acf140859576dec0f3f74642c55`.
+- One boundary remains open: independent reconstruction is attempted after a partially
+  applied `FormattedText` publication, but real Word can normalize the recovered package
+  beyond the accepted `w:rsid*` session metadata. Without complete semantic equality,
+  WordToolkit reports `ROLLBACK_FAILED` and quarantines that state; it does not call the
+  document clean or allow the agent to continue.
 
 ## Operation-wide verified Word rollback — 2026-07-24
 
