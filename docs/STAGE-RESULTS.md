@@ -1,5 +1,41 @@
 # Stage results
 
+## Native SmartArt graph and compact inspector — 2026-07-24
+
+- Added `WordDiagramGraph`, a bounded read-only model for Transitional and Strict
+  DiagramML references, data/layout/quick-style/color parts, persisted drawings, points,
+  connections and definition identities. Point text is counted and discarded. The
+  Microsoft Open XML SDK validates the reference fixture before parser assertions run;
+  malformed cardinality, duplicate model IDs, unresolved endpoints, invalid orders,
+  unsafe XML and resource-limit breaches are all gated.
+- Integrated diagram and point nodes plus definition, containment, connection and part
+  edges into the shared dependency graph. `smartart_diagrams` is no longer an unmodeled
+  dependency domain. Office layout execution, geometry rendering and mutation remain
+  explicit boundaries.
+- Added lazy `inspect_ooxml_diagrams` as native action 94. Six paged views, exact
+  diagram/point-type filters, independent key/hash/source opt-ins, a shared `wop1` lease
+  and a 10 KiB projected-item ceiling keep the response bounded. Point text and raw XML
+  are unavailable under every option; Word, Office layout and external targets are never
+  opened or executed. Default output remains below 5,000 characters and the maximal
+  synthetic keyed/source page remains below the 32 KiB complete-response gate.
+- Full gates pass **483 Engine tests**, **323 Native tests** and **1,309 Python/OOXML
+  tests** with 16 intentional environment/model skips. Release builds have zero
+  warnings. Ruff is clean and mypy passes all 29 maintained Python source files.
+- Two pinned .NET SDK 8.0.423 builds from commit `2608cc9` produced byte-identical
+  196-file, 86,260,370-byte expanded trees and 36,523,652-byte ZIPs at SHA-256
+  `808ff3dd51faa0b76fb562da7dea5ea9222856a5158d2330e27c506c25e2844a`.
+  Both trees and ZIPs are identical and contain zero Python files.
+- The personal marketplace and enabled cache at
+  `0.39.0+codex.20260724043611` each contain the same 196 files with zero path, length or
+  hash differences from the release tree. The installed executable reports that exact
+  version, 94 actions and the lazy, read-only, closed-world
+  `inspect_ooxml_diagrams` contract.
+- Fresh installed-runtime MCP calls over `lo_chart.docx` return a 961-character empty
+  SmartArt summary with zero issues and a 3,225-character dependency summary with 75
+  nodes, 83/83 resolved edges and `smartart_diagrams=true`. Both calls report
+  `word_opened=false` and `python_used=false`; the source SHA-256 remains
+  `222628bcdb587c232e968d6aa1ba0a70dfd80845a4a2b8050316ec9d142ad33f`.
+
 ## Typed document properties and field dependencies — 2026-07-24
 
 - Added a bounded read-only graph for OPC core, Office extended and custom typed
