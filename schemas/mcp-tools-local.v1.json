@@ -5877,6 +5877,7 @@
               "chart_axis",
               "figure",
               "figure_representation",
+              "figure_shape",
               "figure_resource",
               "caption",
               "content_control",
@@ -5929,6 +5930,8 @@
               "chart_uses_part",
               "defines_figure",
               "figure_has_representation",
+              "figure_representation_contains_shape",
+              "figure_shape_contains_shape",
               "figure_uses_resource",
               "figure_resource_targets_part",
               "defines_caption",
@@ -6194,7 +6197,7 @@
     {
       "name": "inspect_ooxml_figures",
       "title": "Inspect Word figures and captions",
-      "description": "Inspect a bounded, source-linked graph of logical figures, DrawingML/VML representations, declared anchor placement and wrapping, accessibility metadata, resource relationships, caption paragraphs, SEQ fields, and evidence-scored figure-caption associations in a saved Word package. AlternateContent Choice/Fallback representations are grouped into one logical figure; without an application capability context no branch is reported as active or primary. Transitional and Strict OOXML are supported. Text, alternative text, source paths, exact VML length lexemes, relationship targets, and wrap-polygon coordinates are redacted by default. Declared placement is not reported as rendered page geometry. The engine never opens Word, decodes binary resources, follows external targets, or executes active content; ambiguous proximity is reported instead of asserted as fact.",
+      "description": "Inspect a bounded, source-linked graph of logical figures, DrawingML/VML representations, declared anchor placement and wrapping, nested DrawingML/VML shape topology, transforms, preset/custom path geometry, fills, lines, effects, text-flow declarations, accessibility metadata, resource relationships, caption paragraphs, SEQ fields, and evidence-scored figure-caption associations in a saved Word package. AlternateContent Choice/Fallback representations are grouped into one logical figure; without an application capability context no branch is reported as active or primary. Transitional and Strict OOXML are supported. Text, alternative text, source paths, exact VML length lexemes, relationship targets, shape details, path commands, formula coordinates, and wrap-polygon coordinates are redacted by default. Declared placement and shape geometry are not reported as rendered page geometry. The engine never opens Word, decodes binary resources, follows external targets, or executes active content; ambiguous proximity is reported instead of asserted as fact.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -6265,7 +6268,12 @@
           "include_geometry": {
             "type": "boolean",
             "default": false,
-            "description": "With view=representations, detail=declared and max_items no greater than 2, opt in to at most 128 declared wrap-polygon coordinates per representation. This does not execute Word layout or return rendered page coordinates."
+            "description": "With view=representations, detail=declared and max_items no greater than 2, opt in to at most 128 declared wrap-polygon coordinates plus, when include_shape_details is also true, at most 64 shape paths, 128 path commands, 256 formula points and 4096 formula characters per representation. This does not execute Word layout or return rendered page coordinates."
+          },
+          "include_shape_details": {
+            "type": "boolean",
+            "default": false,
+            "description": "With view=representations, detail=declared and max_items no greater than 2, opt in to a flattened bounded shape topology with transforms, geometry/effect/text-flow summaries and at most 64 shape nodes per representation. Shape text still requires include_text; path commands and formula coordinates still require include_geometry."
           }
         },
         "required": ["local_path"],

@@ -27,6 +27,7 @@ public enum WordDependencyNodeKind
     ChartAxis,
     Figure,
     FigureRepresentation,
+    FigureShape,
     FigureResource,
     Caption,
     ContentControl,
@@ -77,6 +78,8 @@ public enum WordDependencyEdgeKind
     ChartUsesPart,
     DefinesFigure,
     FigureHasRepresentation,
+    FigureRepresentationContainsShape,
+    FigureShapeContainsShape,
     FigureUsesResource,
     FigureResourceTargetsPart,
     DefinesCaption,
@@ -2064,6 +2067,20 @@ public sealed class WordDependencyGraphBuilder
                     partUri: representation.PartUri,
                     sourceElementOrdinal: representation.SourceElementOrdinal
                 );
+                if (representation.ShapeModel is { } shapeModel)
+                {
+                    foreach (var shapeRoot in shapeModel.Roots)
+                    {
+                        AddFigureShapeDependency(
+                            state,
+                            representationNodeId,
+                            shapeRoot,
+                            reachable,
+                            representation.PartUri,
+                            parentIsRepresentation: true
+                        );
+                    }
+                }
                 foreach (var resource in representation.Resources)
                 {
                     if (!resourceNodeIds.TryGetValue(resource.Id, out var resourceNodeId))
@@ -2215,6 +2232,49 @@ public sealed class WordDependencyGraphBuilder
                 nodeId,
                 partUri: issue.PartUri,
                 sourceElementOrdinal: issue.SourceElementOrdinal
+            );
+        }
+    }
+
+    private static void AddFigureShapeDependency(
+        BuildState state,
+        string parentNodeId,
+        WordFigureShapeNodeDefinition shape,
+        bool reachable,
+        string partUri,
+        bool parentIsRepresentation
+    )
+    {
+        var shapeNodeId = state.AddNode(
+            WordDependencyNodeKind.FigureShape,
+            shape.Id,
+            isResolved: true,
+            isExternal: false,
+            reachable,
+            partUri,
+            sourceElementOrdinal: shape.SourceElementOrdinal
+        );
+        state.AddEdge(
+            parentIsRepresentation
+                ? WordDependencyEdgeKind.FigureRepresentationContainsShape
+                : WordDependencyEdgeKind.FigureShapeContainsShape,
+            parentNodeId,
+            shapeNodeId,
+            isResolved: true,
+            isExternal: false,
+            qualifier: shape.Kind.ToString().ToLowerInvariant(),
+            partUri,
+            sourceElementOrdinal: shape.SourceElementOrdinal
+        );
+        foreach (var child in shape.Children)
+        {
+            AddFigureShapeDependency(
+                state,
+                shapeNodeId,
+                child,
+                reachable,
+                partUri,
+                parentIsRepresentation: false
             );
         }
     }

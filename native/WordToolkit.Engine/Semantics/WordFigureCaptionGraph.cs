@@ -250,6 +250,7 @@ public sealed record WordFigureRepresentationDefinition(
     string? AlternateContentBranch,
     ulong? NonVisualDrawingId,
     WordFigurePlacementDefinition Placement,
+    WordFigureShapeModelDefinition? ShapeModel,
     WordFigureAccessibilityDefinition Accessibility,
     IReadOnlyList<WordFigureResourceDefinition> Resources,
     IReadOnlyList<string> UnmodeledPayloadElements
@@ -409,6 +410,16 @@ public sealed record WordFigureCaptionGraphOptions
 
     public int MaxWrapPolygonPoints { get; init; } = 4_096;
 
+    public int MaxShapeNodes { get; init; } = 100_000;
+
+    public int MaxShapePaths { get; init; } = 200_000;
+
+    public int MaxShapePathCommands { get; init; } = 500_000;
+
+    public int MaxShapePathPoints { get; init; } = 1_000_000;
+
+    public int MaxShapeEffects { get; init; } = 500_000;
+
     internal void Validate()
     {
         if (
@@ -426,6 +437,11 @@ public sealed record WordFigureCaptionGraphOptions
             || MaxTextCharacters <= 0
             || MaxMetadataCharacters <= 0
             || MaxWrapPolygonPoints <= 0
+            || MaxShapeNodes <= 0
+            || MaxShapePaths <= 0
+            || MaxShapePathCommands <= 0
+            || MaxShapePathPoints <= 0
+            || MaxShapeEffects <= 0
             || MaxCaptionParagraphDistance < 0
         )
         {
@@ -445,7 +461,7 @@ public sealed record WordFigureCaptionGraphOptions
     }
 }
 
-public sealed class WordFigureCaptionGraphBuilder
+public sealed partial class WordFigureCaptionGraphBuilder
 {
     private static readonly IReadOnlySet<string> HorizontalPositionReferences =
         new HashSet<string>(StringComparer.Ordinal)
@@ -921,6 +937,15 @@ public sealed class WordFigureCaptionGraphBuilder
             ordinal,
             cancellationToken
         );
+        var shapeModel = ParseShapeModel(
+            partUri,
+            element,
+            objectKind,
+            source,
+            state,
+            ordinal,
+            cancellationToken
+        );
         var unmodeled = UnmodeledPayloadElements(
             element,
             objectKind,
@@ -980,6 +1005,7 @@ public sealed class WordFigureCaptionGraphBuilder
                 ordinal,
                 cancellationToken
             ),
+            shapeModel,
             accessibility,
             resources,
             unmodeled
@@ -2092,6 +2118,16 @@ public sealed class WordFigureCaptionGraphBuilder
             return WordFigureObjectKind.Diagram;
         }
         if (descendants.Any(item =>
+            item.Name.NamespaceName == WordprocessingGroupNamespace
+                && item.Name.LocalName is "wgp" or "grpSp"
+            || item.Name.NamespaceName == WordprocessingCanvasNamespace
+                && item.Name.LocalName == "wpc"
+            || item.Name.NamespaceName == VmlNamespace && item.Name.LocalName == "group"
+        ))
+        {
+            return WordFigureObjectKind.Shape;
+        }
+        if (descendants.Any(item =>
             item.Name.LocalName == "pic"
                 && item.Name.NamespaceName is TransitionalPictureNamespace or StrictPictureNamespace
             || item.Name.LocalName == "imagedata" && item.Name.NamespaceName == VmlNamespace
@@ -2211,11 +2247,7 @@ public sealed class WordFigureCaptionGraphBuilder
         WordFigureObjectKind.ContentPart or WordFigureObjectKind.Ink =>
             element.Name.NamespaceName == Word2010Namespace
                 && element.Name.LocalName == "contentPart",
-        WordFigureObjectKind.Shape =>
-            element.Name.NamespaceName == VmlNamespace && element.Name.LocalName == "shape"
-            || element.Name.NamespaceName == WordprocessingShapeNamespace
-                && element.Name.LocalName == "wsp"
-            || IsDrawingMainElement(element) && element.Name.LocalName == "sp",
+        WordFigureObjectKind.Shape => IsModeledShapePayloadElement(element),
         _ => false,
     };
 
@@ -2522,6 +2554,7 @@ public sealed class WordFigureCaptionGraphBuilder
         string? alternateContentBranch,
         ulong? nonVisualDrawingId,
         WordFigurePlacementDefinition placement,
+        WordFigureShapeModelDefinition? shapeModel,
         WordFigureAccessibilityDefinition accessibility,
         IReadOnlyList<WordFigureResourceDefinition> resources,
         IReadOnlyList<string> unmodeledPayloadElements
@@ -2543,6 +2576,7 @@ public sealed class WordFigureCaptionGraphBuilder
         public string? AlternateContentBranch { get; } = alternateContentBranch;
         public ulong? NonVisualDrawingId { get; } = nonVisualDrawingId;
         public WordFigurePlacementDefinition Placement { get; } = placement;
+        public WordFigureShapeModelDefinition? ShapeModel { get; } = shapeModel;
         public WordFigureAccessibilityDefinition Accessibility { get; } = accessibility;
         public IReadOnlyList<WordFigureResourceDefinition> Resources { get; } = resources;
         public IReadOnlyList<string> UnmodeledPayloadElements { get; } = unmodeledPayloadElements;
@@ -2565,6 +2599,7 @@ public sealed class WordFigureCaptionGraphBuilder
             AlternateContentBranch,
             NonVisualDrawingId,
             Placement,
+            ShapeModel,
             Accessibility,
             Resources,
             UnmodeledPayloadElements
@@ -2768,6 +2803,11 @@ public sealed class WordFigureCaptionGraphBuilder
         public List<RepresentationDraft> Representations { get; } = [];
         public List<CaptionDraft> CaptionDrafts { get; } = [];
         public int ResourceCount { get; set; }
+        public int ShapeNodeCount { get; set; }
+        public int ShapePathCount { get; set; }
+        public int ShapePathCommandCount { get; set; }
+        public int ShapePathPointCount { get; set; }
+        public int ShapeEffectCount { get; set; }
         public long ParsedXmlBytes { get; private set; }
         public int ParsedXmlElements { get; private set; }
 

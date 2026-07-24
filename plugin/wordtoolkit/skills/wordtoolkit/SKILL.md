@@ -198,10 +198,18 @@ selected and ties remain ambiguous. Without an application capability context, n
 Declared DrawingML placement includes reference frames, offsets, effect extents,
 relative sizes and bounded wrap polygons; known VML positioning and wrapping declarations
 are normalized but remain declarations rather than rendered page geometry.
-Accessibility/caption text, source provenance, relationship targets and wrapping-polygon
-coordinates require four independent opt-ins. Use `include_geometry=true` only with
-`view=representations`, `detail=declared` and `max_items<=2`; it returns at most 128 line points per
-representation. Raw XML and binary resources are never returned. The action never opens
+For shape representations, the same graph also types bounded group/child topology,
+transforms, preset or custom geometry, path commands, formula points, fill/line summaries,
+known effects and text-flow declarations. The compact declared view returns only shape
+counts. Use `include_shape_details=true` only with `view=representations`,
+`detail=declared` and `max_items<=2`; it returns at most 64 flattened shape nodes per
+representation. Shape names/text still require `include_text=true`. Path commands and
+formula points still require the independent `include_geometry=true` opt-in, which also
+controls wrapping polygons and caps one representation at 64 paths, 128 commands, 256
+formula points and 4096 formula characters. Accessibility/caption text, source provenance
+and relationship targets remain separate opt-ins. Raw XML and binary resources are never
+returned. Treat every transform and path as declared-only data, not executed geometry.
+The action never opens
 Word, executes page layout, decodes images or embedded packages, follows external targets,
 evaluates fields or executes active content. Deleted figures/captions remain visible but
 are not selected. Treat missing/ambiguous relationships and unmodeled payloads as evidence,

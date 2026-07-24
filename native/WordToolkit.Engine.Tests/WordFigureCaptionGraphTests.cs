@@ -11,6 +11,118 @@ namespace WordToolkit.Engine.Tests;
 public sealed class WordFigureCaptionGraphTests
 {
     [Fact]
+    public void ProjectsBoundedDrawingMlGroupShapeGeometryEffectsAndTextFlow()
+    {
+        using var bytes = BuildPackage(GroupedCustomShapeDrawing());
+        using (var document = WordprocessingDocument.Open(bytes, false))
+        {
+            var validationErrors = new OpenXmlValidator(FileFormatVersions.Microsoft365)
+                .Validate(document)
+                .ToArray();
+            Assert.True(
+                validationErrors.Length == 0,
+                string.Join(
+                    Environment.NewLine,
+                    validationErrors.Select(item => $"{item.Description} @ {item.Path?.XPath}")
+                )
+            );
+        }
+        bytes.Position = 0;
+
+        var package = new OpcPackageReader().Read(bytes);
+        var graph = new WordFigureCaptionGraphBuilder().Build(package);
+
+        var representation = Assert.Single(Assert.Single(graph.Figures).Representations);
+        Assert.Equal(WordFigureObjectKind.Shape, representation.ObjectKind);
+        var model = Assert.IsType<WordFigureShapeModelDefinition>(representation.ShapeModel);
+        Assert.Equal(2, model.NodeCount);
+        Assert.Equal(1, model.GroupCount);
+        Assert.Equal(1, model.ShapeCount);
+        Assert.Equal(1, model.PathCount);
+        Assert.Equal(4, model.PathCommandCount);
+        Assert.Equal(2, model.PathPointCount);
+        Assert.Equal(1, model.EffectCount);
+        Assert.Equal(18, model.TextCharacterCount);
+
+        var group = Assert.Single(model.Roots);
+        Assert.Equal(WordFigureShapeNodeKind.Group, group.Kind);
+        Assert.Equal(60000, group.Transform?.RotationSixtyThousandthsOfDegree);
+        Assert.Equal(914400, group.Transform?.ChildWidthEmu);
+        var shape = Assert.Single(group.Children);
+        Assert.Equal(group.Id, shape.ParentId);
+        Assert.Equal("Custom shape", shape.Name);
+        Assert.Equal("solidFill", shape.FillKind);
+        Assert.Equal("dash", shape.Line?.Dash);
+        Assert.Equal("triangle", shape.Line?.HeadEnd);
+        Assert.Equal("outerShdw", Assert.Single(shape.Effects?.EffectKinds ?? []));
+        var geometry = Assert.IsType<WordFigureShapeGeometryDefinition>(shape.Geometry);
+        Assert.Equal(WordFigureShapeGeometryKind.Custom, geometry.Kind);
+        Assert.True(geometry.HasTextRectangle);
+        var path = Assert.Single(geometry.Paths);
+        Assert.Equal("norm", path.FillMode);
+        Assert.Equal("arcTo", path.Commands[2].Kind);
+        Assert.Equal("wd2", path.Commands[2].WidthRadius);
+        var text = Assert.IsType<WordFigureShapeTextFlowDefinition>(shape.TextFlow);
+        Assert.Equal("PRIVATE SHAPE TEXT", text.Text);
+        Assert.Equal("ctr", text.Anchor);
+        Assert.Equal("square", text.Wrap);
+        Assert.Equal("spAutoFit", text.AutoFitKind);
+        Assert.DoesNotContain(graph.Issues, item => item.Code.StartsWith("FIGURE_SHAPE_", StringComparison.Ordinal));
+
+        var dependencies = new WordDependencyGraphBuilder().Build(
+            package,
+            new WordSemanticProjector().Project(package)
+        );
+        Assert.Equal(
+            2,
+            dependencies.Nodes.Count(item => item.Kind == WordDependencyNodeKind.FigureShape)
+        );
+        Assert.Single(dependencies.Edges, item =>
+            item.Kind == WordDependencyEdgeKind.FigureRepresentationContainsShape
+        );
+        Assert.Single(dependencies.Edges, item =>
+            item.Kind == WordDependencyEdgeKind.FigureShapeContainsShape
+        );
+    }
+
+    [Fact]
+    public void RejectsOversizedShapeGeometryAndDoesNotTrustUnknownTokens()
+    {
+        using var boundedBytes = BuildPackage(GroupedCustomShapeDrawing());
+        var package = new OpcPackageReader().Read(boundedBytes);
+        Assert.Throws<WordFigureLimitException>(() =>
+            new WordFigureCaptionGraphBuilder(
+                new WordFigureCaptionGraphOptions { MaxShapePathPoints = 1 }
+            ).Build(package)
+        );
+
+        var malformed = GroupedCustomShapeDrawing()
+            .Replace("wrap=\"square\"", "wrap=\"private-wrap\"", StringComparison.Ordinal)
+            .Replace("cap=\"rnd\"", "cap=\"private-cap\"", StringComparison.Ordinal)
+            .Replace("x=\"wd2\"", $"x=\"{new string('x', 257)}\"", StringComparison.Ordinal);
+        using var malformedBytes = BuildPackage(malformed);
+        Assert.Throws<WordFigureLimitException>(() =>
+            new WordFigureCaptionGraphBuilder().Build(new OpcPackageReader().Read(malformedBytes))
+        );
+
+        using var tokenBytes = BuildPackage(
+            GroupedCustomShapeDrawing()
+                .Replace("wrap=\"square\"", "wrap=\"private-wrap\"", StringComparison.Ordinal)
+                .Replace("cap=\"rnd\"", "cap=\"private-cap\"", StringComparison.Ordinal)
+        );
+        var tokenGraph = new WordFigureCaptionGraphBuilder().Build(
+            new OpcPackageReader().Read(tokenBytes)
+        );
+        var shape = Assert.Single(Assert.Single(
+            Assert.Single(tokenGraph.Figures).Representations
+        ).ShapeModel!.Roots).Children[0];
+        Assert.Null(shape.TextFlow?.Wrap);
+        Assert.Null(shape.Line?.Cap);
+        Assert.Contains(tokenGraph.Issues, item => item.Code == "FIGURE_SHAPE_TEXT_WRAP_INVALID");
+        Assert.Contains(tokenGraph.Issues, item => item.Code == "FIGURE_SHAPE_LINE_CAP_INVALID");
+    }
+
+    [Fact]
     public void ProjectsDeclaredDrawingMlAnchorGeometryWithoutExecutingLayout()
     {
         using var bytes = BuildPackage(AnchoredPictureDrawing());
@@ -773,6 +885,57 @@ public sealed class WordFigureCaptionGraphTests
             </w:drawing>
             """;
     }
+
+    private static string GroupedCustomShapeDrawing() => """
+        <w:p><w:r><w:drawing>
+          <wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+            xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+            xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
+            xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup">
+            <wp:extent cx="914400" cy="457200"/>
+            <wp:docPr id="31" name="Grouped shape" descr="Custom geometry"/>
+            <a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup">
+              <wpg:wgp>
+                <wpg:cNvPr id="1" name="Group"/><wpg:cNvGrpSpPr/>
+                <wpg:grpSpPr><a:xfrm rot="60000" flipH="0">
+                  <a:off x="0" y="0"/><a:ext cx="914400" cy="457200"/>
+                  <a:chOff x="0" y="0"/><a:chExt cx="914400" cy="457200"/>
+                </a:xfrm></wpg:grpSpPr>
+                <wps:wsp>
+                  <wps:cNvPr id="2" name="Custom shape"/><wps:cNvSpPr/>
+                  <wps:spPr>
+                    <a:xfrm><a:off x="100" y="200"/><a:ext cx="300" cy="400"/></a:xfrm>
+                    <a:custGeom>
+                      <a:avLst/><a:gdLst><a:gd name="g1" fmla="val 1"/></a:gdLst><a:ahLst/>
+                      <a:cxnLst><a:cxn ang="0"><a:pos x="0" y="0"/></a:cxn></a:cxnLst>
+                      <a:rect l="0" t="0" r="r" b="b"/>
+                      <a:pathLst><a:path w="21600" h="21600" fill="norm" stroke="1" extrusionOk="0">
+                        <a:moveTo><a:pt x="0" y="0"/></a:moveTo>
+                        <a:lnTo><a:pt x="wd2" y="0"/></a:lnTo>
+                        <a:arcTo wR="wd2" hR="hd2" stAng="0" swAng="5400000"/>
+                        <a:close/>
+                      </a:path></a:pathLst>
+                    </a:custGeom>
+                    <a:solidFill><a:srgbClr val="336699"/></a:solidFill>
+                    <a:ln w="12700" cap="rnd" cmpd="sng" algn="ctr">
+                      <a:solidFill><a:schemeClr val="accent1"/></a:solidFill>
+                      <a:prstDash val="dash"/><a:round/>
+                      <a:headEnd type="triangle"/><a:tailEnd type="oval"/>
+                    </a:ln>
+                    <a:effectLst><a:outerShdw blurRad="40000"><a:srgbClr val="000000"/></a:outerShdw></a:effectLst>
+                  </wps:spPr>
+                  <wps:txbx><w:txbxContent><w:p><w:r><w:t>PRIVATE SHAPE TEXT</w:t></w:r></w:p></w:txbxContent></wps:txbx>
+                  <wps:bodyPr wrap="square" vert="horz" anchor="ctr" lIns="100" tIns="200"
+                    rIns="300" bIns="400" numCol="2" spcCol="500" rtlCol="0"
+                    fromWordArt="0" anchorCtr="1" forceAA="1" upright="0" compatLnSpc="1" rot="0">
+                    <a:spAutoFit/>
+                  </wps:bodyPr>
+                </wps:wsp>
+              </wpg:wgp>
+            </a:graphicData></a:graphic>
+          </wp:inline>
+        </w:drawing></w:r></w:p>
+        """;
 
     private static string CaptionParagraph(
         string label,

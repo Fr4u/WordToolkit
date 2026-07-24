@@ -9,6 +9,90 @@ namespace WordToolkit.Native.Tests;
 public sealed class FigurePackageInspectionTests
 {
     [Fact]
+    public async Task ShapeDetailsAndPathGeometryRequireExplicitBoundedOptIns()
+    {
+        var path = CreateTemporaryPackage(shape: true);
+        try
+        {
+            var host = new NoInvokeHost();
+            var service = new WordLiveService(host);
+            using var compactArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "representations",
+                    detail = "declared",
+                    max_items = 2,
+                })
+            );
+            var compactResult = await service.CallAsync(
+                "inspect_ooxml_figures",
+                compactArguments.RootElement,
+                CancellationToken.None
+            );
+            using var compactJson = JsonDocument.Parse(JsonSerializer.Serialize(compactResult));
+            var compactRoot = compactJson.RootElement;
+            Assert.False(compactRoot.GetProperty("shape_details_included").GetBoolean());
+            var compactItem = Assert.Single(compactRoot.GetProperty("items").EnumerateArray());
+            Assert.Equal(2, compactItem.GetProperty("shape_node_count").GetInt32());
+            Assert.Equal(1, compactItem.GetProperty("shape_path_count").GetInt32());
+            Assert.False(compactItem.TryGetProperty("shape_model", out _));
+            Assert.DoesNotContain("PRIVATE SHAPE TEXT", compactRoot.GetRawText());
+
+            using var fullArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "representations",
+                    detail = "declared",
+                    include_shape_details = true,
+                    include_geometry = true,
+                    include_text = true,
+                    max_items = 2,
+                })
+            );
+            var fullResult = await service.CallAsync(
+                "inspect_ooxml_figures",
+                fullArguments.RootElement,
+                CancellationToken.None
+            );
+            using var fullJson = JsonDocument.Parse(JsonSerializer.Serialize(fullResult));
+            var fullRoot = fullJson.RootElement;
+            Assert.True(fullRoot.GetProperty("shape_details_included").GetBoolean());
+            Assert.True(fullRoot.GetProperty("geometry_included").GetBoolean());
+            var model = Assert.Single(fullRoot.GetProperty("items").EnumerateArray())
+                .GetProperty("shape_model");
+            Assert.Equal(2, model.GetProperty("node_count").GetInt32());
+            Assert.Equal(2, model.GetProperty("returned_node_count").GetInt32());
+            Assert.False(model.GetProperty("nodes_truncated").GetBoolean());
+            var nodes = model.GetProperty("nodes").EnumerateArray().ToArray();
+            var shape = Assert.Single(nodes, item => item.GetProperty("kind").GetString() == "shape");
+            Assert.Equal("PRIVATE SHAPE TEXT", shape.GetProperty("text_flow").GetProperty("text").GetString());
+            Assert.Equal(
+                2,
+                shape.GetProperty("geometry").GetProperty("paths")[0]
+                    .GetProperty("commands").GetArrayLength()
+            );
+            Assert.True(fullRoot.GetRawText().Length < 20_000);
+            Assert.Equal(0, host.InvocationCount);
+
+            using var invalidArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new { local_path = path, include_shape_details = true })
+            );
+            var invalid = await Assert.ThrowsAsync<NativeToolException>(() => service.CallAsync(
+                "inspect_ooxml_figures",
+                invalidArguments.RootElement,
+                CancellationToken.None
+            ));
+            Assert.Equal("INVALID_INPUT", invalid.ErrorCode);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task DefaultFigureInspectionIsCompactRedactedAndNeverInvokesWordOrTargets()
     {
         var path = CreateTemporaryPackage();
@@ -445,7 +529,8 @@ public sealed class FigurePackageInspectionTests
 
     private static string CreateTemporaryPackage(
         bool ambiguous = false,
-        bool advancedLayout = false
+        bool advancedLayout = false,
+        bool shape = false
     )
     {
         var path = Path.Combine(
@@ -486,7 +571,26 @@ public sealed class FigurePackageInspectionTests
                 </wp:inline></w:drawing></w:r>
                 """
             : string.Empty;
-        var firstDrawing = advancedLayout
+        var firstDrawing = shape
+            ? """
+                <w:r><w:drawing><wp:inline>
+                  <wp:extent cx="914400" cy="457200"/>
+                  <wp:docPr id="1" name="PRIVATE SHAPE NAME" descr="SHAPE DESCRIPTION"/>
+                  <a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup">
+                    <wpg:wgp><wpg:cNvPr id="1" name="Group"/><wpg:cNvGrpSpPr/>
+                      <wpg:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="457200"/><a:chOff x="0" y="0"/><a:chExt cx="914400" cy="457200"/></a:xfrm></wpg:grpSpPr>
+                      <wps:wsp><wps:cNvPr id="2" name="PRIVATE CHILD SHAPE"/><wps:cNvSpPr/>
+                        <wps:spPr><a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/>
+                          <a:pathLst><a:path w="21600" h="21600"><a:moveTo><a:pt x="0" y="0"/></a:moveTo><a:lnTo><a:pt x="21600" y="21600"/></a:lnTo></a:path></a:pathLst>
+                        </a:custGeom><a:solidFill><a:srgbClr val="336699"/></a:solidFill><a:effectLst><a:glow rad="100"><a:srgbClr val="000000"/></a:glow></a:effectLst></wps:spPr>
+                        <wps:txbx><w:txbxContent><w:p><w:r><w:t>PRIVATE SHAPE TEXT</w:t></w:r></w:p></w:txbxContent></wps:txbx>
+                        <wps:bodyPr wrap="square" anchor="ctr"><a:spAutoFit/></wps:bodyPr>
+                      </wps:wsp>
+                    </wpg:wgp>
+                  </a:graphicData></a:graphic>
+                </wp:inline></w:drawing></w:r>
+                """
+            : advancedLayout
             ? """
                 <w:r><w:drawing><wp:anchor distT="0" distB="0" distL="114300" distR="114300"
                   simplePos="0" relativeHeight="251658240" behindDoc="0" locked="1"
@@ -532,6 +636,8 @@ public sealed class FigurePackageInspectionTests
               xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing"
               xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
               xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"
+              xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
+              xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup"
               xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
               <w:body>
                 <w:p>{{firstDrawing}}{{secondDrawing}}</w:p>

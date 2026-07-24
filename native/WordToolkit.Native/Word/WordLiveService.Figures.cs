@@ -76,6 +76,7 @@ internal sealed partial class WordLiveService
         var includeTargets = arguments.Boolean("include_relationship_targets", false);
         var includeIssues = arguments.Boolean("include_issues", false);
         var includeGeometry = arguments.Boolean("include_geometry", false);
+        var includeShapeDetails = arguments.Boolean("include_shape_details", false);
         if (includeGeometry && (view != "representations" || detail != "declared"))
         {
             throw new NativeToolException(
@@ -88,6 +89,20 @@ internal sealed partial class WordLiveService
             throw new NativeToolException(
                 "INVALID_INPUT",
                 "include_geometry requires max_items between 1 and 2"
+            );
+        }
+        if (includeShapeDetails && (view != "representations" || detail != "declared"))
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "include_shape_details requires view=representations and detail=declared"
+            );
+        }
+        if (includeShapeDetails && maximum > 2)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "include_shape_details requires max_items between 1 and 2"
             );
         }
 
@@ -152,6 +167,7 @@ internal sealed partial class WordLiveService
                 includeSource,
                 includeTargets,
                 includeGeometry,
+                includeShapeDetails,
                 (int)offset,
                 (int)maximum
             );
@@ -196,6 +212,7 @@ internal sealed partial class WordLiveService
                 source_included = includeSource,
                 relationship_targets_included = includeTargets,
                 geometry_included = includeGeometry,
+                shape_details_included = includeShapeDetails,
                 view,
                 detail,
                 figure_id = figureId,
@@ -290,6 +307,7 @@ internal sealed partial class WordLiveService
             ["include_relationship_targets"] = JsonValueKind.True,
             ["include_issues"] = JsonValueKind.True,
             ["include_geometry"] = JsonValueKind.True,
+            ["include_shape_details"] = JsonValueKind.True,
         };
         foreach (var property in arguments.EnumerateObject())
         {
@@ -400,6 +418,7 @@ internal sealed partial class WordLiveService
         bool includeSource,
         bool includeTargets,
         bool includeGeometry,
+        bool includeShapeDetails,
         int offset,
         int maximum
     )
@@ -435,7 +454,8 @@ internal sealed partial class WordLiveService
                         detail,
                         includeText,
                         includeSource,
-                        includeGeometry
+                        includeGeometry,
+                        includeShapeDetails
                     )
                 ));
                 matchedCount = figures.Sum(item => item.Representations.Count);
@@ -532,7 +552,8 @@ internal sealed partial class WordLiveService
         string detail,
         bool includeText,
         bool includeSource,
-        bool includeGeometry
+        bool includeGeometry,
+        bool includeShapeDetails
     )
     {
         var item = new Dictionary<string, object?>(StringComparer.Ordinal)
@@ -563,6 +584,24 @@ internal sealed partial class WordLiveService
                 includeGeometry,
                 includeSource
             );
+            if (representation.ShapeModel is { } shapeModel)
+            {
+                item["shape_node_count"] = shapeModel.NodeCount;
+                item["shape_group_count"] = shapeModel.GroupCount;
+                item["shape_path_count"] = shapeModel.PathCount;
+                item["shape_path_command_count"] = shapeModel.PathCommandCount;
+                item["shape_effect_count"] = shapeModel.EffectCount;
+                item["shape_text_character_count"] = shapeModel.TextCharacterCount;
+                if (includeShapeDetails)
+                {
+                    item["shape_model"] = ShapeModelItem(
+                        shapeModel,
+                        includeText,
+                        includeSource,
+                        includeGeometry
+                    );
+                }
+            }
             AddNonNull(item, "hidden", representation.Accessibility.Hidden);
             item["unmodeled_payload_element_count"] =
                 representation.UnmodeledPayloadElements.Count;
@@ -792,6 +831,393 @@ internal sealed partial class WordLiveService
             item["lexical_value"] = length.LexicalValue;
         }
         return item;
+    }
+
+    private static object ShapeModelItem(
+        WordFigureShapeModelDefinition model,
+        bool includeText,
+        bool includeSource,
+        bool includeGeometry
+    )
+    {
+        var budget = new ShapeResponseBudget();
+        var nodes = new List<object>();
+        foreach (var node in FlattenShapeNodes(model.Roots))
+        {
+            if (budget.NodesRemaining == 0)
+            {
+                budget.NodesTruncated = true;
+                break;
+            }
+            budget.NodesRemaining--;
+            nodes.Add(ShapeNodeItem(
+                node,
+                includeText,
+                includeSource,
+                includeGeometry,
+                budget
+            ));
+        }
+        return new
+        {
+            declared_only_not_rendered_geometry = true,
+            root_count = model.Roots.Count,
+            node_count = model.NodeCount,
+            group_count = model.GroupCount,
+            shape_count = model.ShapeCount,
+            picture_count = model.PictureCount,
+            path_count = model.PathCount,
+            path_command_count = model.PathCommandCount,
+            path_point_count = model.PathPointCount,
+            effect_count = model.EffectCount,
+            text_character_count = model.TextCharacterCount,
+            returned_node_count = nodes.Count,
+            returned_path_count = budget.PathsReturned,
+            returned_path_command_count = budget.CommandsReturned,
+            returned_path_point_count = budget.PointsReturned,
+            returned_effect_count = budget.EffectsReturned,
+            nodes_truncated = budget.NodesTruncated || nodes.Count < model.NodeCount,
+            paths_truncated = includeGeometry && budget.PathsReturned < model.PathCount,
+            path_commands_truncated = includeGeometry
+                && budget.CommandsReturned < model.PathCommandCount,
+            path_points_truncated = includeGeometry
+                && budget.PointsReturned < model.PathPointCount,
+            effects_truncated = budget.EffectsReturned < model.EffectCount,
+            text_truncated_at_response = budget.TextTruncated,
+            formula_values_truncated = budget.FormulasTruncated,
+            nodes,
+        };
+    }
+
+    private static object ShapeNodeItem(
+        WordFigureShapeNodeDefinition node,
+        bool includeText,
+        bool includeSource,
+        bool includeGeometry,
+        ShapeResponseBudget budget
+    )
+    {
+        var item = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["shape_node_id"] = node.Id,
+            ["kind"] = ToSnakeCase(node.Kind.ToString()),
+            ["depth"] = node.Depth,
+            ["child_count"] = node.Children.Count,
+            ["name_present"] = node.Name is not null,
+            ["name_truncated_at_source"] = node.NameTruncated,
+        };
+        AddNonNull(item, "parent_shape_node_id", node.ParentId);
+        if (includeText)
+        {
+            AddNonNull(item, "name", BoundForResponse(node.Name, 1_024));
+        }
+        if (includeSource)
+        {
+            item["source_element_ordinal"] = node.SourceElementOrdinal;
+        }
+        AddNonNull(item, "transform", ShapeTransformItem(node.Transform));
+        AddNonNull(
+            item,
+            "geometry",
+            ShapeGeometryItem(node.Geometry, includeSource, includeGeometry, budget)
+        );
+        AddNonNull(item, "fill_kind", node.FillKind);
+        AddNonNull(item, "line", ShapeLineItem(node.Line));
+        AddNonNull(item, "effects", ShapeEffectsItem(node.Effects, budget));
+        AddNonNull(
+            item,
+            "text_flow",
+            ShapeTextFlowItem(node.TextFlow, includeText, budget)
+        );
+        return item;
+    }
+
+    private static object? ShapeTransformItem(WordFigureShapeTransformDefinition? transform)
+    {
+        if (transform is null)
+        {
+            return null;
+        }
+        var item = new Dictionary<string, object?>(StringComparer.Ordinal);
+        AddNonNull(item, "offset_x_emu", transform.OffsetXEmu);
+        AddNonNull(item, "offset_y_emu", transform.OffsetYEmu);
+        AddNonNull(item, "width_emu", transform.WidthEmu);
+        AddNonNull(item, "height_emu", transform.HeightEmu);
+        AddNonNull(item, "child_offset_x_emu", transform.ChildOffsetXEmu);
+        AddNonNull(item, "child_offset_y_emu", transform.ChildOffsetYEmu);
+        AddNonNull(item, "child_width_emu", transform.ChildWidthEmu);
+        AddNonNull(item, "child_height_emu", transform.ChildHeightEmu);
+        AddNonNull(
+            item,
+            "rotation_sixty_thousandths_of_degree",
+            transform.RotationSixtyThousandthsOfDegree
+        );
+        AddNonNull(item, "flip_horizontal", transform.FlipHorizontal);
+        AddNonNull(item, "flip_vertical", transform.FlipVertical);
+        return item;
+    }
+
+    private static object? ShapeGeometryItem(
+        WordFigureShapeGeometryDefinition? geometry,
+        bool includeSource,
+        bool includeGeometry,
+        ShapeResponseBudget budget
+    )
+    {
+        if (geometry is null)
+        {
+            return null;
+        }
+        var item = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["kind"] = ToSnakeCase(geometry.Kind.ToString()),
+            ["preset_recognized"] = geometry.PresetRecognized,
+            ["adjustment_count"] = geometry.AdjustmentCount,
+            ["guide_count"] = geometry.GuideCount,
+            ["handle_count"] = geometry.HandleCount,
+            ["connection_site_count"] = geometry.ConnectionSiteCount,
+            ["has_text_rectangle"] = geometry.HasTextRectangle,
+            ["path_count"] = geometry.Paths.Count,
+            ["vml_path_character_count"] = geometry.VmlPathCharacterCount,
+        };
+        AddNonNull(item, "preset", geometry.Preset);
+        if (includeSource)
+        {
+            AddNonNull(item, "vml_path_sha256", geometry.VmlPathSha256);
+        }
+        if (includeGeometry && geometry.Paths.Count != 0)
+        {
+            var paths = new List<object>();
+            foreach (var path in geometry.Paths)
+            {
+                if (budget.PathsRemaining == 0)
+                {
+                    break;
+                }
+                budget.PathsRemaining--;
+                budget.PathsReturned++;
+                paths.Add(ShapePathItem(path, budget));
+            }
+            item["paths"] = paths;
+            item["paths_truncated"] = paths.Count < geometry.Paths.Count;
+        }
+        return item;
+    }
+
+    private static object ShapePathItem(
+        WordFigureShapePathDefinition path,
+        ShapeResponseBudget budget
+    )
+    {
+        var item = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["command_count"] = path.Commands.Count,
+        };
+        AddNonNull(item, "width", path.Width);
+        AddNonNull(item, "height", path.Height);
+        AddNonNull(item, "fill_mode", path.FillMode);
+        AddNonNull(item, "stroke", path.Stroke);
+        AddNonNull(item, "extrusion_allowed", path.ExtrusionAllowed);
+        var commands = new List<object>();
+        foreach (var command in path.Commands)
+        {
+            if (budget.CommandsRemaining == 0)
+            {
+                break;
+            }
+            budget.CommandsRemaining--;
+            budget.CommandsReturned++;
+            commands.Add(ShapePathCommandItem(command, budget));
+        }
+        item["commands"] = commands;
+        item["commands_truncated"] = commands.Count < path.Commands.Count;
+        return item;
+    }
+
+    private static object ShapePathCommandItem(
+        WordFigureShapePathCommandDefinition command,
+        ShapeResponseBudget budget
+    )
+    {
+        var item = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["kind"] = command.Kind,
+            ["point_count"] = command.Points.Count,
+        };
+        AddNonNull(item, "width_radius", ShapeFormulaForResponse(command.WidthRadius, budget));
+        AddNonNull(item, "height_radius", ShapeFormulaForResponse(command.HeightRadius, budget));
+        AddNonNull(item, "start_angle", ShapeFormulaForResponse(command.StartAngle, budget));
+        AddNonNull(item, "sweep_angle", ShapeFormulaForResponse(command.SweepAngle, budget));
+        var points = new List<object>();
+        foreach (var point in command.Points)
+        {
+            if (budget.PointsRemaining == 0)
+            {
+                break;
+            }
+            budget.PointsRemaining--;
+            budget.PointsReturned++;
+            var pointItem = new Dictionary<string, object?>(StringComparer.Ordinal);
+            AddNonNull(pointItem, "x", ShapeFormulaForResponse(point.X, budget));
+            AddNonNull(pointItem, "y", ShapeFormulaForResponse(point.Y, budget));
+            points.Add(pointItem);
+        }
+        item["points"] = points;
+        item["points_truncated"] = points.Count < command.Points.Count;
+        return item;
+    }
+
+    private static object? ShapeLineItem(WordFigureShapeLineDefinition? line)
+    {
+        if (line is null)
+        {
+            return null;
+        }
+        var item = new Dictionary<string, object?>(StringComparer.Ordinal);
+        AddNonNull(item, "width_emu", line.WidthEmu);
+        AddNonNull(item, "cap", line.Cap);
+        AddNonNull(item, "compound", line.Compound);
+        AddNonNull(item, "alignment", line.Alignment);
+        AddNonNull(item, "fill_kind", line.FillKind);
+        AddNonNull(item, "dash", line.Dash);
+        AddNonNull(item, "join", line.Join);
+        AddNonNull(item, "head_end", line.HeadEnd);
+        AddNonNull(item, "tail_end", line.TailEnd);
+        return item;
+    }
+
+    private static object? ShapeEffectsItem(
+        WordFigureShapeEffectsDefinition? effects,
+        ShapeResponseBudget budget
+    )
+    {
+        if (effects is null)
+        {
+            return null;
+        }
+        var maximum = Math.Min(effects.EffectKinds.Count, budget.EffectsRemaining);
+        var kinds = effects.EffectKinds.Take(maximum).ToArray();
+        budget.EffectsRemaining -= maximum;
+        budget.EffectsReturned += maximum;
+        return new
+        {
+            has_effect_list = effects.HasEffectList,
+            has_effect_dag = effects.HasEffectDag,
+            effect_count = effects.EffectKinds.Count,
+            effect_kinds = kinds,
+            effect_kinds_truncated = maximum < effects.EffectKinds.Count,
+        };
+    }
+
+    private static object? ShapeTextFlowItem(
+        WordFigureShapeTextFlowDefinition? text,
+        bool includeText,
+        ShapeResponseBudget budget
+    )
+    {
+        if (text is null)
+        {
+            return null;
+        }
+        var item = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["has_text_box_content"] = text.HasTextBoxContent,
+            ["paragraph_count"] = text.ParagraphCount,
+            ["run_count"] = text.RunCount,
+            ["character_count"] = text.CharacterCount,
+            ["text_redacted"] = !includeText && text.CharacterCount != 0,
+            ["text_truncated_at_source"] = text.TextTruncated,
+        };
+        if (includeText && text.Text is { } value)
+        {
+            var take = Math.Min(value.Length, budget.TextCharactersRemaining);
+            item["text"] = value[..take];
+            budget.TextCharactersRemaining -= take;
+            if (take < value.Length)
+            {
+                budget.TextTruncated = true;
+            }
+        }
+        AddNonNull(item, "anchor", text.Anchor);
+        AddNonNull(item, "vertical_flow", text.VerticalFlow);
+        AddNonNull(item, "wrap", text.Wrap);
+        AddNonNull(item, "left_inset_emu", text.LeftInsetEmu);
+        AddNonNull(item, "top_inset_emu", text.TopInsetEmu);
+        AddNonNull(item, "right_inset_emu", text.RightInsetEmu);
+        AddNonNull(item, "bottom_inset_emu", text.BottomInsetEmu);
+        AddNonNull(item, "column_count", text.ColumnCount);
+        AddNonNull(item, "column_spacing_emu", text.ColumnSpacingEmu);
+        AddNonNull(item, "right_to_left_columns", text.RightToLeftColumns);
+        AddNonNull(item, "from_word_art", text.FromWordArt);
+        AddNonNull(item, "anchor_center", text.AnchorCenter);
+        AddNonNull(item, "force_antialias", text.ForceAntiAlias);
+        AddNonNull(item, "upright", text.Upright);
+        AddNonNull(item, "compatible_line_spacing", text.CompatibleLineSpacing);
+        AddNonNull(
+            item,
+            "rotation_sixty_thousandths_of_degree",
+            text.RotationSixtyThousandthsOfDegree
+        );
+        AddNonNull(item, "auto_fit_kind", text.AutoFitKind);
+        AddNonNull(item, "linked_text_box_id", text.LinkedTextBoxId);
+        AddNonNull(item, "linked_text_box_sequence", text.LinkedTextBoxSequence);
+        return item;
+    }
+
+    private static string? ShapeFormulaForResponse(
+        string? value,
+        ShapeResponseBudget budget
+    )
+    {
+        if (value is null)
+        {
+            return null;
+        }
+        if (value.Length > budget.FormulaCharactersRemaining)
+        {
+            budget.FormulasTruncated = true;
+            return null;
+        }
+        budget.FormulaCharactersRemaining -= value.Length;
+        return value;
+    }
+
+    private static IEnumerable<WordFigureShapeNodeDefinition> FlattenShapeNodes(
+        IReadOnlyList<WordFigureShapeNodeDefinition> roots
+    )
+    {
+        var stack = new Stack<WordFigureShapeNodeDefinition>();
+        for (var index = roots.Count - 1; index >= 0; index--)
+        {
+            stack.Push(roots[index]);
+        }
+        while (stack.Count != 0)
+        {
+            var current = stack.Pop();
+            yield return current;
+            for (var index = current.Children.Count - 1; index >= 0; index--)
+            {
+                stack.Push(current.Children[index]);
+            }
+        }
+    }
+
+    private sealed class ShapeResponseBudget
+    {
+        public int NodesRemaining { get; set; } = 64;
+        public int PathsRemaining { get; set; } = 64;
+        public int CommandsRemaining { get; set; } = 128;
+        public int PointsRemaining { get; set; } = 256;
+        public int EffectsRemaining { get; set; } = 128;
+        public int TextCharactersRemaining { get; set; } = 4_096;
+        public int FormulaCharactersRemaining { get; set; } = 4_096;
+        public int PathsReturned { get; set; }
+        public int CommandsReturned { get; set; }
+        public int PointsReturned { get; set; }
+        public int EffectsReturned { get; set; }
+        public bool NodesTruncated { get; set; }
+        public bool TextTruncated { get; set; }
+        public bool FormulasTruncated { get; set; }
     }
 
     private static void AddNonNull(
