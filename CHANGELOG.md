@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- Added `wordtoolkit.insert_live_word_table_of_contents/1.0` as native action 103.
+  It accepts semantic heading levels and heading/outline source flags instead of raw
+  field instructions, inserts at the document start/end or a fresh collapsed cursor,
+  optionally repaginates and updates, and verifies one exact native collection/range/
+  field delta inside one custom Undo record with rollback on mismatch.
+- Added focused fake-COM regressions for successful private readback, invalid source
+  settings before Undo and rollback when Word creates no readable field. Catalogue
+  coverage is now 103 input/effect contracts and 16 explicit output/permission/
+  reversibility/version contracts; the uncovered explicit-metadata count remains 87.
+- Full gates pass 498 Engine, 355 Native and 1,309 Python tests with 16 intentional
+  skips; Ruff and C# formatting checks pass. The installed
+  `0.39.0+codex.20260724102603` build is enabled and its 196-file build/source/cache
+  trees have zero path, length or hash differences.
+- The exact installed runtime created a two-level native contents table in Word 16.0.
+  Microsoft SDK validation returned zero errors; independent inspection found one
+  complete `TOC`, five complete `PAGEREF` fields, five resolved dependencies and zero
+  issues/external/application-invoking fields. All three pages of the Word PDF were
+  inspected and show correct leaders/page numbers without clipping or raw field syntax.
+- The 14,992-byte unlocked DOCX proof has SHA-256
+  `718627cd5f91b126aced63f5f1cc3890cc15fefa3fb9cd99567a4c2d63ff0982`; the
+  40,742-byte PDF is
+  `bafdd436de71c37e8cc481948b16fed4b839818e9383907d9d10e94af472f221` and the
+  36,669,666-byte ZIP is
+  `6a5761da11cd6cf7769b9e669d636474a55053b5799887760d6912570604190d`.
+
 - Added `wordtoolkit.update_live_word_reference_tables/1.0` as native action 102.
   It updates existing Word `TablesOfContents`, `TablesOfFigures` and
   `TablesOfAuthorities` together or by exact kind/index, touches at most 128 objects,
@@ -17,8 +42,8 @@
   identify their long citation through the `\l` switch rather than a positional operand.
   The new regression preserves a typed `IndexEntry` edge without emitting
   `FIELD_TARGET_MISSING` for valid Word syntax.
-- Full local gates pass 498 Engine, 351 Native and 1,309 Python tests with 16 intentional
-  skips; Ruff and C# formatting checks pass. Installed build
+- At the preceding reference-table checkpoint, local gates passed 498 Engine, 351 Native
+  and 1,309 Python tests with 16 intentional skips. Its installed build
   `0.39.0+codex.20260724100603` reports 102 actions, 15 exposed MCP tools and 15 explicit
   metadata contracts. Build output, personal source and enabled cache each contain the
   same 196 files with zero path/length/hash differences.

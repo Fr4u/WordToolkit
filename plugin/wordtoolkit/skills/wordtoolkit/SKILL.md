@@ -271,7 +271,11 @@ of composing `SEQ` or `TOC` field instructions yourself:
 3. Repeat for the required objects with a fresh selection/version after every mutation.
 4. Call `insert_live_word_table_of_figures` with the current version. Its default target
    is `document_end`; `target=cursor` additionally requires a fresh collapsed selection.
-5. To refresh existing native tables of contents, figures or authorities, call
+5. To create a native table of contents, call `insert_live_word_table_of_contents` with
+   semantic heading levels and source flags. The default inserts at `document_start`,
+   uses Heading 1 through Heading 3, repaginates and updates. `target=cursor` requires a
+   fresh collapsed selection. Never compose a raw `TOC` field instruction.
+6. To refresh existing native tables of contents, figures or authorities, call
    `update_live_word_reference_tables` with the current version. Leave `kind=all` to
    update every supported collection, or select one exact kind and optional one-based
    `index`. One request updates at most 128 objects and repaginates first by default.

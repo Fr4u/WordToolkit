@@ -396,6 +396,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "insert_live_word_table_of_contents" => InsertTableOfContentsAsync(
+                arguments,
+                cancellationToken
+            ),
             "update_live_word_reference_tables" => UpdateReferenceTablesAsync(
                 arguments,
                 cancellationToken

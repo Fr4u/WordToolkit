@@ -1,5 +1,37 @@
 # Stage results
 
+## Native table-of-contents insertion — 2026-07-24
+
+- Added `wordtoolkit.insert_live_word_table_of_contents/1.0` as native action 103.
+  It inserts at the document start/end or a fresh collapsed cursor, accepts semantic
+  heading levels and heading/outline source flags, optionally repaginates and updates,
+  and never accepts raw field instructions.
+- One non-replayable custom Undo record contains native `TablesOfContents.Add` plus the
+  optional repagination/update. Success requires a one-object collection delta, a unique
+  exact range reacquisition, a non-empty range and at least one field. Any mismatch
+  requests one rollback; generated contents text, field code and COM objects are absent
+  from the response.
+- Full local gates pass **498 Engine**, **355 Native** and **1,309 Python tests** with
+  **16 intentional skips**. Ruff and both C# format verifiers pass. Exact installed
+  discovery reports **103 actions**, **15 exposed tools** and **16 explicit metadata
+  contracts**.
+- The final installed `0.39.0+codex.20260724102603` runtime created a disposable Word
+  document with five Heading 1/2 entries over three pages, inserted the contents table
+  at position zero, repaginated, updated, saved, validated and exported it. Microsoft
+  Open XML SDK was available and returned zero errors.
+- Independent inspection of the exact 14,992-byte unlocked copy found **one complete
+  `TOC` and five complete `PAGEREF` fields**, five resolved dependencies and zero issues,
+  incomplete/external/application-invoking fields. Its SHA-256 is
+  `718627cd5f91b126aced63f5f1cc3890cc15fefa3fb9cd99567a4c2d63ff0982`.
+- The three-page A4 Word PDF is 40,742 bytes at SHA-256
+  `bafdd436de71c37e8cc481948b16fed4b839818e9383907d9d10e94af472f221`.
+  Every 150-DPI page was inspected: the two-level contents table has legible leaders and
+  page numbers 1–3, with no clipping, overlap, black glyph boxes or raw field syntax.
+- Build output, personal source and enabled cache each contain the same **196 files** and
+  **86,798,454 bytes**, with zero path/length/hash differences. The self-contained
+  36,669,666-byte ZIP has SHA-256
+  `6a5761da11cd6cf7769b9e669d636474a55053b5799887760d6912570604190d`.
+
 ## Guarded update of native reference tables — 2026-07-24
 
 - Added `wordtoolkit.update_live_word_reference_tables/1.0` as native action 102. One

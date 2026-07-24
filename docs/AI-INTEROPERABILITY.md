@@ -161,7 +161,7 @@ The response identifies:
 - `protocols.mcp`: MCP protocol version retained from that same schema;
 - `compatibility_policy`: the source schema's declared compatibility rule;
 - `source.schema_sha256`: exact embedded local schema bytes;
-- `source.native_action_contract_sha256`: canonical native 102-action subset, core
+- `source.native_action_contract_sha256`: canonical native 103-action subset, core
   exposure registry and header;
 - `source.capability_schema_sha256`: normative capability JSON Schema bytes.
 
@@ -210,16 +210,16 @@ coverage gaps visible.
 
 The manifest does not return full input schemas. After selecting one operation, call
 `inspect_wordtoolkit_action`; execute only after validating its schema and effect hints.
-This keeps discovery bounded instead of paying for all 102 schemas.
+This keeps discovery bounded instead of paying for all 103 schemas.
 
 ## Metadata coverage is evidence, not decoration
 
 `metadata_coverage` counts canonical fields actually present in the embedded source.
-All 102 operations have input schemas and MCP effect annotations. Semantic query,
+All 103 operations have input schemas and MCP effect annotations. Semantic query,
 semantic HTML/SVG rendering, semantic-style plan/apply, comment-body plan/apply and the
 safe formatter plan/apply plus the Word-executed drawing-layout inspector and guarded
-SmartArt text prepare/apply pair, native caption/table-of-figures insertion and guarded
-reference-table update have explicit output-schema, permission, reversibility and
+SmartArt text prepare/apply pair, native caption/table-of-figures/table-of-contents
+insertion and guarded reference-table update have explicit output-schema, permission, reversibility and
 per-operation-version metadata;
 the remaining 87 are still uncovered. Missing metadata
 is not permission to infer behavior from action names. An AI planner must inspect the

@@ -50,6 +50,7 @@ path, save-policy and confirmation checks.
 | `insert_live_word_fields` | Insert and update up to 200 allowlisted native Word fields in one transaction. |
 | `insert_live_word_caption` | Insert one localized native caption with a real `SEQ` field and guarded readback. |
 | `insert_live_word_table_of_figures` | Create and optionally update one native table of figures from existing captions. |
+| `insert_live_word_table_of_contents` | Create, optionally repaginate and update one native contents table from semantic heading settings. |
 | `update_live_word_reference_tables` | Refresh existing contents, figures and authorities tables in one bounded guarded transaction. |
 | `insert_live_word_image` | Embed one bounded local image as a native inline shape. |
 | `insert_live_word_comment` | Add one native comment to a fresh token-verified range or selection. |
@@ -65,6 +66,14 @@ path, save-policy and confirmation checks.
 | `close_live_word_document` | Close one connected document using an explicit save/discard policy. |
 | `quit_word_application` | Quit Word only with explicit confirmation and a save/discard-all policy. |
 | `disconnect_live_word_document` | Release only the WordToolkit handle. |
+
+`insert_live_word_table_of_contents` inserts at the document start by default, or at the
+document end or a fresh token-verified collapsed cursor. It accepts heading levels 1–9,
+heading-style/outline-level source flags, page-number and hyperlink options, and optional
+repagination/update. It calls Word's native `TablesOfContents.Add`, then requires a
+one-object collection delta, one uniquely reacquired non-empty range and at least one
+field. A mismatch rolls the custom Undo record back. No field instruction or generated
+contents text crosses the tool boundary.
 
 `update_live_word_reference_tables` targets all existing tables of contents, figures
 and authorities by default, or one exact collection and optional one-based index. It

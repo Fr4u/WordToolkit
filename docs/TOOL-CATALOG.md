@@ -2,7 +2,7 @@
 
 The current remote Python service source of truth is `schemas/mcp-tools.v2.json`; `schemas/mcp-tools.v1.json` remains the immutable historical contract. The provider-neutral heterogeneous mutation contract, including executable input/success/error examples, is generated as `schemas/draft-operations.v1.json`. The native Windows plugin has a separate, deliberately hand-reviewed source in `schemas/mcp-tools-local.v1.json`; `WordToolkit.Native.Tests` validates that catalog and this exporter never overwrites it. Every exported remote tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.
 
-The native catalog currently contains 102 actions behind 15 core/gateway tools. Rare
+The native catalog currently contains 103 actions behind 15 core/gateway tools. Rare
 saved-package inspectors remain lazy so their schemas do not enter model context until
 needed. `inspect_ooxml_active_content` is read-only and closed-world: it inventories
 typed OLE/ActiveX/VBA/embedded-package/customization/signature metadata without opening
@@ -23,11 +23,12 @@ add a narrow live mutation path for node text. Tokens bind one node to the compl
 Word-executed SmartArt structure and text context; apply performs exact readback in one
 Undo record and rolls back if Word changes structure, an untargeted node or the requested
 text. Node creation/deletion/reordering and layout/style/color mutation remain unsupported.
-`insert_live_word_caption` and `insert_live_word_table_of_figures` are guarded live Word
-mutations. They resolve localized built-in or exact existing custom caption labels,
-create native `SEQ`/table-of-figures fields through Word, verify collection counts and
-roll back on mismatch. Neither action accepts raw field instructions or returns caption
-text.
+`insert_live_word_caption`, `insert_live_word_table_of_figures` and
+`insert_live_word_table_of_contents` are guarded live Word mutations. The first two
+resolve localized built-in or exact existing custom caption labels. The contents action
+accepts only semantic heading levels, source flags and presentation options. They create
+native Word fields, verify collection counts and exact field ranges and roll back on
+mismatch. None accepts raw field instructions or returns generated table/caption text.
 `update_live_word_reference_tables` refreshes existing native tables of contents,
 figures and authorities through Word. It selects all supported objects or one exact kind
 and one-based index, caps a transaction at 128 objects, optionally repaginates, verifies

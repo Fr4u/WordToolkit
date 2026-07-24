@@ -14,18 +14,24 @@ public sealed class LiveCaptionAndTableOfFiguresTests
         var table = catalog
             .InspectAction("insert_live_word_table_of_figures")["tool"]!
             .AsObject();
+        var contents = catalog
+            .InspectAction("insert_live_word_table_of_contents")["tool"]!
+            .AsObject();
         var update = catalog
             .InspectAction("update_live_word_reference_tables")["tool"]!
             .AsObject();
 
         Assert.Equal("1.0", caption["operationVersion"]!.GetValue<string>());
         Assert.Equal("1.0", table["operationVersion"]!.GetValue<string>());
+        Assert.Equal("1.0", contents["operationVersion"]!.GetValue<string>());
         Assert.Equal("1.0", update["operationVersion"]!.GetValue<string>());
         Assert.False(caption["annotations"]!["readOnlyHint"]!.GetValue<bool>());
         Assert.False(table["annotations"]!["readOnlyHint"]!.GetValue<bool>());
+        Assert.False(contents["annotations"]!["readOnlyHint"]!.GetValue<bool>());
         Assert.False(update["annotations"]!["readOnlyHint"]!.GetValue<bool>());
         Assert.False(caption["inputSchema"]!["additionalProperties"]!.GetValue<bool>());
         Assert.False(table["inputSchema"]!["additionalProperties"]!.GetValue<bool>());
+        Assert.False(contents["inputSchema"]!["additionalProperties"]!.GetValue<bool>());
         Assert.False(update["inputSchema"]!["additionalProperties"]!.GetValue<bool>());
         Assert.NotNull(caption["permissions"]);
         Assert.NotNull(caption["reversibility"]);
@@ -33,6 +39,9 @@ public sealed class LiveCaptionAndTableOfFiguresTests
         Assert.NotNull(table["permissions"]);
         Assert.NotNull(table["reversibility"]);
         Assert.NotNull(table["outputSchema"]);
+        Assert.NotNull(contents["permissions"]);
+        Assert.NotNull(contents["reversibility"]);
+        Assert.NotNull(contents["outputSchema"]);
         Assert.NotNull(update["permissions"]);
         Assert.NotNull(update["reversibility"]);
         Assert.NotNull(update["outputSchema"]);
@@ -247,6 +256,159 @@ public sealed class LiveCaptionAndTableOfFiguresTests
         Assert.Equal("INVALID_INPUT", error.ErrorCode);
         Assert.Equal(0, host.Application.UndoRecord.StartCount);
         Assert.Equal(0, host.Application.ActiveDocument.TablesOfFigures.Count);
+    }
+
+    [Fact]
+    public async Task InsertsUpdatesAndReacquiresOneNativeTableOfContentsWithoutReturningText()
+    {
+        await using var host = new CaptionFakeHost();
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = version,
+                    target = "document_start",
+                    upper_heading_level = 2,
+                    lower_heading_level = 4,
+                    use_heading_styles = true,
+                    use_outline_levels = true,
+                }
+            )
+        );
+
+        var result = await service.CallAsync(
+            "insert_live_word_table_of_contents",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        var raw = JsonSerializer.Serialize(result, JsonDefaults.Compact);
+        using var json = JsonDocument.Parse(raw);
+        var data = json.RootElement;
+
+        Assert.Equal(
+            "wordtoolkit.insert_live_word_table_of_contents/1.0",
+            data.GetProperty("operation_contract").GetString()
+        );
+        Assert.Equal(version + 1, data.GetProperty("live_version").GetInt64());
+        Assert.Equal(0, data.GetProperty("table_of_contents_count_before").GetInt32());
+        Assert.Equal(1, data.GetProperty("table_of_contents_count_after").GetInt32());
+        Assert.Equal(1, data.GetProperty("table_of_contents_index").GetInt32());
+        Assert.Equal(0, data.GetProperty("inserted_range").GetProperty("start").GetInt32());
+        Assert.True(data.GetProperty("native_verified").GetBoolean());
+        Assert.False(data.GetProperty("raw_field_code_returned").GetBoolean());
+        Assert.False(data.GetProperty("result_text_returned").GetBoolean());
+        Assert.DoesNotContain("TOC ", raw, StringComparison.Ordinal);
+        Assert.Equal(0, host.Application.ActiveDocument.TablesOfContents.LastRangeStart);
+        Assert.Equal(2, host.Application.ActiveDocument.TablesOfContents.LastUpperHeadingLevel);
+        Assert.Equal(4, host.Application.ActiveDocument.TablesOfContents.LastLowerHeadingLevel);
+        Assert.True(host.Application.ActiveDocument.TablesOfContents.LastUseOutlineLevels);
+        Assert.Equal(1, host.Application.ActiveDocument.TablesOfContents.Item(1).UpdateCount);
+        Assert.Equal(1, host.Application.ActiveDocument.RepaginateCount);
+        Assert.Equal(1, host.Application.UndoRecord.StartCount);
+        Assert.Equal(1, host.Application.UndoRecord.EndCount);
+        Assert.True(host.Application.ScreenUpdating);
+    }
+
+    [Fact]
+    public async Task RejectsInvalidTableOfContentsSourceConfigurationBeforeUndo()
+    {
+        await using var host = new CaptionFakeHost();
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = version,
+                    use_heading_styles = false,
+                    use_outline_levels = false,
+                }
+            )
+        );
+
+        var error = await Assert.ThrowsAsync<NativeToolException>(
+            () =>
+                service.CallAsync(
+                    "insert_live_word_table_of_contents",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("INVALID_INPUT", error.ErrorCode);
+        Assert.Equal(0, host.Application.UndoRecord.StartCount);
+        Assert.Equal(0, host.Application.ActiveDocument.TablesOfContents.Count);
+    }
+
+    [Fact]
+    public async Task RejectsInvertedTableOfContentsHeadingLevelsBeforeUndo()
+    {
+        await using var host = new CaptionFakeHost();
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = version,
+                    upper_heading_level = 5,
+                    lower_heading_level = 2,
+                }
+            )
+        );
+
+        var error = await Assert.ThrowsAsync<NativeToolException>(
+            () =>
+                service.CallAsync(
+                    "insert_live_word_table_of_contents",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("INVALID_INPUT", error.ErrorCode);
+        Assert.Equal(0, host.Application.UndoRecord.StartCount);
+        Assert.Equal(0, host.Application.ActiveDocument.TablesOfContents.Count);
+    }
+
+    [Fact]
+    public async Task RollsBackTableOfContentsWhenNativeFieldReadbackIsMissing()
+    {
+        await using var host = new CaptionFakeHost();
+        host.Application.ActiveDocument.TablesOfContents.SuppressAddedField = true;
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = version,
+                    target = "document_end",
+                    repaginate = false,
+                }
+            )
+        );
+
+        var error = await Assert.ThrowsAsync<NativeToolException>(
+            () =>
+                service.CallAsync(
+                    "insert_live_word_table_of_contents",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("VALIDATION_FAILED", error.ErrorCode);
+        Assert.Equal(0, host.Application.ActiveDocument.TablesOfContents.Count);
+        Assert.Equal(1, host.Application.ActiveDocument.UndoCount);
+        Assert.Equal(0, host.Application.ActiveDocument.RepaginateCount);
+        Assert.True(host.Application.ScreenUpdating);
     }
 
     [Fact]
@@ -539,7 +701,7 @@ public sealed class CaptionFakeDocument
     {
         _application = application;
         Fields = new CaptionFakeFields();
-        TablesOfContents = new CaptionFakeReferenceTables();
+        TablesOfContents = new CaptionFakeReferenceTables(this);
         TablesOfFigures = new CaptionFakeTablesOfFigures(this);
         TablesOfAuthorities = new CaptionFakeReferenceTables();
     }
@@ -726,11 +888,51 @@ public sealed class CaptionFakeFieldCode
 
 public sealed class CaptionFakeReferenceTables
 {
+    private readonly CaptionFakeDocument? _document;
     private readonly List<CaptionFakeReferenceTable> _items = [];
     private int _undoCount;
 
+    public CaptionFakeReferenceTables(CaptionFakeDocument? document = null) =>
+        _document = document;
+
     public int Count => _items.Count;
     public CaptionFakeReferenceTable Item(int index) => _items[index - 1];
+    public bool SuppressAddedField { get; set; }
+    public int LastRangeStart { get; private set; } = -1;
+    public bool LastUseHeadingStyles { get; private set; }
+    public int LastUpperHeadingLevel { get; private set; }
+    public int LastLowerHeadingLevel { get; private set; }
+    public bool LastUseOutlineLevels { get; private set; }
+
+    public CaptionFakeReferenceTable Add(
+        CaptionFakeRange range,
+        bool useHeadingStyles,
+        int upperHeadingLevel,
+        int lowerHeadingLevel,
+        bool useFields,
+        string tableId,
+        bool rightAlignPageNumbers,
+        bool includePageNumbers,
+        string addedStyles,
+        bool useHyperlinks,
+        bool hidePageNumbersInWeb,
+        bool useOutlineLevels
+    )
+    {
+        _ = _document ?? throw new InvalidOperationException("Add is unavailable");
+        LastRangeStart = range.Start;
+        LastUseHeadingStyles = useHeadingStyles;
+        LastUpperHeadingLevel = upperHeadingLevel;
+        LastLowerHeadingLevel = lowerHeadingLevel;
+        LastUseOutlineLevels = useOutlineLevels;
+        var table = new CaptionFakeReferenceTable(
+            range.Start,
+            range.Start + 20,
+            SuppressAddedField ? 0 : 1
+        );
+        _items.Add(table);
+        return table;
+    }
 
     public void Seed(int count)
     {
@@ -833,9 +1035,9 @@ public class CaptionFakeReferenceTable
     private int _undoEnd;
     private int _undoUpdateCount;
 
-    public CaptionFakeReferenceTable(int start, int end)
+    public CaptionFakeReferenceTable(int start, int end, int fieldCount = 1)
     {
-        Range = new CaptionFakeTableOfFiguresRange(start, end);
+        Range = new CaptionFakeTableOfFiguresRange(start, end, fieldCount);
     }
 
     public CaptionFakeTableOfFiguresRange Range { get; }
@@ -874,15 +1076,16 @@ public sealed class CaptionFakeTableOfFigures : CaptionFakeReferenceTable
 
 public sealed class CaptionFakeTableOfFiguresRange
 {
-    public CaptionFakeTableOfFiguresRange(int start, int end)
+    public CaptionFakeTableOfFiguresRange(int start, int end, int fieldCount = 1)
     {
         Start = start;
         End = end;
+        Fields = new CaptionFakeCountCollection(fieldCount);
     }
 
     public int Start { get; private set; }
     public int End { get; private set; }
-    public CaptionFakeCountCollection Fields { get; } = new(1);
+    public CaptionFakeCountCollection Fields { get; }
     public CaptionFakeTableOfFiguresRange Duplicate => this;
 
     public void Invalidate() => End = Start;
