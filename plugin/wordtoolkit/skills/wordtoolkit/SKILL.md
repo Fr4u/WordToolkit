@@ -1,6 +1,6 @@
 ---
 name: wordtoolkit
-description: Control real Microsoft Word and inspect, index, query, edit, compare, patch, or three-way merge saved Word OOXML packages through a token-lean native .NET bridge. Use for live documents, package/semantic inspection, fields, bookmarks, reference dependencies, semantic selectors, formatting, equations, comments and review, structures, export, save, close, and validation.
+description: Control real Microsoft Word and inspect, index, query, edit, compare, patch, or three-way merge saved Word OOXML packages through a token-lean native .NET bridge. Use for live documents, package/semantic and safe active-content inspection, fields, bookmarks, reference dependencies, semantic selectors, formatting, equations, comments and review, structures, export, save, close, and validation.
 ---
 
 # WordToolkit
@@ -156,16 +156,17 @@ decision. The graph joins the
 explicitly reported OPC, semantic-containment, style, numbering, reference, section,
 classic-chart, logical-figure/representation/resource/caption, content-control,
 physical/built-in XML-store, binding-target, repeating-section, bibliography collection,
-source and resolved CITATION domains plus
-nested-table and vertical-merge topology. Its
+source and resolved CITATION domains, typed active-content payloads/declarations and
+ActiveX binary bindings plus nested-table and vertical-merge topology. Its
 `explicitly_unmodeled_domains` list is a hard coverage
-boundary: absence of an edge for advanced drawing layout, SmartArt, OLE, active content,
-signatures, encryption or co-authoring is not proof that the dependency does not exist.
+boundary: absence of an edge for advanced drawing layout, SmartArt, active-content
+binary internals/execution, cryptographic signature validation, encryption or
+co-authoring is not proof that the dependency does not exist.
 The summary's `byte_budget` remains the graph-local deterministic boundary. Its separate
 `operation_budget` (`wop1`) is one shared 640 MiB accounted lease spanning ZIP/OPC
 admission and metadata,
 lossless XML reservations, semantic/style/numbering/reference/section/chart/figure/
-content-control/table/bibliography projections and the final graph. Treat `PACKAGE_LIMIT` as a hard
+content-control/table/bibliography/active-content projections and the final graph. Treat `PACKAGE_LIMIT` as a hard
 stop; an operation-budget error reports only the bounded stage and attempted charge.
 Do not retry with broader output or call this an exact CLR heap, peak-live-memory or
 resident-set limit. Accounting is cumulative and conservative; repeated XML projection
@@ -200,6 +201,19 @@ subset with optional positive positions; an unsupported expression is evidence, 
 permission to run a general XPath engine or guess the target. The action is read-only,
 does not refresh bound display text and never opens Word. Honor nested `*_truncated`
 flags instead of assuming one binding response contains every target or item ID.
+Use lazy `inspect_ooxml_active_content` before making a safety decision about OLE,
+embedded packages, ActiveX, VBA, Office customizations or signatures in a saved package.
+Start with `view=summary`; page `declarations`, `controls`, `payloads`, `relationships`
+or `issues` only when the next decision consumes them. Narrow with one exact `wdad_`,
+`wdax_` or `wdap_` ID or an exact kind/role. Keep program/object/control metadata,
+relationship targets, payload hashes and source provenance behind their four independent
+opt-ins. Raw XML, field-code text, binary values, ActiveX licenses and ActiveX property
+values have no response field. The inspector is metadata-only: it never opens Word,
+decodes a binary, opens an embedded package, executes a macro, follows an external target
+or validates a cryptographic signature. Signature-part presence means only that the OPC
+topology declares signature material. Do not use this read graph as authorization to
+extract, execute, delete, rewrite, invalidate or re-sign anything. Treat unresolved,
+duplicate and contradictory topology as damage evidence and stop rather than guessing.
 Use lazy `inspect_ooxml_tables` instead of reading `w:tbl`, `tblGrid`, `trPr` or `tcPr`
 yourself. Start with `view=summary`; page `tables`, `rows`, `cells`, `merges` or `issues`
 only when the next decision consumes them. Narrow with an exact `wdt_`, `wdtr_` or

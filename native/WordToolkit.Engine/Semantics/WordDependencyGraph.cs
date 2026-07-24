@@ -34,6 +34,9 @@ public enum WordDependencyNodeKind
     CustomXmlBindingTarget,
     BibliographyCollection,
     BibliographySource,
+    ActiveContentPayload,
+    ActiveContentDeclaration,
+    ActiveXControl,
 }
 
 public enum WordDependencyEdgeKind
@@ -84,6 +87,12 @@ public enum WordDependencyEdgeKind
     TableCellContinuesVerticalMerge,
     DefinesBibliographyCollection,
     BibliographyContainsSource,
+    DefinesActiveContentPayload,
+    ActiveContentRelationshipTargetsPayload,
+    DefinesActiveContentDeclaration,
+    ActiveContentDeclarationUsesPayload,
+    DefinesActiveXControl,
+    ActiveXControlUsesBinaryPayload,
 }
 
 public enum WordDependencyIssueSeverity
@@ -142,6 +151,7 @@ public sealed record WordDependencyCoverage(
     bool ContentControlsAndCustomXml,
     bool TablesAndCellTopology,
     bool BibliographySources,
+    bool ActiveContent,
     IReadOnlyList<string> ExplicitlyUnmodeledDomains
 );
 
@@ -261,7 +271,8 @@ public sealed class WordDependencyGraph
         int figureIssueCount,
         int contentControlIssueCount,
         int tableIssueCount,
-        int bibliographyIssueCount
+        int bibliographyIssueCount,
+        int activeContentIssueCount
     )
     {
         var nodeArray = nodes as WordDependencyNode[] ?? nodes.ToArray();
@@ -284,6 +295,7 @@ public sealed class WordDependencyGraph
         ContentControlIssueCount = contentControlIssueCount;
         TableIssueCount = tableIssueCount;
         BibliographyIssueCount = bibliographyIssueCount;
+        ActiveContentIssueCount = activeContentIssueCount;
         var nodeIndexes = new Dictionary<string, int>(nodeArray.Length, StringComparer.Ordinal);
         for (var index = 0; index < nodeArray.Length; index++)
         {
@@ -349,6 +361,8 @@ public sealed class WordDependencyGraph
     public int TableIssueCount { get; }
 
     public int BibliographyIssueCount { get; }
+
+    public int ActiveContentIssueCount { get; }
 
     public bool TryGetNode(string nodeId, out WordDependencyNode? node)
     {
@@ -614,8 +628,9 @@ public sealed class WordDependencyGraphBuilder
             [
                 "drawingml_vml_advanced_layout",
                 "smartart_diagrams",
-                "ole_embedded_packages",
-                "macros_signatures_encryption",
+                "active_content_binary_internals_and_execution",
+                "signature_cryptographic_validation_and_resigning",
+                "encrypted_package_adapter",
                 "coauthoring_sessions",
             ]
         );
@@ -840,6 +855,12 @@ public sealed class WordDependencyGraphBuilder
             package,
             cancellationToken
         );
+        var activeContent = (_resourceLease is null
+            ? new WordActiveContentGraphBuilder()
+            : new WordActiveContentGraphBuilder(null, _resourceLease)).Build(
+            package,
+            cancellationToken
+        );
         EnsureFingerprint(
             package.Fingerprint,
             semanticDocument.PackageFingerprint,
@@ -851,7 +872,8 @@ public sealed class WordDependencyGraphBuilder
             figures.PackageFingerprint,
             contentControls.PackageFingerprint,
             tables.PackageFingerprint,
-            bibliography.PackageFingerprint
+            bibliography.PackageFingerprint,
+            activeContent.PackageFingerprint
         );
 
         var state = new BuildState(_options, _resourceLease);
@@ -950,6 +972,14 @@ public sealed class WordDependencyGraphBuilder
             reachableParts,
             cancellationToken
         );
+        AddActiveContentDependencies(
+            state,
+            package,
+            activeContent,
+            packageNodeId,
+            reachableParts,
+            cancellationToken
+        );
 
         var (nodes, edges, issues, resourceUsage) = state.Materialize();
         return new WordDependencyGraph(
@@ -970,6 +1000,7 @@ public sealed class WordDependencyGraphBuilder
                 ContentControlsAndCustomXml: true,
                 TablesAndCellTopology: true,
                 BibliographySources: true,
+                ActiveContent: true,
                 ExplicitlyUnmodeledDomains
             ),
             resourceUsage,
@@ -984,7 +1015,304 @@ public sealed class WordDependencyGraphBuilder
             figures.Issues.Count,
             contentControls.Issues.Count,
             tables.Issues.Count,
-            bibliography.Issues.Count
+            bibliography.Issues.Count,
+            activeContent.Issues.Count
+        );
+    }
+
+    private static void AddActiveContentDependencies(
+        BuildState state,
+        OpcPackageSnapshot package,
+        WordActiveContentGraph activeContent,
+        string packageNodeId,
+        IReadOnlySet<string> reachableParts,
+        CancellationToken cancellationToken
+    )
+    {
+        var payloadNodeIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var payload in activeContent.Payloads)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var partNodeId = PartNode(
+                state,
+                package,
+                reachableParts,
+                payload.PartUri
+            );
+            var payloadNodeId = state.AddNode(
+                WordDependencyNodeKind.ActiveContentPayload,
+                payload.Id,
+                isResolved: true,
+                isExternal: false,
+                isPackageReachable: payload.IsPackageReachable,
+                partUri: payload.PartUri
+            );
+            payloadNodeIds.Add(payload.Id, payloadNodeId);
+            state.AddEdge(
+                WordDependencyEdgeKind.DefinesActiveContentPayload,
+                partNodeId,
+                payloadNodeId,
+                isResolved: true,
+                isExternal: false,
+                qualifier: payload.Kind.ToString().ToLowerInvariant(),
+                partUri: payload.PartUri
+            );
+        }
+
+        var relationshipsById = activeContent.Relationships
+            .GroupBy(item => item.Id, StringComparer.Ordinal)
+            .ToDictionary(item => item.Key, item => item.First(), StringComparer.Ordinal);
+        var relationshipEdgeIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var relationship in activeContent.Relationships)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var sourceNodeId = relationship.SourcePartUri == "/"
+                ? packageNodeId
+                : PartNode(
+                    state,
+                    package,
+                    reachableParts,
+                    relationship.SourcePartUri
+                );
+            var targetNodeId = ActiveContentTargetNode(
+                state,
+                package,
+                reachableParts,
+                relationship,
+                payloadNodeIds
+            );
+            var edgeId = state.AddEdge(
+                WordDependencyEdgeKind.ActiveContentRelationshipTargetsPayload,
+                sourceNodeId,
+                targetNodeId,
+                relationship.IsResolved,
+                relationship.TargetMode == OpcRelationshipTargetMode.External,
+                qualifier: relationship.Role.ToString().ToLowerInvariant(),
+                partUri: relationship.SourcePartUri == "/"
+                    ? null
+                    : relationship.SourcePartUri,
+                relationshipId: relationship.RelationshipId,
+                relationshipType: relationship.RelationshipType
+            );
+            relationshipEdgeIds[relationship.Id] = edgeId;
+        }
+
+        var declarationNodeIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var declaration in activeContent.Declarations)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var partNodeId = PartNode(
+                state,
+                package,
+                reachableParts,
+                declaration.SourcePartUri
+            );
+            var declarationNodeId = state.AddNode(
+                WordDependencyNodeKind.ActiveContentDeclaration,
+                declaration.Id,
+                declaration.IsResolved,
+                isExternal: false,
+                isPackageReachable: reachableParts.Contains(declaration.SourcePartUri),
+                partUri: declaration.SourcePartUri,
+                sourceElementOrdinal: declaration.SourceElementOrdinal
+            );
+            declarationNodeIds.Add(declaration.Id, declarationNodeId);
+            state.AddEdge(
+                WordDependencyEdgeKind.DefinesActiveContentDeclaration,
+                partNodeId,
+                declarationNodeId,
+                isResolved: true,
+                isExternal: false,
+                qualifier: declaration.Kind.ToString().ToLowerInvariant(),
+                partUri: declaration.SourcePartUri,
+                sourceElementOrdinal: declaration.SourceElementOrdinal
+            );
+
+            string targetNodeId;
+            WordActiveContentRelationship? relationship = null;
+            if (
+                declaration.RelationshipNodeId is not null
+                && relationshipsById.TryGetValue(
+                    declaration.RelationshipNodeId,
+                    out relationship
+                )
+            )
+            {
+                targetNodeId = ActiveContentTargetNode(
+                    state,
+                    package,
+                    reachableParts,
+                    relationship,
+                    payloadNodeIds
+                );
+            }
+            else
+            {
+                targetNodeId = state.AddNode(
+                    WordDependencyNodeKind.ActiveContentPayload,
+                    "unresolved:" + declaration.Id,
+                    isResolved: false,
+                    isExternal: false,
+                    isPackageReachable: false
+                );
+            }
+            state.AddEdge(
+                WordDependencyEdgeKind.ActiveContentDeclarationUsesPayload,
+                declarationNodeId,
+                targetNodeId,
+                relationship?.IsResolved == true,
+                relationship?.TargetMode == OpcRelationshipTargetMode.External,
+                qualifier: declaration.Kind.ToString().ToLowerInvariant(),
+                partUri: declaration.SourcePartUri,
+                sourceElementOrdinal: declaration.SourceElementOrdinal,
+                relationshipId: declaration.RelationshipId,
+                relationshipType: relationship?.RelationshipType
+            );
+        }
+
+        var controlNodeIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var control in activeContent.Controls)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var owner = activeContent.Payloads.SingleOrDefault(payload =>
+                payload.Kind == WordActiveContentPayloadKind.ActiveXXml
+                && payload.PartUri == control.PartUri
+            );
+            if (
+                owner is null
+                || !payloadNodeIds.TryGetValue(owner.Id, out var ownerNodeId)
+            )
+            {
+                throw new WordDependencyProjectionException(
+                    "An ActiveX control has no source-linked XML persistence payload."
+                );
+            }
+            var controlNodeId = state.AddNode(
+                WordDependencyNodeKind.ActiveXControl,
+                control.Id,
+                control.IsResolved,
+                isExternal: false,
+                isPackageReachable: owner.IsPackageReachable,
+                partUri: control.PartUri,
+                sourceElementOrdinal: control.SourceElementOrdinal
+            );
+            controlNodeIds.Add(control.Id, controlNodeId);
+            state.AddEdge(
+                WordDependencyEdgeKind.DefinesActiveXControl,
+                ownerNodeId,
+                controlNodeId,
+                isResolved: true,
+                isExternal: false,
+                qualifier: control.Persistence,
+                partUri: control.PartUri,
+                sourceElementOrdinal: control.SourceElementOrdinal
+            );
+            var binaryNodeId = control.BinaryPayloadId is not null
+                && payloadNodeIds.TryGetValue(
+                    control.BinaryPayloadId,
+                    out var knownBinaryNodeId
+                )
+                    ? knownBinaryNodeId
+                    : state.AddNode(
+                        WordDependencyNodeKind.ActiveContentPayload,
+                        "unresolved-binary:" + control.Id,
+                        isResolved: false,
+                        isExternal: false,
+                        isPackageReachable: false
+                    );
+            state.AddEdge(
+                WordDependencyEdgeKind.ActiveXControlUsesBinaryPayload,
+                controlNodeId,
+                binaryNodeId,
+                control.IsResolved,
+                isExternal: false,
+                qualifier: "persistence_binary",
+                partUri: control.PartUri,
+                sourceElementOrdinal: control.SourceElementOrdinal,
+                relationshipId: control.BinaryRelationshipId
+            );
+        }
+
+        foreach (var issue in activeContent.Issues)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string? nodeId = null;
+            string? edgeId = null;
+            if (issue.SubjectId is not null)
+            {
+                if (!payloadNodeIds.TryGetValue(issue.SubjectId, out nodeId)
+                    && !declarationNodeIds.TryGetValue(issue.SubjectId, out nodeId)
+                    && !controlNodeIds.TryGetValue(issue.SubjectId, out nodeId))
+                {
+                    relationshipEdgeIds.TryGetValue(issue.SubjectId, out edgeId);
+                }
+            }
+            state.AddIssue(
+                "WDG080_" + issue.Code,
+                issue.Severity switch
+                {
+                    WordActiveContentIssueSeverity.Info => WordDependencyIssueSeverity.Info,
+                    WordActiveContentIssueSeverity.Warning => WordDependencyIssueSeverity.Warning,
+                    WordActiveContentIssueSeverity.Error => WordDependencyIssueSeverity.Error,
+                    _ => throw new ArgumentOutOfRangeException(nameof(issue.Severity)),
+                },
+                $"The typed active-content graph emitted {issue.Code}.",
+                nodeId,
+                edgeId,
+                issue.PartUri,
+                issue.SourceElementOrdinal
+            );
+        }
+        if (activeContent.IssuesTruncated)
+        {
+            state.AddIssue(
+                "WDG080_ACTIVE_ISSUES_TRUNCATED",
+                WordDependencyIssueSeverity.Warning,
+                "The typed active-content graph truncated its diagnostic inventory."
+            );
+        }
+    }
+
+    private static string ActiveContentTargetNode(
+        BuildState state,
+        OpcPackageSnapshot package,
+        IReadOnlySet<string> reachableParts,
+        WordActiveContentRelationship relationship,
+        IReadOnlyDictionary<string, string> payloadNodeIds
+    )
+    {
+        if (
+            relationship.PayloadId is not null
+            && payloadNodeIds.TryGetValue(relationship.PayloadId, out var payloadNodeId)
+        )
+        {
+            return payloadNodeId;
+        }
+        if (relationship.TargetMode == OpcRelationshipTargetMode.External)
+        {
+            return state.AddNode(
+                WordDependencyNodeKind.ExternalTarget,
+                relationship.Target,
+                isResolved: false,
+                isExternal: true,
+                isPackageReachable: false
+            );
+        }
+        if (relationship.TargetPartUri is not null)
+        {
+            return PartNode(
+                state,
+                package,
+                reachableParts,
+                relationship.TargetPartUri
+            );
+        }
+        return state.AddNode(
+            WordDependencyNodeKind.ActiveContentPayload,
+            "unresolved-relationship:" + relationship.Id,
+            isResolved: false,
+            isExternal: false,
+            isPackageReachable: false
         );
     }
 

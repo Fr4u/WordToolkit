@@ -722,9 +722,10 @@ summary returns only the compact `{model, used, maximum}` byte-budget tuple. Res
 formulas and paired measurements are recorded in
 `RESEARCH-DEPENDENCY-GRAPH-MEMORY-2026.md`.
 
-Coverage is explicit. Advanced DrawingML/VML layout, SmartArt, full OLE, active
-content, signatures, encryption and co-authoring sessions are still outside this graph.
-Bibliography collection/source nodes and unique-tag `CITATION` resolution are inside the
+Coverage is explicit. Active-content payload/declaration/ActiveX topology is inside the
+graph, while active-content binary internals/execution, advanced DrawingML/VML layout,
+SmartArt, signature cryptographic validation/resigning, encryption and co-authoring
+sessions remain outside it. Bibliography collection/source nodes and unique-tag `CITATION` resolution are inside the
 graph; bibliography rendering and mutation are not. Office 2016 extended charts are preserved and
 diagnosed, but are not projected as classic chart nodes.
 
@@ -786,6 +787,33 @@ pretending to understand them. The dependency graph consumes the proven classic 
 through chart, series and axis nodes plus containment and related-part edges. Chart
 mutation, workbook synchronization, rendering and SmartArt remain unfinished. The full
 contract and evidence are recorded in `CHART-GRAPH.md`.
+
+### Active-content metadata graph
+
+`WordActiveContentGraph` inventories active-content topology without creating an
+execution or extraction surface. It recognizes exact Transitional/Strict office and
+Microsoft relationship types, legacy `o:OLEObject`, `w:objectEmbed`, `w:objectLink`,
+`w:control`, embedded-package parts, ActiveX XML/binary bindings, VBA project/support and
+customization parts, VBA project signatures, and package signature-origin/signature
+parts. URI suffix lookalikes do not enter the graph. Duplicate relationship IDs remain
+separate occurrences and produce diagnostics instead of selecting one implicitly.
+
+Payload records retain bounded package metadata already admitted by OPC, not decoded
+content. ActiveX XML projection retains class/persistence, property count and only
+license presence/length; property values and license text are discarded. Field-code text
+is also discarded after counting. External OLE/package targets remain declared but are
+never fetched or treated as resolved package payloads. Macro-container, declaration,
+target-mode, ActiveX binary and signature-root/source contradictions remain explicit
+issues.
+
+Lazy `inspect_ooxml_active_content` is summary-first, paged and independently gates
+names, targets, hashes and source provenance. Raw XML, field codes, binary values,
+ActiveX licenses and property values have no response field. One shared `wop1` lease
+spans OPC admission and projection. The dependency graph consumes payload,
+declaration and ActiveX nodes plus their typed edges. This proves metadata topology only:
+the engine does not open Word or embedded packages, execute code, decode binaries,
+follow external targets, validate signature cryptography, remove/re-sign material or
+authorize mutation. The complete contract is in `ACTIVE-CONTENT-GRAPH.md`.
 
 ### Initial document linter
 
@@ -1078,7 +1106,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 91 actions already have public SDK
+These are proved migration seams, not a claim that all 92 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.

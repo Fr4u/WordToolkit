@@ -118,21 +118,21 @@ I&=\operatorname{Im}\left[e^{(2+3i)x}\left(\frac{x^3}{2+3i}-\frac{3x^2}{(2+3i)^2
             }
             using (applied)
             {
-            var operation = applied.RootElement.GetProperty("operations")[0]
-                .GetProperty("equation");
-            Assert.True(operation.GetProperty("native_verified").GetBoolean());
-            Assert.True(operation.GetProperty("readback_verified").GetBoolean());
-            var readback = operation.GetProperty("readback");
-            Assert.Equal(6, readback.GetProperty("nary_count").GetInt32());
-            Assert.Equal(6, readback.GetProperty("differential_count").GetInt32());
-            Assert.True(
-                readback.GetProperty("differential_placement_verified").GetBoolean()
-            );
-            Assert.Equal(
-                readback.GetProperty("expected_contract_sha256").GetString(),
-                readback.GetProperty("actual_contract_sha256").GetString()
-            );
-            version = applied.RootElement.GetProperty("live_version").GetInt32();
+                var operation = applied.RootElement.GetProperty("operations")[0]
+                    .GetProperty("equation");
+                Assert.True(operation.GetProperty("native_verified").GetBoolean());
+                Assert.True(operation.GetProperty("readback_verified").GetBoolean());
+                var readback = operation.GetProperty("readback");
+                Assert.Equal(6, readback.GetProperty("nary_count").GetInt32());
+                Assert.Equal(6, readback.GetProperty("differential_count").GetInt32());
+                Assert.True(
+                    readback.GetProperty("differential_placement_verified").GetBoolean()
+                );
+                Assert.Equal(
+                    readback.GetProperty("expected_contract_sha256").GetString(),
+                    readback.GetProperty("actual_contract_sha256").GetString()
+                );
+                version = applied.RootElement.GetProperty("live_version").GetInt32();
             }
         }
         finally

@@ -35,6 +35,7 @@
       "inspect_ooxml_charts",
       "inspect_ooxml_figures",
       "inspect_ooxml_content_controls",
+      "inspect_ooxml_active_content",
       "inspect_ooxml_tables",
       "inspect_ooxml_markup_compatibility",
       "lint_ooxml_document",
@@ -5833,7 +5834,7 @@
     {
       "name": "inspect_ooxml_dependencies",
       "title": "Inspect the Word document dependency graph",
-      "description": "Inspect one source-linked dependency graph spanning OPC reachability, semantic containment, styles, numbering, fields/bookmarks, bibliography sources and resolved CITATION tags, section stories, classic charts, logical figures/resources/captions, content controls/Custom XML bindings and nested-table topology without opening Word. Unresolved and external targets remain explicit; external targets are never followed. One operation-wide accounted resource lease covers bounded ZIP/OPC admission and metadata, XML parsing, semantic and typed projections, while the graph keeps its independent local byte budget and compact adjacency. Keys and source are redacted by default, views are paged, and unmodeled domains stay explicit.",
+      "description": "Inspect one source-linked dependency graph spanning OPC reachability, semantic containment, styles, numbering, fields/bookmarks, bibliography sources and resolved CITATION tags, section stories, classic charts, logical figures/resources/captions, content controls/Custom XML bindings, nested-table topology, and typed active-content declarations, payloads and ActiveX bindings without opening Word. Unresolved and external targets remain explicit; external targets are never followed. Binary active content is never decoded or executed, embedded packages are never opened, and signature presence is not cryptographic validation. One operation-wide accounted resource lease covers bounded ZIP/OPC admission and metadata, XML parsing, semantic and typed projections, while the graph keeps its independent local byte budget and compact adjacency. Keys and source are redacted by default, views are paged, and unmodeled domains stay explicit.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -5880,7 +5881,10 @@
               "custom_xml_store",
               "custom_xml_binding_target",
               "bibliography_collection",
-              "bibliography_source"
+              "bibliography_source",
+              "active_content_payload",
+              "active_content_declaration",
+              "active_x_control"
             ],
             "description": "Optional exact node-kind filter for the nodes view."
           },
@@ -5932,7 +5936,13 @@
               "table_nests_table",
               "table_cell_continues_vertical_merge",
               "defines_bibliography_collection",
-              "bibliography_contains_source"
+              "bibliography_contains_source",
+              "defines_active_content_payload",
+              "active_content_relationship_targets_payload",
+              "defines_active_content_declaration",
+              "active_content_declaration_uses_payload",
+              "defines_active_x_control",
+              "active_x_control_uses_binary_payload"
             ],
             "description": "Optional exact edge-kind filter for edge, unresolved, and impact views."
           },
@@ -6240,6 +6250,112 @@
         },
         "required": ["local_path"],
         "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_ooxml_active_content",
+      "title": "Inspect Word active content safely",
+      "description": "Inspect bounded, typed metadata for OLE declarations, embedded and linked objects, ActiveX controls, embedded packages, VBA project/data, attached toolbars, Ribbon/QAT/keymap customizations, VBA signatures and package digital-signature parts without opening Word. Binary payloads are never decoded, embedded packages are never opened, macros are never executed, external targets are never followed, and signature presence is never presented as cryptographic validation. Program and control metadata, relationship targets, hashes and source locations require independent opt-ins; raw XML, binary values, field codes, ActiveX licenses and property values are never returned. Compact paged views and one shared operation resource budget minimize AI token use.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "declarations", "controls", "payloads", "relationships", "issues"],
+            "default": "summary",
+            "description": "Return compact kind counts, markup declarations, ActiveX control topology, payload metadata, active-content relationships, or diagnostics."
+          },
+          "declaration_id": {
+            "type": "string",
+            "pattern": "^wdad_[A-Za-z0-9_-]{20}$",
+            "maxLength": 128,
+            "description": "Optional exact active-content declaration ID from the same package fingerprint."
+          },
+          "control_id": {
+            "type": "string",
+            "pattern": "^wdax_[A-Za-z0-9_-]{20}$",
+            "maxLength": 128,
+            "description": "Optional exact ActiveX control ID from the same package fingerprint."
+          },
+          "payload_id": {
+            "type": "string",
+            "pattern": "^wdap_[A-Za-z0-9_-]{20}$",
+            "maxLength": 128,
+            "description": "Optional exact active-content payload ID from the same package fingerprint."
+          },
+          "declaration_kind": {
+            "type": "string",
+            "enum": ["ole_object", "embedded_object", "linked_object", "active_x_control"],
+            "description": "Optional exact declaration-kind filter."
+          },
+          "payload_kind": {
+            "type": "string",
+            "enum": ["ole_object", "embedded_package", "active_x_xml", "active_x_binary", "vba_project", "vba_data", "attached_toolbar", "custom_ui", "quick_access_toolbar_customization", "key_map_customization", "vba_project_signature", "digital_signature_origin", "digital_signature"],
+            "description": "Optional exact payload-kind filter."
+          },
+          "relationship_role": {
+            "type": "string",
+            "enum": ["ole_object", "embedded_package", "active_x_control", "active_x_control_binary", "vba_project", "vba_data", "attached_toolbar", "custom_ui", "quick_access_toolbar_customization", "key_map_customization", "vba_project_signature", "digital_signature_origin", "digital_signature"],
+            "description": "Optional exact relationship-role filter."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "include_names": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded ProgID, object/control names, class IDs, persistence and declared object settings. Field-code text, ActiveX licenses and property values remain unavailable."
+          },
+          "include_targets": {
+            "type": "boolean",
+            "default": false,
+            "description": "Separately opt in to bounded declared internal and external relationship targets. External targets are never followed."
+          },
+          "include_hashes": {
+            "type": "boolean",
+            "default": false,
+            "description": "Separately opt in to SHA-256 hashes of typed payload parts. Payload bytes are never returned."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Separately opt in to bounded source part URIs, content/relationship types, relationship IDs and XML element ordinals."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include at most 20 bounded active-content diagnostics in non-issues views."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "resourceAccounting": {
+        "operation": {
+          "engineModel": "word_operation_accounted_v1",
+          "mcpModel": "wop1",
+          "responseField": "operation_budget",
+          "defaultMaximumAccountedBytes": 671088640
+        },
+        "limitErrorCode": "PACKAGE_LIMIT"
       },
       "annotations": {
         "readOnlyHint": true,

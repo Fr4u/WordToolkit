@@ -1,5 +1,35 @@
 # Stage results
 
+## Typed active-content metadata graph — 2026-07-24
+
+- Added a bounded read-only graph for legacy/ISO Word OLE declarations, embedded and
+  linked targets, ActiveX XML/binary bindings, embedded-package payloads, VBA
+  project/data/support/customization parts, VBA project-signature parts and OPC package
+  signature topology. Exact standardized relationship URIs are required; suffix
+  lookalikes do not enter the model. Orphan declarations, duplicate relationship IDs,
+  missing targets, macro-container contradictions and invalid signature topology remain
+  typed diagnostics.
+- Added lazy `inspect_ooxml_active_content` as native action 92. Summary-first paging and
+  exact IDs/kinds keep requests small. Names, targets, hashes and source provenance have
+  separate opt-ins. Raw XML, field-code text, binary values, ActiveX license strings and
+  property values are unavailable. The action never opens Word, decodes a binary, opens
+  an embedded package, executes code, follows an external target or presents signature
+  presence as cryptographic validation.
+- Integrated typed payload, declaration and ActiveX nodes plus six edge families into
+  the unified dependency graph and shared `wop1` lease. The graph now exposes an exact
+  active-content coverage flag and source issue count while retaining explicit gaps for
+  binary internals/execution, cryptographic validation/resigning and encrypted packages.
+  The cross-producer golden oracle changed only for the LibreOffice chart fixture whose
+  embedded workbook now receives one payload node and two typed edges.
+- Current local verification passes 457/457 Engine and 313/313 Native tests with no
+  skips, plus 1309 Python/OOXML tests with 16 intentional environment/model skips.
+  Release builds have zero warnings, Ruff is clean and mypy passes all 29 maintained
+  Python source files. Four native inspector regressions enforce default redaction, a sub-5,000-
+  character direct result, a sub-8,000-character complete gateway envelope, zero COM
+  calls, independent disclosure opt-ins, exact selector failure and the shared operation
+  budget boundary down to one byte. Release packaging and installed-runtime acceptance
+  are recorded only after those gates complete.
+
 ## Typed bibliography source graph — 2026-07-23
 
 - Added a provider-neutral, read-only bibliography graph for both supported Word source

@@ -42,6 +42,13 @@ public sealed class DependencyPackageInspectionTests
             Assert.False(
                 summary.GetProperty("external_targets_followed").GetBoolean()
             );
+            Assert.False(summary.GetProperty("active_content_executed").GetBoolean());
+            Assert.False(summary.GetProperty("binary_payloads_decoded").GetBoolean());
+            Assert.False(summary.GetProperty("embedded_packages_opened").GetBoolean());
+            Assert.False(
+                summary.GetProperty("cryptographic_signature_validation_performed")
+                    .GetBoolean()
+            );
             Assert.False(summary.GetProperty("keys_included").GetBoolean());
             Assert.True(summary.GetProperty("node_count").GetInt32() > 0);
             Assert.True(summary.GetProperty("edge_count").GetInt32() > 0);
@@ -62,9 +69,25 @@ public sealed class DependencyPackageInspectionTests
                 operationMaximumAccountedBytes
             );
             Assert.Equal(1, summary.GetProperty("external_edge_count").GetInt32());
+            var summaryItems = summary.GetProperty("items").EnumerateArray().ToArray();
+            Assert.Contains(
+                summaryItems,
+                item =>
+                    item.GetProperty("external_count").ValueKind == JsonValueKind.Number
+                    && item.GetProperty("external_count").GetInt32() > 0
+            );
+            Assert.Contains(
+                summaryItems,
+                item => item.GetProperty("external_count").ValueKind == JsonValueKind.Null
+            );
             Assert.True(
                 summary.GetProperty("coverage")
                     .GetProperty("package_relationships")
+                    .GetBoolean()
+            );
+            Assert.True(
+                summary.GetProperty("coverage")
+                    .GetProperty("active_content")
                     .GetBoolean()
             );
             Assert.Contains(
@@ -418,6 +441,12 @@ public sealed class DependencyPackageInspectionTests
         Assert.Equal("summary", data.GetProperty("view").GetString());
         Assert.False(data.GetProperty("word_opened").GetBoolean());
         Assert.False(data.GetProperty("external_targets_followed").GetBoolean());
+        Assert.Contains(
+            data.GetProperty("items").EnumerateArray(),
+            item =>
+                !item.TryGetProperty("unresolved_count", out _)
+                && !item.TryGetProperty("external_count", out _)
+        );
         Assert.Equal(0, host.InvocationCount);
     }
 

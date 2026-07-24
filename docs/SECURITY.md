@@ -63,6 +63,18 @@ All parsed XML uses `resolve_entities=False`, `load_dtd=False`, `no_network=True
 
 External HTTP, HTTPS and `mailto` relationships can be preserved but are never fetched. `file`, `ftp`, `javascript`, `data`, `vbscript`, absolute internal targets and unknown external schemes are rejected. VBA content types and macro containers are rejected. Macros are never executed.
 
+That rejection statement belongs to the remote draft/upload surface. The local native
+saved-package inspector deliberately admits caller-selected DOCM/DOTM files so it can
+report their active-content metadata without opening Word. Its
+`inspect_ooxml_active_content` path matches exact relationship namespaces, forbids DTDs
+and external XML resolution, shares the bounded operation lease from OPC admission
+through projection and never decodes binaries, opens embedded packages, executes VBA or
+ActiveX, follows external targets, or performs cryptographic signature validation. Raw
+XML, field-code text, binary values, ActiveX licenses and property values have no
+response field. Names, declared targets, payload hashes and source locations require
+four independent opt-ins. This inventory is evidence for policy; it does not authorize
+extraction, execution, deletion, signature invalidation or mutation.
+
 ## Renderer controls
 
 LibreOffice receives fixed argv with `shell=False`, a one-use profile, bounded runtime, a restricted HOME and no automatic external relationship retrieval by WordToolkit. The container runs as an unprivileged user with a writable data directory. Production deployment should add a read-only root filesystem, seccomp/AppArmor, CPU/memory quotas and egress rules that allow only the identity provider and authorized OpenAI file hosts.

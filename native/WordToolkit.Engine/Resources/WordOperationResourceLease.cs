@@ -16,6 +16,7 @@ public enum WordOperationResourceStage
     ContentControls,
     Tables,
     Bibliography,
+    ActiveContent,
     DependencyGraph,
 }
 

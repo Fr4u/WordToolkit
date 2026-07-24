@@ -2,6 +2,13 @@
 
 The current remote Python service source of truth is `schemas/mcp-tools.v2.json`; `schemas/mcp-tools.v1.json` remains the immutable historical contract. The provider-neutral heterogeneous mutation contract, including executable input/success/error examples, is generated as `schemas/draft-operations.v1.json`. The native Windows plugin has a separate, deliberately hand-reviewed source in `schemas/mcp-tools-local.v1.json`; `WordToolkit.Native.Tests` validates that catalog and this exporter never overwrites it. Every exported remote tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.
 
+The native catalog currently contains 92 actions behind 15 core/gateway tools. Rare
+saved-package inspectors remain lazy so their schemas do not enter model context until
+needed. `inspect_ooxml_active_content` is read-only and closed-world: it inventories
+typed OLE/ActiveX/VBA/embedded-package/customization/signature metadata without opening
+Word, payloads or external targets. Its names, relationship targets, hashes and source
+locations require independent opt-ins; raw XML and active-content values are unavailable.
+
 | Tool | Read only | Destructive | Idempotent | File inputs |
 |---|---:|---:|---:|---|
 | `create_document` | False | False | False | — |

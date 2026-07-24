@@ -43,6 +43,21 @@ public static class WordPackageConformance
         return contentType is not null && MainContentTypes.Contains(contentType);
     }
 
+    public static bool IsMacroEnabledWordMainContentType(string? contentType)
+    {
+        return contentType is not null
+            && (
+                contentType.Equals(
+                    MacroDocumentContentType,
+                    StringComparison.OrdinalIgnoreCase
+                )
+                || contentType.Equals(
+                    MacroTemplateContentType,
+                    StringComparison.OrdinalIgnoreCase
+                )
+            );
+    }
+
     public static bool HasWordDocumentRoot(LosslessXmlDocument source)
     {
         ArgumentNullException.ThrowIfNull(source);

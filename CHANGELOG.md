@@ -15,6 +15,28 @@
   owned differentials survive with identical canonical contracts. The differential,
   symbol and structural gates remain enabled; the fix does not weaken verification.
 
+- Added a bounded, read-only active-content metadata graph for legacy/ISO OLE
+  declarations, linked/embedded targets, ActiveX XML/binary bindings, embedded-package
+  payloads, VBA/support/customization parts, VBA project signatures and OPC package
+  signature topology. Exact relationship namespaces prevent suffix-spoofed types from
+  entering the graph; orphan declarations, duplicate IDs, target contradictions and
+  malformed ActiveX XML fail closed.
+- Added lazy `inspect_ooxml_active_content` as native action 92 with compact paged views,
+  exact filters, independent name/target/hash/source opt-ins and a shared `wop1` resource
+  lease. Raw XML, field codes, binary values, ActiveX licenses and property values are
+  never returned. Word, embedded packages and external targets are never opened; no
+  macro/control execution or cryptographic signature-validation claim is possible.
+- Added active-content payload/declaration/ActiveX nodes and typed edges to the unified
+  dependency graph. Binary internals/execution, signature validation/resigning and
+  encrypted packages remain explicit coverage gaps rather than being hidden behind a
+  generic "macros/signatures" label.
+- Verified the active-content checkpoint with 457 Engine tests, 313 Native tests and
+  1309 Python/OOXML tests with 16 intentional environment/model skips. Release builds
+  have zero warnings, Ruff is clean and mypy passes all 29 maintained Python modules.
+  Complete dependency JSON-RPC output remains below its 8,000-character gate by
+  omitting only zero per-edge-kind counters; nonzero counters and all fixed execution-
+  safety assertions remain explicit.
+
 - Removed automatic replay of mutating Word COM delegates after disconnect. COM work is
   now non-replayable by default: only explicitly proven read-only or idempotent calls
   may reconnect once. A disconnected non-replayable operation returns non-retryable

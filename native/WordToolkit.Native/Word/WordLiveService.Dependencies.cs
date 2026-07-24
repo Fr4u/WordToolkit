@@ -163,6 +163,7 @@ internal sealed partial class WordLiveService
                     content_controls = graph.ContentControlIssueCount,
                     tables = graph.TableIssueCount,
                     bibliography = graph.BibliographyIssueCount,
+                    active_content = graph.ActiveContentIssueCount,
                 },
                 coverage = new
                 {
@@ -179,13 +180,18 @@ internal sealed partial class WordLiveService
                     tables_and_cell_topology = graph.Coverage
                         .TablesAndCellTopology,
                     bibliography_sources = graph.Coverage.BibliographySources,
+                    active_content = graph.Coverage.ActiveContent,
                     explicitly_unmodeled_domains = graph.Coverage
                         .ExplicitlyUnmodeledDomains,
                 },
                 execution_policy =
-                    "parse_only_never_execute_fields_or_follow_external_targets",
+                    "metadata_only_never_execute_fields_or_active_content_decode_binary_open_embedded_packages_validate_signatures_or_follow_external_targets",
                 word_opened = false,
                 external_targets_followed = false,
+                active_content_executed = false,
+                binary_payloads_decoded = false,
+                embedded_packages_opened = false,
+                cryptographic_signature_validation_performed = false,
                 view,
                 keys_included = includeKeys,
                 source_included = includeSource,
@@ -250,6 +256,14 @@ internal sealed partial class WordLiveService
                 new { reason_code = "bibliography_graph_limit" }
             );
         }
+        catch (WordActiveContentLimitException)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "The active-content graph exceeds a bounded safety limit",
+                new { reason_code = "active_content_graph_limit" }
+            );
+        }
         catch (WordDependencyLimitException exception)
         {
             throw new NativeToolException(
@@ -293,6 +307,7 @@ internal sealed partial class WordLiveService
                 or WordFigureProjectionException
                 or WordContentControlProjectionException
                 or WordTableProjectionException
+                or WordActiveContentProjectionException
         )
         {
             throw new NativeToolException(
@@ -391,8 +406,12 @@ internal sealed partial class WordLiveService
                     edge_kind = ToSnakeCase(item.Key.ToString()),
                     count = item.Value.Total,
                     resolved_count = item.Value.Resolved,
-                    unresolved_count = item.Value.Unresolved,
-                    external_count = item.Value.External,
+                    unresolved_count = item.Value.Unresolved == 0
+                        ? (int?)null
+                        : item.Value.Unresolved,
+                    external_count = item.Value.External == 0
+                        ? (int?)null
+                        : item.Value.External,
                 },
                 cancellationToken
             );

@@ -106,6 +106,20 @@ left for Word's repair dialog.
 [PackUriHelper.GetRelationshipPartUri](https://learn.microsoft.com/en-us/dotnet/api/system.io.packaging.packurihelper.getrelationshipparturi)
 (B).
 
+Active content is topology before it is code. The Open XML SDK exposes Word object-link
+markup as a typed WordprocessingML element, VBA as a distinct `VbaProjectPart`, and
+package signatures through a distinct `DigitalSignatureOriginPart`. Microsoft's DOCM
+to DOCX procedure removes the VBA project part and changes the main-part content type;
+that is direct evidence that macro presence is jointly expressed by package topology and
+container type, not by a filename guess. These sources justify a metadata inventory but
+do not justify executing payloads or treating signature-part presence as verified trust.
+[`ObjectLink`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.objectlink?view=openxml-3.0.1),
+[`DigitalSignatureOriginPart`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.packaging.wordprocessingdocument.digitalsignatureoriginpart?view=openxml-3.0.1), and
+[DOCM-to-DOCX conversion](https://learn.microsoft.com/en-us/office/open-xml/word/how-to-convert-a-word-processing-document-from-the-docm-to-the-docx-file-format)
+(B). WordToolkit therefore types exact declaration/relationship/payload topology while
+keeping binary decoding, embedded-package opening, code execution and cryptographic
+signature validation outside the read graph.
+
 Settings, theme language and fonts form one dependency chain; treating them as three
 unrelated XML bags produces the broken substitutions that show up only after Word lays
 out the document. `w:themeFontLang/@val`, `@eastAsia` and `@bidi` select language

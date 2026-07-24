@@ -742,13 +742,13 @@ internal sealed partial class WordLiveService
     {
         var expectedContentType = Path.GetExtension(destinationPath).ToLowerInvariant()
             switch
-            {
-                ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
-                ".docm" => "application/vnd.ms-word.document.macroEnabled.main+xml",
-                ".dotx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml",
-                ".dotm" => "application/vnd.ms-word.template.macroEnabledTemplate.main+xml",
-                _ => null,
-            };
+        {
+            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+            ".docm" => "application/vnd.ms-word.document.macroEnabled.main+xml",
+            ".dotx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml",
+            ".dotm" => "application/vnd.ms-word.template.macroEnabledTemplate.main+xml",
+            _ => null,
+        };
         var officeDocumentPart = candidate.Relationships.FirstOrDefault(relationship =>
             relationship.SourcePartUri == "/"
             && relationship.Type.EndsWith("/officeDocument", StringComparison.Ordinal)
