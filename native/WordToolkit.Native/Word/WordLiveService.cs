@@ -294,6 +294,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_live_word_drawing_layout" => InspectDrawingLayoutAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_live_word_equation_learning" => InspectEquationLearning(),
             "inspect_live_word_structure_learning" => InspectStructureLearning(),
             "inspect_live_word_object_model_types" => InspectObjectModelTypesAsync(

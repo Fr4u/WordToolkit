@@ -58,6 +58,7 @@
       "inspect_live_word_document",
       "map_live_word_structures",
       "inspect_live_word_structure_items",
+      "inspect_live_word_drawing_layout",
       "inspect_live_word_equation_learning",
       "inspect_live_word_structure_learning",
       "inspect_live_word_object_model_types",
@@ -8975,6 +8976,119 @@
         ],
         "title": "inspect_live_word_structure_itemsArguments",
         "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "inspect_live_word_drawing_layout",
+      "title": "Inspect Word-executed drawing layout",
+      "description": "Read a bounded, high-level model of drawing layout resolved by the connected Microsoft Word instance. Covers floating Shapes, InlineShapes, grouping, wrapping, anchors, page and section placement, conditional page-relative bounds, optional SmartArt nodes, and optional viewport pixels. It never returns COM objects or raw XML. Names, alternative text, titles, and SmartArt text are returned only with include_text=true. Viewport pixels are explicitly window-dependent and are never presented as document page geometry.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "none",
+        "network": "none",
+        "microsoft_word": "read_connected_document_layout_and_optionally_repaginate"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "live_document_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "object_kind": {
+            "enum": ["all", "floating", "inline", "smartart", "group", "picture", "chart", "ole", "canvas", "other"],
+            "default": "all",
+            "description": "Filter root drawing objects by their high-level Word kind. Group members and SmartArt-generated shapes are nested evidence, not root matches."
+          },
+          "story_type": {
+            "enum": ["all", "main_text", "footnotes", "endnotes", "comments", "text_frames", "even_page_headers", "primary_headers", "even_page_footers", "primary_footers", "first_page_headers", "first_page_footers", "footnote_separator", "footnote_continuation_separator", "footnote_continuation_notice", "endnote_separator", "endnote_continuation_separator", "endnote_continuation_notice"],
+            "default": "all"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 25
+          },
+          "repaginate": {
+            "type": "boolean",
+            "default": true,
+            "description": "Ask Word to refresh pagination before reading layout. This does not edit document content."
+          },
+          "include_group_items": {
+            "type": "boolean",
+            "default": false,
+            "description": "Return up to 128 nested group members per response, with group-local coordinates."
+          },
+          "include_smartart_nodes": {
+            "type": "boolean",
+            "default": false,
+            "description": "Return up to 128 semantic SmartArt nodes and 256 associated rendered shapes per response."
+          },
+          "include_text": {
+            "type": "boolean",
+            "default": false,
+            "description": "Return bounded shape names, titles, alternative text, and SmartArt node text. The shared response text budget is 4,096 characters."
+          },
+          "max_text_chars": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 512,
+            "default": 160
+          },
+          "include_screen_pixels": {
+            "type": "boolean",
+            "default": false,
+            "description": "Attempt Word Window.GetPoint for at most 10 returned roots. Results depend on the active window and visible viewport and may be unavailable off-screen."
+          }
+        },
+        "required": ["live_document_id"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "live_document_id", "live_version", "layout_source", "repagination", "geometry_contract", "scan", "counts", "items", "diagnostics", "disclosure", "document", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.inspect_live_word_drawing_layout/1.0"},
+              "live_document_id": {"type": "string", "maxLength": 128},
+              "live_version": {"type": "integer", "minimum": 0},
+              "layout_source": {"const": "microsoft_word_object_model"},
+              "repagination": {"type": "object"},
+              "geometry_contract": {"type": "object"},
+              "scan": {"type": "object"},
+              "counts": {"type": "object"},
+              "items": {"type": "array", "maxItems": 100, "items": {"type": "object"}},
+              "diagnostics": {"type": "object"},
+              "disclosure": {"type": "object"},
+              "document": {"type": "object"},
+              "performance": {"type": "object"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
       },
       "annotations": {
         "readOnlyHint": true,

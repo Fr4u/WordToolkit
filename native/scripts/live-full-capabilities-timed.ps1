@@ -35,6 +35,7 @@ $nativeTools = @(
     "inspect_live_word_document",
     "map_live_word_structures",
     "inspect_live_word_structure_items",
+    "inspect_live_word_drawing_layout",
     "inspect_live_word_equation_learning",
     "inspect_live_word_structure_learning",
     "inspect_live_word_object_model_types",
@@ -95,6 +96,7 @@ $exposedTools = @(
     "get_wordtoolkit_capabilities"
 )
 $catalogNames = @()
+$availableActionCount = 0
 
 $toolStats = [ordered]@{}
 foreach ($name in $nativeTools) {
@@ -384,6 +386,21 @@ try {
             $search.result.structuredContent.data.match_count -gt 0
         ) `
         -Message "The lazy action search gateway returned no equation actions"
+    $capabilityManifest = Invoke-Mcp `
+        -Method "tools/call" `
+        -Params @{
+            name = "get_wordtoolkit_capabilities"
+            arguments = @{ limit = 1 }
+        }
+    Assert-True `
+        -Condition (
+            -not $capabilityManifest.result.isError -and
+            [int]$capabilityManifest.result.structuredContent.data.operation_count -ge $nativeTools.Count
+        ) `
+        -Message "Capability discovery did not report the complete native action set"
+    $script:availableActionCount = [int](
+        $capabilityManifest.result.structuredContent.data.operation_count
+    )
     foreach ($name in $nativeTools) {
         $inspection = Invoke-Mcp `
             -Method "tools/call" `
@@ -1156,6 +1173,31 @@ try {
         -Condition $image.image.native_verified `
         -Message "Word did not verify the inline image"
 
+    $stage = "inspect Word-executed drawing layout"
+    $drawingLayout = Invoke-TimedTool `
+        -Name "inspect_live_word_drawing_layout" `
+        -Arguments @{
+            live_document_id = $documentId
+            object_kind = "inline"
+            story_type = "all"
+            limit = 10
+            repaginate = $true
+            include_group_items = $false
+            include_smartart_nodes = $false
+            include_text = $false
+            include_screen_pixels = $false
+        }
+    Assert-True `
+        -Condition (
+            $drawingLayout.layout_source -eq "microsoft_word_object_model" -and
+            $drawingLayout.repagination.performed -and
+            $drawingLayout.scan.returned_count -ge 1 -and
+            $drawingLayout.counts.by_collection_kind.inline -ge 1 -and
+            -not $drawingLayout.disclosure.raw_xml_returned -and
+            -not $drawingLayout.disclosure.raw_com_objects_returned
+        ) `
+        -Message "Word-executed inline drawing layout was not projected safely"
+
     $stage = "insert a native footnote"
     $footnote = Invoke-TimedTool `
         -Name "insert_live_word_note" `
@@ -1756,7 +1798,7 @@ try {
     $report.total_seconds = [Math]::Round($totalWatch.Elapsed.TotalSeconds, 3)
     $report.total_mcp_requests = $requestId
     $report.exposed_tool_count = $script:catalogNames.Count
-    $report.available_action_count = 85
+    $report.available_action_count = $availableActionCount
     $report.exercised_live_action_count = $nativeTools.Count
     $report.positive_tools_passed = $positivePassed
     $report.safety_guard_tools_passed = $safetyGuardPassCount

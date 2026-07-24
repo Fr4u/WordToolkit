@@ -214,6 +214,26 @@ Word, executes page layout, decodes images or embedded packages, follows externa
 evaluates fields or executes active content. Deleted figures/captions remain visible but
 are not selected. Treat missing/ambiguous relationships and unmodeled payloads as evidence,
 not permission to guess or delete preserved content.
+When declared DrawingML/VML placement is insufficient and the document is already
+connected to Microsoft Word, use lazy `inspect_live_word_drawing_layout`. It asks that
+installed Word build to repaginate by default and returns bounded high-level objects,
+not XML or COM. Start with `object_kind=all`, the required story scope and a small page;
+then narrow to `floating`, `inline`, `group`, `smartart`, `picture`, `chart`, `ole`,
+`canvas` or `other`. Floating coordinates remain tied to their reported page, margin,
+column, character, paragraph or line reference. Treat `page_relative_bounds_points` as
+page geometry only when the action emitted it; the action withholds that box unless both
+references are the page and both positions are numeric offsets. Group-child coordinates
+are group-local. Inline range positions and optional `Window.GetPoint` pixels depend on
+the active visible viewport; pixels are never page geometry and `include_screen_pixels`
+requires `limit<=10`. Request `include_group_items` or `include_smartart_nodes` only when
+the next decision consumes them. Names, titles, alternative text and SmartArt node text
+are not read unless `include_text=true`; one 4,096-character response budget covers all
+such text. Root scans stop at 10,000 objects, group members at 128, SmartArt nodes at 128
+and associated SmartArt shapes at 256. Runtime `wdlo_` locators are traversal-scoped, not
+durable package IDs. Word may normalize declared OOXML groups or diagrams into different
+runtime object kinds, so compare the live projection with `inspect_ooxml_figures` or
+`inspect_ooxml_diagrams` when provenance matters and report disagreements instead of
+forcing a false one-to-one join.
 Use lazy `inspect_ooxml_content_controls` instead of reading `w:sdt`, `dataBinding`,
 `customXml` or item-properties XML yourself. Start with `view=summary`; page `controls`,
 `stores`, `bindings`, `targets`, `repeating_sections` or `issues` only when the next

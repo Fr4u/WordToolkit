@@ -19,6 +19,7 @@ path, save-policy and confirmation checks.
 | `inspect_live_word_document` | Read live metadata, paragraph/table/equation counts and save state. |
 | `map_live_word_structures` | Inventory all Word stories and broad document collections without returning content. |
 | `inspect_live_word_structure_items` | Read one bounded page of semantic metadata from any mapped native collection. |
+| `inspect_live_word_drawing_layout` | Read Word-executed floating, inline, group and optional SmartArt layout without returning COM or XML. |
 | `inspect_live_word_equation_learning` | Inspect privacy-preserving aggregate native-equation outcomes. |
 | `inspect_live_word_structure_learning` | Inspect aggregate native-type scan evidence and the adaptive rescan policy. |
 | `inspect_live_word_object_model_types` | Query a paged catalog of types in the installed Word COM type library. |
@@ -86,7 +87,7 @@ recognized. The converter emits U+2146 `ⅆ` and an invisible Word operand group
 or leaving it outside the integral body. A generic plain `d` is not silently
 reinterpreted as a differential.
 
-These 48 native desktop tools are absent from the remote HTTP MCP server.
+These 49 native desktop tools are absent from the remote HTTP MCP server.
 
 ## Native find and transactional replace
 
@@ -131,6 +132,40 @@ with body-length text, page-break-before on body paragraphs, oversized
 keep-together paragraphs, disabled widow control, runs of empty paragraphs,
 manual page breaks and heading-style overuse. Issues cap at 2,000 and report
 paragraph numbers, styles, lengths and severity.
+
+## Word-executed drawing layout
+
+`inspect_live_word_drawing_layout` is the bridge between declared OOXML placement and
+the object layout calculated by the connected Microsoft Word build. It can repaginate
+the document, then scan at most 10,000 root drawing objects across the main story and
+linked Word stories. Results are paged to at most 100 roots and classify floating
+`Shape` objects separately from character-like `InlineShape` objects.
+
+Floating results include the anchor range, page and section, size, rotation, visibility,
+z-order, page/margin/column/character or paragraph/line position references, alignment
+constants versus numeric point offsets, relative percentages when defined, wrapping and
+conditional page-relative bounds. A page-relative box is emitted only when both reference
+frames are the page and both positions are numeric. Group members are optional, flattened
+to at most 128 entries and explicitly use group-local coordinates.
+
+Inline objects remain in text-flow coordinates. Word's page-relative range positions are
+returned only when Word reports a nonnegative visible value; they are marked viewport
+dependent because Word returns `-1` for off-screen ranges. Optional `Window.GetPoint`
+screen rectangles are limited to ten roots, can fail when the whole object is not visible,
+and are always labelled pixels of the active window rather than page geometry.
+
+SmartArt node projection is a separate opt-in capped at 128 semantic nodes and 256
+associated rendered shapes. It exposes hierarchy level, hidden/type state, child count
+and SmartArt-layout coordinates. Names, titles, alternative text and node text are not
+even read unless `include_text=true`; a shared 4,096-character response budget and
+512-character field ceiling then apply. Raw XML, raw COM objects and external fetches
+have no response path.
+
+This is authoritative only for the installed Word build, fonts, printer/layout settings,
+view and current connected version. Traversal IDs are runtime locators, not durable OOXML
+IDs. Word may normalize declared DrawingML/VML group nodes into different runtime shape
+types, so package and live inspection must remain separate and both discrepancies must be
+reported.
 
 ## Guarded WordToolkit Undo
 

@@ -213,6 +213,25 @@ try {
         throw "Image was not verified"
     }
 
+    $stage = "inspect Word-executed drawing layout"
+    $drawingLayout = Invoke-Tool `
+        -Name "inspect_live_word_drawing_layout" `
+        -Arguments @{
+            live_document_id = $documentId
+            object_kind = "inline"
+            limit = 10
+            repaginate = $true
+            include_text = $false
+            include_screen_pixels = $false
+        }
+    if (
+        $drawingLayout.layout_source -ne "microsoft_word_object_model" -or
+        $drawingLayout.scan.returned_count -lt 1 -or
+        $drawingLayout.disclosure.raw_xml_returned
+    ) {
+        throw "Word-executed drawing layout inspection failed"
+    }
+
     $stage = "set header"
     $header = Invoke-Tool `
         -Name "set_live_word_header_footer" `
@@ -394,7 +413,7 @@ try {
         }
     }
 
-    $report.exercised_live_action_count = 48
+    $report.exercised_live_action_count = 49
     $report.start_word = $true
     $report.open_close = $true
     $report.comment = $true

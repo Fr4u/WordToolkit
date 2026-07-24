@@ -128,7 +128,7 @@ The Docker image builds the Microsoft Open XML SDK validator. A Python-only run 
 6. Plugin manifest validates.
 7. Container health and unauthenticated MCP rejection are verified.
 8. Before publishing a release, the tag/manual Windows/Word workflow passes its full
-   48-action live gate on the exact packaged runtime. A sample open/resave is not a
+   49-action live gate on the exact packaged runtime. A sample open/resave is not a
    substitute for this evidence.
 9. The tested plugin directory remains free of `.venv`, `__pycache__` and
    `.pyc`; after installation, the runtime's editable path resolves to the

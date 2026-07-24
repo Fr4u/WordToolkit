@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- Added lazy `inspect_live_word_drawing_layout` as native action 95. The connected
+  Microsoft Word build can repaginate and project bounded floating/inline objects,
+  anchors, page/section placement, reference-aware positions, wrapping, group members
+  and optional SmartArt semantic nodes plus their associated runtime shapes without
+  returning COM or XML.
+- Kept coordinate claims fail-closed. Alignment constants are distinct from point
+  offsets; a page-relative box requires page/page references and numeric positions;
+  group members use group-local coordinates; visible range positions and optional
+  `Window.GetPoint` pixels are explicitly viewport-dependent and never page geometry.
+  Root, group, SmartArt and diagnostic scans have independent hard ceilings.
+- Drawing text is private by construction: names, titles, alternative text and SmartArt
+  node text are not accessed unless `include_text=true`, then share one 4,096-character
+  response budget. Three fake-COM regressions cover group/SmartArt/inline/floating
+  projection, the viewport cost gate and zero sensitive getter access by default. A real
+  Word proof over `lo_groupshape_sdt.docx` preserved the source SHA-256 and exposed the
+  honest normalization boundary between two declared VML group nodes and one runtime
+  group plus one `msoAutoShape`.
+
 - Added a bounded declared shape model inside the existing figure graph. Stable `wdsh_`
   nodes preserve Wordprocessing group/canvas, DrawingML shape and VML group/shape
   topology; typed data covers transforms, recognized presets, custom path commands and

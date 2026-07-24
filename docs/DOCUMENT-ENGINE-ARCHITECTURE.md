@@ -729,10 +729,11 @@ formulas and paired measurements are recorded in
 `RESEARCH-DEPENDENCY-GRAPH-MEMORY-2026.md`.
 
 Coverage is explicit. Active-content payload/declaration/ActiveX topology, declared
-DrawingML/VML placement and nested shape topology plus SmartArt structure/topology are inside the graph, while
-active-content binary internals/execution, rendered drawing geometry/layout execution,
-SmartArt layout execution/rendering/mutation, signature cryptographic validation/resigning, encryption and co-authoring
-sessions remain outside it. Bibliography collection/source nodes and unique-tag `CITATION` resolution are inside the
+DrawingML/VML placement and nested shape topology plus SmartArt structure/topology are inside the saved-package graph, while
+active-content binary internals/execution, live/rendered drawing nodes and layout edges,
+SmartArt layout mutation, signature cryptographic validation/resigning, encryption and co-authoring
+sessions remain outside that graph. A separate live Word projection reads bounded object-model layout execution without
+pretending that runtime shapes have durable graph identity. Bibliography collection/source nodes and unique-tag `CITATION` resolution are inside the
 graph; bibliography rendering and mutation are not. Office 2016 extended charts are preserved and
 diagnosed, but are not projected as classic chart nodes.
 
@@ -784,6 +785,35 @@ graph consumes these objects without upgrading candidate/ambiguous associations 
 resolved edges. The full inference policy, limits, benchmark and exclusions are in
 `FIGURE-CAPTION-GRAPH.md`; source and competitor evidence is in
 `RESEARCH-FIGURES-CAPTIONS-2026.md`.
+
+### Live Word drawing-layout projection
+
+`wordtoolkit.inspect_live_word_drawing_layout/1.0` complements the package figure and
+diagram graphs. It attaches only to an already connected document, optionally calls
+Word's complete-document `Repaginate`, and walks document-level floating/inline
+collections for the main story plus range-scoped collections for linked stories. One
+10,000-root scan ceiling, offset paging and a 100-root response ceiling bound the work.
+
+The projection interprets `Shape.Left`/`Top` as either Word alignment constants or point
+offsets and retains the matching horizontal/vertical reference frames. It emits a
+page-relative box only for page/page reference frames with numeric offsets. Wrapping,
+anchor, page/section, rotation, z-order, visibility and size remain typed. Inline shapes
+stay in text-flow space. `Range.Information` x/y and optional `Window.GetPoint` pixels are
+marked viewport-dependent; `GetPoint` is capped to ten roots and never becomes a page-
+geometry claim.
+
+Optional group expansion is flattened to 128 members/depth 16 with group-local
+coordinates. Optional SmartArt expansion retains at most 128 semantic nodes and 256
+associated shapes in SmartArt-layout coordinates. Shape names, title/alternative text
+and SmartArt node text are not read unless explicitly requested, then share one 4,096-
+character response budget. Raw COM objects, raw XML and external content have no return
+path.
+
+Runtime `wdlo_` IDs are traversal/version scoped. They are not joined automatically to
+package `wdsh_` or SmartArt point IDs because Microsoft Word may normalize a declared
+VML/DrawingML group into a different runtime kind. The checked fixture proves that
+boundary: two declared group nodes become one runtime group plus one `msoAutoShape`.
+See `RESEARCH-LIVE-WORD-DRAWING-LAYOUT-2026.md` for primary sources and evidence.
 
 ### Classic chart graph
 
@@ -1146,7 +1176,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 94 actions already have public SDK
+These are proved migration seams, not a claim that all 95 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.

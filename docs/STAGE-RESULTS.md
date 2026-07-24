@@ -1,5 +1,44 @@
 # Stage results
 
+## Word-executed drawing layout — 2026-07-24
+
+- Added `wordtoolkit.inspect_live_word_drawing_layout/1.0` as native action 95. It
+  projects bounded layout evidence calculated by the connected Microsoft Word build for
+  floating shapes, inline shapes, groups and optional SmartArt nodes. Positions preserve
+  their Word reference frame and distinguish alignment constants from point offsets;
+  viewport pixels remain a separate explicit opt-in and are never called page geometry.
+- The action caps the root scan at 10,000, output at 100, group expansion at 128 members
+  and depth 16, SmartArt expansion at 128 nodes and 256 associated shapes, diagnostics at
+  100 and opt-in text at 4,096 characters. Text-bearing COM getters are not called when
+  `include_text=false`. Raw XML, raw COM objects and external content are never returned.
+- Full gates pass **488 Engine tests**, **329 Native tests** and **1,309 Python/OOXML
+  tests**, with 16 intentional environment/model skips. Ruff is clean. The PowerShell
+  5.1 acceptance scripts parse without errors, the native schema exposes 95 actions and
+  `git diff --check` reports no whitespace errors.
+- Two pinned .NET SDK 8.0.423 builds produced byte-identical 196-file,
+  86,518,137-byte expanded trees and 36,600,389-byte ZIPs. The archive SHA-256 is
+  `b7e9476d605e630c370e76a8982f9efac99579b281c9b4048bb2447cfce13952`;
+  the executable SHA-256 is
+  `b07d2d666cd5cbdc73a3c904ed57c59acea31589f3d9449317f3a62bfe3f589b` and
+  the runtime assembly SHA-256 is
+  `8511af2b7069add7dd0bdc0e0331500a1e0e88043a60fca75fbac483edf146a0`.
+  All trees contain zero Python runtime files.
+- The complete 49-action licensed Word gate passed on the packaged runtime in 51.614
+  seconds. Capability discovery returned 95 actions; the gate produced a validated DOCX,
+  a 166,264-byte PDF, 49 paragraphs, one table, 12 editable equations, one image, one
+  comment, one footnote and one endnote, then closed only its own document. The existing
+  Word process ID was unchanged before and after the run.
+- The personal source and enabled cache at `0.39.0+codex.20260724063719` each contain
+  the same 196 files with zero path/length/hash differences from the release tree. A cold
+  installed-runtime proof over `lo_groupshape_sdt.docx` returned one floating Word group
+  and one group-local child normalized to native `msoAutoShape`, page 1/section 1,
+  150.2 by 815.35 points, right-aligned relative to the page, -44.25 points relative to
+  the paragraph and in-front-of-text wrapping. The response was exact and untruncated,
+  had zero diagnostics and returned no sensitive text, XML or COM objects. The source
+  hash remained
+  `83c47ec672afd0bce726f90582f40ebe96e10514c1f6da3bfec5bc9507db456c`,
+  and the pre-existing Word process remained running.
+
 ## Declared DrawingML/VML shape topology and path model — 2026-07-24
 
 - Extended `WordFigureCaptionGraph` instead of adding a competing graph. Shape

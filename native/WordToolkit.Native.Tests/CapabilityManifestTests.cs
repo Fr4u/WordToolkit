@@ -48,16 +48,16 @@ public sealed class CapabilityManifestTests
 
         Assert.Equal("wordtoolkit.capabilities/1.0", manifest["contract_schema"]!.GetValue<string>());
         Assert.Equal("1.0.0", manifest["contract_schema_version"]!.GetValue<string>());
-        Assert.Equal(94, manifest["operation_count"]!.GetValue<int>());
+        Assert.Equal(95, manifest["operation_count"]!.GetValue<int>());
         Assert.Equal(15, manifest["exposed_mcp_tool_count"]!.GetValue<int>());
         Assert.Equal(12, manifest["operations"]!.AsArray().Count);
         Assert.Equal(12, manifest["paging"]!["next_offset"]!.GetValue<int>());
-        Assert.Equal(94, manifest["metadata_coverage"]!["input_schema"]!.GetValue<int>());
-        Assert.Equal(94, manifest["metadata_coverage"]!["mcp_effect_annotations"]!.GetValue<int>());
-        Assert.Equal(7, manifest["metadata_coverage"]!["explicit_output_schema"]!.GetValue<int>());
-        Assert.Equal(7, manifest["metadata_coverage"]!["explicit_permissions"]!.GetValue<int>());
-        Assert.Equal(7, manifest["metadata_coverage"]!["explicit_reversibility"]!.GetValue<int>());
-        Assert.Equal(7, manifest["metadata_coverage"]!["explicit_operation_version"]!.GetValue<int>());
+        Assert.Equal(95, manifest["metadata_coverage"]!["input_schema"]!.GetValue<int>());
+        Assert.Equal(95, manifest["metadata_coverage"]!["mcp_effect_annotations"]!.GetValue<int>());
+        Assert.Equal(8, manifest["metadata_coverage"]!["explicit_output_schema"]!.GetValue<int>());
+        Assert.Equal(8, manifest["metadata_coverage"]!["explicit_permissions"]!.GetValue<int>());
+        Assert.Equal(8, manifest["metadata_coverage"]!["explicit_reversibility"]!.GetValue<int>());
+        Assert.Equal(8, manifest["metadata_coverage"]!["explicit_operation_version"]!.GetValue<int>());
         Assert.Equal(
             "operation-specific",
             manifest["format_support"]!["scope"]!.GetValue<string>()
@@ -395,6 +395,9 @@ public sealed class CapabilityManifestTests
         var count = ToolCatalog.LoadNativeWordTools()
             .GetCapabilities(null, 0, 1)["operation_count"]!
             .GetValue<int>();
+        var explicitMetadataCount = ToolCatalog.LoadNativeWordTools()
+            .GetCapabilities(null, 0, 1)["metadata_coverage"]!["explicit_output_schema"]!
+            .GetValue<int>();
         var readme = File.ReadAllText(Path.Combine(repositoryRoot, "README.md"));
         var architecture = File.ReadAllText(Path.Combine(
             repositoryRoot,
@@ -415,10 +418,13 @@ public sealed class CapabilityManifestTests
         Assert.Contains($"{count}-action schema set", readme);
         Assert.Contains($"all {count} actions", architecture);
         Assert.Contains($"for {count} actions", audit);
-        Assert.Contains($"remaining {count - 7} actions", audit);
+        Assert.Contains($"remaining {count - explicitMetadataCount} actions", audit);
         Assert.Contains($"native {count}-action subset", interoperability);
         Assert.Contains($"all {count} schemas", interoperability);
-        Assert.Contains($"remaining {count - 7} are still uncovered", interoperability);
+        Assert.Contains(
+            $"remaining {count - explicitMetadataCount} are still uncovered",
+            interoperability
+        );
     }
 
     private static string FindRepositoryRoot()
