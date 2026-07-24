@@ -95,8 +95,24 @@ I&=\operatorname{Im}\left[e^{(2+3i)x}\left(\frac{x^3}{2+3i}-\frac{3x^2}{(2+3i)^2
                     {
                         live_document_id = documentId,
                         expected_version = version,
-                        operations = new[]
+                        operations = new object[]
                         {
+                            new
+                            {
+                                type = "text",
+                                text = "Dowód przez postać zespoloną",
+                                as_new_paragraph = true,
+                                formatting = new
+                                {
+                                    font_name = "Arial",
+                                    font_size_pt = 14,
+                                    font_color_rgb = "#17365D",
+                                    bold = true,
+                                    paragraph_alignment = "center",
+                                    space_after_pt = 8,
+                                    keep_with_next = true,
+                                },
+                            },
                             new
                             {
                                 type = "equation",
@@ -104,6 +120,19 @@ I&=\operatorname{Im}\left[e^{(2+3i)x}\left(\frac{x^3}{2+3i}-\frac{3x^2}{(2+3i)^2
                                 input_format = "latex",
                                 display = true,
                                 verify_readback = true,
+                            },
+                            new
+                            {
+                                type = "text",
+                                text = "Koniec zweryfikowanego wyprowadzenia.",
+                                as_new_paragraph = true,
+                                formatting = new
+                                {
+                                    font_name = "Arial",
+                                    font_size_pt = 10.5,
+                                    italic = true,
+                                    paragraph_alignment = "left",
+                                },
                             },
                         },
                     }
@@ -118,7 +147,16 @@ I&=\operatorname{Im}\left[e^{(2+3i)x}\left(\frac{x^3}{2+3i}-\frac{3x^2}{(2+3i)^2
             }
             using (applied)
             {
-                var operation = applied.RootElement.GetProperty("operations")[0]
+                Assert.Equal(3, applied.RootElement.GetProperty("operation_count").GetInt32());
+                Assert.Equal(
+                    2,
+                    applied.RootElement.GetProperty("text_operation_count").GetInt32()
+                );
+                Assert.Equal(
+                    1,
+                    applied.RootElement.GetProperty("equation_operation_count").GetInt32()
+                );
+                var operation = applied.RootElement.GetProperty("operations")[1]
                     .GetProperty("equation");
                 Assert.True(operation.GetProperty("native_verified").GetBoolean());
                 Assert.True(operation.GetProperty("readback_verified").GetBoolean());
@@ -156,6 +194,33 @@ I&=\operatorname{Im}\left[e^{(2+3i)x}\left(\frac{x^3}{2+3i}-\frac{3x^2}{(2+3i)^2
                 {
                     // Preserve the acceptance failure; the COM host is still disposed.
                 }
+            }
+            try
+            {
+                await host.InvokeAsync(
+                    application =>
+                    {
+                        for (var index = (int)application.Documents.Count; index >= 1; index--)
+                        {
+                            dynamic candidate = application.Documents.Item(index);
+                            if (
+                                string.Equals(
+                                    (string?)candidate.FullName,
+                                    path,
+                                    StringComparison.OrdinalIgnoreCase
+                                )
+                            )
+                            {
+                                candidate.Close(0);
+                            }
+                        }
+                        return true;
+                    }
+                );
+            }
+            catch
+            {
+                // Preserve the primary acceptance failure.
             }
             if (File.Exists(path))
             {

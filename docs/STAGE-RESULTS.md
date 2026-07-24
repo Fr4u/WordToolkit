@@ -1,5 +1,38 @@
 # Stage results
 
+## Complete staged live-batch publication — 2026-07-24
+
+- Replaced equation-only staging with a full Flat OPC clone of the current target. Text,
+  paragraph boundaries, styles, all supported formatting properties and native OMath are
+  built and verified in that isolated Word document before the target is touched.
+- The target receives the candidate through one cross-document `Range.FormattedText`
+  assignment. Before `live_version` advances, readback proves exact published length and
+  text fingerprint, operation ranges, requested formatting, global/range-local equation
+  counts, display type, scoped equation styles and optional semantic equation contracts.
+- The clone opens with macros and link updates disabled, must close without saving and its
+  temporary Flat OPC file must be deleted. Full target Flat OPC/text/structure is checked
+  before publication. Hidden drift during staging returns `ROLLBACK_FAILED`, quarantines
+  the identity and never risks undoing unrelated user history.
+- Fourteen focused tests cover exact/partial/visible-only/false/throwing Undo, failed
+  custom-record closure, isolated equation rejection, success through exactly one target
+  assignment with zero target-side OMath builds, rejection before target mutation,
+  failed-open artifact deletion and hidden target drift during staging. The full gates
+  pass **504 Engine**, **386 Native**
+  and **1,309 Python tests**, with **16 intentional Python skips**; Ruff passes.
+- Real Word 16.0 published two independently formatted paragraphs and the eight-line
+  complex integral derivation in one staged batch. Post-publication semantic readback
+  proved all six native integrals, all six differentials and their lower-baseline
+  placement. This is direct Word evidence, not only fake-COM evidence.
+- Installed runtime `0.39.0+codex.20260724145815` reports 107 actions, 15 exposed tools
+  and 20 explicit metadata contracts. Build, personal marketplace source and enabled
+  cache are identical at 196 files and 87,034,206 bytes with zero path, length or hash
+  differences. The 36,728,895-byte ZIP SHA-256 is
+  `a50ce87d6af00dae4e8ffe502b6969de70aeceb4d2f920f42038da3af6c13586`.
+- One boundary remains open: a partially applied `FormattedText` publication cannot yet
+  be independently reconstructed when Word also lacks byte-exact Undo. WordToolkit now
+  reports `ROLLBACK_FAILED` and quarantines that state; it does not call the document
+  clean or allow the agent to continue.
+
 ## Operation-wide verified Word rollback — 2026-07-24
 
 - Removed the legacy rollback helper that closed a custom record, called `Undo(1)` once

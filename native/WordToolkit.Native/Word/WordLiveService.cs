@@ -2908,12 +2908,12 @@ internal sealed partial class WordLiveService : IToolHandler
                     selectionToken,
                     replaceSelection
                 );
-                StagePreparedEquations(application, operations);
                 var insertionStart = (int)targetRange.Start;
+                var insertionEnd = (int)targetRange.End;
                 var rollbackSnapshot = CaptureLiveRollbackSnapshot(
                     document,
                     insertionStart,
-                    (int)targetRange.End,
+                    insertionEnd,
                     record.Version
                 );
                 var pieces = new List<string>(operations.Count);
@@ -2942,7 +2942,64 @@ internal sealed partial class WordLiveService : IToolHandler
                     }
                 }
                 var payload = string.Concat(pieces);
+                StagedPreparedBatch? staged = null;
+                var stagingOpen = false;
+                try
+                {
+                    staged = StagePreparedBatch(
+                        application,
+                        document,
+                        operations,
+                        payload,
+                        segments
+                    );
+                    stagingOpen = true;
+                    EnsureTargetUnchangedBeforePublication(
+                        document,
+                        rollbackSnapshot,
+                        record
+                    );
+                }
+                catch (Exception stagingException)
+                {
+                    Exception effectiveException = stagingException;
+                    if (staged is not null && stagingOpen)
+                    {
+                        try
+                        {
+                            CloseStagedPreparedBatch(
+                                staged,
+                                targetMutationAttempted: false
+                            );
+                        }
+                        catch (Exception cleanupException)
+                        {
+                            effectiveException = cleanupException;
+                        }
+                        stagingOpen = false;
+                    }
+                    if (
+                        effectiveException is NativeToolException
+                        {
+                            ErrorCode: "ROLLBACK_FAILED"
+                        }
+                    )
+                    {
+                        throw effectiveException;
+                    }
+                    EnsureTargetUnchangedBeforePublication(
+                        document,
+                        rollbackSnapshot,
+                        record,
+                        effectiveException
+                    );
+                    throw effectiveException;
+                }
+
+                var beforeContentEnd = (int)document.Content.End;
                 var beforeEquations = (int)document.OMaths.Count;
+                var replacedEquations = (int)targetRange.OMaths.Count;
+                var replacedLength = insertionEnd - insertionStart;
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 var mutationAttempted = false;
@@ -2961,7 +3018,70 @@ internal sealed partial class WordLiveService : IToolHandler
                     undoRecord.StartCustomRecord("WordToolkit: native mixed live batch");
                     undoStarted = true;
                     mutationAttempted = true;
-                    targetRange.Text = payload;
+                    dynamic stagedRange = staged!.PublicationRange;
+                    targetRange.FormattedText = stagedRange.FormattedText;
+
+                    CloseStagedPreparedBatch(staged, targetMutationAttempted: true);
+                    stagingOpen = false;
+                    document.Activate();
+
+                    var afterContentEnd = (int)document.Content.End;
+                    var publishedLength = afterContentEnd - beforeContentEnd + replacedLength;
+                    if (publishedLength != staged.PublicationLength)
+                    {
+                        throw new NativeToolException(
+                            "PUBLICATION_INVALID",
+                            "Microsoft Word published a different range length than the verified isolated batch",
+                            new
+                            {
+                                expected_length = staged.PublicationLength,
+                                actual_length = publishedLength,
+                                raw_document_content_returned = false,
+                            }
+                        );
+                    }
+                    dynamic publishedRange = document.Range(
+                        insertionStart,
+                        insertionStart + publishedLength
+                    );
+                    if (
+                        !string.Equals(
+                            staged.TextSha256,
+                            RollbackSha256((string?)publishedRange.Text ?? ""),
+                            StringComparison.Ordinal
+                        )
+                    )
+                    {
+                        throw new NativeToolException(
+                            "PUBLICATION_INVALID",
+                            "Microsoft Word changed staged text during live publication",
+                            new { raw_document_content_returned = false }
+                        );
+                    }
+
+                    var expectedEquationCount =
+                        beforeEquations - replacedEquations + staged.EquationIndexes.Count;
+                    var afterEquations = (int)document.OMaths.Count;
+                    var publishedEquations = (int)publishedRange.OMaths.Count;
+                    if (
+                        afterEquations != expectedEquationCount
+                        || publishedEquations != staged.EquationIndexes.Count
+                    )
+                    {
+                        throw new NativeToolException(
+                            "EQUATION_INVALID",
+                            "Microsoft Word did not preserve the staged native equation set during publication",
+                            new
+                            {
+                                before = beforeEquations,
+                                replaced = replacedEquations,
+                                after = afterEquations,
+                                expected = expectedEquationCount,
+                                published = publishedEquations,
+                                expected_published = staged.EquationIndexes.Count,
+                            }
+                        );
+                    }
 
                     for (var index = 0; index < operations.Count; index++)
                     {
@@ -2969,49 +3089,47 @@ internal sealed partial class WordLiveService : IToolHandler
                         {
                             continue;
                         }
-                        var segment = segments[index];
+                        var expectedRange = staged.OperationRanges[index];
                         dynamic inserted = document.Range(
-                            insertionStart + segment.Start,
-                            insertionStart + segment.End
+                            insertionStart + expectedRange.Start,
+                            insertionStart + expectedRange.End
                         );
-                        if (textOperation.Style.Length > 0)
-                        {
-                            inserted.Style = textOperation.Style;
-                        }
-                        if (textOperation.Formatting is not null)
-                        {
-                            ApplyFormatting(inserted, textOperation.Formatting.Value);
-                        }
+                        VerifyPublishedTextOperation(
+                            inserted,
+                            textOperation,
+                            expectedRange,
+                            index
+                        );
                         textRanges[index] = (object)inserted;
                     }
-
-                    var equationIndexes = Enumerable.Range(0, operations.Count)
-                        .Where(index => operations[index] is PreparedEquationOperation)
-                        .ToArray();
-                    for (var reverse = equationIndexes.Length - 1; reverse >= 0; reverse--)
+                    for (var ordinal = 0; ordinal < staged.EquationIndexes.Count; ordinal++)
                     {
-                        var index = equationIndexes[reverse];
-                        var equationOperation = (PreparedEquationOperation)operations[index];
-                        var segment = segments[index];
-                        builtEquations[index] = BuildVerifiedNativeEquation(
-                            document,
-                            insertionStart + segment.Start,
-                            insertionStart + segment.End,
-                            equationOperation
-                        );
-                    }
-                    var afterEquations = (int)document.OMaths.Count;
-                    if (afterEquations != beforeEquations + equationIndexes.Length)
-                    {
-                        throw new NativeToolException(
-                            "EQUATION_INVALID",
-                            "Microsoft Word did not create the expected number of native equations",
-                            new
-                            {
-                                before = beforeEquations,
-                                after = afterEquations,
-                                expected = equationIndexes.Length,
-                            }
+                        var index = staged.EquationIndexes[ordinal];
+                        dynamic equation = publishedRange.OMaths.Item(ordinal + 1);
+                        var expectedRange = staged.OperationRanges[index];
+                        var actualStart = (int)equation.Range.Start;
+                        var actualEnd = (int)equation.Range.End;
+                        if (
+                            actualStart != insertionStart + expectedRange.Start
+                            || actualEnd != insertionStart + expectedRange.End
+                        )
+                        {
+                            throw new NativeToolException(
+                                "EQUATION_INVALID",
+                                "Microsoft Word moved or resized a staged equation during publication",
+                                new
+                                {
+                                    operation_index = index,
+                                    expected_start = insertionStart + expectedRange.Start,
+                                    expected_end = insertionStart + expectedRange.End,
+                                    actual_start = actualStart,
+                                    actual_end = actualEnd,
+                                }
+                            );
+                        }
+                        builtEquations[index] = VerifyPublishedEquation(
+                            equation,
+                            staged.Equations[index]
                         );
                     }
                     for (var index = 0; index < operations.Count; index++)
@@ -3094,7 +3212,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     }
                     undoRecord.EndCustomRecord();
                     undoStarted = false;
-                    foreach (var equationIndex in equationIndexes)
+                    foreach (var equationIndex in staged.EquationIndexes)
                     {
                         var equationOperation =
                             (PreparedEquationOperation)operations[equationIndex];
@@ -3112,8 +3230,9 @@ internal sealed partial class WordLiveService : IToolHandler
                         live_document_id = record.Id,
                         live_version = record.Version,
                         operation_count = operations.Count,
-                        text_operation_count = operations.Count - equationIndexes.Length,
-                        equation_operation_count = equationIndexes.Length,
+                        text_operation_count = operations.Count
+                            - staged.EquationIndexes.Count,
+                        equation_operation_count = staged.EquationIndexes.Count,
                         operations = results,
                         document = DocumentInfo(application, document),
                         performance = Performance(started),
@@ -3121,6 +3240,30 @@ internal sealed partial class WordLiveService : IToolHandler
                 }
                 catch (Exception exception)
                 {
+                    Exception effectiveException = exception;
+                    if (stagingOpen)
+                    {
+                        try
+                        {
+                            CloseStagedPreparedBatch(
+                                staged!,
+                                targetMutationAttempted: mutationAttempted
+                            );
+                        }
+                        catch (Exception cleanupException)
+                        {
+                            effectiveException = cleanupException;
+                        }
+                        stagingOpen = false;
+                    }
+                    try
+                    {
+                        document.Activate();
+                    }
+                    catch
+                    {
+                        // Rollback verification below is authoritative.
+                    }
                     foreach (
                         var equationOperation in operations.OfType<PreparedEquationOperation>()
                     )
@@ -3138,9 +3281,9 @@ internal sealed partial class WordLiveService : IToolHandler
                         mutationAttempted,
                         rollbackSnapshot,
                         record,
-                        exception
+                        effectiveException
                     );
-                    throw;
+                    throw effectiveException;
                 }
                 finally
                 {
@@ -3152,92 +3295,6 @@ internal sealed partial class WordLiveService : IToolHandler
             },
             cancellationToken
         );
-    }
-
-    private static void StagePreparedEquations(
-        dynamic application,
-        IReadOnlyList<PreparedOperation> operations
-    )
-    {
-        var equationOperations = operations.OfType<PreparedEquationOperation>().ToArray();
-        if (equationOperations.Length == 0)
-        {
-            return;
-        }
-
-        dynamic? previousActiveDocument = null;
-        dynamic? stagingDocument = null;
-        Exception? stagingFailure = null;
-        try
-        {
-            try
-            {
-                previousActiveDocument = application.ActiveDocument;
-            }
-            catch
-            {
-                // Word can have no active document during a window transition.
-            }
-            stagingDocument = application.Documents.Add(Visible: false);
-            foreach (var operation in equationOperations)
-            {
-                var insertionStart = Math.Max(0, (int)stagingDocument.Content.End - 1);
-                dynamic payloadRange = stagingDocument.Range(insertionStart, insertionStart);
-                payloadRange.Text = operation.Value + "\r";
-                var beforeEquations = (int)stagingDocument.OMaths.Count;
-                _ = BuildVerifiedNativeEquation(
-                    stagingDocument,
-                    insertionStart,
-                    insertionStart + operation.Value.Length,
-                    operation
-                );
-                var afterEquations = (int)stagingDocument.OMaths.Count;
-                if (afterEquations != beforeEquations + 1)
-                {
-                    throw new NativeToolException(
-                        "EQUATION_INVALID",
-                        "Microsoft Word did not create exactly one native equation in the isolated staging document",
-                        new
-                        {
-                            before = beforeEquations,
-                            after = afterEquations,
-                            expected = 1,
-                            target_document_mutated = false,
-                        }
-                    );
-                }
-            }
-        }
-        catch (Exception exception)
-        {
-            stagingFailure = exception;
-            throw;
-        }
-        finally
-        {
-            if (stagingDocument is not null)
-            {
-                try
-                {
-                    stagingDocument.Close(WordDoNotSaveChanges);
-                }
-                catch when (stagingFailure is not null)
-                {
-                    // The original staging failure remains authoritative; the target was untouched.
-                }
-            }
-            if (previousActiveDocument is not null)
-            {
-                try
-                {
-                    previousActiveDocument.Activate();
-                }
-                catch when (stagingFailure is not null)
-                {
-                    // The original staging failure remains authoritative.
-                }
-            }
-        }
     }
 
     private static BuiltEquationResult BuildVerifiedNativeEquation(

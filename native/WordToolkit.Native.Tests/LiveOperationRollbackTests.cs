@@ -160,6 +160,7 @@ public sealed class LiveOperationRollbackTests
         Assert.Equal(1, host.Application.ActiveDocument.Paragraphs.Count);
         Assert.Equal(0, host.Application.ActiveDocument.OMaths.Count);
         Assert.Equal(0, host.Application.ActiveDocument.UndoCount);
+        Assert.Equal(0, host.Application.ActiveDocument.FormattedTextAssignments);
 
         using var inspectArguments = JsonDocument.Parse(
             JsonSerializer.Serialize(new { live_document_id = documentId })
@@ -173,6 +174,147 @@ public sealed class LiveOperationRollbackTests
             JsonSerializer.Serialize(result, JsonDefaults.Compact)
         );
         Assert.Equal(0, resultJson.RootElement.GetProperty("live_version").GetInt64());
+    }
+
+    [Fact]
+    public async Task SuccessfulMixedBatchPublishesOnceWithoutBuildingMathInTarget()
+    {
+        await using var host = new RollbackFakeHost(
+            RollbackBehavior.RestoreExact,
+            failTargetPublication: false
+        );
+        var service = new WordLiveService(host);
+        var documentId = await ConnectAsync(service);
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = 0,
+                    operations = new object[]
+                    {
+                        new
+                        {
+                            type = "text",
+                            text = "pierwszy akapit",
+                            as_new_paragraph = true,
+                        },
+                        new
+                        {
+                            type = "equation",
+                            value = "x",
+                            input_format = "unicodemath",
+                            display = true,
+                        },
+                        new
+                        {
+                            type = "text",
+                            text = "koniec",
+                            as_new_paragraph = true,
+                        },
+                    },
+                }
+            )
+        );
+
+        var result = await service.CallAsync(
+            "apply_live_word_operations",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var resultJson = JsonDocument.Parse(
+            JsonSerializer.Serialize(result, JsonDefaults.Compact)
+        );
+
+        Assert.Equal(3, resultJson.RootElement.GetProperty("live_version").GetInt64());
+        Assert.Equal(1, host.Application.ActiveDocument.FormattedTextAssignments);
+        Assert.Equal(0, host.Application.ActiveDocument.OMaths.AddCalls);
+        Assert.Equal(1, host.Application.ActiveDocument.OMaths.Count);
+        Assert.Equal(0, host.Application.ActiveDocument.UndoCount);
+        Assert.NotNull(host.Application.Documents.LastStagingDocument);
+        Assert.True(host.Application.Documents.LastStagingDocument!.Closed);
+    }
+
+    [Fact]
+    public async Task PublicationFailureBeforeMutationPreservesOriginalErrorWithoutUndo()
+    {
+        await using var host = new RollbackFakeHost(
+            RollbackBehavior.RestoreExact,
+            failTargetPublication: false,
+            failPublicationBeforeMutation: true
+        );
+        var service = new WordLiveService(host);
+        var documentId = await ConnectAsync(service);
+
+        var error = await ApplyFailingBatchAsync(service, documentId);
+
+        Assert.Equal("EQUATION_INVALID", error.ErrorCode);
+        Assert.Equal("\r", host.Application.ActiveDocument.RawText);
+        Assert.Equal(0, host.Application.ActiveDocument.OMaths.Count);
+        Assert.Equal(0, host.Application.ActiveDocument.UndoCount);
+        Assert.Equal(1, host.Application.ActiveDocument.FormattedTextAssignments);
+        using var inspectArguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(new { live_document_id = documentId })
+        );
+        var result = await service.CallAsync(
+            "inspect_live_word_document",
+            inspectArguments.RootElement,
+            CancellationToken.None
+        );
+        using var resultJson = JsonDocument.Parse(
+            JsonSerializer.Serialize(result, JsonDefaults.Compact)
+        );
+        Assert.Equal(0, resultJson.RootElement.GetProperty("live_version").GetInt64());
+    }
+
+    [Fact]
+    public async Task HiddenTargetDriftDuringStagingQuarantinesWithoutUndoingUserHistory()
+    {
+        await using var host = new RollbackFakeHost(
+            RollbackBehavior.RestoreExact,
+            driftTargetDuringStaging: true
+        );
+        var service = new WordLiveService(host);
+        var documentId = await ConnectAsync(service);
+
+        var error = await ApplyFailingBatchAsync(service, documentId);
+
+        Assert.Equal("ROLLBACK_FAILED", error.ErrorCode);
+        Assert.Equal(0, host.Application.ActiveDocument.UndoCount);
+        Assert.Equal(0, host.Application.ActiveDocument.FormattedTextAssignments);
+        using var inspectArguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(new { live_document_id = documentId })
+        );
+        var inspectError = await Assert.ThrowsAsync<NativeToolException>(
+            () =>
+                service.CallAsync(
+                    "inspect_live_word_document",
+                    inspectArguments.RootElement,
+                    CancellationToken.None
+                )
+        );
+        Assert.Equal("LIVE_DOCUMENT_QUARANTINED", inspectError.ErrorCode);
+    }
+
+    [Fact]
+    public async Task FailedStagingOpenDeletesFlatOpcArtifactAndLeavesTargetUntouched()
+    {
+        await using var host = new RollbackFakeHost(
+            RollbackBehavior.RestoreExact,
+            failStagingOpen: true
+        );
+        var service = new WordLiveService(host);
+        var documentId = await ConnectAsync(service);
+
+        var error = await ApplyFailingBatchAsync(service, documentId);
+
+        Assert.Equal("STAGING_FAILED", error.ErrorCode);
+        Assert.NotNull(host.Application.Documents.LastStagingPath);
+        Assert.False(File.Exists(host.Application.Documents.LastStagingPath));
+        Assert.Equal("\r", host.Application.ActiveDocument.RawText);
+        Assert.Equal(0, host.Application.ActiveDocument.OMaths.Count);
+        Assert.Equal(0, host.Application.ActiveDocument.UndoCount);
+        Assert.Equal(0, host.Application.ActiveDocument.FormattedTextAssignments);
     }
 
     [Fact]
@@ -306,12 +448,20 @@ internal sealed class RollbackFakeHost : IWordComHost
 {
     public RollbackFakeHost(
         RollbackBehavior rollbackBehavior,
-        bool failStagingEquation = false
+        bool failStagingEquation = false,
+        bool failTargetPublication = true,
+        bool failPublicationBeforeMutation = false,
+        bool driftTargetDuringStaging = false,
+        bool failStagingOpen = false
     )
     {
         Application = new RollbackFakeApplication(
             rollbackBehavior,
-            failStagingEquation
+            failStagingEquation,
+            failTargetPublication,
+            failPublicationBeforeMutation,
+            driftTargetDuringStaging,
+            failStagingOpen
         );
     }
 
@@ -334,14 +484,21 @@ public sealed class RollbackFakeApplication
 {
     public RollbackFakeApplication(
         RollbackBehavior rollbackBehavior,
-        bool failStagingEquation
+        bool failStagingEquation,
+        bool failTargetPublication,
+        bool failPublicationBeforeMutation,
+        bool driftTargetDuringStaging,
+        bool failStagingOpen
     )
     {
         FailStagingEquation = failStagingEquation;
+        DriftTargetDuringStaging = driftTargetDuringStaging;
+        FailStagingOpen = failStagingOpen;
         ActiveDocument = new RollbackFakeDocument(
             this,
             rollbackBehavior,
-            failEquationBuild: true,
+            failEquationBuild: failTargetPublication,
+            failPublicationBeforeMutation,
             "Rollback.docx"
         );
         Documents = new RollbackFakeDocuments(ActiveDocument);
@@ -352,8 +509,17 @@ public sealed class RollbackFakeApplication
     public RollbackFakeDocuments Documents { get; }
     public RollbackFakeUndoRecord UndoRecord { get; }
     public RollbackFakeWindow ActiveWindow { get; } = new();
+    public RollbackFakeOptions Options { get; } = new();
+    public int AutomationSecurity { get; set; } = 1;
     public bool ScreenUpdating { get; set; } = true;
     public bool FailStagingEquation { get; }
+    public bool DriftTargetDuringStaging { get; }
+    public bool FailStagingOpen { get; }
+}
+
+public sealed class RollbackFakeOptions
+{
+    public bool UpdateLinksAtOpen { get; set; } = true;
 }
 
 public sealed class RollbackFakeWindow
@@ -368,6 +534,8 @@ public sealed class RollbackFakeDocuments
     public RollbackFakeDocuments(RollbackFakeDocument document) => _document = document;
 
     public int Count => 1;
+    public RollbackFakeDocument? LastStagingDocument { get; private set; }
+    public string? LastStagingPath { get; private set; }
 
     public RollbackFakeDocument Item(int index) =>
         index == 1 ? _document : throw new IndexOutOfRangeException();
@@ -378,9 +546,46 @@ public sealed class RollbackFakeDocuments
             _document.Application,
             RollbackBehavior.RestoreExact,
             failEquationBuild: _document.Application.FailStagingEquation,
+            failPublicationBeforeMutation: false,
             "Rollback-stage.docx"
         );
         _document.Application.ActiveDocument = staging;
+        LastStagingDocument = staging;
+        return staging;
+    }
+
+    public RollbackFakeDocument Open(
+        string FileName,
+        bool ConfirmConversions = false,
+        bool ReadOnly = false,
+        bool AddToRecentFiles = false,
+        bool Revert = false,
+        bool Visible = false,
+        bool OpenAndRepair = false,
+        bool NoEncodingDialog = true
+    )
+    {
+        LastStagingPath = FileName;
+        if (_document.Application.FailStagingOpen)
+        {
+            throw new NativeToolException(
+                "STAGING_FAILED",
+                "Fake Word could not open the Flat OPC staging artifact"
+            );
+        }
+        var staging = new RollbackFakeDocument(
+            _document.Application,
+            RollbackBehavior.RestoreExact,
+            failEquationBuild: _document.Application.FailStagingEquation,
+            failPublicationBeforeMutation: false,
+            Path.GetFileName(FileName)
+        );
+        _document.Application.ActiveDocument = staging;
+        LastStagingDocument = staging;
+        if (_document.Application.DriftTargetDuringStaging)
+        {
+            _document.InjectHiddenStagingDrift();
+        }
         return staging;
     }
 }
@@ -390,6 +595,7 @@ public sealed class RollbackFakeDocument
     private readonly RollbackFakeApplication _application;
     private readonly RollbackBehavior _rollbackBehavior;
     private readonly bool _failEquationBuild;
+    private readonly bool _failPublicationBeforeMutation;
     private readonly string _name;
     private string _rawText = "\r";
     private string _undoText = "\r";
@@ -402,12 +608,14 @@ public sealed class RollbackFakeDocument
         RollbackFakeApplication application,
         RollbackBehavior rollbackBehavior,
         bool failEquationBuild,
+        bool failPublicationBeforeMutation,
         string name
     )
     {
         _application = application;
         _rollbackBehavior = rollbackBehavior;
         _failEquationBuild = failEquationBuild;
+        _failPublicationBeforeMutation = failPublicationBeforeMutation;
         _name = name;
         OMaths = new RollbackFakeDocumentEquations(this);
     }
@@ -418,9 +626,18 @@ public sealed class RollbackFakeDocument
     public bool Saved { get; private set; } = true;
     public bool ReadOnly => false;
     public bool Final => false;
+    public bool TrackRevisions { get; set; }
     public int CompatibilityMode => 15;
     public int ProtectionType => -1;
     public string RawText => _rawText;
+    public string WordOpenXML
+    {
+        get
+        {
+            var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(_rawText));
+            return $"<document hidden=\"{_hiddenOpenXmlResidue}\" equations=\"{OMaths.Count}\">{encoded}</document>";
+        }
+    }
     public RollbackFakeRange Content => Range(0, _rawText.Length);
     public RollbackFakeCountCollection Paragraphs => new(CountParagraphs(_rawText));
     public RollbackFakeDocumentEquations OMaths { get; }
@@ -434,6 +651,8 @@ public sealed class RollbackFakeDocument
     public RollbackFakeCountCollection Endnotes { get; } = new(0);
     public RollbackFakeCountCollection Sections { get; } = new(1);
     public int UndoCount { get; private set; }
+    public int FormattedTextAssignments { get; private set; }
+    public bool Closed { get; private set; }
     public RollbackBehavior RollbackBehavior => _rollbackBehavior;
     public bool FailEquationBuild => _failEquationBuild;
     public RollbackFakeApplication Application => _application;
@@ -443,7 +662,7 @@ public sealed class RollbackFakeDocument
 
     public void Activate() => _application.ActiveDocument = this;
 
-    public void Close(int saveChanges) { }
+    public void Close(int saveChanges) => Closed = true;
 
     public void CaptureUndoSnapshot()
     {
@@ -505,9 +724,36 @@ public sealed class RollbackFakeDocument
 
     internal void MarkEquationCreated()
     {
-        OMaths.Count++;
         Saved = false;
+        _hiddenOpenXmlResidue = true;
     }
+
+    internal void PublishFormattedText(
+        int start,
+        int end,
+        RollbackFakeRange source
+    )
+    {
+        FormattedTextAssignments++;
+        if (_failPublicationBeforeMutation)
+        {
+            throw new NativeToolException(
+                "EQUATION_INVALID",
+                "Fake Word rejected the staged publication before mutation"
+            );
+        }
+        Replace(start, end, source.Text);
+        OMaths.ReplaceRangeFrom(start, end, source);
+        if (_failEquationBuild)
+        {
+            throw new NativeToolException(
+                "EQUATION_INVALID",
+                "Fake Word rejected the staged publication after partial mutation"
+            );
+        }
+    }
+
+    internal void InjectHiddenStagingDrift() => _hiddenOpenXmlResidue = true;
 
     private void RestoreText() => _rawText = _undoText;
 
@@ -545,33 +791,112 @@ public sealed class RollbackFakeRange
             return $"<range start=\"{Start}\" end=\"{End}\" hidden=\"{_document.HiddenOpenXmlResidue}\">{encoded}</range>";
         }
     }
+    public RollbackFakeRange FormattedText
+    {
+        get => this;
+        set
+        {
+            _document.PublishFormattedText(Start, End, value);
+            End = Start + value.Text.Length;
+        }
+    }
+    public RollbackFakeRangeEquations OMaths =>
+        _document.OMaths.ForRange(Start, End);
     public object? Style { get; set; }
 }
 
 public sealed class RollbackFakeDocumentEquations
 {
     private readonly RollbackFakeDocument _document;
+    private readonly List<RollbackFakeEquation> _equations = [];
 
     public RollbackFakeDocumentEquations(RollbackFakeDocument document) =>
         _document = document;
 
-    public int Count { get; set; }
+    public int Count
+    {
+        get => _equations.Count;
+        set
+        {
+            while (_equations.Count > value)
+            {
+                _equations.RemoveAt(_equations.Count - 1);
+            }
+            while (_equations.Count < value)
+            {
+                _equations.Add(
+                    new RollbackFakeEquation(_document, _document.Range(0, 0))
+                );
+            }
+        }
+    }
+    public int AddCalls { get; private set; }
 
     public RollbackFakeAddedEquationRange Add(RollbackFakeRange range)
     {
+        AddCalls++;
         _document.MarkEquationCreated();
-        return new RollbackFakeAddedEquationRange(_document, range);
+        var equation = new RollbackFakeEquation(_document, range);
+        _equations.Add(equation);
+        return new RollbackFakeAddedEquationRange(equation);
     }
+
+    public RollbackFakeRangeEquations ForRange(int start, int end) =>
+        new(
+            _equations
+                .Where(
+                    equation =>
+                        equation.Range.Start >= start && equation.Range.End <= end
+                )
+                .ToArray()
+        );
+
+    public void ReplaceRangeFrom(int start, int end, RollbackFakeRange source)
+    {
+        _equations.RemoveAll(
+            equation => equation.Range.Start >= start && equation.Range.End <= end
+        );
+        foreach (
+            var sourceEquation in source.OMaths.Items
+        )
+        {
+            var relativeStart = sourceEquation.Range.Start - source.Start;
+            var relativeEnd = sourceEquation.Range.End - source.Start;
+            _equations.Add(
+                new RollbackFakeEquation(
+                    _document,
+                    _document.Range(start + relativeStart, start + relativeEnd)
+                )
+                {
+                    Type = sourceEquation.Type,
+                }
+            );
+        }
+        _equations.Sort(
+            static (left, right) => left.Range.Start.CompareTo(right.Range.Start)
+        );
+    }
+}
+
+public sealed class RollbackFakeRangeEquations
+{
+    public RollbackFakeRangeEquations(IReadOnlyList<RollbackFakeEquation> items) =>
+        Items = items;
+
+    public IReadOnlyList<RollbackFakeEquation> Items { get; }
+    public int Count => Items.Count;
+
+    public RollbackFakeEquation Item(int index) =>
+        index >= 1 && index <= Items.Count
+            ? Items[index - 1]
+            : throw new IndexOutOfRangeException();
 }
 
 public sealed class RollbackFakeAddedEquationRange
 {
-    public RollbackFakeAddedEquationRange(
-        RollbackFakeDocument document,
-        RollbackFakeRange range
-    )
+    public RollbackFakeAddedEquationRange(RollbackFakeEquation equation)
     {
-        OMaths = new RollbackFakeAddedEquations(document, range);
+        OMaths = new RollbackFakeAddedEquations(equation);
     }
 
     public RollbackFakeAddedEquations OMaths { get; }
@@ -581,10 +906,8 @@ public sealed class RollbackFakeAddedEquations
 {
     private readonly RollbackFakeEquation _equation;
 
-    public RollbackFakeAddedEquations(
-        RollbackFakeDocument document,
-        RollbackFakeRange range
-    ) => _equation = new RollbackFakeEquation(document, range);
+    public RollbackFakeAddedEquations(RollbackFakeEquation equation) =>
+        _equation = equation;
 
     public RollbackFakeEquation Item(int index) =>
         index == 1 ? _equation : throw new IndexOutOfRangeException();

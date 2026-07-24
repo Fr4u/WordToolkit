@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+- Replaced equation-only preflight with complete heterogeneous batch staging for
+  `apply_live_word_operations`. WordToolkit now writes the current document's read-only
+  Flat OPC snapshot to an isolated temporary clone, clears only the clone's main story,
+  applies every requested text value, paragraph boundary, style, formatting property and
+  native OMath there, and verifies the complete candidate before touching the target.
+- Target publication is now one cross-document `Range.FormattedText` assignment instead
+  of one text replacement followed by target-side formatting and OMath construction.
+  Post-publication proof checks the exact published length/text fingerprint, global and
+  range-local equation deltas, every operation boundary, every requested text-formatting
+  value, equation display type, scoped math styling and optional semantic equation
+  readback before the live version may advance.
+- Added fail-closed staging hygiene: macros and link updates are disabled while the Flat
+  OPC clone opens, the clone must close and its temporary file must be deleted, and the
+  full target Flat OPC/text/structure must remain unchanged before publication. Unproven
+  pre-publication drift returns `ROLLBACK_FAILED` and quarantines the handle without
+  risking an unrelated Undo history entry.
+- Added injected proof for one-call mixed publication, zero target-side OMath builds,
+  failure before publication mutation, failure after partial publication, hidden target
+  drift during staging, isolated equation rejection and every existing false/throwing/
+  partial/visible-only Undo path. The real Word 16.0 acceptance now publishes two
+  independently formatted paragraphs plus the eight-line complex integral derivation in
+  one batch and re-verifies all six integrals and six correctly placed differentials.
+- Full release gates pass 504 Engine, 386 Native and 1,309 Python tests with 16
+  intentional skips; Ruff passes. Independent recovery after a partially applied
+  `FormattedText` assignment when Word also lacks byte-exact Undo remains open; that state
+  is reported as `ROLLBACK_FAILED` and quarantined rather than misrepresented as atomic.
+- Enabled runtime `0.39.0+codex.20260724145815` reports 107 actions, 15 exposed tools and
+  20 explicit metadata contracts. Build, personal marketplace source and enabled cache
+  are identical at 196 files and 87,034,206 bytes with zero path, length or hash
+  differences. The 36,728,895-byte ZIP SHA-256 is
+  `a50ce87d6af00dae4e8ffe502b6969de70aeceb4d2f920f42038da3af6c13586`.
+
 - Removed the legacy live rollback helper that swallowed failed custom-record closure and
   `Document.Undo(1)` exceptions. Every current custom-Undo mutation family now uses one
   exact verifier and returns `ROLLBACK_FAILED` with handle/document quarantine when

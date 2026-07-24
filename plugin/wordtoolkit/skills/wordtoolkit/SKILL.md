@@ -656,10 +656,13 @@ action opens Word or returns XML/document text.
 7. Finish with `disconnect_live_word_document`. Close or quit only when the
    user explicitly asks; those actions require their guarded policies.
 
-`apply_live_word_operations` is the default authoring tool. It first builds and verifies
-every requested native equation in an unsaved hidden Word staging document; a staging
-failure closes that document and leaves the target untouched. It then creates native
-text and editable OMath in one target Word Undo transaction. Before target mutation it
+`apply_live_word_operations` is the default authoring tool. It clones the target's
+read-only Flat OPC into an isolated hidden Word document, then builds and verifies the
+complete requested text, paragraph, style, formatting and native-equation batch there.
+A staging or staging-cleanup failure leaves the target untouched. The verified range is
+published to the target through one cross-document `FormattedText` assignment, followed
+by exact length/text, operation-range, requested-formatting and native-equation
+count/type/semantic readback before the live version advances. Before target mutation it
 fingerprints the whole-document Flat OPC, main-story content, every linked story range,
 exact target and bounded OOXML context, range boundaries, save state and structural
 counts. The same verified rollback/quarantine contract covers every current live
