@@ -348,7 +348,10 @@ name lookup records Word's last-definition behavior without deleting duplicate s
 The instruction tokenizer recognizes explicit and implicit `REF`, classifies the broad
 Word field family, and emits dependency edges for bookmarks, sequences, document
 variables, merge fields, citations, index entries, styles and external resources. It
-does not evaluate a field. DDE, LINK, INCLUDE, IMPORT, DATABASE and similar instructions
+analyses every field before cross-field resolution, so a complete `TA` authority entry
+can bind to every complete category-compatible `TOA` field; category-zero tables accept
+all valid authority categories. Malformed, incomplete, deleted or ambiguous category
+evidence remains unresolved. It does not evaluate a field. DDE, LINK, INCLUDE, IMPORT, DATABASE and similar instructions
 are inert metadata: no process starts and no target is fetched. Lazy
 `inspect_ooxml_references` defaults to field-type counts; names, instructions, result
 text and dependency keys remain redacted behind opt-in detail, exact filters and paging.
@@ -694,7 +697,8 @@ flatten the existing typed graphs into anonymous strings. It joins the proven do
   run and table usage;
 - abstract numbering, instances, levels, picture bullets, style links and explicit
   paragraph/style numbering references;
-- story-scoped fields, bookmarks, nested fields and typed reference targets;
+- story-scoped fields, bookmarks, nested fields and typed reference targets, including
+  category-compatible `TA` authority entries resolved to concrete `TOA` field nodes;
 - sections and effective header/footer story bindings;
 - classic Transitional/Strict DrawingML charts, series, axes and related package parts;
 - logical figures, declared DrawingML/VML/legacy representations, bounded nested
@@ -757,7 +761,9 @@ active-content binary internals/execution, live/rendered drawing nodes and layou
 SmartArt layout mutation, signature cryptographic validation/resigning, encryption and co-authoring
 sessions remain outside that graph. A separate live Word projection reads bounded object-model layout execution without
 pretending that runtime shapes have durable graph identity. Bibliography collection/source nodes and unique-tag `CITATION` resolution are inside the
-graph; bibliography rendering and mutation are not. Office 2016 extended charts are preserved and
+graph; bibliography rendering and mutation are not. Authority `TA` to `TOA` resolution is
+inside the graph, while Word remains responsible for table generation, pagination and
+display text. Office 2016 extended charts are preserved and
 diagnosed, but are not projected as classic chart nodes.
 
 Lazy `inspect_ooxml_dependencies` exposes compact edge-kind counts, filtered nodes and
@@ -1199,7 +1205,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 103 actions already have public SDK
+These are proved migration seams, not a claim that all 105 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
@@ -1341,10 +1347,10 @@ These are resolvers, not bags of XML helpers:
 - the implemented reference slice pairs bookmark ranges, parses nested complex/simple
   fields and emits typed dependencies for REF/PAGEREF/NOTEREF, SEQ, TOC bookmark
   restrictions, HYPERLINK anchors, variables, merge fields, citations, index entries,
-  styles and external-resource fields;
+  category-compatible authority tables, styles and external-resource fields;
 - the unfinished reference layers must still unify element hyperlinks, notes and
-  complete TOC/TOF/TOT semantics, deepen citation/bibliography validation, then add safe
-  edits;
+  complete TOC/TOF/TOT semantics, deepen citation/bibliography validation, and add
+  saved-package authority edits plus existing-entry/category management;
 - updates are backend-qualified because Word's field evaluator remains authoritative for
   fields it owns.
 

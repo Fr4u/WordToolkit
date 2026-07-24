@@ -3540,6 +3540,10 @@ public sealed class WordDependencyGraphBuilder
         var storyNodes = new Dictionary<string, string>(StringComparer.Ordinal);
         var bookmarkNodes = new Dictionary<string, string>(StringComparer.Ordinal);
         var fieldNodes = new Dictionary<string, string>(StringComparer.Ordinal);
+        var fieldsById = references.Fields.ToDictionary(
+            field => field.Id,
+            StringComparer.Ordinal
+        );
         foreach (var story in references.Stories)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -3645,6 +3649,62 @@ public sealed class WordDependencyGraphBuilder
             {
                 continue;
             }
+            if (
+                edge.TargetKind == WordReferenceTargetKind.IndexEntry
+                && fieldsById.TryGetValue(edge.SourceFieldId, out var authorityEntry)
+                && string.Equals(
+                    authorityEntry.FieldType,
+                    "TA",
+                    StringComparison.OrdinalIgnoreCase
+                )
+                && !authorityEntry.IsInDeletedContent
+                && TryAuthorityCategory(
+                    authorityEntry.Tokens,
+                    defaultCategory: 1,
+                    minimum: 1,
+                    maximum: 16,
+                    out var authorityCategory
+                )
+            )
+            {
+                var tableTargets = references.Fields
+                    .Where(field =>
+                        !field.IsInDeletedContent
+                        && field.Status == WordFieldStatus.Complete
+                        && field.InstructionParseComplete
+                        && string.Equals(
+                            field.FieldType,
+                            "TOA",
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                        && TryAuthorityCategory(
+                            field.Tokens,
+                            defaultCategory: 1,
+                            minimum: 0,
+                            maximum: 16,
+                            out var tableCategory
+                        )
+                        && (tableCategory == 0 || tableCategory == authorityCategory)
+                        && fieldNodes.ContainsKey(field.Id)
+                    )
+                    .ToArray();
+                if (tableTargets.Length > 0)
+                {
+                    foreach (var tableTarget in tableTargets)
+                    {
+                        state.AddEdge(
+                            WordDependencyEdgeKind.FieldReference,
+                            sourceNodeId,
+                            fieldNodes[tableTarget.Id],
+                            isResolved: true,
+                            isExternal: false,
+                            qualifier: $"{edge.Kind}:{edge.TargetKind}:category={authorityCategory}",
+                            relationshipId: edge.Id
+                        );
+                    }
+                    continue;
+                }
+            }
             string targetNodeId;
             var resolved = edge.IsResolved;
             if (
@@ -3735,6 +3795,51 @@ public sealed class WordDependencyGraphBuilder
                 );
             }
         }
+    }
+
+    private static bool TryAuthorityCategory(
+        IReadOnlyList<WordFieldToken> tokens,
+        int defaultCategory,
+        int minimum,
+        int maximum,
+        out int category
+    )
+    {
+        var indexes = tokens
+            .Select((token, index) => (token, index))
+            .Where(item =>
+                item.token.Kind == WordFieldTokenKind.Switch
+                && string.Equals(
+                    item.token.Value,
+                    "\\c",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            .Select(item => item.index)
+            .ToArray();
+        if (indexes.Length == 0)
+        {
+            category = defaultCategory;
+            return true;
+        }
+        if (
+            indexes.Length != 1
+            || indexes[0] + 1 >= tokens.Count
+            || tokens[indexes[0] + 1].Kind == WordFieldTokenKind.Switch
+            || !int.TryParse(
+                tokens[indexes[0] + 1].Value,
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out category
+            )
+            || category < minimum
+            || category > maximum
+        )
+        {
+            category = default;
+            return false;
+        }
+        return true;
     }
 
     private static void AddSectionDependencies(

@@ -2,7 +2,7 @@
 
 The current remote Python service source of truth is `schemas/mcp-tools.v2.json`; `schemas/mcp-tools.v1.json` remains the immutable historical contract. The provider-neutral heterogeneous mutation contract, including executable input/success/error examples, is generated as `schemas/draft-operations.v1.json`. The native Windows plugin has a separate, deliberately hand-reviewed source in `schemas/mcp-tools-local.v1.json`; `WordToolkit.Native.Tests` validates that catalog and this exporter never overwrites it. Every exported remote tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.
 
-The native catalog currently contains 103 actions behind 15 core/gateway tools. Rare
+The native catalog currently contains 105 actions behind 15 core/gateway tools. Rare
 saved-package inspectors remain lazy so their schemas do not enter model context until
 needed. `inspect_ooxml_active_content` is read-only and closed-world: it inventories
 typed OLE/ActiveX/VBA/embedded-package/customization/signature metadata without opening
@@ -29,6 +29,12 @@ resolve localized built-in or exact existing custom caption labels. The contents
 accepts only semantic heading levels, source flags and presentation options. They create
 native Word fields, verify collection counts and exact field ranges and roll back on
 mismatch. None accepts raw field instructions or returns generated table/caption text.
+`mark_live_word_authority_citation` binds one fresh non-empty selection or range to one
+native `TA` entry in category 1..16. `insert_live_word_table_of_authorities` creates one
+native `TOA` for an exact category or all categories. It defaults to a real tab with
+dotted leaders, verifies every separator/display option by native readback and rolls the
+single custom Undo record back on mismatch. Neither action returns citation text,
+separator values, generated table text, field instructions or COM objects.
 `update_live_word_reference_tables` refreshes existing native tables of contents,
 figures and authorities through Word. It selects all supported objects or one exact kind
 and one-based index, caps a transaction at 128 objects, optionally repaginates, verifies

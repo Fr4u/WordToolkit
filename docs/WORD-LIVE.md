@@ -1,7 +1,7 @@
 # Word Live
 
 Word Live is the Windows-only local STDIO capability shipped by the native
-WordToolkit 0.18 plugin. It can attach to the automation-visible
+WordToolkit 0.39 plugin. It can attach to the automation-visible
 `Word.Application` object registered in the Windows Running Object Table or
 start Word explicitly through native COM. Document open, close and application
 quit are available only through dedicated bounded lifecycle tools with strict
@@ -51,6 +51,8 @@ path, save-policy and confirmation checks.
 | `insert_live_word_caption` | Insert one localized native caption with a real `SEQ` field and guarded readback. |
 | `insert_live_word_table_of_figures` | Create and optionally update one native table of figures from existing captions. |
 | `insert_live_word_table_of_contents` | Create, optionally repaginate and update one native contents table from semantic heading settings. |
+| `mark_live_word_authority_citation` | Mark one fresh non-empty range as a native category-bound table-of-authorities entry. |
+| `insert_live_word_table_of_authorities` | Create, optionally repaginate and update one native authority table for one or all categories with verified separators and leaders. |
 | `update_live_word_reference_tables` | Refresh existing contents, figures and authorities tables in one bounded guarded transaction. |
 | `insert_live_word_image` | Embed one bounded local image as a native inline shape. |
 | `insert_live_word_comment` | Add one native comment to a fresh token-verified range or selection. |
@@ -74,6 +76,23 @@ repagination/update. It calls Word's native `TablesOfContents.Add`, then require
 one-object collection delta, one uniquely reacquired non-empty range and at least one
 field. A mismatch rolls the custom Undo record back. No field instruction or generated
 contents text crosses the tool boundary.
+
+`mark_live_word_authority_citation` requires exactly one fresh non-empty selection or
+range token and category 1–16. Omitted short and long citation strings are derived from
+that exact target but are not returned. WordToolkit calls the native
+`TablesOfAuthorities.MarkCitation`, then requires one new type-74 field with the exact
+code range and category. Any mismatch rolls the custom Undo record back.
+
+`insert_live_word_table_of_authorities` targets the document start/end or a fresh
+collapsed cursor. Category 1–16 selects one category; category 0 includes all valid
+authority marks. It requires at least one matching native entry and calls
+`TablesOfAuthorities.Add` with Word's sequence-name argument genuinely omitted. The
+default entry separator is one tab and the default leader is dots; alternative semantic
+leaders are `spaces`, `dashes`, `lines`, `heavy` and `middle_dot`. The action reads back
+every separator, `Passim`, entry-formatting, category-header and leader setting from the
+created native object. It also requires one exact non-empty range and at least one field.
+Failed readback requests one Undo. Citation text, separator values, generated table text,
+field instructions and COM objects do not cross the tool boundary.
 
 `update_live_word_reference_tables` targets all existing tables of contents, figures
 and authorities by default, or one exact collection and optional one-based index. It
@@ -112,7 +131,7 @@ recognized. The converter emits U+2146 `ⅆ` and an invisible Word operand group
 or leaving it outside the integral body. A generic plain `d` is not silently
 reinterpreted as a differential.
 
-These 51 native desktop actions are absent from the remote HTTP MCP server.
+These 54 native desktop actions are absent from the remote HTTP MCP server.
 
 ## Native find and transactional replace
 

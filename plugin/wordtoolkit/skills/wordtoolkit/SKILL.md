@@ -275,15 +275,26 @@ of composing `SEQ` or `TOC` field instructions yourself:
    semantic heading levels and source flags. The default inserts at `document_start`,
    uses Heading 1 through Heading 3, repaginates and updates. `target=cursor` requires a
    fresh collapsed selection. Never compose a raw `TOC` field instruction.
-6. To refresh existing native tables of contents, figures or authorities, call
+6. To build a table of authorities, first obtain one fresh non-empty selection token or
+   exact `range_token` from `find_live_word_text` per citation and call
+   `mark_live_word_authority_citation`. Omitted short/long citation text is derived from
+   the target and never returned. After marking all entries, call
+   `insert_live_word_table_of_authorities` for category 1–16, or category 0 to include
+   all categories. Keep the default real tab and dotted leader unless the document
+   specification requires another bounded separator or one of the six semantic leaders.
+   The action verifies every native separator/display option by readback and rolls back
+   if Word does not preserve the requested settings.
+7. To refresh existing native tables of contents, figures or authorities, call
    `update_live_word_reference_tables` with the current version. Leave `kind=all` to
    update every supported collection, or select one exact kind and optional one-based
    `index`. One request updates at most 128 objects and repaginates first by default.
 
-Both actions use native Word fields in one custom Undo record, verify the resulting
-collection/field counts, and roll back on mismatch. They never accept raw field code,
-create a global custom label or return caption text. A table of figures is rejected when
-the document has no matching native captions. Save, validate and render the result before
+The caption, figure-table, contents-table and authority-table actions use native Word
+fields in one custom Undo record, verify the resulting collection/field counts, and roll
+back on mismatch. They never accept raw field code, create a global custom label or
+return generated table, caption or citation text. A table of figures is rejected when
+the document has no matching native captions; a table of authorities is rejected when
+it has no matching native authority entries. Save, validate and render the result before
 calling the document complete.
 The reference-table update action likewise uses one custom Undo record, keeps the three
 collection counts stable, verifies every resulting range and field collection, and

@@ -777,6 +777,9 @@ public sealed class WordReferenceGraphBuilder
         foreach (var field in state.Fields)
         {
             AnalyzeInstruction(field, state);
+        }
+        foreach (var field in state.Fields)
+        {
             BuildFieldEdges(field, bookmarksByName, state);
         }
     }
@@ -1118,7 +1121,8 @@ public sealed class WordReferenceGraphBuilder
                     SwitchOperand(field.Tokens, "\\l"),
                     WordReferenceEdgeKind.Generates,
                     WordReferenceTargetKind.IndexEntry,
-                    state
+                    state,
+                    isResolved: HasMatchingTableOfAuthorities(field, state.Fields)
                 );
                 break;
             case "STYLEREF":
@@ -1233,7 +1237,8 @@ public sealed class WordReferenceGraphBuilder
         WordReferenceEdgeKind edgeKind,
         WordReferenceTargetKind targetKind,
         BuildState state,
-        bool isExternal = false
+        bool isExternal = false,
+        bool isResolved = false
     )
     {
         if (string.IsNullOrWhiteSpace(target))
@@ -1246,11 +1251,90 @@ public sealed class WordReferenceGraphBuilder
             edgeKind,
             targetKind,
             target,
-            isResolved: false,
+            isResolved,
             isExternal,
             resolvedBookmarkId: null,
             state
         );
+    }
+
+    private static bool HasMatchingTableOfAuthorities(
+        MutableField authorityEntry,
+        IReadOnlyList<MutableField> fields
+    )
+    {
+        if (
+            authorityEntry.IsInDeletedContent
+            || !TryAuthorityCategory(
+                authorityEntry.Tokens,
+                defaultCategory: 1,
+                minimum: 1,
+                maximum: 16,
+                out var entryCategory
+            )
+        )
+        {
+            return false;
+        }
+        return fields.Any(field =>
+            !field.IsInDeletedContent
+            && field.Status == WordFieldStatus.Complete
+            && field.InstructionParseComplete
+            && string.Equals(field.FieldType, "TOA", StringComparison.OrdinalIgnoreCase)
+            && TryAuthorityCategory(
+                field.Tokens,
+                defaultCategory: 1,
+                minimum: 0,
+                maximum: 16,
+                out var tableCategory
+            )
+            && (tableCategory == 0 || tableCategory == entryCategory)
+        );
+    }
+
+    private static bool TryAuthorityCategory(
+        IReadOnlyList<WordFieldToken> tokens,
+        int defaultCategory,
+        int minimum,
+        int maximum,
+        out int category
+    )
+    {
+        var indexes = tokens
+            .Select((token, index) => (token, index))
+            .Where(item =>
+                item.token.Kind == WordFieldTokenKind.Switch
+                && string.Equals(
+                    item.token.Value,
+                    "\\c",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            .Select(item => item.index)
+            .ToArray();
+        if (indexes.Length == 0)
+        {
+            category = defaultCategory;
+            return true;
+        }
+        if (
+            indexes.Length != 1
+            || indexes[0] + 1 >= tokens.Count
+            || tokens[indexes[0] + 1].Kind == WordFieldTokenKind.Switch
+            || !int.TryParse(
+                tokens[indexes[0] + 1].Value,
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out category
+            )
+            || category < minimum
+            || category > maximum
+        )
+        {
+            category = default;
+            return false;
+        }
+        return true;
     }
 
     private static void AddMissingTargetIssue(MutableField field, BuildState state) =>

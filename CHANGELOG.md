@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- Added `wordtoolkit.mark_live_word_authority_citation/1.0` and
+  `wordtoolkit.insert_live_word_table_of_authorities/1.1` as native actions 104 and 105.
+  They use fresh token-bound targets, categories 1–16 or all-category insertion,
+  native `TA`/`TOA` fields, one custom Undo record and exact post-mutation readback.
+  Generated citation/table text, separator values, field instructions and COM objects
+  are not returned.
+- Fixed two defects found in Word before release: `IncludeSequenceName` is genuinely
+  omitted with `Type.Missing`, preventing false `0-N` page ranges, and a real tab plus
+  dotted leader now separates entries from page numbers. The action verifies all native
+  separator/display/leader options and rolls back when Word does not preserve them.
+- Resolved complete category-compatible `TA` references to concrete `TOA` field nodes in
+  the saved-package reference and dependency graphs, including category-zero tables.
+  Malformed, incomplete, deleted and ambiguous evidence still fails closed.
+- Full gates pass 500 Engine, 362 Native and 1,309 Python tests with 16 intentional
+  skips; Ruff lint and all four C# format verifiers pass. Exact installed Word 16.0 proof
+  created three marks and one all-category table, passed Microsoft SDK validation with
+  zero errors and produced a clean three-page PDF with pages `2` and `1, 3`.
+- The installed `0.39.0+codex.20260724113419` package exposes 105 actions and 18 explicit
+  metadata contracts. Build/source/cache trees match at 196 files and 86,856,508 bytes.
+  The 36,685,680-byte ZIP SHA-256 is
+  `c90c7dcf4b8ee3f2a341ddb2e2254e7fc3b942be040c65b8732744699e50460d`;
+  the exact DOCX proof is
+  `28515ac5afbbffd489bae3e6ed62e68b6c7c38d33230b50d52ed28db0a4e3562`
+  and its PDF is
+  `a824863c425a598dc79be2ec764f34e31a9e122ca1eb24ae2bb7f5b4f6a9d82b`.
+
 - Added `wordtoolkit.insert_live_word_table_of_contents/1.0` as native action 103.
   It accepts semantic heading levels and heading/outline source flags instead of raw
   field instructions, inserts at the document start/end or a fresh collapsed cursor,

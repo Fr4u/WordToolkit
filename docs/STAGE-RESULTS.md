@@ -1,5 +1,48 @@
 # Stage results
 
+## Native authority citations and table of authorities — 2026-07-24
+
+- Added `wordtoolkit.mark_live_word_authority_citation/1.0` and
+  `wordtoolkit.insert_live_word_table_of_authorities/1.1` as native actions 104 and 105.
+  Marking requires one fresh non-empty range/selection token and creates one exact native
+  `TA` field in category 1–16. Insertion accepts one category or category 0 for all,
+  requires matching native marks and creates one editable native `TOA` through Word.
+- Both mutations require the current live version, use one non-replayable custom Undo
+  record, verify exact native field/collection deltas and roll back on mismatch. TOA
+  insertion additionally reads back all separators, `Passim`, entry formatting,
+  category-header and tab-leader settings. The default is a real tab with dotted leaders;
+  citation text, separator values, generated table text, field instructions and COM
+  objects never cross the response boundary.
+- Real Word exposed two defects before release. An empty `IncludeSequenceName` produced
+  false `0-N` page ranges, so the action now passes `Type.Missing`. An empty entry
+  separator crushed entries against page numbers, so the default is one tab plus the
+  semantic `dots` leader. Exact option readback makes both fixes fail closed.
+- Saved-package reference analysis now completes all field parsing before cross-field
+  resolution. Complete category-compatible `TA` entries resolve to concrete complete
+  `TOA` fields; a category-zero table matches every valid authority category. The unified
+  dependency graph emits three resolved `field_reference` edges instead of false
+  missing-target warnings.
+- Full local gates pass **500 Engine**, **362 Native** and **1,309 Python tests** with
+  **16 intentional skips**. Ruff lint and all four C# format verifiers pass. The broader
+  Ruff format check still reports 14 pre-existing Python files that this slice did not
+  touch; they were not mechanically rewritten into an unrelated release change.
+- The exact installed `0.39.0+codex.20260724113419` runtime marked three citations and
+  inserted one all-category authority table in Word 16.0. Microsoft Open XML SDK
+  validation returned zero errors. Independent inspection found four complete fields
+  (`TA` x3, `TOA` x1), three resolved reference dependencies, a 158-node/239-edge fully
+  resolved dependency graph and zero issues.
+- The exact 14,399-byte DOCX has SHA-256
+  `28515ac5afbbffd489bae3e6ed62e68b6c7c38d33230b50d52ed28db0a4e3562`.
+  Its three-page A4 Word PDF is 44,174 bytes at SHA-256
+  `a824863c425a598dc79be2ec764f34e31a9e122ca1eb24ae2bb7f5b4f6a9d82b`.
+  Every page was inspected at 144 DPI: `Brown v. Board of Education` displays page 2 and
+  `Forrester v. Craddock` displays pages 1, 3 with clean dotted leaders, no clipping,
+  overlap, glyph boxes, raw field syntax or false `0-N` prefix.
+- Build output, personal source and enabled cache each contain the same **196 files** and
+  **86,856,508 bytes**, with zero path/length/hash differences and zero Python files. The
+  self-contained 36,685,680-byte ZIP has SHA-256
+  `c90c7dcf4b8ee3f2a341ddb2e2254e7fc3b942be040c65b8732744699e50460d`.
+
 ## Native table-of-contents insertion — 2026-07-24
 
 - Added `wordtoolkit.insert_live_word_table_of_contents/1.0` as native action 103.

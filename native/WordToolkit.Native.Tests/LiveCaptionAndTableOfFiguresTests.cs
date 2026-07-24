@@ -17,6 +17,12 @@ public sealed class LiveCaptionAndTableOfFiguresTests
         var contents = catalog
             .InspectAction("insert_live_word_table_of_contents")["tool"]!
             .AsObject();
+        var citation = catalog
+            .InspectAction("mark_live_word_authority_citation")["tool"]!
+            .AsObject();
+        var authorities = catalog
+            .InspectAction("insert_live_word_table_of_authorities")["tool"]!
+            .AsObject();
         var update = catalog
             .InspectAction("update_live_word_reference_tables")["tool"]!
             .AsObject();
@@ -24,14 +30,20 @@ public sealed class LiveCaptionAndTableOfFiguresTests
         Assert.Equal("1.0", caption["operationVersion"]!.GetValue<string>());
         Assert.Equal("1.0", table["operationVersion"]!.GetValue<string>());
         Assert.Equal("1.0", contents["operationVersion"]!.GetValue<string>());
+        Assert.Equal("1.0", citation["operationVersion"]!.GetValue<string>());
+        Assert.Equal("1.1", authorities["operationVersion"]!.GetValue<string>());
         Assert.Equal("1.0", update["operationVersion"]!.GetValue<string>());
         Assert.False(caption["annotations"]!["readOnlyHint"]!.GetValue<bool>());
         Assert.False(table["annotations"]!["readOnlyHint"]!.GetValue<bool>());
         Assert.False(contents["annotations"]!["readOnlyHint"]!.GetValue<bool>());
+        Assert.False(citation["annotations"]!["readOnlyHint"]!.GetValue<bool>());
+        Assert.False(authorities["annotations"]!["readOnlyHint"]!.GetValue<bool>());
         Assert.False(update["annotations"]!["readOnlyHint"]!.GetValue<bool>());
         Assert.False(caption["inputSchema"]!["additionalProperties"]!.GetValue<bool>());
         Assert.False(table["inputSchema"]!["additionalProperties"]!.GetValue<bool>());
         Assert.False(contents["inputSchema"]!["additionalProperties"]!.GetValue<bool>());
+        Assert.False(citation["inputSchema"]!["additionalProperties"]!.GetValue<bool>());
+        Assert.False(authorities["inputSchema"]!["additionalProperties"]!.GetValue<bool>());
         Assert.False(update["inputSchema"]!["additionalProperties"]!.GetValue<bool>());
         Assert.NotNull(caption["permissions"]);
         Assert.NotNull(caption["reversibility"]);
@@ -42,6 +54,12 @@ public sealed class LiveCaptionAndTableOfFiguresTests
         Assert.NotNull(contents["permissions"]);
         Assert.NotNull(contents["reversibility"]);
         Assert.NotNull(contents["outputSchema"]);
+        Assert.NotNull(citation["permissions"]);
+        Assert.NotNull(citation["reversibility"]);
+        Assert.NotNull(citation["outputSchema"]);
+        Assert.NotNull(authorities["permissions"]);
+        Assert.NotNull(authorities["reversibility"]);
+        Assert.NotNull(authorities["outputSchema"]);
         Assert.NotNull(update["permissions"]);
         Assert.NotNull(update["reversibility"]);
         Assert.NotNull(update["outputSchema"]);
@@ -412,6 +430,273 @@ public sealed class LiveCaptionAndTableOfFiguresTests
     }
 
     [Fact]
+    public async Task MarksOneNativeAuthorityCitationWithoutReturningItsText()
+    {
+        await using var host = new CaptionFakeHost();
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        var selectionToken = await SelectionTokenAsync(service, documentId);
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = version,
+                    selection_token = selectionToken,
+                    short_citation = "Sekretny skrót",
+                    long_citation = "Sekretna długa nazwa sprawy",
+                    category = 3,
+                }
+            )
+        );
+
+        var result = await service.CallAsync(
+            "mark_live_word_authority_citation",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        var raw = JsonSerializer.Serialize(result, JsonDefaults.Compact);
+        using var json = JsonDocument.Parse(raw);
+        var data = json.RootElement;
+
+        Assert.Equal(
+            "wordtoolkit.mark_live_word_authority_citation/1.0",
+            data.GetProperty("operation_contract").GetString()
+        );
+        Assert.Equal(version + 1, data.GetProperty("live_version").GetInt64());
+        Assert.Equal(3, data.GetProperty("category").GetInt32());
+        Assert.Equal(1, data.GetProperty("field_count_after").GetInt32());
+        Assert.True(data.GetProperty("native_verified").GetBoolean());
+        Assert.False(data.GetProperty("citation_text_returned").GetBoolean());
+        Assert.DoesNotContain("Sekretny", raw, StringComparison.Ordinal);
+        Assert.Equal(74, host.Application.ActiveDocument.Fields.Item(1).Type);
+        Assert.Contains("\\c 3", host.Application.ActiveDocument.Fields.Item(1).Code.Text);
+        Assert.Equal(1, host.Application.UndoRecord.StartCount);
+        Assert.Equal(0, host.Application.ActiveDocument.UndoCount);
+    }
+
+    [Fact]
+    public async Task RollsBackWhenWordDoesNotAddTheMarkedAuthorityField()
+    {
+        await using var host = new CaptionFakeHost();
+        host.Application.ActiveDocument.TablesOfAuthorities.SuppressMarkedCitation = true;
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        var selectionToken = await SelectionTokenAsync(service, documentId);
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = version,
+                    selection_token = selectionToken,
+                }
+            )
+        );
+
+        var error = await Assert.ThrowsAsync<NativeToolException>(
+            () =>
+                service.CallAsync(
+                    "mark_live_word_authority_citation",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("VALIDATION_FAILED", error.ErrorCode);
+        Assert.Equal(0, host.Application.ActiveDocument.Fields.Count);
+        Assert.Equal(1, host.Application.ActiveDocument.UndoCount);
+    }
+
+    [Fact]
+    public async Task InsertsUpdatesAndReacquiresOneNativeTableOfAuthorities()
+    {
+        await using var host = new CaptionFakeHost();
+        host.Application.ActiveDocument.Fields.Add(
+            " TA \\l \"Authority\" \\s \"Auth.\" \\c 2 ",
+            74
+        );
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = version,
+                    target = "document_end",
+                    category = 2,
+                    passim = true,
+                    include_category_header = false,
+                }
+            )
+        );
+
+        var result = await service.CallAsync(
+            "insert_live_word_table_of_authorities",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        var raw = JsonSerializer.Serialize(result, JsonDefaults.Compact);
+        using var json = JsonDocument.Parse(raw);
+        var data = json.RootElement;
+
+        Assert.Equal(
+            "wordtoolkit.insert_live_word_table_of_authorities/1.1",
+            data.GetProperty("operation_contract").GetString()
+        );
+        Assert.Equal(1, data.GetProperty("matching_citation_count").GetInt32());
+        Assert.Equal(1, data.GetProperty("table_of_authorities_count_after").GetInt32());
+        Assert.Equal(1, data.GetProperty("table_of_authorities_index").GetInt32());
+        Assert.True(data.GetProperty("native_verified").GetBoolean());
+        Assert.False(data.GetProperty("separator_values_returned").GetBoolean());
+        Assert.False(data.GetProperty("result_text_returned").GetBoolean());
+        Assert.DoesNotContain("Authority", raw, StringComparison.Ordinal);
+        Assert.Equal(2, host.Application.ActiveDocument.TablesOfAuthorities.LastCategory);
+        Assert.True(host.Application.ActiveDocument.TablesOfAuthorities.LastPassim);
+        Assert.False(
+            host.Application.ActiveDocument.TablesOfAuthorities.LastIncludeCategoryHeader
+        );
+        Assert.Equal("\t", host.Application.ActiveDocument.TablesOfAuthorities.LastEntrySeparator);
+        Assert.Equal(1, host.Application.ActiveDocument.TablesOfAuthorities.Item(1).TabLeader);
+        Assert.Equal("dots", data.GetProperty("options").GetProperty("tab_leader").GetString());
+        Assert.Equal(1, host.Application.ActiveDocument.TablesOfAuthorities.Item(1).UpdateCount);
+        Assert.Equal(1, host.Application.ActiveDocument.RepaginateCount);
+    }
+
+    [Fact]
+    public async Task InsertsOneTableOfAuthoritiesAcrossAllCategories()
+    {
+        await using var host = new CaptionFakeHost();
+        host.Application.ActiveDocument.Fields.Add(" TA \\l \"First\" \\c 1 ", 74);
+        host.Application.ActiveDocument.Fields.Add(" TA \\l \"Second\" \\c 2 ", 74);
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = version,
+                    category = 0,
+                }
+            )
+        );
+
+        var result = await service.CallAsync(
+            "insert_live_word_table_of_authorities",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(result, JsonDefaults.Compact));
+        var data = json.RootElement;
+
+        Assert.Equal(0, data.GetProperty("category").GetInt32());
+        Assert.Equal(2, data.GetProperty("matching_citation_count").GetInt32());
+        Assert.Equal(0, host.Application.ActiveDocument.TablesOfAuthorities.LastCategory);
+    }
+
+    [Fact]
+    public async Task RollsBackTableOfAuthoritiesWhenNativeOptionReadbackMismatches()
+    {
+        await using var host = new CaptionFakeHost();
+        host.Application.ActiveDocument.Fields.Add(" TA \\l \"Authority\" \\c 1 ", 74);
+        host.Application.ActiveDocument.TablesOfAuthorities.SuppressTabLeaderChange = true;
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = version,
+                }
+            )
+        );
+
+        var error = await Assert.ThrowsAsync<NativeToolException>(
+            () =>
+                service.CallAsync(
+                    "insert_live_word_table_of_authorities",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("VALIDATION_FAILED", error.ErrorCode);
+        Assert.Equal(0, host.Application.ActiveDocument.TablesOfAuthorities.Count);
+        Assert.Equal(1, host.Application.ActiveDocument.UndoCount);
+    }
+
+    [Fact]
+    public async Task RejectsTableOfAuthoritiesWithoutMatchingCitationBeforeUndo()
+    {
+        await using var host = new CaptionFakeHost();
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = version,
+                    category = 1,
+                }
+            )
+        );
+
+        var error = await Assert.ThrowsAsync<NativeToolException>(
+            () =>
+                service.CallAsync(
+                    "insert_live_word_table_of_authorities",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("INVALID_INPUT", error.ErrorCode);
+        Assert.Equal(0, host.Application.UndoRecord.StartCount);
+        Assert.Equal(0, host.Application.ActiveDocument.TablesOfAuthorities.Count);
+    }
+
+    [Fact]
+    public async Task RollsBackTableOfAuthoritiesWhenNativeFieldReadbackIsMissing()
+    {
+        await using var host = new CaptionFakeHost();
+        host.Application.ActiveDocument.Fields.Add(
+            " TA \\l \"Authority\" \\s \"Auth.\" \\c 1 ",
+            74
+        );
+        host.Application.ActiveDocument.TablesOfAuthorities.SuppressAddedField = true;
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = version,
+                    repaginate = false,
+                }
+            )
+        );
+
+        var error = await Assert.ThrowsAsync<NativeToolException>(
+            () =>
+                service.CallAsync(
+                    "insert_live_word_table_of_authorities",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+        );
+
+        Assert.Equal("VALIDATION_FAILED", error.ErrorCode);
+        Assert.Equal(0, host.Application.ActiveDocument.TablesOfAuthorities.Count);
+        Assert.Equal(1, host.Application.ActiveDocument.UndoCount);
+        Assert.Equal(0, host.Application.ActiveDocument.RepaginateCount);
+    }
+
+    [Fact]
     public async Task UpdatesEveryNativeReferenceTableWithoutReturningResultText()
     {
         await using var host = new CaptionFakeHost();
@@ -703,7 +988,7 @@ public sealed class CaptionFakeDocument
         Fields = new CaptionFakeFields();
         TablesOfContents = new CaptionFakeReferenceTables(this);
         TablesOfFigures = new CaptionFakeTablesOfFigures(this);
-        TablesOfAuthorities = new CaptionFakeReferenceTables();
+        TablesOfAuthorities = new CaptionFakeReferenceTables(this);
     }
 
     public string Name => "Captions.docx";
@@ -869,21 +1154,39 @@ public sealed class CaptionFakeFields
     private readonly List<CaptionFakeField> _items = [];
     public int Count => _items.Count;
     public CaptionFakeField Item(int index) => _items[index - 1];
-    public void Add(string code) => _items.Add(new CaptionFakeField(code));
+    public CaptionFakeField Add(string code, int type = 12, int? start = null)
+    {
+        var codeStart = start ?? 100 + (_items.Count * 100);
+        var field = new CaptionFakeField(code, type, codeStart, codeStart + code.Length);
+        _items.Add(field);
+        return field;
+    }
     public void Trim(int count) => _items.RemoveRange(count, _items.Count - count);
 }
 
 public sealed class CaptionFakeField
 {
-    public CaptionFakeField(string code) => Code = new CaptionFakeFieldCode(code);
-    public int Type => 12;
+    public CaptionFakeField(string code, int type = 12, int start = 100, int end = 120)
+    {
+        Type = type;
+        Code = new CaptionFakeFieldCode(code, start, end);
+    }
+    public int Type { get; }
     public CaptionFakeFieldCode Code { get; }
 }
 
 public sealed class CaptionFakeFieldCode
 {
-    public CaptionFakeFieldCode(string text) => Text = text;
+    public CaptionFakeFieldCode(string text, int start, int end)
+    {
+        Text = text;
+        Start = start;
+        End = end;
+    }
     public string Text { get; }
+    public int Start { get; }
+    public int End { get; }
+    public CaptionFakeFieldCode Duplicate => this;
 }
 
 public sealed class CaptionFakeReferenceTables
@@ -898,11 +1201,32 @@ public sealed class CaptionFakeReferenceTables
     public int Count => _items.Count;
     public CaptionFakeReferenceTable Item(int index) => _items[index - 1];
     public bool SuppressAddedField { get; set; }
+    public bool SuppressMarkedCitation { get; set; }
+    public bool SuppressTabLeaderChange { get; set; }
     public int LastRangeStart { get; private set; } = -1;
     public bool LastUseHeadingStyles { get; private set; }
     public int LastUpperHeadingLevel { get; private set; }
     public int LastLowerHeadingLevel { get; private set; }
     public bool LastUseOutlineLevels { get; private set; }
+    public int LastCategory { get; private set; }
+    public bool LastPassim { get; private set; }
+    public bool LastIncludeCategoryHeader { get; private set; }
+    public string LastEntrySeparator { get; private set; } = "";
+
+    public CaptionFakeField MarkCitation(
+        CaptionFakeRange range,
+        string shortCitation,
+        string longCitation,
+        string longCitationAutoText,
+        int category
+    )
+    {
+        var document = _document ?? throw new InvalidOperationException("MarkCitation is unavailable");
+        var code = $" TA \\l \"{longCitation}\" \\s \"{shortCitation}\" \\c {category} ";
+        return SuppressMarkedCitation
+            ? new CaptionFakeField(code, 74, range.End, range.End + code.Length)
+            : document.Fields.Add(code, 74, range.End);
+    }
 
     public CaptionFakeReferenceTable Add(
         CaptionFakeRange range,
@@ -930,6 +1254,43 @@ public sealed class CaptionFakeReferenceTables
             range.Start + 20,
             SuppressAddedField ? 0 : 1
         );
+        _items.Add(table);
+        return table;
+    }
+
+    public CaptionFakeReferenceTable Add(
+        CaptionFakeRange range,
+        int category,
+        object bookmark,
+        bool passim,
+        bool keepEntryFormatting,
+        object separator,
+        object includeSequenceName,
+        string entrySeparator,
+        string pageRangeSeparator,
+        bool includeCategoryHeader,
+        string pageNumberSeparator
+    )
+    {
+        _ = _document ?? throw new InvalidOperationException("Add is unavailable");
+        LastRangeStart = range.Start;
+        LastCategory = category;
+        LastPassim = passim;
+        LastIncludeCategoryHeader = includeCategoryHeader;
+        LastEntrySeparator = entrySeparator;
+        var table = new CaptionFakeReferenceTable(
+            range.Start,
+            range.Start + 20,
+            SuppressAddedField ? 0 : 1,
+            73
+        );
+        table.Passim = passim;
+        table.KeepEntryFormatting = keepEntryFormatting;
+        table.EntrySeparator = entrySeparator;
+        table.PageRangeSeparator = pageRangeSeparator;
+        table.IncludeCategoryHeader = includeCategoryHeader;
+        table.PageNumberSeparator = pageNumberSeparator;
+        table.IgnoreTabLeaderChanges = SuppressTabLeaderChange;
         _items.Add(table);
         return table;
     }
@@ -1034,16 +1395,40 @@ public class CaptionFakeReferenceTable
     private int _undoStart;
     private int _undoEnd;
     private int _undoUpdateCount;
+    private int _tabLeader;
 
-    public CaptionFakeReferenceTable(int start, int end, int fieldCount = 1)
+    public CaptionFakeReferenceTable(
+        int start,
+        int end,
+        int fieldCount = 1,
+        int fieldType = 13
+    )
     {
-        Range = new CaptionFakeTableOfFiguresRange(start, end, fieldCount);
+        Range = new CaptionFakeTableOfFiguresRange(start, end, fieldCount, fieldType);
     }
 
     public CaptionFakeTableOfFiguresRange Range { get; }
     public bool Updated => UpdateCount > 0;
     public int UpdateCount { get; private set; }
     public bool InvalidateRangeOnUpdate { get; set; }
+    public bool Passim { get; set; }
+    public bool KeepEntryFormatting { get; set; }
+    public string EntrySeparator { get; set; } = "";
+    public string PageRangeSeparator { get; set; } = "";
+    public bool IncludeCategoryHeader { get; set; }
+    public string PageNumberSeparator { get; set; } = "";
+    public bool IgnoreTabLeaderChanges { get; set; }
+    public int TabLeader
+    {
+        get => _tabLeader;
+        set
+        {
+            if (!IgnoreTabLeaderChanges)
+            {
+                _tabLeader = value;
+            }
+        }
+    }
 
     public void Update()
     {
@@ -1076,16 +1461,21 @@ public sealed class CaptionFakeTableOfFigures : CaptionFakeReferenceTable
 
 public sealed class CaptionFakeTableOfFiguresRange
 {
-    public CaptionFakeTableOfFiguresRange(int start, int end, int fieldCount = 1)
+    public CaptionFakeTableOfFiguresRange(
+        int start,
+        int end,
+        int fieldCount = 1,
+        int fieldType = 13
+    )
     {
         Start = start;
         End = end;
-        Fields = new CaptionFakeCountCollection(fieldCount);
+        Fields = new CaptionFakeRangeFields(fieldCount, fieldType);
     }
 
     public int Start { get; private set; }
     public int End { get; private set; }
-    public CaptionFakeCountCollection Fields { get; }
+    public CaptionFakeRangeFields Fields { get; }
     public CaptionFakeTableOfFiguresRange Duplicate => this;
 
     public void Invalidate() => End = Start;
@@ -1095,6 +1485,21 @@ public sealed class CaptionFakeTableOfFiguresRange
         Start = start;
         End = end;
     }
+}
+
+public sealed class CaptionFakeRangeFields
+{
+    private readonly int _fieldType;
+    public CaptionFakeRangeFields(int count, int fieldType)
+    {
+        Count = count;
+        _fieldType = fieldType;
+    }
+    public int Count { get; }
+    public CaptionFakeField Item(int index) =>
+        index >= 1 && index <= Count
+            ? new CaptionFakeField("", _fieldType, 1, 2)
+            : throw new IndexOutOfRangeException();
 }
 
 public sealed class CaptionFakeUndoRecord

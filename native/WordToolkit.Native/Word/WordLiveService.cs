@@ -400,6 +400,14 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "mark_live_word_authority_citation" => MarkAuthorityCitationAsync(
+                arguments,
+                cancellationToken
+            ),
+            "insert_live_word_table_of_authorities" => InsertTableOfAuthoritiesAsync(
+                arguments,
+                cancellationToken
+            ),
             "update_live_word_reference_tables" => UpdateReferenceTablesAsync(
                 arguments,
                 cancellationToken

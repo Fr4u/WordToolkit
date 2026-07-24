@@ -411,6 +411,39 @@ public sealed class WordDependencyGraphTests
     }
 
     [Fact]
+    public void ResolvesAuthorityEntriesToAnAllCategoriesTableOfAuthoritiesField()
+    {
+        using var bytes = BuildPackage(
+            documentBody: """
+            <w:p><w:fldSimple w:instr=" TA \l &quot;Alpha&quot; \c 1 "><w:r><w:t/></w:r></w:fldSimple></w:p>
+            <w:p><w:fldSimple w:instr=" TA \l &quot;Beta&quot; \c 2 "><w:r><w:t/></w:r></w:fldSimple></w:p>
+            <w:p><w:fldSimple w:instr=" TOA \c &quot;0&quot; "><w:r><w:t>Alpha 1 Beta 2</w:t></w:r></w:fldSimple></w:p>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+
+        var graph = new WordDependencyGraphBuilder().Build(package, semantic);
+
+        var authorityEdges = graph.Edges
+            .Where(edge =>
+                edge.Kind == WordDependencyEdgeKind.FieldReference
+                && edge.Qualifier is not null
+                && edge.Qualifier.Contains("IndexEntry", StringComparison.Ordinal)
+            )
+            .ToArray();
+        Assert.Equal(2, authorityEdges.Length);
+        Assert.All(authorityEdges, edge =>
+        {
+            Assert.True(edge.IsResolved);
+            Assert.True(graph.TryGetNode(edge.TargetNodeId, out var target));
+            Assert.Equal(WordDependencyNodeKind.Field, target!.Kind);
+            Assert.Contains("category=", edge.Qualifier, StringComparison.Ordinal);
+        });
+        Assert.DoesNotContain(graph.Issues, issue => issue.Code == "WDG030");
+    }
+
+    [Fact]
     public void EnforcesNodeAndFingerprintBoundaries()
     {
         using var bytes = BuildPackage(documentBody: "<w:p/>");

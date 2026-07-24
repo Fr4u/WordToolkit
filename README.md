@@ -52,20 +52,25 @@ reorder or restyle SmartArt. A real Word proof shows synchronized DiagramML data
 persisted drawing parts; see
 [Guarded live SmartArt text editing](docs/RESEARCH-SMARTART-TEXT-EDITING-2026.md).
 
-The live `insert_live_word_caption`, `insert_live_word_table_of_figures` and
-`insert_live_word_table_of_contents` actions add native Word captions and editable
-reference tables without asking the model to write field instructions. Built-in caption
-labels are resolved by the installed Word language; custom labels must already exist.
-The contents action accepts semantic heading levels and source flags, not a raw `TOC`
-instruction. These operations use one custom Undo record, verify native field/collection
-counts, return no generated table or caption text and roll back when Word does not
-produce the requested structure.
+The live `insert_live_word_caption`, `insert_live_word_table_of_figures`,
+`insert_live_word_table_of_contents`, `mark_live_word_authority_citation` and
+`insert_live_word_table_of_authorities` actions add native Word captions, authority
+marks and editable reference tables without asking the model to write field
+instructions. Built-in caption labels are resolved by the installed Word language;
+custom labels must already exist. The contents action accepts semantic heading levels
+and source flags, not a raw `TOC` instruction. Authority marks require an exact fresh
+range or selection; table insertion accepts one category or all categories and defaults
+to a native tab with dotted leaders. These operations use one custom Undo record, verify
+native field/collection counts and exact table-option readback, return no generated
+table, caption or citation text and roll back when Word does not produce the requested
+structure.
 `update_live_word_reference_tables` refreshes existing native tables of contents,
 figures and authorities, either as one bounded all-kind transaction or by exact kind and
 index. It repaginates by default, updates at most 128 objects, verifies every native
 range and field collection, preserves all three collection counts and returns neither
 generated table text nor field instructions.
-See [Guarded live reference-table update](docs/RESEARCH-LIVE-REFERENCE-TABLE-UPDATE-2026.md)
+See [Guarded native authority citations and table of authorities](docs/RESEARCH-LIVE-TABLE-OF-AUTHORITIES-2026.md),
+[Guarded live reference-table update](docs/RESEARCH-LIVE-REFERENCE-TABLE-UPDATE-2026.md)
 and [Native table-of-contents insertion](docs/RESEARCH-LIVE-TABLE-OF-CONTENTS-INSERTION-2026.md)
 for the Word object-model evidence, safety contracts and verified limits.
 
@@ -147,7 +152,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 103-action schema set into model context. The normative shape is
+not flatten the 105-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -389,6 +394,8 @@ insert_live_word_fields
 insert_live_word_caption
 insert_live_word_table_of_figures
 insert_live_word_table_of_contents
+mark_live_word_authority_citation
+insert_live_word_table_of_authorities
 update_live_word_reference_tables
 insert_live_word_image
 insert_live_word_comment

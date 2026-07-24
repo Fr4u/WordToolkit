@@ -223,6 +223,29 @@ public sealed class WordReferenceGraphTests
     }
 
     [Fact]
+    public void ResolvesAuthorityEntryAgainstMatchingTableOfAuthoritiesCategory()
+    {
+        using var bytes = BuildPackage(
+            """
+            <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+              <w:body>
+                <w:p><w:fldSimple w:instr=" TA \l &quot;Alpha przeciwko Beta&quot; \c 3 "><w:r><w:t/></w:r></w:fldSimple></w:p>
+                <w:p><w:fldSimple w:instr=" TOA \c &quot;3&quot; "><w:r><w:t>Alpha przeciwko Beta 1</w:t></w:r></w:fldSimple></w:p>
+              </w:body>
+            </w:document>
+            """
+        );
+        var (package, semantic) = ReadSnapshots(bytes);
+
+        var graph = new WordReferenceGraphBuilder().Build(package, semantic);
+
+        var edge = Assert.Single(graph.Edges);
+        Assert.True(edge.IsResolved);
+        Assert.Equal(WordReferenceTargetKind.IndexEntry, edge.TargetKind);
+        Assert.Equal("Alpha przeciwko Beta", edge.TargetKey);
+    }
+
+    [Fact]
     public void AcceptsStrictBookmarkAndSimpleRefMarkup()
     {
         using var bytes = BuildPackage(
