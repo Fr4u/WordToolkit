@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Added a bounded declared shape model inside the existing figure graph. Stable `wdsh_`
+  nodes preserve Wordprocessing group/canvas, DrawingML shape and VML group/shape
+  topology; typed data covers transforms, recognized presets, custom path commands and
+  formula points, fills, lines, known effects and text-flow declarations without
+  executing geometry or Word layout.
+- Added `FigureShape` dependency nodes with explicit representation-to-root and
+  parent-to-child edges. Shape nodes, paths, commands, points and effects have hard
+  source limits plus operation-wide resource charges; unknown enum-like tokens are
+  diagnosed rather than trusted.
+- Kept shape inspection token-lean. Declared representation output exposes only shape
+  counters by default. `include_shape_details=true` requires a two-item declared
+  representation page and caps output at 64 nodes; path commands/formula points still
+  require the independent `include_geometry=true` opt-in and have separate response
+  budgets. Shape names/text remain behind `include_text=true`.
+
 - Extended the existing figure representation model instead of adding a duplicate
   layout graph. DrawingML anchors now type simple position, reference-frame alignment
   or offset, effect extents, relative size, wrapping side/distances and bounded tight/

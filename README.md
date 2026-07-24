@@ -30,7 +30,10 @@ The saved-package core also exposes a source-linked Figure/Caption graph. It col
 DrawingML/VML `mc:AlternateContent` branches into one logical figure without claiming
 that `mc:Choice` was evaluated, records inert internal/external resources, and links
 caption-style/`SEQ` paragraphs only through an explicit ambiguity-preserving evidence
-policy. See [the figure/caption contract](docs/FIGURE-CAPTION-GRAPH.md).
+policy. Shape representations additionally expose bounded group/child topology,
+transforms, preset/custom paths, line/fill/effect kinds and text-flow declarations while
+keeping formulas inert and making no rendered-geometry claim. See [the figure/caption
+contract](docs/FIGURE-CAPTION-GRAPH.md).
 
 This is an advanced but experimental OOXML engine, not a verified claim of market leadership or complete Microsoft Word equivalence. Unsupported domains and release evidence are listed explicitly in [Known limitations](docs/KNOWN-LIMITATIONS.md) and [Testing](docs/TESTING.md).
 
@@ -430,7 +433,8 @@ character pairs can be consolidated only as one explicit, exactly equivalent bat
 Saved-package dependency inspection joins OPC reachability, semantic containment across
 projected stories, explicit paragraph/run/table style use, style inheritance/defaults,
 numbering definitions and uses, field/bookmark targets, section header/footer bindings,
-classic charts/series/axes/related parts, logical figures/representations/resources and
+  classic charts/series/axes/related parts, logical figures/representations/nested shape
+  nodes/resources and
 caption candidates/associations, content controls, physical and built-in XML
 stores, resolved binding targets, repeating-section topology, nested tables,
 vertical-merge continuation cells, bibliography sources, typed active-content
@@ -487,8 +491,10 @@ Saved-package figure inspection joins declared inline/anchored DrawingML, VML fa
 legacy objects, accessibility metadata, inert relationship resources and nearby
 caption-style/`SEQ` evidence. Without an application capability context, no
 `mc:AlternateContent` branch is called active or primary. Association ties remain ambiguous; deleted evidence is never
-selected. Text, source provenance and relationship targets require three independent
-opt-ins. Raw XML/binary bytes are never returned, Word is never started and external or
+selected. A compact declared representation returns only shape counts; bounded shape
+nodes require `include_shape_details`, and path commands/formula points additionally
+require `include_geometry`. Text, source provenance and relationship targets remain
+independent opt-ins. Raw XML/binary bytes are never returned, Word is never started and external or
 embedded resources are never opened. See [the figure/caption graph
 contract](docs/FIGURE-CAPTION-GRAPH.md).
 

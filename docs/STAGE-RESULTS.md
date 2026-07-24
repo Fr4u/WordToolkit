@@ -1,5 +1,53 @@
 # Stage results
 
+## Declared DrawingML/VML shape topology and path model — 2026-07-24
+
+- Extended `WordFigureCaptionGraph` instead of adding a competing graph. Shape
+  representations now own stable `wdsh_` group/shape/picture/graphic-frame/content-part
+  nodes with parent/child topology, DrawingML transforms, recognized preset geometry,
+  bounded custom paths and move/line/arc/quadratic/cubic/close commands, formula points,
+  fill/line summaries, known effect kinds and text-flow declarations. VML path source is
+  reduced to length plus SHA-256 evidence. No formula, effect, text or page layout is
+  executed.
+- Source limits cap shape nodes at 100,000, paths at 200,000, commands/effects at
+  500,000 and formula points at 1,000,000. Individual formulas stop at 256 characters;
+  every retained node/path/command/point/effect is charged to the shared `wop1` operation
+  lease. Unknown enum-like tokens remain diagnostics rather than trusted values.
+- The dependency graph adds typed `FigureShape` nodes plus
+  `FigureRepresentationContainsShape` and `FigureShapeContainsShape` edges. The existing
+  honest gap remains `drawingml_vml_rendered_geometry_and_layout_execution`: declared
+  shape structure is covered, rendered Word geometry is not.
+- `inspect_ooxml_figures` remains counter-only by default. Full shape data requires
+  `include_shape_details=true`, `view=representations`, `detail=declared` and
+  `max_items<=2`; one response is capped at 64 nodes. Path commands/formula points still
+  require `include_geometry=true` and stop at 64 paths, 128 commands, 256 points and
+  4,096 formula characters. Names/text still require `include_text=true`.
+- The Microsoft 365 Open XML SDK validates the group/custom-geometry/effect/text-box
+  fixture with zero errors. Hostile tests cover over-limit path points and formulas plus
+  untrusted text-wrap and line-cap tokens.
+- Full gates pass **488 Engine tests**, **325 Native tests** and **1,309 Python/OOXML
+  tests** with 16 intentional environment/model skips. Release builds have zero warnings;
+  Ruff is clean and mypy passes all 29 maintained Python files.
+- Two pinned .NET SDK 8.0.423 package builds produced byte-identical 196-file,
+  86,418,307-byte expanded trees and 36,572,351-byte ZIPs. The canonical archive SHA-256
+  is `efdb5c5a78b2284296bc4ee3d8f85afa3f98a5d83c0fdb93b2314160babfb9db`;
+  the executable SHA-256 is
+  `b870d1d17891e36137d8e3d5aa4998478b0d519639d5bea2dcf426d9f7dce866` and
+  the runtime assembly SHA-256 is
+  `3e92a7bd9f4f688805cb0d3762049748ee3a6d1a24ea90f8a3577361a16b9ae4`.
+  All trees contain zero Python files.
+- The personal source and enabled cache at `0.39.0+codex.20260724055428` each contain
+  the same 196 files with zero path/length/hash differences from the release tree.
+  Installed capability discovery reports that exact version, 94 actions and the updated
+  shape-aware `inspect_ooxml_figures` contract.
+- The installed runtime inspected real `lo_groupshape_sdt.docx` without opening Word or
+  changing the source hash. A 6,598-character complete MCP line returned one shape
+  representation, both declared group nodes and no truncation. Installed dependency
+  inspection returned 67 nodes and 72 edges, including one representation-to-shape and
+  one shape-to-shape edge, while retaining the exact rendered-layout coverage gap.
+- The preceding licensed real-Word equation gate remains the latest 48-action live Word
+  proof. It was not rerun for this package-only read slice.
+
 ## Declared DrawingML/VML placement — 2026-07-24
 
 - Extended the existing `WordFigureCaptionGraph` instead of creating a second layout

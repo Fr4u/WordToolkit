@@ -674,8 +674,9 @@ flatten the existing typed graphs into anonymous strings. It joins the proven do
 - story-scoped fields, bookmarks, nested fields and typed reference targets;
 - sections and effective header/footer story bindings;
 - classic Transitional/Strict DrawingML charts, series, axes and related package parts;
-- logical figures, declared DrawingML/VML/legacy representations, inert relationship
-  resources, caption candidates and evidence-scored association edges;
+- logical figures, declared DrawingML/VML/legacy representations, bounded nested
+  group/shape nodes, inert relationship resources, caption candidates and
+  evidence-scored association edges;
 - content controls, physical and built-in XML stores, resolved binding targets and
   repeating-section items;
 - bibliography collections/sources and uniquely resolved `CITATION` fields;
@@ -728,7 +729,7 @@ formulas and paired measurements are recorded in
 `RESEARCH-DEPENDENCY-GRAPH-MEMORY-2026.md`.
 
 Coverage is explicit. Active-content payload/declaration/ActiveX topology, declared
-DrawingML/VML placement and SmartArt structure/topology are inside the graph, while
+DrawingML/VML placement and nested shape topology plus SmartArt structure/topology are inside the graph, while
 active-content binary internals/execution, rendered drawing geometry/layout execution,
 SmartArt layout execution/rendering/mutation, signature cryptographic validation/resigning, encryption and co-authoring
 sessions remain outside it. Bibliography collection/source nodes and unique-tag `CITATION` resolution are inside the
@@ -757,6 +758,14 @@ relationship resources stay typed. Multiple representations in one `mc:Alternate
 one logical figure, but the summary representation records whether Choice was merely
 preferred rather than MCE-evaluated.
 
+Shape representations extend the same graph rather than creating a competing object
+model. Stable `wdsh_` nodes preserve group/child topology, transforms, recognized preset
+geometry, bounded custom paths and formula points, declared fill/line/effect kinds and
+text-box flow metadata. Formula strings are bounded and never executed; theme colors,
+effect parameters, final text layout and rendered geometry remain outside this read
+projection. The dependency graph adds explicit representation-to-root and parent-to-child
+shape edges.
+
 Captions remain separate paragraph objects backed by caption-style and/or parsed `SEQ`
 evidence. Because OOXML declares no direct figure-caption relationship, the builder
 considers only nearby paragraphs in the same story and semantic container, scores the
@@ -765,7 +774,9 @@ Deleted/move-from evidence cannot be selected. Figure, representation, resource,
 caption and association IDs are stable and package-fingerprint-bound.
 
 `inspect_ooxml_figures` is summary-first and paged. Accessibility/caption text, source
-provenance, relationship targets and wrap-polygon coordinates use independent opt-ins;
+provenance, relationship targets, shape details and geometry use independent opt-ins;
+shape detail is capped at 64 flattened nodes while path output is separately capped at
+64 paths, 128 commands, 256 points and 4,096 formula characters per representation;
 raw XML and binary bytes have no response field. Every placement projection says that
 it is declared data, not rendered geometry. The package-only path never opens Word, decodes resources,
 follows external targets, evaluates fields or executes active content. The dependency

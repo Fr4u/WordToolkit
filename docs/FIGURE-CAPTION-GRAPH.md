@@ -20,7 +20,8 @@ One logical `WordFigureDefinition` owns one or more declared representations:
 
 The object-family classifier distinguishes picture, classic chart, diagram, shape,
 ink/content part, embedded object and unknown payloads. This is a conservative family
-classification. It is not a full geometry, SmartArt, OLE or rendering model.
+classification. Shape-classified representations additionally own a bounded declared
+shape model; this is not SmartArt layout, OLE execution or a rendering model.
 
 `PrimaryRepresentationId` is present only when there is one direct declared
 representation. `RepresentationSelectionBasis` prevents a false MCE claim:
@@ -54,6 +55,34 @@ polygons and visibility are parsed into typed fields. Physical `pt`, `pc`, `in`,
 `mm` and `px` lengths are normalized to EMU while their bounded lexical source is retained for trusted consumers. Unknown
 style declarations remain untouched in the saved OPC bytes. Preferred dimensions and
 coordinates are declarations, not a promise of final page geometry.
+
+## Declared shape model
+
+Shape representations project `wps:wsp`, `wpg:wgp`/`wpg:grpSp`, Wordprocessing canvas,
+DrawingML `a:sp` and VML shape/group roots into stable `wdsh_` nodes. Parent IDs and
+ordered child lists preserve group topology. Group children may also be pictures,
+graphic frames or content parts without being reclassified as independent logical
+figures.
+
+Each supported node can retain:
+
+- DrawingML transform offset/extent, child coordinate space, rotation in 1/60000 degree
+  units and flip flags;
+- a recognized preset geometry or bounded custom geometry with adjustments/guides,
+  handles, connection sites, text rectangle, paths and typed move/line/arc/quadratic/
+  cubic/close commands;
+- formula-valued path points and arc radii/angles, each individually bounded to 256
+  characters rather than executed as expressions;
+- declared fill kind, line width/cap/compound/alignment/fill/dash/join/end types and
+  recognized effect-list/effect-DAG child kinds;
+- Wordprocessing/DrawingML text-box character, paragraph and run counts plus body
+  anchor, vertical flow, wrap, insets, columns, flags, rotation, autofit and linked-box
+  declarations;
+- VML `path` length and SHA-256 evidence without returning its source string.
+
+Enum-like values cross an explicit allowlist. Unknown tokens produce diagnostics and do
+not enter trusted fields. The parser never expands guide formulas, evaluates geometry,
+resolves theme colors, applies effects, lays out text or computes page coordinates.
 
 Non-visual drawing properties retain bounded name, title, description, hidden and
 decorative evidence. Original character counts and truncation flags survive even when
@@ -106,17 +135,19 @@ heuristic, not a hidden claim that OOXML declared the relation.
 
 ## Stable identity and dependency graph
 
-Figures (`wdfig_`), representations (`wdfr_`), resources (`wdfrs_`), captions (`wdfc_`)
+Figures (`wdfig_`), representations (`wdfr_`), shape nodes (`wdsh_`), resources (`wdfrs_`), captions (`wdfc_`)
 and associations (`wdfca_`) receive deterministic package-fingerprint-bound IDs. The
 graph owns the fingerprint; its objects retain source part, XML element ordinal and
 semantic paragraph/story/container handles. Builders reject semantic, reference or
 style graphs from a different package snapshot.
 
-The unified dependency graph adds typed figure, representation, resource and caption
+The unified dependency graph adds typed figure, representation, shape, resource and caption
 nodes plus these edges:
 
 - semantic drawing `DefinesFigure`;
 - figure `FigureHasRepresentation`;
+- representation `FigureRepresentationContainsShape`;
+- group/shape `FigureShapeContainsShape`;
 - representation `FigureUsesResource`;
 - resource `FigureResourceTargetsPart`;
 - semantic paragraph `DefinesCaption`;
@@ -140,8 +171,12 @@ Sensitive fields are split into independent opt-ins:
 - `include_relationship_targets` exposes bounded relationship targets;
 - `include_geometry`, valid only with `view=representations`, `detail=declared` and
   `max_items` from one to two,
-  exposes at most 128 declared DrawingML or VML wrapping-polygon points per
-  representation;
+  exposes at most 128 declared wrapping-polygon points and, when shape details are also
+  enabled, 64 shape paths, 128 path commands, 256 formula points and 4,096 formula
+  characters per representation;
+- `include_shape_details`, under the same view/detail/page cap, exposes at most 64
+  flattened shape nodes; names/text still require `include_text` and path commands/
+  formula points still require `include_geometry`;
 - `include_issues` explicitly adds a bounded issue preview to a non-issue view; it is
   false by default so pagination does not repeat diagnostics.
 
@@ -158,8 +193,10 @@ it must implement an equivalent redacted projection.
 ## Limits and scale evidence
 
 Production defaults cap projected stories at 256, logical figures/captions at 100,000
-each, representations at 200,000, resources/associations at 500,000 each, issues at
-10,000, one wrapping polygon at 4,096 line points, one story part at 128 MiB,
+each, representations at 200,000, shape nodes at 100,000, shape paths at 200,000,
+shape path commands/effects at 500,000 each, shape points at 1,000,000,
+resources/associations at 500,000 each, issues at 10,000, one wrapping polygon at 4,096
+line points, one story part at 128 MiB,
 aggregate story XML at 512 MiB, parsed elements at 5,000,000 and selected retained
 string metadata at 32 Mi characters. Relationship IDs also have a 4,096-character
 hard ceiling before graph retention. Cancellation is
@@ -184,8 +221,8 @@ benchmark belongs to the contract rather than a release-note ornament.
 
 This slice is read-only. It does not insert or edit figures/captions, renumber `SEQ`
 fields, generate a table of figures, evaluate MCE against a particular Word version,
-calculate rendered anchor geometry, execute page layout, group shapes, parse DrawingML
-shape paths/effects,
+calculate rendered anchor geometry, execute page layout, mutate/group/ungroup shapes,
+evaluate guide formulas, effect parameters, theme colors or final text flow,
 inspect image pixels, synchronize chart workbooks, interpret SmartArt, activate OLE,
 render a page or prove visual equivalence across Word versions. Unsupported payloads
 remain in the OPC snapshot and are reported; lack of a typed child model is never
