@@ -388,6 +388,14 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "insert_live_word_caption" => InsertCaptionAsync(
+                arguments,
+                cancellationToken
+            ),
+            "insert_live_word_table_of_figures" => InsertTableOfFiguresAsync(
+                arguments,
+                cancellationToken
+            ),
             "insert_live_word_image" => InsertImageAsync(arguments, cancellationToken),
             "insert_live_word_comment" => InsertCommentAsync(
                 arguments,

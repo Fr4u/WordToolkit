@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- Added `wordtoolkit.insert_live_word_caption/1.0` and
+  `wordtoolkit.insert_live_word_table_of_figures/1.0` as native actions 100 and 101.
+  Both require optimistic live-version control, use one non-replayable custom Word Undo
+  record, verify native field/collection counts and automatically roll back on mismatch.
+  Built-in caption labels are resolved by the installed Word language; custom labels
+  must already exist. Neither action accepts raw field code or returns caption text.
+- Seven focused fake-COM regressions pass for closed contracts, localized and custom
+  native caption insertion, bounded label scans, response privacy, rollback and
+  table-of-figures generation. Full local gates pass 497 Engine, 346 Native and 1,309
+  Python tests with 16 intentional skips;
+  Ruff and C# formatting checks pass.
+- Installed build `0.39.0+codex.20260724093257` reports 101 actions, 15 exposed MCP
+  tools and 14 explicit metadata contracts. Its build tree, personal source and enabled
+  cache each contain the same 196 files with zero path/length/hash differences.
+- A real Word 16.0.20131 proof created two native table captions and one updated native
+  table of figures. Live and Microsoft Open XML SDK validation returned zero errors;
+  saved-package inspection found two complete `SEQ`, one complete `TOC` and two nested
+  `PAGEREF` fields with no issues. The one-page PDF has no clipping or overlap.
+- The 36,657,762-byte ZIP has SHA-256
+  `0f75b9cf43413080b2a9cc4765b52c3fbaf07ce24338d8044c2566c71c43943c`.
+
 - Added guarded live SmartArt text preparation and apply as native actions 98 and 99.
   Preparation binds one-time node tokens to the exact Word story/collection locator,
   shape/range identity, layout/style/color IDs, complete bounded node structure and every

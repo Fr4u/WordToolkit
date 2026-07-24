@@ -82,6 +82,11 @@ detail tests reject absolute paths and payload text.
   tokenized revision acceptance, guarded Undo, same-path save and both
   structural/Open XML SDK validation. The test harness may launch Word; the
   shipped bridge never does.
+- Native caption/table-of-figures acceptance: focused fake-COM tests prove closed
+  contracts, localized label handling, response privacy and rollback. The installed MCP
+  proof creates two captions and one table of figures in Word 16.0.20131, saves and
+  validates the DOCX, inspects complete `SEQ`/`TOC`/`PAGEREF` fields, exports PDF and
+  visually checks a 144-DPI raster for clipping and overlap.
 - Packaged-plugin execution: `scripts/smoke_test_local_plugin.py` and
   `scripts/real_world_plugin_test.py` use `uv run --isolated` with bytecode
   writes disabled. A test must not create `.venv`, `__pycache__` or `.pyc`

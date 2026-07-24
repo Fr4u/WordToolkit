@@ -1,5 +1,37 @@
 # Stage results
 
+## Native captions and table of figures — 2026-07-24
+
+- Added `wordtoolkit.insert_live_word_caption/1.0` and
+  `wordtoolkit.insert_live_word_table_of_figures/1.0` as native actions 100 and 101.
+  Both require the current live version, reject raw field code, resolve built-in labels
+  through Word, use one custom Undo record, verify native field/collection counts and
+  request one bounded rollback on failed verification. Custom labels must already exist.
+- Seven focused fake-COM tests cover closed versioned contracts, localized and custom
+  captions, a bounded custom-label scan, non-disclosure of caption title text, rollback
+  after a bad field delta, successful table-of-figures update and rejection when
+  matching captions are absent. Full local gates pass **497 Engine tests**, **346 Native
+  tests** and **1,309 Python tests** with
+  **16 intentional skips**. Ruff and C# formatting checks pass.
+- The installed `0.39.0+codex.20260724093257` runtime reports **101 actions**, **15
+  exposed MCP tools** and **14 explicit metadata contracts**. Build output, personal
+  source and enabled cache each contain the same 196 files with zero path/length/hash
+  differences.
+- Through the installed MCP STDIO boundary, Word 16.0.20131 created two native table
+  captions in the label-configured `above` position and one updated table of figures.
+  The live version advanced from 0 to 3; Word exposed two matching captions, one
+  `TablesOfFigures` object and seven live fields.
+- The saved DOCX passes Microsoft Open XML SDK validation with zero errors. Independent
+  reference inspection reports two complete `SEQ`, one complete `TOC` and two nested
+  `PAGEREF` fields with zero issues. The 14,541-byte DOCX has SHA-256
+  `3532d2bd0a8f90badfb021c57a4fd0477981c3853979d7647f40eed92f7eb9c9`.
+- Word exported a 44,536-byte one-page PDF at SHA-256
+  `c9fdeba24ede315342003cbe512ec8d266044fd61811e225e8bdd03e7945dea0`.
+  Its 144-DPI raster shows both captions, both tables, two table-of-figures entries,
+  dotted leaders and page numbers without clipping or overlap.
+- The self-contained 36,657,762-byte ZIP has SHA-256
+  `0f75b9cf43413080b2a9cc4765b52c3fbaf07ce24338d8044c2566c71c43943c`.
+
 ## Guarded live SmartArt text — 2026-07-24
 
 - Added `wordtoolkit.prepare_live_word_smartart_text_edits/1.0` and

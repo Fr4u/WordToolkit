@@ -41,6 +41,25 @@ marketing language.
 - **UNKNOWN:** Exact caption placement and table-of-figures refresh behavior across all
   supported desktop Word versions has not been measured in the licensed visual corpus.
 
+## Guarded live mutation checkpoint — 2026-07-24
+
+- **DECISION:** `insert_live_word_caption` accepts only a fresh main-story selection,
+  current live version, a built-in caption kind or one exact existing custom label, a
+  bounded single-line title, controlled separator and controlled position. It never
+  accepts field instructions or creates a process-global caption label.
+- **DECISION:** `insert_live_word_table_of_figures` accepts only an existing resolved
+  caption label, requires at least one matching native `SEQ` field and inserts Word's
+  native `TablesOfFigures` object at a collapsed cursor or the document end. It never
+  returns field instructions or caption text.
+- **FACT:** In Word 16.0.20131, the installed MCP build inserted two table captions in
+  the label-configured position above their tables and created one updated table of
+  figures with two entries, dotted leaders and page numbers. Microsoft Open XML SDK
+  validation returned zero errors. Saved-package reference inspection found two
+  complete `SEQ`, one complete `TOC` and two nested `PAGEREF` fields with no issues.
+- **UNKNOWN:** This single installed-build proof does not establish identical placement,
+  renumbering or refresh behavior across every supported Word release, locale or custom
+  chapter-numbering configuration.
+
 ## Competitor/API differential
 
 The categories are deliberately kept separate: desktop automation, open-source OOXML
@@ -82,7 +101,8 @@ problems.
   boxes.
 - **UNKNOWN:** Full SmartArt relationship and fallback semantics.
 - **UNKNOWN:** Safe OLE/embedded-package extraction policy and malware scanning adapter.
-- **UNKNOWN:** Cross-version caption insertion, renumbering and table-of-figures refresh.
-- **UNKNOWN:** Mutation round trips for figures/captions. This slice does not mutate
-  them, so package preservation is inherited from the lossless read path rather than
-  claimed as an edit proof.
+- **UNKNOWN:** Cross-version caption insertion, renumbering and table-of-figures refresh;
+  one Word 16.0.20131 mutation/render round trip now passes, but the multi-version corpus
+  remains absent.
+- **UNKNOWN:** Figure-image replacement, caption renumbering policy and durable
+  figure-to-caption mutation planning remain outside the new narrow live insertion path.

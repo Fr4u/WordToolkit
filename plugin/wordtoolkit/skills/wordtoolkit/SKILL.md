@@ -259,6 +259,24 @@ live Word workflow instead:
 This path edits text only. It does not add, delete, reorder, promote or demote nodes and
 does not change diagram layout, style or color. Save, validate and render through Word
 before claiming the document is complete.
+For native captions and a table of figures, use the dedicated live Word actions instead
+of composing `SEQ` or `TOC` field instructions yourself:
+
+1. Select the exact figure, table, equation or insertion point and call
+   `get_live_word_selection` immediately before `insert_live_word_caption`.
+2. Pass the current `expected_version`, fresh `selection_token`, a built-in
+   `caption_kind` or one exact existing custom label, and the title. Leave
+   `position=automatic` unless placement was requested explicitly; Word's configured
+   label position is then authoritative.
+3. Repeat for the required objects with a fresh selection/version after every mutation.
+4. Call `insert_live_word_table_of_figures` with the current version. Its default target
+   is `document_end`; `target=cursor` additionally requires a fresh collapsed selection.
+
+Both actions use native Word fields in one custom Undo record, verify the resulting
+collection/field counts, and roll back on mismatch. They never accept raw field code,
+create a global custom label or return caption text. A table of figures is rejected when
+the document has no matching native captions. Save, validate and render the result before
+calling the document complete.
 Use lazy `inspect_ooxml_content_controls` instead of reading `w:sdt`, `dataBinding`,
 `customXml` or item-properties XML yourself. Start with `view=summary`; page `controls`,
 `stores`, `bindings`, `targets`, `repeating_sections` or `issues` only when the next

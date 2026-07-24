@@ -89,6 +89,8 @@
       "insert_live_word_bookmarks",
       "preflight_live_word_fields",
       "insert_live_word_fields",
+      "insert_live_word_caption",
+      "insert_live_word_table_of_figures",
       "insert_live_word_image",
       "insert_live_word_comment",
       "insert_live_word_note",
@@ -11421,6 +11423,205 @@
         "readOnlyHint": false,
         "destructiveHint": false,
         "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "insert_live_word_caption",
+      "title": "Insert a native Word caption",
+      "description": "Insert one native Word caption for a token-verified main-story selection. Uses an existing built-in or custom caption label, Word's real SEQ field and configured or explicit caption position. The operation creates one custom Undo record, verifies an exact one-field increase, and rolls back on mismatch. It never accepts raw field code, creates a global caption label, or returns caption text.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "none",
+        "network": "none",
+        "microsoft_word": "mutate_connected_document_caption_fields_in_one_guarded_undo_record"
+      },
+      "reversibility": {
+        "applicable": true,
+        "mechanism": "single_custom_word_undo_record_with_automatic_rollback_before_return_on_failed_verification"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "live_document_id": {"type": "string", "minLength": 1, "maxLength": 128},
+          "expected_version": {"type": "integer", "minimum": 0},
+          "selection_token": {"type": "string", "minLength": 1, "maxLength": 128},
+          "caption_kind": {
+            "type": "string",
+            "enum": ["figure", "table", "equation", "custom"],
+            "default": "figure"
+          },
+          "custom_label": {
+            "type": "string",
+            "maxLength": 256,
+            "pattern": "^[^\\r\\n\\u0000]*$",
+            "default": "",
+            "description": "Exact existing Word caption-label name. Required only for caption_kind=custom; the action never creates labels."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 4096,
+            "pattern": "^[^\\r\\n\\u0000]*$",
+            "default": ""
+          },
+          "separator": {
+            "type": "string",
+            "enum": ["space", "colon", "dash", "em_dash", "none"],
+            "default": "space"
+          },
+          "position": {
+            "type": "string",
+            "enum": ["automatic", "above", "below"],
+            "default": "automatic",
+            "description": "automatic uses the existing position configured on the resolved Word caption label."
+          },
+          "exclude_label": {"type": "boolean", "default": false},
+          "optimize_screen_updates": {"type": "boolean", "default": true}
+        },
+        "required": ["live_document_id", "expected_version", "selection_token"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "live_document_id", "live_version", "caption_kind", "custom_label_used", "position", "exclude_label", "title_length", "sequence_field_count_before", "sequence_field_count_after", "native_verified", "raw_field_code_returned", "raw_com_objects_returned", "document", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.insert_live_word_caption/1.0"},
+              "live_document_id": {"type": "string", "maxLength": 128},
+              "live_version": {"type": "integer", "minimum": 0},
+              "caption_kind": {"enum": ["figure", "table", "equation", "custom"]},
+              "custom_label_used": {"type": "boolean"},
+              "position": {"enum": ["above", "below"]},
+              "exclude_label": {"type": "boolean"},
+              "title_length": {"type": "integer", "minimum": 0, "maximum": 4096},
+              "sequence_field_count_before": {"type": "integer", "minimum": 0, "maximum": 50000},
+              "sequence_field_count_after": {"type": "integer", "minimum": 1, "maximum": 50000},
+              "native_verified": {"const": true},
+              "raw_field_code_returned": {"const": false},
+              "raw_com_objects_returned": {"const": false},
+              "document": {"type": "object"},
+              "performance": {"type": "object"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "insert_live_word_table_of_figures",
+      "title": "Insert a native Word table of figures",
+      "description": "Insert one native Word table of figures for an existing built-in or custom caption label at the document end or a token-verified collapsed cursor. The action requires at least one matching SEQ caption, creates Word's real TablesOfFigures field in one custom Undo record, optionally updates it, verifies the collection and range, and rolls back on mismatch. It never accepts or returns raw field code.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "none",
+        "network": "none",
+        "microsoft_word": "mutate_connected_document_table_of_figures_in_one_guarded_undo_record"
+      },
+      "reversibility": {
+        "applicable": true,
+        "mechanism": "single_custom_word_undo_record_with_automatic_rollback_before_return_on_failed_verification"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "live_document_id": {"type": "string", "minLength": 1, "maxLength": 128},
+          "expected_version": {"type": "integer", "minimum": 0},
+          "target": {"type": "string", "enum": ["cursor", "document_end"], "default": "document_end"},
+          "selection_token": {
+            "type": "string",
+            "maxLength": 128,
+            "default": "",
+            "description": "Required only for target=cursor; the current selection must be collapsed."
+          },
+          "caption_kind": {
+            "type": "string",
+            "enum": ["figure", "table", "equation", "custom"],
+            "default": "figure"
+          },
+          "custom_label": {
+            "type": "string",
+            "maxLength": 256,
+            "pattern": "^[^\\r\\n\\u0000]*$",
+            "default": "",
+            "description": "Exact existing Word caption-label name. Required only for caption_kind=custom; the action never creates labels."
+          },
+          "include_label": {"type": "boolean", "default": true},
+          "include_page_numbers": {"type": "boolean", "default": true},
+          "right_align_page_numbers": {"type": "boolean", "default": true},
+          "use_hyperlinks": {"type": "boolean", "default": true},
+          "hide_page_numbers_in_web": {"type": "boolean", "default": true},
+          "update": {"type": "boolean", "default": true},
+          "optimize_screen_updates": {"type": "boolean", "default": true}
+        },
+        "required": ["live_document_id", "expected_version"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "live_document_id", "live_version", "caption_kind", "custom_label_used", "matching_caption_count", "table_of_figures_count_before", "table_of_figures_count_after", "inserted_range", "inserted_field_count", "updated", "options", "native_verified", "raw_field_code_returned", "raw_com_objects_returned", "document", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.insert_live_word_table_of_figures/1.0"},
+              "live_document_id": {"type": "string", "maxLength": 128},
+              "live_version": {"type": "integer", "minimum": 0},
+              "caption_kind": {"enum": ["figure", "table", "equation", "custom"]},
+              "custom_label_used": {"type": "boolean"},
+              "matching_caption_count": {"type": "integer", "minimum": 1, "maximum": 50000},
+              "table_of_figures_count_before": {"type": "integer", "minimum": 0},
+              "table_of_figures_count_after": {"type": "integer", "minimum": 1},
+              "inserted_range": {
+                "type": "object",
+                "required": ["start", "end"],
+                "properties": {
+                  "start": {"type": "integer", "minimum": 0},
+                  "end": {"type": "integer", "minimum": 1}
+                },
+                "additionalProperties": false
+              },
+              "inserted_field_count": {"type": "integer", "minimum": 1},
+              "updated": {"type": "boolean"},
+              "options": {
+                "type": "object",
+                "required": ["include_label", "include_page_numbers", "right_align_page_numbers", "use_hyperlinks", "hide_page_numbers_in_web"],
+                "properties": {
+                  "include_label": {"type": "boolean"},
+                  "include_page_numbers": {"type": "boolean"},
+                  "right_align_page_numbers": {"type": "boolean"},
+                  "use_hyperlinks": {"type": "boolean"},
+                  "hide_page_numbers_in_web": {"type": "boolean"}
+                },
+                "additionalProperties": false
+              },
+              "native_verified": {"const": true},
+              "raw_field_code_returned": {"const": false},
+              "raw_com_objects_returned": {"const": false},
+              "document": {"type": "object"},
+              "performance": {"type": "object"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
         "openWorldHint": true
       }
     },
