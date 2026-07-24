@@ -24,11 +24,19 @@
 - Current local verification passes 457/457 Engine and 313/313 Native tests with no
   skips, plus 1309 Python/OOXML tests with 16 intentional environment/model skips.
   Release builds have zero warnings, Ruff is clean and mypy passes all 29 maintained
-  Python source files. Four native inspector regressions enforce default redaction, a sub-5,000-
-  character direct result, a sub-8,000-character complete gateway envelope, zero COM
+  Python source files. Four native inspector regressions enforce default redaction, a
+  sub-5,000-character direct result, a sub-8,000-character complete gateway envelope, zero COM
   calls, independent disclosure opt-ins, exact selector failure and the shared operation
-  budget boundary down to one byte. Release packaging and installed-runtime acceptance
-  are recorded only after those gates complete.
+  budget boundary down to one byte. Two independent .NET SDK 8.0.423 package builds from
+  commit `41e85a1` produced byte-identical 196-file, 86,038,586-byte trees and
+  36,461,821-byte ZIPs at SHA-256
+  `5ef40ebf6a112bc2b791b5e862cafc78a0cd275ce88c46721f39a65ce61c677e`.
+  The personal marketplace and enabled cache at `0.39.0+codex.20260724023427` have zero
+  path/length/hash differences and contain zero Python files. Fresh installed-runtime
+  calls over `lo_chart.docx` report one `embedded_package` payload, 48 dependency nodes,
+  56 edges and active-content coverage; both actions keep Word, macros, binary decoding,
+  embedded-package opening, signature verification and external traversal disabled. The
+  complete dependency response is 7,040 characters, below its 8,000-character gate.
 
 ## Typed bibliography source graph — 2026-07-23
 
