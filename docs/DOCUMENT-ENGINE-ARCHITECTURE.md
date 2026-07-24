@@ -437,6 +437,29 @@ Word-perfect. Lazy
 `resolve_ooxml_formatting` filters exact property names, bounds each group, and omits
 provenance/source evidence unless asked.
 
+The first formatter slice consumes that same resolver instead of inventing a second
+formatting model. `WordFormatterPlanner` supports one explicit policy:
+`RemoveRedundantDirectFormatting`. It binds each paragraph/run to its exact lexical
+`w:pPr`/`w:rPr` child, rejects duplicate property containers, and considers only fully
+modeled scalar properties. Structural properties (`pStyle`, `rStyle`, numbering,
+section/revision property containers) are never candidates. Composite groups (`rFonts`,
+color, underline and shading) remain excluded until a group-aware equivalence proof
+exists. A candidate is removable only when the final direct contribution belongs to the
+same semantic node and produces the same resolved value as the immediately preceding
+cascade contribution.
+
+Planning then applies only source-span removal patches to an isolated candidate,
+recomputes the package fingerprint, reparses OPC, reprojects semantic content, rebuilds
+style/numbering/theme/settings/font graphs, and compares effective property maps for the
+affected node set. Removing paragraph formatting also expands proof to descendant runs.
+Any semantic, effective-formatting, structural, fingerprint or changed-part mismatch
+rejects the whole plan. Native plan/apply adds baseline-aware Open XML SDK validation,
+signature blocking, an output-path-bound apply-plan ID and create-new atomic persistence.
+No-op apply writes nothing. The engine plan retains an exact byte inverse, while the
+public create-new action declares deletion of its output as the recovery mechanism.
+Hard limits bound semantic nodes, direct-formatting nodes, candidate/removal counts,
+affected proofs, changed parts and editable XML bytes.
+
 `WordSemanticEditor.ReplaceText` is the first typed mutation vertical slice. It requires
 the package fingerprint, semantic node identity, source part, lexical element ordinal,
 projected text and part SHA-256 to agree; an optional caller-supplied expected value adds
@@ -1176,7 +1199,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 95 actions already have public SDK
+These are proved migration seams, not a claim that all 97 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.

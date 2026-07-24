@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Added a fail-closed saved-package formatter as native actions 96 and 97.
+  `plan_ooxml_format` previews one explicit `remove_redundant_direct_formatting`
+  policy; `apply_ooxml_format` rebuilds the exact output-bound plan and creates only a
+  new same-extension package. Neither action opens Word or returns document text/XML,
+  signed packages are blocked, and a stable no-op creates no file.
+- Formatter candidates remove only fully modeled scalar paragraph/run property elements
+  whose direct cascade contribution equals the preceding resolved value. Structural and
+  composite groups remain untouched. Every changed candidate must preserve OPC
+  structure, semantic content, effective formatting on all affected nodes, exact changed
+  parts and predicted fingerprint, then pass baseline-aware Open XML SDK validation.
+  The engine retains an exact byte inverse and all scans/response pages are bounded.
+
 - Added lazy `inspect_live_word_drawing_layout` as native action 95. The connected
   Microsoft Word build can repaginate and project bounded floating/inline objects,
   anchors, page/section placement, reference-aware positions, wrapping, group members

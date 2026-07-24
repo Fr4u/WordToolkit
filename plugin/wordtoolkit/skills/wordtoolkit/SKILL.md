@@ -334,6 +334,25 @@ existing, empty, lexically safe `dc:title`. Use this strict workflow:
 Never use that path for a missing title element, duplicate titles, mixed-markup title,
 signed package or another lint rule. The actions fail closed, never open Word and never
 overwrite the source or an existing output.
+For safe removal of proven-redundant direct paragraph/run formatting, use this separate
+lazy workflow:
+
+1. Inspect the saved package and retain its exact package fingerprint. Choose a new
+   same-extension output path that does not exist.
+2. Call `plan_ooxml_format` with that fingerprint and an explicit
+   `policies=["remove_redundant_direct_formatting"]`. Keep details off for ordinary use;
+   request one bounded detail page only when the change classes or a validation block
+   must be reviewed.
+3. Review `formatter_apply_plan_id`, change counts, semantic/effective-formatting proof,
+   Open XML baseline comparison, `apply_blocked` and block codes.
+4. Call `apply_ooxml_format` with the identical source, destination, fingerprint and
+   policy list plus the exact returned apply-plan ID.
+
+This is not a generic pretty-printer. It never rewrites all XML, opens Word, returns
+document text/XML, overwrites the source/destination, or removes structural/composite
+formatting groups. A stable no-op creates no file. Signed packages and incomplete,
+truncated or changed validation evidence fail closed. Do not treat a direct-formatting
+lint finding as authorization; formatter planning independently proves every candidate.
 Use lazy `inspect_ooxml_equations` for equations already stored in a saved Word
 package. Start with `view=summary`; it returns structural counts and statuses without
 formula text or raw OMML. Use `view=equations` to obtain an exact equation ID, then

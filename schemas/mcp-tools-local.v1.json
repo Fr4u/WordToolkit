@@ -43,6 +43,8 @@
       "lint_ooxml_document",
       "plan_ooxml_lint_repair",
       "apply_ooxml_lint_repair",
+      "plan_ooxml_format",
+      "apply_ooxml_format",
       "inspect_ooxml_equations",
       "inspect_ooxml_review",
       "inspect_ooxml_fonts",
@@ -6953,6 +6955,229 @@
           "new_document_title",
           "expected_lint_repair_apply_plan_id"
         ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "plan_ooxml_format",
+      "title": "Plan safe Word package formatting",
+      "description": "Build and validate a deterministic formatter candidate without opening Word or writing a file. The initial explicit policy removes only scalar direct paragraph or run properties proven redundant against the complete resolved formatting cascade. Structural and composite property groups are excluded. The plan is bound to the exact source fingerprint, policy set, validation result, and new output path; raw document text and raw XML are never returned.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_input_package",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Path to the saved source DOCX, DOCM, DOTX, or DOTM package."
+          },
+          "output_path": {
+            "type": "string",
+            "description": "New output path with the same extension as the source. It must not exist and the source is never overwritten."
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$",
+            "description": "Exact package fingerprint returned by a prior WordToolkit inspection."
+          },
+          "policies": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": ["remove_redundant_direct_formatting"]
+            },
+            "description": "Explicit formatter policies. No policy is inferred or enabled by default."
+          },
+          "include_details": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include one bounded page of change and validation metadata."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "With include_details, opt in to bounded part URIs and source ordinals. Raw XML is still withheld."
+          },
+          "detail_offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": 0
+          },
+          "detail_limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          }
+        },
+        "required": [
+          "local_path",
+          "output_path",
+          "expected_package_fingerprint",
+          "policies"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "source_file_name", "output_file_name", "formatter_plan_id", "formatter_apply_plan_id", "base_package_fingerprint", "result_package_fingerprint", "policies", "has_changes", "removed_element_count", "removed_byte_count", "changed_part_count", "scan", "validation", "apply_blocked", "apply_block_codes", "output_must_not_exist", "no_incidental_formatting_on_save", "raw_text_returned", "raw_xml_returned", "word_opened", "source_document_modified", "runtime", "python_used", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.plan_ooxml_format/1.0"},
+              "source_file_name": {"type": "string", "maxLength": 512},
+              "output_file_name": {"type": "string", "maxLength": 512},
+              "formatter_plan_id": {"type": "string", "pattern": "^wtfmt_[A-Za-z0-9_-]+$", "maxLength": 96},
+              "formatter_apply_plan_id": {"type": "string", "pattern": "^wtfmtapply_[A-Za-z0-9_-]+$", "maxLength": 96},
+              "base_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "result_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "policies": {"type": "array", "minItems": 1, "maxItems": 8, "uniqueItems": true, "items": {"enum": ["remove_redundant_direct_formatting"]}},
+              "has_changes": {"type": "boolean"},
+              "removed_element_count": {"type": "integer", "minimum": 0, "maximum": 1024},
+              "removed_byte_count": {"type": "integer", "minimum": 0},
+              "changed_part_count": {"type": "integer", "minimum": 0, "maximum": 64},
+              "scan": {"type": "object"},
+              "detail_page": {"type": ["object", "null"]},
+              "changed_parts": {"type": ["array", "null"], "maxItems": 64, "items": {"type": "object"}},
+              "validation": {"type": "object"},
+              "apply_blocked": {"type": "boolean"},
+              "apply_block_codes": {"type": "array", "maxItems": 5, "uniqueItems": true, "items": {"enum": ["digital_signature_present", "engine_validation_failed", "openxml_validation_not_performed", "openxml_new_validation_errors", "openxml_validation_limit_exceeded"]}},
+              "output_must_not_exist": {"const": true},
+              "no_incidental_formatting_on_save": {"const": true},
+              "raw_text_returned": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "word_opened": {"const": false},
+              "source_document_modified": {"const": false},
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {"type": "object", "required": ["total_ms"], "properties": {"total_ms": {"type": "number", "minimum": 0}}, "additionalProperties": false}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "apply_ooxml_format",
+      "title": "Apply reviewed Word package formatting",
+      "description": "Rebuild an exact reviewed formatter plan and atomically create a new validated Word package. Never overwrites the source or an existing output, blocks signed packages and unsafe or unvalidated candidates, and does not open Word. A stable no-op creates no file. The request must repeat the source fingerprint, policy set, and output path reviewed during planning.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_input_package_and_create_new_output",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": true,
+        "mechanism": "delete_created_output",
+        "default": "retained"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Path to the saved source DOCX, DOCM, DOTX, or DOTM package."
+          },
+          "output_path": {
+            "type": "string",
+            "description": "New output path reviewed during planning. It must not exist."
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          },
+          "policies": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": ["remove_redundant_direct_formatting"]
+            }
+          },
+          "expected_formatter_apply_plan_id": {
+            "type": "string",
+            "pattern": "^wtfmtapply_[A-Za-z0-9_-]+$",
+            "maxLength": 96,
+            "description": "Exact apply-plan ID returned by plan_ooxml_format."
+          }
+        },
+        "required": [
+          "local_path",
+          "output_path",
+          "expected_package_fingerprint",
+          "policies",
+          "expected_formatter_apply_plan_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "source_file_name", "output_file_name", "formatter_plan_id", "formatter_apply_plan_id", "created", "no_op", "overwritten", "source_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "raw_text_returned", "raw_xml_returned", "word_opened", "source_document_modified", "mutation_performed", "runtime", "python_used", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.apply_ooxml_format/1.0"},
+              "source_file_name": {"type": "string", "maxLength": 512},
+              "output_file_name": {"type": "string", "maxLength": 512},
+              "output_path": {"type": "string", "maxLength": 32767},
+              "formatter_plan_id": {"type": "string", "pattern": "^wtfmt_[A-Za-z0-9_-]+$", "maxLength": 96},
+              "formatter_apply_plan_id": {"type": "string", "pattern": "^wtfmtapply_[A-Za-z0-9_-]+$", "maxLength": 96},
+              "created": {"type": "boolean"},
+              "no_op": {"type": "boolean"},
+              "overwritten": {"const": false},
+              "source_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "predicted_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "removed_element_count": {"type": "integer", "minimum": 0, "maximum": 1024},
+              "removed_byte_count": {"type": "integer", "minimum": 0},
+              "changed_entry_names": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "maxLength": 1024}},
+              "diagnostic_count": {"type": "integer", "minimum": 0},
+              "raw_text_returned": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "word_opened": {"const": false},
+              "source_document_modified": {"const": false},
+              "mutation_performed": {"type": "boolean"},
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {"type": "object", "required": ["total_ms"], "properties": {"total_ms": {"type": "number", "minimum": 0}}, "additionalProperties": false}
+            },
+            "additionalProperties": false
+          }
+        },
         "additionalProperties": false
       },
       "annotations": {
