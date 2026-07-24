@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- Added transactional saved-package numbering restart through direct Engine,
+  `numbering-repair-package` CLI and lazy `plan_ooxml_numbering_repair` /
+  `apply_ooxml_numbering_repair` MCP. The exact selected list tail is reassigned to a
+  cloned `w:num`; earlier and unrelated sequences, paragraph text and unplanned parts are
+  proved unchanged. Apply recomputes the fingerprinted plan, requires Microsoft Open XML
+  baseline/candidate validation, blocks signatures and writes atomically with a sibling
+  backup by default. Responses expose counts/hashes, never text/XML, and explicitly flag
+  the 200-item detail ceiling.
+- Extended `WordDocumentLinter` from 18 to 21 rules by consuming the executable sequence
+  graph. Sequence diagnostics, unresolved counters and malformed/overlong labels are now
+  findings; revision/MCE view choice, picture bullets and locale/custom label rendering
+  remain explicit coverage boundaries. A guarded real-Word repair oracle passed with
+  values `1,7,8,9`, labels `1.,7.,8.,9.`, zero SDK errors and an unchanged post-oracle
+  package hash.
+- Added closed 1.0 schemas and operation metadata for both numbering-repair actions. The
+  native catalog now contains 117 actions and 31 complete metadata contracts; the
+  explicit gap remains 86. A real JSON-RPC MCP response is validated against the
+  published compact output schema.
+- Verified 592 Engine tests and 434 Native tests on pinned SDK 8.0.423; all four scoped
+  `dotnet format --verify-no-changes` gates and deterministic schema export pass. Two
+  independent package builds produced identical 196-file, 87,708,110-byte trees and
+  identical 36,918,950-byte ZIPs at SHA-256
+  `569c313de07e30ce2fe4614a2ace13bd99ad355013160908ef772f4870896da0`.
+  Installed and enabled `0.39.0+codex.20260725013020`; build, personal source and cache
+  have zero path/length/hash differences. Installed discovery returns 117 actions and 31
+  complete metadata contracts, and the installed numbering-repair schema is closed and
+  explicitly requires its detail-truncation flag.
+
 - Added a bounded source-linked `WordListSequenceGraphBuilder` and the lazy
   `inspect_ooxml_numbering` `view=sequences`. The executor resolves default/style/direct
   paragraph numbering, isolates counters per story and `numId`, applies higher-level and

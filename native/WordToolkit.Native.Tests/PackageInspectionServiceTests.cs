@@ -1168,6 +1168,161 @@ public sealed class PackageInspectionServiceTests
     }
 
     [Fact]
+    public async Task PlansAndAppliesNumberingTailRepairWithoutStartingWord()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-numbering-repair-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "numbering-repair.docx");
+            CreatePackage(
+                path,
+                paragraphPropertiesXml: "<w:pPr><w:numPr><w:ilvl w:val=\"0\"/><w:numId w:val=\"5\"/></w:numPr></w:pPr>",
+                additionalBodyXml:
+                    """
+                    <w:p w14:paraId="11223344"><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="5"/></w:numPr></w:pPr><w:r><w:t>Second secret item</w:t></w:r></w:p>
+                    <w:p w14:paraId="22334455"><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="5"/></w:numPr></w:pPr><w:r><w:t>Third secret item</w:t></w:r></w:p>
+                    """,
+                numberingXml:
+                    """
+                    <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                      <w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl></w:abstractNum>
+                      <w:num w:numId="5"><w:abstractNumId w:val="1"/></w:num>
+                    </w:numbering>
+                    """
+            );
+            var reader = new OpcPackageReader();
+            var beforeBytes = File.ReadAllBytes(path);
+            var before = reader.Read(path);
+            var target = new WordSemanticProjector().Project(before).Nodes.Single(node =>
+                node.Kind == WordSemanticNodeKind.Paragraph
+                && node.SourcePartUri == "/word/document.xml"
+                && node.SourcePath.EndsWith("/w:p[1]", StringComparison.Ordinal)
+            );
+            var service = new WordLiveService(new NoInvokeHost());
+            using var planArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                target_paragraph_node_id = target.Id.Value,
+                expected_number_id = 5,
+                expected_level_index = 0,
+                start_value = 4,
+                include_details = true,
+            }));
+
+            var plannedObject = await service.CallAsync(
+                "plan_ooxml_numbering_repair",
+                planArguments.RootElement,
+                CancellationToken.None
+            );
+            using var plannedJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(plannedObject)
+            );
+            var planned = plannedJson.RootElement;
+            var planId = planned.GetProperty("plan_id").GetString()!;
+            var predicted = planned.GetProperty("result_package_fingerprint").GetString();
+
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.StartsWith("wnrplan_", planId, StringComparison.Ordinal);
+            Assert.Equal(3, planned.GetProperty("affected_paragraph_count").GetInt32());
+            Assert.Equal(6, planned.GetProperty("new_number_id").GetInt32());
+            Assert.Equal(4, planned.GetProperty("target_counter_after").GetInt64());
+            Assert.True(planned.GetProperty("can_apply").GetBoolean());
+            Assert.True(planned.GetProperty("engine_validation")
+                .GetProperty("passed").GetBoolean());
+            Assert.True(planned.GetProperty("candidate_validation")
+                .GetProperty("no_new_errors").GetBoolean());
+            Assert.DoesNotContain("Hello", planned.GetRawText(), StringComparison.Ordinal);
+            Assert.DoesNotContain("secret", planned.GetRawText(), StringComparison.OrdinalIgnoreCase);
+            Assert.False(planned.GetProperty("paragraph_text_returned").GetBoolean());
+
+            using var applyArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                expected_plan_id = planId,
+                target_paragraph_node_id = target.Id.Value,
+                expected_number_id = 5,
+                expected_level_index = 0,
+                start_value = 4,
+                keep_backup = false,
+            }));
+            var appliedObject = await service.CallAsync(
+                "apply_ooxml_numbering_repair",
+                applyArguments.RootElement,
+                CancellationToken.None
+            );
+            using var appliedJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(appliedObject)
+            );
+            var applied = appliedJson.RootElement;
+
+            Assert.True(applied.GetProperty("applied").GetBoolean());
+            Assert.Equal(predicted, applied.GetProperty("package_fingerprint").GetString());
+            Assert.Equal(JsonValueKind.Null, applied.GetProperty("backup_path").ValueKind);
+            Assert.Equal(2, applied.GetProperty("changed_entry_names").GetArrayLength());
+            Assert.False(applied.GetProperty("paragraph_text_returned").GetBoolean());
+            Assert.Empty(Directory.GetFiles(directory, "*.bak"));
+
+            var after = reader.Read(path);
+            var semantic = new WordSemanticProjector().Project(after);
+            var styles = new WordStyleGraphBuilder().Build(after, semantic);
+            var numbering = new WordNumberingGraphBuilder().Build(after, semantic, styles);
+            var sequence = new WordListSequenceGraphBuilder().Build(
+                after,
+                semantic,
+                styles,
+                numbering
+            );
+            Assert.Equal(
+                new string?[] { "4.", "5.", "6." },
+                sequence.Items.Select(item => item.Label).ToArray()
+            );
+
+            var catalog = ToolCatalog.LoadNativeWordTools();
+            foreach (var actionName in new[]
+            {
+                "plan_ooxml_numbering_repair",
+                "apply_ooxml_numbering_repair",
+            })
+            {
+                var action = catalog.InspectAction(actionName)["tool"]!.AsObject();
+                Assert.Equal("1.0", action["operationVersion"]!.GetValue<string>());
+                Assert.NotNull(action["outputSchema"]);
+                Assert.NotNull(action["permissions"]);
+                Assert.NotNull(action["reversibility"]);
+            }
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task NumberingRepairRejectsUnknownArgumentsBeforeReadingThePackage()
+    {
+        using var arguments = JsonDocument.Parse(
+            """
+            {"local_path":"Z:\\does-not-exist.docx","expected_package_fingerprint":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","target_paragraph_node_id":"wdn_abcde","expected_number_id":5,"expected_level_index":0,"start_value":1,"unknown_field":true}
+            """
+        );
+        var exception = await Assert.ThrowsAsync<NativeToolException>(() =>
+            new WordLiveService(new NoInvokeHost()).CallAsync(
+                "plan_ooxml_numbering_repair",
+                arguments.RootElement,
+                CancellationToken.None
+            )
+        );
+        Assert.Equal("INVALID_INPUT", exception.ErrorCode);
+    }
+
+    [Fact]
     public async Task InspectsThemeAndResolvesThemeFormattingWithoutStartingWord()
     {
         var directory = Path.Combine(

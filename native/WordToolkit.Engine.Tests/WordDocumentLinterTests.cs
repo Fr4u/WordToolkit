@@ -241,12 +241,104 @@ public sealed class WordDocumentLinterTests
     public void RuleCatalogIsUniqueAndStable()
     {
         var rules = WordDocumentLinter.RuleCatalog;
+        Assert.Equal(21, rules.Count);
         Assert.Equal(rules.Count, rules.Select(item => item.Id).Distinct().Count());
         Assert.All(rules, item => Assert.StartsWith("WTL_", item.Id));
         Assert.Contains(rules, item => item.Pack == WordLintRulePack.Core);
         Assert.Contains(rules, item => item.Pack == WordLintRulePack.Styles);
         Assert.Contains(rules, item => item.Pack == WordLintRulePack.Accessibility);
         Assert.Contains(rules, item => item.Pack == WordLintRulePack.Security);
+    }
+
+    [Fact]
+    public void ReportsUnresolvedCountersAndInvalidLabelsFromTheSequenceExecutor()
+    {
+        using var bytes = BuildNumberingLintPackage(
+            """
+            <w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:numFmt w:val="decimal"/><w:lvlText w:val="%2"/></w:lvl></w:abstractNum>
+            <w:num w:numId="5"><w:abstractNumId w:val="1"/></w:num>
+            """,
+            NumberedParagraph(5, 0, "one")
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var report = new WordDocumentLinter().Analyze(
+            package,
+            new WordSemanticProjector().Project(package)
+        );
+
+        var counter = Assert.Single(
+            report.Findings,
+            item => item.RuleId == "WTL_NUMBERING_COUNTER_UNRESOLVED"
+        );
+        var label = Assert.Single(
+            report.Findings,
+            item => item.RuleId == "WTL_NUMBERING_LABEL_INVALID"
+        );
+        Assert.Equal("UnresolvedStart", counter.RelatedCode);
+        Assert.Equal("InvalidLevelText", label.RelatedCode);
+        Assert.NotNull(counter.Source.SemanticNodeId);
+        Assert.NotNull(label.Source.ByteSpan);
+    }
+
+    [Fact]
+    public void SurfacesRevisionAmbiguityWithoutPretendingToSelectAWordView()
+    {
+        using var bytes = BuildNumberingLintPackage(
+            """
+            <w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl></w:abstractNum>
+            <w:num w:numId="5"><w:abstractNumId w:val="1"/></w:num>
+            """,
+            $"<w:ins w:id=\"1\" w:author=\"A\">{NumberedParagraph(5, 0, "one")}</w:ins>"
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var report = new WordDocumentLinter().Analyze(
+            package,
+            new WordSemanticProjector().Project(package)
+        );
+
+        Assert.Contains(
+            report.Findings,
+            item => item.RuleId == "WTL_NUMBERING_SEQUENCE_DIAGNOSTIC"
+                && item.RelatedCode == "LIST_PARAGRAPH_VIEW_AMBIGUOUS"
+        );
+        Assert.Contains(
+            "numbering_revision_or_mce_view_selection",
+            report.Coverage.ExplicitlyUnmodeledDomains
+        );
+        Assert.False(report.Coverage.DocumentCoverageComplete);
+    }
+
+    [Fact]
+    public void DeclaresPictureAndLocaleLabelRenderingAsCoverageBoundariesNotDefects()
+    {
+        using var bytes = BuildNumberingLintPackage(
+            """
+            <w:numPicBullet w:numPicBulletId="1"><w:pict/></w:numPicBullet>
+            <w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlPicBulletId w:val="1"/><w:lvlText w:val="•"/></w:lvl></w:abstractNum>
+            <w:abstractNum w:abstractNumId="2"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="japaneseCounting"/><w:lvlText w:val="%1"/></w:lvl></w:abstractNum>
+            <w:num w:numId="5"><w:abstractNumId w:val="1"/></w:num>
+            <w:num w:numId="6"><w:abstractNumId w:val="2"/></w:num>
+            """,
+            NumberedParagraph(5, 0, "picture") + NumberedParagraph(6, 0, "locale")
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var report = new WordDocumentLinter().Analyze(
+            package,
+            new WordSemanticProjector().Project(package)
+        );
+
+        Assert.Contains(
+            "numbering_picture_bullet_rendering",
+            report.Coverage.ExplicitlyUnmodeledDomains
+        );
+        Assert.Contains(
+            "numbering_locale_or_custom_label_rendering",
+            report.Coverage.ExplicitlyUnmodeledDomains
+        );
+        Assert.DoesNotContain(
+            report.Findings,
+            item => item.RuleId == "WTL_NUMBERING_LABEL_INVALID"
+        );
     }
 
     private static MemoryStream BuildLintPackage(string firstHeadingText = "Heading")
@@ -346,6 +438,58 @@ public sealed class WordDocumentLinterTests
         stream.Position = 0;
         return stream;
     }
+
+    private static MemoryStream BuildNumberingLintPackage(
+        string numberingContent,
+        string documentBody
+    )
+    {
+        var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            AddEntry(
+                archive,
+                "[Content_Types].xml",
+                """
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/></Types>
+                """
+            );
+            AddEntry(
+                archive,
+                "_rels/.rels",
+                """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>
+                """
+            );
+            AddEntry(
+                archive,
+                "word/document.xml",
+                $"""
+                <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>{documentBody}</w:body></w:document>
+                """
+            );
+            AddEntry(
+                archive,
+                "word/_rels/document.xml.rels",
+                """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/></Relationships>
+                """
+            );
+            AddEntry(
+                archive,
+                "word/numbering.xml",
+                $"""
+                <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">{numberingContent}</w:numbering>
+                """
+            );
+        }
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static string NumberedParagraph(int numberId, int levelIndex, string text) => $"""
+        <w:p><w:pPr><w:numPr><w:ilvl w:val="{levelIndex}"/><w:numId w:val="{numberId}"/></w:numPr></w:pPr><w:r><w:t>{text}</w:t></w:r></w:p>
+        """;
 
     private static void AddEntry(ZipArchive archive, string name, string content)
     {

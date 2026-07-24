@@ -551,6 +551,54 @@ public sealed class LosslessXmlDocumentTests
         );
     }
 
+    [Fact]
+    public void InsertsSiblingWithoutRewritingEitherNeighbor()
+    {
+        var bytes = Encoding.UTF8.GetBytes(
+            "<w:numbering xmlns:w='urn:w'><w:num w:numId='4'/><w:numIdMacAtCleanup w:val='4'/></w:numbering>"
+        );
+        var source = LosslessXmlDocument.Parse(bytes);
+        var cleanup = source.Elements.Single(element =>
+            element.LocalName == "numIdMacAtCleanup"
+        );
+
+        var result = source.ApplyPatches(
+            [source.CreateElementSiblingInsertionPatch(
+                cleanup.Ordinal,
+                "<w:num xmlns:w='urn:w' w:numId='5'/>",
+                XmlSiblingInsertionPosition.Before
+            )]
+        );
+
+        Assert.Equal(
+            "<w:numbering xmlns:w='urn:w'><w:num w:numId='4'/><w:num xmlns:w='urn:w' w:numId='5'/><w:numIdMacAtCleanup w:val='4'/></w:numbering>",
+            Encoding.UTF8.GetString(result)
+        );
+    }
+
+    [Fact]
+    public void StringReplacementUsesSourceEncodingAndRejectsUnsafeXml()
+    {
+        const string xml = "<?xml version='1.0' encoding='utf-16'?><r><a>stare</a><b/></r>";
+        var encoding = new UnicodeEncoding(false, true, true);
+        var source = LosslessXmlDocument.Parse(
+            encoding.GetPreamble().Concat(encoding.GetBytes(xml)).ToArray()
+        );
+        var a = source.Elements.Single(element => element.LocalName == "a");
+
+        var result = source.ApplyPatches(
+            [source.CreateElementReplacementPatch(a.Ordinal, "<a>nowe ∑</a>")]
+        );
+
+        Assert.Equal(
+            "<?xml version='1.0' encoding='utf-16'?><r><a>nowe ∑</a><b/></r>",
+            encoding.GetString(result.AsSpan(encoding.GetPreamble().Length))
+        );
+        Assert.Throws<LosslessXmlEditException>(() =>
+            source.CreateElementReplacementPatch(a.Ordinal, "<x:broken/>")
+        );
+    }
+
     private static string Escape(string value)
     {
         var result = new StringBuilder(value.Length);

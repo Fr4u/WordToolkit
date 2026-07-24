@@ -438,6 +438,37 @@ public sealed class LosslessXmlDocument
         );
     }
 
+    public XmlSourcePatch CreateElementReplacementPatch(
+        int elementOrdinal,
+        string replacementXml
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(replacementXml);
+        VerifyXmlFragment(replacementXml);
+        return CreateElementReplacementPatch(
+            elementOrdinal,
+            EncodeMarkup(replacementXml)
+        );
+    }
+
+    public XmlSourcePatch CreateElementSiblingInsertionPatch(
+        int elementOrdinal,
+        string xmlFragment,
+        XmlSiblingInsertionPosition position
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(xmlFragment);
+        VerifyXmlFragment(xmlFragment);
+        var element = GetElement(elementOrdinal);
+        var offset = position switch
+        {
+            XmlSiblingInsertionPosition.Before => element.FullSpan.ByteOffset,
+            XmlSiblingInsertionPosition.After => element.FullSpan.EndByteOffset,
+            _ => throw new ArgumentOutOfRangeException(nameof(position)),
+        };
+        return new XmlSourcePatch(offset, 0, EncodeMarkup(xmlFragment));
+    }
+
     public IReadOnlyList<XmlSourcePatch> CreateElementAttributeValuePatches(
         int elementOrdinal,
         string namespaceUri,

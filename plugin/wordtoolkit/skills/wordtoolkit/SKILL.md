@@ -136,6 +136,30 @@ into the opposite standards claim.
 Use `detail=declared` and `include_source=true` only for property or corruption
 diagnosis. Treat missing targets, circular style links, mismatched overrides and
 out-of-range levels as damage; never invent a list definition.
+For a requested saved-package list restart, use the dedicated transactional workflow;
+never edit `numbering.xml` or paragraph `numPr` through generic XML/text operations:
+
+1. Inspect `view=sequences` narrowly and retain the exact package fingerprint, target
+   `paragraph_node_id`, `number_id` and `level_index`.
+2. Call `plan_ooxml_numbering_repair` with that evidence and one explicit non-negative
+   `start_value`. Leave `include_details=false` unless a block or reassignment must be
+   audited.
+3. Review the deterministic `plan_id`, source/new instance IDs, affected count, target
+   counter after repair, compatibility rules, `can_apply` and validation result. If
+   details are requested, honor `affected_paragraph_details_truncated`; a 200-item page is
+   not the entire tail when that flag is true.
+4. Call `apply_ooxml_numbering_repair` with identical intent, the original fingerprint
+   and exact plan ID. Keep the sibling recovery backup unless the user explicitly accepts
+   its removal.
+
+The operation has fixed scope `remaining_instance_in_story`: it clones one existing
+numbering instance and reassigns only the selected and later uses in that story. It does
+not repair corrupt definitions, choose a revision/MCE view, rebuild levels, merge lists,
+render locale/custom labels or picture bullets, or return paragraph text/raw XML.
+Signatures, stale IDs, ambiguity, missing SDK validation and new schema errors fail
+closed. The compatibility rule that synchronizes replacement-level `start` with
+`startOverride` is qualified against the installed Word behavior; do not generalize it
+into a universal Office-version claim.
 Use lazy `inspect_ooxml_theme` instead of loading `theme1.xml`. Keep
 `view=colors` or `view=fonts` and `detail=metadata` for ordinary decisions;
 request declarations, transforms, unknown markup, or source ordinals only when

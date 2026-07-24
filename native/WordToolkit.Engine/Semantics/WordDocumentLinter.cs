@@ -326,6 +326,11 @@ public sealed class WordDocumentLinter
     private const string CoreDependencyDiagnostic = "WTL_CORE_DEPENDENCY_DIAGNOSTIC";
     private const string StyleGraphDiagnostic = "WTL_STYLE_GRAPH_DIAGNOSTIC";
     private const string NumberingGraphDiagnostic = "WTL_NUMBERING_GRAPH_DIAGNOSTIC";
+    private const string NumberingSequenceDiagnostic =
+        "WTL_NUMBERING_SEQUENCE_DIAGNOSTIC";
+    private const string NumberingCounterUnresolved =
+        "WTL_NUMBERING_COUNTER_UNRESOLVED";
+    private const string NumberingLabelInvalid = "WTL_NUMBERING_LABEL_INVALID";
     private const string ReferenceGraphDiagnostic = "WTL_REFERENCE_GRAPH_DIAGNOSTIC";
     private const string ThemeGraphDiagnostic = "WTL_THEME_GRAPH_DIAGNOSTIC";
     private const string SettingsGraphDiagnostic = "WTL_SETTINGS_GRAPH_DIAGNOSTIC";
@@ -354,6 +359,12 @@ public sealed class WordDocumentLinter
                     "Surface typed style graph corruption and inheritance diagnostics."),
                 new(NumberingGraphDiagnostic, WordLintRulePack.Core, WordLintCategory.Numbering,
                     "Surface typed numbering definition, instance, and level diagnostics."),
+                new(NumberingSequenceDiagnostic, WordLintRulePack.Core, WordLintCategory.Numbering,
+                    "Surface paragraph-level numbering execution diagnostics without selecting a revision view."),
+                new(NumberingCounterUnresolved, WordLintRulePack.Core, WordLintCategory.Numbering,
+                    "Report numbered paragraphs whose counter cannot be executed exactly."),
+                new(NumberingLabelInvalid, WordLintRulePack.Core, WordLintCategory.Numbering,
+                    "Report malformed or Word-length-invalid numbering labels."),
                 new(ReferenceGraphDiagnostic, WordLintRulePack.Core, WordLintCategory.Reference,
                     "Surface malformed fields, bookmarks, and reference targets."),
                 new(ThemeGraphDiagnostic, WordLintRulePack.Core, WordLintCategory.Theme,
@@ -594,6 +605,41 @@ public sealed class WordDocumentLinter
             fonts,
             cancellationToken
         );
+        WordListSequenceGraph? listSequences = null;
+        if (state.Enabled(NumberingSequenceDiagnostic)
+            || state.Enabled(NumberingCounterUnresolved)
+            || state.Enabled(NumberingLabelInvalid))
+        {
+            try
+            {
+                listSequences = new WordListSequenceGraphBuilder(
+                    new WordListSequenceGraphOptions
+                    {
+                        MaxParagraphs = _options.MaxSemanticNodes,
+                        MaxItems = _options.MaxSemanticNodes,
+                        MaxIssues = _options.MaxFindings,
+                        MaxXmlPartBytes = _options.MaxSourceXmlPartBytes,
+                    }
+                ).Build(
+                    package,
+                    semanticDocument,
+                    styles,
+                    numbering,
+                    cancellationToken
+                );
+                AddNumberingSequenceFindings(
+                    state,
+                    sources,
+                    semanticDocument,
+                    listSequences,
+                    cancellationToken
+                );
+            }
+            catch (WordListSequenceLimitException)
+            {
+                sources.AddOmission("numbering_sequence_analysis_limit");
+            }
+        }
         AddExternalRelationshipFindings(
             state,
             sources,
@@ -631,6 +677,24 @@ public sealed class WordDocumentLinter
             cancellationToken
         );
 
+        var explicitlyUnmodeled = dependencies.Coverage.ExplicitlyUnmodeledDomains
+            .ToHashSet(StringComparer.Ordinal);
+        if (listSequences?.SkippedNumberedParagraphCount > 0)
+        {
+            explicitlyUnmodeled.Add("numbering_revision_or_mce_view_selection");
+        }
+        if (listSequences?.Items.Any(item =>
+                item.LabelStatus == WordListLabelStatus.PictureBullet
+            ) == true)
+        {
+            explicitlyUnmodeled.Add("numbering_picture_bullet_rendering");
+        }
+        if (listSequences?.Items.Any(item =>
+                item.LabelStatus == WordListLabelStatus.UnsupportedNumberFormat
+            ) == true)
+        {
+            explicitlyUnmodeled.Add("numbering_locale_or_custom_label_rendering");
+        }
         var coverage = new WordLintCoverage(
             semanticDocument.NodeCount,
             scannedNodes.Length,
@@ -638,7 +702,7 @@ public sealed class WordDocumentLinter
             headingCount,
             drawingCount,
             tableCount,
-            dependencies.Coverage.ExplicitlyUnmodeledDomains,
+            explicitlyUnmodeled.Order(StringComparer.Ordinal).ToArray(),
             sources.Omissions
         );
         return state.Materialize(
@@ -646,6 +710,90 @@ public sealed class WordDocumentLinter
             semanticDocument.MainPartUri,
             coverage
         );
+    }
+
+    private static void AddNumberingSequenceFindings(
+        LintState state,
+        SourceIndex sources,
+        WordSemanticDocument semanticDocument,
+        WordListSequenceGraph sequences,
+        CancellationToken cancellationToken
+    )
+    {
+        if (state.Enabled(NumberingSequenceDiagnostic))
+        {
+            foreach (var issue in sequences.Issues)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                WordSemanticNode? paragraph = null;
+                if (issue.ParagraphNodeId is { } paragraphId)
+                {
+                    semanticDocument.TryGetNode(paragraphId, out paragraph);
+                }
+                state.Add(
+                    NumberingSequenceDiagnostic,
+                    Map(issue.Severity),
+                    WordLintConfidence.Certain,
+                    "The paragraph-level numbering executor emitted a bounded diagnostic.",
+                    issue.Code,
+                    "numbered_paragraph",
+                    issue.Code + "\0" + issue.ParagraphNodeId + "\0" + issue.StoryId
+                        + "\0" + issue.NumberId + "\0" + issue.LevelIndex,
+                    1,
+                    paragraph is null
+                        ? sources.Location(null, null, null, null, null)
+                        : sources.Location(paragraph),
+                    ManualFix("repair_numbering_sequence")
+                );
+            }
+        }
+
+        foreach (var item in sequences.Items)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!semanticDocument.TryGetNode(item.ParagraphNodeId, out var paragraph)
+                || paragraph is null)
+            {
+                continue;
+            }
+            if (state.Enabled(NumberingCounterUnresolved)
+                && item.CounterStatus != WordListCounterStatus.Exact)
+            {
+                state.Add(
+                    NumberingCounterUnresolved,
+                    WordLintSeverity.Warning,
+                    WordLintConfidence.Certain,
+                    "A numbered paragraph has no exact executable counter under the current Word compatibility profile.",
+                    item.CounterStatus.ToString(),
+                    "numbered_paragraph",
+                    item.ParagraphNodeId.Value + "\0" + item.CounterStatus,
+                    1,
+                    sources.Location(paragraph),
+                    ManualFix("repair_numbering_counter")
+                );
+            }
+            if (!state.Enabled(NumberingLabelInvalid)
+                || item.LabelStatus is not (
+                    WordListLabelStatus.MissingLevelText
+                    or WordListLabelStatus.InvalidLevelText
+                    or WordListLabelStatus.WordLengthLimitExceeded
+                ))
+            {
+                continue;
+            }
+            state.Add(
+                NumberingLabelInvalid,
+                WordLintSeverity.Warning,
+                WordLintConfidence.Certain,
+                "A numbering label is missing, malformed, or exceeds Word's supported label length.",
+                item.LabelStatus.ToString(),
+                "numbered_paragraph",
+                item.ParagraphNodeId.Value + "\0" + item.LabelStatus,
+                1,
+                sources.Location(paragraph),
+                ManualFix("repair_numbering_label")
+            );
+        }
     }
 
     private static void AddCoreDiagnostics(
@@ -1594,6 +1742,14 @@ public sealed class WordDocumentLinter
     {
         WordNumberingIssueSeverity.Warning => WordLintSeverity.Warning,
         WordNumberingIssueSeverity.Error => WordLintSeverity.Error,
+        _ => throw new ArgumentOutOfRangeException(nameof(severity)),
+    };
+
+    private static WordLintSeverity Map(WordListSequenceIssueSeverity severity) => severity switch
+    {
+        WordListSequenceIssueSeverity.Info => WordLintSeverity.Info,
+        WordListSequenceIssueSeverity.Warning => WordLintSeverity.Warning,
+        WordListSequenceIssueSeverity.Error => WordLintSeverity.Error,
         _ => throw new ArgumentOutOfRangeException(nameof(severity)),
     };
 

@@ -1,5 +1,43 @@
 # Stage results
 
+## Transactional numbering-sequence restart — 2026-07-25
+
+- Added one deliberately narrow repair: `restart_numbering_sequence` with scope
+  `remaining_instance_in_story`. Direct Engine, strict stdin/file CLI and lazy MCP use
+  the same planner and apply operation. The planner clones the selected `w:num`, assigns
+  only the target tail in the same story to a fresh `numId`, preserves earlier and
+  unrelated sequence outputs, keeps paragraph text unchanged and retains an exact inverse.
+- Plan/apply require exact package fingerprint, stable paragraph node, expected source
+  instance/level/start and a reproducible `wnrplan_` ID. Apply blocks signatures, missing
+  Microsoft Open XML validation and new SDK errors, writes atomically in place and keeps
+  a sibling backup by default. Unknown JSON fields fail before filesystem access.
+- MCP exposes closed compact 1.0 output schemas, count/hash evidence and explicit detail
+  truncation; it returns no paragraph text or raw XML and never opens Word. The real
+  JSON-RPC plan response passed its published schema. Catalog size is 117 actions with 31
+  complete metadata contracts and an unchanged explicit gap of 86.
+- The linter now has 21 rules and consumes the same sequence executor. Focused regressions
+  cover unresolved starts, invalid labels, revision ambiguity, picture bullets and locale
+  formats without turning unsupported rendering into false document defects.
+- A guarded Microsoft Word acceptance opened the SDK-valid repaired package read-only.
+  Engine and Word both returned values `1,7,8,9` and labels `1.,7.,8.,9.`; Word closed
+  without save and the repaired file hash remained byte-exact.
+- Full native verification passed 592/592 Engine and 434/434 Native tests. All four
+  scoped format gates and deterministic schema export are clean. Every .NET command used
+  `C:\Users\Admin\.dotnet8\dotnet.exe` SDK 8.0.423.
+- Two independent builds produced identical 196-file, 87,708,110-byte trees and
+  identical 36,918,950-byte ZIPs at SHA-256
+  `569c313de07e30ce2fe4614a2ace13bd99ad355013160908ef772f4870896da0`.
+  Executable, runtime assembly, Engine assembly and Open XML SDK adapter hashes are
+  `c0aeeea51984ccde2cdf81a755a8e2991d855edbc111559676d4df8a8f993a82`,
+  `9cc178822b114a5216b252bd938f9e68ae9e3ce2b07b74123c3255d24ff6b0ec`,
+  `f94c0ad072a6d3d63d75108634a21af7e6a323c957c4ae610abbb298b8b0bc82` and
+  `4905569f1a7d03d312d3c8999e1bd6e692ede324a85c2161e848889d90eb6ff5`.
+- Installed and enabled `0.39.0+codex.20260725013020`. Build, personal source and active
+  cache contain the same 196 files with zero path/length/hash differences. Installed
+  discovery reports 117 actions, 15 tools and 31 complete metadata contracts; direct
+  action inspection returned the closed read-only 1.0 plan contract with the required
+  detail-truncation field.
+
 ## Word-compatible numbering sequence execution — 2026-07-25
 
 - Added bounded `WordListSequenceGraphBuilder` execution and lazy

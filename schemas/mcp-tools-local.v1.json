@@ -33,6 +33,8 @@
       "inspect_ooxml_sections",
       "inspect_ooxml_styles",
       "inspect_ooxml_numbering",
+      "plan_ooxml_numbering_repair",
+      "apply_ooxml_numbering_repair",
       "inspect_ooxml_theme",
       "inspect_ooxml_settings",
       "inspect_ooxml_references",
@@ -7323,6 +7325,231 @@
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "plan_ooxml_numbering_repair",
+      "title": "Plan a guarded Word numbering sequence restart",
+      "description": "Plan a source-linked restart of the remaining tail of one numbering instance in one Word story. The planner clones the exact w:num instance, binds every affected paragraph by semantic source identity, materializes direct numPr only where needed, writes a standard startOverride and synchronizes replacement-level start for the qualified Word compatibility profile, then reparses the candidate and proves unchanged text, unchanged earlier/unrelated sequences, exact target counter restart, no new numbering errors and a deterministic result fingerprint. It returns no paragraph text or raw XML and never opens Word.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_local_word_package",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "planning_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "expected_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "target_paragraph_node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$", "maxLength": 128},
+          "expected_number_id": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+          "expected_level_index": {"type": "integer", "minimum": 0, "maximum": 8},
+          "start_value": {"type": "integer", "minimum": 0, "maximum": 2147483647},
+          "include_details": {"type": "boolean", "default": false}
+        },
+        "required": ["local_path", "expected_package_fingerprint", "target_paragraph_node_id", "expected_number_id", "expected_level_index", "start_value"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "$defs": {
+          "nullableInteger": {"type": ["integer", "null"]},
+          "validation": {
+            "type": "object",
+            "required": ["performed", "valid", "no_new_errors", "error_count", "baseline_error_count", "candidate_error_count", "errors_truncated", "issues"],
+            "properties": {
+              "performed": {"type": "boolean"},
+              "valid": {"type": "boolean"},
+              "no_new_errors": {"type": "boolean"},
+              "error_count": {"type": "integer", "minimum": 0},
+              "baseline_error_count": {"type": "integer", "minimum": 0},
+              "candidate_error_count": {"type": "integer", "minimum": 0},
+              "errors_truncated": {"type": "boolean"},
+              "not_performed_reason": {"type": "string", "maxLength": 128},
+              "issues": {"type": "array", "maxItems": 200, "items": {"type": "object"}}
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "repair_kind", "scope", "plan_id", "base_package_fingerprint", "result_package_fingerprint", "target_paragraph_node_id", "story_kind", "source_number_id", "new_number_id", "abstract_number_id", "level_index", "start_value", "target_counter_status_before", "target_counter_after", "target_counter_status_after", "affected_paragraph_count", "affected_paragraph_details_truncated", "direct_numbering_materialized_count", "changed_part_count", "total_xml_byte_delta", "has_changes", "can_apply", "apply_blocked", "apply_blocked_reasons", "engine_validation", "candidate_validation", "compatibility_rules", "paragraph_text_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.plan_ooxml_numbering_repair/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "repair_kind": {"const": "restart_numbering_sequence"},
+              "scope": {"const": "remaining_instance_in_story"},
+              "plan_id": {"type": "string", "pattern": "^wnrplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "base_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "result_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "target_paragraph_node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "story_kind": {"enum": ["main", "header", "footer", "footnote", "endnote", "comment", "glossary_entry", "text_box", "other"]},
+              "source_number_id": {"type": "integer", "minimum": 1},
+              "new_number_id": {"type": "integer", "minimum": 1},
+              "abstract_number_id": {"type": "integer", "minimum": 0},
+              "level_index": {"type": "integer", "minimum": 0, "maximum": 8},
+              "start_value": {"type": "integer", "minimum": 0},
+              "target_counter_before": {"$ref": "#/$defs/nullableInteger"},
+              "target_counter_status_before": {"enum": ["exact", "unresolved_start", "unresolved_restart_rule", "overflow"]},
+              "target_counter_after": {"type": "integer", "minimum": 0},
+              "target_counter_status_after": {"const": "exact"},
+              "affected_paragraph_count": {"type": "integer", "minimum": 1, "maximum": 10000},
+              "affected_paragraph_details_truncated": {"type": "boolean"},
+              "direct_numbering_materialized_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+              "changed_part_count": {"type": "integer", "minimum": 2, "maximum": 16},
+              "total_xml_byte_delta": {"type": "integer"},
+              "has_changes": {"const": true},
+              "can_apply": {"type": "boolean"},
+              "apply_blocked": {"type": "boolean"},
+              "apply_blocked_reasons": {"type": "array", "maxItems": 4, "uniqueItems": true, "items": {"enum": ["digital_signature_present", "engine_validation_failed", "schema_validator_unavailable", "microsoft_schema_validation_failed"]}},
+              "engine_validation": {
+                "type": "object",
+                "required": ["candidate_package_structurally_valid", "text_preserved", "unaffected_sequences_preserved", "affected_paragraphs_reassigned", "target_counter_restarted", "no_new_numbering_errors", "before_numbering_error_count", "after_numbering_error_count", "passed"],
+                "properties": {
+                  "candidate_package_structurally_valid": {"type": "boolean"},
+                  "text_preserved": {"type": "boolean"},
+                  "unaffected_sequences_preserved": {"type": "boolean"},
+                  "affected_paragraphs_reassigned": {"type": "boolean"},
+                  "target_counter_restarted": {"type": "boolean"},
+                  "no_new_numbering_errors": {"type": "boolean"},
+                  "before_numbering_error_count": {"type": "integer", "minimum": 0},
+                  "after_numbering_error_count": {"type": "integer", "minimum": 0},
+                  "passed": {"type": "boolean"}
+                },
+                "additionalProperties": false
+              },
+              "candidate_validation": {"$ref": "#/$defs/validation"},
+              "compatibility_rules": {"type": "array", "minItems": 3, "maxItems": 4, "uniqueItems": true, "items": {"enum": ["tail_reassigned_to_cloned_numbering_instance", "start_override_written_for_standard_consumers", "source_instance_and_earlier_items_preserved", "replacement_level_start_synchronized_for_qualified_word_build"]}},
+              "affected_paragraphs": {
+                "type": "array",
+                "maxItems": 200,
+                "items": {
+                  "type": "object",
+                  "required": ["paragraph_node_id", "level_index", "before_counter_status", "direct_numbering_materialized"],
+                  "properties": {
+                    "paragraph_node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$", "maxLength": 128},
+                    "level_index": {"type": "integer", "minimum": 0, "maximum": 8},
+                    "before_counter_value": {"$ref": "#/$defs/nullableInteger"},
+                    "before_counter_status": {"enum": ["exact", "unresolved_start", "unresolved_restart_rule", "overflow"]},
+                    "direct_numbering_materialized": {"type": "boolean"}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "changed_parts": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "type": "object",
+                  "required": ["part_uri", "before_sha256", "after_sha256", "before_bytes", "after_bytes", "byte_delta"],
+                  "properties": {
+                    "part_uri": {"type": "string", "maxLength": 512},
+                    "before_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "after_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "before_bytes": {"type": "integer", "minimum": 0},
+                    "after_bytes": {"type": "integer", "minimum": 0},
+                    "byte_delta": {"type": "integer"}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "paragraph_text_returned": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"const": false},
+              "word_opened": {"const": false}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "apply_ooxml_numbering_repair",
+      "title": "Apply a reviewed Word numbering sequence restart",
+      "description": "Rebuild and atomically apply the exact reviewed numbering restart to the fingerprinted source package. The action rejects changed intent, plan drift, concurrent changes, signatures, missing Microsoft Open XML validation and new schema errors; it retains a sibling recovery backup by default. It returns no paragraph text or raw XML and never opens Word.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_write_input_package_and_optional_sibling_backup",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": true,
+        "mechanism": "atomic_sibling_backup",
+        "default": "retained"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "expected_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "expected_plan_id": {"type": "string", "pattern": "^wnrplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+          "target_paragraph_node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$", "maxLength": 128},
+          "expected_number_id": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+          "expected_level_index": {"type": "integer", "minimum": 0, "maximum": 8},
+          "start_value": {"type": "integer", "minimum": 0, "maximum": 2147483647},
+          "keep_backup": {"type": "boolean", "default": true}
+        },
+        "required": ["local_path", "expected_package_fingerprint", "expected_plan_id", "target_paragraph_node_id", "expected_number_id", "expected_level_index", "start_value"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "repair_kind", "scope", "plan_id", "applied", "no_op", "affected_paragraph_count", "source_number_id", "new_number_id", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "backup_path", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "paragraph_text_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.apply_ooxml_numbering_repair/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "repair_kind": {"const": "restart_numbering_sequence"},
+              "scope": {"const": "remaining_instance_in_story"},
+              "plan_id": {"type": "string", "pattern": "^wnrplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "applied": {"const": true},
+              "no_op": {"const": false},
+              "affected_paragraph_count": {"type": "integer", "minimum": 1, "maximum": 10000},
+              "source_number_id": {"type": "integer", "minimum": 1},
+              "new_number_id": {"type": "integer", "minimum": 1},
+              "previous_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "predicted_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "backup_path": {"type": ["string", "null"]},
+              "changed_entry_names": {"type": "array", "minItems": 2, "maxItems": 16, "uniqueItems": true, "items": {"type": "string", "maxLength": 1024}},
+              "diagnostic_count": {"type": "integer", "minimum": 0},
+              "microsoft_schema_valid": {"type": "boolean"},
+              "microsoft_schema_no_new_errors": {"const": true},
+              "paragraph_text_returned": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"const": true},
+              "word_opened": {"const": false}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
         "openWorldHint": false
       }
     },

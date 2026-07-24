@@ -226,6 +226,14 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "plan_ooxml_numbering_repair" => PlanPackageNumberingRepairAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_numbering_repair" => ApplyPackageNumberingRepairAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_ooxml_theme" => InspectPackageThemeAsync(
                 arguments,
                 cancellationToken

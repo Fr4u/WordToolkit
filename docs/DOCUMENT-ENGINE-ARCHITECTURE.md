@@ -319,6 +319,22 @@ section boundary. This observed conflict with Microsoft's written `start` note i
 an explicit compatibility warning, not buried. See
 `docs/RESEARCH-WORD-NUMBERING-SEQUENCE-EXECUTION-2026.md`.
 
+`WordNumberingSequenceRepairPlanner` is the first write layer above that executor. Its
+only command is `restart_numbering_sequence` with scope
+`remaining_instance_in_story`. The caller supplies one stable paragraph node, expected
+`numId`, expected level and new start. The planner clones the exact `w:num`, allocates a
+new ID, assigns the target and later items of that instance in the same story to the
+clone, and leaves earlier or unrelated sequences untouched. Direct `numPr` is
+materialized where style inheritance would otherwise keep the old instance. Candidate
+reparse proves paragraph text unchanged, affected items reassigned, unaffected sequence
+outputs exact, the target counter restarted and no new numbering errors. The plan has an
+exact inverse and content hashes; lazy plan/apply additionally require Microsoft Open XML
+baseline/candidate validation, block signatures and use atomic in-place persistence with
+a sibling backup by default. The compact MCP response returns no paragraph text or XML
+and declares when its 200-item detail page is truncated. A guarded real-Word oracle
+matches the engine's `1., 7., 8., 9.` labels without resaving the package. See
+`docs/RESEARCH-WORD-NUMBERING-REPAIR-2026.md`.
+
 `WordThemeGraphBuilder` is the first DrawingML dependency adapter. It follows only the
 main document's exact transitional or strict theme relationship, validates the theme
 content type and `a:theme` root, then preserves a typed view of all twelve color slots,
@@ -702,8 +718,8 @@ is not yet claimed; those cases remain whole-entry conflicts.
 All analysis consumes the same package and semantic graphs:
 
 - validator: OPC, XML, Open XML SDK, Word extensions, semantic cross-part rules;
-- linter: implemented initial core/style/accessibility/security rule packs plus future
-  numbering-sequence, language, link-text and layout-risk coverage;
+- linter: implemented core/style/accessibility/security rule packs plus numbering-
+  sequence diagnostics, with language, link-text and layout-risk coverage still future;
 - formatter: explicit policy-driven normalization with a preview;
 - optimizer: duplicate images/styles, dead relationships, package size, embedded data;
 - repair: diagnosed issue -> candidate fix -> risk -> evidence -> postcondition;
@@ -951,8 +967,9 @@ sources are in `DOCUMENT-PROPERTY-GRAPH.md`.
 
 `WordDocumentLinter` is the first analysis engine consuming the shared package,
 semantic, dependency, style, numbering, reference, section, theme, settings and font
-graphs. Its 18 deterministic rules are divided into core, styles, accessibility and
-security packs. They surface existing graph diagnostics plus unbound section stories,
+graphs. Its 21 deterministic rules are divided into core, styles, accessibility and
+security packs. They surface existing graph diagnostics plus numbering-sequence
+diagnostics, unresolved counters, malformed/overlong labels, unbound section stories,
 unused styles, groups with equivalent fully modeled declared formatting, direct
 paragraph/run formatting, external relationships, directly hidden text, heading-level
 skips, missing drawing alternative text, unmarked multi-row table headers and a missing
@@ -966,7 +983,9 @@ finding suppressions are validated and counted. Finding, semantic-node and XML-s
 budgets are hard bounds, and every exhausted source budget becomes a visible coverage
 omission. `analysis_execution_complete` means the selected implementation ran without
 an omission. It is deliberately not the same as `document_coverage_complete`, which
-remains false while the dependency graph lists unmodeled domains.
+remains false while the dependency graph lists unmodeled domains. Revision/MCE numbering
+views, picture bullets and locale/custom label rendering are named coverage boundaries;
+they are not mislabeled as document corruption.
 
 The linter applies a stricter dependency budget than the standalone graph inspector:
 100,000 nodes, 200,000 edges and 10,000 graph issues. Exceeding it fails with a typed
@@ -1246,7 +1265,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 115 actions already have public SDK
+These are proved migration seams, not a claim that all 117 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.

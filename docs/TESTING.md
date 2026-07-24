@@ -32,6 +32,14 @@ byte-for-byte in an opaque `.conflict` artifact even with backup retention disab
 the artifact is not erased by cleanup. A separate failure case deletes the recovery
 backup before compensation and proves that no nonexistent artifact is advertised; public
 detail tests reject absolute paths and payload text.
+- Numbering-repair parity: Engine and native tests drive one list-tail restart through
+  direct .NET, strict JSON CLI and the real JSON-RPC MCP envelope. They cover exact
+  instance cloning, source/style paragraph reassignment, target and unaffected counter
+  proofs, text preservation, inverse bytes, plan/fingerprint drift, signatures, validator
+  absence, unknown fields before filesystem access, backup policy, response privacy and
+  the published closed output schema. `WORDTOOLKIT_REAL_WORD_NUMBERING_REPAIR_TEST=1`
+  additionally opens the repaired package read-only in licensed Word, compares
+  `ListValue`/`ListString` with the engine and proves that the oracle did not resave it.
 - AI capability contract: native tests verify the embedded schema/MCP/compatibility
   header, deterministic 64-hex digests, sorted paging, exact CLI/MCP data parity,
   JSON round-trip, fail-closed malformed/unknown input, sub-10,000-character default

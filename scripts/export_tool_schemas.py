@@ -126,7 +126,7 @@ async def main() -> None:
     ]
     lines.extend(
         """
-The native catalog currently contains 115 actions behind 15 core/gateway tools. Rare
+The native catalog currently contains 117 actions behind 15 core/gateway tools. Rare
 saved-package inspectors remain lazy so their schemas do not enter model context until
 needed. `inspect_wordtoolkit_extensions` exposes the bounded, content-free registry
 catalog without loading assemblies, reading a document or opening Word.

@@ -13,6 +13,12 @@ public enum XmlContentInsertionPosition
     Append,
 }
 
+public enum XmlSiblingInsertionPosition
+{
+    Before,
+    After,
+}
+
 public sealed class XmlSourceAttribute
 {
     internal XmlSourceAttribute(
