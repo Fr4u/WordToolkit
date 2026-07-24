@@ -394,11 +394,9 @@ public sealed class FigurePackageInspectionTests
                     .GetProperty("polygon_line_point_count")
                     .GetInt32()
             );
-            Assert.Equal(
-                JsonValueKind.Null,
+            Assert.False(
                 compactPlacement.GetProperty("wrap")
-                    .GetProperty("polygon_line_points")
-                    .ValueKind
+                    .TryGetProperty("polygon_line_points", out _)
             );
 
             using var fullArguments = JsonDocument.Parse(
@@ -408,6 +406,7 @@ public sealed class FigurePackageInspectionTests
                     view = "representations",
                     detail = "declared",
                     include_geometry = true,
+                    max_items = 2,
                 })
             );
             var fullResult = await service.CallAsync(

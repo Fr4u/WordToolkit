@@ -138,7 +138,8 @@ Sensitive fields are split into independent opt-ins:
 - `include_text` exposes bounded accessibility/caption metadata;
 - `include_source` exposes part paths, semantic IDs, XML paths and ordinals;
 - `include_relationship_targets` exposes bounded relationship targets;
-- `include_geometry`, valid only with `view=representations` and `detail=declared`,
+- `include_geometry`, valid only with `view=representations`, `detail=declared` and
+  `max_items` from one to two,
   exposes at most 128 declared DrawingML or VML wrapping-polygon points per
   representation;
 - `include_issues` explicitly adds a bounded issue preview to a non-issue view; it is

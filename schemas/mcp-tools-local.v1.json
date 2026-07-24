@@ -6265,7 +6265,7 @@
           "include_geometry": {
             "type": "boolean",
             "default": false,
-            "description": "With view=representations and detail=declared, opt in to at most 128 declared wrap-polygon coordinates per representation. This does not execute Word layout or return rendered page coordinates."
+            "description": "With view=representations, detail=declared and max_items no greater than 2, opt in to at most 128 declared wrap-polygon coordinates per representation. This does not execute Word layout or return rendered page coordinates."
           }
         },
         "required": ["local_path"],

@@ -200,7 +200,7 @@ relative sizes and bounded wrap polygons; known VML positioning and wrapping dec
 are normalized but remain declarations rather than rendered page geometry.
 Accessibility/caption text, source provenance, relationship targets and wrapping-polygon
 coordinates require four independent opt-ins. Use `include_geometry=true` only with
-`view=representations` and `detail=declared`; it returns at most 128 line points per
+`view=representations`, `detail=declared` and `max_items<=2`; it returns at most 128 line points per
 representation. Raw XML and binary resources are never returned. The action never opens
 Word, executes page layout, decodes images or embedded packages, follows external targets,
 evaluates fields or executes active content. Deleted figures/captions remain visible but

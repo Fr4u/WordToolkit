@@ -13,7 +13,7 @@
   polygons share a 4,096-point source limit and operation-wide resource accounting.
 - `inspect_ooxml_figures` returns declared scalar placement only with
   `detail=declared`; exact polygon coordinates additionally require
-  `include_geometry=true`, `view=representations` and are capped at 128 points per
+  `include_geometry=true`, `view=representations`, `max_items<=2` and are capped at 128 points per
   response item. Every placement says it is declared data, not rendered geometry. The
   package path never opens Word or runs layout.
 - The former `drawingml_vml_advanced_layout` omission is gone. The dependency graph now

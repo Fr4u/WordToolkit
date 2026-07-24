@@ -9,8 +9,8 @@
   declarations and bounded VML `wrapcoords` polygons are normalized, including physical
   lengths to EMU.
 - Extended lazy `inspect_ooxml_figures` with a declared-placement projection and a
-  separate `include_geometry` opt-in capped at 128 polygon line points per response
-  item. The response states that these values are declarations, never rendered page
+  separate `include_geometry` opt-in capped at two response items and 128 polygon line
+  points per item. Null placement fields are omitted. The response states that these values are declarations, never rendered page
   coordinates, and the package-only path still does not open Word or execute layout.
 - Replaced the broad `drawingml_vml_advanced_layout` dependency-coverage omission with
   the precise `drawingml_vml_rendered_geometry_and_layout_execution` boundary. Valid

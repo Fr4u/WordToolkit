@@ -83,6 +83,13 @@ internal sealed partial class WordLiveService
                 "include_geometry requires view=representations and detail=declared"
             );
         }
+        if (includeGeometry && maximum > 2)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "include_geometry requires max_items between 1 and 2"
+            );
+        }
 
         try
         {
@@ -526,188 +533,278 @@ internal sealed partial class WordLiveService
         bool includeText,
         bool includeSource,
         bool includeGeometry
-    ) => new
+    )
     {
-        figure_id = figure.Id,
-        representation_id = representation.Id,
-        representation_kind = ToSnakeCase(representation.Kind.ToString()),
-        object_kind = ToSnakeCase(representation.ObjectKind.ToString()),
-        in_deleted_content = representation.IsInDeletedContent,
-        alternate_content_branch = representation.AlternateContentBranch,
-        graphic_data_uri = detail == "declared" && includeSource
-            ? BoundForResponse(representation.GraphicDataUri, 512)
-            : null,
-        width_emu = detail == "declared" ? representation.Placement.WidthEmu : null,
-        height_emu = detail == "declared" ? representation.Placement.HeightEmu : null,
-        wrap_kind = detail == "declared" ? representation.Placement.WrapKind : null,
-        behind_document = detail == "declared"
-            ? representation.Placement.BehindDocument
-            : null,
-        placement = detail == "declared"
-            ? FigurePlacementItem(representation.Placement, includeGeometry, includeSource)
-            : null,
-        non_visual_drawing_id = detail == "declared" && includeSource
-            ? representation.NonVisualDrawingId
-            : null,
-        name = includeText
-            ? BoundForResponse(representation.Accessibility.Name, 1_024)
-            : null,
-        title = includeText
-            ? BoundForResponse(representation.Accessibility.Title, 1_024)
-            : null,
-        description = includeText
-            ? BoundForResponse(representation.Accessibility.Description, 2_048)
-            : null,
-        text_redacted = !includeText
-            && (
-                representation.Accessibility.Name is not null
-                || representation.Accessibility.Title is not null
-                || representation.Accessibility.Description is not null
-            ),
-        decorative = representation.Accessibility.Decorative,
-        hidden = detail == "declared" ? representation.Accessibility.Hidden : null,
-        resource_count = representation.Resources.Count,
-        unmodeled_payload_element_count = detail == "declared"
-            ? representation.UnmodeledPayloadElements.Count
-            : (int?)null,
-        part_uri = includeSource ? BoundForResponse(representation.PartUri, 512) : null,
-        semantic_node_id = includeSource ? representation.SemanticNodeId.Value : null,
-        source_path = includeSource ? BoundForResponse(representation.SourcePath, 2_048) : null,
-        source_element_ordinal = includeSource
-            ? representation.SourceElementOrdinal
-            : (int?)null,
-    };
+        var item = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["figure_id"] = figure.Id,
+            ["representation_id"] = representation.Id,
+            ["representation_kind"] = ToSnakeCase(representation.Kind.ToString()),
+            ["object_kind"] = ToSnakeCase(representation.ObjectKind.ToString()),
+            ["in_deleted_content"] = representation.IsInDeletedContent,
+            ["text_redacted"] = !includeText
+                && (
+                    representation.Accessibility.Name is not null
+                    || representation.Accessibility.Title is not null
+                    || representation.Accessibility.Description is not null
+                ),
+            ["decorative"] = representation.Accessibility.Decorative,
+            ["resource_count"] = representation.Resources.Count,
+        };
+        AddNonNull(item, "alternate_content_branch", representation.AlternateContentBranch);
+        if (detail == "declared")
+        {
+            AddNonNull(item, "width_emu", representation.Placement.WidthEmu);
+            AddNonNull(item, "height_emu", representation.Placement.HeightEmu);
+            AddNonNull(item, "wrap_kind", representation.Placement.WrapKind);
+            AddNonNull(item, "behind_document", representation.Placement.BehindDocument);
+            item["placement"] = FigurePlacementItem(
+                representation.Placement,
+                includeGeometry,
+                includeSource
+            );
+            AddNonNull(item, "hidden", representation.Accessibility.Hidden);
+            item["unmodeled_payload_element_count"] =
+                representation.UnmodeledPayloadElements.Count;
+            if (includeSource)
+            {
+                AddNonNull(
+                    item,
+                    "graphic_data_uri",
+                    BoundForResponse(representation.GraphicDataUri, 512)
+                );
+                AddNonNull(
+                    item,
+                    "non_visual_drawing_id",
+                    representation.NonVisualDrawingId
+                );
+            }
+        }
+        if (includeText)
+        {
+            AddNonNull(
+                item,
+                "name",
+                BoundForResponse(representation.Accessibility.Name, 1_024)
+            );
+            AddNonNull(
+                item,
+                "title",
+                BoundForResponse(representation.Accessibility.Title, 1_024)
+            );
+            AddNonNull(
+                item,
+                "description",
+                BoundForResponse(representation.Accessibility.Description, 2_048)
+            );
+        }
+        if (includeSource)
+        {
+            item["part_uri"] = BoundForResponse(representation.PartUri, 512);
+            item["semantic_node_id"] = representation.SemanticNodeId.Value;
+            item["source_path"] = BoundForResponse(representation.SourcePath, 2_048);
+            item["source_element_ordinal"] = representation.SourceElementOrdinal;
+        }
+        return item;
+    }
 
     private static object FigurePlacementItem(
         WordFigurePlacementDefinition placement,
         bool includeGeometry,
         bool includeSource
-    ) => new
+    )
     {
-        kind = ToSnakeCase(placement.Kind.ToString()),
-        width_emu = placement.WidthEmu,
-        height_emu = placement.HeightEmu,
-        distance_top_emu = placement.DistanceTopEmu,
-        distance_bottom_emu = placement.DistanceBottomEmu,
-        distance_left_emu = placement.DistanceLeftEmu,
-        distance_right_emu = placement.DistanceRightEmu,
-        relative_height_order = placement.RelativeHeight,
-        behind_document = placement.BehindDocument,
-        layout_in_cell = placement.LayoutInCell,
-        allow_overlap = placement.AllowOverlap,
-        use_simple_position = placement.UseSimplePosition,
-        locked = placement.Locked,
-        simple_position = PointItem(placement.SimplePosition),
-        effect_extent = placement.EffectExtent is null
-            ? null
-            : new
-            {
-                left_emu = placement.EffectExtent.LeftEmu,
-                top_emu = placement.EffectExtent.TopEmu,
-                right_emu = placement.EffectExtent.RightEmu,
-                bottom_emu = placement.EffectExtent.BottomEmu,
-            },
-        horizontal_position = PositionItem(placement.HorizontalPosition),
-        vertical_position = PositionItem(placement.VerticalPosition),
-        relative_width = RelativeSizeItem(placement.RelativeWidthSize),
-        relative_height = RelativeSizeItem(placement.RelativeHeightSize),
-        wrap = WrapItem(placement.Wrap, includeGeometry),
-        vml = VmlPlacementItem(placement.Vml, includeGeometry, includeSource),
-        declared_only_not_rendered_geometry = true,
-    };
+        var item = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["kind"] = ToSnakeCase(placement.Kind.ToString()),
+            ["declared_only_not_rendered_geometry"] = true,
+        };
+        AddNonNull(item, "width_emu", placement.WidthEmu);
+        AddNonNull(item, "height_emu", placement.HeightEmu);
+        AddNonNull(item, "distance_top_emu", placement.DistanceTopEmu);
+        AddNonNull(item, "distance_bottom_emu", placement.DistanceBottomEmu);
+        AddNonNull(item, "distance_left_emu", placement.DistanceLeftEmu);
+        AddNonNull(item, "distance_right_emu", placement.DistanceRightEmu);
+        AddNonNull(item, "relative_height_order", placement.RelativeHeight);
+        AddNonNull(item, "behind_document", placement.BehindDocument);
+        AddNonNull(item, "layout_in_cell", placement.LayoutInCell);
+        AddNonNull(item, "allow_overlap", placement.AllowOverlap);
+        AddNonNull(item, "use_simple_position", placement.UseSimplePosition);
+        AddNonNull(item, "locked", placement.Locked);
+        AddNonNull(item, "simple_position", PointItem(placement.SimplePosition));
+        AddNonNull(item, "effect_extent", EffectExtentItem(placement.EffectExtent));
+        AddNonNull(item, "horizontal_position", PositionItem(placement.HorizontalPosition));
+        AddNonNull(item, "vertical_position", PositionItem(placement.VerticalPosition));
+        AddNonNull(item, "relative_width", RelativeSizeItem(placement.RelativeWidthSize));
+        AddNonNull(item, "relative_height", RelativeSizeItem(placement.RelativeHeightSize));
+        AddNonNull(item, "wrap", WrapItem(placement.Wrap, includeGeometry));
+        AddNonNull(item, "vml", VmlPlacementItem(placement.Vml, includeGeometry, includeSource));
+        return item;
+    }
 
-    private static object? PointItem(WordFigurePointDefinition? point) => point is null
-        ? null
-        : new { x_emu = point.XEmu, y_emu = point.YEmu };
+    private static object? PointItem(WordFigurePointDefinition? point)
+    {
+        if (point is null)
+        {
+            return null;
+        }
+        var item = new Dictionary<string, object?>(StringComparer.Ordinal);
+        AddNonNull(item, "x_emu", point.XEmu);
+        AddNonNull(item, "y_emu", point.YEmu);
+        return item;
+    }
 
-    private static object? PositionItem(WordFigurePositionDefinition? position) =>
-        position is null
-            ? null
-            : new
-            {
-                relative_from = position.RelativeFrom,
-                alignment = position.Alignment,
-                offset_emu = position.OffsetEmu,
-            };
+    private static object? EffectExtentItem(WordFigureEffectExtentDefinition? extent)
+    {
+        if (extent is null)
+        {
+            return null;
+        }
+        var item = new Dictionary<string, object?>(StringComparer.Ordinal);
+        AddNonNull(item, "left_emu", extent.LeftEmu);
+        AddNonNull(item, "top_emu", extent.TopEmu);
+        AddNonNull(item, "right_emu", extent.RightEmu);
+        AddNonNull(item, "bottom_emu", extent.BottomEmu);
+        return item;
+    }
 
-    private static object? RelativeSizeItem(WordFigureRelativeSizeDefinition? size) =>
-        size is null
-            ? null
-            : new
-            {
-                relative_from = size.RelativeFrom,
-                percentage_thousandths_of_percent = size.PercentageThousandthsOfPercent,
-            };
+    private static object? PositionItem(WordFigurePositionDefinition? position)
+    {
+        if (position is null)
+        {
+            return null;
+        }
+        var item = new Dictionary<string, object?>(StringComparer.Ordinal);
+        AddNonNull(item, "relative_from", position.RelativeFrom);
+        AddNonNull(item, "alignment", position.Alignment);
+        AddNonNull(item, "offset_emu", position.OffsetEmu);
+        return item;
+    }
 
-    private static object? WrapItem(WordFigureWrapDefinition? wrap, bool includeGeometry) =>
-        wrap is null
-            ? null
-            : new
-            {
-                kind = wrap.Kind,
-                text_side = wrap.TextSide,
-                distance_top_emu = wrap.DistanceTopEmu,
-                distance_bottom_emu = wrap.DistanceBottomEmu,
-                distance_left_emu = wrap.DistanceLeftEmu,
-                distance_right_emu = wrap.DistanceRightEmu,
-                polygon_edited = wrap.PolygonEdited,
-                polygon_line_point_count = wrap.PolygonLinePoints.Count,
-                polygon_start = includeGeometry ? PointItem(wrap.PolygonStart) : null,
-                polygon_line_points = includeGeometry
-                    ? wrap.PolygonLinePoints.Take(128).Select(PointItem).ToArray()
-                    : null,
-                polygon_line_points_truncated = includeGeometry
-                    && wrap.PolygonLinePoints.Count > 128,
-            };
+    private static object? RelativeSizeItem(WordFigureRelativeSizeDefinition? size)
+    {
+        if (size is null)
+        {
+            return null;
+        }
+        var item = new Dictionary<string, object?>(StringComparer.Ordinal);
+        AddNonNull(item, "relative_from", size.RelativeFrom);
+        AddNonNull(
+            item,
+            "percentage_thousandths_of_percent",
+            size.PercentageThousandthsOfPercent
+        );
+        return item;
+    }
+
+    private static object? WrapItem(WordFigureWrapDefinition? wrap, bool includeGeometry)
+    {
+        if (wrap is null)
+        {
+            return null;
+        }
+        var item = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["kind"] = wrap.Kind,
+            ["polygon_line_point_count"] = wrap.PolygonLinePoints.Count,
+        };
+        AddNonNull(item, "text_side", wrap.TextSide);
+        AddNonNull(item, "distance_top_emu", wrap.DistanceTopEmu);
+        AddNonNull(item, "distance_bottom_emu", wrap.DistanceBottomEmu);
+        AddNonNull(item, "distance_left_emu", wrap.DistanceLeftEmu);
+        AddNonNull(item, "distance_right_emu", wrap.DistanceRightEmu);
+        AddNonNull(item, "polygon_edited", wrap.PolygonEdited);
+        if (includeGeometry)
+        {
+            AddNonNull(item, "polygon_start", PointItem(wrap.PolygonStart));
+            item["polygon_line_points"] = wrap.PolygonLinePoints.Take(128)
+                .Select(PointItem)
+                .ToArray();
+            item["polygon_line_points_truncated"] = wrap.PolygonLinePoints.Count > 128;
+        }
+        return item;
+    }
 
     private static object? VmlPlacementItem(
         WordVmlPlacementDefinition? vml,
         bool includeGeometry,
         bool includeSource
-    ) => vml is null
-        ? null
-        : new
+    )
+    {
+        if (vml is null)
         {
-            position_mode = vml.PositionMode,
-            left = LengthItem(vml.Left, includeSource),
-            top = LengthItem(vml.Top, includeSource),
-            margin_left = LengthItem(vml.MarginLeft, includeSource),
-            margin_top = LengthItem(vml.MarginTop, includeSource),
-            margin_right = LengthItem(vml.MarginRight, includeSource),
-            margin_bottom = LengthItem(vml.MarginBottom, includeSource),
-            width = LengthItem(vml.Width, includeSource),
-            height = LengthItem(vml.Height, includeSource),
-            z_index = vml.ZIndex,
-            horizontal_position = vml.HorizontalPosition,
-            horizontal_relative_from = vml.HorizontalRelativeFrom,
-            vertical_position = vml.VerticalPosition,
-            vertical_relative_from = vml.VerticalRelativeFrom,
-            left_percentage_tenths = vml.LeftPercentageTenths,
-            top_percentage_tenths = vml.TopPercentageTenths,
-            wrap_mode = vml.WrapMode,
-            wrap_edited = vml.WrapEdited,
-            wrap_distance_top = LengthItem(vml.WrapDistanceTop, includeSource),
-            wrap_distance_bottom = LengthItem(vml.WrapDistanceBottom, includeSource),
-            wrap_distance_left = LengthItem(vml.WrapDistanceLeft, includeSource),
-            wrap_distance_right = LengthItem(vml.WrapDistanceRight, includeSource),
-            wrap_coordinate_count = vml.WrapCoordinates.Count,
-            wrap_coordinates = includeGeometry
-                ? vml.WrapCoordinates.Take(128).Select(item => new { x = item.X, y = item.Y }).ToArray()
-                : null,
-            wrap_coordinates_truncated = includeGeometry && vml.WrapCoordinates.Count > 128,
-            visibility = vml.Visibility,
-            source_truncated = vml.SourceTruncated,
+            return null;
+        }
+        var item = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["wrap_coordinate_count"] = vml.WrapCoordinates.Count,
         };
+        AddNonNull(item, "position_mode", vml.PositionMode);
+        AddNonNull(item, "left", LengthItem(vml.Left, includeSource));
+        AddNonNull(item, "top", LengthItem(vml.Top, includeSource));
+        AddNonNull(item, "margin_left", LengthItem(vml.MarginLeft, includeSource));
+        AddNonNull(item, "margin_top", LengthItem(vml.MarginTop, includeSource));
+        AddNonNull(item, "margin_right", LengthItem(vml.MarginRight, includeSource));
+        AddNonNull(item, "margin_bottom", LengthItem(vml.MarginBottom, includeSource));
+        AddNonNull(item, "width", LengthItem(vml.Width, includeSource));
+        AddNonNull(item, "height", LengthItem(vml.Height, includeSource));
+        AddNonNull(item, "z_index", vml.ZIndex);
+        AddNonNull(item, "horizontal_position", vml.HorizontalPosition);
+        AddNonNull(item, "horizontal_relative_from", vml.HorizontalRelativeFrom);
+        AddNonNull(item, "vertical_position", vml.VerticalPosition);
+        AddNonNull(item, "vertical_relative_from", vml.VerticalRelativeFrom);
+        AddNonNull(item, "left_percentage_tenths", vml.LeftPercentageTenths);
+        AddNonNull(item, "top_percentage_tenths", vml.TopPercentageTenths);
+        AddNonNull(item, "wrap_mode", vml.WrapMode);
+        AddNonNull(item, "wrap_edited", vml.WrapEdited);
+        AddNonNull(item, "wrap_distance_top", LengthItem(vml.WrapDistanceTop, includeSource));
+        AddNonNull(item, "wrap_distance_bottom", LengthItem(vml.WrapDistanceBottom, includeSource));
+        AddNonNull(item, "wrap_distance_left", LengthItem(vml.WrapDistanceLeft, includeSource));
+        AddNonNull(item, "wrap_distance_right", LengthItem(vml.WrapDistanceRight, includeSource));
+        AddNonNull(item, "visibility", vml.Visibility);
+        if (vml.SourceTruncated)
+        {
+            item["source_truncated"] = true;
+        }
+        if (includeGeometry)
+        {
+            item["wrap_coordinates"] = vml.WrapCoordinates.Take(128)
+                .Select(point => new { x = point.X, y = point.Y })
+                .ToArray();
+            item["wrap_coordinates_truncated"] = vml.WrapCoordinates.Count > 128;
+        }
+        return item;
+    }
 
-    private static object? LengthItem(WordFigureLengthDefinition? length, bool includeSource) =>
-        length is null
-            ? null
-            : new
-            {
-                emu = length.Emu,
-                lexical_value = includeSource ? length.LexicalValue : null,
-                source_unit_recognized = length.Emu is not null,
-            };
+    private static object? LengthItem(WordFigureLengthDefinition? length, bool includeSource)
+    {
+        if (length is null)
+        {
+            return null;
+        }
+        var item = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["source_unit_recognized"] = length.Emu is not null,
+        };
+        AddNonNull(item, "emu", length.Emu);
+        if (includeSource)
+        {
+            item["lexical_value"] = length.LexicalValue;
+        }
+        return item;
+    }
+
+    private static void AddNonNull(
+        IDictionary<string, object?> item,
+        string key,
+        object? value
+    )
+    {
+        if (value is not null)
+        {
+            item[key] = value;
+        }
+    }
 
     private static object CaptionItem(
         WordCaptionDefinition caption,
