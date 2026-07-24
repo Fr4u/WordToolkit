@@ -97,7 +97,10 @@ internal static class InspectPackageCli
         {
             "INVALID_INPUT" => 64,
             "NOT_FOUND" => 66,
-            "INVALID_PACKAGE" or "PACKAGE_LIMIT" => 65,
+            "INVALID_PACKAGE"
+            or "PACKAGE_LIMIT"
+            or "DOCUMENT_ENCRYPTED"
+            or "ENCRYPTION_CONTAINER_INVALID" => 65,
             "ACCESS_DENIED" => 77,
             "IO_ERROR" => 74,
             _ => 70,

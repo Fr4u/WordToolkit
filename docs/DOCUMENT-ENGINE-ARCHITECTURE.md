@@ -1202,6 +1202,14 @@ constructs the COM host; the MCP host exists for the wider live-action surface, 
 operation does not invoke it or launch Word. Legacy MCP runtime/timing fields remain at
 the adapter edge and are stripped from compact canonical data.
 
+`wordtoolkit.inspect_ooxml_encryption/1.0` is a separate transport-neutral preflight
+because encrypted ECMA-376 is a CFB container, not a malformed OPC ZIP. The Engine validates
+the compound-file header, FAT/DIFAT, root directory and regular/mini-stream chains before
+recognizing the three required root markers. It reads no encrypted payload, accepts no
+password and classifies only the bounded four-byte `EncryptionInfo` version prefix. The
+strict `inspect-encryption` CLI and lazy MCP adapter do not add parsing or secret handling.
+Full DataSpaces semantics and every decrypt/encrypt path remain outside this boundary.
+
 The second operation is `wordtoolkit.transform_ooxml_package/1.0`. It owns three bounded
 high-level intents: replace the first source-linked text occurrence, accept every
 supported tracked change and reject every supported tracked change. It never overwrites
@@ -1220,7 +1228,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 112 actions already have public SDK
+These are proved migration seams, not a claim that all 113 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.

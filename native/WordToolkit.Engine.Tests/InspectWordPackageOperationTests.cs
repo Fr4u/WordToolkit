@@ -10,6 +10,25 @@ namespace WordToolkit.Engine.Tests;
 public sealed class InspectWordPackageOperationTests
 {
     [Fact]
+    public void EncryptedOoxmlHasADistinctFailureInsteadOfPretendingToBeCorruptZip()
+    {
+        using var encrypted = new MemoryStream(
+            InspectOoxmlEncryptionOperationTests.CompoundFile(4, 4)
+        );
+
+        var exception = Assert.Throws<WordToolkitOperationException>(() =>
+            new InspectWordPackageOperation().Execute(encrypted, "protected.docx")
+        );
+
+        Assert.Equal("DOCUMENT_ENCRYPTED", exception.Code);
+        Assert.Contains(
+            "inspect_ooxml_encryption",
+            exception.Reason,
+            StringComparison.Ordinal
+        );
+    }
+
+    [Fact]
     public void PathAndStreamUseTheSameCanonicalReadOnlyContract()
     {
         var directory = CreateTemporaryDirectory();

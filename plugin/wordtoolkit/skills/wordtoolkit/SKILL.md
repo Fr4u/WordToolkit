@@ -55,6 +55,10 @@ For a saved DOCX/DOCM/DOTX/DOTM that only needs structural inspection, use
 `inspect_ooxml_package` directly. It does not open or start Word, never fetches
 external relationships, returns a compact summary by default, and exposes
 bounded part metadata only with `include_details=true`.
+Use lazy `inspect_ooxml_encryption` before treating a password-protected OOXML file as a
+corrupt ZIP. It parses bounded compound-file metadata without opening Word, classifies
+standard/agile/extensible headers, accepts no password and returns no path, stream name
+or decrypted content. Detection is not authorization to request a secret or decrypt.
 Use the lazy `inspect_ooxml_semantics` action when meaning is needed without
 opening Word. Keep previews and node counts bounded; request source XML paths
 only for a precise diagnostic or planned edit.

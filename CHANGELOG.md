@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- Added bounded encrypted-OOXML detection across direct Engine, strict
+  `inspect-encryption` CLI and lazy `inspect_ooxml_encryption` MCP under one closed
+  `wordtoolkit.inspect_ooxml_encryption/1.0` contract. The cross-platform parser validates
+  Compound File Binary header, DIFAT/FAT, directory, regular and mini-stream chains before
+  recognizing root `EncryptionInfo`, `EncryptedPackage` and DataSpaces markers; it
+  classifies Standard, Agile and Extensible version prefixes without opening Word.
+- Encryption inspection accepts no password, decrypts no content, reads at most eight
+  `EncryptionInfo` bytes, uses no network and returns no path, stream name or document
+  content. Complete DataSpaces validation, universal package-boundary errors and authorized
+  decrypt/encrypt adapters remain open. The native catalog now has 113 actions and 26
+  complete metadata contracts, leaving the explicit coverage gap unchanged at 87.
+- The checkpoint passes 574 Engine, 414 Native and 1313 Python tests with 16 intentional
+  skips. All .NET build and test evidence uses the pinned local SDK 8.0.423 executable.
+- A real Word smoke exposed legitimate preallocated surplus FAT sectors; the bounded parser
+  now accepts a conservative surplus ceiling of 109 sectors while still requiring the
+  mathematical minimum and rejecting physical/count overflow. The corrected Release engine
+  classified a fresh 19,456-byte Word 16.0 password-protected DOCX as Agile 4.4 with zero
+  issues and the general inspector returned `DOCUMENT_ENCRYPTED` rather than ZIP corruption.
+- Packaged and enabled `0.39.0+codex.20260724210114`. Two pinned SDK 8.0.423 builds
+  produced identical 196-file, 87,452,589-byte trees and identical 36,851,090-byte ZIPs
+  at SHA-256 `9ac60e38c5263ddae3ca6b0202f77e620223b2bd68a8e05b15b5ae94ec67867e`.
+  Build, personal source and cache are byte-identical; the packaged and installed-cache
+  Engine assemblies both have SHA-256
+  `d4e341d892cdaac0b4ba1fed1582bffba522ce2691845d52a7908d17ccaf7776`.
+  Installed discovery reports 113 actions, 15 tools and 26 complete contracts. The same
+  source revision passed the real Word probe above; a real lazy MCP call from the installed
+  runtime validated against its inspected output schema and returned no path.
+
 - Added a privacy-minimizing observability spine to `WordToolkit.Engine`. Versioned
   `ActivitySource` and `Meter` producers are opt-in and use only registered operation name,
   normalized outcome, operation version and fixed effect flags. Audit independently supports

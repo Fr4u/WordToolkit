@@ -90,10 +90,20 @@ public sealed record InspectWordPackageResult(
 public sealed class InspectWordPackageOperation
 {
     private readonly OpcPackageReader _reader;
+    private readonly OoxmlEncryptionInspector _encryptionInspector;
 
     public InspectWordPackageOperation(OpcPackageLimits? limits = null)
     {
         _reader = new OpcPackageReader(limits);
+        _encryptionInspector = new OoxmlEncryptionInspector(
+            new OoxmlEncryptionInspectionLimits
+            {
+                MaxFileBytes = Math.Max(
+                    512,
+                    (limits ?? OpcPackageLimits.Default).MaxArchiveBytes
+                ),
+            }
+        );
     }
 
     public InspectWordPackageResult Execute(
@@ -212,6 +222,30 @@ public sealed class InspectWordPackageOperation
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var originalPosition = stream.Position;
+        try
+        {
+            var encryption = _encryptionInspector.Inspect(stream, cancellationToken);
+            if (encryption.IsEncryptedOoxml)
+            {
+                throw new WordToolkitOperationException(
+                    "DOCUMENT_ENCRYPTED",
+                    "The file is an encrypted OOXML package",
+                    "Use inspect_ooxml_encryption for bounded password-free metadata"
+                );
+            }
+            if (encryption.EncryptionState == "malformed_encryption_container")
+            {
+                throw new WordToolkitOperationException(
+                    "ENCRYPTION_CONTAINER_INVALID",
+                    "The file contains an incomplete or malformed OOXML encryption envelope"
+                );
+            }
+        }
+        finally
+        {
+            stream.Position = originalPosition;
+        }
         var snapshot = _reader.Read(stream, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         var errors = snapshot.Diagnostics.Count(diagnostic =>
@@ -424,6 +458,12 @@ public sealed class InspectWordPackageOperation
     {
         return exception switch
         {
+            OoxmlEncryptionInspectionLimitException limit => new WordToolkitOperationException(
+                "PACKAGE_LIMIT",
+                "The package exceeds a bounded safety limit",
+                SafeReason(limit.Message, localPath, includeDetails),
+                innerException: limit
+            ),
             OpcPackageLimitException limit => new WordToolkitOperationException(
                 "PACKAGE_LIMIT",
                 "The package exceeds a bounded safety limit",

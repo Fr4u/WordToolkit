@@ -10,6 +10,7 @@
       "open_live_word_document",
       "connect_live_word_document",
       "inspect_ooxml_package",
+      "inspect_ooxml_encryption",
       "transform_ooxml_package",
       "convert_ooxml_flat_opc",
       "inspect_wordtoolkit_extensions",
@@ -3890,7 +3891,7 @@
     {
       "name": "inspect_ooxml_package",
       "title": "Inspect a Word OOXML package",
-      "description": "Read a local DOCX, DOCM, DOTX, or DOTM without opening Word. Return a bounded OPC graph summary, content-type and relationship diagnostics, a stable package fingerprint, and optional part metadata. External relationship targets are never fetched and remain redacted.",
+      "description": "Read a local DOCX, DOCM, DOTX, or DOTM without opening Word. Return a bounded OPC graph summary, content-type and relationship diagnostics, a stable package fingerprint, and optional part metadata. Encrypted and partial encryption envelopes fail with distinct stable codes instead of generic ZIP corruption. External relationship targets are never fetched and remain redacted.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -3914,6 +3915,249 @@
         "required": [
           "local_path"
         ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_ooxml_encryption",
+      "title": "Inspect OOXML encryption container",
+      "description": "Detect a standard, agile, extensible, malformed, or absent ECMA-376 encrypted-package envelope in a local OOXML file without opening Word. The bounded native parser accepts no password, decrypts no content, reads at most eight EncryptionInfo bytes, returns no paths or stream names, and never uses the network.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_local_file",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32767,
+            "description": "Absolute or workspace-relative path to a local Word, Excel, PowerPoint or Office-theme OOXML file."
+          }
+        },
+        "required": [
+          "local_path"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "operation_contract",
+              "file_name",
+              "bytes",
+              "container_kind",
+              "encryption_state",
+              "is_encrypted_ooxml",
+              "complete_encryption_container",
+              "has_encryption_info_stream",
+              "has_encrypted_package_stream",
+              "has_data_spaces_storage",
+              "encryption_info_variant",
+              "directory_entry_count",
+              "root_child_count",
+              "issue_codes",
+              "security",
+              "runtime",
+              "python_used",
+              "performance"
+            ],
+            "properties": {
+              "operation_contract": {
+                "const": "wordtoolkit.inspect_ooxml_encryption/1.0"
+              },
+              "file_name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 603979776
+              },
+              "container_kind": {
+                "enum": [
+                  "opc_zip_candidate",
+                  "encrypted_ooxml_compound_file",
+                  "compound_file",
+                  "malformed_compound_file",
+                  "unknown"
+                ]
+              },
+              "encryption_state": {
+                "enum": [
+                  "encrypted",
+                  "not_encrypted",
+                  "malformed_encryption_container",
+                  "indeterminate"
+                ]
+              },
+              "is_encrypted_ooxml": {
+                "type": "boolean"
+              },
+              "complete_encryption_container": {
+                "type": "boolean"
+              },
+              "has_encryption_info_stream": {
+                "type": "boolean"
+              },
+              "has_encrypted_package_stream": {
+                "type": "boolean"
+              },
+              "has_data_spaces_storage": {
+                "type": "boolean"
+              },
+              "encryption_info_variant": {
+                "enum": [
+                  "standard",
+                  "agile",
+                  "extensible",
+                  "unknown",
+                  "not_applicable"
+                ]
+              },
+              "encryption_info_major": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 65535
+              },
+              "encryption_info_minor": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 65535
+              },
+              "compound_file_major_version": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 3,
+                "maximum": 4
+              },
+              "sector_size": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "enum": [
+                  512,
+                  4096,
+                  null
+                ]
+              },
+              "directory_entry_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65536
+              },
+              "root_child_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65536
+              },
+              "issue_codes": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "pattern": "^[a-z0-9_]+$"
+                }
+              },
+              "security": {
+                "type": "object",
+                "required": [
+                  "accepts_password",
+                  "decrypts_content",
+                  "returns_document_content",
+                  "returns_stream_names",
+                  "returns_paths",
+                  "opens_word",
+                  "uses_network",
+                  "encryption_info_bytes_read_maximum"
+                ],
+                "properties": {
+                  "accepts_password": {
+                    "const": false
+                  },
+                  "decrypts_content": {
+                    "const": false
+                  },
+                  "returns_document_content": {
+                    "const": false
+                  },
+                  "returns_stream_names": {
+                    "const": false
+                  },
+                  "returns_paths": {
+                    "const": false
+                  },
+                  "opens_word": {
+                    "const": false
+                  },
+                  "uses_network": {
+                    "const": false
+                  },
+                  "encryption_info_bytes_read_maximum": {
+                    "const": 8
+                  }
+                },
+                "additionalProperties": false
+              },
+              "runtime": {
+                "const": "dotnet-native"
+              },
+              "python_used": {
+                "const": false
+              },
+              "performance": {
+                "type": "object",
+                "required": [
+                  "total_ms"
+                ],
+                "properties": {
+                  "total_ms": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
         "additionalProperties": false
       },
       "annotations": {

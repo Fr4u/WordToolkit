@@ -134,6 +134,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_ooxml_encryption" => InspectEncryptionAsync(
+                arguments,
+                cancellationToken
+            ),
             "transform_ooxml_package" => TransformPackageAsync(
                 arguments,
                 cancellationToken

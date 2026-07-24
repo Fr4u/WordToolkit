@@ -1,5 +1,58 @@
 # Stage results
 
+## Bounded OOXML encryption detection — 2026-07-24
+
+- Added a neutral `wordtoolkit.inspect_ooxml_encryption/1.0` Engine operation, strict
+  `inspect-encryption` JSON CLI and lazy `inspect_ooxml_encryption` MCP action. The same
+  result contract distinguishes OPC ZIP, encrypted OOXML compound files, other compound
+  files, partial markers, malformed CFB and unknown input without invoking Microsoft Word.
+  General package inspection now fails with distinct `DOCUMENT_ENCRYPTED` or
+  `ENCRYPTION_CONTAINER_INVALID` codes instead of claiming those envelopes are corrupt ZIP.
+- The cross-platform CFB probe validates signature/version/sector geometry, DIFAT/FAT and
+  directory chains, root-child identity, MiniFAT and regular/mini-stream bounds. A positive
+  result requires one root `EncryptionInfo` stream, one root `EncryptedPackage` stream and
+  one root DataSpaces storage. At most eight `EncryptionInfo` bytes are read to classify
+  Standard 2.2/3.2/4.2, Extensible 3.3/4.3 and Agile 4.4; an unknown future version remains
+  detected as encrypted with an explicit warning instead of becoming a false negative.
+- Passwords, key derivation, decryption and encryption are absent. The operation returns no
+  path, stream name, raw bytes or document content and uses no network. Full nested
+  DataSpaces validation, a universal `DOCUMENT_ENCRYPTED` boundary and an authorized,
+  zeroizing decrypt/encrypt adapter remain open.
+- Deterministic Engine and Native regressions cover all six recognized version pairs,
+  an unknown future version, CFB v3/v4 sector geometry, ZIP, missing markers, invalid
+  encryption header flags, malformed FAT identity, path privacy, exact stream-position restoration,
+  resource bounds, strict CLI, lazy closed metadata, MCP dispatch, unknown-field/password
+  rejection and zero COM calls. The catalog is now 113 actions with 26 complete metadata
+  contracts; 87 remain uncovered.
+- A licensed Word 16.0 smoke saved a fresh 19,456-byte password-protected DOCX. The Release
+  CLI detected CFB v3/512, all three root markers and Agile 4.4 with zero issue codes. The
+  temporary document and fixed test-only password were deleted after the check; detection
+  never received the password and did not invoke Word. This probe exposed Word's legitimate
+  surplus FAT-sector preallocation; the corrected parser accepts a bounded surplus while
+  retaining mathematical-minimum, physical-sector and maximum-count checks.
+- The complete local checkpoint passes 574/574 Engine, 414/414 Native and 1313 Python
+  tests with 16 intentional skips. All .NET commands use the repository-required local
+  SDK 8.0.423 at `C:\Users\Admin\.dotnet8\dotnet.exe`.
+- Two pinned SDK 8.0.423 builds produced byte-identical 196-file, 87,452,589-byte
+  plugin trees and byte-identical 36,851,090-byte ZIPs at SHA-256
+  `9ac60e38c5263ddae3ca6b0202f77e620223b2bd68a8e05b15b5ae94ec67867e`.
+  The executable, runtime, Engine and Open XML SDK adapter hashes are respectively
+  `13317f545c00c0de141f19bbb707335d01b14b4d6221c8fed43c23075429ecd1`,
+  `e1c0376b456d7d77a773857c0e1b3b08f06b7d9de9574b4981f546aef91b9628`,
+  `d4e341d892cdaac0b4ba1fed1582bffba522ce2691845d52a7908d17ccaf7776` and
+  `f2f2ece3b2a662c4f2316b43f4a343a714743ade1310df3f9db526f38b44b657`.
+- Installed and enabled `0.39.0+codex.20260724210114` has zero path/length/hash
+  differences across build, personal source and cache. Its runtime reports 113 actions
+  15 exposed tools and 26 complete metadata contracts. The packaged and enabled-cache
+  Engine assemblies share the exact Engine hash above; the same source revision passed the
+  licensed Word probe.
+  A separate installed strict-CLI/lazy-MCP smoke on a generated valid OPC package returned
+  `wordtoolkit.inspect_ooxml_encryption/1.0`, validated against the output schema returned
+  by the installed action inspector, exposed no path and used no Python in the runtime.
+
+Research and exact limitations are recorded in
+[`RESEARCH-OOXML-ENCRYPTION-DETECTION-2026.md`](RESEARCH-OOXML-ENCRYPTION-DETECTION-2026.md).
+
 ## Content-free observability and local audit spine — 2026-07-24
 
 - Added a versioned neutral-Engine observability contract around .NET `ActivitySource`

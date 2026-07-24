@@ -156,7 +156,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 112-action schema set into model context. The normative shape is
+not flatten the 113-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -214,6 +214,10 @@ Successful data is the versioned
 `wordtoolkit.inspect_ooxml_package/1.0` contract on stdout. Failures are JSON on stderr;
 the stable exit classes are 64 (invalid input), 65 (invalid or safety-limited package),
 66 (not found), 74 (I/O), 77 (access denied) and 70 (unexpected internal failure).
+An encrypted envelope now returns stable `DOCUMENT_ENCRYPTED`, while partial root
+encryption markers return `ENCRYPTION_CONTAINER_INVALID`; both remain exit class 65 and
+point callers to the password-free encryption inspector instead of pretending to be an
+ordinary corrupt ZIP.
 The same operation is available to .NET callers without the Windows host:
 
 ```csharp
@@ -224,6 +228,19 @@ var result = new InspectWordPackageOperation().Execute(
 );
 Console.WriteLine(WordToolkitOperationJson.Serialize(result));
 ```
+
+Encrypted OOXML uses an OLE Compound File Binary envelope instead of an OPC ZIP.
+Detect it without requesting a password, decrypting content or opening Word:
+
+```powershell
+wordtoolkit-native inspect-encryption .\protected.docx --format json
+```
+
+The shared `wordtoolkit.inspect_ooxml_encryption/1.0` contract validates bounded CFB
+allocation and directory chains, reports complete/partial/malformed markers and classifies
+Standard, Agile or Extensible `EncryptionInfo` version prefixes. It returns no local path,
+stream name or document content. See
+[`docs/RESEARCH-OOXML-ENCRYPTION-DETECTION-2026.md`](docs/RESEARCH-OOXML-ENCRYPTION-DETECTION-2026.md).
 
 The second shared operation performs three high-level, source-preserving transforms
 without launching Word: replace the first ordinary text occurrence, accept all supported
