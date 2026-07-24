@@ -40,6 +40,21 @@ Those sources support the structural model. The exact redundancy algorithm and i
 safety bounds are WordToolkit's implementation decision, not a claim copied from
 Microsoft documentation.
 
+Composite properties cannot be treated as one scalar. The SDK surface exposes separate
+theme and fallback attributes for fonts, color, underline and shading, while Microsoft's
+Word-specific notes document cases where the theme member changes how the fallback is
+used and where an omitted table-cell shading element falls back to the table style:
+
+- [RunFonts.AsciiTheme](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.runfonts.asciitheme?view=openxml-3.0.1)
+- [Color.ThemeColor](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.color.themecolor?view=openxml-3.0.1)
+- [Underline class](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.underline?view=openxml-3.0.1)
+- [Shading class](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.shading?view=openxml-3.0.1)
+- [MS-OE376: table-cell shading](https://learn.microsoft.com/en-us/openspecs/office_standards/ms-oe376/c7a6a5fd-538c-4a77-8cbb-0f447298dace)
+
+The last source is also the reason a formatter must not remove formatting inside a table
+while conditional table-style resolution is absent. Equal visible fallback attributes do
+not prove equal group behavior.
+
 ## Eligibility proof
 
 A direct property element is eligible only when all of these statements are true:
@@ -49,13 +64,36 @@ A direct property element is eligible only when all of these statements are true
 2. Its property set is completely understood by the existing typed style reader.
 3. It is not structural. Paragraph style, numbering, section, revision and run-style
    links are never formatter candidates.
-4. It is not a composite superseding group. Shading, run fonts, color and underline are
-   excluded until a group-aware proof exists.
-5. Every modeled property has at least two resolver contributions.
-6. The last contribution is direct formatting from the same semantic node.
-7. Its resulting value equals the immediately preceding cascade value.
+4. The node does not depend on an unresolved conditional-table, numbering,
+   revision-view, unmodeled-property or Word numbering-compatibility cascade layer.
+5. For a scalar element, every modeled property has at least two resolver contributions.
+6. For a scalar element, the last contribution is direct formatting from the same
+   semantic node and its resulting value equals the immediately preceding cascade value.
+7. For `rFonts`, `color`, `u` or paragraph/run `shd`, the element enters the separate
+   composite proof below. No per-attribute shortcut is accepted.
 
 This is only candidate selection. It is not permission to persist a change.
+
+## Composite group proof
+
+Composite candidates are evaluated in deterministic source order against the cumulative
+candidate built so far. For each element, the planner temporarily adds its exact
+source-span removal, serializes the candidate in memory, reparses the OPC package,
+reprojects semantic content, rebuilds style/numbering/theme/settings/font graphs and
+compares complete effective formatting for every affected node. Paragraph candidates
+also cover descendant runs. Only a passing trial remains in the cumulative patch set.
+
+This catches the failure a scalar comparison misses: a direct `w:rFonts w:ascii="Aptos"`
+can suppress an inherited `w:asciiTheme="minorHAnsi"`; the cached ASCII name may look
+equal while deleting the direct element restores a theme member and changes the group.
+Equivalent full font/color/underline/shading groups are removed; partial or theme-drifting
+groups remain byte-for-byte untouched.
+
+The planner attempts at most 64 composite proofs. Crossing that ceiling aborts the whole
+plan. It never silently stops after formatting only the beginning of a document. The
+compact response exposes the attempted count as
+`scan.composite_candidate_proofs`. Candidate-by-candidate full-package projection is
+deliberately correctness-first; incremental invalidation remains future work.
 
 ## Candidate proof
 
@@ -89,29 +127,36 @@ XML or COM objects, and the formatter never opens Microsoft Word.
 
 ## Current boundary
 
-This is a real formatter slice, not a complete formatter. It does not yet simplify
-composite properties, conditional table styles, revision views, application defaults,
-`stylesWithEffects`, layout or rendered pagination. Those areas remain untouched until
-their equivalence can be proved and checked against a representative Word-rendered
-corpus.
+This is a real formatter slice, not a complete formatter. It now simplifies four
+composite element families only through the bounded package-level proof above. It still
+does not resolve conditional table styles, revision views, application defaults,
+`stylesWithEffects`, layout or rendered pagination. Those unresolved layers remain
+untouched until their equivalence can be proved and checked against a representative
+Word-rendered corpus.
 
 ## Verified release checkpoint
 
-Release `0.39.0+codex.20260724071855` passed 493 Engine tests, 334 Native tests and
+Release `0.39.0+codex.20260724080018` passed 497 Engine tests, 334 Native tests and
 1,309 Python/OOXML tests with 16 intentional optional-environment skips; Ruff reported
 no errors. Two .NET SDK 8.0.423 package builds produced identical 196-file,
-86,619,377-byte trees and identical 36,626,102-byte ZIPs at SHA-256
-`9c60c1897c1f8667a77ec107372979bfd96a9f041d0c6aca96dfd46f292d2156`.
+86,623,437-byte trees and identical 36,627,205-byte ZIPs at SHA-256
+`6bb2fce0a85bf61f03aeab320c68af985061bbcbff02e09b55299872f759a66f`.
 The enabled personal source and cache contain the same 196 files with zero differences,
 and installed capability discovery reports the exact version and 97 actions.
 
 The installed runtime formatted a deliberately redundant valid package without opening
-Word. Planning selected six elements (116 source bytes) in one part. Engine, semantic,
-effective-formatting and baseline-aware Open XML checks all passed; the written package
-matched its predicted fingerprint and the source SHA-256 remained unchanged. Replanning
-the result returned no changes, and no-op apply created no file. The existing Word PID
-was unchanged. LibreOffice rendered source and result into equal-size one-page PDFs;
-their 144-DPI PNG pages were byte-identical at SHA-256
-`2454d70c5b864ae96a11ec8f0d57180007a6b2e508123137853ac195e3e1b441`.
-That is a useful independent rendering check, but it does not replace the still-open
-multi-version Microsoft Word visual corpus.
+Word. Planning scanned 12 candidates, executed five composite proofs and selected 11
+elements (330 source bytes) in one part. Engine, semantic, effective-formatting and
+baseline-aware Open XML checks all passed; the written package matched its predicted
+fingerprint `ce2bb1fa46ff438053b9ff4e7c0b498198c9130783e56431dbd57817cfe8e8dc`.
+Replanning the result returned no changes, and no-op apply created no file.
+
+The same installed runtime then connected the source and opened the result read-only in
+Microsoft Word. Both saved snapshots were valid with zero Microsoft Open XML SDK errors
+and exported as one-page 23,821-byte PDFs. Poppler rasterization at 144 DPI produced
+byte-identical PNG pages at SHA-256
+`2a882af2560fb684e55664c647e964ae3eebd98403292eaf07def3463895c966`.
+The rendered page was visually inspected and retained its font, color, underline and
+shading without clipping or overlap. The existing Word PID 14820 was unchanged. This is
+a real licensed Word equality point, but it still does not replace a representative,
+versioned Microsoft Word visual corpus.

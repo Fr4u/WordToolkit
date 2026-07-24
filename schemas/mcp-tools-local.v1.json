@@ -6967,7 +6967,7 @@
     {
       "name": "plan_ooxml_format",
       "title": "Plan safe Word package formatting",
-      "description": "Build and validate a deterministic formatter candidate without opening Word or writing a file. The initial explicit policy removes only scalar direct paragraph or run properties proven redundant against the complete resolved formatting cascade. Structural and composite property groups are excluded. The plan is bound to the exact source fingerprint, policy set, validation result, and new output path; raw document text and raw XML are never returned.",
+      "description": "Build and validate a deterministic formatter candidate without opening Word or writing a file. The explicit policy removes scalar direct paragraph or run properties by exact cascade proof and rFonts, color, underline or shading only after a bounded candidate-by-candidate package equivalence proof. Structural properties and unresolved table, revision or unmodeled cascade layers are excluded. The plan is bound to the exact source fingerprint, policy set, validation result, and new output path; raw document text and raw XML are never returned.",
       "operationVersion": "1.0",
       "permissions": {
         "filesystem": "read_input_package",
@@ -7057,7 +7057,17 @@
               "removed_element_count": {"type": "integer", "minimum": 0, "maximum": 1024},
               "removed_byte_count": {"type": "integer", "minimum": 0},
               "changed_part_count": {"type": "integer", "minimum": 0, "maximum": 64},
-              "scan": {"type": "object"},
+              "scan": {
+                "type": "object",
+                "required": ["semantic_nodes", "direct_formatting_nodes", "candidate_elements", "composite_candidate_proofs"],
+                "properties": {
+                  "semantic_nodes": {"type": "integer", "minimum": 0, "maximum": 100000},
+                  "direct_formatting_nodes": {"type": "integer", "minimum": 0, "maximum": 256},
+                  "candidate_elements": {"type": "integer", "minimum": 0, "maximum": 4096},
+                  "composite_candidate_proofs": {"type": "integer", "minimum": 0, "maximum": 64}
+                },
+                "additionalProperties": false
+              },
               "detail_page": {"type": ["object", "null"]},
               "changed_parts": {"type": ["array", "null"], "maxItems": 64, "items": {"type": "object"}},
               "validation": {"type": "object"},

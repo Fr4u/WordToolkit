@@ -1,12 +1,15 @@
 # Stage results
 
-## Safe saved-package formatter — 2026-07-24
+## Group-aware safe saved-package formatter — 2026-07-24
 
 - Added `wordtoolkit.plan_ooxml_format/1.0` and
   `wordtoolkit.apply_ooxml_format/1.0` as native actions 96 and 97. The initial
-  `remove_redundant_direct_formatting` policy removes only fully modeled scalar
+  `remove_redundant_direct_formatting` policy removes fully modeled scalar
   paragraph/run property elements whose direct cascade result equals the preceding
-  resolved value. Structural and composite groups remain untouched.
+  resolved value. It now also admits `rFonts`, `color`, `u` and paragraph/run `shd`
+  only after a bounded candidate-by-candidate package reparse proves complete group
+  equivalence. Conditional-table, revision and unmodeled cascade layers remain
+  untouched; more than 64 composite proofs aborts the whole plan.
 - Every candidate must preserve OPC structure, the exact predicted fingerprint, the set
   of changed parts, projected semantic content and effective formatting on every
   affected paragraph/run; paragraph edits include descendant runs. Baseline-aware Open
@@ -16,31 +19,35 @@
   creates only a new same-extension file. The source and existing destinations cannot be
   overwritten. Stable no-op apply creates no file. Neither operation opens Word or
   returns document text/raw XML.
-- Full local gates pass **493 Engine tests**, **334 Native tests** and **1,309
+- Full local gates pass **497 Engine tests**, **334 Native tests** and **1,309
   Python/OOXML tests**, with 16 intentional optional-environment skips. Ruff is clean.
   The native schema exposes 97 actions; ten actions now have explicit operation version,
   permissions, reversibility and output schemas.
 - Two pinned .NET SDK 8.0.423 builds produced byte-identical 196-file,
-  86,619,377-byte expanded trees and 36,626,102-byte ZIPs. The archive SHA-256 is
-  `9c60c1897c1f8667a77ec107372979bfd96a9f041d0c6aca96dfd46f292d2156`;
+  86,623,437-byte expanded trees and 36,627,205-byte ZIPs. The archive SHA-256 is
+  `6bb2fce0a85bf61f03aeab320c68af985061bbcbff02e09b55299872f759a66f`;
   the executable is
-  `674e511531e5768c7277edfd1a87d6bd210d70cc984d3791ec9dd5e0c07123fe`,
+  `62b0829110b427af883309a7bac951518a52a7c586b768b87f51fcea4d1aee76`,
   the native runtime assembly is
-  `f29fc82e916fd46744e2d52e8f34b3db37aaa12d7be4efd2784cfeafd096ba0f`,
+  `3491726cbeea318bec438d099b8db47c4362e9309f9c034b6ddadaaa7f41f2cd`,
   and the engine assembly is
-  `86b754c410c729d0e34a96ebc8d894f6efafc7eb4f9450e0b7c4e0d4c85bd52b`.
-- The personal source and enabled cache at `0.39.0+codex.20260724071855` each contain
+  `a8444f95d58f76193e31866c27c48074fb2c043e44f86d3b32ce0c747df23756`.
+- The personal source and enabled cache at `0.39.0+codex.20260724080018` each contain
   the same 196 files with zero path/length/hash differences. Installed capability
   discovery reports 97 actions and the exact runtime version.
-- A cold installed-runtime plan removed exactly six elements/116 source bytes from one
-  part, preserved semantic content and effective formatting, passed engine and Open XML
-  validation, predicted the exact output fingerprint and left the source SHA-256
-  unchanged. Apply created a valid Word package; a second plan was a stable no-op and
-  no-op apply created no file. The existing Word PID 14820 was unchanged before/after.
-  LibreOffice rendered source and result to one 19,320-byte PDF each; 144-DPI page PNGs
-  were byte-identical at SHA-256
-  `2454d70c5b864ae96a11ec8f0d57180007a6b2e508123137853ac195e3e1b441`.
-  This is one cross-renderer equality point, not a broad Word-layout corpus.
+- A cold installed-runtime plan scanned 12 candidates, performed five composite proofs
+  and removed exactly 11 elements/330 source bytes from `word/document.xml`. Engine,
+  semantic, effective-formatting and baseline-aware Open XML validation all passed,
+  and apply produced the exact predicted fingerprint
+  `ce2bb1fa46ff438053b9ff4e7c0b498198c9130783e56431dbd57817cfe8e8dc`.
+  A second plan was a stable no-op and no-op apply created no file.
+- The installed runtime then connected the source and opened the result read-only in
+  Microsoft Word. Both snapshots were valid with zero Microsoft Open XML SDK errors and
+  exported to one-page 23,821-byte PDFs. Their 144-DPI page PNGs were byte-identical at
+  SHA-256 `2a882af2560fb684e55664c647e964ae3eebd98403292eaf07def3463895c966`;
+  visual inspection found no clipping, overlap or formatting drift. Word PID 14820 was
+  unchanged. This proves one licensed Word equality point, not a broad multi-version
+  rendering corpus.
 
 ## Word-executed drawing layout — 2026-07-24
 

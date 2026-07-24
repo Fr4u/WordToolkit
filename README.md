@@ -551,11 +551,15 @@ coverage, so unmodeled domains cannot be mistaken for a clean audit.
 Saved-package formatting is an explicit two-step operation, not a blanket XML rewrite.
 `plan_ooxml_format` accepts an exact package fingerprint, a new destination path and an
 explicit policy list. The initial `remove_redundant_direct_formatting` policy considers
-only fully modeled scalar paragraph/run properties whose final direct contribution is
-identical to the preceding resolved value. Structural properties and composite groups
-such as fonts, color, underline and shading are excluded. The candidate is losslessly
-serialized, semantically reprojected, resolved through the full style/numbering/theme/
-settings/font cascade and compared on every affected paragraph and run; Open XML SDK
+fully modeled scalar paragraph/run properties whose final direct contribution is
+identical to the preceding resolved value. It also handles run fonts, color, underline
+and paragraph/run shading, but only through a stricter group-aware proof: each composite
+candidate is added to the cumulative isolated package, semantically reprojected and
+resolved again before it can enter the plan. Missing inherited theme/fallback members,
+conditional table styles, revision views and unmodeled cascade layers therefore keep the
+source element intact. Structural properties remain excluded. The final candidate is
+losslessly serialized, resolved through the full style/numbering/theme/settings/font
+cascade and compared on every affected paragraph and run; Open XML SDK
 validation is then compared with the source baseline. `apply_ooxml_format` rebuilds that
 exact plan, requires its output-bound apply-plan ID, blocks signatures and unsafe or
 truncated validation, and creates only a new same-extension file. A stable no-op creates

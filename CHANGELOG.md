@@ -7,12 +7,26 @@
   policy; `apply_ooxml_format` rebuilds the exact output-bound plan and creates only a
   new same-extension package. Neither action opens Word or returns document text/XML,
   signed packages are blocked, and a stable no-op creates no file.
-- Formatter candidates remove only fully modeled scalar paragraph/run property elements
-  whose direct cascade contribution equals the preceding resolved value. Structural and
-  composite groups remain untouched. Every changed candidate must preserve OPC
+- Formatter candidates remove fully modeled scalar paragraph/run property elements
+  whose direct cascade contribution equals the preceding resolved value. The same policy
+  now covers `rFonts`, `color`, `u` and paragraph/run `shd` only after a bounded
+  candidate-by-candidate package reparse proves complete group equivalence. Missing
+  inherited theme/fallback members are retained; conditional table, revision and
+  unmodeled cascade layers are skipped, and more than 64 composite proofs fail closed.
+  Structural properties remain untouched. Every changed candidate must preserve OPC
   structure, semantic content, effective formatting on all affected nodes, exact changed
   parts and predicted fingerprint, then pass baseline-aware Open XML SDK validation.
   The engine retains an exact byte inverse and all scans/response pages are bounded.
+- Final build `0.39.0+codex.20260724080018` passes 497 Engine, 334 Native and 1,309
+  Python/OOXML tests with 16 intentional optional-environment skips. Two pinned .NET SDK
+  8.0.423 builds produced identical 196-file, 86,623,437-byte trees and identical
+  36,627,205-byte ZIPs at SHA-256
+  `6bb2fce0a85bf61f03aeab320c68af985061bbcbff02e09b55299872f759a66f`.
+  The enabled personal source/cache match the release tree exactly. The installed
+  formatter removed 11 elements/330 bytes after five composite proofs, stabilized to a
+  no-op, passed Microsoft SDK validation in Word and produced source/result 144-DPI page
+  rasters that are byte-identical at SHA-256
+  `2a882af2560fb684e55664c647e964ae3eebd98403292eaf07def3463895c966`.
 
 - Added lazy `inspect_live_word_drawing_layout` as native action 95. The connected
   Microsoft Word build can repaginate and project bounded floating/inline objects,

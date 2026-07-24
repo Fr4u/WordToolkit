@@ -77,11 +77,11 @@ public sealed class WordFormatterTests
         Assert.Equal(plan.PlanId, repeated.PlanId);
         Assert.True(plan.HasChanges);
         Assert.True(plan.Validation.Passed);
-        Assert.Equal(6, plan.RemovedElementCount);
+        Assert.Equal(8, plan.RemovedElementCount);
         Assert.Single(plan.ChangedParts);
         Assert.Equal("/word/document.xml", plan.ChangedParts[0].PartUri);
         Assert.Equal(
-            ["b", "ind", "jc", "keepNext", "spacing", "sz"],
+            ["b", "color", "ind", "jc", "keepNext", "shd", "spacing", "sz"],
             plan.Changes.Select(change => change.PropertyElementName)
                 .Order(StringComparer.Ordinal)
                 .ToArray()
@@ -104,9 +104,9 @@ public sealed class WordFormatterTests
         XNamespace w = WordNamespace;
         var paragraphProperties = xml.Descendants(w + "pPr").Single();
         var runProperties = xml.Descendants(w + "rPr").Single();
-        Assert.Equal(["pStyle", "shd"], paragraphProperties.Elements()
+        Assert.Equal(["pStyle"], paragraphProperties.Elements()
             .Select(element => element.Name.LocalName).ToArray());
-        Assert.Equal(["i", "color"], runProperties.Elements()
+        Assert.Equal(["i"], runProperties.Elements()
             .Select(element => element.Name.LocalName).ToArray());
         Assert.Equal(
             package.Parts["/word/styles.xml"].Entry.Sha256,
@@ -152,7 +152,7 @@ public sealed class WordFormatterTests
     }
 
     [Fact]
-    public void NeverRemovesCompositePropertiesWithoutAGroupAwareProof()
+    public void RemovesCompositePropertiesOnlyAfterAGroupAwareProof()
     {
         using var stream = BuildPackage(
             """
@@ -172,9 +172,147 @@ public sealed class WordFormatterTests
             [WordFormatterPolicy.RemoveRedundantDirectFormatting]
         );
 
+        Assert.True(plan.HasChanges);
+        Assert.Equal(5, plan.Changes.Count);
+        Assert.Equal(5, plan.CandidateElementsScanned);
+        Assert.Equal(5, plan.CompositeCandidateProofs);
+        Assert.Equal(
+            ["color", "rFonts", "shd", "shd", "u"],
+            plan.Changes.Select(change => change.PropertyElementName)
+                .Order(StringComparer.Ordinal)
+                .ToArray()
+        );
+
+        using var appliedStream = Serialize(plan.CreateMutation(package));
+        var applied = new OpcPackageReader().Read(appliedStream);
+        var xml = XDocument.Parse(
+            Encoding.UTF8.GetString(
+                applied.Parts["/word/document.xml"].Entry.Content.Span
+            )
+        );
+        XNamespace w = WordNamespace;
+        Assert.Equal(
+            ["pStyle"],
+            xml.Descendants(w + "pPr").Single().Elements()
+                .Select(element => element.Name.LocalName).ToArray()
+        );
+        Assert.Empty(xml.Descendants(w + "rPr").Single().Elements());
+
+        using var revertedStream = Serialize(plan.CreateInverseMutation(applied));
+        var reverted = new OpcPackageReader().Read(revertedStream);
+        Assert.Equal(
+            package.Parts["/word/document.xml"].Entry.Content.ToArray(),
+            reverted.Parts["/word/document.xml"].Entry.Content.ToArray()
+        );
+    }
+
+    [Fact]
+    public void KeepsCompositeElementsWhenRemovalRestoresSupersededThemeMembers()
+    {
+        using var stream = BuildPackage(
+            """
+            <w:body><w:p><w:pPr><w:pStyle w:val="Normal"/><w:shd w:val="clear" w:fill="FFFFFF"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Aptos"/><w:color w:val="112233"/><w:u w:val="single" w:color="445566"/><w:shd w:val="clear" w:fill="FFFFFF"/></w:rPr><w:t>Superseded theme members</w:t></w:r></w:p></w:body>
+            """,
+            """
+            <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:pPr><w:shd w:val="clear" w:fill="FFFFFF" w:themeFill="accent3"/></w:pPr><w:rPr><w:rFonts w:ascii="Aptos" w:asciiTheme="minorHAnsi"/><w:color w:val="112233" w:themeColor="accent1"/><w:u w:val="single" w:color="445566" w:themeColor="accent2"/><w:shd w:val="clear" w:fill="FFFFFF" w:themeFill="accent3"/></w:rPr></w:style>
+            """
+        );
+        var package = new OpcPackageReader().Read(stream);
+        var semantic = new WordSemanticProjector().Project(package);
+
+        var plan = new WordFormatterPlanner().Plan(
+            package,
+            semantic,
+            package.Fingerprint,
+            [WordFormatterPolicy.RemoveRedundantDirectFormatting]
+        );
+
         Assert.False(plan.HasChanges);
         Assert.Empty(plan.Changes);
-        Assert.Equal(5, plan.CandidateElementsScanned);
+        Assert.Equal(5, plan.CompositeCandidateProofs);
+    }
+
+    [Fact]
+    public void KeepsUnsafeCompositeAndStillRemovesAnIndependentProvenScalar()
+    {
+        using var stream = BuildPackage(
+            """
+            <w:body><w:p><w:pPr><w:pStyle w:val="Normal"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:rFonts w:ascii="Aptos"/></w:rPr><w:t>Mixed proof</w:t></w:r></w:p></w:body>
+            """,
+            """
+            <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:pPr><w:jc w:val="center"/></w:pPr><w:rPr><w:rFonts w:ascii="Aptos" w:asciiTheme="minorHAnsi"/></w:rPr></w:style>
+            """
+        );
+        var package = new OpcPackageReader().Read(stream);
+        var semantic = new WordSemanticProjector().Project(package);
+
+        var plan = new WordFormatterPlanner().Plan(
+            package,
+            semantic,
+            package.Fingerprint,
+            [WordFormatterPolicy.RemoveRedundantDirectFormatting]
+        );
+
+        Assert.True(plan.HasChanges);
+        Assert.Equal(["jc"], plan.Changes.Select(change => change.PropertyElementName));
+        Assert.Equal(1, plan.CompositeCandidateProofs);
+    }
+
+    [Fact]
+    public void FailsClosedPastTheCompositeProofLimit()
+    {
+        using var stream = BuildPackage(
+            """
+            <w:body>
+              <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:rPr><w:color w:val="112233"/></w:rPr><w:t>A</w:t></w:r></w:p>
+              <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:r><w:rPr><w:color w:val="112233"/></w:rPr><w:t>B</w:t></w:r></w:p>
+            </w:body>
+            """,
+            """
+            <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:rPr><w:color w:val="112233"/></w:rPr></w:style>
+            """
+        );
+        var package = new OpcPackageReader().Read(stream);
+        var semantic = new WordSemanticProjector().Project(package);
+        var planner = new WordFormatterPlanner(
+            new WordFormatterOptions { MaxCompositeCandidateProofs = 1 }
+        );
+
+        Assert.Throws<WordFormatterLimitException>(() => planner.Plan(
+            package,
+            semantic,
+            package.Fingerprint,
+            [WordFormatterPolicy.RemoveRedundantDirectFormatting]
+        ));
+    }
+
+    [Fact]
+    public void SkipsNodesWhoseFormattingCascadeContainsAnUnresolvedLayer()
+    {
+        using var stream = BuildPackage(
+            """
+            <w:body>
+              <w:tbl><w:tr><w:tc><w:p><w:pPr><w:pStyle w:val="Normal"/><w:jc w:val="center"/></w:pPr><w:r><w:t>Table</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+              <w:p><w:pPr><w:pStyle w:val="Normal"/></w:pPr><w:ins w:id="1"><w:r><w:rPr><w:color w:val="112233"/></w:rPr><w:t>Revision</w:t></w:r></w:ins></w:p>
+            </w:body>
+            """,
+            """
+            <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:pPr><w:jc w:val="center"/></w:pPr><w:rPr><w:color w:val="112233"/></w:rPr></w:style>
+            """
+        );
+        var package = new OpcPackageReader().Read(stream);
+        var semantic = new WordSemanticProjector().Project(package);
+
+        var plan = new WordFormatterPlanner().Plan(
+            package,
+            semantic,
+            package.Fingerprint,
+            [WordFormatterPolicy.RemoveRedundantDirectFormatting]
+        );
+
+        Assert.False(plan.HasChanges);
+        Assert.Equal(0, plan.CandidateElementsScanned);
+        Assert.Equal(0, plan.CompositeCandidateProofs);
     }
 
     [Fact]

@@ -251,6 +251,7 @@ internal sealed partial class WordLiveService
                 semantic_nodes = context.Plan.SemanticNodesScanned,
                 direct_formatting_nodes = context.Plan.DirectFormattingNodesScanned,
                 candidate_elements = context.Plan.CandidateElementsScanned,
+                composite_candidate_proofs = context.Plan.CompositeCandidateProofs,
             },
             detail_page = includeDetails
                 ? new

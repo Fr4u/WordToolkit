@@ -79,7 +79,11 @@ public sealed class FormatterPackageTests
                 plan.GetProperty("operation_contract").GetString()
             );
             Assert.True(plan.GetProperty("has_changes").GetBoolean());
-            Assert.Equal(6, plan.GetProperty("removed_element_count").GetInt32());
+            Assert.Equal(8, plan.GetProperty("removed_element_count").GetInt32());
+            Assert.Equal(
+                2,
+                plan.GetProperty("scan").GetProperty("composite_candidate_proofs").GetInt32()
+            );
             Assert.False(plan.GetProperty("apply_blocked").GetBoolean());
             Assert.True(plan.GetProperty("validation").GetProperty("engine_passed").GetBoolean());
             Assert.True(plan.GetProperty("validation").GetProperty("semantic_content_preserved").GetBoolean());
@@ -294,11 +298,11 @@ public sealed class FormatterPackageTests
         var paragraphProperties = document.Descendants(w + "pPr").Single();
         var runProperties = document.Descendants(w + "rPr").Single();
         Assert.Equal(
-            ["pStyle", "shd"],
+            ["pStyle"],
             paragraphProperties.Elements().Select(element => element.Name.LocalName).ToArray()
         );
         Assert.Equal(
-            ["i", "color"],
+            ["i"],
             runProperties.Elements().Select(element => element.Name.LocalName).ToArray()
         );
         Assert.Equal("Formatter body", document.Descendants(w + "t").Single().Value);

@@ -17,10 +17,13 @@ same source fingerprint, output path and policies with the returned
 `formatter_apply_plan_id`.
 
 The action never treats a formatting request as permission to rewrite the whole XML
-package. The initial policy excludes structural and composite properties and removes
-only scalar direct formatting proven equivalent to the preceding resolved cascade. A
-no-op apply deliberately creates no output. Signed packages and any candidate without a
-complete passing engine plus Open XML validation proof cannot be applied.
+package. The policy excludes structural properties. Scalar properties use contribution
+equivalence; `rFonts`, `color`, `u` and paragraph/run `shd` use a stricter bounded
+candidate-by-candidate package reparse and full group-equivalence proof. A missing
+inherited theme/fallback member, unresolved table/revision/unmodeled cascade layer or
+the 64-proof ceiling keeps the request fail-closed. A no-op apply deliberately creates
+no output. Signed packages and any candidate without a complete passing engine plus Open
+XML validation proof cannot be applied.
 
-No existing action was removed or tightened. The addition is compatible within the
-local v1 schema policy.
+No action was removed. The later group-aware extension adds one bounded scan counter to
+the already-open `scan` object and preserves the local v1 action names and request shape.

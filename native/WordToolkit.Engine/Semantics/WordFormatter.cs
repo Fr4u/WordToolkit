@@ -23,6 +23,8 @@ public sealed record WordFormatterOptions
 
     public int MaxCandidateElements { get; init; } = 4_096;
 
+    public int MaxCompositeCandidateProofs { get; init; } = 64;
+
     public int MaxRemovedElements { get; init; } = 1_024;
 
     public int MaxAffectedNodes { get; init; } = 8_192;
@@ -44,6 +46,10 @@ public sealed record WordFormatterOptions
         if (MaxCandidateElements <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(MaxCandidateElements));
+        }
+        if (MaxCompositeCandidateProofs <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxCompositeCandidateProofs));
         }
         if (MaxRemovedElements <= 0)
         {
@@ -120,6 +126,7 @@ public sealed class WordFormatterPlan
         int semanticNodesScanned,
         int directFormattingNodesScanned,
         int candidateElementsScanned,
+        int compositeCandidateProofs,
         IReadOnlyList<WordFormatterChange> changes,
         WordFormatterValidation validation,
         IReadOnlyDictionary<string, WordPackagePartPayload> parts
@@ -132,6 +139,7 @@ public sealed class WordFormatterPlan
         SemanticNodesScanned = semanticNodesScanned;
         DirectFormattingNodesScanned = directFormattingNodesScanned;
         CandidateElementsScanned = candidateElementsScanned;
+        CompositeCandidateProofs = compositeCandidateProofs;
         Changes = new ReadOnlyCollection<WordFormatterChange>(changes.ToArray());
         Validation = validation;
         _transaction = new WordPackageTransactionCore(
@@ -167,6 +175,8 @@ public sealed class WordFormatterPlan
     public int DirectFormattingNodesScanned { get; }
 
     public int CandidateElementsScanned { get; }
+
+    public int CompositeCandidateProofs { get; }
 
     public IReadOnlyList<WordFormatterChange> Changes { get; }
 
@@ -211,6 +221,18 @@ public sealed class WordFormatterPlanner
 
     private static readonly IReadOnlySet<string> RunCompositeProperties =
         new HashSet<string>(["rFonts", "color", "u", "shd"], StringComparer.Ordinal);
+
+    private static readonly IReadOnlySet<string> UnresolvedCascadeLayers =
+        new HashSet<string>(
+            [
+                "conditional_table_style_properties",
+                "numbering_level_properties",
+                "revision_view_formatting",
+                "unmodeled_property_elements",
+                "word_style_numbering_level_compatibility",
+            ],
+            StringComparer.Ordinal
+        );
 
     private readonly WordFormatterOptions _options;
     private readonly LosslessXmlOptions _xmlOptions;
@@ -293,6 +315,7 @@ public sealed class WordFormatterPlanner
         var affectedKeys = new HashSet<FormattingNodeKey>();
         var directFormattingNodes = 0;
         var candidateElements = 0;
+        var compositeCandidateProofs = 0;
 
         foreach (
             var node in semanticNodes.Where(node =>
@@ -366,6 +389,10 @@ public sealed class WordFormatterPlanner
                     exception
                 );
             }
+            if (effective.CoverageOmissions.Any(UnresolvedCascadeLayers.Contains))
+            {
+                continue;
+            }
 
             foreach (var propertyElement in eligibleChildren)
             {
@@ -377,11 +404,6 @@ public sealed class WordFormatterPlanner
                         $"Direct-formatting candidate count exceeds {_options.MaxCandidateElements}."
                     );
                 }
-                if (IsCompositeProperty(node.Kind, propertyElement.LocalName))
-                {
-                    continue;
-                }
-
                 var propertySet = ReadSinglePropertySet(
                     source,
                     propertyElement,
@@ -390,11 +412,6 @@ public sealed class WordFormatterPlanner
                 if (
                     !propertySet.IsFullyModeled
                     || propertySet.Values.Count == 0
-                    || !IsRedundant(
-                        effective,
-                        node,
-                        propertySet.Values.Keys
-                    )
                 )
                 {
                     continue;
@@ -407,7 +424,56 @@ public sealed class WordFormatterPlanner
                 }
 
                 var patch = source.CreateElementRemovalPatch(propertyElement.Ordinal);
-                patches[node.SourcePartUri].Add(patch);
+                var isComposite = IsCompositeProperty(
+                    node.Kind,
+                    propertyElement.LocalName
+                );
+                HashSet<FormattingNodeKey>? trialAffected = null;
+                if (isComposite)
+                {
+                    compositeCandidateProofs++;
+                    if (compositeCandidateProofs > _options.MaxCompositeCandidateProofs)
+                    {
+                        throw new WordFormatterLimitException(
+                            $"Composite direct-formatting proof count exceeds {_options.MaxCompositeCandidateProofs}."
+                        );
+                    }
+                    trialAffected = new HashSet<FormattingNodeKey>(affectedKeys);
+                    AddAffectedNodes(node, trialAffected);
+                    if (trialAffected.Count > _options.MaxAffectedNodes)
+                    {
+                        throw new WordFormatterLimitException(
+                            $"Formatter would require more than {_options.MaxAffectedNodes} effective-formatting proofs."
+                        );
+                    }
+                    patches[node.SourcePartUri].Add(patch);
+                    if (!ProvesCompositeRemovalEquivalent(
+                        baseline,
+                        sources,
+                        sourceParts,
+                        patches,
+                        trialAffected,
+                        cancellationToken
+                    ))
+                    {
+                        patches[node.SourcePartUri].RemoveAt(
+                            patches[node.SourcePartUri].Count - 1
+                        );
+                        continue;
+                    }
+                }
+                else
+                {
+                    if (!IsRedundant(
+                        effective,
+                        node,
+                        propertySet.Values.Keys
+                    ))
+                    {
+                        continue;
+                    }
+                    patches[node.SourcePartUri].Add(patch);
+                }
                 var fingerprint = FingerprintSourceElement(
                     sourceParts[node.SourcePartUri].Entry.Content.Span,
                     propertyElement.FullSpan
@@ -427,7 +493,14 @@ public sealed class WordFormatterPlanner
                         fingerprint
                     )
                 );
-                AddAffectedNodes(node, affectedKeys);
+                if (trialAffected is not null)
+                {
+                    affectedKeys.UnionWith(trialAffected);
+                }
+                else
+                {
+                    AddAffectedNodes(node, affectedKeys);
+                }
                 if (affectedKeys.Count > _options.MaxAffectedNodes)
                 {
                     throw new WordFormatterLimitException(
@@ -486,10 +559,67 @@ public sealed class WordFormatterPlanner
             semanticNodes.Length,
             directFormattingNodes,
             candidateElements,
+            compositeCandidateProofs,
             changes,
             validation,
             payloads
         );
+    }
+
+    private bool ProvesCompositeRemovalEquivalent(
+        FormattingContext baseline,
+        IReadOnlyDictionary<string, LosslessXmlDocument> sources,
+        IReadOnlyDictionary<string, OpcPart> sourceParts,
+        IReadOnlyDictionary<string, List<XmlSourcePatch>> patches,
+        IReadOnlySet<FormattingNodeKey> affectedKeys,
+        CancellationToken cancellationToken
+    )
+    {
+        var payloads = BuildPayloads(
+            sources,
+            sourceParts,
+            patches,
+            cancellationToken
+        );
+        if (payloads.Count == 0)
+        {
+            return false;
+        }
+        if (payloads.Count > _options.MaxChangedParts)
+        {
+            throw new WordFormatterLimitException(
+                $"Formatter would change {payloads.Count} parts; limit is {_options.MaxChangedParts}."
+            );
+        }
+        var projectedEntries = payloads.Values.ToDictionary(
+            payload => payload.EntryName,
+            payload => (ReadOnlyMemory<byte>)payload.AfterContent,
+            StringComparer.Ordinal
+        );
+        var resultFingerprint = OpcPackageFingerprint.ComputeProjected(
+            baseline.Package,
+            projectedEntries
+        );
+        var transaction = new WordPackageTransactionCore(
+            baseline.Package.Fingerprint,
+            resultFingerprint,
+            payloads
+        );
+        try
+        {
+            return ValidateCandidate(
+                baseline,
+                transaction,
+                resultFingerprint,
+                payloads.Keys,
+                affectedKeys,
+                cancellationToken
+            ).Passed;
+        }
+        catch (WordFormatterValidationException)
+        {
+            return false;
+        }
     }
 
     private FormattingContext BuildFormattingContext(

@@ -349,10 +349,15 @@ lazy workflow:
    policy list plus the exact returned apply-plan ID.
 
 This is not a generic pretty-printer. It never rewrites all XML, opens Word, returns
-document text/XML, overwrites the source/destination, or removes structural/composite
-formatting groups. A stable no-op creates no file. Signed packages and incomplete,
-truncated or changed validation evidence fail closed. Do not treat a direct-formatting
-lint finding as authorization; formatter planning independently proves every candidate.
+document text/XML, overwrites the source/destination, or removes structural formatting.
+Scalar candidates require exact cascade-contribution equality. `rFonts`, `color`, `u`
+and paragraph/run `shd` require a bounded candidate-by-candidate package reparse and full
+group-equivalence proof; review `scan.composite_candidate_proofs` when diagnosing cost.
+Unresolved conditional-table, revision or unmodeled cascade layers are skipped, and the
+64-proof ceiling fails closed instead of returning a partial plan. A stable no-op creates
+no file. Signed packages and incomplete, truncated or changed validation evidence fail
+closed. Do not treat a direct-formatting lint finding as authorization; formatter
+planning independently proves every candidate.
 Use lazy `inspect_ooxml_equations` for equations already stored in a saved Word
 package. Start with `view=summary`; it returns structural counts and statuses without
 formula text or raw OMML. Use `view=equations` to obtain an exact equation ID, then

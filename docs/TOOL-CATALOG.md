@@ -19,10 +19,13 @@ Word to repaginate and returns bounded reference-aware shape/inline/group/SmartA
 layout without COM or XML. Text is not read without opt-in; screen pixels are capped,
 viewport-dependent and never called page geometry.
 `plan_ooxml_format` and `apply_ooxml_format` are also lazy. They expose one explicit,
-bounded policy that removes only scalar direct formatting proven redundant against the
-resolved cascade, validates an isolated candidate and creates only a new output. They do
-not open Word, return document content, overwrite a file or turn XML pretty-printing into
-a false claim of document formatting.
+bounded policy that removes scalar direct formatting proven redundant against the
+resolved cascade. Font, color, underline and shading elements additionally require a
+bounded candidate-by-candidate package reparse and group-equivalence proof; unresolved
+table/revision/unmodeled cascade layers are skipped. The actions validate the cumulative
+isolated candidate and create only a new output. They do not open Word, return document
+content, overwrite a file or turn XML pretty-printing into a false claim of document
+formatting.
 
 | Tool | Read only | Destructive | Idempotent | File inputs |
 |---|---:|---:|---:|---|
