@@ -259,7 +259,7 @@ internal sealed partial class WordLiveService
             arguments.GetRawText()
         );
         var result = new PatchRollbackWordPackageOperation(
-            new MicrosoftOpenXmlPackageValidator()
+            NativeExtensionHost.CandidateValidator
         ).Plan(request, cancellationToken);
         return AddPatchRollbackRuntime(result, started);
     });
@@ -274,7 +274,7 @@ internal sealed partial class WordLiveService
             arguments.GetRawText()
         );
         var result = new PatchRollbackWordPackageOperation(
-            new MicrosoftOpenXmlPackageValidator()
+            NativeExtensionHost.CandidateValidator
         ).Apply(request, cancellationToken);
         return AddPatchRollbackRuntime(result, started);
     });

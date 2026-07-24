@@ -1,5 +1,46 @@
 # Stage results
 
+## Trusted extension registry foundation — 2026-07-24
+
+- Added explicit, allowlisted and versioned registration in the neutral Engine for
+  package/storage, typed-part, semantic, validation/lint/repair, command, render/convert,
+  OCR, index, policy and telemetry capability kinds. Policy independently constrains
+  extension identity, trust/isolation, interface kind/version, permissions and maximum
+  input/output/concurrency/timeout resources. Registration freezes into a read-only,
+  deterministic SHA-256 catalog; no directory scan or arbitrary assembly load exists.
+- Invocation resolves the exact host interface, rejects oversized input/output, refuses
+  calls beyond the concurrency ceiling and links cancellation to a cooperative timeout.
+  Documentation and public metadata state that trusted in-process code has full process
+  authority: this is dependency injection, not a sandbox or safe preemption boundary.
+  Reserved out-of-process values cannot be registered by the current builder.
+- Registered `wordtoolkit.validator.openxml.microsoft365` as the first real capability.
+  Production semantic-style, comment, review, formatter, package-patch, merge and rollback
+  paths now route Microsoft Open XML SDK validation through the registry-backed adapter.
+  The first full parallel Native run rejected calls after two concurrent validations;
+  the stateless built-in profile was corrected to the host's 64-active-request ceiling,
+  while an isolated limit-one regression still proves hard concurrency enforcement.
+- Added one shared content-free catalog operation across direct Engine, native
+  `extensions` CLI and lazy `inspect_wordtoolkit_extensions` MCP. Its checked-in input and
+  output schemas pass Draft 2020-12 meta-validation and accept the real CLI envelope. The
+  action catalog now reports 111 actions, 15 exposed tools and 24 complete metadata
+  contracts, leaving the metadata gap unchanged at 87.
+- Full local evidence is 539/539 Engine tests, 403/403 Native tests and 1309 passed Python
+  tests with 16 intentional skips. Ruff is clean, mypy reports no issues in 29 source
+  files, the documentation generator is stable, and changed .NET projects compile and
+  format cleanly under the pinned SDK 8.0.423.
+- Two pinned SDK 8.0.423 builds produced identical 196-file, 87,285,844-byte trees and
+  identical 36,798,079-byte ZIPs at SHA-256
+  `e298ebc80a64a6c5fb36ca579c041633963a383ff82a153cb8aa3c43bcf3c2d2`.
+  Executable, runtime, Engine and Open XML SDK adapter SHA-256 values are
+  `d87fefff3e10005d2a33a50e4d36005ca2bbe8b9377e8a83dfbe2628e8c817f2`,
+  `6d5e1c5a4a1c67dc5ea0f076be583fa049b038b23f28fa853a402ad3876ca6c3`,
+  `e7e224524a0923712136da70b71777034596a2638c49cb092f52d4637970a8df` and
+  `8f8f9c012df596779963048dac494cd49185ce157b7672b37160c3614487c813`.
+  Build, personal source and enabled `0.39.0+codex.20260724191908` cache have zero
+  path/length/hash differences. Installed discovery reports 111 actions, 15 exposed tools
+  and 24 explicit contracts; the installed MCP extension call returns the exact catalog
+  hash `dfb26f3c1da808d94ebfac6782fff391f9e174e7c606235a9e05de6dc2b234bd`.
+
 ## Bounded Flat OPC transport convergence — 2026-07-24
 
 - Added `FlatOpcPackageCodec` and `FlatOpcWordPackageOperation` to the neutral Engine,

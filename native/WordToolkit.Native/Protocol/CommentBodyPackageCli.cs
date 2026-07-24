@@ -66,7 +66,7 @@ internal static class CommentBodyPackageCli
                 ? ReadBounded(input)
                 : ReadRequestFile(requestSource);
             var operation = new CommentBodyWordPackageOperation(
-                new MicrosoftOpenXmlPackageValidator()
+                NativeExtensionHost.CandidateValidator
             );
             object result = mode == "plan"
                 ? operation.Plan(CommentBodyEditOperationJson.ParsePlanRequest(json))

@@ -66,7 +66,7 @@ internal static class PatchRollbackPackageCli
                 ? ReadBounded(input)
                 : ReadRequestFile(requestSource);
             var operation = new PatchRollbackWordPackageOperation(
-                new MicrosoftOpenXmlPackageValidator()
+                NativeExtensionHost.CandidateValidator
             );
             object result = mode == "plan"
                 ? operation.Plan(PatchRollbackOperationJson.ParsePlanRequest(json))

@@ -19,7 +19,7 @@ internal sealed partial class WordLiveService
             arguments.GetRawText()
         );
         var result = new StyleWordPackageOperation(
-            new MicrosoftOpenXmlPackageValidator()
+            NativeExtensionHost.CandidateValidator
         ).Plan(request, cancellationToken);
         return AddSemanticEditRuntime(result, started);
     });
@@ -34,7 +34,7 @@ internal sealed partial class WordLiveService
             arguments.GetRawText()
         );
         var result = new StyleWordPackageOperation(
-            new MicrosoftOpenXmlPackageValidator()
+            NativeExtensionHost.CandidateValidator
         ).Apply(request, cancellationToken);
         return AddSemanticEditRuntime(result, started);
     });

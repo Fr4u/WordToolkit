@@ -1220,7 +1220,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 110 actions already have public SDK
+These are proved migration seams, not a claim that all 111 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
@@ -1283,10 +1283,11 @@ to an opaque sibling `.conflict` artifact and deliberately retained, even when n
 backup retention is disabled. Public diagnostics list only still-existing opaque artifact
 names, never their absolute paths or payloads; no artifact is claimed when none exists.
 
-This is deliberately honest about what is still absent. `metadata_coverage` reports seven
+This is deliberately honest about what is still absent. `metadata_coverage` reports 24
 explicit output schemas, permission records, reversibility records and per-operation
-versions for semantic query, semantic HTML/SVG rendering, semantic-style plan/apply and
-comment-body plan/apply; the other 82 actions remain
+versions, including extension-catalog inspection, semantic query, semantic HTML/SVG
+rendering, semantic-style plan/apply, comment-body plan/apply, formatter, live structure
+mutations, saved-package rollback and Flat OPC conversion; the other 87 actions remain
 uncovered. Those fields are not
 inferred from operation names. Format support is labelled operation-specific, and full
 input/output schemas remain behind `inspect_wordtoolkit_action`. The normative JSON shape is
@@ -1408,9 +1409,42 @@ Extensions register capabilities through versioned interfaces:
 - index/embedding provider;
 - policy and telemetry sink.
 
-Plugins run with explicit document permissions and resource limits. Untrusted plugins do
-not receive a live COM object, filesystem root, arbitrary process execution, or raw
-credentials. Generic `exec`/`eval` tools are forbidden.
+The trusted in-process foundation is now implemented in
+`WordToolkit.Engine.Extensions`. Registration is explicit and allowlisted; the engine
+does not scan plugin directories or load arbitrary assemblies. Each extension carries a
+SemVer release version and an engine `major.minor` contract. Each capability separately
+declares one of the interface families above, its interface `major.minor`, trust and
+isolation, exact permissions, determinism/content claims, input/output byte ceilings,
+concurrency limit and timeout mode. Host policy checks extension identity, trust,
+isolation, interface kind/version, permission subset and resource ceilings before a
+builder can freeze into an immutable registry. Duplicate IDs, conflicting metadata and
+post-freeze registration fail closed. Canonical source-order-independent metadata binds
+the public catalog to a SHA-256.
+
+Invocation resolves the exact CLR interface, refuses to queue beyond the declared
+concurrency ceiling, links caller cancellation to a cooperative timeout and bounds input
+and output. A cooperative timeout is not preemption: in-process code that ignores the
+token can run until it returns, after which the overrun is rejected. It does not replace
+staged candidate construction, semantic/schema proof or atomic publication for mutation.
+Implementation types, assembly paths and exception internals never enter the public
+catalog.
+
+The first production registration is the Microsoft Open XML SDK candidate validator.
+Saved-package style, comment, review, patch and rollback paths now consume it through
+`ExtensionWordPackageCandidateValidator` rather than constructing the adapter beside the
+registry. `InspectExtensionCatalogOperation`, the native `extensions` CLI and lazy
+`inspect_wordtoolkit_extensions` MCP return the same bounded, content-free catalog without
+opening Word, reading a document, discovering assemblies or using the network.
+
+The current registry supports only `TrustedInProcess` with cooperative cancellation.
+.NET documents that `AssemblyLoadContext` is dependency/type isolation, not a security
+boundary; all in-process code has the process's permissions. `OutOfProcess` and
+`ProcessBoundary` are reserved but rejected until a separate host provides closed IPC,
+restricted process identity, resource enforcement and crash recovery. Untrusted plugins
+therefore receive no live COM object, filesystem root, arbitrary process execution or raw
+credentials because they are not loaded at all. Generic `exec`/`eval` tools remain
+forbidden. The research and remaining boundary are recorded in
+`docs/RESEARCH-PLUGIN-ARCHITECTURE-2026.md`.
 
 ## Telemetry and privacy
 

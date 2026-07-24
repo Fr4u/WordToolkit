@@ -12,6 +12,7 @@
       "inspect_ooxml_package",
       "transform_ooxml_package",
       "convert_ooxml_flat_opc",
+      "inspect_wordtoolkit_extensions",
       "inspect_ooxml_semantics",
       "query_ooxml_semantics",
       "render_ooxml_semantic_html",
@@ -4166,6 +4167,328 @@
         "readOnlyHint": false,
         "destructiveHint": false,
         "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_wordtoolkit_extensions",
+      "title": "Inspect registered WordToolkit extensions",
+      "description": "Return a bounded, content-free catalog of explicitly registered engine extensions and their versioned capability contracts. This operation does not scan or load assemblies, read a document, open Word, expose implementation types or paths, or use the network. Trusted in-process registration is not represented as a security sandbox.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "none",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Optional case-insensitive filter over extension, capability, publisher, kind, and interface identifiers."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 32,
+            "default": 12
+          }
+        },
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "operation_contract",
+              "registry_contract",
+              "catalog_sha256",
+              "extension_count",
+              "capability_count",
+              "matched_capability_count",
+              "counts_by_kind",
+              "items",
+              "paging",
+              "security"
+            ],
+            "properties": {
+              "operation_contract": {
+                "const": "wordtoolkit.inspect_extensions/1.0"
+              },
+              "registry_contract": {
+                "const": "wordtoolkit.extension-registry/1.0"
+              },
+              "catalog_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "extension_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "capability_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "matched_capability_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "counts_by_kind": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "items": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "extension_id",
+                    "display_name",
+                    "publisher",
+                    "extension_version",
+                    "trust",
+                    "isolation",
+                    "capability_id",
+                    "kind",
+                    "interface_contract",
+                    "interface_version",
+                    "permissions",
+                    "resource_limits",
+                    "timeout_enforcement",
+                    "deterministic",
+                    "idempotent",
+                    "capability_returns_document_content"
+                  ],
+                  "properties": {
+                    "extension_id": {
+                      "type": "string",
+                      "maxLength": 128
+                    },
+                    "display_name": {
+                      "type": "string",
+                      "maxLength": 128
+                    },
+                    "publisher": {
+                      "type": "string",
+                      "maxLength": 128
+                    },
+                    "extension_version": {
+                      "type": "string",
+                      "maxLength": 128
+                    },
+                    "trust": {
+                      "enum": [
+                        "built_in",
+                        "trusted_publisher"
+                      ]
+                    },
+                    "isolation": {
+                      "enum": [
+                        "trusted_in_process",
+                        "out_of_process"
+                      ]
+                    },
+                    "capability_id": {
+                      "type": "string",
+                      "maxLength": 128
+                    },
+                    "kind": {
+                      "enum": [
+                        "package_format_adapter",
+                        "storage_adapter",
+                        "typed_part_adapter",
+                        "semantic_projector",
+                        "validator",
+                        "linter_rule_pack",
+                        "repair_rule_pack",
+                        "command_handler",
+                        "renderer",
+                        "converter",
+                        "ocr_provider",
+                        "index_provider",
+                        "policy_provider",
+                        "telemetry_sink"
+                      ]
+                    },
+                    "interface_contract": {
+                      "type": "string",
+                      "maxLength": 128
+                    },
+                    "interface_version": {
+                      "type": "string",
+                      "pattern": "^[0-9]+\\.[0-9]+$"
+                    },
+                    "permissions": {
+                      "type": "array",
+                      "uniqueItems": true,
+                      "items": {
+                        "enum": [
+                          "read_package",
+                          "read_document_content",
+                          "mutate_package",
+                          "read_sensitive_metadata",
+                          "filesystem_read",
+                          "filesystem_write",
+                          "network",
+                          "spawn_process",
+                          "live_word",
+                          "credentials"
+                        ]
+                      }
+                    },
+                    "resource_limits": {
+                      "type": "object",
+                      "required": [
+                        "max_input_bytes",
+                        "max_output_bytes",
+                        "max_concurrent_invocations",
+                        "timeout_milliseconds"
+                      ],
+                      "properties": {
+                        "max_input_bytes": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "max_output_bytes": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "max_concurrent_invocations": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "timeout_milliseconds": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "timeout_enforcement": {
+                      "enum": [
+                        "cooperative",
+                        "process_boundary"
+                      ]
+                    },
+                    "deterministic": {
+                      "type": "boolean"
+                    },
+                    "idempotent": {
+                      "type": "boolean"
+                    },
+                    "capability_returns_document_content": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "paging": {
+                "type": "object",
+                "required": [
+                  "offset",
+                  "limit",
+                  "returned"
+                ],
+                "properties": {
+                  "offset": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 32
+                  },
+                  "returned": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 32
+                  },
+                  "next_offset": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              },
+              "security": {
+                "type": "object",
+                "required": [
+                  "reads_document",
+                  "returns_document_content",
+                  "returns_implementation_types",
+                  "returns_assembly_paths",
+                  "loads_assemblies",
+                  "opens_word",
+                  "uses_network"
+                ],
+                "properties": {
+                  "reads_document": {
+                    "const": false
+                  },
+                  "returns_document_content": {
+                    "const": false
+                  },
+                  "returns_implementation_types": {
+                    "const": false
+                  },
+                  "returns_assembly_paths": {
+                    "const": false
+                  },
+                  "loads_assemblies": {
+                    "const": false
+                  },
+                  "opens_word": {
+                    "const": false
+                  },
+                  "uses_network": {
+                    "const": false
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
         "openWorldHint": false
       }
     },

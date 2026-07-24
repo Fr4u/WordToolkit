@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+- Added the first fail-closed extension registry in `WordToolkit.Engine`. Hosts must
+  explicitly allow extension IDs, trust/isolation modes, interface kinds and compatible
+  engine/interface versions before registration. Capabilities declare exact permissions,
+  input/output byte ceilings, concurrency, cooperative timeout, determinism and content
+  behavior. Duplicate/conflicting registrations and use after freeze fail; the immutable,
+  source-order-independent public catalog is bound to a deterministic SHA-256.
+- Registered the Microsoft Open XML SDK candidate validator as the first real production
+  module. Native style, comment-body, review, package-patch, merge, formatter and rollback
+  paths now resolve it through `ExtensionWordPackageCandidateValidator` instead of
+  constructing the SDK adapter beside the registry. A full parallel Native run exposed
+  an undersized two-invocation profile; the stateless built-in validator now uses the
+  host's 64-active-request ceiling while isolated registry tests still prove exact
+  concurrency refusal at a limit of one.
+- Added `InspectExtensionCatalogOperation`, strict `extensions` CLI and lazy
+  `inspect_wordtoolkit_extensions` MCP behind one
+  `wordtoolkit.inspect_extensions/1.0` contract. The bounded result reads no document,
+  opens no Word instance, scans or loads no assembly, uses no network and returns no
+  implementation type or path. The native catalog now contains 111 actions, 15 exposed
+  tools and 24 complete metadata contracts; 87 actions remain explicitly uncovered.
+- Added research and threat-model documentation stating that `AssemblyLoadContext` is not
+  a security boundary. The current host accepts only trusted in-process modules with
+  cooperative cancellation; untrusted/out-of-process loading remains rejected until a
+  separate restricted process and closed IPC exist. The checkpoint passes 539 Engine,
+  403 Native and 1309 Python tests with 16 intentional skips; Ruff, mypy over 29 modules,
+  changed-project format checks and the real CLI output schema are clean.
+- Packaged and enabled `0.39.0+codex.20260724191908`. Two pinned-SDK builds are
+  byte-identical at 196 files and 87,285,844 bytes; both 36,798,079-byte ZIPs have
+  SHA-256 `e298ebc80a64a6c5fb36ca579c041633963a383ff82a153cb8aa3c43bcf3c2d2`.
+  Build output, personal source and enabled cache have zero path/length/hash differences.
+  Installed CLI discovery reports 111 actions, 15 exposed tools and 24 explicit
+  contracts; installed lazy MCP extension inspection returns the same catalog hash and
+  confirms that it neither loads assemblies nor opens Word.
+
 - Added a bounded Flat OPC transport owned by `WordToolkit.Engine`. The streaming codec
   prohibits DTDs and external resolution, enforces outer XML and decoded package budgets,
   rejects duplicate/case-colliding/traversal part names, validates XML payloads, preserves

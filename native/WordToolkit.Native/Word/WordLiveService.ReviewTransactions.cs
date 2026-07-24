@@ -514,7 +514,7 @@ internal sealed partial class WordLiveService
                 candidateStream,
                 candidateMutation
             );
-            var validation = new MicrosoftOpenXmlPackageValidator().Validate(
+            var validation = NativeExtensionHost.CandidateValidator.Validate(
                 baselineStream,
                 candidateStream,
                 cancellationToken

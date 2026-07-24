@@ -19,6 +19,14 @@ hashes to detect drift, then inspect only the selected action.
 If a client must validate the response shape, request
 `get_wordtoolkit_capabilities` with `view=schema`; do not infer a schema from the hash.
 
+When extension identity, validator provenance, interface compatibility or provider limits
+matter, execute lazy `inspect_wordtoolkit_extensions`. Filter by extension, capability,
+publisher, kind or interface and keep the page small. The result is a frozen, SHA-256-bound
+catalog only: it reads no document, opens no Word instance, scans or loads no assembly,
+uses no network and returns no implementation type or path. Treat
+`trusted_in_process` and `cooperative` literally. They are not a sandbox or a hard-kill
+timeout; untrusted and out-of-process providers are not implemented.
+
 ## Token discipline
 
 - Generate a coherent document section in the model, then send one

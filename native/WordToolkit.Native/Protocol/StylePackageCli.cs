@@ -67,7 +67,7 @@ internal static class StylePackageCli
                 ? ReadBounded(input)
                 : ReadRequestFile(requestSource);
             var operation = new StyleWordPackageOperation(
-                new MicrosoftOpenXmlPackageValidator()
+                NativeExtensionHost.CandidateValidator
             );
             object result = mode == "plan"
                 ? operation.Plan(StyleEditOperationJson.ParsePlanRequest(json))

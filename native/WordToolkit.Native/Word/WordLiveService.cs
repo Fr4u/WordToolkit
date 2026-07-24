@@ -122,6 +122,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_wordtoolkit_extensions" => InspectExtensionsAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_ooxml_semantics" => InspectPackageSemanticsAsync(
                 arguments,
                 cancellationToken

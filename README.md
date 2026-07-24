@@ -156,11 +156,27 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 110-action schema set into model context. The normative shape is
+not flatten the 111-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
 compatibility rules.
+
+The engine extension registry is a separate, frozen contract. It contains only modules
+explicitly allowed by the host; it does not discover or load DLL files. Inspect its
+content-free catalog through direct .NET, lazy `inspect_wordtoolkit_extensions`, or the
+strict CLI:
+
+```powershell
+wordtoolkit-native extensions --query validator --limit 8 --format json
+```
+
+The first production registration is the Microsoft Open XML SDK candidate validator.
+Catalog results expose versioned interfaces, trust/isolation, declared permissions and
+resource ceilings, but no implementation type or assembly path. `trusted_in_process`
+means full process trust, not a sandbox; `cooperative` timeout is cancellation, not safe
+preemption. See
+[`docs/RESEARCH-PLUGIN-ARCHITECTURE-2026.md`](docs/RESEARCH-PLUGIN-ARCHITECTURE-2026.md).
 
 The first public operation shared by the cross-platform .NET engine, CLI and MCP is
 saved-package inspection. It does not create a Word COM host in SDK/CLI use, does not
