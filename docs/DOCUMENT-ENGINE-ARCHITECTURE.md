@@ -507,13 +507,15 @@ Transaction phases:
 Live Word commands use Word's custom undo record only for the scoped live mutation.
 The default mixed text/equation path first builds and verifies all native equations in
 an unsaved hidden Word staging document, which is discarded before target publication.
-It then snapshots main-story content, the exact target,
-bounded OOXML context, structural counts, boundaries and save state before the first
-write. A failed custom record requests exactly one `Undo(1)` and accepts it only when
-Word returns success and the full snapshot matches. A false/throwing Undo, record-close
-failure or mismatch becomes `ROLLBACK_FAILED`; the handle and document identity are
-quarantined so later calls cannot keep writing into unproven state. Package rollback
-remains independent and never uses Word's Undo history.
+Every custom-Undo live mutation snapshots the whole-document Flat OPC, main-story
+content, every linked story range, the exact target, bounded OOXML context, structural
+counts, boundaries and save state before the first write. SmartArt and review-property
+paths add domain fingerprints where COM state is not reliably represented by story XML.
+A failed custom record requests exactly one `Undo(1)` only when a state delta is proved
+and accepts it only when Word returns success and the complete snapshot matches. A
+false/throwing Undo, record-close failure or mismatch becomes `ROLLBACK_FAILED`; the
+handle and document identity are quarantined so later calls cannot keep writing into
+unproven state. Package rollback remains independent and never uses Word's Undo history.
 
 The first transaction slices are implemented for batches of text-leaf, typed style-
 definition creation/cloning/exact consolidation/proven-unused deletion, and style-

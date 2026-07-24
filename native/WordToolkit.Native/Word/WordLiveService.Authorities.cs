@@ -97,6 +97,7 @@ internal sealed partial class WordLiveService
                         $"The live document already has the maximum supported {CaptionFieldScanLimit} fields"
                     );
                 }
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 bool? originalScreenUpdating = null;
@@ -180,9 +181,17 @@ internal sealed partial class WordLiveService
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -291,6 +300,7 @@ internal sealed partial class WordLiveService
                         selectionToken,
                         replaceSelection: false
                     );
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 bool? originalScreenUpdating = null;
@@ -423,9 +433,17 @@ internal sealed partial class WordLiveService
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally

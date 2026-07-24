@@ -73,15 +73,21 @@ path, save-policy and confirmation checks.
 
 ## Verified rollback and quarantine
 
-The mixed text/equation path does not equate an attempted `Document.Undo(1)` with a
-successful rollback. First, every native equation is built, styled and read back in one
-unsaved hidden Word staging document. A failure there discards the stage before the
-target receives any content. Before target mutation, `apply_live_word_operations` and
-the native equation insertion paths capture the live version, saved state, main-story text hash,
-exact target and bounded-context text/OOXML hashes, content/target/context boundaries,
-and paragraph, equation, table, field, bookmark, inline/floating shape, comment,
-footnote, endnote and section counts. After a failed native build or readback, the custom
-Undo record must close, `Undo(1)` must return `true`, and every captured value must match.
+No WordToolkit live mutation path equates an attempted `Document.Undo(1)` with a
+successful rollback. Every custom-Undo mutation now captures the live version, saved
+state, a whole-document Flat OPC hash, main-story text/OOXML hashes, every accessible
+linked story-range hash, exact target and bounded-context text/OOXML hashes,
+content/target/context boundaries, and paragraph, equation, table, field, bookmark,
+inline/floating shape, comment, footnote, endnote and section counts before its first
+write. SmartArt text and review properties that are not reliably represented by Word's
+Undo contract add dedicated supplemental state fingerprints. The mixed text/equation
+path additionally builds, styles and reads back every native equation in an unsaved
+hidden staging document before target publication.
+
+After a failed mutation, the custom Undo record must close, `Undo(1)` must return `true`,
+and every captured value must match. If no observable state changed, the runtime avoids
+an unsafe Undo that could cross into an unrelated history entry and returns the original
+error directly.
 
 If any proof is missing, the operation returns `ROLLBACK_FAILED` with the original error
 code, Undo outcome, mismatch names and before/after structural summaries. It does not
@@ -90,6 +96,10 @@ as a quarantine tombstone. Calls through that handle and attempts to reconnect t
 open document return `LIVE_DOCUMENT_QUARANTINED`. A deliberate
 `disconnect_live_word_document` clears the tombstone without closing Word; this is an
 acknowledgement of unsafe state, not evidence that the document repaired itself.
+Real Word 16.0 proves why this is deliberately strict: a one-line insertion followed by
+`Undo(1)` returned `true` and restored the visible text and structural counts, while the
+Flat OPC, range OOXML and story graph still differed. WordToolkit reported
+`ROLLBACK_FAILED` instead of laundering that drift as a successful transaction.
 
 `insert_live_word_table_of_contents` inserts at the document start by default, or at the
 document end or a fresh token-verified collapsed cursor. It accepts heading levels 1–9,

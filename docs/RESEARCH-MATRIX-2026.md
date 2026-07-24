@@ -322,14 +322,15 @@ converter.
 ## AI-oriented CLI and MCP implementations
 
 Pinned source snapshots were cloned under a temporary research directory. The original
-eight AI/Word repository heads were rechecked on 2026-07-23 and four additional current
+eight AI/Word repository heads were rechecked on 2026-07-23, the two fastest-moving
+competitors were refreshed again on 2026-07-24, and four additional current
 competitors were inspected. Repository metadata is volatile; commit IDs make the
 observations reproducible. This is a bounded search set, not a claim that every GitHub
 repository containing `docx`, `Word` or `MCP` has been found.
 
 | Project and snapshot | Observed architecture and strength | Observed failure boundary | Evidence |
 |---|---|---|---|
-| [OfficeCLI](https://github.com/iOfficeAI/OfficeCLI) `9c78827d25d33f53664e68e7ec841d577c763632` (`1.0.140`) | .NET/Open XML SDK, wide command surface, selectors, issue views, dump/replay, resident mode, Word/HTML render routes, one compact generic MCP command, sibling-temp atomic replacement and atomic-by-default multi-operation batch rollback. The current head also adds native Markdown-subset expansion and fixes range-split and stale body-index defects. | Source contains explicit unsupported warnings and optional lossy `--best-effort` replay paths; no independent Word pagination; broad handlers are not a unified repair/diff semantic engine. Atomic batch rollback is real parity evidence, but it does not by itself bind persistence to a previously reviewed filesystem identity or demonstrate power-loss durability. | A |
+| [OfficeCLI](https://github.com/iOfficeAI/OfficeCLI) `79515527091fab74821ffb6647e73b29bc78d548` (`1.0.141`) | .NET/Open XML SDK, wide command surface, selectors, issue views, dump/replay, resident mode, Word/HTML render routes, one compact generic MCP command, sibling-temp atomic replacement and atomic-by-default multi-operation batch rollback. The 46-commit delta from the prior pin hardens Markdown parsing with element bounds, linearizes a formerly quadratic path, preserves text across partial blocks and adds partial-block rollback tests. | Source contains explicit unsupported warnings and optional lossy `--best-effort` replay paths; no independent Word pagination; broad handlers are not a unified repair/diff semantic engine. Atomic batch rollback is real parity evidence, but it does not by itself bind persistence to a previously reviewed filesystem identity or demonstrate power-loss durability. | A |
 | [docx-cli](https://github.com/kklimuk/docx-cli) `3c2e2721ed90cbb42626c270d183a09d3b6d08b0` | TypeScript/Bun, substantial AST, stable locators, annotated Markdown, XML-in-place edits, equations, comments, revisions, raw parts, schema validation, and practical AI benchmark design. | Documentation admits no undo and in-place overwrite. Rendering delegates to Word/LibreOffice/PDFium routes. Raw escape hatches remain necessary for unsupported structures. | A |
 | [Office Word MCP Server](https://github.com/GongRzhe/Office-Word-MCP-Server) `a3bbbb6d6167e68cf855d73ef7dc6cd8cfbfedba` | Accessible python-docx MCP tool set for common document construction. | Archived in March 2026; small regression surface; several advanced features are simplified or placeholder-backed; no complete package graph or native layout. | A |
 | [word-mcp-live](https://github.com/ykarapazar/word-mcp-live) `c6c76179f66b27846d8f6a822a683e144d9288cb` | Broad live Word COM surface on Windows plus a macOS JXA path; over one hundred MCP tools. | Raw positional indices, weak optimistic concurrency, undo can cross unrelated user edits, macOS undo grouping is a no-op, and equation parity is platform-dependent. | A |
@@ -337,16 +338,16 @@ repository containing `docx`, `Word` or `MCP` has been found.
 | [hongkongkiwi/docx-mcp](https://github.com/hongkongkiwi/docx-mcp) `d3fbbcfd7c93b0403de65d31f733c01b1cb2234f` | Small Rust package with an attractive standalone deployment story. | Source inspection found placeholder feature flags and placeholder rendering/TOC behavior behind broad README claims. Marketing breadth is not implementation evidence. | A |
 | [mcp-msoffice-interop-word](https://github.com/mario-andreschak/mcp-msoffice-interop-word) `e50e339f1ac11fde6904addebef8c0b070879160` | Thin TypeScript/winax bridge to desktop Word. | Raw COM enums, basic failure handling, no package model, transactions, version tokens, validation, or semantic locators. | A |
 | [OfficeMCP](https://github.com/OfficeMCP/OfficeMCP) `188140dc784f53d66da566696072f47d29fa795a` | Generic access to Office automation. | Its generic tool executes supplied Python with `exec` against COM objects. That is an arbitrary-code-execution boundary, not a safe document API. No detected repository license at the research snapshot. | A |
-| [safe-docx](https://github.com/UseJunior/safe-docx) `7e1dc9752e5a9848658045de88c5a88bc80bb1dd` (`0.17.0`) | Serious Apache-2.0 TypeScript competitor: session-backed compact reads, stable IDs, tracked and clean saves, comparison, comments, notes, revisions, layout/export routes, archive guards, 26 MCP tools and an existing `docx-platform-tests` adapter. The current head preserves validated unchanged direct-body block SDTs plus their relationship closure during forced comparison rebuild and adds focused/real-corpus tests. | It does not claim a visual editor, native layout engine or pixel-exact pagination. The new block-SDT slice deliberately rejects mutation, movement, nesting and unsupported ownership rather than flattening them; other unsupported revision/rebuild families and the distinction between validation and Word-open proof remain corpus obligations. | A |
+| [safe-docx](https://github.com/UseJunior/safe-docx) `62b19c8d83a7870b441d0998569c4f277acdf5d0` (`0.18.0`) | Serious Apache-2.0 TypeScript competitor: session-backed compact reads, stable IDs, tracked and clean saves, comparison, comments, notes, revisions, layout/export routes, archive guards, 26 MCP tools and an existing `docx-platform-tests` adapter. The ten-commit delta from the prior pin preserves edit bookmarks and complex fields through tracked/clean/comparison saves, hardens node/provenance identity and heading provenance, and tightens XML attribute/URL handling. | It does not claim a visual editor, native layout engine or pixel-exact pagination. Unsupported revision/rebuild families and the distinction between validation and Word-open proof remain corpus obligations; the expanded preservation fixes are evidence that comparison rebuild remains a high-risk surface requiring continual real-corpus proof. | A |
 | [LegalRabbit DOCX MCP](https://github.com/LegalRabbit-AI/legalrabbit-docx-mcp) `a1c9be831f0e161c8965392968702e3735680daa` | Plugin metadata and downloadable binaries advertise comments, tracked changes, offline use and token savings. | The repository contains no implementation source or regression tests; the downloadable binaries are roughly 70–105 MB. Architecture, preservation and token claims cannot be audited independently from this snapshot. | C |
 | [che-word-mcp](https://github.com/PsychQuant/che-word-mcp) `b59d5f24fb9524b04f0ccac40e6b1abca40adef5` | Native macOS Swift implementation over `ooxml-swift`, with a broad declared capability surface and 41 test files. | One server file exceeds 10,000 lines; direct tools are a small subset of the advertised surface. Script export upgrades only the main document, rich/legacy documents can demote the whole main part to raw data, real fixtures and tracked-change tests are skipped, and `listCustomXmlParts` is still an empty stub. | A |
 | [word-mcp](https://github.com/juanocampo400/word-mcp) `16ab829e32e1520e72f2eda5e78e29fb8c99892c` (`0.1.0`) | Accessible Windows Python bridge combining `python-docx` and `pywin32` COM across a broad common-edit surface. | The pinned repository has no tests. Mutations depend on positional indices and direct saves, with no package graph, version tokens, atomic persistence, rollback or preservation proof. | A |
 
-The final 2026-07-23 refresh moved OfficeCLI from `e7916a2...` to `9c78827...` and
-safe-docx from `3615e2...` to `7e1dc9...`; docx-cli remained at `3c2e27...`. The
-OfficeCLI delta adds Markdown import plus range/index fixes and does not change the
-already documented atomic-batch contract. The safe-docx delta materially strengthens
-forced-rebuild preservation for direct-body block controls. The neutral 42-scenario
+The 2026-07-24 refresh moved OfficeCLI from `9c78827...` to `7951552...` and
+safe-docx from `7e1dc9...` to `62b19c8...`; docx-cli remained at `3c2e27...`. The
+OfficeCLI delta strengthens bounded Markdown import and partial-block rollback without
+changing the already documented atomic-batch contract. The safe-docx delta materially
+strengthens tracked-save/comparison preservation and identity hygiene. The neutral 42-scenario
 checkpoint below remains intentionally pinned to the older declared revisions until the
 same hidden protocol is rerun; current-head claims are not laundered into old benchmark
 numbers.
@@ -367,7 +368,7 @@ in-process draft transaction. Its image transport follows the Apps SDK top-level
 parameter constraint through `files` plus `file_index`; complete image staging can still
 consume session quota before the document lock, and neither crash-durable draft state,
 result-reference syntax nor shared immutable parsed parts exists. Sources:
-[OfficeCLI current skill](https://github.com/iOfficeAI/OfficeCLI/blob/9c78827d25d33f53664e68e7ec841d577c763632/SKILL.md) (A);
+[OfficeCLI current skill](https://github.com/iOfficeAI/OfficeCLI/blob/79515527091fab74821ffb6647e73b29bc78d548/SKILL.md) (A);
 [OpenAI Apps SDK file handling](https://developers.openai.com/apps-sdk/build/mcp-server#file-handling) (A).
 
 The useful ideas are clear: OfficeCLI's compact gateway and resident mode, docx-cli's

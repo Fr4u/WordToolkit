@@ -168,7 +168,7 @@ public sealed class LiveIndexTests
 
         Assert.Equal("VALIDATION_FAILED", error.ErrorCode);
         Assert.Equal(0, host.Application.ActiveDocument.Fields.Count);
-        Assert.Equal(1, host.Application.ActiveDocument.UndoCount);
+        Assert.Equal(0, host.Application.ActiveDocument.UndoCount);
     }
 
     [Fact]

@@ -288,6 +288,7 @@ internal sealed partial class WordLiveService
                     );
                 }
 
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 bool? originalScreenUpdating = null;
                 dynamic? undoRecord = null;
                 var undoStarted = false;
@@ -335,9 +336,27 @@ internal sealed partial class WordLiveService
                         started
                     );
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        (object)document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception,
+                        supplementalBaseline: before.ContextFingerprint,
+                        supplementalStateReader: (Func<string>)(() =>
+                        {
+                            dynamic currentRoot = ResolveSmartArtRoot(document, locator);
+                            return CaptureSmartArtSnapshot(
+                                (object)currentRoot,
+                                locator
+                            ).ContextFingerprint;
+                        }),
+                        supplementalDifferenceName: "smartart_context_sha256"
+                    );
                     throw;
                 }
                 finally

@@ -659,15 +659,18 @@ action opens Word or returns XML/document text.
 `apply_live_word_operations` is the default authoring tool. It first builds and verifies
 every requested native equation in an unsaved hidden Word staging document; a staging
 failure closes that document and leaves the target untouched. It then creates native
-text and editable OMath in one target Word Undo transaction. Before target mutation it fingerprints
-the main-story content, exact target and bounded OOXML context, range boundaries,
-save state and structural counts. On failure, the original error remains authoritative
-only when Word's Undo returns success and the complete snapshot matches exactly. If
-Undo throws, returns false, cannot be closed safely, or leaves any mismatch, the action
-returns `ROLLBACK_FAILED`, invalidates the live handle and quarantines that document
-identity. Do not reconnect or continue editing a quarantined document. Inspect it in
-Word, then call `disconnect_live_word_document` only as an explicit acknowledgement
-before any fresh connection.
+text and editable OMath in one target Word Undo transaction. Before target mutation it
+fingerprints the whole-document Flat OPC, main-story content, every linked story range,
+exact target and bounded OOXML context, range boundaries, save state and structural
+counts. The same verified rollback/quarantine contract covers every current live
+mutation family; SmartArt and review-property actions add dedicated state fingerprints.
+On failure, the original error remains authoritative only when Word's Undo returns
+success and the complete snapshot matches exactly. If Undo throws, returns false,
+cannot be closed safely, or leaves any mismatch, the action returns `ROLLBACK_FAILED`,
+invalidates the live handle and quarantines that document identity. Do not reconnect or
+continue editing a quarantined document. Inspect it in Word, then call
+`disconnect_live_word_document` only as an explicit acknowledgement before any fresh
+connection.
 
 ## Lazy actions
 

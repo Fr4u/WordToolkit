@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Runtime.InteropServices;
 using System.Text;
 using WordToolkit.Native.Protocol;
 
@@ -7,6 +8,21 @@ namespace WordToolkit.Native.Word;
 internal sealed partial class WordLiveService
 {
     private const int RollbackContextCharacters = 256;
+    private const int RollbackStoryRangeLimit = 4_096;
+
+    internal static LiveRollbackSnapshot CaptureLiveRollbackSnapshot(
+        dynamic document,
+        long liveVersion
+    )
+    {
+        dynamic content = document.Content;
+        return CaptureLiveRollbackSnapshot(
+            document,
+            (int)content.Start,
+            (int)content.End,
+            liveVersion
+        );
+    }
 
     private static LiveRollbackSnapshot CaptureLiveRollbackSnapshot(
         dynamic document,
@@ -15,6 +31,7 @@ internal sealed partial class WordLiveService
         long liveVersion
     )
     {
+        var strictComReadback = Marshal.IsComObject((object)document);
         dynamic content = document.Content;
         var contentStart = (int)content.Start;
         var contentEnd = (int)content.End;
@@ -27,40 +44,163 @@ internal sealed partial class WordLiveService
 
         return new LiveRollbackSnapshot(
             liveVersion,
-            DocumentSaved(document),
+            RollbackSaved(document, strictComReadback),
             contentStart,
             contentEnd,
             targetStart,
             targetEnd,
             contextStart,
             contextEnd,
-            DocumentParagraphCount(document),
-            DocumentEquationCount(document),
-            DocumentTableCount(document),
-            DocumentFieldCount(document),
-            DocumentBookmarkCount(document),
-            DocumentInlineShapeCount(document),
-            DocumentShapeCount(document),
-            DocumentCommentCount(document),
-            DocumentFootnoteCount(document),
-            DocumentEndnoteCount(document),
-            DocumentSectionCount(document),
+            RollbackCount((object)document, strictComReadback, static value => (int)value.Paragraphs.Count, DocumentParagraphCount),
+            RollbackCount((object)document, strictComReadback, static value => (int)value.OMaths.Count, DocumentEquationCount),
+            RollbackCount((object)document, strictComReadback, static value => (int)value.Tables.Count, DocumentTableCount),
+            RollbackCount((object)document, strictComReadback, static value => (int)value.Fields.Count, DocumentFieldCount),
+            RollbackCount((object)document, strictComReadback, static value => (int)value.Bookmarks.Count, DocumentBookmarkCount),
+            RollbackCount((object)document, strictComReadback, static value => (int)value.InlineShapes.Count, DocumentInlineShapeCount),
+            RollbackCount((object)document, strictComReadback, static value => (int)value.Shapes.Count, DocumentShapeCount),
+            RollbackCount((object)document, strictComReadback, static value => (int)value.Comments.Count, DocumentCommentCount),
+            RollbackCount((object)document, strictComReadback, static value => (int)value.Footnotes.Count, DocumentFootnoteCount),
+            RollbackCount((object)document, strictComReadback, static value => (int)value.Endnotes.Count, DocumentEndnoteCount),
+            RollbackCount((object)document, strictComReadback, static value => (int)value.Sections.Count, DocumentSectionCount),
+            RollbackSha256(RollbackDocumentWordOpenXml(document, content, strictComReadback)),
             RollbackSha256((string?)content.Text ?? ""),
+            RollbackSha256(RollbackWordOpenXml(content, strictComReadback)),
             RollbackSha256((string?)targetRange.Text ?? ""),
-            RollbackSha256((string?)targetRange.WordOpenXML ?? ""),
+            RollbackSha256(RollbackWordOpenXml(targetRange, strictComReadback)),
             RollbackSha256((string?)contextRange.Text ?? ""),
-            RollbackSha256((string?)contextRange.WordOpenXML ?? "")
+            RollbackSha256(RollbackWordOpenXml(contextRange, strictComReadback)),
+            CaptureRollbackStoryDigest(document, strictComReadback)
         );
     }
 
-    private void RollbackPreparedOperationsOrThrow(
+    private static string RollbackDocumentWordOpenXml(
+        dynamic document,
+        dynamic content,
+        bool strictComReadback
+    )
+    {
+        try
+        {
+            return (string?)document.WordOpenXML ?? "";
+        }
+        catch when (!strictComReadback)
+        {
+            return "test-double-document:" + RollbackWordOpenXml(content, false);
+        }
+    }
+
+    private static bool RollbackSaved(dynamic document, bool strictComReadback)
+    {
+        try
+        {
+            return (bool)document.Saved;
+        }
+        catch when (!strictComReadback)
+        {
+            return DocumentSaved(document);
+        }
+    }
+
+    private static int RollbackCount(
+        object document,
+        bool strictComReadback,
+        Func<dynamic, int> strictReader,
+        Func<dynamic, int> testDoubleFallback
+    )
+    {
+        try
+        {
+            return strictReader((dynamic)document);
+        }
+        catch when (!strictComReadback)
+        {
+            return testDoubleFallback((dynamic)document);
+        }
+    }
+
+    private static string RollbackWordOpenXml(dynamic range, bool strictComReadback)
+    {
+        try
+        {
+            return (string?)range.WordOpenXML ?? "";
+        }
+        catch when (!strictComReadback)
+        {
+            return "test-double-text:" + ((string?)range.Text ?? "");
+        }
+    }
+
+    private static RollbackStoryDigest CaptureRollbackStoryDigest(
+        dynamic document,
+        bool strictComReadback
+    )
+    {
+        if (!strictComReadback)
+        {
+            return new RollbackStoryDigest(0, RollbackSha256("test-double-stories"));
+        }
+
+        var records = new List<RollbackStoryRecord>();
+        foreach (dynamic firstRange in document.StoryRanges)
+        {
+            dynamic? current = firstRange;
+            var linkIndex = 0;
+            while (current is not null)
+            {
+                if (records.Count >= RollbackStoryRangeLimit)
+                {
+                    throw new NativeToolException(
+                        "LIMIT_EXCEEDED",
+                        "The Word story graph exceeds the verified rollback range limit",
+                        new
+                        {
+                            limit = RollbackStoryRangeLimit,
+                            stage = "rollback_checkpoint",
+                        }
+                    );
+                }
+                records.Add(
+                    new RollbackStoryRecord(
+                        (int)current.StoryType,
+                        linkIndex,
+                        (int)current.Start,
+                        (int)current.End,
+                        RollbackSha256((string?)current.Text ?? ""),
+                        RollbackSha256(RollbackWordOpenXml(current, strictComReadback))
+                    )
+                );
+                current = current.NextStoryRange;
+                linkIndex++;
+            }
+        }
+
+        var digest = new StringBuilder(records.Count * 192);
+        foreach (
+            var record in records.OrderBy(static value => value.StoryType)
+                .ThenBy(static value => value.LinkIndex)
+        )
+        {
+            digest.Append(record.StoryType).Append(':')
+                .Append(record.LinkIndex).Append(':')
+                .Append(record.Start).Append(':')
+                .Append(record.End).Append(':')
+                .Append(record.TextSha256).Append(':')
+                .Append(record.WordOpenXmlSha256).Append('\n');
+        }
+        return new RollbackStoryDigest(records.Count, RollbackSha256(digest.ToString()));
+    }
+
+    internal void RollbackPreparedOperationsOrThrow(
         dynamic document,
         dynamic? undoRecord,
         ref bool undoStarted,
         bool mutationAttempted,
         LiveRollbackSnapshot baseline,
         LiveDocumentRecord record,
-        Exception originalException
+        Exception originalException,
+        string? supplementalBaseline = null,
+        Func<string>? supplementalStateReader = null,
+        string supplementalDifferenceName = "supplemental_state_sha256"
     )
     {
         if (!mutationAttempted)
@@ -70,6 +210,8 @@ internal sealed partial class WordLiveService
 
         LiveRollbackSnapshot? beforeUndo = null;
         Exception? beforeUndoVerificationError = null;
+        string? beforeUndoSupplemental = null;
+        Exception? beforeUndoSupplementalError = null;
         try
         {
             beforeUndo = CaptureLiveRollbackSnapshot(
@@ -82,6 +224,17 @@ internal sealed partial class WordLiveService
         catch (Exception exception)
         {
             beforeUndoVerificationError = exception;
+        }
+        if (supplementalStateReader is not null)
+        {
+            try
+            {
+                beforeUndoSupplemental = supplementalStateReader();
+            }
+            catch (Exception exception)
+            {
+                beforeUndoSupplementalError = exception;
+            }
         }
 
         Exception? endRecordError = null;
@@ -108,7 +261,14 @@ internal sealed partial class WordLiveService
         }
 
         var changedBeforeUndo =
-            beforeUndo is null || baseline.Differences(beforeUndo).Count > 0;
+            beforeUndo is null
+            || baseline.Differences(beforeUndo).Count > 0
+            || beforeUndoSupplementalError is not null
+            || !string.Equals(
+                supplementalBaseline,
+                beforeUndoSupplemental,
+                StringComparison.Ordinal
+            );
         if (endRecordError is null && !changedBeforeUndo)
         {
             record.Version = baseline.LiveVersion;
@@ -133,6 +293,8 @@ internal sealed partial class WordLiveService
 
         LiveRollbackSnapshot? afterUndo = changedBeforeUndo ? null : beforeUndo;
         Exception? afterUndoVerificationError = null;
+        string? afterUndoSupplemental = changedBeforeUndo ? null : beforeUndoSupplemental;
+        Exception? afterUndoSupplementalError = null;
         if (changedBeforeUndo && undoAttempted)
         {
             try
@@ -148,18 +310,43 @@ internal sealed partial class WordLiveService
             {
                 afterUndoVerificationError = exception;
             }
+            if (supplementalStateReader is not null)
+            {
+                try
+                {
+                    afterUndoSupplemental = supplementalStateReader();
+                }
+                catch (Exception exception)
+                {
+                    afterUndoSupplementalError = exception;
+                }
+            }
         }
 
-        var differences = afterUndo is null
+        var differences = (afterUndo is null
             ? new[] { "rollback_snapshot_unavailable" }
-            : baseline.Differences(afterUndo).ToArray();
+            : baseline.Differences(afterUndo).ToArray()).ToList();
+        if (
+            supplementalStateReader is not null
+            && (
+                afterUndoSupplementalError is not null
+                || !string.Equals(
+                    supplementalBaseline,
+                    afterUndoSupplemental,
+                    StringComparison.Ordinal
+                )
+            )
+        )
+        {
+            differences.Add(supplementalDifferenceName);
+        }
         if (
             endRecordError is null
             && undoAttempted
             && undoError is null
             && undoReturned is true
             && afterUndo is not null
-            && differences.Length == 0
+            && differences.Count == 0
         )
         {
             record.Version = baseline.LiveVersion;
@@ -183,8 +370,10 @@ internal sealed partial class WordLiveService
                 undo_attempted = undoAttempted,
                 undo_returned = undoReturned,
                 undo_failed = undoError is not null,
-                rollback_verification_failed = afterUndoVerificationError is not null,
-                pre_undo_verification_failed = beforeUndoVerificationError is not null,
+                rollback_verification_failed = afterUndoVerificationError is not null
+                    || afterUndoSupplementalError is not null,
+                pre_undo_verification_failed = beforeUndoVerificationError is not null
+                    || beforeUndoSupplementalError is not null,
                 differences,
                 baseline = baseline.StructuralSummary(),
                 observed = afterUndo?.StructuralSummary(),
@@ -236,11 +425,14 @@ internal sealed record LiveRollbackSnapshot(
     int FootnoteCount,
     int EndnoteCount,
     int SectionCount,
+    string DocumentWordOpenXmlSha256,
     string ContentTextSha256,
+    string ContentWordOpenXmlSha256,
     string TargetTextSha256,
     string TargetWordOpenXmlSha256,
     string ContextTextSha256,
-    string ContextWordOpenXmlSha256
+    string ContextWordOpenXmlSha256,
+    RollbackStoryDigest StoryDigest
 )
 {
     public IReadOnlyList<string> Differences(LiveRollbackSnapshot observed)
@@ -271,9 +463,21 @@ internal sealed record LiveRollbackSnapshot(
         AddDifference(differences, "section_count", SectionCount, observed.SectionCount);
         AddDifference(
             differences,
+            "document_word_open_xml_sha256",
+            DocumentWordOpenXmlSha256,
+            observed.DocumentWordOpenXmlSha256
+        );
+        AddDifference(
+            differences,
             "content_text_sha256",
             ContentTextSha256,
             observed.ContentTextSha256
+        );
+        AddDifference(
+            differences,
+            "content_word_open_xml_sha256",
+            ContentWordOpenXmlSha256,
+            observed.ContentWordOpenXmlSha256
         );
         AddDifference(
             differences,
@@ -299,6 +503,18 @@ internal sealed record LiveRollbackSnapshot(
             ContextWordOpenXmlSha256,
             observed.ContextWordOpenXmlSha256
         );
+        AddDifference(
+            differences,
+            "story_range_count",
+            StoryDigest.RangeCount,
+            observed.StoryDigest.RangeCount
+        );
+        AddDifference(
+            differences,
+            "story_graph_sha256",
+            StoryDigest.Sha256,
+            observed.StoryDigest.Sha256
+        );
         return differences;
     }
 
@@ -321,9 +537,13 @@ internal sealed record LiveRollbackSnapshot(
             footnote_count = FootnoteCount,
             endnote_count = EndnoteCount,
             section_count = SectionCount,
+            document_word_open_xml_verified_by_hash = true,
             content_text_verified_by_hash = true,
+            content_word_open_xml_verified_by_hash = true,
             target_word_open_xml_verified_by_hash = true,
             context_word_open_xml_verified_by_hash = true,
+            story_range_count = StoryDigest.RangeCount,
+            story_graph_verified_by_hash = true,
             hashes_returned = false,
         };
     }
@@ -342,3 +562,14 @@ internal sealed record LiveRollbackSnapshot(
         }
     }
 }
+
+internal sealed record RollbackStoryDigest(int RangeCount, string Sha256);
+
+internal sealed record RollbackStoryRecord(
+    int StoryType,
+    int LinkIndex,
+    int Start,
+    int End,
+    string TextSha256,
+    string WordOpenXmlSha256
+);

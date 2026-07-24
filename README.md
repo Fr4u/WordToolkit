@@ -761,12 +761,14 @@ diagnostic detail is needed.
 Failure is not allowed to masquerade as atomicity. Every native equation is first built,
 styled and read back in an unsaved hidden Word staging document. If that isolated gate
 fails, the staging document is discarded and the target is untouched. Before the first
-target write, the native path records the main-story text hash, exact target and bounded-context OOXML
-hashes, content/target/context boundaries, save state and paragraph, equation, table,
-field, bookmark, shape, comment, note and section counts. After one bounded Undo, every
-value must match. A thrown/false Undo, an unclosed custom record, unreadable verification
-state or any mismatch produces `ROLLBACK_FAILED` instead of the original equation/style
-error. The live handle is removed and the document identity is quarantined; subsequent
+write, every current custom-Undo live mutation family records a whole-document Flat OPC
+hash, main-story and linked-story hashes, exact target and bounded-context OOXML hashes,
+content/target/context boundaries, save state and paragraph, equation, table, field,
+bookmark, shape, comment, note and section counts. SmartArt and review-property paths
+add dedicated state fingerprints. After one bounded Undo, every value must match. A
+thrown/false Undo, an unclosed custom record, unreadable verification state or any
+mismatch produces `ROLLBACK_FAILED` instead of the original operation error. The live
+handle is removed and the document identity is quarantined; subsequent
 inspection, mutation and automatic reconnection fail with `LIVE_DOCUMENT_QUARANTINED`
 until `disconnect_live_word_document` explicitly clears the quarantine. No document
 text, OOXML or fingerprints are returned in the diagnostic.

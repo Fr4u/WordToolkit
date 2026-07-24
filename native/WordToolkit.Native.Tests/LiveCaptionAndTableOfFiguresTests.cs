@@ -134,7 +134,7 @@ public sealed class LiveCaptionAndTableOfFiguresTests
 
         Assert.Equal("VALIDATION_FAILED", error.ErrorCode);
         Assert.Equal(0, host.Application.ActiveDocument.Fields.Count);
-        Assert.Equal(1, host.Application.ActiveDocument.UndoCount);
+        Assert.Equal(0, host.Application.ActiveDocument.UndoCount);
         Assert.True(host.Application.ScreenUpdating);
     }
 
@@ -505,7 +505,7 @@ public sealed class LiveCaptionAndTableOfFiguresTests
 
         Assert.Equal("VALIDATION_FAILED", error.ErrorCode);
         Assert.Equal(0, host.Application.ActiveDocument.Fields.Count);
-        Assert.Equal(1, host.Application.ActiveDocument.UndoCount);
+        Assert.Equal(0, host.Application.ActiveDocument.UndoCount);
     }
 
     [Fact]
@@ -1017,6 +1017,15 @@ public sealed class CaptionFakeDocument
     public CaptionFakeCountCollection Footnotes { get; } = new(0);
     public CaptionFakeCountCollection Endnotes { get; } = new(0);
     public CaptionFakeCountCollection Sections { get; } = new(1);
+    public string WordOpenXML => string.Join(
+        "|",
+        Body,
+        Fields.Count,
+        TablesOfContents.RollbackFingerprint,
+        TablesOfFigures.RollbackFingerprint,
+        TablesOfAuthorities.RollbackFingerprint,
+        Indexes.RollbackFingerprint
+    );
     public bool SuppressCaptionField { get; set; }
     public string LastCaptionLabel { get; private set; } = "";
     public string LastCaptionTitle { get; private set; } = "";
@@ -1207,6 +1216,10 @@ public sealed class CaptionFakeIndexes
     public bool SuppressMarkedEntry { get; set; }
     public bool SuppressAddedField { get; set; }
     public bool SuppressTabLeaderChange { get; set; }
+    public string RollbackFingerprint => string.Join(
+        ";",
+        _items.Select(item => item.RollbackFingerprint)
+    );
 
     public CaptionFakeField MarkEntry(
         CaptionFakeRange range,
@@ -1356,6 +1369,10 @@ public sealed class CaptionFakeReferenceTables
     public bool LastPassim { get; private set; }
     public bool LastIncludeCategoryHeader { get; private set; }
     public string LastEntrySeparator { get; private set; } = "";
+    public string RollbackFingerprint => string.Join(
+        ";",
+        _items.Select(item => item.RollbackFingerprint)
+    );
 
     public CaptionFakeField MarkCitation(
         CaptionFakeRange range,
@@ -1480,6 +1497,10 @@ public sealed class CaptionFakeTablesOfFigures
     public int Count => _items.Count;
     public string LastCaption { get; private set; } = "";
     public CaptionFakeTableOfFigures Item(int index) => _items[index - 1];
+    public string RollbackFingerprint => string.Join(
+        ";",
+        _items.Select(item => item.RollbackFingerprint)
+    );
 
     public void Seed(int count)
     {
@@ -1573,6 +1594,20 @@ public class CaptionFakeReferenceTable
             }
         }
     }
+    public string RollbackFingerprint => string.Join(
+        ":",
+        Range.Start,
+        Range.End,
+        Range.Fields.Count,
+        UpdateCount,
+        Passim,
+        KeepEntryFormatting,
+        EntrySeparator,
+        PageRangeSeparator,
+        IncludeCategoryHeader,
+        PageNumberSeparator,
+        TabLeader
+    );
 
     public void Update()
     {

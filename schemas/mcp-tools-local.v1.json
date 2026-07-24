@@ -11237,7 +11237,7 @@
     {
       "name": "apply_live_word_operations",
       "title": "Apply a fast mixed batch directly in open Microsoft Word",
-      "description": "Append up to 200 interleaved text and native-equation operations in one COM attachment and custom Undo transaction. Every equation is first built and verified in an unsaved hidden staging document. Before target mutation the runtime fingerprints document content, target/context OOXML, range boundaries and structural counts. A failed target batch must return to that exact state; otherwise it returns ROLLBACK_FAILED, invalidates the handle and quarantines the document until explicit disconnect.",
+      "description": "Append up to 200 interleaved text and native-equation operations in one COM attachment and custom Undo transaction. Every equation is first built and verified in an unsaved hidden staging document. Before target mutation the runtime fingerprints whole-document Flat OPC, main and linked stories, target/context OOXML, range boundaries and structural counts. A failed target batch must return to that exact state; otherwise it returns ROLLBACK_FAILED, invalidates the handle and quarantines the document until explicit disconnect.",
       "inputSchema": {
         "properties": {
           "live_document_id": {

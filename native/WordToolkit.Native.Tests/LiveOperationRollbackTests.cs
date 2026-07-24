@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using WordToolkit.Native.Protocol;
@@ -39,6 +40,7 @@ public sealed class LiveOperationRollbackTests
     [Theory]
     [InlineData(RollbackBehavior.LeaveContaminated, true, false)]
     [InlineData(RollbackBehavior.RestoreTextOnly, true, false)]
+    [InlineData(RollbackBehavior.RestoreVisibleStateOnly, true, false)]
     [InlineData(RollbackBehavior.ReturnFalse, false, false)]
     [InlineData(RollbackBehavior.Throw, null, true)]
     public async Task UnprovenRollbackReturnsDedicatedErrorAndQuarantinesHandle(
@@ -173,6 +175,67 @@ public sealed class LiveOperationRollbackTests
         Assert.Equal(0, resultJson.RootElement.GetProperty("live_version").GetInt64());
     }
 
+    [Fact]
+    public async Task SupplementalStateMismatchFailsClosedAfterExactDocumentUndo()
+    {
+        await using var host = new RollbackFakeHost(RollbackBehavior.RestoreExact);
+        var service = new WordLiveService(host);
+        var document = host.Application.ActiveDocument;
+        var record = new LiveDocumentRecord
+        {
+            Id = "rollback-supplemental",
+            Name = document.Name,
+            FullName = document.FullName,
+            WindowHwnd = host.Application.ActiveWindow.Hwnd,
+            Version = 0,
+        };
+        var baseline = WordLiveService.CaptureLiveRollbackSnapshot(document, 0);
+        var undoStarted = true;
+        host.Application.UndoRecord.StartCustomRecord("WordToolkit: supplemental rollback test");
+        document.Content.Text = "mutated\r";
+
+        var error = Assert.Throws<NativeToolException>(
+            () =>
+                service.RollbackPreparedOperationsOrThrow(
+                    document,
+                    host.Application.UndoRecord,
+                    ref undoStarted,
+                    mutationAttempted: true,
+                    baseline,
+                    record,
+                    new NativeToolException("INVALID_INPUT", "synthetic failure"),
+                    supplementalBaseline: "before",
+                    supplementalStateReader: () => "after",
+                    supplementalDifferenceName: "hidden_state_sha256"
+                )
+        );
+
+        Assert.Equal("ROLLBACK_FAILED", error.ErrorCode);
+        using var detailsJson = JsonDocument.Parse(
+            JsonSerializer.Serialize(error.Details, JsonDefaults.Compact)
+        );
+        Assert.Contains(
+            "hidden_state_sha256",
+            detailsJson.RootElement
+                .GetProperty("differences")
+                .EnumerateArray()
+                .Select(item => item.GetString())
+        );
+        Assert.Equal("\r", document.RawText);
+        Assert.Equal(1, document.UndoCount);
+    }
+
+    [Fact]
+    public void LegacySilentRollbackEntryPointDoesNotExist()
+    {
+        var method = typeof(WordLiveService).GetMethod(
+            "Rollback",
+            BindingFlags.NonPublic | BindingFlags.Static
+        );
+
+        Assert.Null(method);
+    }
+
     private static async Task<string> ConnectAsync(WordLiveService service)
     {
         using var arguments = JsonDocument.Parse("""{"use_active":true}""");
@@ -236,6 +299,7 @@ public enum RollbackBehavior
     ReturnFalse,
     Throw,
     EndRecordThrows,
+    RestoreVisibleStateOnly,
 }
 
 internal sealed class RollbackFakeHost : IWordComHost
@@ -331,6 +395,8 @@ public sealed class RollbackFakeDocument
     private string _undoText = "\r";
     private int _undoEquationCount;
     private bool _undoSaved = true;
+    private bool _hiddenOpenXmlResidue;
+    private bool _undoHiddenOpenXmlResidue;
 
     public RollbackFakeDocument(
         RollbackFakeApplication application,
@@ -371,6 +437,7 @@ public sealed class RollbackFakeDocument
     public RollbackBehavior RollbackBehavior => _rollbackBehavior;
     public bool FailEquationBuild => _failEquationBuild;
     public RollbackFakeApplication Application => _application;
+    internal bool HiddenOpenXmlResidue => _hiddenOpenXmlResidue;
 
     public RollbackFakeRange Range(int start, int end) => new(this, start, end);
 
@@ -383,6 +450,7 @@ public sealed class RollbackFakeDocument
         _undoText = _rawText;
         _undoEquationCount = OMaths.Count;
         _undoSaved = Saved;
+        _undoHiddenOpenXmlResidue = _hiddenOpenXmlResidue;
     }
 
     public bool Undo(int count)
@@ -395,6 +463,7 @@ public sealed class RollbackFakeDocument
                 RestoreText();
                 OMaths.Count = _undoEquationCount;
                 Saved = _undoSaved;
+                _hiddenOpenXmlResidue = _undoHiddenOpenXmlResidue;
                 return true;
             case RollbackBehavior.RestoreTextOnly:
                 RestoreText();
@@ -410,6 +479,11 @@ public sealed class RollbackFakeDocument
                 throw new InvalidOperationException(
                     "Undo must not be attempted after EndCustomRecord failed"
                 );
+            case RollbackBehavior.RestoreVisibleStateOnly:
+                RestoreText();
+                OMaths.Count = _undoEquationCount;
+                Saved = _undoSaved;
+                return true;
             default:
                 throw new ArgumentOutOfRangeException();
         }
@@ -426,6 +500,7 @@ public sealed class RollbackFakeDocument
     {
         _rawText = _rawText[..start] + value + _rawText[end..];
         Saved = false;
+        _hiddenOpenXmlResidue = true;
     }
 
     internal void MarkEquationCreated()
@@ -467,7 +542,7 @@ public sealed class RollbackFakeRange
         get
         {
             var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(Text));
-            return $"<range start=\"{Start}\" end=\"{End}\">{encoded}</range>";
+            return $"<range start=\"{Start}\" end=\"{End}\" hidden=\"{_document.HiddenOpenXmlResidue}\">{encoded}</range>";
         }
     }
     public object? Style { get; set; }

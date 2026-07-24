@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- Removed the legacy live rollback helper that swallowed failed custom-record closure and
+  `Document.Undo(1)` exceptions. Every current custom-Undo mutation family now uses one
+  exact verifier and returns `ROLLBACK_FAILED` with handle/document quarantine when
+  restoration cannot be proved.
+- Expanded the rollback checkpoint to whole-document Flat OPC, main-story and linked-story
+  OOXML, target/context ranges, save state and structural counts. SmartArt and review
+  properties add supplemental fingerprints. Responses expose only mismatch names and
+  structural summaries, never hashes, OOXML or document content.
+- Added adversarial coverage for visible-state-only restoration with hidden OOXML residue,
+  supplemental-state mismatch and removal of the legacy silent entry point. A forced Word
+  16.0 probe proved `Undo=true` can restore visible text/counts while Flat OPC, range OOXML
+  and story hashes still drift; WordToolkit failed closed and quarantined the identity.
+- The native suite now passes 382 tests. Publication independent of Word Undo and complete
+  heterogeneous batch staging remain explicit P0 work rather than being misrepresented as
+  solved.
+- Full release gates pass 504 Engine, 382 Native and 1,309 Python tests with 16
+  intentional skips; Ruff and all four C# format verifiers pass. Enabled runtime
+  `0.39.0+codex.20260724142108` reports 107 actions and 15 tools. Build, marketplace
+  source and cache match at 196 files and 86,989,407 bytes; the 36,718,529-byte ZIP
+  SHA-256 is `4df5585249c0e5cfbad23b0273ce97170fdc2598da34dda7d0ff09e01be3ede0`.
+
 - Fixed the P0 atomicity defect in the native mixed text/equation transaction. The
   runtime no longer treats a single attempted `Document.Undo(1)` as proof of rollback.
   It snapshots live version/save state, main-story text, exact target and bounded-context

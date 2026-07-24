@@ -1043,6 +1043,7 @@ internal sealed partial class WordLiveService : IToolHandler
                 var normalizedReplacement = NormalizeWordText(replacementText);
                 bool? originalScreenUpdating = null;
                 var originalTrackChanges = (bool)document.TrackRevisions;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 try
@@ -1095,9 +1096,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -1165,6 +1174,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     );
                 }
                 bool? originalScreenUpdating = null;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 try
@@ -1206,9 +1216,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -1279,6 +1297,7 @@ internal sealed partial class WordLiveService : IToolHandler
                 );
                 var prefixLength = payload.Prefix.Length;
                 var originalScreenUpdating = (bool?)null;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 try
@@ -1321,9 +1340,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -1471,6 +1498,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     asNewParagraph: true
                 );
                 var before = DocumentTableCount(document);
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 bool? originalScreenUpdating = null;
                 dynamic? undoRecord = null;
                 var undoStarted = false;
@@ -1545,9 +1573,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -1665,6 +1701,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     listText,
                     asNewParagraph: true
                 );
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 bool? originalScreenUpdating = null;
                 dynamic? undoRecord = null;
                 var undoStarted = false;
@@ -1737,9 +1774,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -1802,6 +1847,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     replaceSelection
                 );
                 var before = (int)document.InlineShapes.Count;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 bool? originalScreenUpdating = null;
@@ -1875,9 +1921,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -1940,6 +1994,7 @@ internal sealed partial class WordLiveService : IToolHandler
                         requireNonEmpty: true
                     );
                 var before = (int)document.Comments.Count;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 bool? originalScreenUpdating = null;
@@ -1989,9 +2044,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -2084,6 +2147,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     ? document.Footnotes
                     : document.Endnotes;
                 var before = (int)notes.Count;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 bool? originalScreenUpdating = null;
@@ -2139,9 +2203,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -2239,6 +2311,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     ? section.Headers
                     : section.Footers;
                 dynamic headerFooter = collection.Item(headerFooterIndex);
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 bool? originalScreenUpdating = null;
@@ -2315,9 +2388,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -4481,31 +4562,6 @@ internal sealed partial class WordLiveService : IToolHandler
         var green = (rgb >> 8) & 0xFF;
         var blue = rgb & 0xFF;
         return red | (green << 8) | (blue << 16);
-    }
-
-    private static void Rollback(dynamic document, dynamic? undoRecord, ref bool undoStarted)
-    {
-        if (!undoStarted)
-        {
-            return;
-        }
-        try
-        {
-            undoRecord?.EndCustomRecord();
-        }
-        catch
-        {
-            // The rollback still attempts one bounded document Undo.
-        }
-        undoStarted = false;
-        try
-        {
-            _ = (bool)document.Undo(1);
-        }
-        catch
-        {
-            // The original error remains authoritative.
-        }
     }
 
     private static object Performance(long startedTimestamp)

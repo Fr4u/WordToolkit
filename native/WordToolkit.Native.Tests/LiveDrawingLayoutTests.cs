@@ -526,10 +526,28 @@ public sealed class DrawingLayoutFakeDocument
     public DrawingLayoutFakeCountCollection Endnotes { get; } = new(0);
     public DrawingLayoutFakeCountCollection Sections { get; } = new(1);
     public DrawingLayoutFakeStoryRanges StoryRanges { get; } = new();
+    public DrawingLayoutFakeRange Content => Range(0, 1);
+    public string WordOpenXML
+    {
+        get
+        {
+            var smartArt = Shapes.Item(2).SmartArt!;
+            return string.Join(
+                "|",
+                Enumerable.Range(1, smartArt.AllNodes.Count)
+                    .Select(
+                        index => smartArt.AllNodes.Item(index).TextFrame2.TextRange.TextValue
+                    )
+            );
+        }
+    }
     public int RepaginateCount { get; private set; }
     public int UndoCount { get; private set; }
     public DrawingLayoutFakeTextRange SmartArtTextRange =>
         Shapes.Item(2).SmartArt!.AllNodes.Item(1).TextFrame2.TextRange;
+
+    public DrawingLayoutFakeRange Range(int start, int end) =>
+        new(start, end, page: 1, section: 1);
 
     public void Activate()
     {
@@ -670,6 +688,8 @@ public sealed class DrawingLayoutFakeRange
     public int Start { get; }
     public int End { get; }
     public int StoryType => 1;
+    public string Text => "\r";
+    public string WordOpenXML => $"<range start=\"{Start}\" end=\"{End}\" />";
 
     public int get_Information(int code) => _information[code];
 }

@@ -1121,6 +1121,9 @@ internal sealed partial class WordLiveService
                     StringComparer.Ordinal
                 );
                 var returnedResults = new List<object>();
+                var rollbackSnapshot = mutating
+                    ? CaptureLiveRollbackSnapshot(document, record.Version)
+                    : null;
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 bool? originalScreenUpdating = null;
@@ -1245,11 +1248,19 @@ internal sealed partial class WordLiveService
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
                     if (mutating)
                     {
-                        Rollback(document, undoRecord, ref undoStarted);
+                        RollbackPreparedOperationsOrThrow(
+                            document,
+                            undoRecord,
+                            ref undoStarted,
+                            undoRecord is not null,
+                            rollbackSnapshot!,
+                            record,
+                            exception
+                        );
                     }
                     throw;
                 }

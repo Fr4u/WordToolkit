@@ -1,5 +1,33 @@
 # Stage results
 
+## Operation-wide verified Word rollback — 2026-07-24
+
+- Removed the legacy rollback helper that closed a custom record, called `Undo(1)` once
+  and swallowed both failures. All current native custom-Undo mutation families now use
+  one fail-closed verifier and quarantine the live handle/document identity when exact
+  restoration cannot be proved.
+- The checkpoint covers whole-document Flat OPC, main-story text/OOXML, every accessible
+  linked story range, exact target/context ranges, save state and structural counts.
+  SmartArt text and review properties add supplemental state fingerprints because Word's
+  custom Undo does not reliably cover those COM states.
+- Ten adversarial rollback tests include visible-state-only restoration that leaves hidden
+  OOXML residue, supplemental-state drift and a reflection contract proving that the old
+  silent `Rollback` entry point cannot return. The complete native suite passes 382/382.
+- A forced real Word 16.0 acceptance probe inserted one line and called the shared failure
+  path. Word returned `true` from `Undo(1)` and restored the visible text, paragraph count
+  and equation count, but whole-document Flat OPC, range OOXML and the story graph still
+  differed. The runtime returned `ROLLBACK_FAILED` and quarantined the identity. This is
+  direct evidence that a successful Boolean Undo result is not transaction proof.
+- This closes the silent-rollback lie, not live publication atomicity. Complete
+  heterogeneous staging and target publication recoverable without Word Undo remain the
+  next P0 boundary.
+- Full gates pass **504 Engine**, **382 Native** and **1,309 Python tests**, with **16
+  intentional Python skips**; Ruff and all four C# format verifiers pass. Installed
+  runtime `0.39.0+codex.20260724142108` reports 107 actions and 15 exposed tools. Build,
+  marketplace source and enabled cache are identical at 196 files and 86,989,407 bytes.
+  The 36,718,529-byte ZIP SHA-256 is
+  `4df5585249c0e5cfbad23b0273ce97170fdc2598da34dda7d0ff09e01be3ede0`.
+
 ## Verified mixed-operation rollback and equation staging — 2026-07-24
 
 - Replaced the false `Undo(1)` success assumption in the shared mixed text/equation
