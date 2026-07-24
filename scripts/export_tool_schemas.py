@@ -126,13 +126,16 @@ async def main() -> None:
     ]
     lines.extend(
         """
-The native catalog currently contains 112 actions behind 15 core/gateway tools. Rare
+The native catalog currently contains 113 actions behind 15 core/gateway tools. Rare
 saved-package inspectors remain lazy so their schemas do not enter model context until
 needed. `inspect_wordtoolkit_extensions` exposes the bounded, content-free registry
 catalog without loading assemblies, reading a document or opening Word.
 `inspect_wordtoolkit_observability` exposes only opt-in, content-free runtime health and
 bounded audit events; arguments, paths, document content and relationship targets have
 no response field, while correlation IDs and record hashes require separate opt-ins.
+`inspect_ooxml_encryption` detects bounded Standard, Agile, Extensible or malformed
+encrypted OOXML compound envelopes. It accepts no password, decrypts nothing, opens no
+Word process and returns no path, stream name or document content.
 `convert_ooxml_flat_opc` is a lazy, create-new transport operation shared by
 Engine, CLI and MCP. It converts Word OPC packages to or from bounded Flat OPC XML,
 blocks signatures, never opens Word, verifies semantic/relationship parity before

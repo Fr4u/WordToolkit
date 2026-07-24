@@ -183,7 +183,7 @@ public sealed class ObservabilityTests
                 using var scope = observability.Begin(ReadDescriptor);
                 scope.CompleteSucceeded();
             }
-            await observability.FlushAsync();
+            await observability.FlushAsync(TimeSpan.FromSeconds(15));
             var path = Assert.Single(Directory.GetFiles(directory, "*.jsonl"));
             var verified = WordAuditJsonLinesVerifier.Verify(path);
             Assert.True(verified.Valid);
@@ -221,7 +221,7 @@ public sealed class ObservabilityTests
             {
                 scope.CompleteSucceeded();
             }
-            await observability.FlushAsync();
+            await observability.FlushAsync(TimeSpan.FromSeconds(15));
             var path = Assert.Single(Directory.GetFiles(directory, "*.jsonl"));
             var text = File.ReadAllText(path).TrimEnd();
             File.WriteAllText(path, text[..^1] + ",\"payload\":\"secret\"}\n");
