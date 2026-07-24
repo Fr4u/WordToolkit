@@ -167,6 +167,7 @@ public sealed class WordAbstractNumberingDefinition
         string? templateCode,
         string? numberingStyleLinkId,
         string? styleLinkId,
+        bool? restartNumberingAfterBreak,
         int sourceElementOrdinal,
         IReadOnlyList<WordNumberingLevelDefinition> levels,
         IReadOnlyList<string> unmodeledElements
@@ -179,6 +180,7 @@ public sealed class WordAbstractNumberingDefinition
         TemplateCode = templateCode;
         NumberingStyleLinkId = numberingStyleLinkId;
         StyleLinkId = styleLinkId;
+        RestartNumberingAfterBreak = restartNumberingAfterBreak;
         SourceElementOrdinal = sourceElementOrdinal;
         Levels = new ReadOnlyCollection<WordNumberingLevelDefinition>(
             levels.OrderBy(level => level.LevelIndex).ToArray()
@@ -204,6 +206,8 @@ public sealed class WordAbstractNumberingDefinition
     public string? NumberingStyleLinkId { get; }
 
     public string? StyleLinkId { get; }
+
+    public bool? RestartNumberingAfterBreak { get; }
 
     public int SourceElementOrdinal { get; }
 
@@ -715,6 +719,8 @@ public sealed class WordNumberingGraphBuilder
         "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     private const string StrictOfficeRelationshipNamespace =
         "http://purl.oclc.org/ooxml/officeDocument/relationships";
+    private const string Word2012Namespace =
+        "http://schemas.microsoft.com/office/word/2012/wordml";
 
     private readonly WordNumberingGraphOptions _options;
     private readonly WordOperationResourceLease? _resourceLease;
@@ -1032,6 +1038,9 @@ public sealed class WordNumberingGraphBuilder
             w + "styleLink",
             w + "lvl",
         };
+        var restartNumberingAfterBreakAttribute = element.Attribute(
+            XName.Get("restartNumberingAfterBreak", Word2012Namespace)
+        );
         return new WordAbstractNumberingDefinition(
             abstractNumberId,
             ChildValue(element, w + "nsid", w),
@@ -1040,12 +1049,22 @@ public sealed class WordNumberingGraphBuilder
             ChildValue(element, w + "tmpl", w),
             ChildStyleId(element, w + "numStyleLink", w),
             ChildStyleId(element, w + "styleLink", w),
+            restartNumberingAfterBreakAttribute is null
+                ? null
+                : ParseOnOffValue(
+                    restartNumberingAfterBreakAttribute.Value,
+                    "restartNumberingAfterBreak"
+                ),
             source.GetElementOrdinal(element),
             levels,
             FindUnmodeled(
                 element,
                 knownNames,
-                new HashSet<XName> { w + "abstractNumId" }
+                new HashSet<XName>
+                {
+                    w + "abstractNumId",
+                    XName.Get("restartNumberingAfterBreak", Word2012Namespace),
+                }
             )
         );
     }
@@ -2008,6 +2027,16 @@ public sealed class WordNumberingGraphBuilder
         var raw = element.Attribute(element.Name.Namespace + "val")?.Value;
         return raw is null || ParseOnOff(raw, element.Name.LocalName);
     }
+
+    private static bool ParseOnOffValue(string value, string description) =>
+        value switch
+        {
+            "true" or "1" or "on" => true,
+            "false" or "0" or "off" => false,
+            _ => throw new WordNumberingProjectionException(
+                $"'{description}' has unsupported on/off value '{value}'."
+            ),
+        };
 
     private static bool ParseOnOff(string value, string description) =>
         value.ToLowerInvariant() switch

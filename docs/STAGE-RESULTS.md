@@ -1,5 +1,45 @@
 # Stage results
 
+## Word-compatible numbering sequence execution — 2026-07-25
+
+- Added bounded `WordListSequenceGraphBuilder` execution and lazy
+  `wordtoolkit.inspect_ooxml_numbering/1.0` `view=sequences`. It resolves direct and
+  paragraph-style numbering, isolates state per story root and `numId`, applies higher-
+  level and section-break restarts and legal numbering, and returns stable `wdli_`/`wdls_`
+  identities without paragraph text. Counter and label certainty remain separate.
+- Eight focused Engine tests cover nested counters, restart rules, replacement-level
+  start behavior, section resets, style inheritance/direct removal, unsupported labels,
+  invalid/missing declarations, ambiguous revisions and hard limits. Native regressions
+  prove the closed sequence-item contract, content-free response, filters, full operation
+  metadata and unknown-argument rejection before package reading.
+- An Open XML SDK-valid guarded fixture passed against real Microsoft Word 16.0 build
+  16.0.20131. Word and the engine both returned values `1,9,10,2,9,1,9` and labels
+  `1.,1.i,1.j,2.,2.i,1.,1.i`; the hidden read-only document was closed without save and
+  the package hash stayed exact. This qualifies replacement-level start precedence,
+  ignored replacement-level restart and `w15:restartNumberingAfterBreak`. The first result
+  conflicts with Microsoft's written note and is exposed as a compatibility warning.
+- Full local verification passed 582/582 Engine, 428/428 Native and 1,313/1,329 Python
+  tests with 16 intentional environment/model skips. Ruff is clean, mypy passes all 29
+  maintained modules, scoped .NET format is clean, the schema generator is stable and the
+  standalone Microsoft Open XML validator builds with zero warnings/errors. Every .NET
+  command used `C:\Users\Admin\.dotnet8\dotnet.exe` SDK 8.0.423 or a subprocess with
+  `DOTNET_ROOT`/`PATH` pinned to that installation.
+- Two pinned SDK builds produced identical 196-file, 87,598,120-byte trees and identical
+  36,889,700-byte ZIPs at SHA-256
+  `3ea9c02ce12dff2ce52fc885024554fc6f78d96eb436fac8dc99d4484c034add`.
+  Executable, runtime assembly, Engine assembly and Open XML SDK adapter hashes are
+  `78de30c24ab0073ea5af6f080e4e6b745e76139e057268b3ffcc193fb4eb8048`,
+  `816cd5aba867db2166545672d454e2e5c63e47e36e0b83a79413ae289641918e`,
+  `dd5ea9b003afd80b7b7049521ff2c2a8f7e70bed1a55c41473522268c0cdfa68` and
+  `e45ce3323d22004b72e877ea22979870c77425c93d4da56f3203a8051dd1de19`.
+- Installed and enabled `0.39.0+codex.20260725000036`. Build, personal marketplace source
+  and active cache each contain the same 196 files with zero path/length/hash differences.
+  Installed discovery reports 115 actions, 15 tools and 29 complete metadata contracts.
+  The installed executable inspected the advanced torture DOCX through lazy MCP, returned
+  12 matched sequence items with exact counter/label coverage, and exposed the closed 1.0
+  read-only contract from its embedded schema. Runtime was `dotnet-native`; Python was not
+  used.
+
 ## Isolated connected-Word behavior probes — 2026-07-24
 
 - Added explicit-confirmation `wordtoolkit.probe_live_word_feature_behaviors/1.0` for real

@@ -15,13 +15,55 @@ internal sealed partial class WordLiveService
     {
         var started = Stopwatch.GetTimestamp();
         cancellationToken.ThrowIfCancellationRequested();
+        RequireObject(arguments, "OOXML numbering inspection arguments");
+        var allowedArguments = new Dictionary<string, JsonValueKind>(StringComparer.Ordinal)
+        {
+            ["local_path"] = JsonValueKind.String,
+            ["view"] = JsonValueKind.String,
+            ["number_id"] = JsonValueKind.Number,
+            ["abstract_number_id"] = JsonValueKind.Number,
+            ["level_index"] = JsonValueKind.Number,
+            ["story_kind"] = JsonValueKind.String,
+            ["paragraph_node_id"] = JsonValueKind.String,
+            ["offset"] = JsonValueKind.Number,
+            ["max_items"] = JsonValueKind.Number,
+            ["detail"] = JsonValueKind.String,
+            ["include_issues"] = JsonValueKind.True,
+            ["include_source"] = JsonValueKind.True,
+        };
+        foreach (var property in arguments.EnumerateObject())
+        {
+            if (!allowedArguments.TryGetValue(property.Name, out var expectedKind))
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "inspect_ooxml_numbering received an unknown argument",
+                    new { argument = property.Name }
+                );
+            }
+            var validKind = expectedKind == JsonValueKind.True
+                ? property.Value.ValueKind is JsonValueKind.True or JsonValueKind.False
+                : property.Value.ValueKind == expectedKind;
+            if (!validKind)
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    $"{property.Name} has the wrong JSON type"
+                );
+            }
+        }
         var path = ResolveInspectablePackagePath(arguments);
         var view = arguments.String("view", "instances");
-        if (view is not "instances" and not "abstracts" and not "resolved_level")
+        if (
+            view is not "instances"
+                and not "abstracts"
+                and not "resolved_level"
+                and not "sequences"
+        )
         {
             throw new NativeToolException(
                 "INVALID_INPUT",
-                "view must be instances, abstracts, or resolved_level"
+                "view must be instances, abstracts, resolved_level, or sequences"
             );
         }
 
@@ -69,6 +111,49 @@ internal sealed partial class WordLiveService
             );
         }
 
+        var storyKind = BoundedOptionalArgument(arguments, "story_kind", 32);
+        if (
+            storyKind is not null
+            && !Enum.GetValues<WordStoryKind>().Any(kind =>
+                string.Equals(
+                    ToSnakeCase(kind.ToString()),
+                    storyKind,
+                    StringComparison.Ordinal
+                )
+            )
+        )
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "story_kind is not a supported Word story kind"
+            );
+        }
+        var paragraphNodeId = BoundedOptionalArgument(
+            arguments,
+            "paragraph_node_id",
+            SemanticNodeId.MaximumCharacters
+        );
+        if (
+            paragraphNodeId is not null
+            && !SemanticNodeId.HasValidSyntax(paragraphNodeId)
+        )
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "paragraph_node_id is not a valid semantic node ID"
+            );
+        }
+        if (
+            view != "sequences"
+            && (storyKind is not null || paragraphNodeId is not null)
+        )
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "story_kind and paragraph_node_id are valid only for sequences"
+            );
+        }
+
         var includeIssues = arguments.Boolean("include_issues", true);
         var includeSource = arguments.Boolean("include_source", false);
         try
@@ -89,6 +174,15 @@ internal sealed partial class WordLiveService
                 styles,
                 cancellationToken
             );
+            var sequenceGraph = view == "sequences"
+                ? new WordListSequenceGraphBuilder().Build(
+                    package,
+                    semantic,
+                    styles,
+                    graph,
+                    cancellationToken
+                )
+                : null;
             var items = view switch
             {
                 "instances" => NumberingInstances(
@@ -107,6 +201,17 @@ internal sealed partial class WordLiveService
                     detail,
                     includeSource
                 ),
+                "sequences" => NumberingSequences(
+                    sequenceGraph!,
+                    numberId,
+                    levelIndex,
+                    storyKind,
+                    paragraphNodeId,
+                    (int)offset,
+                    (int)maximum,
+                    detail,
+                    includeSource
+                ),
                 _ => Array.Empty<object>(),
             };
             var matchedCount = view switch
@@ -119,6 +224,13 @@ internal sealed partial class WordLiveService
                     : graph.AbstractDefinitions.Count(item =>
                         item.AbstractNumberId == abstractNumberId
                     ),
+                "sequences" => FilterNumberingSequences(
+                    sequenceGraph!,
+                    numberId,
+                    levelIndex,
+                    storyKind,
+                    paragraphNodeId
+                ).Count(),
                 _ => 1,
             };
             var consumed = (long)offset + items.Length;
@@ -133,8 +245,23 @@ internal sealed partial class WordLiveService
                     message = BoundForResponse(issue.Message, 512),
                 }).ToArray()
                 : null;
+            var returnedSequenceIssues = includeIssues && sequenceGraph is not null
+                ? sequenceGraph.Issues.Take(40).Select(issue => new
+                {
+                    code = BoundForResponse(issue.Code, 128),
+                    severity = ToSnakeCase(issue.Severity.ToString()),
+                    paragraph_node_id = issue.ParagraphNodeId?.Value,
+                    story_id = includeSource
+                        ? BoundForResponse(issue.StoryId, 128)
+                        : null,
+                    number_id = issue.NumberId,
+                    level_index = issue.LevelIndex,
+                    message = BoundForResponse(issue.Message, 512),
+                }).ToArray()
+                : null;
             return Task.FromResult<object>(new
             {
+                operation_contract = "wordtoolkit.inspect_ooxml_numbering/1.0",
                 file_name = Path.GetFileName(path),
                 package_fingerprint = graph.PackageFingerprint,
                 main_part_uri = graph.MainPartUri,
@@ -162,10 +289,40 @@ internal sealed partial class WordLiveService
                         includeSource
                     )
                     : null,
+                sequence_analysis = sequenceGraph is null
+                    ? null
+                    : new
+                    {
+                        execution_profile = "microsoft_word_compatibility",
+                        examined_paragraph_count = sequenceGraph.ExaminedParagraphCount,
+                        numbered_paragraph_count = sequenceGraph.NumberedParagraphCount,
+                        sequence_item_count = sequenceGraph.Items.Count,
+                        skipped_numbered_paragraph_count = sequenceGraph.SkippedNumberedParagraphCount,
+                        exact_counter_count = sequenceGraph.ExactCounterCount,
+                        exact_label_count = sequenceGraph.ExactLabelCount,
+                        analysis_execution_complete = sequenceGraph.AnalysisExecutionComplete,
+                        counter_coverage_complete = sequenceGraph.CounterCoverageComplete,
+                        label_coverage_complete = sequenceGraph.LabelCoverageComplete,
+                        word_specific_rules = new[]
+                        {
+                            "higher_level_restart_cascade",
+                            "override_level_start_precedes_start_override_on_qualified_word_build",
+                            "override_level_restart_ignored",
+                            "restart_numbering_after_section_break_extension",
+                            "invalid_higher_level_placeholder_rejects_entire_label",
+                            "legal_numbering_uses_decimal_placeholders",
+                        },
+                    },
                 issue_count = graph.Issues.Count,
                 issues = returnedIssues,
                 issues_truncated = returnedIssues is not null
                     && graph.Issues.Count > returnedIssues.Length
+                        ? true
+                        : (bool?)null,
+                sequence_issue_count = sequenceGraph?.Issues.Count,
+                sequence_issues = returnedSequenceIssues,
+                sequence_issues_truncated = returnedSequenceIssues is not null
+                    && sequenceGraph!.Issues.Count > returnedSequenceIssues.Length
                         ? true
                         : (bool?)null,
                 unmodeled_root_elements = graph.UnmodeledRootElements.Count == 0
@@ -186,6 +343,22 @@ internal sealed partial class WordLiveService
             throw new NativeToolException(
                 "PACKAGE_LIMIT",
                 "Numbering graph exceeds a bounded safety limit",
+                new { reason = BoundForResponse(exception.Message, 512) }
+            );
+        }
+        catch (WordListSequenceLimitException exception)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "List-sequence analysis exceeds a bounded safety limit",
+                new { reason = BoundForResponse(exception.Message, 512) }
+            );
+        }
+        catch (WordListSequenceProjectionException exception)
+        {
+            throw new NativeToolException(
+                "INVALID_WORD_PACKAGE",
+                "The package cannot be resolved into Word-compatible list sequences",
                 new { reason = BoundForResponse(exception.Message, 512) }
             );
         }
@@ -390,6 +563,100 @@ internal sealed partial class WordLiveService
                     ? item.SourceElementOrdinal
                     : (int?)null,
             };
+        })
+        .ToArray();
+
+    private static IEnumerable<WordListSequenceItem> FilterNumberingSequences(
+        WordListSequenceGraph graph,
+        int? numberId,
+        int? levelIndex,
+        string? storyKind,
+        string? paragraphNodeId
+    ) => graph.Items.Where(item =>
+        (numberId is null || item.NumberId == numberId)
+        && (levelIndex is null || item.LevelIndex == levelIndex)
+        && (
+            storyKind is null
+            || string.Equals(
+                ToSnakeCase(item.StoryKind.ToString()),
+                storyKind,
+                StringComparison.Ordinal
+            )
+        )
+        && (
+            paragraphNodeId is null
+            || string.Equals(
+                item.ParagraphNodeId.Value,
+                paragraphNodeId,
+                StringComparison.Ordinal
+            )
+        )
+    );
+
+    private static object[] NumberingSequences(
+        WordListSequenceGraph graph,
+        int? numberId,
+        int? levelIndex,
+        string? storyKind,
+        string? paragraphNodeId,
+        int offset,
+        int maximum,
+        string detail,
+        bool includeSource
+    ) => FilterNumberingSequences(
+        graph,
+        numberId,
+        levelIndex,
+        storyKind,
+        paragraphNodeId
+    )
+        .Skip(offset)
+        .Take(maximum)
+        .Select(item => (object)new
+        {
+            item_id = item.Id,
+            sequence_id = item.SequenceId,
+            sequence_index = item.SequenceIndex,
+            paragraph_node_id = item.ParagraphNodeId.Value,
+            story_kind = ToSnakeCase(item.StoryKind.ToString()),
+            number_id = item.NumberId,
+            requested_abstract_number_id = item.RequestedAbstractNumberId,
+            effective_abstract_number_id = item.EffectiveAbstractNumberId,
+            level_index = item.LevelIndex,
+            counter_value = item.CounterValue,
+            counter_status = ToSnakeCase(item.CounterStatus.ToString()),
+            counter_exact = item.CounterExact,
+            continuation = ToSnakeCase(item.ContinuationKind.ToString()),
+            restart_trigger_paragraph_node_id = item.RestartTriggerParagraphNodeId?.Value,
+            label = BoundForResponse(item.Label, 64),
+            label_status = ToSnakeCase(item.LabelStatus.ToString()),
+            label_exact = item.LabelExact,
+            suffix = BoundForResponse(item.Suffix, 32),
+            legal_numbering = item.LegalNumbering,
+            picture_bullet_id = item.PictureBulletId,
+            components = detail is "levels" or "declared"
+                ? item.Components.Select(component => new
+                {
+                    level_index = component.LevelIndex,
+                    value = component.Value,
+                    number_format = BoundForResponse(component.NumberFormat, 128),
+                    formatted_value = BoundForResponse(component.FormattedValue, 64),
+                    exact = component.Exact,
+                }).ToArray()
+                : null,
+            compatibility_warnings = item.CompatibilityWarnings.Count == 0
+                ? null
+                : item.CompatibilityWarnings.Take(16)
+                    .Select(value => BoundForResponse(value, 128))
+                    .ToArray(),
+            story_id = includeSource ? BoundForResponse(item.StoryId, 128) : null,
+            source_part_uri = includeSource
+                ? BoundForResponse(item.SourcePartUri, 512)
+                : null,
+            source_order = includeSource ? item.SourceOrder : (int?)null,
+            source_element_ordinal = includeSource
+                ? item.SourceElementOrdinal
+                : (int?)null,
         })
         .ToArray();
 

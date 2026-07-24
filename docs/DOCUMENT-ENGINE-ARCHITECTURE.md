@@ -289,17 +289,35 @@ definitions, instances, levels and overrides. It models `nsid`, multilevel type,
 template/name metadata, `numFmt`, `lvlText`, suffix, restart, legal numbering,
 paragraph-style bindings, justification and declared paragraph/run properties. A
 numbering instance first inherits an abstract definition and may then replace a level
-or only its start value, matching Microsoft's documented
+or only its start value, retaining Microsoft's documented
 [`num`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.numberinginstance)
 and
 [`lvlOverride`](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.wordprocessing.leveloverride)
-semantics. Numbering-style indirection stays as a source-linked chain rather than being
+declarations without assuming that the documented precedence matches every Word build.
+Numbering-style indirection stays as a source-linked chain rather than being
 flattened: `numStyleLink` follows a numbering style's effective `numId`, while
 `styleLink` validates the reciprocal concrete definition. Duplicate IDs fail closed;
 missing definitions/styles/picture relationships, circular links, mismatched overrides,
 recursive `numPr` and levels outside Word's 0–8 range remain bounded diagnostics. Lazy
 `inspect_ooxml_numbering` returns compact instance metadata by default and exposes
 abstracts, declared levels or one resolved effective level only when requested.
+
+`WordListSequenceGraphBuilder` is the executable read layer above those definitions. It
+walks source-linked semantic paragraphs, resolves document-default/style/direct `numPr`,
+isolates state per story root and `numId`, executes Word's higher-level restart cascade,
+legal numbering and the Word 2013 section-restart extension, and retains stable
+`wdli_`/`wdls_` identities without returning paragraph text. Exact counters and exact
+labels are separate evidence. Locale-independent decimal, zero-padded decimal,
+Roman, Latin-letter and `none` labels are rendered; custom, picture and locale-dependent
+formats remain typed but unresolved. Revision/MCE-wrapped numbered paragraphs are skipped
+instead of selecting a view. `inspect_ooxml_numbering` exposes this through
+`view=sequences`, exact story/paragraph/instance/level filters and a closed versioned
+contract. A guarded Open XML SDK-valid real-Word oracle qualifies Word 16.0 build
+16.0.20131: its replacement-level `start` beats a conflicting `startOverride`, its
+replacement-level `lvlRestart` is ignored, and `restartNumberingAfterBreak` resets after a
+section boundary. This observed conflict with Microsoft's written `start` note is kept as
+an explicit compatibility warning, not buried. See
+`docs/RESEARCH-WORD-NUMBERING-SEQUENCE-EXECUTION-2026.md`.
 
 `WordThemeGraphBuilder` is the first DrawingML dependency adapter. It follows only the
 main document's exact transitional or strict theme relationship, validates the theme
@@ -1291,12 +1309,12 @@ to an opaque sibling `.conflict` artifact and deliberately retained, even when n
 backup retention is disabled. Public diagnostics list only still-existing opaque artifact
 names, never their absolute paths or payloads; no artifact is claimed when none exists.
 
-This is deliberately honest about what is still absent. `metadata_coverage` reports 28
+This is deliberately honest about what is still absent. `metadata_coverage` reports 29
 explicit output schemas, permission records, reversibility records and per-operation
-versions, including extension-catalog inspection, semantic query, semantic HTML/SVG
+versions, including extension-catalog and numbering inspection, semantic query, semantic HTML/SVG
 rendering, semantic-style plan/apply, comment-body plan/apply, formatter, live structure
 mutations, live Word version profiling, saved-package rollback and Flat OPC conversion;
-the other 87 actions remain
+the other 86 actions remain
 uncovered. Those fields are not
 inferred from operation names. Format support is labelled operation-specific, and full
 input/output schemas remain behind `inspect_wordtoolkit_action`. The normative JSON shape is

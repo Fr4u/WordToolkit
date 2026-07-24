@@ -1,6 +1,6 @@
 {
   "name": "wordtoolkit",
-  "version": "0.39.0+codex.20260724230914",
+  "version": "0.39.0+codex.20260725000036",
   "description": "Token-lean native Microsoft Word automation with 15 core/gateway tools and lazy access to 115 native actions.",
   "author": {
     "name": "WordToolkit contributors"
@@ -54,6 +54,7 @@
       "58 Live Word Actions",
       "Typed OOXML Style Graph",
       "Typed OOXML Numbering Graph",
+      "Word-Compatible Numbering Sequences",
       "Typed OOXML Theme Graph",
       "Typed OOXML Settings Graph",
       "Typed OOXML Font Table Graph",
@@ -167,6 +168,7 @@
       "Inspect the registered engine extensions, interface versions, permissions and resource limits without loading assemblies or reading a document.",
       "Inspect bounded content-free runtime health without returning arguments, document content or paths.",
       "Detect a standard, agile, extensible or malformed encrypted OOXML container without requesting a password or decrypting content.",
+      "Execute saved-DOCX list counters and inspect exact labels without opening Word or returning paragraph text.",
       "Render a saved Word package to deterministic semantic HTML without opening Word or claiming page fidelity.",
       "Render only one fingerprint-bound semantic table, equation or other document subtree to HTML.",
       "Render one fingerprint-bound semantic table, equation or other supported subtree to static SVG without claiming Word pixels."

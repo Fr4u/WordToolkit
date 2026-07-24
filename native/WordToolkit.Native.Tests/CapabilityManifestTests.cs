@@ -54,10 +54,10 @@ public sealed class CapabilityManifestTests
         Assert.Equal(12, manifest["paging"]!["next_offset"]!.GetValue<int>());
         Assert.Equal(115, manifest["metadata_coverage"]!["input_schema"]!.GetValue<int>());
         Assert.Equal(115, manifest["metadata_coverage"]!["mcp_effect_annotations"]!.GetValue<int>());
-        Assert.Equal(28, manifest["metadata_coverage"]!["explicit_output_schema"]!.GetValue<int>());
-        Assert.Equal(28, manifest["metadata_coverage"]!["explicit_permissions"]!.GetValue<int>());
-        Assert.Equal(28, manifest["metadata_coverage"]!["explicit_reversibility"]!.GetValue<int>());
-        Assert.Equal(28, manifest["metadata_coverage"]!["explicit_operation_version"]!.GetValue<int>());
+        Assert.Equal(29, manifest["metadata_coverage"]!["explicit_output_schema"]!.GetValue<int>());
+        Assert.Equal(29, manifest["metadata_coverage"]!["explicit_permissions"]!.GetValue<int>());
+        Assert.Equal(29, manifest["metadata_coverage"]!["explicit_reversibility"]!.GetValue<int>());
+        Assert.Equal(29, manifest["metadata_coverage"]!["explicit_operation_version"]!.GetValue<int>());
         Assert.Equal(
             "operation-specific",
             manifest["format_support"]!["scope"]!.GetValue<string>()

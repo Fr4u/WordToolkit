@@ -218,7 +218,7 @@ This keeps discovery bounded instead of paying for all 115 schemas.
 
 `metadata_coverage` counts canonical fields actually present in the embedded source.
 All 115 operations have input schemas and MCP effect annotations. Extension catalog,
-observability and OOXML-encryption inspection, semantic query,
+observability and OOXML-encryption/numbering inspection, semantic query,
 semantic HTML/SVG rendering, semantic-style plan/apply, comment-body plan/apply and the
 safe formatter plan/apply plus the Word-executed drawing-layout and version-profile inspectors,
 isolated feature-behavior probes and guarded
@@ -228,7 +228,7 @@ index-entry/index insertion, guarded reference-table update and the saved-packag
 patch rollback plan/apply pair and Flat OPC conversion have explicit
 output-schema, permission, reversibility and
 per-operation-version metadata;
-the remaining 87 are still uncovered. Missing metadata
+the remaining 86 are still uncovered. Missing metadata
 is not permission to infer behavior from action names. An AI planner must inspect the
 chosen operation and obtain explicit user approval for risky mutations until normalized
 metadata is added to each source contract.

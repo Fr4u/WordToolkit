@@ -12,6 +12,12 @@ no response field, while correlation IDs and record hashes require separate opt-
 `inspect_ooxml_encryption` detects bounded Standard, Agile, Extensible or malformed
 encrypted OOXML compound envelopes. It accepts no password, decrypts nothing, opens no
 Word process and returns no path, stream name or document content.
+`inspect_ooxml_numbering` now exposes a versioned `view=sequences` in addition to its
+definition inventory and single-level resolver. It executes source-ordered paragraph
+counters per story and `numId`, separates exact counter and label evidence, and pages
+stable paragraph/item/sequence IDs without returning paragraph text. Word restart,
+legal-numbering and section-break behavior are explicit; unsupported locale/custom labels,
+picture bullets and ambiguous revision/MCE views fail visibly instead of being guessed.
 `convert_ooxml_flat_opc` is a lazy, create-new transport operation shared by
 Engine, CLI and MCP. It converts Word OPC packages to or from bounded Flat OPC XML,
 blocks signatures, never opens Word, verifies semantic/relationship parity before

@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- Added a bounded source-linked `WordListSequenceGraphBuilder` and the lazy
+  `inspect_ooxml_numbering` `view=sequences`. The executor resolves default/style/direct
+  paragraph numbering, isolates counters per story and `numId`, applies higher-level and
+  section-break restarts, legal numbering and direct `numId=0` removal, and exposes stable
+  `wdli_`/`wdls_` identities. Counter and label certainty are separate; locale/custom
+  formats, picture bullets, invalid labels and ambiguous revision/MCE views are never
+  fabricated.
+- Qualified the conflict-heavy sequence against an Open XML SDK-valid package in real
+  Word 16.0 build 16.0.20131. Word returned values `1,9,10,2,9,1,9` and labels
+  `1.,1.i,1.j,2.,2.i,1.,1.i`, proving replacement-level start precedence, ignored
+  replacement-level restart and `w15:restartNumberingAfterBreak`. The observed start
+  result contradicts Microsoft's written interoperability note, so the action reports a
+  fixed compatibility warning and scopes the rule to the qualified build.
+- `inspect_ooxml_numbering` now has an explicit 1.0 operation version, read-only
+  permissions/reversibility metadata, a closed sequence-item output contract, semantic
+  story/paragraph filters, pre-read unknown-argument rejection and paragraph-text-free
+  output. Catalog coverage rises to 29 complete metadata contracts; 86 actions remain.
+- Verified 582 Engine tests, 428 Native tests and 1,313 Python/OOXML passes with 16
+  intentional skips; Ruff, mypy over 29 modules, scoped .NET format, schema generation and
+  the standalone Open XML validator are clean. Two SDK 8.0.423 builds produced identical
+  196-file, 87,598,120-byte trees and identical 36,889,700-byte ZIPs at SHA-256
+  `3ea9c02ce12dff2ce52fc885024554fc6f78d96eb436fac8dc99d4484c034add`.
+  Installed and enabled `0.39.0+codex.20260725000036`; build, marketplace source and cache
+  have zero file differences, and installed lazy MCP sequence inspection passed.
 - Added lazy `probe_live_word_feature_behaviors` behind the closed
   `wordtoolkit.probe_live_word_feature_behaviors/1.0` contract. After explicit
   `confirm_scratch_documents=true`, it performs native OMath BuildUp, rich-text
@@ -18,8 +42,8 @@
 - Six native regressions cover the non-read-only explicit-confirm contract, four passing
   behaviors in four documents, isolated failure plus unavailable SmartArt layouts,
   mandatory close/restoration, cleanup quarantine, Undo-record closure poisoning and
-  rejection before COM dispatch. The native catalog now has 115 actions and 28 complete
-  metadata contracts; the explicit gap remains 87.
+  rejection before COM dispatch. The native catalog now has 115 actions and 29 complete
+  metadata contracts; the explicit gap is 86.
 - Verified 574 Engine tests, 426 Native tests, 1,313 Python/OOXML tests with 16 intentional
   skips, the exact CI Ruff lane, mypy across 29 maintained modules, scoped .NET format,
   deterministic schema export and the standalone Open XML validator. The real-Word

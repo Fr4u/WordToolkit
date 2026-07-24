@@ -407,6 +407,17 @@ leaves can change. Plan/apply return counts and hashes rather than comment
 text or XML and prove that anchors, authors, threads, durable IDs, reactions, revisions,
 permissions, unselected comments and unrelated package parts remain unchanged.
 
+Saved-package numbering inspection now has an executable `view=sequences`. It returns
+source-linked paragraph/list IDs, exact counters when provable, separately qualified
+labels, continuation/restart evidence and bounded compatibility warnings without opening
+Word or returning paragraph text. Counter state is isolated across Word stories and list
+instances; style inheritance, direct removal, higher-level restart, legal numbering and
+the Word section-restart extension are modeled. Locale-dependent labels and picture
+bullets remain explicitly unresolved. An SDK-valid guarded oracle matches Microsoft Word
+16.0 build 16.0.20131, including its observed replacement-level start precedence that
+contradicts Microsoft's written interoperability note. See
+`docs/RESEARCH-WORD-NUMBERING-SEQUENCE-EXECUTION-2026.md`.
+
 The complete lazy action set is:
 
 ```text

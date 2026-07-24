@@ -124,6 +124,15 @@ Use lazy `inspect_ooxml_numbering` instead of reading `numbering.xml`. Keep the
 default `view=instances` and `detail=metadata` for discovery. Filter by
 `number_id` or `abstract_number_id`; request `view=resolved_level` with one
 `number_id` and `level_index` when the next decision needs the effective level.
+Use `view=sequences` only when the task needs actual paragraph counter flow or
+rendered labels. Start with `detail=metadata`, `max_items` no larger than the
+decision needs, and exact `number_id`, `level_index`, `story_kind` or
+`paragraph_node_id` filters when already known. Counter and label certainty are
+separate: an exact counter with `unsupported_number_format` is not permission to
+invent a visible label. Treat revision/MCE skips and incomplete coverage as a
+hard evidence boundary. The qualified Word profile intentionally warns when a
+replacement-level start overrides `startOverride`; do not rewrite that warning
+into the opposite standards claim.
 Use `detail=declared` and `include_source=true` only for property or corruption
 diagnosis. Treat missing targets, circular style links, mismatched overrides and
 out-of-range levels as damage; never invent a list definition.

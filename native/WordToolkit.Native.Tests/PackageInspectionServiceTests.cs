@@ -954,6 +954,136 @@ public sealed class PackageInspectionServiceTests
                     .GetString()
             );
 
+            using var sequenceArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "sequences",
+                    number_id = 6,
+                    story_kind = "main",
+                    detail = "levels",
+                    include_source = true,
+                })
+            );
+            var sequenceResult = await service.CallAsync(
+                "inspect_ooxml_numbering",
+                sequenceArguments.RootElement,
+                CancellationToken.None
+            );
+            using var sequenceJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(sequenceResult)
+            );
+            var sequenceRoot = sequenceJson.RootElement;
+            Assert.Equal(
+                "wordtoolkit.inspect_ooxml_numbering/1.0",
+                sequenceRoot.GetProperty("operation_contract").GetString()
+            );
+            var sequenceItem = Assert.Single(
+                sequenceRoot.GetProperty("items").EnumerateArray().ToArray()
+            );
+            Assert.Equal("3.", sequenceItem.GetProperty("label").GetString());
+            Assert.Equal(3, sequenceItem.GetProperty("counter_value").GetInt64());
+            Assert.True(sequenceItem.GetProperty("counter_exact").GetBoolean());
+            Assert.True(sequenceItem.GetProperty("label_exact").GetBoolean());
+            Assert.Equal("main", sequenceItem.GetProperty("story_kind").GetString());
+            Assert.StartsWith(
+                "wdli_",
+                sequenceItem.GetProperty("item_id").GetString(),
+                StringComparison.Ordinal
+            );
+            Assert.StartsWith(
+                "wdls_",
+                sequenceItem.GetProperty("sequence_id").GetString(),
+                StringComparison.Ordinal
+            );
+            var sequenceAnalysis = sequenceRoot.GetProperty("sequence_analysis");
+            Assert.Equal(
+                "microsoft_word_compatibility",
+                sequenceAnalysis.GetProperty("execution_profile").GetString()
+            );
+            Assert.True(
+                sequenceAnalysis.GetProperty("counter_coverage_complete").GetBoolean()
+            );
+            Assert.True(
+                sequenceAnalysis.GetProperty("label_coverage_complete").GetBoolean()
+            );
+            Assert.DoesNotContain(
+                "Hello",
+                sequenceRoot.GetRawText(),
+                StringComparison.Ordinal
+            );
+
+            var numberingAction = ToolCatalog.LoadNativeWordTools().InspectAction(
+                "inspect_ooxml_numbering"
+            )["tool"]!.AsObject();
+            Assert.Equal(
+                "1.0",
+                numberingAction["operationVersion"]!.GetValue<string>()
+            );
+            Assert.Equal(
+                "read_local_word_package",
+                numberingAction["permissions"]!["filesystem"]!.GetValue<string>()
+            );
+            Assert.False(
+                numberingAction["reversibility"]!["applicable"]!.GetValue<bool>()
+            );
+            var outputSchema = numberingAction["outputSchema"]!.AsObject();
+            Assert.False(outputSchema["additionalProperties"]!.GetValue<bool>());
+            var dataSchema = outputSchema["properties"]!["data"]!.AsObject();
+            Assert.False(dataSchema["additionalProperties"]!.GetValue<bool>());
+            Assert.Equal(
+                dataSchema["required"]!.AsArray()
+                    .Select(value => value!.GetValue<string>())
+                    .Order(StringComparer.Ordinal),
+                sequenceRoot.EnumerateObject()
+                    .Select(property => property.Name)
+                    .Order(StringComparer.Ordinal)
+            );
+            var sequenceItemSchema = outputSchema["$defs"]!["sequenceItem"]!.AsObject();
+            Assert.False(sequenceItemSchema["additionalProperties"]!.GetValue<bool>());
+            Assert.Equal(
+                sequenceItemSchema["required"]!.AsArray()
+                    .Select(value => value!.GetValue<string>())
+                    .Order(StringComparer.Ordinal),
+                sequenceItem.EnumerateObject()
+                    .Select(property => property.Name)
+                    .Order(StringComparer.Ordinal)
+            );
+
+            using var misplacedStoryFilter = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "instances",
+                    story_kind = "main",
+                })
+            );
+            var misplacedStoryException = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "inspect_ooxml_numbering",
+                    misplacedStoryFilter.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("INVALID_INPUT", misplacedStoryException.ErrorCode);
+
+            using var invalidStoryFilter = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "sequences",
+                    story_kind = "not_a_word_story",
+                })
+            );
+            var invalidStoryException = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "inspect_ooxml_numbering",
+                    invalidStoryFilter.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("INVALID_INPUT", invalidStoryException.ErrorCode);
+
             var package = new OpcPackageReader().Read(path);
             var runId = new WordSemanticProjector().Project(package).Nodes.Single(node =>
                 node.Kind == WordSemanticNodeKind.Run
@@ -1010,6 +1140,31 @@ public sealed class PackageInspectionServiceTests
         {
             Directory.Delete(directory, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task NumberingInspectionRejectsUnknownArgumentsBeforeReadingThePackage()
+    {
+        using var arguments = JsonDocument.Parse(
+            """
+            {"local_path":"Z:\\does-not-exist.docx","unknown_field":true}
+            """
+        );
+        var service = new WordLiveService(new NoInvokeHost());
+
+        var exception = await Assert.ThrowsAsync<NativeToolException>(() =>
+            service.CallAsync(
+                "inspect_ooxml_numbering",
+                arguments.RootElement,
+                CancellationToken.None
+            )
+        );
+
+        Assert.Equal("INVALID_INPUT", exception.ErrorCode);
+        Assert.Equal(
+            "inspect_ooxml_numbering received an unknown argument",
+            exception.Message
+        );
     }
 
     [Fact]
