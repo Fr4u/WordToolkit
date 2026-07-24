@@ -5,8 +5,10 @@
 - Added a bounded read-only graph for OPC core, Office extended and custom typed
   properties. Exact relationship/content-type families, Strict/Transitional namespaces,
   standard custom `fmtid`, numeric `pid`, duplicate case-insensitive names/IDs, one typed
-  value child and scalar lexical forms are validated. Invalid values remain diagnosed
-  and cannot resolve a field; complex/binary values are classified without decoding.
+  value child and scalar lexical forms are validated. Core created/modified timestamps
+  additionally require an `xsi:type` QName resolving to `dcterms:W3CDTF`. Invalid values
+  remain diagnosed and cannot resolve a field; complex/binary values are classified
+  without decoding.
 - Added lazy `inspect_ooxml_properties` as native action 93. Summary-first paging, exact
   `wdp_`/family/type filters and a 32 KiB projected-item ceiling keep the response
   bounded. Custom names, scalar values, HMAC equality fingerprints and source provenance
@@ -21,12 +23,26 @@
   **1,309 Python tests** with 16 intentional environment/model skips. Ruff is clean;
   mypy is clean across the maintained 29-file `src/wordtoolkit` layer. The broader
   historical `scripts` directory is not part of that mypy claim and still has known
-  typing debt. Fresh installed-package proof is recorded only after the release build
-  below is completed.
+  typing debt.
 - Release packaging now embeds the complete manifest SemVer, including build metadata,
   into the native assembly. `--version`, MCP `serverInfo.version` and
   `toolkit_version` therefore identify the exact installed build instead of collapsing
   every package to the same base version.
+- Two pinned .NET SDK 8.0.423 builds from commit `f378726` produced byte-identical
+  196-file, 86,133,096-byte expanded trees and 36,490,920-byte ZIPs at SHA-256
+  `6505f683e21486c257f55ad6cebd102cf661ea5b57b3b2701ad0fe4d51c644d8`.
+  The personal marketplace and enabled cache at
+  `0.39.0+codex.20260724033816` have zero path/length/hash differences and contain zero
+  Python files. The installed executable reports that exact version and 93 actions.
+- Fresh installed-runtime calls over `lo_chart.docx` report 27 valid properties with
+  zero issues, then 75 dependency nodes and 83/83 resolved edges with exact property/
+  variable coverage. The complete mirrored responses are 3,278 and 7,320 characters;
+  Word remains unopened and the source SHA-256 remains
+  `222628bcdb587c232e968d6aa1ba0a70dfd80845a4a2b8050316ec9d142ad33f`.
+  The licensed real-Word acceptance gate also passes the complete eight-row complex
+  derivation of `\int x^3e^{2x}\sin(3x)\,dx`: six integrals and six owned differentials
+  survive native build-up/readback with equal canonical contract hashes, and the
+  disposable document is discarded.
 
 ## Typed active-content metadata graph — 2026-07-24
 
