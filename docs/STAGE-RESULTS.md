@@ -20,8 +20,23 @@
   names only `drawingml_vml_rendered_geometry_and_layout_execution` as the remaining
   boundary.
 - Full gates pass **486 Engine tests**, **324 Native tests** and **1,309 Python/OOXML
-  tests** with 16 intentional environment/model skips. Release builds are pending for
-  this source checkpoint. Ruff is clean and mypy passes all 29 maintained Python files.
+  tests** with 16 intentional environment/model skips. Release builds have zero warnings;
+  Ruff is clean and mypy passes all 29 maintained Python files.
+- Two pinned .NET SDK 8.0.423 builds from commit `9b8c0c4` produced byte-identical
+  196-file, 86,304,532-byte expanded trees and 36,538,553-byte ZIPs at SHA-256
+  `fa1e93ba23963066f5e6b02db4367d41fd590e4254edc7abec448316a2e4f061`.
+  Both trees and ZIPs are identical and contain zero Python files.
+- The personal marketplace and enabled cache at
+  `0.39.0+codex.20260724050626` each contain the same 196 files with zero path, length or
+  hash differences from the release tree. Installed capability discovery reports the
+  exact version, 94 actions and the unchanged lazy `inspect_ooxml_figures` action.
+- The installed runtime inspected the real `poi_drawing.docx` fixture: 21 figures were
+  found, the two-item geometry page returned in a 4,738-character complete MCP line,
+  every placement was marked declared-only, Word remained closed and the source hash
+  stayed unchanged. The installed dependency summary returned 3,515 nodes and 3,773
+  edges, retained figure and SmartArt coverage, removed
+  `drawingml_vml_advanced_layout` and exposed only
+  `drawingml_vml_rendered_geometry_and_layout_execution` as the drawing-layout gap.
 
 ## Native SmartArt graph and compact inspector — 2026-07-24
 
