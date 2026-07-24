@@ -51,6 +51,16 @@ Word `16.0` is deliberately labelled only as the `word_16_generation`; the opera
 not invent a Microsoft 365, 2019, 2021 or 2024 product edition from an ambiguous major
 version, and a successful probe is not presented as behavioral proof.
 
+The non-read-only `probe_live_word_feature_behaviors` action closes that evidence gap
+without issuing content, style or object mutations to the connected document. After explicit confirmation it performs native
+OMath BuildUp, content-control creation, SmartArt insertion and one custom Undo transaction,
+each inside a separate invisible unsaved scratch document. A successful response proves
+that every created scratch document was closed without saving, the original active document
+and window were restored, and the open-document count returned to its baseline. Any cleanup
+uncertainty returns `TEMPORARY_DOCUMENT_CLEANUP_FAILED` and quarantines the live handle.
+Word may still refresh volatile view/session metadata while active documents change, so
+the action does not claim byte-identical or package-identical connected-document state.
+
 The live `prepare_live_word_smartart_text_edits` and
 `apply_live_word_smartart_text_edits` actions add a narrow mutation path for existing
 single-line node text. One-time tokens bind the exact Word root, layout/style/color,
@@ -164,7 +174,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 114-action schema set into model context. The normative shape is
+not flatten the 115-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -456,6 +466,7 @@ map_live_word_structures
 inspect_live_word_structure_items
 inspect_live_word_drawing_layout
 inspect_live_word_version_profile
+probe_live_word_feature_behaviors
 inspect_live_word_equation_learning
 inspect_live_word_structure_learning
 inspect_live_word_object_model_types

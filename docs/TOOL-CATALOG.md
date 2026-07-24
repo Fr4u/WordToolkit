@@ -2,7 +2,7 @@
 
 The current remote Python service source of truth is `schemas/mcp-tools.v2.json`; `schemas/mcp-tools.v1.json` remains the immutable historical contract. The provider-neutral heterogeneous mutation contract, including executable input/success/error examples, is generated as `schemas/draft-operations.v1.json`. The native Windows plugin has a separate, deliberately hand-reviewed source in `schemas/mcp-tools-local.v1.json`; `WordToolkit.Native.Tests` validates that catalog and this exporter never overwrites it. Every exported remote tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.
 
-The native catalog currently contains 114 actions behind 15 core/gateway tools. Rare
+The native catalog currently contains 115 actions behind 15 core/gateway tools. Rare
 saved-package inspectors remain lazy so their schemas do not enter model context until
 needed. `inspect_wordtoolkit_extensions` exposes the bounded, content-free registry
 catalog without loading assemblies, reading a document or opening Word.
@@ -34,6 +34,11 @@ opt-in; screen pixels are capped, viewport-dependent and never called page geome
 compatibility/save format and four property-access probes without content, paths, user or
 licence identity. It never infers a product edition from ambiguous Word 16.0 and never
 presents member availability as a behavioral guarantee.
+`probe_live_word_feature_behaviors` requires explicit confirmation and tests native OMath,
+content-control, SmartArt and custom-Undo behavior in four separate invisible unsaved
+scratch documents. Success requires close-without-save, original active document/window
+restoration and an unchanged open-document count; cleanup uncertainty quarantines the
+connected handle.
 `prepare_live_word_smartart_text_edits` and `apply_live_word_smartart_text_edits` add a
 narrow live mutation path for node text. Tokens bind one node to the complete
 Word-executed SmartArt structure and text context; apply performs exact readback in one

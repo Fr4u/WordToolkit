@@ -21,6 +21,7 @@ path, save-policy and confirmation checks.
 | `inspect_live_word_structure_items` | Read one bounded page of semantic metadata from any mapped native collection. |
 | `inspect_live_word_drawing_layout` | Read Word-executed floating, inline, group and optional SmartArt layout without returning COM or XML. |
 | `inspect_live_word_version_profile` | Read raw Word version/build, document compatibility/save format and bounded feature-member probes without content or identity. |
+| `probe_live_word_feature_behaviors` | After explicit confirmation, test OMath, content-control, SmartArt and custom-Undo behavior in isolated unsaved scratch documents with mandatory cleanup proof. |
 | `prepare_live_word_smartart_text_edits` | Resolve one exact SmartArt root and issue one-time tokens bound to the complete node structure and text context. |
 | `apply_live_word_smartart_text_edits` | Replace up to 32 token-verified single-line SmartArt node texts in one Undo record with exact readback and rollback. |
 | `inspect_live_word_equation_learning` | Inspect privacy-preserving aggregate native-equation outcomes. |
@@ -278,6 +279,31 @@ The response contains no document text, path, raw COM object, user identity or l
 identity, does not start Word and uses no network. Compatibility profiles follow the
 documented `WdCompatibilityMode` values 11, 12, 14, 15 and 65535; unknown values remain
 unknown instead of being coerced into a newer profile.
+
+## Isolated feature-behavior probes
+
+`probe_live_word_feature_behaviors` exists because successful COM property access is not
+proof that an operation works. It requires `confirm_scratch_documents=true` and is
+deliberately marked non-read-only: it temporarily changes Word application state by
+creating documents and switching the active document/window. It issues no content, style
+or object mutation to the connected document and does not change `live_version`. Word may
+still refresh volatile view/session package metadata during activation, so the action
+explicitly does not claim whole-package identity.
+
+The fixed probes are native OMath creation plus `BuildUp`, rich-text content-control
+creation, insertion of the first locally available SmartArt layout, and creation/closure/
+execution of one custom Undo record. Each probe gets a separate invisible unsaved Word
+document. SmartArt reports `unavailable` only when Word exposes zero layouts; other COM or
+verification failures report `failed` with a fixed issue code. No exception text, scratch
+text, path, COM object, user identity or licence identity enters the result.
+
+There is no soft cleanup path. After every probe WordToolkit calls `Document.Close(0)`,
+reactivates the exact prior document and window, checks both COM identities, and checks that
+the open-document count equals its baseline. `EndCustomRecord` failure is also cleanup
+failure because the record belongs to application state. Any uncertainty returns
+`TEMPORARY_DOCUMENT_CLEANUP_FAILED`, quarantines the connected handle and requires an
+explicit disconnect before reconnecting. A normal feature failure may be reported only
+after cleanup has been proved.
 
 ## Guarded SmartArt node text
 

@@ -359,6 +359,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "probe_live_word_feature_behaviors" => ProbeFeatureBehaviorsAsync(
+                arguments,
+                cancellationToken
+            ),
             "prepare_live_word_smartart_text_edits" => PrepareSmartArtTextEditsAsync(
                 arguments,
                 cancellationToken
@@ -4170,7 +4174,7 @@ internal sealed partial class WordLiveService : IToolHandler
         {
             return record;
         }
-        if (_quarantinedRecords.ContainsKey(id))
+        if (_quarantinedRecords.TryGetValue(id, out var quarantine))
         {
             throw new NativeToolException(
                 "LIVE_DOCUMENT_QUARANTINED",
@@ -4178,7 +4182,7 @@ internal sealed partial class WordLiveService : IToolHandler
                 new
                 {
                     live_document_id = id,
-                    reason_code = "ROLLBACK_FAILED",
+                    reason_code = quarantine.ReasonCode,
                     requires_explicit_disconnect = true,
                 }
             );
@@ -4204,7 +4208,7 @@ internal sealed partial class WordLiveService : IToolHandler
             new
             {
                 live_document_id = quarantine.Id,
-                reason_code = "ROLLBACK_FAILED",
+                reason_code = quarantine.ReasonCode,
                 requires_explicit_disconnect = true,
             }
         );

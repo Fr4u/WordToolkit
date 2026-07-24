@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+- Added lazy `probe_live_word_feature_behaviors` behind the closed
+  `wordtoolkit.probe_live_word_feature_behaviors/1.0` contract. After explicit
+  `confirm_scratch_documents=true`, it performs native OMath BuildUp, rich-text
+  content-control creation, SmartArt insertion and one custom Undo transaction, each in
+  its own invisible unsaved scratch document. No connected-document content, style or
+  object mutation is issued and `live_version` remains unchanged. Because Word may refresh
+  volatile view/session metadata during activation, whole-package identity is not claimed.
+- A success response is impossible until every created scratch document was closed with
+  `wdDoNotSaveChanges`, the exact previous active document and window were restored, and
+  the Word document count returned to baseline. Close, restore, verification or
+  `EndCustomRecord` uncertainty returns `TEMPORARY_DOCUMENT_CLEANUP_FAILED`, quarantines
+  the live handle and requires explicit disconnect. Ordinary behavior failures return
+  only fixed codes after cleanup proof; exception text is never exposed.
+- Six native regressions cover the non-read-only explicit-confirm contract, four passing
+  behaviors in four documents, isolated failure plus unavailable SmartArt layouts,
+  mandatory close/restoration, cleanup quarantine, Undo-record closure poisoning and
+  rejection before COM dispatch. The native catalog now has 115 actions and 28 complete
+  metadata contracts; the explicit gap remains 87.
+- Verified 574 Engine tests, 426 Native tests, 1,313 Python/OOXML tests with 16 intentional
+  skips, the exact CI Ruff lane, mypy across 29 maintained modules, scoped .NET format,
+  deterministic schema export and the standalone Open XML validator. The real-Word
+  acceptance lane permits only Word's volatile semantic package projection to drift;
+  every rollback snapshot content/range/count/Saved invariant remains exact.
+- Packaged and enabled `0.39.0+codex.20260724230914`. Two SDK 8.0.423 builds produced
+  identical 196-file, 87,523,060-byte trees and identical 36,870,505-byte ZIPs at SHA-256
+  `6b942f24de52bd82c41dd1cae69dc12c929ea9472d9731cde7babf7763dee1d9`.
+  Executable, runtime, Engine and Open XML SDK adapter hashes are
+  `b38cc86a57ee18799621af58e631b9afbb45b392113ba3e8944c745913f6675b`,
+  `94aa2e34eabd3b19254bb6585b1ecbda234a21dc1386b646bad92e8b0ef22b0a`,
+  `12158da26fda58d40f5600159cc01c2e92bceff5b4c555e95ec2ce6154986f1c` and
+  `bb975458d8d71a9a6b1d0ace1193b3efaeac3111677b45bb337bdacd17e6c0ff`.
+  Build, personal source and enabled cache have zero path/length/hash differences and no
+  Python files.
+- The installed lazy MCP attached to Word 16.0 build 16.0.20131 and passed all four
+  behaviors. It created and closed four scratch documents, restored the previous active
+  document/window and document count, kept `live_version=0`, passed its installed output
+  schema, returned no forbidden content/path/identity/COM field and disconnected cleanly.
+
 - Added lazy `inspect_live_word_version_profile` behind the closed read-only
   `wordtoolkit.inspect_live_word_version_profile/1.0` contract. It returns raw
   `Application.Version`/`Build`, document `CompatibilityMode`/`SaveFormat`, a conservative

@@ -268,6 +268,20 @@ render is behaviorally identical across builds. Never infer Microsoft 365, Word 
 back to raw COM. The action reads no document content or path, returns no user/licence
 identity, does not launch Word and never changes `live_version`.
 
+When property availability is insufficient evidence, inspect and then call lazy
+`probe_live_word_feature_behaviors` only after the user explicitly authorizes
+`confirm_scratch_documents=true`. It executes fixed native OMath BuildUp, rich-text
+content-control creation, SmartArt insertion and custom-Undo checks in four separate
+invisible unsaved scratch documents. Never describe this action as read-only: it changes
+Word application state temporarily even though it must not issue connected-document
+content, style or object mutations. Word may refresh volatile view/session package
+metadata during activation, so do not claim byte-identical or package-identical state.
+A successful response proves every created scratch document was closed without saving,
+the previous active document and window were restored, and the document count returned to
+its baseline. Treat `unavailable` as missing local capability evidence and `failed` as a
+failed behavior check. On `TEMPORARY_DOCUMENT_CLEANUP_FAILED`, stop using the quarantined
+handle and require an explicit disconnect before reconnecting.
+
 To change SmartArt node text, do not edit `word/diagrams/data*.xml` directly. A package
 can contain both the DiagramML data model and a synchronized persisted drawing, so a
 single-part rewrite can leave two incompatible versions of the same diagram. Use this

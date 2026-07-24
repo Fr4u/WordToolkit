@@ -12,7 +12,8 @@ internal sealed class LiveDocumentRecord
 internal sealed record QuarantinedLiveDocumentRecord(
     string Id,
     string Name,
-    string FullName
+    string FullName,
+    string ReasonCode
 );
 
 internal sealed record SelectionGrant(

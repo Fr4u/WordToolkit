@@ -517,13 +517,17 @@ internal sealed partial class WordLiveService
         );
     }
 
-    private void QuarantineLiveDocument(LiveDocumentRecord record)
+    private void QuarantineLiveDocument(
+        LiveDocumentRecord record,
+        string reasonCode = "ROLLBACK_FAILED"
+    )
     {
         _records.TryRemove(record.Id, out _);
         _quarantinedRecords[record.Id] = new QuarantinedLiveDocumentRecord(
             record.Id,
             record.Name,
-            record.FullName
+            record.FullName,
+            reasonCode
         );
         InvalidateSelectionGrants(record.Id);
         InvalidateRangeGrants(record.Id);
