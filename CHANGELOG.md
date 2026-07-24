@@ -25,6 +25,9 @@
   same-checkout package build produced an identical tree and identical 36,739,798-byte
   ZIP at SHA-256 `77b8216c597e2462aafbffdaf0f60110841b171385ba35c0b505cdd4fc298609`;
   clean-checkout reproducibility is still not claimed.
+- Updated the remote-schema documentation generator's native action count to 109. The
+  generated catalogue now remains byte-clean after export instead of silently rewriting
+  the reviewed native count back to 107 in CI.
 
 - Added an independent baseline-restoration path for failed
   `apply_live_word_operations` publication. The staged batch now retains its original Flat

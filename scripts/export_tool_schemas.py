@@ -126,7 +126,7 @@ async def main() -> None:
     ]
     lines.extend(
         """
-The native catalog currently contains 107 actions behind 15 core/gateway tools. Rare
+The native catalog currently contains 109 actions behind 15 core/gateway tools. Rare
 saved-package inspectors remain lazy so their schemas do not enter model context until
 needed. `inspect_ooxml_active_content` is read-only and closed-world: it inventories
 typed OLE/ActiveX/VBA/embedded-package/customization/signature metadata without opening
