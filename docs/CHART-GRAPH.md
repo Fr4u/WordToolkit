@@ -24,8 +24,8 @@ standard or Strict chart relationships. It models:
 
 The graph understands the classic Transitional and Strict namespaces and relationship
 types. Office 2016 extended `cx:chartSpace` parts are retained by the package layer and
-reported as explicitly unmodeled. SmartArt, chart rendering and chart mutation remain
-outside this tranche.
+reported as explicitly unmodeled. SmartArt is modeled by the separate
+`WordDiagramGraph`; chart rendering and chart mutation remain outside this tranche.
 
 ## Privacy and execution boundary
 
@@ -58,8 +58,8 @@ below 8,000 characters.
 `WordDependencyGraph` now adds chart, series and axis nodes plus `defines_chart`,
 `chart_contains_series`, `chart_contains_axis` and `chart_uses_part` edges. Chart
 relationships to embedded packages, styles, colors, images and other related parts are
-therefore visible to impact analysis. The remaining `smartart_diagrams` coverage label
-is literal: it no longer hides charts behind a combined omission.
+therefore visible to impact analysis. SmartArt has its own diagram and point nodes plus
+typed part and connection edges; it is no longer an explicitly unmodeled domain.
 
 ## Evidence
 

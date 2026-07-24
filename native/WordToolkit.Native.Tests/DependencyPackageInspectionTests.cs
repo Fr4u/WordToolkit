@@ -90,7 +90,12 @@ public sealed class DependencyPackageInspectionTests
                     .GetProperty("active_content")
                     .GetBoolean()
             );
-            Assert.Contains(
+            Assert.True(
+                summary.GetProperty("coverage")
+                    .GetProperty("smartart_diagrams")
+                    .GetBoolean()
+            );
+            Assert.DoesNotContain(
                 "smartart_diagrams",
                 summary.GetProperty("coverage")
                     .GetProperty("explicitly_unmodeled_domains")

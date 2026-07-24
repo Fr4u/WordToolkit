@@ -131,9 +131,10 @@ public sealed class WordDependencyGraphTests
         Assert.True(first.Coverage.References);
         Assert.True(first.Coverage.Sections);
         Assert.True(first.Coverage.Charts);
+        Assert.True(first.Coverage.SmartArtDiagrams);
         Assert.True(first.Coverage.ContentControlsAndCustomXml);
         Assert.True(first.Coverage.TablesAndCellTopology);
-        Assert.Contains("smartart_diagrams", first.Coverage.ExplicitlyUnmodeledDomains);
+        Assert.DoesNotContain("smartart_diagrams", first.Coverage.ExplicitlyUnmodeledDomains);
         Assert.DoesNotContain(
             "content_control_custom_xml_bindings",
             first.Coverage.ExplicitlyUnmodeledDomains
@@ -155,6 +156,50 @@ public sealed class WordDependencyGraphTests
             semantic.Nodes.Single(node => node.Kind == WordSemanticNodeKind.Table)
                 .Properties["style_id"]
         );
+    }
+
+    [Fact]
+    public void JoinsSmartArtPartsPointsAndConnectionsIntoTheSharedGraph()
+    {
+        using var bytes = WordDiagramGraphTests.BuildPackage();
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+
+        var graph = new WordDependencyGraphBuilder().Build(package, semantic);
+
+        Assert.True(graph.Coverage.SmartArtDiagrams);
+        Assert.Equal(0, graph.DiagramIssueCount);
+        Assert.Single(graph.Nodes, node => node.Kind == WordDependencyNodeKind.Diagram);
+        Assert.Equal(
+            3,
+            graph.Nodes.Count(node => node.Kind == WordDependencyNodeKind.DiagramPoint)
+        );
+        Assert.Single(
+            graph.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.DefinesDiagram && edge.IsResolved
+        );
+        Assert.Equal(
+            3,
+            graph.Edges.Count(edge =>
+                edge.Kind == WordDependencyEdgeKind.DiagramContainsPoint
+                && edge.IsResolved
+            )
+        );
+        Assert.Equal(
+            2,
+            graph.Edges.Count(edge =>
+                edge.Kind == WordDependencyEdgeKind.DiagramConnectsPoints
+                && edge.IsResolved
+            )
+        );
+        Assert.Equal(
+            5,
+            graph.Edges.Count(edge =>
+                edge.Kind == WordDependencyEdgeKind.DiagramUsesPart
+                && edge.IsResolved
+            )
+        );
+        Assert.DoesNotContain("smartart_diagrams", graph.Coverage.ExplicitlyUnmodeledDomains);
     }
 
     [Fact]

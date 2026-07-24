@@ -33,6 +33,7 @@
       "inspect_ooxml_bibliography",
       "inspect_ooxml_dependencies",
       "inspect_ooxml_charts",
+      "inspect_ooxml_diagrams",
       "inspect_ooxml_figures",
       "inspect_ooxml_content_controls",
       "inspect_ooxml_active_content",
@@ -5887,7 +5888,9 @@
               "active_content_declaration",
               "active_x_control",
               "document_property",
-              "document_variable"
+              "document_variable",
+              "diagram",
+              "diagram_point"
             ],
             "description": "Optional exact node-kind filter for the nodes view."
           },
@@ -5947,7 +5950,11 @@
               "defines_active_x_control",
               "active_x_control_uses_binary_payload",
               "defines_document_property",
-              "defines_document_variable"
+              "defines_document_variable",
+              "defines_diagram",
+              "diagram_contains_point",
+              "diagram_connects_points",
+              "diagram_uses_part"
             ],
             "description": "Optional exact edge-kind filter for edge, unresolved, and impact views."
           },
@@ -6096,6 +6103,86 @@
         },
         "required": ["local_path"],
         "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_ooxml_diagrams",
+      "title": "Inspect native Word SmartArt diagrams",
+      "description": "Inspect a bounded graph of native SmartArt diagram data, points, connections, layout/color/style parts, and persisted drawing parts in a saved Word package without opening Word or executing layout. Supports Transitional and Strict DiagramML relationship and element namespaces. Point text and raw XML are never returned. Model keys, keyed fingerprints, and source provenance require independent opt-ins; one shared operation budget and a 10 KiB projected-item ceiling keep AI context bounded.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "diagrams", "points", "connections", "parts", "issues"],
+            "default": "summary",
+            "description": "Return compact part-kind counts, diagrams, points, connections, related parts, or diagnostics."
+          },
+          "diagram_id": {
+            "type": "string",
+            "pattern": "^wdd_[a-f0-9]{24}$",
+            "maxLength": 128,
+            "description": "Optional exact SmartArt diagram ID from the same package fingerprint."
+          },
+          "point_type": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Optional exact DiagramML point-type filter."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 30
+          },
+          "include_keys": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded DiagramML model IDs, definition IDs, presentation association IDs, names, and labels. Point text remains unavailable."
+          },
+          "include_hashes": {
+            "type": "boolean",
+            "default": false,
+            "description": "Separately opt in to process-keyed 16-hex fingerprints of DiagramML identifiers and source-part SHA-256 values."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Separately opt in to bounded part URIs, content and relationship types, relationship IDs and targets, and XML element ordinals. External targets are never followed."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include at most 10 bounded SmartArt diagnostics beside the selected view."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "resourceAccounting": {
+        "operation": {
+          "engineModel": "word_operation_accounted_v1",
+          "mcpModel": "wop1",
+          "responseField": "operation_budget",
+          "defaultMaximumAccountedBytes": 671088640
+        },
+        "limitErrorCode": "PACKAGE_LIMIT"
       },
       "annotations": {
         "readOnlyHint": true,

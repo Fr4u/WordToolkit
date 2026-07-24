@@ -39,6 +39,8 @@ public enum WordDependencyNodeKind
     ActiveXControl,
     DocumentProperty,
     DocumentVariable,
+    Diagram,
+    DiagramPoint,
 }
 
 public enum WordDependencyEdgeKind
@@ -97,6 +99,10 @@ public enum WordDependencyEdgeKind
     ActiveXControlUsesBinaryPayload,
     DefinesDocumentProperty,
     DefinesDocumentVariable,
+    DefinesDiagram,
+    DiagramContainsPoint,
+    DiagramConnectsPoints,
+    DiagramUsesPart,
 }
 
 public enum WordDependencyIssueSeverity
@@ -157,6 +163,7 @@ public sealed record WordDependencyCoverage(
     bool BibliographySources,
     bool ActiveContent,
     bool DocumentPropertiesAndVariables,
+    bool SmartArtDiagrams,
     IReadOnlyList<string> ExplicitlyUnmodeledDomains
 );
 
@@ -279,7 +286,8 @@ public sealed class WordDependencyGraph
         int bibliographyIssueCount,
         int activeContentIssueCount,
         int documentPropertyIssueCount,
-        int settingsIssueCount
+        int settingsIssueCount,
+        int diagramIssueCount
     )
     {
         var nodeArray = nodes as WordDependencyNode[] ?? nodes.ToArray();
@@ -305,6 +313,7 @@ public sealed class WordDependencyGraph
         ActiveContentIssueCount = activeContentIssueCount;
         DocumentPropertyIssueCount = documentPropertyIssueCount;
         SettingsIssueCount = settingsIssueCount;
+        DiagramIssueCount = diagramIssueCount;
         var nodeIndexes = new Dictionary<string, int>(nodeArray.Length, StringComparer.Ordinal);
         for (var index = 0; index < nodeArray.Length; index++)
         {
@@ -376,6 +385,8 @@ public sealed class WordDependencyGraph
     public int DocumentPropertyIssueCount { get; }
 
     public int SettingsIssueCount { get; }
+
+    public int DiagramIssueCount { get; }
 
     public bool TryGetNode(string nodeId, out WordDependencyNode? node)
     {
@@ -640,7 +651,6 @@ public sealed class WordDependencyGraphBuilder
         new ReadOnlyCollection<string>(
             [
                 "drawingml_vml_advanced_layout",
-                "smartart_diagrams",
                 "active_content_binary_internals_and_execution",
                 "signature_cryptographic_validation_and_resigning",
                 "encrypted_package_adapter",
@@ -887,6 +897,12 @@ public sealed class WordDependencyGraphBuilder
             semanticDocument,
             cancellationToken
         );
+        var diagrams = (_resourceLease is null
+            ? new WordDiagramGraphBuilder()
+            : new WordDiagramGraphBuilder(null, _resourceLease)).Build(
+            package,
+            cancellationToken
+        );
         EnsureFingerprint(
             package.Fingerprint,
             semanticDocument.PackageFingerprint,
@@ -901,7 +917,8 @@ public sealed class WordDependencyGraphBuilder
             bibliography.PackageFingerprint,
             activeContent.PackageFingerprint,
             documentProperties.PackageFingerprint,
-            settings.PackageFingerprint
+            settings.PackageFingerprint,
+            diagrams.PackageFingerprint
         );
 
         var state = new BuildState(_options, _resourceLease);
@@ -988,6 +1005,13 @@ public sealed class WordDependencyGraphBuilder
             reachableParts,
             cancellationToken
         );
+        AddDiagramDependencies(
+            state,
+            package,
+            diagrams,
+            reachableParts,
+            cancellationToken
+        );
         AddFigureDependencies(
             state,
             package,
@@ -1040,6 +1064,7 @@ public sealed class WordDependencyGraphBuilder
                 BibliographySources: true,
                 ActiveContent: true,
                 DocumentPropertiesAndVariables: true,
+                SmartArtDiagrams: true,
                 ExplicitlyUnmodeledDomains
             ),
             resourceUsage,
@@ -1057,7 +1082,8 @@ public sealed class WordDependencyGraphBuilder
             bibliography.Issues.Count,
             activeContent.Issues.Count,
             documentProperties.Issues.Count,
-            settings.Issues.Count
+            settings.Issues.Count,
+            diagrams.Issues.Count
         );
     }
 
@@ -2189,6 +2215,225 @@ public sealed class WordDependencyGraphBuilder
                 nodeId,
                 partUri: issue.PartUri,
                 sourceElementOrdinal: issue.SourceElementOrdinal
+            );
+        }
+    }
+
+    private static void AddDiagramDependencies(
+        BuildState state,
+        OpcPackageSnapshot package,
+        WordDiagramGraph diagrams,
+        IReadOnlySet<string> reachableParts,
+        CancellationToken cancellationToken
+    )
+    {
+        var diagramNodeIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        var pointNodeIdsByModelId = new Dictionary<(string DiagramId, string ModelId), string>();
+        var connectionEdgeIds = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var diagram in diagrams.Diagrams)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var sourcePartNodeId = PartNode(
+                state,
+                package,
+                reachableParts,
+                diagram.SourcePartUri
+            );
+            var diagramNodeId = state.AddNode(
+                WordDependencyNodeKind.Diagram,
+                diagram.Id,
+                diagram.RequiredPartsResolved,
+                isExternal: false,
+                diagram.IsPackageReachable,
+                partUri: diagram.SourcePartUri,
+                sourceElementOrdinal: diagram.SourceElementOrdinal
+            );
+            diagramNodeIds.Add(diagram.Id, diagramNodeId);
+            state.AddEdge(
+                WordDependencyEdgeKind.DefinesDiagram,
+                sourcePartNodeId,
+                diagramNodeId,
+                isResolved: true,
+                isExternal: false,
+                partUri: diagram.SourcePartUri,
+                sourceElementOrdinal: diagram.SourceElementOrdinal
+            );
+
+            foreach (var reference in diagram.PartReferences)
+            {
+                string targetNodeId;
+                if (reference.TargetPartUri is not null)
+                {
+                    targetNodeId = PartNode(
+                        state,
+                        package,
+                        reachableParts,
+                        reference.TargetPartUri
+                    );
+                }
+                else if (reference.TargetMode == OpcRelationshipTargetMode.External)
+                {
+                    targetNodeId = state.AddNode(
+                        WordDependencyNodeKind.ExternalTarget,
+                        reference.Target,
+                        isResolved: false,
+                        isExternal: true,
+                        isPackageReachable: false
+                    );
+                }
+                else
+                {
+                    targetNodeId = state.AddNode(
+                        WordDependencyNodeKind.Part,
+                        reference.Target,
+                        isResolved: false,
+                        isExternal: false,
+                        isPackageReachable: false
+                    );
+                }
+                state.AddEdge(
+                    WordDependencyEdgeKind.DiagramUsesPart,
+                    diagramNodeId,
+                    targetNodeId,
+                    reference.IsResolved,
+                    reference.TargetMode == OpcRelationshipTargetMode.External,
+                    qualifier: reference.Kind.ToString().ToLowerInvariant(),
+                    partUri: diagram.SourcePartUri,
+                    sourceElementOrdinal: diagram.SourceElementOrdinal,
+                    relationshipId: reference.RelationshipId,
+                    relationshipType: reference.RelationshipType
+                );
+            }
+
+            foreach (var point in diagram.Points)
+            {
+                var pointNodeId = state.AddNode(
+                    WordDependencyNodeKind.DiagramPoint,
+                    point.Id,
+                    point.IsStructurallyValid,
+                    isExternal: false,
+                    diagram.IsPackageReachable,
+                    partUri: point.PartUri,
+                    sourceElementOrdinal: point.SourceElementOrdinal
+                );
+                if (point.IsModelIdUnique)
+                {
+                    pointNodeIdsByModelId.Add((diagram.Id, point.ModelId), pointNodeId);
+                }
+                state.AddEdge(
+                    WordDependencyEdgeKind.DiagramContainsPoint,
+                    diagramNodeId,
+                    pointNodeId,
+                    point.IsStructurallyValid,
+                    isExternal: false,
+                    qualifier: point.PointType,
+                    partUri: point.PartUri,
+                    sourceElementOrdinal: point.SourceElementOrdinal
+                );
+            }
+
+            foreach (var connection in diagram.Connections)
+            {
+                if (!pointNodeIdsByModelId.TryGetValue(
+                    (diagram.Id, connection.SourceModelId),
+                    out var sourcePointNodeId
+                ))
+                {
+                    sourcePointNodeId = state.AddNode(
+                        WordDependencyNodeKind.DiagramPoint,
+                        $"{connection.Id}:source",
+                        isResolved: false,
+                        isExternal: false,
+                        diagram.IsPackageReachable,
+                        partUri: connection.PartUri,
+                        sourceElementOrdinal: connection.SourceElementOrdinal
+                    );
+                    state.AddEdge(
+                        WordDependencyEdgeKind.DiagramContainsPoint,
+                        diagramNodeId,
+                        sourcePointNodeId,
+                        isResolved: false,
+                        isExternal: false,
+                        qualifier: "unresolved_source",
+                        partUri: connection.PartUri,
+                        sourceElementOrdinal: connection.SourceElementOrdinal
+                    );
+                }
+                if (!pointNodeIdsByModelId.TryGetValue(
+                    (diagram.Id, connection.DestinationModelId),
+                    out var destinationPointNodeId
+                ))
+                {
+                    destinationPointNodeId = state.AddNode(
+                        WordDependencyNodeKind.DiagramPoint,
+                        $"{connection.Id}:destination",
+                        isResolved: false,
+                        isExternal: false,
+                        diagram.IsPackageReachable,
+                        partUri: connection.PartUri,
+                        sourceElementOrdinal: connection.SourceElementOrdinal
+                    );
+                    state.AddEdge(
+                        WordDependencyEdgeKind.DiagramContainsPoint,
+                        diagramNodeId,
+                        destinationPointNodeId,
+                        isResolved: false,
+                        isExternal: false,
+                        qualifier: "unresolved_destination",
+                        partUri: connection.PartUri,
+                        sourceElementOrdinal: connection.SourceElementOrdinal
+                    );
+                }
+                var edgeId = state.AddEdge(
+                    WordDependencyEdgeKind.DiagramConnectsPoints,
+                    sourcePointNodeId,
+                    destinationPointNodeId,
+                    connection.IsStructurallyValid,
+                    isExternal: false,
+                    qualifier: connection.ConnectionType,
+                    partUri: connection.PartUri,
+                    sourceElementOrdinal: connection.SourceElementOrdinal
+                );
+                connectionEdgeIds.Add(connection.Id, edgeId);
+            }
+        }
+
+        foreach (var issue in diagrams.Issues)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var nodeId = issue.DiagramId is not null
+                && diagramNodeIds.TryGetValue(issue.DiagramId, out var diagramNodeId)
+                    ? diagramNodeId
+                    : null;
+            if (
+                issue.DiagramId is not null
+                && issue.PointId is not null
+                && pointNodeIdsByModelId.TryGetValue(
+                    (issue.DiagramId, issue.PointId),
+                    out var pointNodeId
+                )
+            )
+            {
+                nodeId = pointNodeId;
+            }
+            var edgeId = issue.ConnectionId is not null
+                && connectionEdgeIds.TryGetValue(issue.ConnectionId, out var connectionEdgeId)
+                    ? connectionEdgeId
+                    : null;
+            state.AddIssue(
+                $"DGM:{issue.Code}",
+                issue.Severity switch
+                {
+                    WordDiagramIssueSeverity.Error => WordDependencyIssueSeverity.Error,
+                    WordDiagramIssueSeverity.Warning => WordDependencyIssueSeverity.Warning,
+                    _ => WordDependencyIssueSeverity.Info,
+                },
+                issue.Message,
+                nodeId,
+                edgeId,
+                issue.PartUri,
+                issue.SourceElementOrdinal
             );
         }
     }

@@ -166,6 +166,7 @@ internal sealed partial class WordLiveService
                     active_content = graph.ActiveContentIssueCount,
                     document_properties = graph.DocumentPropertyIssueCount,
                     settings = graph.SettingsIssueCount,
+                    smartart_diagrams = graph.DiagramIssueCount,
                 },
                 coverage = new
                 {
@@ -185,6 +186,7 @@ internal sealed partial class WordLiveService
                     active_content = graph.Coverage.ActiveContent,
                     document_properties_and_variables = graph.Coverage
                         .DocumentPropertiesAndVariables,
+                    smartart_diagrams = graph.Coverage.SmartArtDiagrams,
                     explicitly_unmodeled_domains = graph.Coverage
                         .ExplicitlyUnmodeledDomains,
                 },

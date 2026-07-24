@@ -166,19 +166,19 @@ metadata redacted unless the next operation consumes them. Diagnostic items are 
 by default; use `include_issues=true` or `view=issues` only when they drive the next
 decision. The graph joins the
 explicitly reported OPC, semantic-containment, style, numbering, reference, section,
-classic-chart, logical-figure/representation/resource/caption, content-control,
+  classic-chart, SmartArt diagram/point/connection/part, logical-figure/representation/resource/caption, content-control,
 physical/built-in XML-store, binding-target, repeating-section, bibliography collection,
 source and resolved CITATION domains, typed active-content payloads/declarations,
 ActiveX binary bindings, core/extended/custom document properties, persistent document
 variables and their proven field reads plus nested-table and vertical-merge topology. Its
 `explicitly_unmodeled_domains` list is a hard coverage
-boundary: absence of an edge for advanced drawing layout, SmartArt, active-content
-binary internals/execution, cryptographic signature validation, encryption or
-co-authoring is not proof that the dependency does not exist.
+  boundary: absence of an edge for advanced drawing layout, SmartArt layout execution/
+  rendering/mutation, active-content binary internals/execution, cryptographic signature
+  validation, encryption or co-authoring is not proof that the dependency does not exist.
 The summary's `byte_budget` remains the graph-local deterministic boundary. Its separate
 `operation_budget` (`wop1`) is one shared 640 MiB accounted lease spanning ZIP/OPC
 admission and metadata,
-lossless XML reservations, semantic/style/numbering/reference/section/chart/figure/
+  lossless XML reservations, semantic/style/numbering/reference/section/chart/diagram/figure/
 content-control/table/bibliography/active-content/property/settings projections and the final graph. Treat `PACKAGE_LIMIT` as a hard
 stop; an operation-budget error reports only the bounded stage and attempted charge.
 Do not retry with broader output or call this an exact CLR heap, peak-live-memory or
@@ -250,6 +250,16 @@ and embedded packages are never opened. Classic Transitional and Strict DrawingM
 charts are modeled; Office 2016 extended charts remain preserved but explicitly
 unmodeled. This inspector is read-only evidence, not permission to edit a chart or its
 workbook.
+Use lazy `inspect_ooxml_diagrams` instead of opening DiagramML data, relationship,
+layout, quick-style, color or persisted-drawing XML yourself. Start with `view=summary`;
+page `diagrams`, `points`, `connections`, `parts` or `issues` only when the next decision
+needs them. Narrow by one exact `wdd_` diagram ID or exact point type. Model IDs and
+definition/presentation keys, keyed equality fingerprints and source relationship
+provenance require three independent opt-ins. Point text and raw XML have no response
+field under any option. The action never starts Word, executes Office layout, renders a
+diagram, mutates the package or follows an external target. Treat missing required parts,
+ambiguous endpoints and invalid ordering as damage evidence; do not infer rendered
+geometry or use the read graph as permission to edit SmartArt.
 Use lazy `inspect_ooxml_markup_compatibility` before interpreting or changing markup
 that contains `mc:*` attributes, `mc:AlternateContent`, or unfamiliar extension
 namespaces. Start with `view=summary`; page `parts`, `rules`, `alternate_content`,

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Added `WordDiagramGraph`, a bounded native SmartArt model for Transitional and Strict
+  diagram data, points, connections, layout/style/color relationships and persisted
+  drawings. Point text is counted and discarded; unsafe XML, malformed cardinality,
+  duplicate IDs, missing endpoints and invalid orders fail closed or remain diagnosed.
+- Added lazy `inspect_ooxml_diagrams` as native action 94 with compact paged views,
+  exact diagram/point-type filters, independent key/hash/source opt-ins, one shared
+  `wop1` budget and a bounded response projection. It never opens Word, executes Office
+  layout, mutates the package, returns point text or exposes raw XML.
+- Integrated SmartArt diagram/point nodes and definition/containment/connection/part
+  edges into the unified dependency graph. The `smartart_diagrams` omission is removed;
+  Office layout execution, rendering and mutation remain explicit boundaries.
+
 - Preserve the plugin manifest build metadata in the packaged native runtime and expose
   the exact identity through `--version`, MCP initialization and capabilities.
 - Require the OPC `dcterms:created` and `dcterms:modified` nodes to declare an

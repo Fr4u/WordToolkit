@@ -19,6 +19,7 @@ public enum WordOperationResourceStage
     ActiveContent,
     Settings,
     DocumentProperties,
+    Diagrams,
     DependencyGraph,
 }
 
