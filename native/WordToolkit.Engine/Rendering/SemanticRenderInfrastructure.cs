@@ -26,10 +26,7 @@ internal sealed record SemanticRenderBackendDescriptor(
 
 internal sealed record SemanticRenderPackageContext(
     OpcPackageSnapshot Package,
-    WordSemanticDocument Document,
-    WordStyleGraph Styles,
-    WordReviewGraph Reviews,
-    WordEquationGraph Equations,
+    WordPresentationSnapshot Snapshot,
     string InputFileName
 );
 
@@ -64,7 +61,7 @@ internal static class SemanticRenderPathPolicy
 internal sealed class SemanticRenderPackageLoader
 {
     private readonly OpcPackageReader _reader;
-    private readonly WordSemanticProjector _projector;
+    private readonly WordPresentationSnapshotBuilder _snapshotBuilder;
 
     public SemanticRenderPackageLoader(
         OpcPackageLimits? packageLimits = null,
@@ -72,7 +69,7 @@ internal sealed class SemanticRenderPackageLoader
     )
     {
         _reader = new OpcPackageReader(packageLimits);
-        _projector = new WordSemanticProjector(projectionOptions);
+        _snapshotBuilder = new WordPresentationSnapshotBuilder(projectionOptions);
     }
 
     public SemanticRenderPackageContext Load(
@@ -117,9 +114,9 @@ internal sealed class SemanticRenderPackageLoader
             );
         }
 
-        var semantic = _projector.Project(package, cancellationToken);
+        var snapshot = _snapshotBuilder.Build(package, cancellationToken);
         if (
-            !package.Parts.TryGetValue(semantic.MainPartUri, out var mainPart)
+            !package.Parts.TryGetValue(snapshot.Document.MainPartUri, out var mainPart)
             || !WordPackageConformance.IsMainContentTypeCompatibleWithFileName(
                 Path.GetFileName(inputPath),
                 mainPart.ContentType
@@ -134,10 +131,7 @@ internal sealed class SemanticRenderPackageLoader
 
         return new SemanticRenderPackageContext(
             package,
-            semantic,
-            new WordStyleGraphBuilder().Build(package, semantic, cancellationToken),
-            new WordReviewGraphBuilder().Build(package, semantic, cancellationToken),
-            new WordEquationGraphBuilder().Build(package, semantic, cancellationToken),
+            snapshot,
             Path.GetFileName(inputPath)
         );
     }

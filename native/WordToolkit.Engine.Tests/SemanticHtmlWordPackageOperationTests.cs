@@ -189,6 +189,124 @@ public sealed class SemanticHtmlWordPackageOperationTests
     }
 
     [Fact]
+    public void UsesOutlineGraphForDirectStyleAndDocumentDefaultHeadingLevels()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var input = Path.Combine(directory, "outline.docx");
+            var output = Path.Combine(directory, "outline.html");
+            CreateHeadingResolutionPackage(input);
+
+            new SemanticHtmlWordPackageOperation().Execute(
+                new SemanticHtmlWordPackageRequest(input, output)
+            );
+
+            var html = File.ReadAllText(output, Encoding.UTF8);
+            Assert.Contains(
+                "<h1 class=\"wt-paragraph\" data-node-id=",
+                html,
+                StringComparison.Ordinal
+            );
+            Assert.Matches(
+                "<h1 class=\"wt-paragraph\"[^>]*>.*direct heading.*</h1>",
+                html
+            );
+            Assert.Contains(
+                "<h2 class=\"wt-paragraph\" data-node-id=",
+                html,
+                StringComparison.Ordinal
+            );
+            Assert.Matches(
+                "<h2 class=\"wt-paragraph\"[^>]*>.*style heading.*</h2>",
+                html
+            );
+            Assert.Contains(
+                "<h3 class=\"wt-paragraph\" data-node-id=",
+                html,
+                StringComparison.Ordinal
+            );
+            Assert.Matches(
+                "<h3 class=\"wt-paragraph\"[^>]*>.*default heading.*</h3>",
+                html
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void PresentationSnapshotRejectsMixedProjectionFingerprints()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var firstPath = Path.Combine(directory, "first.docx");
+            var secondPath = Path.Combine(directory, "second.docx");
+            CreatePackage(firstPath);
+            CreateHeadingResolutionPackage(secondPath);
+            var firstPackage = new OpcPackageReader().Read(firstPath);
+            var secondPackage = new OpcPackageReader().Read(secondPath);
+            var first = new WordPresentationSnapshotBuilder().Build(firstPackage);
+
+            Assert.All(
+                new[]
+                {
+                    first.Document.PackageFingerprint,
+                    first.Styles.PackageFingerprint,
+                    first.Reviews.PackageFingerprint,
+                    first.Equations.PackageFingerprint,
+                    first.Outline.PackageFingerprint,
+                    first.Sections.PackageFingerprint,
+                    first.Numbering.PackageFingerprint,
+                    first.ListSequences.PackageFingerprint,
+                    first.Tables.PackageFingerprint,
+                    first.References.PackageFingerprint,
+                    first.Figures.PackageFingerprint,
+                    first.Settings.PackageFingerprint,
+                },
+                fingerprint => Assert.Equal(first.PackageFingerprint, fingerprint)
+            );
+            Assert.Equal(
+                WordPresentationCapabilityStatus.NotModeled,
+                first.Capabilities["rendered_page_geometry"].Status
+            );
+            Assert.Contains("list_sequences", first.Capabilities.Keys);
+            Assert.Contains("figures", first.Capabilities.Keys);
+
+            var exception = Assert.Throws<WordPresentationSnapshotException>(() =>
+                new WordPresentationSnapshot(
+                    secondPackage.Fingerprint,
+                    first.Document,
+                    first.Styles,
+                    first.Reviews,
+                    first.Equations,
+                    first.Outline,
+                    first.Sections,
+                    first.Numbering,
+                    first.ListSequences,
+                    first.Tables,
+                    first.References,
+                    first.Figures,
+                    first.Settings
+                )
+            );
+
+            Assert.Contains(
+                "does not match",
+                exception.Message,
+                StringComparison.Ordinal
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task ConcurrentCreateNewWritersProduceOneArtifactAndNoPrivateTempLeak()
     {
         var directory = TemporaryDirectory();
@@ -852,6 +970,66 @@ public sealed class SemanticHtmlWordPackageOperationTests
               <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
               <Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
               <Relationship Id="rIdExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.invalid/attack" TargetMode="External"/>
+            </Relationships>
+            """
+        );
+    }
+
+    private static void CreateHeadingResolutionPackage(string path)
+    {
+        using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
+        WriteEntry(
+            archive,
+            "[Content_Types].xml",
+            """
+            <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+              <Default Extension="xml" ContentType="application/xml"/>
+              <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+              <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+            </Types>
+            """
+        );
+        WriteEntry(
+            archive,
+            "_rels/.rels",
+            $"""
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rId1" Type="{WordPackageConformance.TransitionalOfficeDocumentRelationship}" Target="word/document.xml"/>
+            </Relationships>
+            """
+        );
+        WriteEntry(
+            archive,
+            "word/document.xml",
+            $"""
+            <w:document xmlns:w="{WordNamespace}">
+              <w:body>
+                <w:p><w:pPr><w:pStyle w:val="StyledHeading"/><w:outlineLvl w:val="0"/></w:pPr><w:r><w:t>direct heading</w:t></w:r></w:p>
+                <w:p><w:pPr><w:pStyle w:val="StyledHeading"/></w:pPr><w:r><w:t>style heading</w:t></w:r></w:p>
+                <w:p><w:r><w:t>default heading</w:t></w:r></w:p>
+              </w:body>
+            </w:document>
+            """
+        );
+        WriteEntry(
+            archive,
+            "word/styles.xml",
+            $"""
+            <w:styles xmlns:w="{WordNamespace}">
+              <w:docDefaults><w:pPrDefault><w:pPr><w:outlineLvl w:val="2"/></w:pPr></w:pPrDefault></w:docDefaults>
+              <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+              <w:style w:type="paragraph" w:styleId="StyledHeading"><w:name w:val="arbitrary"/><w:basedOn w:val="Normal"/><w:pPr><w:outlineLvl w:val="1"/></w:pPr></w:style>
+            </w:styles>
+            """
+        );
+        WriteEntry(
+            archive,
+            "word/_rels/document.xml.rels",
+            """
+            <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+              <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
             </Relationships>
             """
         );

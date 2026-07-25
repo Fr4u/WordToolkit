@@ -1193,14 +1193,47 @@ artifact shares the 256 MiB renderer ceiling. Its closed metadata fixes
 `pixel_equivalence_claimed=false`. Exactness describes the fingerprint-bound selected
 semantic target, not Word typography, object bounds, pagination or pixels.
 
-Both native renderers implement one internal backend contract that records backend ID and
-version, output format/media type, fidelity class, pagination and text-metric claims, and
-active/external-resource behavior. Package reading, Word-content-type validation, semantic
-projection and style/review/equation graph construction are shared. HTML keeps its public
-1.0 request/result and byte output; HTML-only table fragment wrappers do not leak into the
-SVG contract. Both adapters reject UNC and Windows device-namespace input/output paths
-before the first filesystem existence check, so their `network=none` permission record is
-not undermined by implicit SMB access or outbound credential negotiation.
+Both native renderers now consume one immutable, fingerprint-bound
+`WordPresentationSnapshot` rather than rebuilding private, drifting views. The snapshot
+owns the semantic AST, style graph, review/revision graph, equation graph, heading outline,
+sections, numbering definitions and executed sequences, tables, explicit reference graph,
+figures/captions and settings. Every index is read-only, capability state and warnings are
+explicit, and unmodeled domains stay named. HTML no longer guesses heading levels from
+style names; it consumes the same typed outline authority as inspection and dependency
+analysis. The renderer backend contract records backend ID/version, output format/media
+type, fidelity class, pagination/text-metric claims and active/external-resource behavior.
+HTML keeps its public 1.0 request/result and byte output; HTML-only table fragment wrappers
+do not leak into the SVG contract. Both adapters reject UNC and Windows device-namespace
+input/output paths before the first filesystem existence check, so their `network=none`
+permission record is not undermined by implicit SMB access or outbound credential
+negotiation.
+
+The first authoritative fixed-layout slice is
+`wordtoolkit.render_ooxml_fixed_artifacts/1.0`. It accepts only a saved local Word package
+plus its exact inspected fingerprint, an existing local output directory and a create-new
+artifact stem. The Word adapter opens the package hidden and read-only with automation
+security forced to macro-disabled, link updates off, no recent-file entry and no visible
+window; it records `Application.Version`, `Build`, `CompatibilityMode`, Word page count and
+the exact exported range, then closes without saving and rechecks the source SHA-256. Clean
+versus markup, print versus screen, document properties, heading/bookmark export,
+PDF/A and an inclusive page range are explicit intent rather than backend guesses.
+
+PDF page images are never a second independent render. For PNG output an explicitly
+configured absolute `pdfinfo` plus `pdftoppm` or `pdftocairo` executable inspects and
+rasterizes the exact staging PDF; `PATH` is not searched. The helper runs without a shell,
+bounds input/output/process time/pages/DPI, records Poppler versions, requires one
+MediaBox per page, rejects missing/extra/reparse artifacts and verifies every PNG signature,
+IHDR dimension, source-page mapping and SHA-256. Pixel dimensions must agree with
+`MediaBox × DPI / 72` within a one-pixel quantization tolerance.
+
+All render paths use neutral immutable source/target/output/fidelity intent, backend
+capability, resolution, provenance and artifact-manifest contracts. Unresolved requirements
+or a silent fallback fail before publication. `TransactionalRenderArtifactPublisher`
+stages, reads back and validates the entire batch before any public path appears, then uses
+no-clobber atomic hard links. Path aliases and reparse traversal are rejected. A partial
+publication is removed and verified; cleanup uncertainty returns `ROLLBACK_FAILED` with
+unverified paths instead of claiming that the output directory is clean. PDF-only output
+honestly reports no PDF geometry inspection when Poppler was not requested.
 
 The 10,000-node synthetic benchmark rendered the six-node selected table into 3,074
 bytes instead of the 541,043-byte full artifact (0.5682%). It does not claim a comparable
@@ -1284,7 +1317,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 121 actions already have public SDK
+These are proved migration seams, not a claim that all 122 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.

@@ -145,7 +145,7 @@ public sealed class SemanticHtmlWordPackageOperation
             );
 
             var selection = SemanticHtmlRenderSelection.Resolve(
-                context.Document,
+                context.Snapshot.Document,
                 request.TargetNodeId,
                 request.StoryScope
             );
@@ -485,10 +485,7 @@ internal sealed class SemanticHtmlRenderBackend
         CancellationToken cancellationToken
     ) =>
         SemanticHtmlRenderer.Render(
-            context.Document,
-            context.Styles,
-            context.Reviews,
-            context.Equations,
+            context.Snapshot,
             context.InputFileName,
             request.StoryScope,
             request.Language,
@@ -638,10 +635,7 @@ internal sealed record SemanticHtmlRenderSelection(
 internal static class SemanticHtmlRenderer
 {
     public static SemanticHtmlRenderArtifact Render(
-        WordSemanticDocument document,
-        WordStyleGraph styles,
-        WordReviewGraph reviews,
-        WordEquationGraph equations,
+        WordPresentationSnapshot snapshot,
         string inputFileName,
         SemanticHtmlStoryScope storyScope,
         string language,
@@ -649,16 +643,12 @@ internal static class SemanticHtmlRenderer
         CancellationToken cancellationToken
     )
     {
-        ArgumentNullException.ThrowIfNull(document);
-        ArgumentNullException.ThrowIfNull(styles);
-        ArgumentNullException.ThrowIfNull(reviews);
-        ArgumentNullException.ThrowIfNull(equations);
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        var document = snapshot.Document;
 
         var state = new RenderState(
-            document,
-            styles,
-            reviews,
-            equations,
+            snapshot,
             normalizeTableContexts: selection is not null
         );
         var estimatedNodeCount = selection?.Target.DescendantsAndSelf().Count()
@@ -1464,26 +1454,21 @@ internal static class SemanticHtmlRenderer
 
     private sealed class RenderState
     {
-        private readonly WordStyleGraph _styles;
+        private readonly WordOutlineGraph _outline;
 
         public RenderState(
-            WordSemanticDocument document,
-            WordStyleGraph styles,
-            WordReviewGraph reviews,
-            WordEquationGraph equations,
+            WordPresentationSnapshot snapshot,
             bool normalizeTableContexts
         )
         {
-            _styles = styles;
+            var document = snapshot.Document;
+            var styles = snapshot.Styles;
+            var reviews = snapshot.Reviews;
+            var equations = snapshot.Equations;
+            _outline = snapshot.Outline;
             NormalizeTableContexts = normalizeTableContexts;
-            Revisions = reviews.Revisions
-                .Where(revision => revision.SemanticNodeId is not null)
-                .GroupBy(revision => revision.SemanticNodeId!.Value)
-                .ToDictionary(group => group.Key, group => group.First());
-            Equations = equations.Equations
-                .Where(equation => equation.SemanticNodeId is not null)
-                .GroupBy(equation => equation.SemanticNodeId!.Value)
-                .ToDictionary(group => group.Key, group => group.First());
+            Revisions = snapshot.RevisionsBySemanticNodeId;
+            Equations = snapshot.EquationsBySemanticNodeId;
             if (reviews.Revisions.Any(revision => IsFormattingRevision(revision.Kind)))
             {
                 Warnings.Add("FORMATTING_REVISIONS_APPROXIMATED");
@@ -1500,14 +1485,18 @@ internal static class SemanticHtmlRenderer
             {
                 Warnings.Add("EQUATION_GRAPH_WARNINGS");
             }
+            if (_outline.Issues.Count != 0)
+            {
+                Warnings.Add("OUTLINE_GRAPH_WARNINGS");
+            }
             if (document.Root.Children.Count == 0)
             {
                 Warnings.Add("EMPTY_SEMANTIC_DOCUMENT");
             }
         }
 
-        public Dictionary<SemanticNodeId, WordRevisionDefinition> Revisions { get; }
-        public Dictionary<SemanticNodeId, WordEquationDefinition> Equations { get; }
+        public IReadOnlyDictionary<SemanticNodeId, WordRevisionDefinition> Revisions { get; }
+        public IReadOnlyDictionary<SemanticNodeId, WordEquationDefinition> Equations { get; }
         public bool NormalizeTableContexts { get; }
         public HashSet<string> Warnings { get; } = new(StringComparer.Ordinal);
         public int RenderedStoryCount { get; set; }
@@ -1520,37 +1509,9 @@ internal static class SemanticHtmlRenderer
 
         public int? HeadingLevel(WordSemanticNode node)
         {
-            if (
-                !node.Properties.TryGetValue("style_id", out var styleId)
-                || !_styles.TryGetStyle(styleId, out var style)
-                || style is null
-                || !style.InheritanceResolvable
-            )
-            {
-                return null;
-            }
-            int? result = null;
-            foreach (var chainId in style.InheritanceChainStyleIds)
-            {
-                if (
-                    _styles.TryGetStyle(chainId, out var chainStyle)
-                    && chainStyle is not null
-                    && chainStyle.ParagraphProperties.Values.TryGetValue(
-                        "outline_level",
-                        out var raw
-                    )
-                    && int.TryParse(
-                        raw,
-                        NumberStyles.None,
-                        CultureInfo.InvariantCulture,
-                        out var value
-                    )
-                )
-                {
-                    result = value == 9 ? null : value + 1;
-                }
-            }
-            return result;
+            return _outline.TryGetHeadingForParagraph(node.Id, out var heading)
+                ? heading?.Level
+                : null;
         }
 
         private static bool IsFormattingRevision(WordRevisionKind kind) =>

@@ -152,7 +152,7 @@ public sealed class SemanticSvgWordPackageOperation
                 cancellationToken
             );
             var selection = SemanticRenderTargetSelection.Resolve(
-                context.Document,
+                context.Snapshot.Document,
                 request.TargetNodeId,
                 request.StoryScope == SemanticRenderStoryScope.AllTextStories
             );
@@ -547,19 +547,19 @@ internal static class SemanticSvgRenderer
             "TEXT_METRICS_ESTIMATED",
             "VISUAL_FORMATTING_APPROXIMATED",
         };
-        if (context.Document.Warnings.Count != 0)
+        if (context.Snapshot.Document.Warnings.Count != 0)
         {
             warnings.Add("SEMANTIC_PROJECTION_WARNINGS");
         }
-        if (context.Styles.Issues.Count != 0)
+        if (context.Snapshot.Styles.Issues.Count != 0)
         {
             warnings.Add("STYLE_GRAPH_WARNINGS");
         }
-        if (context.Equations.Issues.Count != 0)
+        if (context.Snapshot.Equations.Issues.Count != 0)
         {
             warnings.Add("EQUATION_GRAPH_WARNINGS");
         }
-        if (context.Reviews.Issues.Count != 0)
+        if (context.Snapshot.Reviews.Issues.Count != 0)
         {
             warnings.Add("REVIEW_GRAPH_WARNINGS");
         }
@@ -594,14 +594,8 @@ internal static class SemanticSvgRenderer
             warnings.Add("EXTENSION_CONTENT_RENDERED_AS_PLACEHOLDER");
         }
 
-        var equationMap = context.Equations.Equations
-            .Where(equation => equation.SemanticNodeId is not null)
-            .GroupBy(equation => equation.SemanticNodeId!.Value)
-            .ToDictionary(group => group.Key, group => group.First());
-        var revisionMap = context.Reviews.Revisions
-            .Where(revision => revision.SemanticNodeId is not null)
-            .GroupBy(revision => revision.SemanticNodeId!.Value)
-            .ToDictionary(group => group.Key, group => group.First());
+        var equationMap = context.Snapshot.EquationsBySemanticNodeId;
+        var revisionMap = context.Snapshot.RevisionsBySemanticNodeId;
         var content = new XElement(
             Svg + "g",
             new XAttribute("id", "wt-content"),
@@ -613,7 +607,7 @@ internal static class SemanticSvgRenderer
         var state = new LayoutState(
             request.ViewportWidthPx,
             content,
-            context.Document,
+            context.Snapshot.Document,
             equationMap,
             revisionMap,
             warnings,
@@ -643,7 +637,7 @@ internal static class SemanticSvgRenderer
             new XAttribute("data-wordtoolkit-backend", SemanticSvgWordPackageContract.Backend),
             new XAttribute("data-backend-version", SemanticSvgWordPackageContract.BackendVersion),
             new XAttribute("data-fidelity-class", SemanticSvgWordPackageContract.FidelityClass),
-            new XAttribute("data-package-fingerprint", context.Package.Fingerprint),
+            new XAttribute("data-package-fingerprint", context.Snapshot.PackageFingerprint),
             new XElement(
                 Svg + "title",
                 new XAttribute("id", "wt-title"),

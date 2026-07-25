@@ -1,5 +1,56 @@
 # Stage results
 
+## WordToolkit 0.40.0 presentation snapshot and authoritative fixed rendering — 2026-07-25
+
+- Added immutable `WordPresentationSnapshot` as the shared input for semantic HTML and
+  SVG. It binds one package fingerprint to semantic, style, review, equation, heading,
+  section, numbering, table, reference, figure/caption and settings projections with
+  explicit capability gaps. HTML no longer guesses headings from localized style names.
+- Added provider-neutral render source/target/output/fidelity, backend capability,
+  resolution, provenance and artifact-manifest contracts. Unresolved requirements and
+  silent fallback fail before publication. The shared publisher stages and reads back the
+  whole artifact batch, rejects aliases/reparse traversal, publishes with create-new hard
+  links and returns `ROLLBACK_FAILED` when cleanup cannot be proved.
+- Added `wordtoolkit.render_ooxml_fixed_artifacts/1.0` through strict Engine contracts,
+  `fixed-render-package` CLI and lazy MCP. Exact fingerprint-bound saved Word packages
+  open hidden/read-only with macros disabled, link updates off and no recent-file entry.
+  Word exports exact whole-document or inclusive page-range PDF; an explicit Poppler
+  backend may inspect per-page MediaBoxes and derive PNGs from that same PDF. Page counts,
+  source-page mapping, PNG signatures/dimensions/hashes and `MediaBox × DPI / 72` geometry
+  are verified before one PDF/PNG/manifest transaction publishes.
+- Full local gates pass **636 Engine**, **466 Native** and **1,313 Python tests** with
+  16 intentional Python skips. Ruff and mypy are clean, four .NET format passes completed,
+  the Draft 2020-12 local schema validates at 122 actions, remote generated schemas have
+  no drift and the standalone Microsoft Open XML SDK validator builds with zero warnings.
+  Every .NET command used pinned SDK `C:\Users\Admin\.dotnet8\dotnet.exe` 8.0.423 or a
+  subprocess with the same pinned `DOTNET_ROOT` and `PATH`.
+- A gated real-Word oracle passed against Word 16.0 build 16.0.20131. A separate 49-page
+  fixture exported pages 1–2 to one 107,500-byte PDF and two 1224×1584 PNGs at 144 DPI.
+  Both PDF pages expose 612×792-point MediaBoxes, source SHA-256 remained unchanged and
+  direct image inspection found readable title/table/footer/contents with no blank page
+  or clipping. The final PNG SHA-256 values are
+  `a61cdbb8318af6de414693711108a19f7bd5b5051cb7bba495afd17163c27911` and
+  `c9005238753ae70e861a546664864826e5e2035984440cecd89df4789b441b81`.
+- Two pinned SDK builds produced byte-identical 196-file, 88,182,143-byte trees and
+  byte-identical 37,058,042-byte ZIPs at SHA-256
+  `32aa48adba64bbff505155f8f0152f80e786697171b48c681d772836e2444e9d`.
+  Executable, runtime assembly, Engine and Open XML SDK adapter hashes are
+  `a0db869f90ff2b2eca2f5b46704854ff65999a3f1b1288c553367d1eed1a3d4b`,
+  `ced41c4ff96473e4f91c666caf02f13d480039b9519d0daac0c2c350a6ea8111`,
+  `3c69872c10cd18c2a1b77a9cdb4768975df1cb7e3e40f209acd494010fe9cce8` and
+  `6fd5481d08663720aaa2ca6890256a9347d3ae487d49a08f0a701924a08ce66e`.
+- Installed and enabled `0.40.0+codex.20260725043457`. Build, persistent personal source
+  and active cache contain the same 196 paths, lengths and hashes. Installed discovery
+  reports 122 actions, 15 exposed tools and 36 complete metadata contracts. Installed MCP
+  inspection returned the closed render 1.0 contract; execution exported only source page
+  5 to a 235,729-byte PDF at SHA-256
+  `51cc8be8cd64c0e8170a17615c565102e6604e7e83f254a490499791b0f757a9`,
+  resolved every declared requirement, used no fallback and did not mutate the source.
+  A second installed MCP call published page 6 as a 125,183-byte 816×1056 PNG at
+  96 DPI from a 612×792-point PDF page; SHA-256
+  `7f81f00af3e47960981de9847f0a933855ac6e3973f211c34c73002c759cfd04`.
+  The complete response passed the published closed output schema independently.
+
 ## Typed heading and outline graph — 2026-07-25
 
 - Added one source-linked outline resolution for every projected paragraph. Direct

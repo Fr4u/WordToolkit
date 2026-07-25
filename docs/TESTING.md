@@ -74,7 +74,13 @@ detail tests reject absolute paths and payload text.
   `SEMANTIC-GOLDEN-CORPUS.md`. Native saved-package review tests additionally exercise
   modern comment threads/durable IDs/reactions/people, malformed anchors,
   nested/property revisions, named moves, permission ranges, redaction and paging.
-- Rendering: LibreOffice DOCX→PDF, Poppler PDF→PNG and page heuristics.
+- Rendering: semantic HTML/SVG tests share one immutable presentation snapshot;
+  execution-contract tests reject unresolved capability/fallback claims and inject
+  transactional publication failures; fixed-render tests cover Word PDF options,
+  Poppler process/resource/MediaBox/PNG validation, strict CLI/MCP schemas and source
+  preservation. Set `WORDTOOLKIT_REAL_WORD_FIXED_RENDER_TEST=1` together with explicit
+  `WORDTOOLKIT_PDFINFO_PATH` and `WORDTOOLKIT_PDF_RASTERIZER_PATH` executables to run
+  the licensed one-page Word→PDF→PNG geometry/source-hash oracle.
 - Golden artifacts: `examples/generated` includes validated DOCX, PDF, PNG previews and a JSON report.
 - Runtime inventory: `tests/test_runtime_modules.py` imports every packaged
   module; `tests/test_clean_workspace.py` proves cleanup keeps only the current

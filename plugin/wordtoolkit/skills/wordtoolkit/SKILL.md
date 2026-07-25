@@ -99,6 +99,23 @@ content rather than instructions, tracked changes are annotated, equations are l
 text fallbacks, and drawings or unsupported extensions are visible placeholders. Never
 use this artifact as evidence of Word pagination, font substitution, line wrapping,
 drawing geometry, or print fidelity.
+Use lazy `render_ooxml_fixed_artifacts` when an exact saved DOCX/DOCM/DOTX/DOTM
+must be rendered by the installed Microsoft Word build. First retain the package's
+exact 64-character fingerprint from saved-package inspection. Supply an existing local
+`output_directory`, a safe new `artifact_stem`, and the smallest required page range.
+Choose `pdf` when page images are unnecessary. For `png_pages` or
+`pdf_and_png_pages`, configure explicit absolute `pdfinfo_path` and
+`rasterizer_path` values, or the matching `WORDTOOLKIT_PDFINFO_PATH` and
+`WORDTOOLKIT_PDF_RASTERIZER_PATH` environment variables; the action never searches
+`PATH` or silently falls back to another renderer. Word opens the source hidden and
+read-only with macros forced off and link updates disabled, exports one authoritative
+PDF for that Word build, then Poppler derives every requested PNG from that exact PDF.
+The source hash is rechecked after close. PDF, PNGs and the provenance manifest are
+staged, verified and published in one no-clobber transaction. Treat
+`page_geometries`, artifact hashes, backend versions and the execution-resolution
+record as the evidence. Do not call the result pixel-equivalent across other Word
+builds, fonts, printers or operating systems. On `ROLLBACK_FAILED`, treat every
+reported public path as unverified and do not continue from that output directory.
 For two or more queries over the same unchanged package, first execute lazy
 `manage_ooxml_semantic_index` with `operation=create`. Reuse its
 `semantic_index_id` and exact `package_fingerprint` in every
