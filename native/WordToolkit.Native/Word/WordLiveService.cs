@@ -72,6 +72,7 @@ internal sealed partial class WordLiveService : IToolHandler
     private readonly ConcurrentDictionary<string, SelectionGrant> _selectionGrants = new();
     private readonly ConcurrentDictionary<string, UndoGrant> _undoGrants = new();
     private readonly ConcurrentDictionary<string, RangeGrant> _rangeGrants = new();
+    private readonly ConcurrentDictionary<string, EquationGrant> _equationGrants = new();
     private readonly ConcurrentDictionary<string, SmartArtTextEditGrant> _smartArtTextEditGrants =
         new();
     private readonly byte[] _smartArtFingerprintKey = RandomNumberGenerator.GetBytes(32);
@@ -126,6 +127,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 cancellationToken
             ),
             "open_live_word_document" => OpenDocumentAsync(
+                arguments,
+                cancellationToken
+            ),
+            "publish_ooxml_package_to_live_word" => PublishOoxmlPackageToLiveWordAsync(
                 arguments,
                 cancellationToken
             ),
@@ -514,7 +519,18 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
-            "preflight_live_word_equations" => PreflightEquationsAsync(arguments),
+            "preflight_live_word_equations" => PreflightEquationsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_live_word_equations" => InspectLiveEquationsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "update_live_word_equation" => UpdateLiveEquationAsync(
+                arguments,
+                cancellationToken
+            ),
             "apply_live_word_operations" => ApplyOperationsAsync(
                 arguments,
                 cancellationToken
@@ -2490,84 +2506,6 @@ internal sealed partial class WordLiveService : IToolHandler
                 }
             },
             cancellationToken
-        );
-    }
-
-    private Task<object> PreflightEquationsAsync(JsonElement arguments)
-    {
-        var equations = arguments.RequiredArray("equations");
-        if (equations.GetArrayLength() is < 1 or > 200)
-        {
-            throw new NativeToolException(
-                "LIMIT_EXCEEDED",
-                "equations must contain between 1 and 200 items"
-            );
-        }
-        var results = equations
-            .EnumerateArray()
-            .Select(
-                (equation, index) =>
-                {
-                    var prepared = EquationOperationFromArguments(equation);
-                    return new
-                    {
-                        index,
-                        valid = true,
-                        input_format = prepared.InputFormat,
-                        word_linear = prepared.Linear,
-                        word_linear_characters = prepared.Linear.Length,
-                        display = prepared.Display,
-                        native_readback_required = prepared.ReadbackRequired,
-                        native_readback_enabled = prepared.VerifyReadback,
-                        native_style_rewrite_required = prepared.HasFormatting,
-                        formatting_region_count = prepared.StyleCounts.Total,
-                        formatting_regions = new
-                        {
-                            plain = prepared.StyleCounts.Plain,
-                            bold = prepared.StyleCounts.Bold,
-                            italic = prepared.StyleCounts.Italic,
-                            bold_italic = prepared.StyleCounts.BoldItalic,
-                            runs_and_controls = prepared.StyleCounts.RunsAndControls,
-                            runs_only = prepared.StyleCounts.RunsOnly,
-                            first_control = prepared.StyleCounts.FirstControl,
-                        },
-                        rules = new[]
-                            {
-                                prepared.InputFormat switch
-                                {
-                                    "latex" => "native_latex_to_unicodemath",
-                                    "mathml" => "secure_mathml_to_unicodemath",
-                                    "omml" => "secure_omml_to_unicodemath",
-                                    _ => "native_unicodemath",
-                                },
-                                "single_com_omath_build_up",
-                            }
-                            .Concat(
-                                prepared.VerifyReadback
-                                    ? new[] { "bounded_native_omml_readback" }
-                                    : Array.Empty<string>()
-                            )
-                            .Concat(
-                                prepared.HasFormatting
-                                    ? new[] { "verified_native_omml_style_rewrite" }
-                                    : Array.Empty<string>()
-                            )
-                            .ToArray(),
-                        warnings = Array.Empty<string>(),
-                    };
-                }
-            )
-            .ToArray();
-        return Task.FromResult<object>(
-            new
-            {
-                valid = true,
-                equation_count = results.Length,
-                equations = results,
-                mutated_word = false,
-                runtime = "dotnet-native",
-                python_used = false,
-            }
         );
     }
 
@@ -4769,6 +4707,18 @@ internal sealed partial class WordLiveService : IToolHandler
         }
     }
 
+    private void TrimEquationGrants()
+    {
+        if (_equationGrants.Count <= 2_048)
+        {
+            return;
+        }
+        foreach (var key in _equationGrants.Keys.Take(_equationGrants.Count - 1_024))
+        {
+            _equationGrants.TryRemove(key, out _);
+        }
+    }
+
     private void InvalidateSelectionGrants(string documentId)
     {
         foreach (
@@ -4808,7 +4758,18 @@ internal sealed partial class WordLiveService : IToolHandler
         {
             _rangeGrants.TryRemove(pair.Key, out _);
         }
+        InvalidateEquationGrants(documentId);
         InvalidateReviewGrants(documentId);
+    }
+
+    private void InvalidateEquationGrants(string documentId)
+    {
+        foreach (
+            var pair in _equationGrants.Where(item => item.Value.DocumentId == documentId)
+        )
+        {
+            _equationGrants.TryRemove(pair.Key, out _);
+        }
     }
 
     private static (List<string> Entries, bool Available) UndoEntries(

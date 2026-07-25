@@ -346,7 +346,7 @@ public sealed class LiveOperationRollbackTests
 
         var error = await ApplyFailingBatchAsync(service, documentId);
 
-        Assert.Equal("ROLLBACK_FAILED", error.ErrorCode);
+        Assert.Equal("STAGING_TARGET_DRIFT", error.ErrorCode);
         Assert.Equal(0, host.Application.ActiveDocument.UndoCount);
         Assert.Equal(0, host.Application.ActiveDocument.FormattedTextAssignments);
         using var inspectArguments = JsonDocument.Parse(

@@ -138,6 +138,7 @@ internal static class LatexToUnicodeMath
             ["dagger"] = "†",
             ["ddagger"] = "‡",
             ["dd"] = WordLinearMathNormalizer.DifferentialD.ToString(),
+            ["dots"] = "…",
             ["ldots"] = "…",
             ["cdots"] = "⋯",
             ["vdots"] = "⋮",
@@ -348,6 +349,15 @@ internal static class LatexToUnicodeMath
                             ? $"〖{argument}〗"
                             : argument;
                     }
+                    else if (
+                        Functions.Contains(baseAtom)
+                        && !QuotedOperators.Contains(baseAtom)
+                        && atom.StartsWith(baseAtom + "^(", StringComparison.Ordinal)
+                    )
+                    {
+                        var argument = ParseFunctionArgument();
+                        atom = $"({baseAtom} {argument}){atom[baseAtom.Length..]}";
+                    }
                     if (
                         IsNaryAtom(atom)
                         && !NextNonWhitespaceIsNaryBodySeparator()
@@ -471,7 +481,18 @@ internal static class LatexToUnicodeMath
             {
                 throw Invalid("A limit operator has no following argument");
             }
-            var basis = ParseAtom();
+            string basis;
+            if (_source[_index] == '(')
+            {
+                _index++;
+                var body = ParseSequence(')');
+                Expect(')');
+                basis = $"({body.Trim()})";
+            }
+            else
+            {
+                basis = ParseAtom();
+            }
             if (basis.Length == 0)
             {
                 throw Invalid("A limit operator has an empty following argument");
@@ -543,6 +564,12 @@ internal static class LatexToUnicodeMath
                 var numerator = ParseRequiredGroup(command);
                 var denominator = ParseRequiredGroup(command);
                 return $"({numerator.Trim()})/({denominator.Trim()})";
+            }
+            if (command == "binom")
+            {
+                var upper = ParseRequiredGroup(command);
+                var lower = ParseRequiredGroup(command);
+                return $"({upper.Trim()}¦{lower.Trim()})";
             }
             if (command == "sqrt")
             {

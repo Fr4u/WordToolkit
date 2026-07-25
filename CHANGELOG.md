@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- Replaced the misleading equation conversion preflight with a default native Word
+  execution path that uses an invisible unsaved scratch document and the same OMath
+  build-up, style rewrite and bounded OMML readback as live apply. The explicitly named
+  `conversion_only` mode now returns `valid: null` instead of false green success.
+- Added semantic LaTeX normalization for `\binom`, `\dots` and trigonometric function
+  powers, plus correct OMML `noBar` fraction readback. Real Word acceptance now covers
+  these constructs together with mathematical text and refuses altered ASTs.
+- Reclassified prepublication drift by stable semantic package state, visible text,
+  exact ranges and object counts instead of volatile raw Flat OPC hashes. Real staging
+  failures now preserve their original error when the connected document did not change;
+  proven concurrent semantic drift returns `STAGING_TARGET_DRIFT` before target mutation.
+- Added token-bound `inspect_live_word_equations` and `update_live_word_equation`. A point
+  update requires the current live version plus an exact equation/range/context identity,
+  stages the replacement in isolation, publishes one OMath in one Undo record and rejects
+  stale tokens.
+- Added `publish_ooxml_package_to_live_word`, a whole-package hybrid handoff that binds to
+  an inspected fingerprint, requires zero Microsoft Open XML SDK errors, disables macros
+  and link updates, proves the source file unchanged and opens a new live document. It
+  deliberately refuses fictional in-place atomic identity replacement.
+
 - Added a typed source-linked heading-outline graph with one resolution record per
   projected paragraph, exact direct/default/style inheritance precedence, explicit
   body-text value `9`, per-story hierarchy, revision/MCE exclusion and bounded issues.

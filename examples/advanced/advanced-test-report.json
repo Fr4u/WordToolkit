@@ -5,7 +5,7 @@
   "open": {
     "document": {
       "path": "C:\\Users\\Admin\\Desktop\\codex\\WordToolKit\\wordtoolkit\\examples\\advanced\\WordToolkit-advanced-seed.docx",
-      "size_bytes": 6395,
+      "size_bytes": 6399,
       "paragraph_count": 1,
       "heading_count": 0,
       "image_count": 0,
@@ -27,7 +27,7 @@
     },
     "package": {
       "entries": 16,
-      "compressed_bytes": 4511,
+      "compressed_bytes": 4515,
       "uncompressed_bytes": 18344,
       "max_ratio_seen": 13.99,
       "external_relationships": [],
@@ -46,7 +46,7 @@
   },
   "save": {
     "path": "C:\\Users\\Admin\\Desktop\\codex\\WordToolKit\\wordtoolkit\\examples\\advanced\\WordToolkit-advanced-torture-test.docx",
-    "size_bytes": 52298,
+    "size_bytes": 52291,
     "modified_parts": [
       "[Content_Types].xml",
       "word/_rels/document.xml.rels",
@@ -100,7 +100,7 @@
       "issues": [],
       "package": {
         "entries": 43,
-        "compressed_bytes": 47446,
+        "compressed_bytes": 47439,
         "uncompressed_bytes": 166514,
         "max_ratio_seen": 13.99,
         "external_relationships": [
@@ -171,7 +171,7 @@
   "reopen": {
     "document": {
       "path": "C:\\Users\\Admin\\Desktop\\codex\\WordToolKit\\wordtoolkit\\examples\\advanced\\WordToolkit-advanced-torture-test.docx",
-      "size_bytes": 52298,
+      "size_bytes": 52291,
       "paragraph_count": 368,
       "heading_count": 25,
       "image_count": 2,
@@ -219,7 +219,7 @@
     },
     "package": {
       "entries": 43,
-      "compressed_bytes": 47446,
+      "compressed_bytes": 47439,
       "uncompressed_bytes": 166514,
       "max_ratio_seen": 13.99,
       "external_relationships": [
@@ -251,7 +251,7 @@
     "issues": [],
     "package": {
       "entries": 43,
-      "compressed_bytes": 47446,
+      "compressed_bytes": 47439,
       "uncompressed_bytes": 166514,
       "max_ratio_seen": 13.99,
       "external_relationships": [
@@ -431,7 +431,7 @@
   },
   "render": {
     "pdf": "C:\\Users\\Admin\\Desktop\\codex\\WordToolKit\\wordtoolkit\\examples\\advanced\\WordToolkit-advanced-torture-test.pdf",
-    "bytes": 248745,
+    "bytes": 248744,
     "renderer": "LibreOffice headless",
     "compatibility_notice": "Microsoft Word and LibreOffice can paginate and shape fonts differently; this is not pixel-identical Word rendering."
   },

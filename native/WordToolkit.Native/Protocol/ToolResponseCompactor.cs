@@ -37,6 +37,9 @@ internal static class ToolResponseCompactor
     {
         var result = new JsonObject();
         Copy(source, result, "valid");
+        Copy(source, result, "conversion_valid");
+        Copy(source, result, "native_execution_verified");
+        Copy(source, result, "validation_mode");
         Copy(source, result, "equation_count");
         var items = new JsonArray();
         var required = 0;
@@ -53,10 +56,13 @@ internal static class ToolResponseCompactor
                 var item = new JsonObject();
                 Copy(equation, item, "index");
                 Copy(equation, item, "valid");
+                Copy(equation, item, "conversion_valid");
+                Copy(equation, item, "native_execution_verified");
                 Copy(equation, item, "input_format");
                 Copy(equation, item, "display");
                 Copy(equation, item, "native_readback_required");
                 Copy(equation, item, "native_readback_enabled");
+                Copy(equation, item, "native_readback_verified");
                 var linear = equation["word_linear"]?.GetValue<string>() ?? "";
                 item["word_linear_characters"] = equation["word_linear_characters"]
                     ?.DeepClone()

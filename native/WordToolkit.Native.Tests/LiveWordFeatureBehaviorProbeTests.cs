@@ -563,6 +563,8 @@ public sealed class FeatureBehaviorFakeOMath
         _application = application;
     }
 
+    public int Type { get; set; }
+
     public void BuildUp()
     {
         if (_application.FailOMathBuild)

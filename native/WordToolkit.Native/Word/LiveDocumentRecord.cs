@@ -43,6 +43,17 @@ internal sealed record RangeGrant(
     string ContextHash
 );
 
+internal sealed record EquationGrant(
+    string Token,
+    string DocumentId,
+    long Version,
+    int EquationIndex,
+    int Start,
+    int End,
+    string EquationSemanticHash,
+    string ContextHash
+);
+
 internal sealed record SmartArtTextEditGrant(
     string Token,
     string DocumentId,

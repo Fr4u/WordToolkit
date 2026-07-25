@@ -41,8 +41,10 @@ and changes no document state. Local JSONL segments are verified outside MCP wit
 - Generate a coherent document section in the model, then send one
   `apply_live_word_operations` batch. Never stream tokens, sentences, table
   cells, list items, or equations through many calls.
-- Do not preflight ordinary text. Preflight equations or typed Word objects
-  only when syntax is unfamiliar or the batch is risky.
+- Do not preflight ordinary text. Preflight equations or typed Word objects only when
+  syntax is unfamiliar or the batch is risky. Equation preflight defaults to exact native
+  Word execution in one disposable scratch document. Use `validation_mode=conversion_only`
+  only for a cheap syntax plan; its `valid` is deliberately null and is not insertion proof.
 - Do not inspect an advanced action already inspected in the current turn.
 - Do not request full responses for confirmation; compact mutation responses
   already include version, counts, native verification, and document state.
@@ -840,6 +842,12 @@ fingerprints the whole-document Flat OPC, main-story content, every linked story
 exact target and bounded OOXML context, range boundaries, save state and structural
 counts. The same verified rollback/quarantine contract covers every current live
 mutation family; SmartArt and review-property actions add dedicated state fingerprints.
+Raw Flat OPC, range OOXML and story hashes are diagnostic only before publication because
+Word can rewrite volatile session XML while an isolated document is active. The actual
+prepublication gate uses the stable semantic whole-package hash, visible text, exact
+boundaries and structural counts. Volatile-only raw drift preserves the original staging
+result and does not quarantine the handle. Proven semantic or structural drift returns
+`STAGING_TARGET_DRIFT` before target mutation and invalidates the handle.
 On failure, the original error remains authoritative only when recovery matches the
 complete snapshot. WordToolkit first checks one bounded Undo. For
 `apply_live_word_operations`, an unproven Undo additionally opens the retained baseline
@@ -870,6 +878,10 @@ For an integral, write an explicit differential such as
 `\int f(x)\,\mathrm{d}x`; `\,d x`, `\operatorname{d}x`, and `\dd x` are also
 accepted. Use the exact field name `input_format`, never `source_format`.
 WordToolkit canonicalizes the differential and groups the complete n-ary operand.
+Common LaTeX dialect normalization preserves semantics: `\binom{n}{k}` becomes a native
+Word no-bar stack, `\dots` becomes a real ellipsis, and powers such as `\sin^4 x` become a
+power of the complete function value rather than a script on the function name. Do not
+replace a binomial coefficient with a two-row matrix merely because it looks similar.
 Use `\left\|u\right\|` for a norm. `\mathcal`, `\mathfrak`, `\mathbb`,
 `\mathsf`, `\mathtt`, and simple alphanumeric `\mathrm` preserve their native Word
 math alphabet. `\mathbf{...}` and `\boldsymbol{...}` preserve their native bold or
@@ -887,6 +899,21 @@ returned. Keep the default compact response. Request
 Do not confuse live equation insertion with saved-package equation inspection. The
 former asks Word to create professional OMath; the latter reads existing OMML into a
 bounded semantic graph and deliberately performs no conversion or mutation.
+
+For a surgical equation correction, inspect lazy `inspect_live_word_equations` with a
+small page and no text preview. Retain the one-based `equation_index`, current
+`live_version`, and fresh `equation_token`, then call `update_live_word_equation` once.
+The token binds the exact index, range, semantic OMML fingerprint and surrounding context;
+the update stages and verifies one replacement, uses one custom Undo record, advances the
+version once and invalidates every old equation token. Never call the update with an index
+alone and never reuse a token after any mutation.
+
+For a complete package built offline, first call `inspect_ooxml_package`, retain its exact
+fingerprint, and execute lazy `publish_ooxml_package_to_live_word` with
+`publication_mode=open_as_new_document`. The action requires a valid Word package and zero
+Microsoft Open XML SDK errors, disables macros and external-link updates, verifies that the
+source file did not change, and returns a new live identity. It does not replace or close an
+existing connected document: Word exposes no provably atomic full-package identity swap.
 
 Use fresh selection, range, review, and undo tokens exactly where the inspected
 schema requires them. Never invent IDs, versions, tokens, paths, styles, or

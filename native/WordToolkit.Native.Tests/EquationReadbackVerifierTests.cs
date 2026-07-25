@@ -148,6 +148,24 @@ public sealed class EquationReadbackVerifierTests
     }
 
     [Fact]
+    public void VerifiesNoBarFractionAsBinomialStack()
+    {
+        var omml = """
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:f>
+                <m:fPr><m:type m:val="noBar"/></m:fPr>
+                <m:num><m:r><m:t>n</m:t></m:r></m:num>
+                <m:den><m:r><m:t>k</m:t></m:r></m:den>
+              </m:f>
+            </m:oMath>
+            """;
+
+        var result = EquationReadbackVerifier.Verify(Wrap(omml), "(n¦k)");
+
+        Assert.Equal(result.ExpectedContractSha256, result.ActualContractSha256);
+    }
+
+    [Fact]
     public void IgnoresTrimmedEdgesOfWordMathTextRuns()
     {
         const string omml =
@@ -223,6 +241,9 @@ public sealed class EquationReadbackVerifierTests
     [InlineData("x⃗", true)]
     [InlineData("ℝ", true)]
     [InlineData("𝖠", true)]
+    [InlineData("(n¦k)", true)]
+    [InlineData("x_(1),…,x_(n)", true)]
+    [InlineData("(sin x)^(4)", true)]
     [InlineData("x\u2003y", true)]
     [InlineData("x\u2005y", true)]
     public void SelectsOnlyStructurallySensitiveEquationsForAutomaticReadback(

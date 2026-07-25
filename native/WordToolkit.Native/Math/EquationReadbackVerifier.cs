@@ -47,6 +47,11 @@ internal static class EquationReadbackVerifier
         '⒩',
         '█',
         'Ⓒ',
+        '¦',
+        '…',
+        '⋯',
+        '⋮',
+        '⋱',
         '\u20D7',
         '\u0302',
         '\u0305',
@@ -57,11 +62,47 @@ internal static class EquationReadbackVerifier
         WordMathSpacing.TextBoundary,
     ];
 
+    private static readonly string[] FunctionPowerNames =
+    [
+        "sin",
+        "cos",
+        "tan",
+        "cot",
+        "sec",
+        "csc",
+        "arcsin",
+        "arccos",
+        "arctan",
+        "sinh",
+        "cosh",
+        "tanh",
+        "log",
+        "ln",
+        "exp",
+    ];
+
     internal static bool RequiresReadback(string linear)
     {
         ArgumentNullException.ThrowIfNull(linear);
         return linear.Any(ReadbackSensitiveCharacters.Contains)
-            || MathAlphabetMapper.ContainsStyledCharacter(linear);
+            || MathAlphabetMapper.ContainsStyledCharacter(linear)
+            || RequiresFunctionPowerReadback(linear);
+    }
+
+    private static bool RequiresFunctionPowerReadback(string linear)
+    {
+        foreach (var function in FunctionPowerNames)
+        {
+            var opening = linear.IndexOf($"({function} ", StringComparison.Ordinal);
+            if (
+                opening >= 0
+                && linear.IndexOf(")^(", opening, StringComparison.Ordinal) >= 0
+            )
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     internal static string CanonicalizeForTesting(string value) => Canonicalize(value);

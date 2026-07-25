@@ -77,6 +77,9 @@ public sealed class LatexToUnicodeMathTests
         "∫▒〖x^(3) e^(2x) sin(3x) ⅆx〗"
     )]
     [InlineData(@"\frac{a}{b}x+(u+v)y", "(a)/(b) x+(u+v) y")]
+    [InlineData(@"\binom{n}{k}", "(n¦k)")]
+    [InlineData(@"x_1,\dots,x_n", "x_(1),…,x_(n)")]
+    [InlineData(@"\sin^4 x+\cos^2(2x)", "(sin x)^(4)+(cos (2x))^(2)")]
     [InlineData(
         @"e^{\lambda x}\left(\frac{x^3}{\lambda}\right)",
         "e^(λ x) ((x^(3))/(λ))"

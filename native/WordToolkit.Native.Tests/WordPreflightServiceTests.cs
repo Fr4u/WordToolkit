@@ -144,6 +144,7 @@ public sealed class WordPreflightServiceTests
         using var arguments = JsonDocument.Parse(
             """
             {
+              "validation_mode": "conversion_only",
               "equations": [
                 {
                   "value": "\\int_{-\\infty}^{\\infty} e^{-x^2}\\,d x",
@@ -194,6 +195,7 @@ public sealed class WordPreflightServiceTests
         using var arguments = JsonDocument.Parse(
             """
             {
+              "validation_mode": "conversion_only",
               "equations": [
                 {
                   "value": "<m:oMath />",
@@ -224,6 +226,7 @@ public sealed class WordPreflightServiceTests
         using var arguments = JsonDocument.Parse(
             """
             {
+              "validation_mode": "conversion_only",
               "equations": [
                 {
                   "value": "\\mathbf{x+\\boldsymbol{y}}",
@@ -267,6 +270,7 @@ public sealed class WordPreflightServiceTests
         using var arguments = JsonDocument.Parse(
             """
             {
+              "validation_mode": "conversion_only",
               "equations": [
                 {
                   "value": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mi mathvariant=\"normal\">a</mi><mi mathvariant=\"bold\">b</mi><mi mathvariant=\"italic\">c</mi><mi mathvariant=\"bold-italic\">d</mi></math>",
@@ -310,5 +314,72 @@ public sealed class WordPreflightServiceTests
             character => EquationFormattingMarkers.IsReserved(character)
         );
         Assert.True(omml.GetProperty("native_readback_required").GetBoolean());
+    }
+
+    [Fact]
+    public async Task NativeEquationPreflightBuildsInScratchAndRestoresWordState()
+    {
+        await using var host = new FeatureBehaviorFakeHost();
+        var service = new WordLiveService(host);
+        var originalDocument = host.Application.ActiveDocument;
+        var originalWindow = host.Application.ActiveWindow;
+        using var arguments = JsonDocument.Parse(
+            """
+            {
+              "validation_mode": "native",
+              "equations": [
+                {
+                  "value": "x+1",
+                  "input_format": "latex",
+                  "verify_readback": false
+                }
+              ]
+            }
+            """
+        );
+
+        var result = await service.CallAsync(
+            "preflight_live_word_equations",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var resultJson = JsonDocument.Parse(JsonSerializer.Serialize(result));
+        var data = resultJson.RootElement;
+
+        Assert.True(data.GetProperty("valid").GetBoolean());
+        Assert.True(data.GetProperty("native_execution_verified").GetBoolean());
+        Assert.True(
+            data.GetProperty("equations")[0]
+                .GetProperty("native_execution_verified")
+                .GetBoolean()
+        );
+        Assert.Equal(1, host.Application.Documents.CreatedCount);
+        Assert.Equal(1, host.Application.Documents.ClosedCount);
+        Assert.Equal(1, host.Application.Documents.Count);
+        Assert.Same(originalDocument, host.Application.ActiveDocument);
+        Assert.Same(originalWindow, host.Application.ActiveWindow);
+    }
+
+    [Fact]
+    public async Task ConversionOnlyEquationPreflightNeverReturnsGreenValidity()
+    {
+        await using var host = new LifecycleFakeHost();
+        var service = new WordLiveService(host);
+        using var arguments = JsonDocument.Parse(
+            """{"validation_mode":"conversion_only","equations":[{"value":"x+1"}]}"""
+        );
+
+        var result = await service.CallAsync(
+            "preflight_live_word_equations",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var resultJson = JsonDocument.Parse(JsonSerializer.Serialize(result));
+        var data = resultJson.RootElement;
+
+        Assert.Equal(JsonValueKind.Null, data.GetProperty("valid").ValueKind);
+        Assert.True(data.GetProperty("conversion_valid").GetBoolean());
+        Assert.False(data.GetProperty("native_execution_verified").GetBoolean());
+        Assert.Equal(0, host.Application.Documents.Count);
     }
 }

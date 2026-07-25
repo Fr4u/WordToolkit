@@ -611,7 +611,7 @@ internal static class MathMarkupToUnicodeMath
                     normalizeDifferential
                 ),
             "r" => ConvertOmmlRun(element, normalizeDifferential),
-            "f" => $"({OmmlContainer(element, "num", depth)})/({OmmlContainer(element, "den", depth)})",
+            "f" => ConvertOmmlFraction(element, depth),
             "sSup" => $"{ParenthesizeBase(OmmlContainer(element, "e", depth))}^({OmmlContainer(element, "sup", depth)})",
             "sSub" => $"{ParenthesizeBase(OmmlContainer(element, "e", depth))}_({OmmlContainer(element, "sub", depth)})",
             "sSubSup" =>
@@ -832,7 +832,32 @@ internal static class MathMarkupToUnicodeMath
         var properties = Child(element, "dPr");
         var begin = properties is null ? "(" : ReadVal(Child(properties, "begChr"), "(");
         var end = properties is null ? ")" : ReadVal(Child(properties, "endChr"), ")");
-        return $"{CleanLeaf(begin)}{OmmlContainer(element, "e", depth)}{CleanLeaf(end)}";
+        var bodyElement = Child(element, "e");
+        var body = bodyElement is null ? "" : OmmlSequence(bodyElement.Elements(), depth + 1);
+        if (
+            begin == "("
+            && end == ")"
+            && bodyElement is not null
+            && IsSingleNoBarFraction(bodyElement)
+        )
+        {
+            return body;
+        }
+        return $"{CleanLeaf(begin)}{body}{CleanLeaf(end)}";
+    }
+
+    private static bool IsSingleNoBarFraction(XElement container)
+    {
+        var children = container.Elements()
+            .Where(element => !element.Name.LocalName.EndsWith("Pr", StringComparison.Ordinal))
+            .ToArray();
+        if (children.Length != 1 || !IsOfficeMathElement(children[0], "f"))
+        {
+            return false;
+        }
+        var properties = Child(children[0], "fPr");
+        return properties is not null
+            && ReadVal(Child(properties, "type"), "bar") == "noBar";
     }
 
     private static string ConvertOmmlFunction(XElement element, int depth)
@@ -882,6 +907,19 @@ internal static class MathMarkupToUnicodeMath
         return function.Length > 0
             ? ApplyAccent(body, function)
             : $"{ParenthesizeBase(body)}^({CleanLeaf(character)})";
+    }
+
+    private static string ConvertOmmlFraction(XElement element, int depth)
+    {
+        var properties = Child(element, "fPr");
+        var fractionType = properties is null
+            ? "bar"
+            : ReadVal(Child(properties, "type"), "bar");
+        var numerator = OmmlContainer(element, "num", depth);
+        var denominator = OmmlContainer(element, "den", depth);
+        return fractionType == "noBar"
+            ? $"({numerator}¦{denominator})"
+            : $"({numerator})/({denominator})";
     }
 
     private static string ApplyAccent(string body, string function)

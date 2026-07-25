@@ -1,4 +1,8 @@
 using System.Text.Json;
+using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
+using WordToolkit.Engine.Operations;
 using WordToolkit.Native.Protocol;
 using WordToolkit.Native.Word;
 
@@ -121,6 +125,124 @@ public sealed class WordLifecycleServiceTests
                 0,
                 host.Application.Documents.OpenedDocument.CloseSaveOption
             );
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task HybridPublicationRequiresExactValidatedFingerprintAndOpensNewIdentity()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"wordtoolkit-hybrid-{Guid.NewGuid():N}"
+        );
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, "verified.docx");
+        using (var package = WordprocessingDocument.Create(
+            path,
+            WordprocessingDocumentType.Document
+        ))
+        {
+            var main = package.AddMainDocumentPart();
+            main.Document = new Document(
+                new Body(new Paragraph(new Run(new Text("verified"))))
+            );
+            main.Document.Save();
+        }
+        try
+        {
+            var fingerprint = new InspectWordPackageOperation()
+                .Execute(new InspectWordPackageRequest(path))
+                .PackageFingerprint;
+            await using var host = new LifecycleFakeHost();
+            var service = new WordLiveService(host);
+            using var arguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(
+                    new
+                    {
+                        local_path = path,
+                        expected_package_fingerprint = fingerprint,
+                        publication_mode = "open_as_new_document",
+                        visible = false,
+                        activate = true,
+                    }
+                )
+            );
+
+            var result = await service.CallAsync(
+                "publish_ooxml_package_to_live_word",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            using var resultJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(result, JsonDefaults.Compact)
+            );
+            var data = resultJson.RootElement;
+
+            Assert.True(data.GetProperty("opened_as_new_document").GetBoolean());
+            Assert.False(data.GetProperty("connected_document_replaced").GetBoolean());
+            Assert.Equal(fingerprint, data.GetProperty("package_fingerprint").GetString());
+            Assert.True(
+                data.GetProperty("offline_validation")
+                    .GetProperty("microsoft_open_xml_sdk_valid")
+                    .GetBoolean()
+            );
+            Assert.Equal(3, host.Application.Documents.AutomationSecurityDuringOpen);
+            Assert.False(host.Application.Documents.UpdateLinksAtOpenDuringOpen);
+            Assert.True(host.LaunchIfMissing);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task HybridPublicationRejectsStaleFingerprintBeforeWordIsTouched()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"wordtoolkit-hybrid-stale-{Guid.NewGuid():N}"
+        );
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, "verified.docx");
+        using (var package = WordprocessingDocument.Create(
+            path,
+            WordprocessingDocumentType.Document
+        ))
+        {
+            var main = package.AddMainDocumentPart();
+            main.Document = new Document(new Body(new Paragraph()));
+            main.Document.Save();
+        }
+        try
+        {
+            await using var host = new LifecycleFakeHost();
+            var service = new WordLiveService(host);
+            using var arguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(
+                    new
+                    {
+                        local_path = path,
+                        expected_package_fingerprint = new string('0', 64),
+                    }
+                )
+            );
+
+            var error = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "publish_ooxml_package_to_live_word",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+
+            Assert.Equal("VERSION_CONFLICT", error.ErrorCode);
+            Assert.False(host.LaunchIfMissing);
+            Assert.Equal(0, host.Application.Documents.Count);
         }
         finally
         {

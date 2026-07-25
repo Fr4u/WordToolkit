@@ -1,5 +1,56 @@
 # Stage results
 
+## WordToolkit 0.41.0 equation truthfulness, point update and hybrid publication — 2026-07-26
+
+- Unified equation preflight with the live mutation path. The default mode now creates
+  one invisible unsaved Word scratch document and runs the same native BuildUp, style
+  rewrite, OMML readback and semantic verification used by
+  `apply_live_word_operations`. Scratch cleanup and restoration of the previous Word
+  state are mandatory. The explicitly cheaper `conversion_only` mode reports
+  `valid: null`, `conversion_valid: true` and
+  `native_execution_verified: false`; it can no longer pretend that conversion alone
+  proves Word acceptance.
+- Added semantics-preserving normalization for common LaTeX dialect edges:
+  `\binom{n}{k}` becomes Word's native no-bar stack rather than a matrix, `\dots`
+  becomes an ellipsis, and function powers such as `\sin^4 x` apply to the complete
+  function value. Word's extra delimiter around a no-bar stack is normalized during
+  OMML readback instead of becoming a false semantic failure.
+- Replaced the bitwise prepublication drift gate with stable document evidence. Raw Flat
+  OPC, story and range hashes remain diagnostics, while semantic package hash, visible
+  text, exact range boundaries and structural object counts decide whether the target
+  actually changed. Volatile-only Word rewrites keep the original staging failure and do
+  not quarantine the handle; proven semantic or structural drift still returns
+  `STAGING_TARGET_DRIFT` before publication.
+- Added `inspect_live_word_equations` and `update_live_word_equation`. Inspection issues
+  one-time version-bound tokens tied to the one-based OMath index, exact range, semantic
+  OMML hash and surrounding context. Update stages and verifies exactly one replacement,
+  publishes it in one custom Undo record, advances `live_version` once and rejects every
+  stale token.
+- Added fingerprint-bound `publish_ooxml_package_to_live_word`. It accepts only a valid
+  Word package with zero Microsoft Open XML SDK errors, disables macros and link updates,
+  rechecks the source hash after opening and returns a new live identity. Its only honest
+  mode is `open_as_new_document`; it does not claim an atomic in-place identity swap that
+  Word does not expose.
+- Full local gates pass **636 Engine**, **482 Native** and **1,313 Python tests**, with
+  16 intentional Python skips. Ruff and mypy are clean, four .NET format verification
+  passes are clean, all local Draft 2020-12 schemas validate, generated remote schemas
+  have no drift and the standalone Open XML SDK validator builds with zero warnings and
+  errors. Every .NET command used pinned SDK
+  `C:\Users\Admin\.dotnet8\dotnet.exe` 8.0.423.
+- Two gated real-Word tests passed. The first natively preflighted binomial, ellipsis,
+  trigonometric powers and mathematical text, inserted one equation, replaced it by token
+  without changing the OMath count, advanced version `0 -> 1 -> 2` and rejected the stale
+  token. The second opened an independently built, SDK-valid DOCX as a new live document
+  and proved the source SHA-256 unchanged.
+- Two self-contained win-x64 builds produced byte-identical 196-file, 88,268,183-byte
+  trees and byte-identical 37,079,676-byte ZIPs at SHA-256
+  `791e1ef1ea3390107fcf1c40a8e3c44793d784140442c1818312c1da2c6b6853`.
+  The installed and enabled personal plugin is
+  `0.41.0+codex.20260726004424`; its source and cache match the packaged tree by path,
+  length and hash. Installed discovery reports 125 actions, 15 tools and 36 complete
+  metadata contracts. The exact installed executable repeated the four-equation native
+  preflight successfully and shut Word down explicitly.
+
 ## WordToolkit 0.40.0 presentation snapshot and authoritative fixed rendering — 2026-07-25
 
 - Added immutable `WordPresentationSnapshot` as the shared input for semantic HTML and

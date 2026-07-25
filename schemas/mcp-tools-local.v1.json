@@ -8,6 +8,7 @@
       "start_word_application",
       "create_live_word_document",
       "open_live_word_document",
+      "publish_ooxml_package_to_live_word",
       "connect_live_word_document",
       "inspect_ooxml_package",
       "inspect_ooxml_encryption",
@@ -119,6 +120,8 @@
       "insert_live_word_equation",
       "insert_live_word_equations_batch",
       "preflight_live_word_equations",
+      "inspect_live_word_equations",
+      "update_live_word_equation",
       "apply_live_word_operations",
       "validate_live_word_document",
       "export_live_word_pdf",
@@ -14110,8 +14113,9 @@
     {
       "name": "preflight_live_word_equations",
       "title": "Preflight equations for Microsoft Word",
-      "description": "Securely convert up to 200 LaTeX, UnicodeMath, Presentation MathML, or OMML equations before Word mutation. Compact mode returns only lengths, fingerprints, style-region counts and readback requirements.",
+      "description": "Preflight up to 200 LaTeX, UnicodeMath, Presentation MathML, or OMML equations. The default native mode creates one invisible unsaved scratch document, runs the same OMath BuildUp, style rewrite and bounded OMML readback used by live apply, then proves cleanup and restoration of Word state. conversion_only performs deterministic conversion without Word but never returns valid:true. Compact mode returns only bounded fingerprints and proof flags.",
       "inputSchema": {
+        "additionalProperties": false,
         "properties": {
           "equations": {
             "items": {
@@ -14151,6 +14155,15 @@
             "minItems": 1,
             "title": "Equations",
             "type": "array"
+          },
+          "validation_mode": {
+            "default": "native",
+            "description": "native executes exact Microsoft Word OMath BuildUp and readback in an invisible disposable document. conversion_only only converts syntax and returns valid:null because it cannot prove native acceptance.",
+            "enum": [
+              "native",
+              "conversion_only"
+            ],
+            "type": "string"
           }
         },
         "required": [
@@ -14160,9 +14173,123 @@
         "type": "object"
       },
       "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "inspect_live_word_equations",
+      "title": "Inspect native equations in open Microsoft Word",
+      "description": "List a bounded page of native OMath objects in the connected document and issue a fresh version-bound equation_token for each result. Tokens bind the one-based equation index, exact range, stable semantic OMML fingerprint and surrounding context. Raw OMML is never returned.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "live_document_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "limit": {
+            "default": 50,
+            "minimum": 1,
+            "maximum": 200,
+            "type": "integer"
+          },
+          "include_text_preview": {
+            "default": false,
+            "description": "Return at most 256 characters of equation text. Leave false for token-lean inspection.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "live_document_id"
+        ],
+        "type": "object"
+      },
+      "annotations": {
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "update_live_word_equation",
+      "title": "Safely replace one native equation in open Microsoft Word",
+      "description": "Replace exactly one OMath selected by a fresh inspect_live_word_equations token. The action requires the matching live version, one-based index, exact range, stable semantic OMML identity and surrounding context; stages and verifies the replacement in an isolated Word document; publishes it in one custom Undo record; and invalidates the consumed token.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "live_document_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "expected_version": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "equation_index": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "equation_token": {
+            "minLength": 64,
+            "maxLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "value": {
+            "minLength": 1,
+            "maxLength": 100000,
+            "type": "string"
+          },
+          "input_format": {
+            "default": "latex",
+            "enum": [
+              "latex",
+              "unicodemath",
+              "mathml",
+              "omml"
+            ],
+            "type": "string"
+          },
+          "display": {
+            "default": true,
+            "type": "boolean"
+          },
+          "verify_readback": {
+            "default": false,
+            "description": "Force bounded OMML readback for a low-risk formula; sensitive structures enable it automatically.",
+            "type": "boolean"
+          },
+          "activate": {
+            "default": true,
+            "type": "boolean"
+          },
+          "optimize_screen_updates": {
+            "default": true,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "live_document_id",
+          "expected_version",
+          "equation_index",
+          "equation_token",
+          "value"
+        ],
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
         "openWorldHint": true
       }
     },
@@ -14361,6 +14488,64 @@
         "readOnlyHint": false,
         "destructiveHint": false,
         "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "publish_ooxml_package_to_live_word",
+      "title": "Open a verified offline OOXML package as a new live Word document",
+      "description": "Publish a complete offline-built DOCX, DOCM, DOTX, or DOTM package by binding to its exact package fingerprint, requiring bounded OPC inspection and zero Microsoft Open XML SDK errors, then opening it as one new Word document with macros disabled and external-link updates suppressed. This transfers the whole package without partially replacing any existing live document. Word does not expose an atomic full-package replacement of an existing document identity, so open_as_new_document is the only supported mode.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "local_path": {
+            "minLength": 1,
+            "maxLength": 32767,
+            "type": "string"
+          },
+          "expected_package_fingerprint": {
+            "minLength": 64,
+            "maxLength": 64,
+            "pattern": "^[0-9A-Fa-f]{64}$",
+            "type": "string"
+          },
+          "publication_mode": {
+            "const": "open_as_new_document",
+            "default": "open_as_new_document",
+            "type": "string"
+          },
+          "read_only": {
+            "default": false,
+            "type": "boolean"
+          },
+          "visible": {
+            "default": true,
+            "type": "boolean"
+          },
+          "activate": {
+            "default": true,
+            "type": "boolean"
+          },
+          "allow_macro_enabled": {
+            "default": false,
+            "description": "Required for DOCM or DOTM. Macros remain disabled while Word opens the package.",
+            "type": "boolean"
+          },
+          "launch_if_needed": {
+            "default": true,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "local_path",
+          "expected_package_fingerprint"
+        ],
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
         "openWorldHint": true
       }
     },

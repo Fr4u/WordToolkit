@@ -410,15 +410,15 @@ internal sealed partial class WordLiveService
             return;
         }
 
-        QuarantineLiveDocument(record);
+        QuarantineLiveDocument(record, "STAGING_TARGET_DRIFT");
         var originalErrorCode = originalFailure is NativeToolException nativeFailure
             ? nativeFailure.ErrorCode
             : originalFailure is null
                 ? "STAGING_TARGET_DRIFT"
                 : "EXTERNAL_TOOL_FAILED";
         throw new NativeToolException(
-            "ROLLBACK_FAILED",
-            "The target Word document changed during isolated staging; no safe Undo record exists, so the live handle was quarantined",
+            "STAGING_TARGET_DRIFT",
+            "The semantic content or structure of the target Word document changed during isolated staging; publication was refused and the live handle was quarantined",
             new
             {
                 live_document_id = record.Id,
@@ -438,41 +438,18 @@ internal sealed partial class WordLiveService
         );
     }
 
-    private static string[] PrePublicationDifferences(
+    internal static string[] PrePublicationDifferences(
         LiveRollbackSnapshot baseline,
         LiveRollbackSnapshot observed
     )
     {
-        var differences = baseline.Differences(observed).ToList();
-        if (
-            string.Equals(
-                baseline.DocumentWordOpenXmlSha256,
-                observed.DocumentWordOpenXmlSha256,
-                StringComparison.Ordinal
-            )
-            && string.Equals(
-                baseline.ContentTextSha256,
-                observed.ContentTextSha256,
-                StringComparison.Ordinal
-            )
-            && string.Equals(
-                baseline.TargetTextSha256,
-                observed.TargetTextSha256,
-                StringComparison.Ordinal
-            )
-            && string.Equals(
-                baseline.ContextTextSha256,
-                observed.ContextTextSha256,
-                StringComparison.Ordinal
-            )
-        )
-        {
-            differences.Remove("content_word_open_xml_sha256");
-            differences.Remove("target_word_open_xml_sha256");
-            differences.Remove("context_word_open_xml_sha256");
-            differences.Remove("story_graph_sha256");
-        }
-        return differences.ToArray();
+        // Word may rewrite volatile package/session XML while an isolated staging
+        // document is opened and closed. Raw Flat OPC and range hashes therefore
+        // cannot decide whether the user's document changed. Publication is gated
+        // by the stable semantic package hash, visible text, exact boundaries and
+        // object counts instead. Rollback verification remains stricter after an
+        // actual target mutation.
+        return baseline.RecoveryDifferences(observed).ToArray();
     }
 
     private static BuiltEquationResult VerifyPublishedEquation(
