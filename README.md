@@ -35,6 +35,13 @@ transforms, preset/custom paths, line/fill/effect kinds and text-flow declaratio
 keeping formulas inert and making no rendered-geometry claim. See [the figure/caption
 contract](docs/FIGURE-CAPTION-GRAPH.md).
 
+The saved-package core now also exposes a typed heading outline. It resolves direct
+paragraph levels, exact paragraph-style inheritance and document defaults without
+guessing from localized style names, retains one classification per paragraph across
+Word stories and builds separate source-linked hierarchies. Text, style identifiers and
+source locations are redacted by default. See [the heading-outline evidence and
+contract](docs/RESEARCH-OOXML-HEADING-OUTLINE-2026.md).
+
 The separate live `inspect_live_word_drawing_layout` action asks the connected Microsoft
 Word build to execute pagination and project its object-model result as bounded shapes,
 inline objects, anchors, reference frames, wrapping, group members and optional SmartArt
@@ -147,7 +154,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 51 tested Word Live actions plus 48 standalone,
+The runtime implements 51 tested Word Live actions plus 49 standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus four token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -174,7 +181,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 120-action schema set into model context. The normative shape is
+not flatten the 121-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Added a typed source-linked heading-outline graph with one resolution record per
+  projected paragraph, exact direct/default/style inheritance precedence, explicit
+  body-text value `9`, per-story hierarchy, revision/MCE exclusion and bounded issues.
+  Localized style names are never classification evidence, malformed higher-precedence
+  declarations never fall through, and heading text is not stored in the public graph.
+- Added direct Engine inspection, strict `heading-outline-package` CLI and lazy
+  `inspect_ooxml_heading_outline` MCP under a closed 1.0 contract. Main-story hierarchy
+  metadata is the token-lean default; text, styles and source locations are separately
+  gated. The action never opens Word, follows external targets, mutates a package or
+  returns raw XML. The linter now consumes the same graph instead of a private resolver.
+
 - Added a bounded typed OPC relationship-usage graph and guarded relationship repair.
   It distinguishes referenced, implicit, unknown, duplicate-ID, invalid-owner and orphan
   states while scanning every retained Markup Compatibility branch. One reviewed atomic
@@ -13,20 +24,22 @@
   signatures, requires Microsoft Open XML validation with no new errors, requires an
   explicit Boolean for external relationship removal and keeps an atomic backup by
   default. Responses never return external targets or raw XML.
-- Extended the linter from 21 to 23 rules with typed unused-explicit-relationship and
-  orphan-relationship-part findings. The catalog now contains 120 actions and 34 complete
-  metadata contracts; the explicit metadata gap remains 86.
-- Verified 606 Engine tests, 438 Native tests and 1,313 Python passes with 16 intentional
+- Extended the linter from 21 to 25 rules with typed unused-explicit-relationship,
+  orphan-relationship-part, heading-outline diagnostic and empty-heading findings. The
+  catalog now contains 121 actions and 35 complete metadata contracts; the explicit
+  metadata gap remains 86.
+- Verified 621 Engine tests, 442 Native tests and 1,313 Python passes with 16 intentional
   skips on pinned SDK 8.0.423; Ruff, 29-module mypy, four .NET format gates, schema export
   and the standalone validator are clean. A forced Word 16.0 build 16.0.20131 oracle
-  opened the repaired package read-only with exact text, zero hyperlinks and no file-hash
-  change after close.
-- Packaged and enabled `0.39.0+codex.20260725023344`. Two builds produced identical
-  196-file, 87,857,714-byte trees and identical 36,958,852-byte ZIPs at SHA-256
-  `5f770e0a61e6a4755a910a3eb587c425b5af888176cfa0e48386f05db90f390d`.
+  matched engine heading levels across main/header stories, opened read-only with repair
+  disabled and left the file hash unchanged.
+- Packaged and enabled `0.39.0+codex.20260725034031`. Two builds produced identical
+  196-file, 87,958,762-byte trees and identical 36,987,385-byte ZIPs at SHA-256
+  `8742e1ef0231d8830d87a148ea05e61fd460f99f68173d287973019276e2c6d7`.
   Build, persistent marketplace source and active cache have zero file differences;
-  installed discovery reports 120 actions and 34 complete contracts, and an installed
-  lazy-MCP relationship inspection passed without target/XML disclosure or Word launch.
+  installed discovery reports 121 actions and 35 complete contracts. Installed lazy-MCP
+  heading inspection returned 4 metadata-only headings with no text/XML/mutation/Word
+  launch, and the Word process set was unchanged.
 
 - Added transactional saved-package numbering restart through direct Engine,
   `numbering-repair-package` CLI and lazy `plan_ooxml_numbering_repair` /

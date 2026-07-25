@@ -1,5 +1,49 @@
 # Stage results
 
+## Typed heading and outline graph — 2026-07-25
+
+- Added one source-linked outline resolution for every projected paragraph. Direct
+  `w:outlineLvl`, exact base-first paragraph-style inheritance and document defaults are
+  resolved without localized-name heuristics. Stored values 0–8 map to heading levels
+  1–9; value 9 and an absent effective declaration are body text, but only a declared
+  source receives provenance. Invalid higher-precedence markup and broken style chains
+  remain unresolved.
+- Added per-story nearest-shallower heading hierarchy, stable semantic paragraph IDs,
+  explicit skipped-level/empty-heading/revision-MCE diagnostics and independent privacy
+  gates for title preview, style IDs and source locations. The graph caches inherited
+  resolutions and never stores or hashes heading text in its public model.
+- Added `outline_parent` and `outline_level_derived_from_style` edges to the unified
+  dependency graph, two linter rules, direct Engine contract, strict
+  `heading-outline-package` CLI and lazy `inspect_ooxml_heading_outline` MCP. The 1.0
+  input/output schemas are closed, default responses contain no heading text or raw XML,
+  and `stylesWithEffects` plus revision/MCE view selection remain named coverage gaps.
+- The nine-document golden corpus changed only where the new edges exist: POI styles
+  gained 3 style-authority and 2 hierarchy edges; the real hyperlink/footnote fixture
+  gained 8 and 5. The other seven dependency snapshots remained byte-for-byte equal.
+- Full verification passed 621/621 Engine, 442/442 Native and 1,313/1,329 Python tests
+  with 16 intentional environment/model skips. Ruff is clean, mypy passes 29 maintained
+  modules, four .NET format gates are clean, remote schema generation has no drift and
+  the standalone Open XML validator builds with zero warnings. Every .NET command used
+  pinned SDK `C:\Users\Admin\.dotnet8\dotnet.exe` 8.0.423 or a subprocess with the same
+  pinned `DOTNET_ROOT` and `PATH`.
+- A Microsoft 365 Open XML-valid fixture matched Word 16.0 build 16.0.20131 for levels
+  1, 2, 9 and body-text 10 across main and primary-header stories. Word opened read-only
+  with repair disabled and the file SHA-256 remained unchanged after close.
+- Two independent builds produced identical 196-file, 87,958,762-byte trees and
+  identical 36,987,385-byte ZIPs at SHA-256
+  `8742e1ef0231d8830d87a148ea05e61fd460f99f68173d287973019276e2c6d7`.
+  Executable, runtime assembly, Engine and Open XML SDK adapter hashes are
+  `96455d4d20869893b47154b8c87120abd7f7c23fd4debb03d4a420e81416192a`,
+  `4e7c7674db39f861267f97b479bb263963d8b66b62197e404861cb4a09d99f16`,
+  `1cb65fd54728c31daf770f1d6c3a61816cf77be5a9e0097f0e861b939459b759` and
+  `d936ba1760b8c03399227644bcf936d53c9cb04acbe75e376e10df72a89ade9d`.
+- Installed and enabled `0.39.0+codex.20260725034031`. Build, persistent personal source
+  and active cache each contain the same 196 files with zero path/length/hash
+  differences. Installed discovery reports 121 actions, 15 exposed tools and 35 complete
+  metadata contracts. Installed action inspection and execution returned the exact 1.0
+  contract, four metadata-only headings, no text/XML/mutation/Word launch and no change
+  to the existing Word process set.
+
 ## Guarded OPC relationship inspection and repair — 2026-07-25
 
 - Added a bounded typed relationship-usage graph that parses each XML owner once, scans

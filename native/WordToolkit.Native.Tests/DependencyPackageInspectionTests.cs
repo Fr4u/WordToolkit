@@ -95,6 +95,15 @@ public sealed class DependencyPackageInspectionTests
                     .GetProperty("smartart_diagrams")
                     .GetBoolean()
             );
+            Assert.True(
+                summary.GetProperty("coverage")
+                    .GetProperty("headings_and_outline")
+                    .GetBoolean()
+            );
+            Assert.True(
+                summary.GetProperty("source_diagnostics")
+                    .TryGetProperty("headings_and_outline", out _)
+            );
             Assert.DoesNotContain(
                 "smartart_diagrams",
                 summary.GetProperty("coverage")

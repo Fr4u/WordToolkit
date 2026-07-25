@@ -106,6 +106,8 @@ public enum WordDependencyEdgeKind
     DiagramContainsPoint,
     DiagramConnectsPoints,
     DiagramUsesPart,
+    OutlineParent,
+    OutlineLevelDerivedFromStyle,
 }
 
 public enum WordDependencyIssueSeverity
@@ -167,6 +169,7 @@ public sealed record WordDependencyCoverage(
     bool ActiveContent,
     bool DocumentPropertiesAndVariables,
     bool SmartArtDiagrams,
+    bool HeadingsAndOutline,
     IReadOnlyList<string> ExplicitlyUnmodeledDomains
 );
 
@@ -290,7 +293,8 @@ public sealed class WordDependencyGraph
         int activeContentIssueCount,
         int documentPropertyIssueCount,
         int settingsIssueCount,
-        int diagramIssueCount
+        int diagramIssueCount,
+        int outlineIssueCount
     )
     {
         var nodeArray = nodes as WordDependencyNode[] ?? nodes.ToArray();
@@ -317,6 +321,7 @@ public sealed class WordDependencyGraph
         DocumentPropertyIssueCount = documentPropertyIssueCount;
         SettingsIssueCount = settingsIssueCount;
         DiagramIssueCount = diagramIssueCount;
+        OutlineIssueCount = outlineIssueCount;
         var nodeIndexes = new Dictionary<string, int>(nodeArray.Length, StringComparer.Ordinal);
         for (var index = 0; index < nodeArray.Length; index++)
         {
@@ -390,6 +395,8 @@ public sealed class WordDependencyGraph
     public int SettingsIssueCount { get; }
 
     public int DiagramIssueCount { get; }
+
+    public int OutlineIssueCount { get; }
 
     public bool TryGetNode(string nodeId, out WordDependencyNode? node)
     {
@@ -906,6 +913,14 @@ public sealed class WordDependencyGraphBuilder
             package,
             cancellationToken
         );
+        var outline = (_resourceLease is null
+            ? new WordOutlineGraphBuilder()
+            : new WordOutlineGraphBuilder(null, _resourceLease)).Build(
+            package,
+            semanticDocument,
+            styles,
+            cancellationToken
+        );
         EnsureFingerprint(
             package.Fingerprint,
             semanticDocument.PackageFingerprint,
@@ -921,7 +936,8 @@ public sealed class WordDependencyGraphBuilder
             activeContent.PackageFingerprint,
             documentProperties.PackageFingerprint,
             settings.PackageFingerprint,
-            diagrams.PackageFingerprint
+            diagrams.PackageFingerprint,
+            outline.PackageFingerprint
         );
 
         var state = new BuildState(_options, _resourceLease);
@@ -1045,6 +1061,14 @@ public sealed class WordDependencyGraphBuilder
             reachableParts,
             cancellationToken
         );
+        AddOutlineDependencies(
+            state,
+            semanticDocument,
+            styles,
+            outline,
+            reachableParts,
+            cancellationToken
+        );
 
         var (nodes, edges, issues, resourceUsage) = state.Materialize();
         return new WordDependencyGraph(
@@ -1068,6 +1092,7 @@ public sealed class WordDependencyGraphBuilder
                 ActiveContent: true,
                 DocumentPropertiesAndVariables: true,
                 SmartArtDiagrams: true,
+                HeadingsAndOutline: true,
                 ExplicitlyUnmodeledDomains
             ),
             resourceUsage,
@@ -1086,9 +1111,142 @@ public sealed class WordDependencyGraphBuilder
             activeContent.Issues.Count,
             documentProperties.Issues.Count,
             settings.Issues.Count,
-            diagrams.Issues.Count
+            diagrams.Issues.Count,
+            outline.Issues.Count
         );
     }
+
+    private static void AddOutlineDependencies(
+        BuildState state,
+        WordSemanticDocument semanticDocument,
+        WordStyleGraph styles,
+        WordOutlineGraph outline,
+        IReadOnlySet<string> reachableParts,
+        CancellationToken cancellationToken
+    )
+    {
+        var semanticById = semanticDocument.Nodes.ToDictionary(node => node.Id);
+        var stylesReachable = styles.StylesPartUri is { } stylesPartUri
+            && reachableParts.Contains(stylesPartUri);
+        foreach (var paragraph in outline.Paragraphs)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!semanticById.TryGetValue(paragraph.ParagraphNodeId, out var semantic))
+            {
+                throw new WordDependencyProjectionException(
+                    "Outline graph refers to a missing semantic paragraph."
+                );
+            }
+            var paragraphNodeId = SemanticNode(
+                state,
+                semantic,
+                reachableParts.Contains(semantic.SourcePartUri)
+            );
+            if (paragraph.LevelSourceStyleId is { } styleId)
+            {
+                var resolved = styles.TryGetStyle(styleId, out var style)
+                    && style is not null
+                    && style.Type == WordStyleType.Paragraph;
+                var styleNodeId = StyleNode(
+                    state,
+                    styles,
+                    styleId,
+                    resolved,
+                    stylesReachable
+                );
+                var edgeId = state.AddEdge(
+                    WordDependencyEdgeKind.OutlineLevelDerivedFromStyle,
+                    paragraphNodeId,
+                    styleNodeId,
+                    resolved,
+                    isExternal: false,
+                    qualifier: paragraph.Status == WordOutlineResolutionStatus.Heading
+                        ? $"level:{paragraph.Level}"
+                        : "body_text",
+                    partUri: semantic.SourcePartUri,
+                    sourceElementOrdinal: semantic.SourceElementOrdinal
+                );
+                if (!resolved)
+                {
+                    state.AddIssue(
+                        "WDG060",
+                        WordDependencyIssueSeverity.Error,
+                        "An outline level refers to a missing or incompatible paragraph style.",
+                        nodeId: paragraphNodeId,
+                        edgeId: edgeId,
+                        partUri: semantic.SourcePartUri,
+                        sourceElementOrdinal: semantic.SourceElementOrdinal
+                    );
+                }
+            }
+
+            if (paragraph.ParentHeadingParagraphNodeId is not { } parentId)
+            {
+                continue;
+            }
+            if (!semanticById.TryGetValue(parentId, out var parent))
+            {
+                throw new WordDependencyProjectionException(
+                    "Outline hierarchy refers to a missing parent paragraph."
+                );
+            }
+            var parentNodeId = SemanticNode(
+                state,
+                parent,
+                reachableParts.Contains(parent.SourcePartUri)
+            );
+            state.AddEdge(
+                WordDependencyEdgeKind.OutlineParent,
+                parentNodeId,
+                paragraphNodeId,
+                isResolved: true,
+                isExternal: false,
+                qualifier: paragraph.Level?.ToString(CultureInfo.InvariantCulture),
+                partUri: semantic.SourcePartUri,
+                sourceElementOrdinal: semantic.SourceElementOrdinal
+            );
+        }
+
+        foreach (var issue in outline.Issues)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string? nodeId = null;
+            WordSemanticNode? issueParagraph = null;
+            if (
+                issue.ParagraphNodeId is { } paragraphId
+                && semanticById.TryGetValue(paragraphId, out var paragraph)
+            )
+            {
+                issueParagraph = paragraph;
+                nodeId = SemanticNode(
+                    state,
+                    paragraph,
+                    reachableParts.Contains(paragraph.SourcePartUri)
+                );
+            }
+            state.AddIssue(
+                "WDG061",
+                issue.Severity switch
+                {
+                    WordOutlineIssueSeverity.Error => WordDependencyIssueSeverity.Error,
+                    WordOutlineIssueSeverity.Warning => WordDependencyIssueSeverity.Warning,
+                    _ => WordDependencyIssueSeverity.Info,
+                },
+                $"{issue.Code}: {PublicOutlineIssueMessage(issue)}",
+                nodeId: nodeId,
+                partUri: issueParagraph?.SourcePartUri,
+                sourceElementOrdinal: issueParagraph?.SourceElementOrdinal
+            );
+        }
+    }
+
+    private static string PublicOutlineIssueMessage(WordOutlineIssue issue) =>
+        issue.Code switch
+        {
+            "OUTLINE_LEVEL_UNRESOLVED" =>
+                "A paragraph outline level could not be resolved from valid direct, style, or document-default evidence.",
+            _ => issue.Message,
+        };
 
     private static DocumentMetadataDependencyNodes AddDocumentPropertyDependencies(
         BuildState state,

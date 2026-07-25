@@ -241,7 +241,7 @@ public sealed class WordDocumentLinterTests
     public void RuleCatalogIsUniqueAndStable()
     {
         var rules = WordDocumentLinter.RuleCatalog;
-        Assert.Equal(23, rules.Count);
+        Assert.Equal(25, rules.Count);
         Assert.Equal(rules.Count, rules.Select(item => item.Id).Distinct().Count());
         Assert.All(rules, item => Assert.StartsWith("WTL_", item.Id));
         Assert.Contains(rules, item => item.Pack == WordLintRulePack.Core);

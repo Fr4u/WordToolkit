@@ -347,7 +347,9 @@ public sealed class WordDocumentLinter
     private const string ExternalRelationship =
         "WTL_SECURITY_EXTERNAL_RELATIONSHIP";
     private const string HiddenText = "WTL_SECURITY_HIDDEN_TEXT";
+    private const string OutlineGraphDiagnostic = "WTL_OUTLINE_GRAPH_DIAGNOSTIC";
     private const string HeadingOrder = "WTL_ACCESSIBILITY_HEADING_ORDER";
+    private const string HeadingEmpty = "WTL_ACCESSIBILITY_HEADING_EMPTY";
     private const string DrawingAltText = "WTL_ACCESSIBILITY_DRAWING_ALT_TEXT";
     private const string TableHeader = "WTL_ACCESSIBILITY_TABLE_HEADER";
     private const string DocumentTitle = "WTL_ACCESSIBILITY_DOCUMENT_TITLE";
@@ -393,8 +395,12 @@ public sealed class WordDocumentLinter
                     "Report external OPC relationships without following their targets."),
                 new(HiddenText, WordLintRulePack.Security, WordLintCategory.Security,
                     "Report directly hidden run content without returning its text."),
+                new(OutlineGraphDiagnostic, WordLintRulePack.Core, WordLintCategory.Semantic,
+                    "Surface unresolved heading-level, revision-view, and markup-compatibility evidence."),
                 new(HeadingOrder, WordLintRulePack.Accessibility, WordLintCategory.Accessibility,
                     "Report heading outlines that start below level one or skip a level."),
+                new(HeadingEmpty, WordLintRulePack.Accessibility, WordLintCategory.Accessibility,
+                    "Report exact outline headings with no non-whitespace text."),
                 new(DrawingAltText, WordLintRulePack.Accessibility, WordLintCategory.Accessibility,
                     "Report DrawingML or VML drawings without bounded alternative text metadata."),
                 new(TableHeader, WordLintRulePack.Accessibility, WordLintCategory.Accessibility,
@@ -673,12 +679,33 @@ public sealed class WordDocumentLinter
             tables,
             cancellationToken
         );
+        WordOutlineGraph? outline = null;
+        if (state.Enabled(OutlineGraphDiagnostic)
+            || state.Enabled(HeadingOrder)
+            || state.Enabled(HeadingEmpty))
+        {
+            try
+            {
+                outline = new WordOutlineGraphBuilder(
+                    new WordOutlineGraphOptions
+                    {
+                        MaxParagraphs = _options.MaxSemanticNodes,
+                        MaxHeadings = _options.MaxSemanticNodes,
+                        MaxIssues = _options.MaxFindings,
+                        MaxXmlPartBytes = _options.MaxSourceXmlPartBytes,
+                    }
+                ).Build(package, semanticDocument, styles, cancellationToken);
+            }
+            catch (WordOutlineLimitException)
+            {
+                sources.AddOmission("heading_outline_analysis_limit");
+            }
+        }
         var headingCount = AddHeadingFindings(
             state,
             sources,
-            semanticDocument.MainPartUri,
-            scannedNodes,
-            styles,
+            semanticDocument,
+            outline,
             cancellationToken
         );
         AddDocumentTitleFinding(state, sources, package, cancellationToken);
@@ -696,6 +723,14 @@ public sealed class WordDocumentLinter
         if (listSequences?.SkippedNumberedParagraphCount > 0)
         {
             explicitlyUnmodeled.Add("numbering_revision_or_mce_view_selection");
+        }
+        if (outline?.SkippedHeadingCount > 0)
+        {
+            explicitlyUnmodeled.Add("heading_revision_or_mce_view_selection");
+        }
+        if (styles.StylesWithEffectsPartUri is not null)
+        {
+            explicitlyUnmodeled.Add("heading_styles_with_effects_word_execution");
         }
         if (listSequences?.Items.Any(item =>
                 item.LabelStatus == WordListLabelStatus.PictureBullet
@@ -1310,76 +1345,105 @@ public sealed class WordDocumentLinter
     private static int AddHeadingFindings(
         LintState state,
         SourceIndex sources,
-        string mainPartUri,
-        IReadOnlyList<WordSemanticNode> nodes,
-        WordStyleGraph styles,
+        WordSemanticDocument semanticDocument,
+        WordOutlineGraph? outline,
         CancellationToken cancellationToken
     )
     {
-        if (!state.Enabled(HeadingOrder))
+        if (outline is null)
         {
             return 0;
         }
-        var headings = new List<(WordSemanticNode Node, int Level)>();
-        foreach (
-            var node in nodes.Where(node =>
-                node.Kind == WordSemanticNodeKind.Paragraph
-                && string.Equals(node.SourcePartUri, mainPartUri, StringComparison.Ordinal)
-            ).OrderBy(node => node.SourceOrder)
-        )
+
+        foreach (var issue in outline.Issues)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var level = OutlineLevel(node, sources, styles);
-            if (level is >= 1 and <= 9)
+            WordSemanticNode? paragraph = null;
+            if (issue.ParagraphNodeId is { } paragraphId)
             {
-                headings.Add((node, level.Value));
+                semanticDocument.TryGetNode(paragraphId, out paragraph);
             }
-        }
-
-        if (headings.Count == 0)
-        {
-            return headings.Count;
-        }
-
-        if (headings[0].Level > 1)
-        {
-            state.Add(
-                HeadingOrder,
-                WordLintSeverity.Warning,
-                WordLintConfidence.High,
-                "The first outline heading starts below level one.",
-                null,
-                "heading",
-                headings[0].Node.Id.Value + "\0start",
-                1,
-                sources.Location(headings[0].Node),
-                ManualFix("normalize_heading_hierarchy")
-            );
-        }
-
-        for (var index = 1; index < headings.Count; index++)
-        {
-            var previous = headings[index - 1];
-            var current = headings[index];
-            if (current.Level <= previous.Level + 1)
+            var isMain = issue.ParagraphNodeId is { } id
+                && outline.TryGetParagraph(id, out var outlineParagraph)
+                && outlineParagraph is not null
+                && outlineParagraph.StoryKind == WordStoryKind.Main;
+            if (
+                state.Enabled(HeadingOrder)
+                && isMain
+                && issue.Code is "OUTLINE_FIRST_LEVEL_SKIPPED" or "OUTLINE_LEVEL_SKIPPED"
+            )
             {
+                state.Add(
+                    HeadingOrder,
+                    WordLintSeverity.Warning,
+                    WordLintConfidence.High,
+                    PublicOutlineIssueMessage(issue),
+                    issue.Code,
+                    "heading",
+                    (issue.ParagraphNodeId?.Value ?? "outline") + "\0" + issue.Code,
+                    issue.PreviousLevel is null
+                        ? 1
+                        : Math.Max(1, issue.Level.GetValueOrDefault() - issue.PreviousLevel.Value),
+                    paragraph is null
+                        ? new WordLintSourceLocation(null, null, null, null, issue.ParagraphNodeId, null)
+                        : sources.Location(paragraph),
+                    ManualFix("normalize_heading_hierarchy")
+                );
                 continue;
             }
-            state.Add(
-                HeadingOrder,
-                WordLintSeverity.Warning,
-                WordLintConfidence.High,
-                "The heading outline skips one or more levels.",
-                null,
-                "heading",
-                current.Node.Id.Value + "\0" + previous.Level + "\0" + current.Level,
-                current.Level - previous.Level,
-                sources.Location(current.Node),
-                ManualFix("normalize_heading_hierarchy")
-            );
+            if (state.Enabled(HeadingEmpty) && isMain && issue.Code == "OUTLINE_EMPTY_HEADING")
+            {
+                state.Add(
+                    HeadingEmpty,
+                    WordLintSeverity.Warning,
+                    WordLintConfidence.Certain,
+                    issue.Message,
+                    issue.Code,
+                    "heading",
+                    (issue.ParagraphNodeId?.Value ?? "outline") + "\0empty",
+                    1,
+                    paragraph is null
+                        ? new WordLintSourceLocation(null, null, null, null, issue.ParagraphNodeId, null)
+                        : sources.Location(paragraph),
+                    ManualFix("provide_heading_text_or_remove_outline_role")
+                );
+                continue;
+            }
+            if (
+                state.Enabled(OutlineGraphDiagnostic)
+                && issue.Code is "OUTLINE_LEVEL_UNRESOLVED" or "OUTLINE_VIEW_AMBIGUOUS"
+            )
+            {
+                state.Add(
+                    OutlineGraphDiagnostic,
+                    issue.Severity == WordOutlineIssueSeverity.Error
+                        ? WordLintSeverity.Error
+                        : WordLintSeverity.Warning,
+                    WordLintConfidence.Certain,
+                    PublicOutlineIssueMessage(issue),
+                    issue.Code,
+                    "paragraph",
+                    (issue.ParagraphNodeId?.Value ?? "outline") + "\0" + issue.Code,
+                    1,
+                    paragraph is null
+                        ? new WordLintSourceLocation(null, null, null, null, issue.ParagraphNodeId, null)
+                        : sources.Location(paragraph),
+                    ManualFix("review_outline_evidence")
+                );
+            }
         }
-        return headings.Count;
+        return outline.Headings.Count(heading =>
+            heading.HierarchyEligible && heading.StoryKind == WordStoryKind.Main
+        );
     }
+
+    private static string PublicOutlineIssueMessage(WordOutlineIssue issue) =>
+        issue.Code switch
+        {
+            "OUTLINE_LEVEL_UNRESOLVED" =>
+                "A paragraph outline level could not be resolved from valid direct, style, or document-default evidence.",
+            _ => issue.Message,
+        };
 
     private static void AddDocumentTitleFinding(
         LintState state,
@@ -1669,52 +1733,6 @@ public sealed class WordDocumentLinter
 
     private static readonly IReadOnlySet<string> RunStructuralProperties =
         new HashSet<string>(["rStyle", "rPrChange"], StringComparer.Ordinal);
-
-    private static int? OutlineLevel(
-        WordSemanticNode node,
-        SourceIndex sources,
-        WordStyleGraph styles
-    )
-    {
-        if (sources.TryElement(node, out var element) && element is not null)
-        {
-            var direct = element.Children
-                .Where(child => IsWordElement(child, "pPr"))
-                .SelectMany(child => child.Children)
-                .FirstOrDefault(child => IsWordElement(child, "outlineLvl"));
-            if (direct is not null && TryWordIntegerAttribute(direct, "val", out var value))
-            {
-                return value == 9 ? null : value + 1;
-            }
-        }
-
-        if (
-            !node.Properties.TryGetValue("style_id", out var styleId)
-            || !styles.TryGetStyle(styleId, out var style)
-            || style is null
-            || !style.InheritanceResolvable
-        )
-        {
-            return null;
-        }
-        int? result = null;
-        foreach (var chainId in style.InheritanceChainStyleIds)
-        {
-            if (
-                styles.TryGetStyle(chainId, out var chainStyle)
-                && chainStyle is not null
-                && chainStyle.ParagraphProperties.Values.TryGetValue(
-                    "outline_level",
-                    out var raw
-                )
-                && int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var value)
-            )
-            {
-                result = value == 9 ? null : value + 1;
-            }
-        }
-        return result;
-    }
 
     private static bool FullyModeled(WordStyleDefinition style) =>
         style.ParagraphProperties.IsFullyModeled

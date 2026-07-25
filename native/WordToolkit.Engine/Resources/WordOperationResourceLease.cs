@@ -20,6 +20,7 @@ public enum WordOperationResourceStage
     Settings,
     DocumentProperties,
     Diagrams,
+    Outline,
     DependencyGraph,
 }
 

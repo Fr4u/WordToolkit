@@ -21,6 +21,7 @@ public sealed class WordDependencyGraphTests
               <w:bookmarkEnd w:id="7"/>
             </w:p>
             <w:p>
+              <w:pPr><w:outlineLvl w:val="1"/></w:pPr>
               <w:r><w:fldChar w:fldCharType="begin"/></w:r>
               <w:r><w:instrText xml:space="preserve"> REF Target \h </w:instrText></w:r>
               <w:r><w:fldChar w:fldCharType="separate"/></w:r>
@@ -35,7 +36,7 @@ public sealed class WordDependencyGraphTests
             stylesXml: """
             <w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
             <w:style w:type="paragraph" w:styleId="Heading1">
-              <w:name w:val="Heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:link w:val="Heading1Char"/>
+              <w:name w:val="Heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:link w:val="Heading1Char"/><w:pPr><w:outlineLvl w:val="0"/></w:pPr>
             </w:style>
             <w:style w:type="character" w:styleId="Heading1Char"><w:link w:val="Heading1"/></w:style>
             <w:style w:type="table" w:default="1" w:styleId="TableGrid"><w:name w:val="Table Grid"/></w:style>
@@ -119,6 +120,18 @@ public sealed class WordDependencyGraphTests
                 && edge.IsResolved
         );
         Assert.Contains(
+            first.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.OutlineLevelDerivedFromStyle
+                && edge.IsResolved
+                && edge.Qualifier == "level:1"
+        );
+        Assert.Contains(
+            first.Edges,
+            edge => edge.Kind == WordDependencyEdgeKind.OutlineParent
+                && edge.IsResolved
+                && edge.Qualifier == "2"
+        );
+        Assert.Contains(
             first.Nodes,
             node => node.Kind == WordDependencyNodeKind.Part
                 && node.Key == "/word/header1.xml"
@@ -132,6 +145,8 @@ public sealed class WordDependencyGraphTests
         Assert.True(first.Coverage.Sections);
         Assert.True(first.Coverage.Charts);
         Assert.True(first.Coverage.SmartArtDiagrams);
+        Assert.True(first.Coverage.HeadingsAndOutline);
+        Assert.Equal(0, first.OutlineIssueCount);
         Assert.True(first.Coverage.ContentControlsAndCustomXml);
         Assert.True(first.Coverage.TablesAndCellTopology);
         Assert.DoesNotContain("smartart_diagrams", first.Coverage.ExplicitlyUnmodeledDomains);

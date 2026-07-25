@@ -282,6 +282,22 @@ separate resolver because numbering, conditional table styles, theme references,
 toggle-property semantics and direct formatting must not be flattened into a dishonest
 last-value-wins map.
 
+`WordOutlineGraphBuilder` is the typed heading layer above the semantic and style
+graphs. It resolves direct paragraph declarations, exact base-first paragraph-style
+inheritance and document defaults without inspecting localized style names. Stored
+`w:outlineLvl` values `0` through `8` become heading levels 1 through 9; value `9` and
+the absence of an effective declaration become body text, but only a real declaration
+receives source provenance. Invalid higher-precedence markup and broken style chains are
+unresolved rather than silently downgraded. The graph retains one resolution per
+paragraph across all projected stories, builds a separate nearest-shallower hierarchy
+per story and excludes revision/MCE-ambiguous headings from that hierarchy without
+discarding their classification. Lazy `inspect_ooxml_heading_outline` is metadata-only
+by default and gates text, style IDs and source locations independently. The unified
+dependency graph reuses paragraph identities for `outline_parent` and
+`outline_level_derived_from_style` edges. A gated Word 16.0 build 16.0.20131 oracle
+qualifies OOXML 0–8 to COM 1–9 and body text to COM 10 across main and header stories.
+See `docs/RESEARCH-OOXML-HEADING-OUTLINE-2026.md`.
+
 `WordNumberingGraphBuilder` is the first numbering adapter. It follows only the exact
 transitional or strict numbering relationship, validates the content type and
 `w:numbering` root, and retains source ordinals for picture bullets, abstract
@@ -744,6 +760,8 @@ flatten the existing typed graphs into anonymous strings. It joins the proven do
 - source-linked semantic containment across every projected Word story;
 - style definitions, defaults, `basedOn`, `next`, linked styles and explicit paragraph,
   run and table usage;
+- typed per-paragraph outline classification, exact style authority and per-story
+  heading-parent edges;
 - abstract numbering, instances, levels, picture bullets, style links and explicit
   paragraph/style numbering references;
 - story-scoped fields, bookmarks, nested fields and typed reference targets, including
@@ -966,14 +984,14 @@ sources are in `DOCUMENT-PROPERTY-GRAPH.md`.
 ### Initial document linter
 
 `WordDocumentLinter` is the first analysis engine consuming the shared package,
-semantic, dependency, style, numbering, reference, section, theme, settings and font
-graphs. Its 21 deterministic rules are divided into core, styles, accessibility and
+semantic, dependency, style, numbering, outline, reference, section, theme, settings and
+font graphs. Its 25 deterministic rules are divided into core, styles, accessibility and
 security packs. They surface existing graph diagnostics plus numbering-sequence
 diagnostics, unresolved counters, malformed/overlong labels, unbound section stories,
 unused styles, groups with equivalent fully modeled declared formatting, direct
-paragraph/run formatting, external relationships, directly hidden text, heading-level
-skips, missing drawing alternative text, unmarked multi-row table headers and a missing
-core document title.
+paragraph/run formatting, external relationships, directly hidden text, typed outline
+diagnostics, empty headings, missing drawing alternative text, unmarked multi-row table
+headers and a missing core document title.
 
 Every materialized finding has a stable rule ID, a package-state-bound `wtlint_` ID,
 severity, confidence, bounded evidence, a privacy-safe subject fingerprint and source
@@ -983,8 +1001,9 @@ finding suppressions are validated and counted. Finding, semantic-node and XML-s
 budgets are hard bounds, and every exhausted source budget becomes a visible coverage
 omission. `analysis_execution_complete` means the selected implementation ran without
 an omission. It is deliberately not the same as `document_coverage_complete`, which
-remains false while the dependency graph lists unmodeled domains. Revision/MCE numbering
-views, picture bullets and locale/custom label rendering are named coverage boundaries;
+remains false while the dependency graph lists unmodeled domains. Revision/MCE
+numbering and heading views, `stylesWithEffects`, picture bullets and locale/custom label
+rendering are named coverage boundaries;
 they are not mislabeled as document corruption.
 
 The linter applies a stricter dependency budget than the standalone graph inspector:
@@ -1265,7 +1284,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 120 actions already have public SDK
+These are proved migration seams, not a claim that all 121 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.

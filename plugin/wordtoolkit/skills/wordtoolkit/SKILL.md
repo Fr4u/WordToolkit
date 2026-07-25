@@ -120,6 +120,16 @@ base-first inheritance only when the next decision consumes them. Treat an
 unresolvable `basedOn` chain as evidence of document damage, not as permission
 to invent effective formatting. This action is read-only and reports declarations;
 use the dedicated resolvers for numbering, themes, and effective node formatting.
+Use lazy `inspect_ooxml_heading_outline` when the task needs the actual heading
+hierarchy or outline levels. Start with `view=headings`, `story_kind=main` and
+`hierarchy_only=true`; the default returns stable paragraph IDs, levels and topology,
+not heading text. Request `include_styles`, `include_source` or a bounded text preview
+only when the next decision consumes that disclosure. Stored OOXML levels `0..8` map to
+heading levels `1..9`; value `9` and no effective declaration are body text. A style
+name such as `Heading 1` or `Nagłówek 1` is never evidence by itself. Treat unresolved
+style chains, revision/MCE ambiguity, `stylesWithEffects` and incomplete coverage as
+hard boundaries. Do not use the result to infer semantic roles such as theorem or
+chapter, and do not mutate heading styles through generic XML operations.
 Use lazy `inspect_ooxml_numbering` instead of reading `numbering.xml`. Keep the
 default `view=instances` and `detail=metadata` for discovery. Filter by
 `number_id` or `abstract_number_id`; request `view=resolved_level` with one
@@ -224,7 +234,8 @@ explicitly reported OPC, semantic-containment, style, numbering, reference, sect
 physical/built-in XML-store, binding-target, repeating-section, bibliography collection,
 source and resolved CITATION domains, typed active-content payloads/declarations,
 ActiveX binary bindings, core/extended/custom document properties, persistent document
-variables and their proven field reads plus nested-table and vertical-merge topology. Its
+variables and their proven field reads, typed heading/style authority and per-story
+outline-parent edges plus nested-table and vertical-merge topology. Its
 `explicitly_unmodeled_domains` list is a hard coverage
   boundary: absence of an edge for rendered drawing geometry/layout execution, SmartArt layout execution/
   rendering/mutation, active-content binary internals/execution, cryptographic signature

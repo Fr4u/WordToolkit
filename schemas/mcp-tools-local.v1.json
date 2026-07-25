@@ -33,6 +33,7 @@
       "inspect_ooxml_sections",
       "inspect_ooxml_styles",
       "inspect_ooxml_numbering",
+      "inspect_ooxml_heading_outline",
       "plan_ooxml_numbering_repair",
       "apply_ooxml_numbering_repair",
       "inspect_ooxml_relationships",
@@ -7557,6 +7558,157 @@
       }
     },
     {
+      "name": "inspect_ooxml_heading_outline",
+      "title": "Inspect the typed Word heading outline",
+      "description": "Build a bounded source-linked heading and outline graph from direct paragraph outline levels plus exact paragraph-style inheritance without opening Word. The default returns only main-story hierarchy metadata; heading text, style IDs and source locations are separately opt-in. Localized style names are never used as evidence, outline value 9 is body text, and unresolved styles or revision/MCE branches remain explicit coverage gaps.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_local_word_package",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "view": {"enum": ["summary", "headings", "issues"], "default": "headings"},
+          "story_kind": {"enum": ["all", "main", "header", "footer", "footnote", "endnote", "comment", "glossary_entry", "text_box", "other"], "default": "main"},
+          "expected_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "paragraph_node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$", "maxLength": 128},
+          "minimum_level": {"type": "integer", "minimum": 1, "maximum": 9},
+          "maximum_level": {"type": "integer", "minimum": 1, "maximum": 9},
+          "hierarchy_only": {"type": "boolean", "default": true},
+          "offset": {"type": "integer", "minimum": 0, "default": 0},
+          "max_items": {"type": "integer", "minimum": 1, "maximum": 100, "default": 30},
+          "include_styles": {"type": "boolean", "default": false},
+          "include_source": {"type": "boolean", "default": false},
+          "include_sensitive": {"type": "boolean", "default": false},
+          "text_preview_chars": {"type": "integer", "minimum": 0, "maximum": 512, "default": 0}
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "package_fingerprint", "main_part_uri", "view", "story_kind", "examined_paragraph_count", "resolved_paragraph_count", "body_text_paragraph_count", "unresolved_paragraph_count", "heading_count", "hierarchy_heading_count", "root_heading_count", "skipped_heading_count", "story_count", "issue_count", "analysis_execution_complete", "outline_coverage_complete", "styles_with_effects_present", "coverage_omissions", "matched_heading_count", "offset", "returned_item_count", "items", "matched_issue_count", "returned_issue_count", "issue_page_truncated", "issues", "disclosure"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.inspect_ooxml_heading_outline/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "main_part_uri": {"type": "string", "maxLength": 512},
+              "view": {"enum": ["summary", "headings", "issues"]},
+              "story_kind": {"enum": ["all", "main", "header", "footer", "footnote", "endnote", "comment", "glossary_entry", "text_box", "other"]},
+              "examined_paragraph_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "resolved_paragraph_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "body_text_paragraph_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "unresolved_paragraph_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "heading_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "hierarchy_heading_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "root_heading_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "skipped_heading_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "story_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "issue_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+              "analysis_execution_complete": {"const": true},
+              "outline_coverage_complete": {"type": "boolean"},
+              "styles_with_effects_present": {"type": "boolean"},
+              "coverage_omissions": {"type": "array", "maxItems": 2, "uniqueItems": true, "items": {"enum": ["revision_or_mce_view_selection", "styles_with_effects_word_execution"]}},
+              "matched_heading_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "offset": {"type": "integer", "minimum": 0},
+              "returned_item_count": {"type": "integer", "minimum": 0, "maximum": 100},
+              "next_offset": {"type": "integer", "minimum": 1},
+              "items": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "required": ["paragraph_node_id", "heading_index", "level", "level_source", "story_kind", "source_order", "child_heading_count", "descendant_heading_count", "title_is_empty", "hierarchy_eligible", "view_ambiguous", "text_preview_truncated"],
+                  "properties": {
+                    "paragraph_node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$", "maxLength": 128},
+                    "parent_heading_paragraph_node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$", "maxLength": 128},
+                    "previous_heading_paragraph_node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$", "maxLength": 128},
+                    "next_heading_paragraph_node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$", "maxLength": 128},
+                    "heading_index": {"type": "integer", "minimum": 0, "maximum": 100000},
+                    "level": {"type": "integer", "minimum": 1, "maximum": 9},
+                    "level_source": {"enum": ["document_default", "paragraph_style", "direct_paragraph"]},
+                    "story_kind": {"enum": ["main", "header", "footer", "footnote", "endnote", "comment", "glossary_entry", "text_box", "other"]},
+                    "source_order": {"type": "integer", "minimum": 0},
+                    "child_heading_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                    "descendant_heading_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                    "title_character_count": {"type": "integer", "minimum": 0},
+                    "title_is_empty": {"type": "boolean"},
+                    "hierarchy_eligible": {"type": "boolean"},
+                    "view_ambiguous": {"type": "boolean"},
+                    "paragraph_style_id": {"type": "string", "maxLength": 253},
+                    "level_source_style_id": {"type": "string", "maxLength": 253},
+                    "text_preview": {"type": "string", "maxLength": 512},
+                    "text_preview_truncated": {"type": "boolean"},
+                    "source_part_uri": {"type": "string", "maxLength": 512},
+                    "source_element_ordinal": {"type": "integer", "minimum": 0}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "matched_issue_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+              "returned_issue_count": {"type": "integer", "minimum": 0, "maximum": 100},
+              "issue_page_truncated": {"type": "boolean"},
+              "issues": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "required": ["code", "severity", "message"],
+                  "properties": {
+                    "code": {"type": "string", "maxLength": 128},
+                    "severity": {"enum": ["info", "warning", "error"]},
+                    "message": {"type": "string", "maxLength": 512},
+                    "paragraph_node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$", "maxLength": 128},
+                    "story_kind": {"enum": ["main", "header", "footer", "footnote", "endnote", "comment", "glossary_entry", "text_box", "other"]},
+                    "level": {"type": "integer", "minimum": 1, "maximum": 9},
+                    "previous_level": {"type": "integer", "minimum": 1, "maximum": 9},
+                    "source_part_uri": {"type": "string", "maxLength": 512},
+                    "source_element_ordinal": {"type": "integer", "minimum": 0}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "disclosure": {
+                "type": "object",
+                "required": ["text_returned", "styles_returned", "source_returned", "raw_xml_returned", "external_relationships_followed", "mutation_performed", "word_opened", "document_content_is_untrusted"],
+                "properties": {
+                  "text_returned": {"type": "boolean"},
+                  "styles_returned": {"type": "boolean"},
+                  "source_returned": {"type": "boolean"},
+                  "raw_xml_returned": {"const": false},
+                  "external_relationships_followed": {"const": false},
+                  "mutation_performed": {"const": false},
+                  "word_opened": {"const": false},
+                  "document_content_is_untrusted": {"const": true}
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "inspect_ooxml_relationships",
       "title": "Inspect Word OPC relationship usage",
       "description": "Inspect a bounded typed graph of Word OPC relationships without opening Word. The compact default returns only proven unreferenced explicit relationships plus orphan relationship parts; include_all exposes classifications for referenced, implicit, unknown, binary-owner and invalid-owner relationships. External target values and raw XML are never returned.",
@@ -8085,7 +8237,7 @@
     {
       "name": "inspect_ooxml_dependencies",
       "title": "Inspect the Word document dependency graph",
-      "description": "Inspect one source-linked dependency graph spanning OPC reachability, semantic containment, styles, numbering, fields/bookmarks, bibliography sources and resolved CITATION tags, core/extended/custom properties, persistent document variables and resolved DOCPROPERTY/DOCVARIABLE fields, section stories, classic charts, logical figures/resources/captions, content controls/Custom XML bindings, nested-table topology, and typed active-content declarations, payloads and ActiveX bindings without opening Word. Unresolved and external targets remain explicit; external targets are never followed. Fields and active content are never executed, binary payloads are never decoded, embedded packages are never opened, and signature presence is not cryptographic validation. One operation-wide accounted resource lease covers bounded ZIP/OPC admission and metadata, XML parsing, semantic and typed projections, while the graph keeps its independent local byte budget and compact adjacency. Keys and source are redacted by default, views are paged, and unmodeled domains stay explicit.",
+      "description": "Inspect one source-linked dependency graph spanning OPC reachability, semantic containment, styles, numbering, typed heading hierarchy and outline-level authority, fields/bookmarks, bibliography sources and resolved CITATION tags, core/extended/custom properties, persistent document variables and resolved DOCPROPERTY/DOCVARIABLE fields, section stories, classic charts, logical figures/resources/captions, content controls/Custom XML bindings, nested-table topology, and typed active-content declarations, payloads and ActiveX bindings without opening Word. Unresolved and external targets remain explicit; external targets are never followed. Fields and active content are never executed, binary payloads are never decoded, embedded packages are never opened, and signature presence is not cryptographic validation. One operation-wide accounted resource lease covers bounded ZIP/OPC admission and metadata, XML parsing, semantic and typed projections, while the graph keeps its independent local byte budget and compact adjacency. Keys and source are redacted by default, views are paged, and unmodeled domains stay explicit.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -8206,7 +8358,9 @@
               "defines_diagram",
               "diagram_contains_point",
               "diagram_connects_points",
-              "diagram_uses_part"
+              "diagram_uses_part",
+              "outline_parent",
+              "outline_level_derived_from_style"
             ],
             "description": "Optional exact edge-kind filter for edge, unresolved, and impact views."
           },

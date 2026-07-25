@@ -167,6 +167,7 @@ internal sealed partial class WordLiveService
                     document_properties = graph.DocumentPropertyIssueCount,
                     settings = graph.SettingsIssueCount,
                     smartart_diagrams = graph.DiagramIssueCount,
+                    headings_and_outline = graph.OutlineIssueCount,
                 },
                 coverage = new
                 {
@@ -187,6 +188,7 @@ internal sealed partial class WordLiveService
                     document_properties_and_variables = graph.Coverage
                         .DocumentPropertiesAndVariables,
                     smartart_diagrams = graph.Coverage.SmartArtDiagrams,
+                    headings_and_outline = graph.Coverage.HeadingsAndOutline,
                     explicitly_unmodeled_domains = graph.Coverage
                         .ExplicitlyUnmodeledDomains,
                 },
@@ -295,6 +297,7 @@ internal sealed partial class WordLiveService
                 or WordFigureLimitException
                 or WordContentControlLimitException
                 or WordTableLimitException
+                or WordOutlineLimitException
         )
         {
             throw new NativeToolException(
@@ -314,6 +317,7 @@ internal sealed partial class WordLiveService
                 or WordContentControlProjectionException
                 or WordTableProjectionException
                 or WordActiveContentProjectionException
+                or WordOutlineProjectionException
         )
         {
             throw new NativeToolException(
