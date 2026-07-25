@@ -35,6 +35,9 @@
       "inspect_ooxml_numbering",
       "plan_ooxml_numbering_repair",
       "apply_ooxml_numbering_repair",
+      "inspect_ooxml_relationships",
+      "plan_ooxml_relationship_repair",
+      "apply_ooxml_relationship_repair",
       "inspect_ooxml_theme",
       "inspect_ooxml_settings",
       "inspect_ooxml_references",
@@ -7552,6 +7555,268 @@
         "idempotentHint": false,
         "openWorldHint": false
       }
+    },
+    {
+      "name": "inspect_ooxml_relationships",
+      "title": "Inspect Word OPC relationship usage",
+      "description": "Inspect a bounded typed graph of Word OPC relationships without opening Word. The compact default returns only proven unreferenced explicit relationships plus orphan relationship parts; include_all exposes classifications for referenced, implicit, unknown, binary-owner and invalid-owner relationships. External target values and raw XML are never returned.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_local_word_package",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "expected_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "include_all": {"type": "boolean", "default": false},
+          "include_details": {"type": "boolean", "default": false},
+          "max_items": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50}
+        },
+        "required": ["local_path", "expected_package_fingerprint"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "package_fingerprint", "relationship_count", "markup_removal_candidate_count", "orphan_relationship_part_count", "status_counts", "returned_relationship_count", "relationships_truncated", "relationships", "returned_orphan_part_count", "orphan_parts_truncated", "orphan_relationship_parts", "external_targets_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.inspect_ooxml_relationships/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "relationship_count": {"type": "integer", "minimum": 0},
+              "markup_removal_candidate_count": {"type": "integer", "minimum": 0},
+              "orphan_relationship_part_count": {"type": "integer", "minimum": 0},
+              "status_counts": {"type": "object", "maxProperties": 9, "additionalProperties": {"type": "integer", "minimum": 0}},
+              "returned_relationship_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "relationships_truncated": {"type": "boolean"},
+              "relationships": {
+                "type": "array",
+                "maxItems": 200,
+                "items": {
+                  "type": "object",
+                  "required": ["id", "fingerprint", "source_part_uri", "relationship_part_uri", "relationship_id", "relationship_type_name", "target_mode", "has_target_fragment", "status", "markup_reference_count", "markup_references_truncated", "markup_removal_candidate"],
+                  "properties": {
+                    "id": {"type": "string", "pattern": "^wdrel_[0-9a-f]{24}$"},
+                    "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "source_part_uri": {"type": "string", "maxLength": 2048},
+                    "relationship_part_uri": {"type": "string", "maxLength": 2048},
+                    "relationship_id": {"type": "string", "maxLength": 255},
+                    "relationship_type_name": {"type": "string", "maxLength": 512},
+                    "target_mode": {"enum": ["internal", "external", "invalid"]},
+                    "resolved_target_part_uri": {"type": ["string", "null"], "maxLength": 2048},
+                    "has_target_fragment": {"type": "boolean"},
+                    "status": {"enum": ["package_relationship", "owner_missing", "owner_non_xml", "owner_xml_unparseable", "duplicate_relationship_id", "referenced_by_markup", "implicit_by_relationship_type", "unreferenced_explicit_relationship", "unknown_unreferenced_relationship"]},
+                    "markup_reference_count": {"type": "integer", "minimum": 0},
+                    "markup_references_truncated": {"type": "boolean"},
+                    "markup_removal_candidate": {"type": "boolean"},
+                    "markup_references": {"type": "array", "maxItems": 64, "items": {"type": "object", "required": ["element_ordinal", "attribute_name"], "properties": {"element_ordinal": {"type": "integer", "minimum": 0}, "attribute_name": {"type": "string", "maxLength": 512}}, "additionalProperties": false}}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "returned_orphan_part_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "orphan_parts_truncated": {"type": "boolean"},
+              "orphan_relationship_parts": {
+                "type": "array",
+                "maxItems": 200,
+                "items": {
+                  "type": "object",
+                  "required": ["id", "relationship_part_uri", "source_part_uri", "entry_sha256", "parsed_relationship_count"],
+                  "properties": {
+                    "id": {"type": "string", "pattern": "^wdrelp_[0-9a-f]{24}$"},
+                    "relationship_part_uri": {"type": "string", "maxLength": 2048},
+                    "source_part_uri": {"type": "string", "maxLength": 2048},
+                    "entry_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "parsed_relationship_count": {"type": "integer", "minimum": 0}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "external_targets_returned": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"const": false},
+              "word_opened": {"const": false}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "plan_ooxml_relationship_repair",
+      "title": "Plan guarded Word OPC relationship repair",
+      "description": "Plan one atomic batch that removes only fingerprinted unreferenced explicit relationships or whole orphan relationship parts. The candidate is reparsed and must preserve semantic projection, every unplanned entry, all unplanned relationships, structural-error monotonicity and package reachability; relationship deletion never cascades to target-part deletion. The plan returns no external targets or raw XML.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_local_word_package",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {"applicable": false, "reason": "planning_only"},
+      "inputSchema": {
+        "type": "object",
+        "$defs": {
+          "command": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {"const": "remove_unreferenced_relationship"},
+                  "source_part_uri": {"type": "string", "minLength": 1, "maxLength": 2048},
+                  "relationship_id": {"type": "string", "minLength": 1, "maxLength": 255},
+                  "expected_relationship_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}
+                },
+                "required": ["kind", "source_part_uri", "relationship_id", "expected_relationship_fingerprint"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {"const": "remove_orphan_relationship_part"},
+                  "relationship_part_uri": {"type": "string", "minLength": 1, "maxLength": 2048},
+                  "expected_entry_sha256": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}
+                },
+                "required": ["kind", "relationship_part_uri", "expected_entry_sha256"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "properties": {
+          "local_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "expected_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "commands": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"$ref": "#/$defs/command"}},
+          "include_details": {"type": "boolean", "default": false}
+        },
+        "required": ["local_path", "expected_package_fingerprint", "commands"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "repair_kind", "plan_id", "base_package_fingerprint", "result_package_fingerprint", "command_count", "removed_relationship_count", "changed_entry_count", "total_byte_delta", "requires_external_relationship_authorization", "has_changes", "can_apply", "apply_blocked", "apply_blocked_reasons", "engine_validation", "candidate_validation", "safety_rules", "external_targets_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.plan_ooxml_relationship_repair/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "repair_kind": {"const": "remove_proven_dead_relationships"},
+              "plan_id": {"type": "string", "pattern": "^wrrplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "base_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "result_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "command_count": {"type": "integer", "minimum": 1, "maximum": 100},
+              "removed_relationship_count": {"type": "integer", "minimum": 1},
+              "changed_entry_count": {"type": "integer", "minimum": 1, "maximum": 32},
+              "total_byte_delta": {"type": "integer", "maximum": -1},
+              "requires_external_relationship_authorization": {"type": "boolean"},
+              "has_changes": {"const": true},
+              "can_apply": {"type": "boolean"},
+              "apply_blocked": {"type": "boolean"},
+              "apply_blocked_reasons": {"type": "array", "maxItems": 5, "uniqueItems": true, "items": {"enum": ["digital_signature_present", "external_relationship_removal_requires_apply_authorization", "engine_validation_failed", "schema_validator_unavailable", "microsoft_schema_validation_failed"]}},
+              "engine_validation": {"type": "object", "required": ["candidate_reparsed", "semantic_projection_preserved", "unplanned_entries_preserved", "intended_relationships_removed", "no_unexpected_relationship_changes", "no_new_structural_errors", "no_new_unreachable_parts", "exact_inverse_verified", "before_relationship_count", "after_relationship_count", "before_structural_error_count", "after_structural_error_count", "before_unreachable_part_count", "after_unreachable_part_count", "passed"], "properties": {"candidate_reparsed": {"type": "boolean"}, "semantic_projection_preserved": {"type": "boolean"}, "unplanned_entries_preserved": {"type": "boolean"}, "intended_relationships_removed": {"type": "boolean"}, "no_unexpected_relationship_changes": {"type": "boolean"}, "no_new_structural_errors": {"type": "boolean"}, "no_new_unreachable_parts": {"type": "boolean"}, "exact_inverse_verified": {"type": "boolean"}, "before_relationship_count": {"type": "integer", "minimum": 0}, "after_relationship_count": {"type": "integer", "minimum": 0}, "before_structural_error_count": {"type": "integer", "minimum": 0}, "after_structural_error_count": {"type": "integer", "minimum": 0}, "before_unreachable_part_count": {"type": "integer", "minimum": 0}, "after_unreachable_part_count": {"type": "integer", "minimum": 0}, "passed": {"type": "boolean"}}, "additionalProperties": false},
+              "candidate_validation": {"type": "object", "required": ["performed", "valid", "no_new_errors", "error_count", "baseline_error_count", "candidate_error_count", "errors_truncated", "issues"], "properties": {"performed": {"type": "boolean"}, "valid": {"type": "boolean"}, "no_new_errors": {"type": "boolean"}, "error_count": {"type": "integer", "minimum": 0}, "baseline_error_count": {"type": "integer", "minimum": 0}, "candidate_error_count": {"type": "integer", "minimum": 0}, "errors_truncated": {"type": "boolean"}, "not_performed_reason": {"type": "string", "maxLength": 128}, "issues": {"type": "array", "maxItems": 200, "items": {"type": "object"}}}, "additionalProperties": false},
+              "safety_rules": {"type": "array", "minItems": 8, "maxItems": 8, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
+              "actions": {"type": "array", "maxItems": 100, "items": {"type": "object", "maxProperties": 9}},
+              "changed_entries": {"type": "array", "maxItems": 32, "items": {"type": "object", "maxProperties": 8}},
+              "external_targets_returned": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"const": false},
+              "word_opened": {"const": false}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
+    },
+    {
+      "name": "apply_ooxml_relationship_repair",
+      "title": "Apply reviewed Word OPC relationship repair",
+      "description": "Rebuild and atomically apply the exact reviewed relationship repair batch to the fingerprinted source package. The action rejects plan drift, concurrent changes, signatures, missing Microsoft schema validation, new schema errors and unauthorized removal of external relationships. It keeps a sibling backup by default and returns no target values or raw XML.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_write_input_package_and_optional_sibling_backup",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {"applicable": true, "mechanism": "atomic_sibling_backup", "default": "retained"},
+      "inputSchema": {
+        "type": "object",
+        "$defs": {
+          "command": {
+            "oneOf": [
+              {"type": "object", "properties": {"kind": {"const": "remove_unreferenced_relationship"}, "source_part_uri": {"type": "string", "minLength": 1, "maxLength": 2048}, "relationship_id": {"type": "string", "minLength": 1, "maxLength": 255}, "expected_relationship_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}}, "required": ["kind", "source_part_uri", "relationship_id", "expected_relationship_fingerprint"], "additionalProperties": false},
+              {"type": "object", "properties": {"kind": {"const": "remove_orphan_relationship_part"}, "relationship_part_uri": {"type": "string", "minLength": 1, "maxLength": 2048}, "expected_entry_sha256": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}}, "required": ["kind", "relationship_part_uri", "expected_entry_sha256"], "additionalProperties": false}
+            ]
+          }
+        },
+        "properties": {
+          "local_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "expected_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "expected_plan_id": {"type": "string", "pattern": "^wrrplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+          "commands": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"$ref": "#/$defs/command"}},
+          "allow_external_relationship_removal": {"type": "boolean", "default": false},
+          "keep_backup": {"type": "boolean", "default": true}
+        },
+        "required": ["local_path", "expected_package_fingerprint", "expected_plan_id", "commands"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "repair_kind", "plan_id", "applied", "command_count", "removed_relationship_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "backup_path", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "external_targets_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.apply_ooxml_relationship_repair/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "repair_kind": {"const": "remove_proven_dead_relationships"},
+              "plan_id": {"type": "string", "pattern": "^wrrplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "applied": {"const": true},
+              "command_count": {"type": "integer", "minimum": 1, "maximum": 100},
+              "removed_relationship_count": {"type": "integer", "minimum": 1},
+              "previous_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "predicted_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "backup_path": {"type": ["string", "null"]},
+              "changed_entry_names": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"type": "string", "maxLength": 1024}},
+              "diagnostic_count": {"type": "integer", "minimum": 0},
+              "microsoft_schema_valid": {"type": "boolean"},
+              "microsoft_schema_no_new_errors": {"const": true},
+              "external_targets_returned": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"const": true},
+              "word_opened": {"const": false}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false}
     },
     {
       "name": "inspect_ooxml_theme",

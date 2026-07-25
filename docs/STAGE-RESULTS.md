@@ -1,5 +1,54 @@
 # Stage results
 
+## Guarded OPC relationship inspection and repair — 2026-07-25
+
+- Added a bounded typed relationship-usage graph that parses each XML owner once, scans
+  all retained Markup Compatibility branches and distinguishes package, referenced,
+  implicit, unknown, duplicate-ID, missing-owner, binary-owner, unparseable-owner and
+  proven-unreferenced explicit relationships. Orphan `.rels` entries are separate typed
+  objects. Unknown or ambiguous evidence never becomes deletion authority.
+- Added one atomic reviewed repair batch with exact relationship/entry fingerprints.
+  It removes only a proven-unreferenced explicit relationship element or an orphan
+  relationship part, never its target. Candidate proof requires unchanged semantic
+  projection, byte-exact unplanned entries, exact relationship delta, no new OPC errors,
+  no new unreachable part and an exact inverse back to the baseline fingerprint.
+- Direct Engine, strict `relationship-repair-package` CLI and lazy
+  `inspect_ooxml_relationships`, `plan_ooxml_relationship_repair` and
+  `apply_ooxml_relationship_repair` MCP use the same parser, planner, SDK comparison and
+  atomic writer. Apply reconstructs `wrrplan_`, blocks signatures, requires no new SDK
+  errors, separately authorizes external relationship removal and keeps a backup by
+  default. Responses never expose external targets, raw XML or document text.
+- The linter now has 23 rules and reports both unused explicit relationships and orphan
+  relationship parts without pretending that a finding authorizes mutation. Hostile
+  regressions cover MCE branches, duplicate IDs, malformed/binary/missing owners, implicit
+  and unknown types, stale hashes, duplicate/oversized batches, external authorization,
+  target-orphan prevention, closed JSON, CLI/MCP parity and published output schemas.
+- Full verification passed 606/606 Engine, 438/438 Native and 1,313/1,329 Python tests
+  with 16 intentional environment/model skips. Ruff is clean, mypy passes 29 maintained
+  modules, four .NET format gates are clean, the remote schema generator has no drift and
+  the Open XML validator builds without warnings. Every .NET command used pinned SDK
+  `C:\Users\Admin\.dotnet8\dotnet.exe` 8.0.423 or a subprocess whose `DOTNET_ROOT` and
+  `PATH` were pinned to it.
+- A forced Microsoft Word acceptance repaired a package containing one dead external
+  hyperlink relationship and one orphan `.rels` entry. The result had zero Microsoft 365
+  Open XML SDK errors; Word 16.0 build 16.0.20131 opened it read-only without repair,
+  returned the exact text and zero hyperlinks, closed without save and left its file hash
+  unchanged.
+- Two independent builds produced identical 196-file, 87,857,714-byte trees and
+  identical 36,958,852-byte ZIPs at SHA-256
+  `5f770e0a61e6a4755a910a3eb587c425b5af888176cfa0e48386f05db90f390d`.
+  Executable, runtime assembly, Engine and Open XML SDK adapter hashes are
+  `88f759313b49ac2d0ef579e01f8fdbf2d48fd41fd3663f226b4e394b8bde5a64`,
+  `b1a019ba2a408c6c67cd342914e18a1c3d488bf6b26c52ec42fa8aa09cc6e7f0`,
+  `2eacd74c553660c1571487a4ba51d0dfeb497fdc0db3cd2325678706812dc781` and
+  `a83c25fe3de9dbec046357d751f8a3d450de2dc1aa856611b0934ac8004e873b`.
+- Installed and enabled `0.39.0+codex.20260725023344`. Build, persistent personal source
+  and active cache each contain the same 196 files with zero path/length/hash differences.
+  Installed discovery reports 120 actions and 34 complete metadata contracts. Installed
+  MCP action inspection proved the closed read-only plan schema; installed execution on a
+  real showcase DOCX returned the exact 1.0 relationship-inspection contract and confirmed
+  zero target/XML disclosure, mutation or Word launch.
+
 ## Transactional numbering-sequence restart — 2026-07-25
 
 - Added one deliberately narrow repair: `restart_numbering_sequence` with scope

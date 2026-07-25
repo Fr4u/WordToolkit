@@ -663,6 +663,36 @@ most decisions; call the dedicated graph inspectors only when their declarations
 or diagnostics are actually needed.
 Prefer an object-specific saved-package edit whenever one exists.
 
+For saved-package OPC relationship cleanup, never infer that an unreachable part or an
+unreferenced-looking relationship may be deleted. Use this strict lazy workflow:
+
+1. Retain the exact package fingerprint and call `inspect_ooxml_relationships`. The
+   compact default returns only proven unreferenced explicit relationships plus orphan
+   `.rels` entries. Use `include_all=true` only to diagnose blocked referenced, implicit,
+   unknown, duplicate-ID, binary-owner, missing-owner or unparseable-owner states. Use
+   `include_details=true` only when bounded attribute-reference evidence is required.
+2. Build one bounded `plan_ooxml_relationship_repair` batch from exact inspection
+   evidence. Use `remove_unreferenced_relationship` with the exact source part URI,
+   relationship ID and relationship fingerprint, or
+   `remove_orphan_relationship_part` with the exact relationship-part URI and entry
+   SHA-256. Do not translate a linter finding directly into a command without inspection.
+3. Review `wrrplan_`, command/relationship/entry counts, byte delta, engine validation,
+   Microsoft schema comparison and block reasons. A relationship deletion never deletes
+   its target part. A new unreachable part, changed semantic projection, changed
+   unplanned entry, unplanned relationship delta or failed exact inverse blocks the plan.
+4. Call `apply_ooxml_relationship_repair` with identical commands, the original package
+   fingerprint and exact plan ID. Keep the recovery backup by default. Set
+   `allow_external_relationship_removal=true` only when the user explicitly approved the
+   reviewed removal of an external relationship.
+
+Package-root, referenced, implicit, unknown, duplicate-ID and invalid-owner relationships
+are deliberately not repair candidates. The current repair does not synthesize missing
+relationships, rewrite IDs or markup references, delete target parts, garbage-collect
+images/fonts/embeddings, strip signatures or optimize ZIP compression. Signed packages,
+plan drift, concurrent changes, missing Microsoft Open XML validation and new schema
+errors fail closed. Inspection and repair responses never return external target values,
+raw XML or document text and never open Word.
+
 When the requested text is inside a comment, do not query technical `w:t` node IDs and
 do not use the generic text-edit action. Inspect only the required comment to retain its
 stable `comment_id`, then use this body-only workflow:

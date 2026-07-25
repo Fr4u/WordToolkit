@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- Added a bounded typed OPC relationship-usage graph and guarded relationship repair.
+  It distinguishes referenced, implicit, unknown, duplicate-ID, invalid-owner and orphan
+  states while scanning every retained Markup Compatibility branch. One reviewed atomic
+  batch can remove only fingerprinted unreferenced explicit relationships or orphan
+  `.rels` entries; it never deletes target parts and rejects any new unreachable part.
+- Added direct Engine contracts, strict `relationship-repair-package` CLI and lazy
+  `inspect_ooxml_relationships`, `plan_ooxml_relationship_repair` and
+  `apply_ooxml_relationship_repair` MCP actions. Apply recomputes `wrrplan_`, blocks
+  signatures, requires Microsoft Open XML validation with no new errors, requires an
+  explicit Boolean for external relationship removal and keeps an atomic backup by
+  default. Responses never return external targets or raw XML.
+- Extended the linter from 21 to 23 rules with typed unused-explicit-relationship and
+  orphan-relationship-part findings. The catalog now contains 120 actions and 34 complete
+  metadata contracts; the explicit metadata gap remains 86.
+- Verified 606 Engine tests, 438 Native tests and 1,313 Python passes with 16 intentional
+  skips on pinned SDK 8.0.423; Ruff, 29-module mypy, four .NET format gates, schema export
+  and the standalone validator are clean. A forced Word 16.0 build 16.0.20131 oracle
+  opened the repaired package read-only with exact text, zero hyperlinks and no file-hash
+  change after close.
+- Packaged and enabled `0.39.0+codex.20260725023344`. Two builds produced identical
+  196-file, 87,857,714-byte trees and identical 36,958,852-byte ZIPs at SHA-256
+  `5f770e0a61e6a4755a910a3eb587c425b5af888176cfa0e48386f05db90f390d`.
+  Build, persistent marketplace source and active cache have zero file differences;
+  installed discovery reports 120 actions and 34 complete contracts, and an installed
+  lazy-MCP relationship inspection passed without target/XML disclosure or Word launch.
+
 - Added transactional saved-package numbering restart through direct Engine,
   `numbering-repair-package` CLI and lazy `plan_ooxml_numbering_repair` /
   `apply_ooxml_numbering_repair` MCP. The exact selected list tail is reassigned to a

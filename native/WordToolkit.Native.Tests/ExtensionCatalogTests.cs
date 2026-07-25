@@ -49,7 +49,7 @@ public sealed class ExtensionCatalogTests
     public void CatalogIsLazyAndHasCompleteClosedMetadata()
     {
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(117, catalog.ActionCount);
+        Assert.Equal(120, catalog.ActionCount);
         Assert.DoesNotContain(
             catalog.Tools,
             tool => tool!["name"]!.GetValue<string>()

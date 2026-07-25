@@ -32,7 +32,7 @@ public sealed class LintPackageInspectionTests
 
             Assert.Equal("summary", root.GetProperty("view").GetString());
             Assert.True(root.GetProperty("visible_finding_count").GetInt32() > 0);
-            Assert.Equal(21, root.GetProperty("evaluated_rule_count").GetInt32());
+            Assert.Equal(23, root.GetProperty("evaluated_rule_count").GetInt32());
             Assert.True(root.GetProperty("analysis_execution_complete").GetBoolean());
             Assert.False(root.GetProperty("document_coverage_complete").GetBoolean());
             Assert.False(root.GetProperty("report_complete").GetBoolean());

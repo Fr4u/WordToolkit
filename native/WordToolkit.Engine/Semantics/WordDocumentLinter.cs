@@ -331,6 +331,10 @@ public sealed class WordDocumentLinter
     private const string NumberingCounterUnresolved =
         "WTL_NUMBERING_COUNTER_UNRESOLVED";
     private const string NumberingLabelInvalid = "WTL_NUMBERING_LABEL_INVALID";
+    private const string UnusedExplicitRelationship =
+        "WTL_RELATIONSHIP_UNUSED_EXPLICIT";
+    private const string OrphanRelationshipPart =
+        "WTL_RELATIONSHIP_ORPHAN_PART";
     private const string ReferenceGraphDiagnostic = "WTL_REFERENCE_GRAPH_DIAGNOSTIC";
     private const string ThemeGraphDiagnostic = "WTL_THEME_GRAPH_DIAGNOSTIC";
     private const string SettingsGraphDiagnostic = "WTL_SETTINGS_GRAPH_DIAGNOSTIC";
@@ -365,6 +369,10 @@ public sealed class WordDocumentLinter
                     "Report numbered paragraphs whose counter cannot be executed exactly."),
                 new(NumberingLabelInvalid, WordLintRulePack.Core, WordLintCategory.Numbering,
                     "Report malformed or Word-length-invalid numbering labels."),
+                new(UnusedExplicitRelationship, WordLintRulePack.Core, WordLintCategory.Relationship,
+                    "Report explicit OPC relationships with no markup consumer in any compatibility branch."),
+                new(OrphanRelationshipPart, WordLintRulePack.Core, WordLintCategory.Relationship,
+                    "Report relationship parts whose owning source part does not exist."),
                 new(ReferenceGraphDiagnostic, WordLintRulePack.Core, WordLintCategory.Reference,
                     "Surface malformed fields, bookmarks, and reference targets."),
                 new(ThemeGraphDiagnostic, WordLintRulePack.Core, WordLintCategory.Theme,
@@ -641,6 +649,12 @@ public sealed class WordDocumentLinter
             }
         }
         AddExternalRelationshipFindings(
+            state,
+            sources,
+            package,
+            cancellationToken
+        );
+        AddRelationshipRepairFindings(
             state,
             sources,
             package,
@@ -1081,6 +1095,92 @@ public sealed class WordDocumentLinter
                 1,
                 sources.RelationshipLocation(relationship),
                 ManualFix("remove_or_authorize_external_relationship")
+            );
+        }
+    }
+
+    private void AddRelationshipRepairFindings(
+        LintState state,
+        SourceIndex sources,
+        OpcPackageSnapshot package,
+        CancellationToken cancellationToken
+    )
+    {
+        if (!state.Enabled(UnusedExplicitRelationship)
+            && !state.Enabled(OrphanRelationshipPart))
+        {
+            return;
+        }
+        WordRelationshipUsageGraph graph;
+        try
+        {
+            graph = new WordRelationshipUsageGraphBuilder(
+                new WordRelationshipUsageGraphOptions
+                {
+                    MaxRelationships = _options.MaxDependencyEdges,
+                    MaxOwnerXmlParts = _options.MaxDependencyNodes,
+                    MaxXmlPartBytes = _options.MaxSourceXmlPartBytes,
+                    MaxReferencesPerRelationship = 1,
+                }
+            ).Build(package, cancellationToken);
+        }
+        catch (WordRelationshipUsageLimitException)
+        {
+            sources.AddOmission("relationship_usage_analysis_limit");
+            return;
+        }
+
+        if (state.Enabled(UnusedExplicitRelationship))
+        {
+            foreach (var usage in graph.Relationships.Where(item =>
+                item.MarkupRemovalCandidate
+            ))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                state.Add(
+                    UnusedExplicitRelationship,
+                    WordLintSeverity.Warning,
+                    WordLintConfidence.Certain,
+                    "An explicit OPC relationship has no markup consumer in any compatibility branch.",
+                    "UNREFERENCED_EXPLICIT_RELATIONSHIP",
+                    "relationship",
+                    usage.Fingerprint,
+                    1,
+                    sources.Location(
+                        usage.RelationshipPartUri,
+                        null,
+                        null,
+                        null,
+                        usage.RelationshipId
+                    ),
+                    ManualFix("remove_unreferenced_relationship")
+                );
+            }
+        }
+        if (!state.Enabled(OrphanRelationshipPart))
+        {
+            return;
+        }
+        foreach (var orphan in graph.OrphanRelationshipParts)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            state.Add(
+                OrphanRelationshipPart,
+                WordLintSeverity.Error,
+                WordLintConfidence.Certain,
+                "A relationship part has no existing owning source part.",
+                "ORPHAN_RELATIONSHIP_PART",
+                "relationship_part",
+                orphan.EntrySha256,
+                Math.Max(1, orphan.ParsedRelationshipCount),
+                sources.Location(
+                    orphan.RelationshipPartUri,
+                    null,
+                    null,
+                    null,
+                    null
+                ),
+                ManualFix("remove_orphan_relationship_part")
             );
         }
     }

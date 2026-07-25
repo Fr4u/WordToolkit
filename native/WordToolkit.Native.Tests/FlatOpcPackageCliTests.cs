@@ -150,7 +150,7 @@ public sealed class FlatOpcPackageCliTests
         var inspected = catalog.InspectAction("convert_ooxml_flat_opc");
         var tool = inspected["tool"]!.AsObject();
 
-        Assert.Equal(117, catalog.ActionCount);
+        Assert.Equal(120, catalog.ActionCount);
         Assert.Equal(15, catalog.Tools.Count);
         Assert.DoesNotContain(
             catalog.Tools,

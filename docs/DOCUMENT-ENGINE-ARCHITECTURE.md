@@ -1265,7 +1265,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 117 actions already have public SDK
+These are proved migration seams, not a claim that all 120 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
@@ -1311,6 +1311,32 @@ payload semantics before publication. Direct .NET, `flat-opc-package` CLI and la
 call the same operation. Byte identity of XML serialization is deliberately not claimed,
 so packages containing signatures are blocked.
 
+The thirteenth application seam is relationship inspection and repair. OPC remains a
+directed graph: deleting an edge is not permission to delete its target node.
+`WordRelationshipUsageGraphBuilder` parses each XML owner once under hard limits, scans
+all retained Markup Compatibility branches and classifies package, referenced, implicit,
+unknown, duplicate-ID, missing-owner, binary-owner and unparseable-owner relationships.
+Only a standard explicit relationship with zero exact markup consumers is a relationship-
+element removal candidate. An orphan `.rels` entry whose source part is absent is a
+separate candidate kind.
+
+`WordRelationshipRepairPlanner` executes an ordered batch against successive package
+snapshots. It uses lossless element removal for relationship markup and an entry-level
+transaction for orphan `.rels` deletion. The exact candidate must preserve the complete
+semantic projection and every unplanned entry hash, remove exactly the planned relationship
+values, introduce no OPC error or unreachable part, and round-trip through its generated
+inverse to the baseline fingerprint. Package-root, implicit, unknown, duplicate-ID and
+referenced relationships fail closed. No command cascades into target-part deletion.
+
+`RelationshipRepairWordPackageOperation`, strict `relationship-repair-package` CLI and
+the lazy inspect/plan/apply MCP trio share the same parser, planner and atomic writer.
+Apply reconstructs the reviewed `wrrplan_`, blocks signatures, requires Microsoft Open
+XML SDK baseline/candidate comparison with no new errors and requires explicit separate
+authorization for any external relationship removal. Compact inspection returns only
+repair candidates and orphan parts by default; external target values and raw XML never
+cross the public boundary. The full design and primary OPC sources are recorded in
+`RESEARCH-OPC-RELATIONSHIP-REPAIR-2026.md`.
+
 Microsoft schema validation is an injected capability rather than an Engine dependency.
 `WordToolkit.Engine.Validation.IWordPackageCandidateValidator` is the neutral boundary;
 `WordToolkit.OpenXmlSdk.MicrosoftOpenXmlPackageValidator` is the standard adapter. It
@@ -1328,11 +1354,11 @@ to an opaque sibling `.conflict` artifact and deliberately retained, even when n
 backup retention is disabled. Public diagnostics list only still-existing opaque artifact
 names, never their absolute paths or payloads; no artifact is claimed when none exists.
 
-This is deliberately honest about what is still absent. `metadata_coverage` reports 29
+This is deliberately honest about what is still absent. `metadata_coverage` reports 34
 explicit output schemas, permission records, reversibility records and per-operation
 versions, including extension-catalog and numbering inspection, semantic query, semantic HTML/SVG
 rendering, semantic-style plan/apply, comment-body plan/apply, formatter, live structure
-mutations, live Word version profiling, saved-package rollback and Flat OPC conversion;
+mutations, live Word version profiling, saved-package rollback, relationship inspection/repair and Flat OPC conversion;
 the other 86 actions remain
 uncovered. Those fields are not
 inferred from operation names. Format support is labelled operation-specific, and full
