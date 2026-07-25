@@ -150,14 +150,14 @@ public sealed class ExtensionRegistryTests
     [Fact]
     public void InvocationEnforcesInputOutputContractAndCooperativeTimeout()
     {
-        var registry = Registry(
+        var limitsRegistry = Registry(
             Capability("wordtoolkit.capability.echo") with
             {
                 ResourceLimits = new WordToolkitExtensionResourceLimits(
                     MaxInputBytes: 8,
                     MaxOutputBytes: 8,
                     MaxConcurrentInvocations: 1,
-                    TimeoutMilliseconds: 10
+                    TimeoutMilliseconds: 5000
                 ),
             }
         );
@@ -165,7 +165,7 @@ public sealed class ExtensionRegistryTests
         Assert.Equal(
             "EXTENSION_LIMIT_EXCEEDED",
             Assert.Throws<WordToolkitExtensionException>(() =>
-                registry.Invoke<ITestCapability, string>(
+                limitsRegistry.Invoke<ITestCapability, string>(
                     "wordtoolkit.capability.echo",
                     9,
                     (service, token) => service.Echo("x", token),
@@ -176,7 +176,7 @@ public sealed class ExtensionRegistryTests
         Assert.Equal(
             "EXTENSION_LIMIT_EXCEEDED",
             Assert.Throws<WordToolkitExtensionException>(() =>
-                registry.Invoke<ITestCapability, string>(
+                limitsRegistry.Invoke<ITestCapability, string>(
                     "wordtoolkit.capability.echo",
                     1,
                     (service, token) => service.Echo("123456789", token),
@@ -187,7 +187,7 @@ public sealed class ExtensionRegistryTests
         Assert.Equal(
             "EXTENSION_CONTRACT_MISMATCH",
             Assert.Throws<WordToolkitExtensionException>(() =>
-                registry.Invoke<IDisposable, string>(
+                limitsRegistry.Invoke<IDisposable, string>(
                     "wordtoolkit.capability.echo",
                     1,
                     (_, _) => "x",
@@ -195,15 +195,27 @@ public sealed class ExtensionRegistryTests
                 )
             ).Code
         );
+        var timeoutRegistry = Registry(
+            Capability("wordtoolkit.capability.echo") with
+            {
+                ResourceLimits = new WordToolkitExtensionResourceLimits(
+                    MaxInputBytes: 8,
+                    MaxOutputBytes: 8,
+                    MaxConcurrentInvocations: 1,
+                    TimeoutMilliseconds: 25
+                ),
+            }
+        );
         Assert.Equal(
             "EXTENSION_TIMEOUT",
             Assert.Throws<WordToolkitExtensionException>(() =>
-                registry.Invoke<ITestCapability, string>(
+                timeoutRegistry.Invoke<ITestCapability, string>(
                     "wordtoolkit.capability.echo",
                     1,
-                    (_, _) =>
+                    (_, token) =>
                     {
-                        Thread.Sleep(30);
+                        token.WaitHandle.WaitOne();
+                        token.ThrowIfCancellationRequested();
                         return "x";
                     },
                     value => value.Length
@@ -218,30 +230,41 @@ public sealed class ExtensionRegistryTests
         var registry = Registry(Capability("wordtoolkit.capability.echo"));
         using var entered = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
-        var first = Task.Run(() => registry.Invoke<ITestCapability, string>(
-            "wordtoolkit.capability.echo",
-            1,
-            (_, _) =>
-            {
-                entered.Set();
-                release.Wait();
-                return "x";
-            },
-            value => value.Length
-        ));
-        Assert.True(entered.Wait(TimeSpan.FromSeconds(5)));
-
-        var exception = Assert.Throws<WordToolkitExtensionException>(() =>
-            registry.Invoke<ITestCapability, string>(
+        var first = Task.Factory.StartNew(
+            () => registry.Invoke<ITestCapability, string>(
                 "wordtoolkit.capability.echo",
                 1,
-                (service, token) => service.Echo("y", token),
+                (_, _) =>
+                {
+                    entered.Set();
+                    release.Wait();
+                    return "x";
+                },
                 value => value.Length
-            )
+            ),
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default
         );
-        Assert.Equal("EXTENSION_BUSY", exception.Code);
-        Assert.True(exception.Retryable);
-        release.Set();
+        try
+        {
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(5)));
+
+            var exception = Assert.Throws<WordToolkitExtensionException>(() =>
+                registry.Invoke<ITestCapability, string>(
+                    "wordtoolkit.capability.echo",
+                    1,
+                    (service, token) => service.Echo("y", token),
+                    value => value.Length
+                )
+            );
+            Assert.Equal("EXTENSION_BUSY", exception.Code);
+            Assert.True(exception.Retryable);
+        }
+        finally
+        {
+            release.Set();
+        }
         Assert.Equal("x", await first);
     }
 
