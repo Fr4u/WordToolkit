@@ -340,6 +340,9 @@ names, merge-field targets, mail metadata and recipient identities require
 not durable IDs. Structural resolution of an external URI does not mean it was opened.
 The action parses only the saved package and never opens Word, Excel, Access, ODBC or
 OLE DB, runs a query, follows an external target, evaluates a field or executes a merge.
+Large recipient parts are projected through a bounded forward-only XML reader with exact
+source ordinals; do not split them into manual XML calls or assume the read-only graph is
+permission to connect to the declared source.
 Treat missing/ambiguous bindings and recipient relationship errors as reasons to stop,
 not permission to guess source columns. Word-effective predefined address mapping is
 positional for the first 30 `fieldMapData` records even when `mappedName` disagrees.

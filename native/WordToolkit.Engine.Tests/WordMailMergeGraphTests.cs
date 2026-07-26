@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using WordToolkit.Engine.Operations;
@@ -65,6 +66,19 @@ public sealed class WordMailMergeGraphTests
         Assert.Equal(WordMailMergeRecipientIdentityKind.UniqueTag, graph.Recipients[0].IdentityKind);
         Assert.False(graph.Recipients[1].IsIncluded);
         Assert.Equal(WordMailMergeRecipientIdentityKind.Hash, graph.Recipients[1].IdentityKind);
+        Assert.Equal([1, 5], graph.Recipients.Select(item => item.SourceElementOrdinal));
+        Assert.Equal(
+            ExpectedRecipientId(package.Fingerprint, "/word/recipients.xml", 1),
+            graph.Recipients[0].Id
+        );
+        Assert.Equal(
+            ExpectedRecipientId(package.Fingerprint, "/word/recipients.xml", 5),
+            graph.Recipients[1].Id
+        );
+        Assert.Equal(
+            graph.Recipients.Select(item => item.Id),
+            recipientPart.RecipientIds
+        );
 
         Assert.Equal(2, graph.Fields.Count);
         var customerField = graph.Fields.Single(field => field.TargetName == "CustomerId");
@@ -159,6 +173,29 @@ public sealed class WordMailMergeGraphTests
     }
 
     [Fact]
+    public void StreamingRecipientReaderRejectsDocumentTypeDeclarations()
+    {
+        using var bytes = BuildPackage(
+            recipientXml: $"""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE recipients [<!ENTITY leaked "forbidden">]>
+            <w:recipients xmlns:w="{WordMailMergeGraphBuilder.TransitionalWordNamespace}">
+              <w:recipientData><w:uniqueTag w:val="&leaked;"/></w:recipientData>
+            </w:recipients>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+
+        var exception = Assert.Throws<WordMailMergeProjectionException>(() =>
+            new WordMailMergeGraphBuilder().Build(package, semantic)
+        );
+
+        Assert.IsType<System.Xml.XmlException>(exception.InnerException);
+        Assert.Contains("not safe", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EnforcesMappingRecipientFieldAndOperationResourceLimits()
     {
         using var bytes = BuildPackage();
@@ -179,6 +216,26 @@ public sealed class WordMailMergeGraphTests
             new WordMailMergeGraphBuilder(
                 new WordMailMergeGraphOptions { MaxFields = 1 }
             ).Build(package, semantic)
+        );
+        Assert.Throws<WordMailMergeLimitException>(() =>
+            new WordMailMergeGraphBuilder(
+                new WordMailMergeGraphOptions { MaxRecipientXmlElements = 8 }
+            ).Build(package, semantic)
+        );
+        Assert.Throws<WordMailMergeLimitException>(() =>
+            new WordMailMergeGraphBuilder(
+                new WordMailMergeGraphOptions { MaxRecipientXmlDepth = 2 }
+            ).Build(package, semantic)
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new WordMailMergeGraphBuilder(
+                new WordMailMergeGraphOptions { MaxRecipientXmlElements = 0 }
+            )
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new WordMailMergeGraphBuilder(
+                new WordMailMergeGraphOptions { MaxRecipientXmlDepth = 0 }
+            )
         );
 
         var probeLease = new WordOperationResourceLease();
@@ -303,7 +360,8 @@ public sealed class WordMailMergeGraphTests
         bool invalidRecipientRelationshipType = false,
         bool ambiguousRecipientIdentity = false,
         bool recipientOwnsRelationship = false,
-        bool missingRecipientTarget = false
+        bool missingRecipientTarget = false,
+        string? recipientXml = null
     )
     {
         var w = strict
@@ -428,7 +486,7 @@ public sealed class WordMailMergeGraphTests
                 Add(
                     archive,
                     "word/recipients.xml",
-                    $"""
+                    recipientXml ?? $"""
                     <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
                     <w:recipients xmlns:w="{w}">
                       <w:recipientData>
@@ -473,6 +531,24 @@ public sealed class WordMailMergeGraphTests
           <w:r><w:fldChar w:fldCharType="end"/></w:r>
         </w:p>
         """;
+
+    private static string ExpectedRecipientId(
+        string packageFingerprint,
+        string partUri,
+        int sourceElementOrdinal
+    )
+    {
+        var material = string.Concat(
+            packageFingerprint,
+            "\0",
+            partUri,
+            "\0",
+            sourceElementOrdinal.ToString(CultureInfo.InvariantCulture)
+        );
+        return "wmmr_"
+            + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)))
+                .ToLowerInvariant()[..24];
+    }
 
     private static void Add(ZipArchive archive, string name, string content)
     {

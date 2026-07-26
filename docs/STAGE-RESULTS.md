@@ -1,5 +1,49 @@
 # Stage results
 
+# WordToolkit 0.54.0 streaming mail-merge recipients - 2026-07-26
+
+- Replaced the read-only recipient part's full byte-copy/XDocument/lossless lexical tree
+  with one bounded forward-only `XmlReader`. Exact source ordinals, stable IDs, active/
+  column values, uniqueTag/hash identity rules, unmodeled direct children and all prior
+  relationship/content-type/cardinality diagnostics remain intact.
+- Added independent recipient XML element/depth ceilings, DTD prohibition, character and
+  cancellation checks, array-backed no-copy input and regression proof that the optimized
+  constant-space recipient ID path produces the preceding canonical SHA-256 IDs.
+- Pinned SDK 8.0.423 passes 758 Engine tests, including explicit element/depth boundary and
+  DTD rejection cases. The unchanged Native and LibreOffice surfaces remain subject to
+  their full release gates before installation.
+- The seven-sample Windows x64 .NET 8.0.29 10,000-recipient point improves from 314.3591
+  to 38.5695 ms median (-87.73%), from 105,107,424 to 4,608,624 median allocated bytes
+  (-95.62%) and from 175,599,616 to 55,922,688 peak working-set bytes (-68.15%).
+- The 100,000-recipient point improves from 2,151.7312 to 247.7046 ms median (-88.49%),
+  from 1,030,632,576 to 41,004,024 median allocated bytes (-96.02%) and from
+  1,166,508,032 to 168,493,056 peak working-set bytes (-85.56%). Both points preserve
+  every recipient, 30/30 resolved fields, zero issues and the package fingerprint.
+- New raw evidence is checked in as
+  `docs/benchmarks/mail-merge-streaming-10k-2026-07-26.json` and
+  `docs/benchmarks/mail-merge-streaming-100k-2026-07-26.json`. The conservative
+  operation-accounting totals remain unchanged; measured CLR allocation is not silently
+  substituted for the deterministic admission budget.
+- Two pinned-SDK 8.0.423 package builds produced identical 197-file, 89,868,899-byte
+  trees with zero path/length/SHA-256 differences and byte-identical 37,523,118-byte
+  ZIPs at SHA-256
+  `4451f221021c556ed790a127952ba6e2386176379b9acf8fcb7b437b20e524d4`.
+  Executable, runtime assembly, Engine, LibreOffice and Open XML SDK hashes are
+  `2f9af3e56a64d9a300fca2f7bfe8186d261f82145c78d4554a47bf4e857b7500`,
+  `0da46698e7e97630e48dff71c0b3e9bb93a2183f6db66eaa95b2bc7a7a4e2ebc`,
+  `55672d434b5d9278c06041dcf672652baf3cb5a206d09b5dcac88faed4730068`,
+  `b2fc560b772794e934dd5e9adf1b7d22b870fdaac283142f028335b942eca7af`
+  and `471972533ba17a010b4abad8b310887e8b8848421bc0bbf31b4e4d12c582a5a8`.
+- Installed and enabled `0.54.0+codex.20260726184900`. Candidate, persistent source and
+  active cache have identical 197-path length/hash maps. Installed discovery returns
+  147 actions, 15 MCP tools and 58 complete explicit metadata contracts. Installed
+  full-response execution of `inspect_ooxml_mail_merge` succeeded with
+  `word_opened=false`, `data_sources_opened=false` and
+  `external_targets_followed=false`; the prior source is preserved at
+  `C:\Users\Admin\plugins\wordtoolkit.backup-0.53.0-codex.20260726184900`.
+- Hosted qualification of the 0.54.0 implementation commit remains pending; the package
+  is locally reproducible and installed, not yet claimed as hosted-qualified.
+
 # WordToolkit 0.53.0 native mail-merge graph - 2026-07-26
 
 - Added a bounded `WordMailMergeGraph` spanning saved configuration, top-level and ODSO

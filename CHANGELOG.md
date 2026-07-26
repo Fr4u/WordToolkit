@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+## 0.54.0 — 2026-07-26
+
+- Replaced full lossless/XDocument materialization of the read-only mail-merge
+  `recipients.xml` part with one forward-only bounded `XmlReader` projection. It keeps
+  exact source element ordinals, stable recipient IDs, inclusion state, columns,
+  uniqueTag/hash identity semantics, unmodeled-child evidence and existing diagnostics
+  without retaining a second editable XML object graph that no operation can mutate.
+- Added explicit recipient XML element/depth limits, DTD prohibition, character checks,
+  cancellation checks and no-copy array-backed input. Malformed or unsafe XML still fails
+  closed; relationship/content-type/cardinality validation is unchanged.
+- Replaced the hot recipient-ID `params`/LINQ/material-string/UTF-8/hex/lowercase pipeline
+  with bounded stack spans, direct SHA-256 and lowercase hex emission. Regression proof
+  compares the optimized IDs with the preceding canonical algorithm.
+- Checked-in before/after Windows x64 .NET 8.0.29 benchmarks retain 30/30 resolved fields,
+  every recipient, zero issues and the package fingerprint. At 10,000 recipients median
+  build time falls 87.73% and median allocation 95.62%. At 100,000 recipients median
+  time falls from 2,151.7312 to 247.7046 ms, median allocation from 1,030,632,576 to
+  41,004,024 bytes (-96.02%) and peak working set from 1,166,508,032 to 168,493,056
+  bytes (-85.56%). Operation accounting deliberately remains conservative and unchanged.
+- Pinned SDK 8.0.423 release gates pass 758 Engine, 12 LibreOffice and 540 Native tests;
+  Ruff is clean and Python passes 1,318 tests with 16 intentional skips. Two independently
+  named self-contained builds have identical 197-file, 89,868,899-byte trees and
+  byte-identical 37,523,118-byte ZIPs at SHA-256
+  `4451f221021c556ed790a127952ba6e2386176379b9acf8fcb7b437b20e524d4`.
+- Installed and enabled `0.54.0+codex.20260726184900`; candidate, persistent personal
+  source and active cache have zero path/length/hash differences. Installed discovery
+  reports 147 actions, 15 tools and 58 explicit contracts. An installed full-response
+  `inspect_ooxml_mail_merge` smoke remained read-only and opened neither Word nor a data
+  source or external target.
+
 ## 0.53.0 — 2026-07-26
 
 - Added `WordMailMergeGraphBuilder`, a bounded typed saved-package graph for Word mail

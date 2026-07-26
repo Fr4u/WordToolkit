@@ -726,7 +726,10 @@ relationships, mappings, recipients, fields or diagnostics. Queries, connection/
 strings, table and column names, field targets, recipient identities, relationship
 targets and source locations are separately redacted by default. The action parses only
 the saved package: it never opens Word, a workbook/database, a query, an external target
-or the merge itself. See `docs/RESEARCH-MAIL-MERGE-GRAPH-2026.md`.
+or the merge itself. Large recipient parts use a bounded forward-only XML projection that
+retains exact source ordinals without materializing a second editable XML tree; the
+checked-in 100,000-recipient result cuts median CLR allocation by 96.02% relative to the
+preceding implementation. See `docs/RESEARCH-MAIL-MERGE-GRAPH-2026.md`.
 
 Saved-package semantic queries select source-ordered nodes by kind, bounded text,
 exact properties, source story, subtree, and strict ancestor/descendant predicates.
@@ -1289,7 +1292,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is 0.53.0. The latest immutable public release remains
+The development manifest/runtime is 0.54.0. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:

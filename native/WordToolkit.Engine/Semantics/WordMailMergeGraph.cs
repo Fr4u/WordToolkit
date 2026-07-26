@@ -1,7 +1,10 @@
+using System.Buffers;
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Resources;
@@ -239,6 +242,10 @@ public sealed record WordMailMergeGraphOptions
 
     public int MaxRecipientDataPartBytes { get; init; } = 64 * 1024 * 1024;
 
+    public int MaxRecipientXmlElements { get; init; } = 1_000_000;
+
+    public int MaxRecipientXmlDepth { get; init; } = 256;
+
     public int MaxMappings { get; init; } = 4_096;
 
     public int MaxRecipients { get; init; } = 250_000;
@@ -256,6 +263,8 @@ public sealed record WordMailMergeGraphOptions
         if (
             MaxSettingsPartBytes <= 0
             || MaxRecipientDataPartBytes <= 0
+            || MaxRecipientXmlElements <= 0
+            || MaxRecipientXmlDepth <= 0
             || MaxMappings <= 0
             || MaxRecipients <= 0
             || MaxFields <= 0
@@ -786,16 +795,144 @@ public sealed class WordMailMergeGraphBuilder
                 SubjectId: relationship.Id
             ));
         }
-        var source = ParsePart(
-            part,
-            _options.MaxRecipientDataPartBytes,
+        if (part.Entry.Content.Length > _options.MaxRecipientDataPartBytes)
+        {
+            throw new WordMailMergeLimitException(
+                $"Mail-merge XML part '{part.Uri}' exceeds {_options.MaxRecipientDataPartBytes} bytes."
+            );
+        }
+        WordOperationResourceAccounting.ChargeXmlParse(
+            _resourceLease,
             WordOperationResourceStage.MailMerge,
-            cancellationToken
+            part.Entry.Content.Length
         );
-        var root = source.GetParsedElement(source.Root.Ordinal);
+
+        string? rootLocalName = null;
+        string? rootNamespace = null;
+        var rootOrdinal = -1;
+        var elementCount = 0;
+        var sequence = 0;
+        var recipientState = default(RecipientParseState);
+        var hasRecipientState = false;
+        try
+        {
+            using var stream = OpenReadOnlyMemoryStream(part.Entry.Content);
+            using var reader = XmlReader.Create(
+                stream,
+                new XmlReaderSettings
+                {
+                    DtdProcessing = DtdProcessing.Prohibit,
+                    XmlResolver = null,
+                    MaxCharactersInDocument = _options.MaxRecipientDataPartBytes,
+                    MaxCharactersFromEntities = 0,
+                    IgnoreComments = false,
+                    IgnoreProcessingInstructions = false,
+                    IgnoreWhitespace = false,
+                    CheckCharacters = true,
+                }
+            );
+            while (reader.Read())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (reader.NodeType == XmlNodeType.Element)
+                {
+                    if (elementCount >= _options.MaxRecipientXmlElements)
+                    {
+                        throw new WordMailMergeLimitException(
+                            $"Mail-merge recipient XML contains more than {_options.MaxRecipientXmlElements} elements."
+                        );
+                    }
+                    if (reader.Depth + 1 > _options.MaxRecipientXmlDepth)
+                    {
+                        throw new WordMailMergeLimitException(
+                            $"Mail-merge recipient XML depth exceeds {_options.MaxRecipientXmlDepth}."
+                        );
+                    }
+                    var ordinal = elementCount++;
+                    if (rootLocalName is null)
+                    {
+                        rootLocalName = reader.LocalName;
+                        rootNamespace = reader.NamespaceURI;
+                        rootOrdinal = ordinal;
+                    }
+
+                    if (
+                        !hasRecipientState
+                        && reader.Depth == 1
+                        && reader.LocalName == "recipientData"
+                    )
+                    {
+                        if (recipients.Count >= _options.MaxRecipients)
+                        {
+                            throw new WordMailMergeLimitException(
+                                $"Mail-merge recipient count exceeds {_options.MaxRecipients}."
+                            );
+                        }
+                        recipientState = new RecipientParseState(ordinal);
+                        hasRecipientState = true;
+                        if (reader.IsEmptyElement)
+                        {
+                            recipients.Add(CompleteRecipient(
+                                package.Fingerprint,
+                                partUri,
+                                sequence++,
+                                recipientState,
+                                issues
+                            ));
+                            recipientState = default;
+                            hasRecipientState = false;
+                        }
+                        continue;
+                    }
+
+                    if (hasRecipientState && reader.Depth == 2)
+                    {
+                        ObserveRecipientChild(
+                            reader,
+                            ref recipientState,
+                            ref metadataCharacters
+                        );
+                    }
+                }
+                else if (
+                    reader.NodeType == XmlNodeType.EndElement
+                    && hasRecipientState
+                    && reader.Depth == 1
+                )
+                {
+                    recipients.Add(CompleteRecipient(
+                        package.Fingerprint,
+                        partUri,
+                        sequence++,
+                        recipientState,
+                        issues
+                    ));
+                    recipientState = default;
+                    hasRecipientState = false;
+                }
+            }
+        }
+        catch (WordMailMergeLimitException)
+        {
+            throw;
+        }
+        catch (XmlException exception)
+        {
+            throw new WordMailMergeProjectionException(
+                $"Mail-merge XML part '{part.Uri}' is not safe, bounded, well-formed XML.",
+                exception
+            );
+        }
+
+        if (rootLocalName is null || rootNamespace is null || rootOrdinal < 0)
+        {
+            throw new WordMailMergeProjectionException(
+                $"Mail-merge XML part '{part.Uri}' has no document element."
+            );
+        }
         if (
-            root.Name.LocalName != "recipients"
-            || root.Name.NamespaceName is not TransitionalWordNamespace
+            rootLocalName != "recipients"
+            || rootNamespace is not TransitionalWordNamespace
                 and not StrictWordNamespace
                 and not LegacyRecipientNamespace
         )
@@ -805,81 +942,9 @@ public sealed class WordMailMergeGraphBuilder
                 WordMailMergeIssueSeverity.Error,
                 "The mail-merge recipient data part has an unsupported root element or namespace.",
                 partUri,
-                source.Root.Ordinal,
+                rootOrdinal,
                 relationship.Id
             ));
-        }
-        var sequence = 0;
-        foreach (var element in root.Elements().Where(item => item.Name.LocalName == "recipientData"))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (recipients.Count >= _options.MaxRecipients)
-            {
-                throw new WordMailMergeLimitException(
-                    $"Mail-merge recipient count exceeds {_options.MaxRecipients}."
-                );
-            }
-            var ordinal = source.GetElementOrdinal(element);
-            var identityValues = element.Elements()
-                .Where(item => item.Name.LocalName is "uniqueTag" or "hash")
-                .Select(item => AttributeValue(item, "val"))
-                .Where(value => value is not null)
-                .ToArray();
-            foreach (var value in identityValues)
-            {
-                ChargeMetadata(value!, ref metadataCharacters);
-            }
-            var identityKind = identityValues.Length switch
-            {
-                0 => WordMailMergeRecipientIdentityKind.Missing,
-                > 1 => WordMailMergeRecipientIdentityKind.Ambiguous,
-                _ when element.Elements().Any(item => item.Name.LocalName == "uniqueTag") =>
-                    WordMailMergeRecipientIdentityKind.UniqueTag,
-                _ => WordMailMergeRecipientIdentityKind.Hash,
-            };
-            var unmodeled = element.Elements()
-                .Where(item => item.Name.LocalName is not "active" and not "column"
-                    and not "uniqueTag" and not "hash")
-                .Select(item => QualifiedName(item.Name))
-                .Distinct(StringComparer.Ordinal)
-                .Order(StringComparer.Ordinal)
-                .ToArray();
-            ChargeMetadata(unmodeled, ref metadataCharacters);
-            var recipient = new WordMailMergeRecipient(
-                StableId("wmmr_", package.Fingerprint, partUri, ordinal),
-                partUri,
-                sequence++,
-                !element.Elements().Any(item => item.Name.LocalName == "active")
-                    || ChildOnOffByLocalName(element, "active"),
-                ChildIntegerByLocalName(element, "column", issues, partUri, ordinal),
-                identityKind,
-                identityValues.Length == 1 ? identityValues[0] : null,
-                ordinal,
-                new ReadOnlyCollection<string>(unmodeled)
-            );
-            if (identityKind == WordMailMergeRecipientIdentityKind.Missing)
-            {
-                issues.Add(new WordMailMergeIssue(
-                    "MAIL_MERGE_RECIPIENT_IDENTITY_MISSING",
-                    WordMailMergeIssueSeverity.Warning,
-                    "A mail-merge recipient record has no uniqueTag or hash identity.",
-                    partUri,
-                    ordinal,
-                    recipient.Id
-                ));
-            }
-            else if (identityKind == WordMailMergeRecipientIdentityKind.Ambiguous)
-            {
-                issues.Add(new WordMailMergeIssue(
-                    "MAIL_MERGE_RECIPIENT_IDENTITY_AMBIGUOUS",
-                    WordMailMergeIssueSeverity.Error,
-                    "A mail-merge recipient record declares more than one identity value.",
-                    partUri,
-                    ordinal,
-                    recipient.Id
-                ));
-            }
-            recipients.Add(recipient);
         }
         var incomingCount = package.Relationships.Count(item =>
             item.TargetMode == OpcRelationshipTargetMode.Internal
@@ -892,7 +957,7 @@ public sealed class WordMailMergeGraphBuilder
                 WordMailMergeIssueSeverity.Error,
                 "A mail-merge recipient data part must have exactly one incoming relationship.",
                 partUri,
-                source.Root.Ordinal,
+                rootOrdinal,
                 relationship.Id
             ));
         }
@@ -903,7 +968,7 @@ public sealed class WordMailMergeGraphBuilder
                 WordMailMergeIssueSeverity.Error,
                 "A mail-merge recipient data part must not own relationships.",
                 partUri,
-                source.Root.Ordinal,
+                rootOrdinal,
                 relationship.Id
             ));
         }
@@ -911,13 +976,248 @@ public sealed class WordMailMergeGraphBuilder
             StableId("wmmrp_", package.Fingerprint, partUri),
             partUri,
             part.ContentType,
-            root.Name.NamespaceName,
-            source.Root.Ordinal,
+            rootNamespace,
+            rootOrdinal,
             PackageReachableParts(package, cancellationToken).Contains(partUri),
             incomingCount,
             new ReadOnlyCollection<string>(recipients.Select(item => item.Id).ToArray())
         );
         return (recipientPart, recipients);
+    }
+
+    private void ObserveRecipientChild(
+        XmlReader reader,
+        ref RecipientParseState state,
+        ref long metadataCharacters
+    )
+    {
+        var value = AttributeValue(reader, "val");
+        switch (reader.LocalName)
+        {
+            case "active":
+                if (!state.HasActive)
+                {
+                    state.HasActive = true;
+                    state.IsIncluded = ParseOnOff(value);
+                }
+                break;
+            case "column":
+                if (!state.HasColumn)
+                {
+                    state.HasColumn = true;
+                    state.ColumnValue = value;
+                }
+                break;
+            case "uniqueTag":
+                state.HasUniqueTag = true;
+                ObserveIdentity(value, ref state, ref metadataCharacters);
+                break;
+            case "hash":
+                ObserveIdentity(value, ref state, ref metadataCharacters);
+                break;
+            default:
+                state.UnmodeledElements ??= new HashSet<string>(StringComparer.Ordinal);
+                var qualifiedName = "{" + reader.NamespaceURI + "}" + reader.LocalName;
+                if (state.UnmodeledElements.Add(qualifiedName))
+                {
+                    ChargeMetadata(qualifiedName, ref metadataCharacters);
+                }
+                break;
+        }
+    }
+
+    private void ObserveIdentity(
+        string? value,
+        ref RecipientParseState state,
+        ref long metadataCharacters
+    )
+    {
+        if (value is null)
+        {
+            return;
+        }
+        ChargeMetadata(value, ref metadataCharacters);
+        state.IdentityValueCount++;
+        state.FirstIdentityValue ??= value;
+    }
+
+    private static WordMailMergeRecipient CompleteRecipient(
+        string packageFingerprint,
+        string partUri,
+        int sequence,
+        RecipientParseState state,
+        IssueState issues
+    )
+    {
+        var identityKind = state.IdentityValueCount switch
+        {
+            0 => WordMailMergeRecipientIdentityKind.Missing,
+            > 1 => WordMailMergeRecipientIdentityKind.Ambiguous,
+            _ when state.HasUniqueTag => WordMailMergeRecipientIdentityKind.UniqueTag,
+            _ => WordMailMergeRecipientIdentityKind.Hash,
+        };
+        var unmodeled = state.UnmodeledElements is null
+            ? Array.Empty<string>()
+            : state.UnmodeledElements.Order(StringComparer.Ordinal).ToArray();
+        var recipient = new WordMailMergeRecipient(
+            StableRecipientId(packageFingerprint, partUri, state.SourceElementOrdinal),
+            partUri,
+            sequence,
+            !state.HasActive || state.IsIncluded,
+            ParseInteger(
+                state.ColumnValue,
+                "column",
+                issues,
+                partUri,
+                state.SourceElementOrdinal
+            ),
+            identityKind,
+            state.IdentityValueCount == 1 ? state.FirstIdentityValue : null,
+            state.SourceElementOrdinal,
+            unmodeled
+        );
+        if (identityKind == WordMailMergeRecipientIdentityKind.Missing)
+        {
+            issues.Add(new WordMailMergeIssue(
+                "MAIL_MERGE_RECIPIENT_IDENTITY_MISSING",
+                WordMailMergeIssueSeverity.Warning,
+                "A mail-merge recipient record has no uniqueTag or hash identity.",
+                partUri,
+                state.SourceElementOrdinal,
+                recipient.Id
+            ));
+        }
+        else if (identityKind == WordMailMergeRecipientIdentityKind.Ambiguous)
+        {
+            issues.Add(new WordMailMergeIssue(
+                "MAIL_MERGE_RECIPIENT_IDENTITY_AMBIGUOUS",
+                WordMailMergeIssueSeverity.Error,
+                "A mail-merge recipient record declares more than one identity value.",
+                partUri,
+                state.SourceElementOrdinal,
+                recipient.Id
+            ));
+        }
+        return recipient;
+    }
+
+    private static string? AttributeValue(XmlReader reader, string localName)
+    {
+        if (!reader.HasAttributes)
+        {
+            return null;
+        }
+        string? value = null;
+        while (reader.MoveToNextAttribute())
+        {
+            if (!reader.Prefix.Equals("xmlns", StringComparison.Ordinal)
+                && !reader.Name.Equals("xmlns", StringComparison.Ordinal)
+                && reader.LocalName == localName)
+            {
+                value = reader.Value;
+                break;
+            }
+        }
+        reader.MoveToElement();
+        return value;
+    }
+
+    private static MemoryStream OpenReadOnlyMemoryStream(ReadOnlyMemory<byte> content)
+    {
+        if (MemoryMarshal.TryGetArray(content, out var segment))
+        {
+            return new MemoryStream(
+                segment.Array!,
+                segment.Offset,
+                segment.Count,
+                writable: false,
+                publiclyVisible: true
+            );
+        }
+        return new MemoryStream(content.ToArray(), writable: false);
+    }
+
+    private struct RecipientParseState
+    {
+        public RecipientParseState(int sourceElementOrdinal)
+        {
+            SourceElementOrdinal = sourceElementOrdinal;
+        }
+
+        public int SourceElementOrdinal { get; }
+
+        public bool HasActive { get; set; }
+
+        public bool IsIncluded { get; set; }
+
+        public bool HasColumn { get; set; }
+
+        public string? ColumnValue { get; set; }
+
+        public bool HasUniqueTag { get; set; }
+
+        public int IdentityValueCount { get; set; }
+
+        public string? FirstIdentityValue { get; set; }
+
+        public HashSet<string>? UnmodeledElements { get; set; }
+    }
+
+    private static string StableRecipientId(
+        string packageFingerprint,
+        string partUri,
+        int sourceElementOrdinal
+    )
+    {
+        Span<char> ordinalCharacters = stackalloc char[11];
+        if (!sourceElementOrdinal.TryFormat(
+            ordinalCharacters,
+            out var ordinalCharacterCount,
+            provider: CultureInfo.InvariantCulture
+        ))
+        {
+            throw new WordMailMergeProjectionException(
+                "Mail-merge recipient ordinal could not be formatted."
+            );
+        }
+        ordinalCharacters = ordinalCharacters[..ordinalCharacterCount];
+        var byteCount = checked(
+            Encoding.UTF8.GetByteCount(packageFingerprint)
+                + 1
+                + Encoding.UTF8.GetByteCount(partUri)
+                + 1
+                + Encoding.UTF8.GetByteCount(ordinalCharacters)
+        );
+        byte[]? rented = null;
+        Span<byte> material = byteCount <= 512
+            ? stackalloc byte[byteCount]
+            : (rented = ArrayPool<byte>.Shared.Rent(byteCount));
+        try
+        {
+            var offset = Encoding.UTF8.GetBytes(packageFingerprint, material);
+            material[offset++] = 0;
+            offset += Encoding.UTF8.GetBytes(partUri, material[offset..]);
+            material[offset++] = 0;
+            offset += Encoding.UTF8.GetBytes(ordinalCharacters, material[offset..]);
+            Span<byte> hash = stackalloc byte[32];
+            _ = SHA256.HashData(material[..offset], hash);
+            Span<char> id = stackalloc char[29];
+            "wmmr_".AsSpan().CopyTo(id);
+            const string hex = "0123456789abcdef";
+            for (var index = 0; index < 12; index++)
+            {
+                id[5 + index * 2] = hex[hash[index] >> 4];
+                id[6 + index * 2] = hex[hash[index] & 0x0f];
+            }
+            return new string(id);
+        }
+        finally
+        {
+            if (rented is not null)
+            {
+                ArrayPool<byte>.Shared.Return(rented, clearArray: true);
+            }
+        }
     }
 
     private List<WordMailMergeField> ParseFields(

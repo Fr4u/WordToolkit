@@ -121,20 +121,27 @@ The checked-in synthetic benchmarks use 30 mapped fields and unique saved recipi
 identities, repeat graph construction seven times, and exclude package/semantic/
 settings/reference setup from the graph timing:
 
-| Recipients | Median | p95 | Accounted graph bytes | Median allocated bytes | Peak working set |
-|---:|---:|---:|---:|---:|---:|
-| 10,000 | 314.36 ms | 367.06 ms | 24,942,744 | 105,107,424 | 175,599,616 |
-| 100,000 | 2,151.73 ms | 2,770.77 ms | 248,862,744 | 1,030,632,576 | 1,166,508,032 |
+| Recipients | Implementation | Median | p95 | Accounted graph bytes | Median allocated bytes | Peak working set |
+|---:|---|---:|---:|---:|---:|---:|
+| 10,000 | full lossless tree (0.53) | 314.36 ms | 367.06 ms | 24,942,744 | 105,107,424 | 175,599,616 |
+| 10,000 | streaming recipient projection (0.54) | 38.57 ms | 74.59 ms | 24,942,744 | 4,608,624 | 55,922,688 |
+| 100,000 | full lossless tree (0.53) | 2,151.73 ms | 2,770.77 ms | 248,862,744 | 1,030,632,576 | 1,166,508,032 |
+| 100,000 | streaming recipient projection (0.54) | 247.70 ms | 432.15 ms | 248,862,744 | 41,004,024 | 168,493,056 |
 
 Evidence:
 
 - `docs/benchmarks/mail-merge-10k-2026-07-26.json`
 - `docs/benchmarks/mail-merge-100k-2026-07-26.json`
+- `docs/benchmarks/mail-merge-streaming-10k-2026-07-26.json`
+- `docs/benchmarks/mail-merge-streaming-100k-2026-07-26.json`
 
 These are one Windows 10 x64 workstation and .NET 8.0.29, not universal latency
-claims. The 100,000-recipient allocation and peak working set are heavy. They are
-reported instead of hidden; a future streaming recipient-data projection is still an
-optimization target.
+claims. The streaming path removes the non-editable byte copy, XDocument, lexical tree,
+parsed-element arrays and per-recipient stable-ID temporaries while retaining source
+ordinals and public graph semantics. Relative to 0.53, median allocation falls 95.62% at
+10,000 recipients and 96.02% at 100,000; the 100,000 peak working set falls 85.56%.
+Deterministic operation accounting intentionally stays unchanged and conservative rather
+than being rewritten from one workstation's CLR measurements.
 
 ## Tests
 
@@ -147,6 +154,7 @@ The regression corpus covers:
 - wrong relationship types, missing internal targets, ambiguous recipient identities
   and forbidden recipient-part relationships;
 - mapping, recipient, field, metadata and operation-budget limits;
+- recipient XML element/depth limits, prohibited DTDs and canonical stable-ID parity;
 - shared dependency nodes and edges;
 - default MCP redaction, independent disclosure flags and no-COM execution;
 - content-free high-level analysis and closed output-schema conformance.
