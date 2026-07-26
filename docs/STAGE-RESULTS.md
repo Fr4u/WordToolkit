@@ -42,7 +42,10 @@
   lengths and SHA-256 values. Installed discovery reports 146 actions, 15 MCP tools and
   57 complete explicit metadata contracts. The previous source remains intact at
   `C:\Users\Admin\plugins\wordtoolkit.backup-0.50.1-codex.20260726150446`.
-- Hosted CI qualification is not claimed until the exact committed branch passes.
+- Hosted run <https://github.com/Fr4u/WordToolkit/actions/runs/30205236415> passed all six
+  jobs for `ae45e39d16e27086b58ef7aa577fcb795895f46e`: Linux Engine, qualified
+  LibreOffice/UNO rendering, Python compatibility/rendering, Windows native tests and
+  final plugin ZIP, standalone Open XML validator and the remote-service container.
 
 # WordToolkit 0.50.1 LibreOffice four-package PDF/PNG qualification - 2026-07-26
 
