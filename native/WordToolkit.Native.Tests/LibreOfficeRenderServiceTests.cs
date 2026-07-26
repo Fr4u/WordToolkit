@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -282,7 +283,7 @@ public sealed class LibreOfficeRenderServiceTests
     }
 
     [Fact]
-    public async Task RealLinuxPublicActionRunsOnlyWhenExactBackendIsConfigured()
+    public async Task RealLinuxPublicActionPublishesPdfPngGeometryAndManifestForEveryWordPackageKind()
     {
         var office = Environment.GetEnvironmentVariable(
             "WORDTOOLKIT_TEST_LIBREOFFICE_UNO_PATH"
@@ -296,95 +297,253 @@ public sealed class LibreOfficeRenderServiceTests
         var source = Environment.GetEnvironmentVariable(
             "WORDTOOLKIT_TEST_LIBREOFFICE_UNO_SOURCE_PATH"
         );
-        if (new[] { office, java, libreOfficeJar, source }.Any(string.IsNullOrWhiteSpace))
+        var pdfInfo = Environment.GetEnvironmentVariable(
+            "WORDTOOLKIT_TEST_PDFINFO_PATH"
+        );
+        var rasterizer = Environment.GetEnvironmentVariable(
+            "WORDTOOLKIT_TEST_PDF_RASTERIZER_PATH"
+        );
+        if (new[] { office, java, libreOfficeJar, source, pdfInfo, rasterizer }
+            .Any(string.IsNullOrWhiteSpace))
         {
             return;
         }
 
-        var outputDirectory = TemporaryDirectory();
+        var directory = TemporaryDirectory();
         try
         {
-            var before = File.ReadAllBytes(source!);
-            var fingerprint = new OpcPackageReader().Read(source!).Fingerprint;
             var host = new NoInvokeHost();
             var service = CreateService(
                 host,
                 new WordToolkit.LibreOffice.LibreOfficeUnoRenderProvider(),
                 new WordToolkit.LibreOffice.LibreOfficeBackendProbeProvider()
             );
-            using var arguments = JsonDocument.Parse(
-                JsonSerializer.Serialize(
-                    new
-                    {
-                        local_path = source,
-                        expected_package_fingerprint = fingerprint,
-                        output_directory = outputDirectory,
-                        artifact_stem = "real_linux_proof",
-                        libreoffice_executable_path = office,
-                        expected_libreoffice_executable_sha256 = RequiredEnvironment(
-                            "WORDTOOLKIT_TEST_LIBREOFFICE_UNO_SHA256"
-                        ),
-                        java_executable_path = java,
-                        expected_java_executable_sha256 = RequiredEnvironment(
-                            "WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAVA_SHA256"
-                        ),
-                        libreoffice_jar_path = libreOfficeJar,
-                        expected_libreoffice_jar_sha256 = RequiredEnvironment(
-                            "WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAR_SHA256"
-                        ),
-                        output = "pdf",
-                        timeout_milliseconds = 60_000,
-                    }
-                )
-            );
+            var corpus = new[]
+            {
+                (Extension: ".docx", MainContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"),
+                (Extension: ".docm", MainContentType: "application/vnd.ms-word.document.macroEnabled.main+xml"),
+                (Extension: ".dotx", MainContentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml"),
+                (Extension: ".dotm", MainContentType: "application/vnd.ms-word.template.macroEnabledTemplate.main+xml"),
+            };
 
-            var raw = await service.CallAsync(
-                LibreOfficeRenderWordPackageContract.OperationName,
-                arguments.RootElement,
-                CancellationToken.None
-            );
-            using var result = JsonDocument.Parse(
-                JsonSerializer.Serialize(raw, JsonDefaults.Compact)
-            );
+            foreach (var item in corpus)
+            {
+                var sourcePath = Path.Combine(directory, "source" + item.Extension);
+                var outputDirectory = Path.Combine(
+                    directory,
+                    "output-" + item.Extension[1..]
+                );
+                Directory.CreateDirectory(outputDirectory);
+                CreateOnePagePackage(sourcePath, item.MainContentType);
+                var before = File.ReadAllBytes(sourcePath);
+                var fingerprint = new OpcPackageReader().Read(sourcePath).Fingerprint;
+                var stem = "real_linux_" + item.Extension[1..];
+                using var arguments = JsonDocument.Parse(
+                    JsonSerializer.Serialize(
+                        new
+                        {
+                            local_path = sourcePath,
+                            expected_package_fingerprint = fingerprint,
+                            output_directory = outputDirectory,
+                            artifact_stem = stem,
+                            libreoffice_executable_path = office,
+                            expected_libreoffice_executable_sha256 = RequiredEnvironment(
+                                "WORDTOOLKIT_TEST_LIBREOFFICE_UNO_SHA256"
+                            ),
+                            java_executable_path = java,
+                            expected_java_executable_sha256 = RequiredEnvironment(
+                                "WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAVA_SHA256"
+                            ),
+                            libreoffice_jar_path = libreOfficeJar,
+                            expected_libreoffice_jar_sha256 = RequiredEnvironment(
+                                "WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAR_SHA256"
+                            ),
+                            output = "pdf_and_png_pages",
+                            dpi = 96,
+                            pdfinfo_path = pdfInfo,
+                            rasterizer_path = rasterizer,
+                            timeout_milliseconds = 60_000,
+                        }
+                    )
+                );
+
+                var raw = await service.CallAsync(
+                    LibreOfficeRenderWordPackageContract.OperationName,
+                    arguments.RootElement,
+                    CancellationToken.None
+                );
+                using var result = JsonDocument.Parse(
+                    JsonSerializer.Serialize(raw, JsonDefaults.Compact)
+                );
+
+                AssertRealRasterBundle(
+                    result.RootElement,
+                    sourcePath,
+                    outputDirectory,
+                    stem,
+                    before
+                );
+            }
 
             Assert.Equal(0, host.InvocationCount);
-            Assert.Equal(
-                "libreoffice_writer_pdf",
-                result.RootElement
-                    .GetProperty("backend")
-                    .GetProperty("primary")
-                    .GetString()
-            );
-            Assert.True(
-                result.RootElement
-                    .GetProperty("cleanup")
-                    .GetProperty("private_workspace_deleted")
-                    .GetBoolean()
-            );
-            Assert.True(
-                result.RootElement
-                    .GetProperty("safety")
-                    .GetProperty("public_artifacts_published_after_private_cleanup")
-                    .GetBoolean()
-            );
-            Assert.True(
-                File.ReadAllBytes(
-                        Path.Combine(outputDirectory, "real_linux_proof.pdf")
-                    )
-                    .AsSpan()
-                    .StartsWith("%PDF-"u8)
-            );
-            Assert.True(
-                File.Exists(
-                    Path.Combine(outputDirectory, "real_linux_proof.render.json")
-                )
-            );
-            Assert.Equal(before, File.ReadAllBytes(source!));
         }
         finally
         {
-            Directory.Delete(outputDirectory, recursive: true);
+            Directory.Delete(directory, recursive: true);
         }
+    }
+
+    private static void AssertRealRasterBundle(
+        JsonElement result,
+        string sourcePath,
+        string outputDirectory,
+        string stem,
+        byte[] sourceBefore
+    )
+    {
+        Assert.Equal("pdf_and_png_pages", result.GetProperty("output").GetString());
+        Assert.Equal(Path.GetFileName(sourcePath), result.GetProperty("source_file_name").GetString());
+        Assert.False(result.GetProperty("source_mutated").GetBoolean());
+        Assert.Equal(96, result.GetProperty("dpi").GetInt32());
+        Assert.Equal(
+            "libreoffice_writer_pdf",
+            result.GetProperty("backend").GetProperty("primary").GetString()
+        );
+        Assert.Equal(
+            "poppler",
+            result.GetProperty("backend").GetProperty("rasterizer").GetString()
+        );
+        Assert.True(
+            result.GetProperty("backend").GetProperty("pdf_geometry_inspected").GetBoolean()
+        );
+        Assert.True(
+            result.GetProperty("fidelity").GetProperty("png_is_derived_from_exact_pdf").GetBoolean()
+        );
+        Assert.False(
+            result.GetProperty("fidelity").GetProperty("microsoft_word_layout_claimed").GetBoolean()
+        );
+        Assert.True(
+            result.GetProperty("cleanup").GetProperty("private_workspace_deleted").GetBoolean()
+        );
+        Assert.True(
+            result.GetProperty("safety")
+                .GetProperty("public_artifacts_published_after_private_cleanup")
+                .GetBoolean()
+        );
+        Assert.False(
+            result.GetProperty("safety")
+                .GetProperty("macro_prevention_behaviorally_verified")
+                .GetBoolean()
+        );
+        Assert.False(
+            result.GetProperty("safety")
+                .GetProperty("external_update_prevention_behaviorally_verified")
+                .GetBoolean()
+        );
+
+        var pageCount = result.GetProperty("exported_page_count").GetInt32();
+        Assert.True(pageCount >= 1);
+        Assert.Equal(pageCount, result.GetProperty("page_geometry_count").GetInt32());
+        var geometries = result.GetProperty("page_geometries").EnumerateArray().ToArray();
+        Assert.Equal(pageCount, geometries.Length);
+        for (var index = 0; index < geometries.Length; index++)
+        {
+            Assert.Equal(index + 1, geometries[index].GetProperty("exported_page_number").GetInt32());
+            Assert.True(geometries[index].GetProperty("width_points").GetDouble() > 0);
+            Assert.True(geometries[index].GetProperty("height_points").GetDouble() > 0);
+        }
+
+        var artifacts = result.GetProperty("artifacts").EnumerateArray().ToArray();
+        Assert.Equal(pageCount + 2, artifacts.Length);
+        Assert.Equal(artifacts.Length, result.GetProperty("artifact_count").GetInt32());
+        Assert.Single(artifacts, artifact => artifact.GetProperty("format").GetString() == "pdf");
+        Assert.Single(artifacts, artifact => artifact.GetProperty("format").GetString() == "json");
+        Assert.Equal(
+            pageCount,
+            artifacts.Count(artifact => artifact.GetProperty("format").GetString() == "png")
+        );
+        foreach (var artifact in artifacts)
+        {
+            var path = artifact.GetProperty("output_path").GetString();
+            Assert.NotNull(path);
+            Assert.True(File.Exists(path));
+            Assert.Equal(new FileInfo(path!).Length, artifact.GetProperty("bytes").GetInt64());
+            Assert.Equal(Sha256(path), artifact.GetProperty("sha256").GetString());
+            Assert.Equal("published", artifact.GetProperty("state").GetString());
+        }
+
+        var pdfPath = Path.Combine(outputDirectory, stem + ".pdf");
+        var pngPath = Path.Combine(outputDirectory, stem + "-page-0001.png");
+        var manifestPath = Path.Combine(outputDirectory, stem + ".render.json");
+        Assert.True(File.ReadAllBytes(pdfPath).AsSpan().StartsWith("%PDF-"u8));
+        Assert.True(
+            File.ReadAllBytes(pngPath)
+                .AsSpan()
+                .StartsWith(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 })
+        );
+        using var manifest = JsonDocument.Parse(File.ReadAllBytes(manifestPath));
+        Assert.Equal(
+            LibreOfficeRenderWordPackageContract.Contract,
+            manifest.RootElement.GetProperty("operation_contract").GetString()
+        );
+        Assert.Equal(
+            Path.GetFileName(sourcePath),
+            manifest.RootElement.GetProperty("source_file_name").GetString()
+        );
+        Assert.Equal(pageCount, manifest.RootElement.GetProperty("pdf_page_count").GetInt32());
+        Assert.Equal(pageCount + 1, manifest.RootElement.GetProperty("artifacts").GetArrayLength());
+        Assert.False(
+            manifest.RootElement.GetProperty("macro_prevention_behaviorally_verified").GetBoolean()
+        );
+        Assert.False(
+            manifest.RootElement.GetProperty("external_update_prevention_behaviorally_verified").GetBoolean()
+        );
+        Assert.Equal(sourceBefore, File.ReadAllBytes(sourcePath));
+        Assert.Empty(
+            Directory.EnumerateDirectories(
+                outputDirectory,
+                ".wordtoolkit-libreoffice-render-*"
+            )
+        );
+        Assert.Empty(
+            Directory.EnumerateDirectories(outputDirectory, ".wordtoolkit-poppler-*")
+        );
+    }
+
+    private static void CreateOnePagePackage(string path, string mainContentType)
+    {
+        const string contentTypesNamespace =
+            "http://schemas.openxmlformats.org/package/2006/content-types";
+        const string packageRelationshipsNamespace =
+            "http://schemas.openxmlformats.org/package/2006/relationships";
+        const string officeRelationshipsNamespace =
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        const string wordNamespace =
+            "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
+        AddZipEntry(
+            archive,
+            "[Content_Types].xml",
+            $"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="{contentTypesNamespace}"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="{mainContentType}"/></Types>"""
+        );
+        AddZipEntry(
+            archive,
+            "_rels/.rels",
+            $"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="{packageRelationshipsNamespace}"><Relationship Id="rId1" Type="{officeRelationshipsNamespace}/officeDocument" Target="word/document.xml"/></Relationships>"""
+        );
+        AddZipEntry(
+            archive,
+            "word/document.xml",
+            $"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="{wordNamespace}"><w:body><w:p><w:r><w:t>WordToolkit LibreOffice raster proof.</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="12240" w:h="15840"/></w:sectPr></w:body></w:document>"""
+        );
+    }
+
+    private static void AddZipEntry(ZipArchive archive, string name, string content)
+    {
+        var entry = archive.CreateEntry(name, CompressionLevel.NoCompression);
+        using var stream = entry.Open();
+        stream.Write(Encoding.UTF8.GetBytes(content));
     }
 
     private static WordLiveService CreateService(
