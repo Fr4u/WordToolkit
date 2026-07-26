@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.50.0 — 2026-07-26
+
 - Added `wordtoolkit.render_ooxml_libreoffice_artifacts/1.0` and the matching
   `libreoffice-render-package` CLI. The operation binds a saved Word package fingerprint,
   exact LibreOffice/Java/UNO archive hashes and an embedded reviewed UNO helper; requests
@@ -15,6 +17,13 @@
 - The result explicitly declines Microsoft Word layout/pixel-equivalence claims and does
   not misreport requested macro/update policies as behavioral prevention proof. Capability
   discovery now exposes 145 actions and 56 complete explicit metadata contracts.
+- Hosted run 30201432923 passed all six jobs. Its Ubuntu 24.04 lane ran seven public
+  render-action tests and twelve provider tests against exact LibreOffice 24.2.7.2,
+  Temurin JDK 17.0.16 and source-rebuilt helper hashes. Local pinned-SDK 8.0.423 gates
+  pass 739 Engine, 12 LibreOffice and 532 Native tests.
+- Two independent 197-file, 89,607,363-byte Windows plugin trees and their
+  37,448,205-byte ZIPs are byte-identical at SHA-256
+  `01a8b926667322f70cad628284bff38e78adfc659ae45d7b767c80e356d88eec`.
 
 ## 0.49.0 — 2026-07-26
 

@@ -31,7 +31,7 @@ jobs:
           -c Release --no-restore --logger "console;verbosity=normal"
 
   libreoffice-dotnet:
-    name: LibreOffice backend identity (.NET 8 / Linux)
+    name: LibreOffice UNO render (.NET 8 / Linux)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

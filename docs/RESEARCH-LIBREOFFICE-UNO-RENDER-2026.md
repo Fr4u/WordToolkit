@@ -135,5 +135,8 @@ This does not qualify the Windows/JDK 21 combination. The higher-level
 wrap this provider with OPC/fingerprint validation, independent source-drift checks,
 optional Poppler page rasterization, private-staging deletion before publication and a
 create-new PDF/PNG/manifest transaction. Fake-backend, rollback and closed-schema tests
-pass locally. The public action is not called Linux-qualified until the real hosted lane
-runs that exact action rather than only this lower-level provider.
+pass locally. Hosted run
+<https://github.com/Fr4u/WordToolkit/actions/runs/30201432923> then ran that exact public
+action on Ubuntu 24.04 against the hash-bound LibreOffice 24.2.7.2/JDK 17 combination;
+all seven public-layer tests and all twelve provider tests passed. This qualifies that
+specific Linux combination, not other LibreOffice/JDK/OS tuples.

@@ -11,11 +11,22 @@
   PDF/raster staging first, then publishes the PDF, optional PNG pages and manifest as one
   create-new transaction. It never opens Word and has no hidden backend or PATH fallback.
 - Unit and closed-schema tests prove success, stale fingerprint rejection, source-drift
-  rejection, unknown-field rejection and rollback when an output already exists. Real
-  public-action Linux qualification remains pending in the dedicated hosted CI lane.
+  rejection, unknown-field rejection and rollback when an output already exists. Hosted
+  run <https://github.com/Fr4u/WordToolkit/actions/runs/30201432923> passed all six jobs;
+  its Ubuntu 24.04 lane ran the exact public action through LibreOffice 24.2.7.2 and JDK
+  17, passing seven public-layer and twelve provider tests.
 - The result calls the output `libreoffice_writer_fixed_layout`, not Word-authoritative
   layout. Macro `NEVER_EXECUTE` and update `NO_UPDATE` are recorded as requests; behavioral
   prevention remains explicitly false until adversarial active-content probes exist.
+- Two pinned-SDK 8.0.423 package builds produced byte-identical 197-file,
+  89,607,363-byte trees and byte-identical 37,448,205-byte ZIPs at SHA-256
+  `01a8b926667322f70cad628284bff38e78adfc659ae45d7b767c80e356d88eec`.
+  Runtime executable, runtime assembly, Engine, LibreOffice and Open XML SDK hashes are
+  `f63241db19e004afc71f744d7a00f0463a6e55b866ea63b621f60eca68ac1298`,
+  `48fbb7e26d9be15aa35493254e7d1087b4ded444d22ddebf49ea282d146e6523`,
+  `29bd42165f2c19eba9ec8138a498babb99169645ae067d8e9b32e66647cce04a`,
+  `ca207c100581bf549aa95513e928c91daa8c14ce2694e105d10cff1ffac13e0c`
+  and `5a17ea7539f2706ec3a993000c64c9d3c55d7f22a233b45c428ce14e275f556c`.
 
 # WordToolkit 0.49.0 explicit LibreOffice backend identity - 2026-07-26
 
