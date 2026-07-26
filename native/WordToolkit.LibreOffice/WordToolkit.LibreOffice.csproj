@@ -10,4 +10,9 @@
   <ItemGroup>
     <ProjectReference Include="../WordToolkit.Engine/WordToolkit.Engine.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="../WordToolkit.LibreOffice.Java/generated/wordtoolkit-uno-helper.jar"
+                      LogicalName="WordToolkit.LibreOffice.wordtoolkit-uno-helper.jar" />
+  </ItemGroup>
 </Project>

@@ -121,7 +121,15 @@ inputs were:
 - WordToolkit UNO helper JAR SHA-256
   `583ef85be3e0e9282cd1aec06161767606d1c5b9ce91228587fa8f14e57ad462`.
 
-This qualifies the provider on that exact Linux evidence. It does not qualify the
-Windows/JDK 21 combination and does not yet create a public MCP render action. Public
-exposure remains blocked until the reviewed helper JAR is bound into the package and the
-higher-level PDF/PNG/manifest publication transaction is complete.
+This qualifies the provider on that exact Linux evidence. The reviewed helper JAR is now
+embedded in `WordToolkit.LibreOffice.dll`; callers cannot replace it with an arbitrary
+classpath entry. CI rebuilds the JAR from the committed Java source with the qualified
+JDK 17 toolchain and rejects any byte-level difference from the embedded artifact before
+running the real provider test. The provider extracts it only inside the disposable
+private workspace, verifies SHA-256
+`583ef85be3e0e9282cd1aec06161767606d1c5b9ce91228587fa8f14e57ad462`
+before execution, rechecks it afterward and deletes it with the private profile.
+
+This does not qualify the Windows/JDK 21 combination and does not yet create a public MCP
+render action. Public exposure remains blocked until the higher-level
+PDF/PNG/manifest publication transaction is complete.

@@ -60,13 +60,10 @@ public sealed class LibreOfficeUnoRenderProviderTests
         var libreOfficeJar = Environment.GetEnvironmentVariable(
             "WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAR_PATH"
         );
-        var helperJar = Environment.GetEnvironmentVariable(
-            "WORDTOOLKIT_TEST_LIBREOFFICE_UNO_HELPER_PATH"
-        );
         var source = Environment.GetEnvironmentVariable(
             "WORDTOOLKIT_TEST_LIBREOFFICE_UNO_SOURCE_PATH"
         );
-        if (new[] { office, java, libreOfficeJar, helperJar, source }
+        if (new[] { office, java, libreOfficeJar, source }
             .Any(string.IsNullOrWhiteSpace))
         {
             return;
@@ -91,10 +88,6 @@ public sealed class LibreOfficeUnoRenderProviderTests
                     libreOfficeJar!,
                     RequiredEnvironmentHash(
                         "WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAR_SHA256"
-                    ),
-                    helperJar!,
-                    RequiredEnvironmentHash(
-                        "WORDTOOLKIT_TEST_LIBREOFFICE_UNO_HELPER_SHA256"
                     ),
                     source!,
                     Sha256(source!),
@@ -149,8 +142,6 @@ public sealed class LibreOfficeUnoRenderProviderTests
         Path.Combine(Path.GetTempPath(), "java"),
         new string('0', 64),
         Path.Combine(Path.GetTempPath(), "classes", "libreoffice.jar"),
-        new string('0', 64),
-        Path.Combine(Path.GetTempPath(), "wordtoolkit-uno-helper.jar"),
         new string('0', 64),
         Path.Combine(Path.GetTempPath(), "source.docx"),
         new string('0', 64),

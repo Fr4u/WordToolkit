@@ -79,6 +79,9 @@ jobs:
             --date=2020-01-01T00:00:00Z \
             -C "$helper_classes" .
           test -s "$helper_jar"
+          committed_helper="native/WordToolkit.LibreOffice.Java/generated/wordtoolkit-uno-helper.jar"
+          test -f "$committed_helper"
+          cmp --silent "$helper_jar" "$committed_helper"
           executable_sha256="$(sha256sum "$executable" | cut -d' ' -f1)"
           java_sha256="$(sha256sum "$java_executable" | cut -d' ' -f1)"
           libreoffice_jar_sha256="$(sha256sum "$libreoffice_jar" | cut -d' ' -f1)"
@@ -99,8 +102,6 @@ jobs:
           WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAVA_SHA256="$java_sha256" \
           WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAR_PATH="$libreoffice_jar" \
           WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAR_SHA256="$libreoffice_jar_sha256" \
-          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_HELPER_PATH="$helper_jar" \
-          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_HELPER_SHA256="$helper_sha256" \
           WORDTOOLKIT_TEST_LIBREOFFICE_UNO_SOURCE_PATH="$source_path" \
             dotnet test native/WordToolkit.LibreOffice.Tests/WordToolkit.LibreOffice.Tests.csproj \
               -c Release --no-restore --logger "console;verbosity=normal"

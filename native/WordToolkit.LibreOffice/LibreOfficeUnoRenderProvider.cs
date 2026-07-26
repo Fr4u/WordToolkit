@@ -14,6 +14,10 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
     private const int ResponseMagic = 0x57545231;
     private const int ProtocolVersion = 1;
     private const int MaximumProtocolBytes = 4 * 1024;
+    private const string EmbeddedHelperResourceName =
+        "WordToolkit.LibreOffice.wordtoolkit-uno-helper.jar";
+    private const string EmbeddedHelperSha256 =
+        "583ef85be3e0e9282cd1aec06161767606d1c5b9ce91228587fa8f14e57ad462";
     private static readonly TimeSpan OfficeExitGrace = TimeSpan.FromSeconds(10);
     private static readonly IReadOnlyList<string> Limitations = Array.AsReadOnly(
         new[]
@@ -73,17 +77,6 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
             normalized.ExpectedLibreOfficeJarSha256,
             "LibreOffice Java archive"
         );
-        var helperBefore = ReadIdentity(
-            normalized.HelperClasspathPath,
-            normalized.MaximumJavaArchiveBytes,
-            "WordToolkit UNO helper archive",
-            cancellationToken
-        );
-        RequireExpectedHash(
-            helperBefore,
-            normalized.ExpectedHelperClasspathSha256,
-            "WordToolkit UNO helper archive"
-        );
         var sourceBefore = ReadIdentity(
             normalized.SourcePath,
             normalized.MaximumSourceBytes,
@@ -108,6 +101,7 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
             "source" + Path.GetExtension(normalized.SourcePath).ToLowerInvariant()
         );
         var stagedPdf = Path.Combine(workspace, "render.pdf");
+        var helperPath = Path.Combine(workspace, "wordtoolkit-uno-helper.jar");
         var pipeName = "wtu_" + Guid.NewGuid().ToString("N");
         var outputPublished = false;
         var processTreeKillRequired = false;
@@ -120,6 +114,11 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
         {
             Directory.CreateDirectory(profile);
             Directory.CreateDirectory(processTemp);
+            var helperBefore = ExtractEmbeddedHelper(
+                helperPath,
+                normalized.MaximumJavaArchiveBytes,
+                cancellationToken
+            );
             File.Copy(normalized.SourcePath, stagedInput, overwrite: false);
             var stagedSource = ReadIdentity(
                 stagedInput,
@@ -157,7 +156,7 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
 
             helperProcess = StartHelper(
                 normalized.JavaExecutablePath,
-                normalized.HelperClasspathPath,
+                helperPath,
                 normalized.LibreOfficeJarPath,
                 Path.GetDirectoryName(normalized.LibreOfficeExecutablePath)!,
                 workspace,
@@ -310,7 +309,7 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
                 cancellationToken
             );
             var helperAfter = ReadIdentity(
-                normalized.HelperClasspathPath,
+                helperPath,
                 normalized.MaximumJavaArchiveBytes,
                 "WordToolkit UNO helper archive",
                 cancellationToken
@@ -372,7 +371,7 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
                     expected: true
                 ),
                 Identity(
-                    normalized.HelperClasspathPath,
+                    helperPath,
                     helperBefore,
                     expected: true
                 ),
@@ -538,7 +537,6 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
             request.ExpectedLibreOfficeExecutableSha256,
             request.ExpectedJavaExecutableSha256,
             request.ExpectedLibreOfficeJarSha256,
-            request.ExpectedHelperClasspathSha256,
             request.ExpectedSourceSha256,
         })
         {
@@ -560,14 +558,9 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
             request.LibreOfficeJarPath,
             "LibreOffice Java archive"
         );
-        var helper = ResolveExistingLocalFile(
-            request.HelperClasspathPath,
-            "WordToolkit UNO helper archive"
-        );
         var source = ResolveExistingLocalFile(request.SourcePath, "source package");
         var output = ResolveNewLocalFile(request.OutputPdfPath, "output PDF");
-        if (!Path.GetExtension(libreOfficeJar).Equals(".jar", StringComparison.OrdinalIgnoreCase)
-            || !Path.GetExtension(helper).Equals(".jar", StringComparison.OrdinalIgnoreCase))
+        if (!Path.GetExtension(libreOfficeJar).Equals(".jar", StringComparison.OrdinalIgnoreCase))
         {
             throw Error("INVALID_INPUT", "UNO Java classpath entries must be JAR files");
         }
@@ -590,9 +583,6 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
             LibreOfficeJarPath = libreOfficeJar,
             ExpectedLibreOfficeJarSha256 =
                 request.ExpectedLibreOfficeJarSha256.ToLowerInvariant(),
-            HelperClasspathPath = helper,
-            ExpectedHelperClasspathSha256 =
-                request.ExpectedHelperClasspathSha256.ToLowerInvariant(),
             SourcePath = source,
             ExpectedSourceSha256 = request.ExpectedSourceSha256.ToLowerInvariant(),
             OutputPdfPath = output,
@@ -937,6 +927,81 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
             );
         }
         return identity;
+    }
+
+    private static FileIdentity ExtractEmbeddedHelper(
+        string path,
+        long maximumBytes,
+        CancellationToken cancellationToken
+    )
+    {
+        try
+        {
+            using var resource = typeof(LibreOfficeUnoRenderProvider).Assembly
+                .GetManifestResourceStream(EmbeddedHelperResourceName);
+            if (resource is null)
+            {
+                throw Error(
+                    "BACKEND_UNAVAILABLE",
+                    "The embedded WordToolkit UNO helper is missing"
+                );
+            }
+            using (var destination = new FileStream(
+                path,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None
+            ))
+            {
+                var buffer = new byte[64 * 1024];
+                long total = 0;
+                while (true)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var read = resource.Read(buffer, 0, buffer.Length);
+                    if (read == 0)
+                    {
+                        break;
+                    }
+                    total += read;
+                    if (total > maximumBytes)
+                    {
+                        throw Error(
+                            "LIMIT_EXCEEDED",
+                            "The embedded WordToolkit UNO helper exceeds its size limit"
+                        );
+                    }
+                    destination.Write(buffer, 0, read);
+                }
+                destination.Flush(flushToDisk: true);
+            }
+            var identity = ReadIdentity(
+                path,
+                maximumBytes,
+                "embedded WordToolkit UNO helper archive",
+                cancellationToken
+            );
+            RequireExpectedHash(
+                identity,
+                EmbeddedHelperSha256,
+                "embedded WordToolkit UNO helper archive"
+            );
+            return identity;
+        }
+        catch (WordToolkitOperationException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException
+        )
+        {
+            throw Error(
+                "BACKEND_UNAVAILABLE",
+                "The embedded WordToolkit UNO helper could not be materialized",
+                innerException: exception
+            );
+        }
     }
 
     private static FileIdentity ReadIdentity(
