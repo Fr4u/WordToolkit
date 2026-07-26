@@ -107,8 +107,21 @@ Oracle JDK 21.0.6 then terminates with native access violation `0xC0000005` in
 LibreOffice process exited cleanly. This is a backend failure, not a successful render.
 The provider requires a zero helper exit and therefore rejects it.
 
-Ubuntu 24.04 qualification with exact LibreOffice, Temurin JDK 17, `libreoffice.jar`
-and helper hashes is wired into hosted CI. This document must be updated with the actual
-run URL, versions and hashes only after that lane passes. No public MCP render action is
-permitted before the provider is qualified and the higher-level PDF/PNG/manifest
-publication transaction is complete.
+Ubuntu 24.04 qualification passed in hosted CI:
+<https://github.com/Fr4u/WordToolkit/actions/runs/30200389656>. The real provider test
+completed the full render in four seconds and all 12 adapter tests passed. The qualified
+inputs were:
+
+- LibreOffice `24.2.7.2 420(Build:2)`, executable SHA-256
+  `eef555c71025262c67274dc6e98d00168c2a2ce0fcd16473c38609ff3ce2ace9`;
+- Temurin OpenJDK `17.0.16`, executable SHA-256
+  `1c7e3313ab05bef3da61d7659a12cc50622ddc41b6db2b3a88d480445bf9619f`;
+- resolved LibreOffice Java archive SHA-256
+  `8e8ca596c9bd1333bd35a850ba7991a29107e6cc32ca4e961a597971864d5840`;
+- WordToolkit UNO helper JAR SHA-256
+  `583ef85be3e0e9282cd1aec06161767606d1c5b9ce91228587fa8f14e57ad462`.
+
+This qualifies the provider on that exact Linux evidence. It does not qualify the
+Windows/JDK 21 combination and does not yet create a public MCP render action. Public
+exposure remains blocked until the reviewed helper JAR is bound into the package and the
+higher-level PDF/PNG/manifest publication transaction is complete.

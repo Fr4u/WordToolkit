@@ -104,6 +104,13 @@ jobs:
           WORDTOOLKIT_TEST_LIBREOFFICE_UNO_SOURCE_PATH="$source_path" \
             dotnet test native/WordToolkit.LibreOffice.Tests/WordToolkit.LibreOffice.Tests.csproj \
               -c Release --no-restore --logger "console;verbosity=normal"
+      - name: Upload the exact qualified UNO helper JAR
+        uses: actions/upload-artifact@v7
+        with:
+          name: wordtoolkit-libreoffice-uno-helper-jdk17
+          path: ${{ runner.temp }}/wordtoolkit-uno-helper.jar
+          if-no-files-found: error
+          retention-days: 14
 
   native-windows-package:
     name: native tests and final plugin ZIP (Windows)
