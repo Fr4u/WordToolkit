@@ -81,11 +81,17 @@ permission. Execution:
 
 The result does not claim deterministic reproduction even for matching executable/model
 hashes because dynamically loaded dependencies and the complete host environment are not
-bound. The adapter is trusted in-process code that starts a child process. It is not a
-general out-of-process plugin sandbox. There is no restricted process identity, Windows Job
-Object, syscall broker, network namespace or hostile-provider isolation. A compromised
-configured executable still has the user's OS permissions. Hashing and explicit paths
-provide identity/provenance, not containment.
+bound. In 0.57 the adapter itself became a host-owned process-boundary proxy. It sends the
+typed request through closed, duplicate/unknown-field-rejecting JSON IPC to a fresh,
+hash-bound WordToolkit child. The child is attached before request publication to a
+Windows Job Object with a 1 GiB aggregate memory ceiling, three-process limit,
+kill-on-close and hard timeout/tree termination. A random request ID and pre/post host
+binary hashes bind the response to the intended invocation.
+
+That boundary contains crashes, ignored cancellation and resource growth; it is not a
+permission sandbox. The configured executable still runs with the user's OS token. There
+is no restricted token/AppContainer, network block, syscall policy or filesystem broker.
+Hashing and explicit paths provide identity/provenance, not reduced authority.
 
 ## Privacy and stale-state rules
 
@@ -111,7 +117,15 @@ candidate and executed the lazy MCP action against local Tesseract
 bounded line/word geometry, normalized confidence above the required threshold, exact
 provider/model/image hashes and `network_used=false`. The successful MCP envelope
 conformed to the published closed output schema. The DOCX SHA-256 and the observed Word
-process count were unchanged; the COM host invocation count was zero.
+process count were unchanged; the COM host invocation count was zero. The same acceptance
+now executes through the separate Job Object host rather than invoking the adapter inside
+the MCP process.
+
+The seven-sample alternating benchmark used real Tesseract 5.5.0 and the same bound model
+over one 16,734-byte PNG. Direct in-process median was 248.0910 ms; the isolated path was
+482.1869 ms, a +234.0959 ms / +94.36% correctness cost. All fourteen typed result hashes
+were identical and the benchmark returned no recognized text. Raw evidence is in
+`docs/benchmarks/ocr-provider-process-boundary-2026-07-26.json`.
 
 Unit/contract tests additionally cover deduplication, signature mismatch, unresolved source
 relationships, incomplete figure projection, compact content suppression, source fingerprint
@@ -121,7 +135,8 @@ identifiers, empty/UNC/mapped-network/reparse provider paths and refusal to sear
 
 ## Remaining hard work
 
-- signed/installable third-party provider packages and a truly isolated provider host;
+- signed/installable third-party provider packages and a restricted-identity/network/
+  filesystem-brokered provider sandbox beyond the current crash/resource boundary;
 - Windows OCR and explicitly authorized Azure/Google/AWS adapters;
 - vector/PDF/page rasterization with its own versioned provenance and pixel limits;
 - EXIF orientation, rotation, multi-frame images, color/bit-depth bombs and broader

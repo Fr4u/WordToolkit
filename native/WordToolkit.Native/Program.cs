@@ -10,7 +10,7 @@ namespace WordToolkit.Native;
 internal static class Program
 {
     private const string Usage =
-        "usage: wordtoolkit-native [capabilities [--schema | [--query <text>] [--offset <n>] [--limit <n>]] [--format json] | extensions [--query <text>] [--offset <n>] [--limit <1..32>] [--format json] | libreoffice-backend --request <request.json|-> [--format json] | libreoffice-render-package --request <request.json|-> [--format json] | audit-log verify <path> [--max-bytes <n>] [--max-events <n>] [--format json] | inspect-package <path> [--include-details] [--max-items <1..200>] [--format json] | inspect-encryption <path> [--format json] | analyze-package --request <request.json|-> [--format json] | query-package --request <query.json|-> [--format json] | heading-outline-package --request <request.json|-> [--format json] | mail-merge-schema-package --request <request.json|-> [--format json] | semantic-role-package --request <request.json|-> [--format json] | ocr-package --mode <inspect|recognize> --request <request.json|-> [--format json] | render-package --request <request.json|-> [--backend semantic-html|semantic-svg] [--format json] | fixed-render-package --request <request.json|-> [--format json] | style-package --mode <plan|apply> --request <request.json|-> [--format json] | template-style-alignment-package --mode <inspect|plan|apply> --request <request.json|-> [--format json] | numbering-repair-package --mode <plan|apply> --request <request.json|-> [--format json] | numbering-rebuild-package --mode <inspect|plan|apply> --request <request.json|-> [--format json] | note-package --mode <inspect|plan|apply> --request <request.json|-> [--format json] | equation-repair-package --mode <inspect|plan|apply> --request <request.json|-> [--format json] | equation-paragraph-rewrite-package --mode <inspect|plan|apply> --request <request.json|-> [--format json] | relationship-repair-package --mode <inspect|plan|apply> --request <request.json|-> [--format json] | comment-body-package --mode <plan|apply> --request <request.json|-> [--format json] | patch-rollback-package --mode <plan|apply> --request <request.json|-> [--format json] | transform-package <input> <output> --operation <name> [--find-text <text> --replace-text <text>] [--format json] | flat-opc-package <input> <output> --direction <to_flat_opc|from_flat_opc> [--format json] | docx-platform-adapter --protocol-version 1 --operation <operation.json> --input <input.docx> --output <output.docx> | --create-test-document <path> | --benchmark-active-word]";
+        "usage: wordtoolkit-native [capabilities [--schema | [--query <text>] [--offset <n>] [--limit <n>]] [--format json] | extensions [--query <text>] [--offset <n>] [--limit <1..32>] [--format json] | libreoffice-backend --request <request.json|-> [--format json] | libreoffice-render-package --request <request.json|-> [--format json] | audit-log verify <path> [--max-bytes <n>] [--max-events <n>] [--format json] | inspect-package <path> [--include-details] [--max-items <1..200>] [--format json] | inspect-encryption <path> [--format json] | analyze-package --request <request.json|-> [--format json] | query-package --request <query.json|-> [--format json] | heading-outline-package --request <request.json|-> [--format json] | mail-merge-schema-package --request <request.json|-> [--format json] | semantic-role-package --request <request.json|-> [--format json] | ocr-package --mode <inspect|recognize> --request <request.json|-> [--format json] | render-package --request <request.json|-> [--backend semantic-html|semantic-svg] [--format json] | fixed-render-package --request <request.json|-> [--format json] | style-package --mode <plan|apply> --request <request.json|-> [--format json] | template-style-alignment-package --mode <inspect|plan|apply> --request <request.json|-> [--format json] | numbering-repair-package --mode <plan|apply> --request <request.json|-> [--format json] | numbering-rebuild-package --mode <inspect|plan|apply> --request <request.json|-> [--format json] | note-package --mode <inspect|plan|apply> --request <request.json|-> [--format json] | equation-repair-package --mode <inspect|plan|apply> --request <request.json|-> [--format json] | equation-paragraph-rewrite-package --mode <inspect|plan|apply> --request <request.json|-> [--format json] | relationship-repair-package --mode <inspect|plan|apply> --request <request.json|-> [--format json] | comment-body-package --mode <plan|apply> --request <request.json|-> [--format json] | patch-rollback-package --mode <plan|apply> --request <request.json|-> [--format json] | transform-package <input> <output> --operation <name> [--find-text <text> --replace-text <text>] [--format json] | flat-opc-package <input> <output> --direction <to_flat_opc|from_flat_opc> [--format json] | docx-platform-adapter --protocol-version 1 --operation <operation.json> --input <input.docx> --output <output.docx> | --create-test-document <path> | --benchmark-active-word | --benchmark-ocr-provider-boundary --image <path> --tesseract <path> --models <dir> [--samples <3..31>] [--format json]]";
 
     public static async Task<int> Main(string[] args)
     {
@@ -28,6 +28,16 @@ internal static class Program
             return 0;
         }
 
+        if (args.Length >= 1 && args[0] == "--internal-ocr-provider-host")
+        {
+            return await OcrProviderHostCli.RunAsync(
+                args[1..],
+                Console.In,
+                Console.Out,
+                Console.Error
+            );
+        }
+
         if (args.Length == 2 && args[0] == "--create-test-document")
         {
             var result = NativeTestDocument.Create(Path.GetFullPath(args[1]));
@@ -42,6 +52,15 @@ internal static class Program
             var result = await NativeBenchmark.RunAsync(benchmarkService);
             Console.WriteLine(JsonSerializer.Serialize(result, JsonDefaults.Indented));
             return result.Passed ? 0 : 2;
+        }
+
+        if (args.Length >= 1 && args[0] == "--benchmark-ocr-provider-boundary")
+        {
+            return OcrProviderBoundaryBenchmarkCli.Run(
+                args[1..],
+                Console.Out,
+                Console.Error
+            );
         }
 
         if (args.Length >= 1 && args[0] == "capabilities")

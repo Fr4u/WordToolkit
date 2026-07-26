@@ -56,7 +56,8 @@ public sealed record WordToolkitExtensionResourceLimits(
     long MaxInputBytes,
     long MaxOutputBytes,
     int MaxConcurrentInvocations,
-    int TimeoutMilliseconds
+    int TimeoutMilliseconds,
+    long? MaxProcessMemoryBytes = null
 )
 {
     public static WordToolkitExtensionResourceLimits ConservativeDefault { get; } =
@@ -64,9 +65,17 @@ public sealed record WordToolkitExtensionResourceLimits(
             MaxInputBytes: 256L * 1024 * 1024,
             MaxOutputBytes: 16L * 1024 * 1024,
             MaxConcurrentInvocations: 2,
-            TimeoutMilliseconds: 120_000
+            TimeoutMilliseconds: 120_000,
+            MaxProcessMemoryBytes: null
         );
 }
+
+/// <summary>
+/// Marks a host-owned proxy whose capability implementation crosses a real process
+/// boundary before invoking provider code. The registry never discovers or loads a
+/// provider assembly merely because an implementation carries this marker.
+/// </summary>
+public interface IWordToolkitProcessBoundaryProxy;
 
 public sealed record WordToolkitExtensionDescriptor(
     string ExtensionId,

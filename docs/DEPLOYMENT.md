@@ -11,10 +11,11 @@ does not expose a listening port.
 4. Start a new Codex task so the new skill and MCP server are discovered.
 
 The built plugin contains a self-contained `runtime/win-x64/wordtoolkit-native.exe`.
-It does not contain or launch Python, `uv`, a virtual environment or a per-call helper
-process. Document sessions are owned by the native process and the attached Word
-application. Saved-package actions accept explicit local paths according to their
-individual schemas.
+It does not contain or launch Python, `uv`, a virtual environment or an interpreter
+helper. Explicit OCR recognition launches one bounded copy of the native runtime as its
+Job Object process boundary; ordinary startup and non-provider actions do not. Document
+sessions are owned by the native process and the attached Word application.
+Saved-package actions accept explicit local paths according to their individual schemas.
 
 The executable is also a non-interactive automation CLI. Saved-package inspection uses
 the cross-platform engine directly and exits before constructing the Word COM host:

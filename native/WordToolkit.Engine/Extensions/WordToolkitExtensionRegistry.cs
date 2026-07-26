@@ -45,13 +45,22 @@ public sealed class WordToolkitExtensionRegistryBuilder
             throw Invalid("Extension capability contracts must be interfaces.");
         }
         if (
-            extension.Isolation
-            != WordToolkitExtensionIsolation.TrustedInProcess
+            extension.Isolation == WordToolkitExtensionIsolation.OutOfProcess
+            && implementation is not IWordToolkitProcessBoundaryProxy
         )
         {
             throw new WordToolkitExtensionException(
                 "EXTENSION_ISOLATION_UNAVAILABLE",
-                "This registry accepts only trusted in-process implementations. Out-of-process extensions require a separate process host."
+                "An out-of-process extension requires an explicitly registered host-owned process-boundary proxy."
+            );
+        }
+        if (
+            extension.Isolation == WordToolkitExtensionIsolation.TrustedInProcess
+            && implementation is IWordToolkitProcessBoundaryProxy
+        )
+        {
+            throw Invalid(
+                "A process-boundary proxy cannot be registered as trusted in-process code."
             );
         }
 
@@ -213,7 +222,10 @@ public sealed class WordToolkitExtensionRegistry
                 timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested
             )
             {
-                throw TimedOut(capabilityId);
+                throw TimedOut(
+                    capabilityId,
+                    registration.Descriptor.TimeoutEnforcement
+                );
             }
             catch (OperationCanceledException)
             {
@@ -239,7 +251,10 @@ public sealed class WordToolkitExtensionRegistry
                     > registration.Descriptor.ResourceLimits.TimeoutMilliseconds
             )
             {
-                throw TimedOut(capabilityId);
+                throw TimedOut(
+                    capabilityId,
+                    registration.Descriptor.TimeoutEnforcement
+                );
             }
             long outputBytes;
             try
@@ -307,11 +322,23 @@ public sealed class WordToolkitExtensionRegistry
         return registration;
     }
 
-    private static WordToolkitExtensionException TimedOut(string capabilityId) => new(
+    private static WordToolkitExtensionException TimedOut(
+        string capabilityId,
+        WordToolkitExtensionTimeoutEnforcement enforcement
+    ) => new(
         "EXTENSION_TIMEOUT",
-        $"Capability '{capabilityId}' exceeded its cooperative timeout.",
+        $"Capability '{capabilityId}' exceeded its {TimeoutName(enforcement)} timeout.",
         retryable: true
     );
+
+    private static string TimeoutName(
+        WordToolkitExtensionTimeoutEnforcement enforcement
+    ) => enforcement switch
+    {
+        WordToolkitExtensionTimeoutEnforcement.Cooperative => "cooperative",
+        WordToolkitExtensionTimeoutEnforcement.ProcessBoundary => "process-boundary",
+        _ => "declared",
+    };
 
     private static string ComputeCatalogHash(
         IReadOnlyList<WordToolkitRegisteredExtension> extensions
@@ -364,6 +391,12 @@ public sealed class WordToolkitExtensionRegistry
                     capability.ResourceLimits.TimeoutMilliseconds.ToString(
                         CultureInfo.InvariantCulture
                     )
+                );
+                Add(
+                    canonical,
+                    capability.ResourceLimits.MaxProcessMemoryBytes?.ToString(
+                        CultureInfo.InvariantCulture
+                    ) ?? ""
                 );
                 Add(canonical, capability.TimeoutEnforcement.ToString());
                 Add(canonical, capability.Deterministic ? "1" : "0");

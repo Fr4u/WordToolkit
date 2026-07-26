@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-WordToolkit 0.51 (development line) is a local Windows MCP plugin plus a neutral .NET document-engine spine. It starts or attaches to the real Microsoft Word application through a persistent COM STA thread, while the cross-platform LibreOffice layer separates bounded exact-binary identity probing from a real one-shot Java UNO Writer renderer that uses a private profile, an embedded source-rebuilt helper, source-drift checks and transactional PDF/PNG/manifest publication without pretending to provide Microsoft Word layout fidelity or a process/network sandbox. The document-engine core can also inspect the package graph, semantic structure, conservative theorem/definition/proof role evidence, section bindings, typed table/grid/merge topology, style, numbering, theme, settings, font-table, field/bookmark/reference, classic DrawingML chart, source-linked figure/caption and declared DrawingML/VML placement, active-content metadata, canonical OfficeMath and review/revision graphs, rewrite ordinary text slots around exact-byte immutable OfficeMath anchors, repair only canonically identical duplicate OfficeMath property containers and properties, lint a saved package with deterministic source-linked rule packs, plan and apply source-bound title and numbering-sequence repairs, reconstruct reviewed single- or multilevel numbering definitions even when the numbering part is missing, create, clone, safely consolidate exact typed style definitions, delete proven-unused custom definitions, rename only a custom style's primary visible name, align complete stable-ID style dependency closures from a separate template without attaching or mutating it, and assign styles through one semantic transaction, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Classic chart inspection covers all 16 plot families, series, axes, cache metadata and related parts without retaining point values or opening workbooks. Figure inspection types anchor reference frames, offsets, effect extents, relative sizes and bounded wrap polygons plus known VML placement declarations without claiming that declared coordinates are rendered page geometry. Active-content inspection inventories OLE declarations, embedded packages, ActiveX topology, VBA/customization and signature parts without decoding binaries, opening embedded packages, running macros, following external targets or claiming cryptographic validation. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text, style definitions, paragraph/run/table style references, tracked-review structures, numbering instances and one existing empty core-title element to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
+WordToolkit 0.57 (development line) is a local Windows MCP plugin plus a neutral .NET document-engine spine. It starts or attaches to the real Microsoft Word application through a persistent COM STA thread, while the cross-platform LibreOffice layer separates bounded exact-binary identity probing from a real one-shot Java UNO Writer renderer that uses a private profile, an embedded source-rebuilt helper, source-drift checks and transactional PDF/PNG/manifest publication without pretending to provide Microsoft Word layout fidelity or a process/network sandbox. The document-engine core can also inspect the package graph, semantic structure, conservative theorem/definition/proof role evidence, section bindings, typed table/grid/merge topology, style, numbering, theme, settings, font-table, field/bookmark/reference, classic DrawingML chart, source-linked figure/caption and declared DrawingML/VML placement, active-content metadata, canonical OfficeMath and review/revision graphs, rewrite ordinary text slots around exact-byte immutable OfficeMath anchors, repair only canonically identical duplicate OfficeMath property containers and properties, lint a saved package with deterministic source-linked rule packs, plan and apply source-bound title and numbering-sequence repairs, reconstruct reviewed single- or multilevel numbering definitions even when the numbering part is missing, create, clone, safely consolidate exact typed style definitions, delete proven-unused custom definitions, rename only a custom style's primary visible name, align complete stable-ID style dependency closures from a separate template without attaching or mutating it, and assign styles through one semantic transaction, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Classic chart inspection covers all 16 plot families, series, axes, cache metadata and related parts without retaining point values or opening workbooks. Figure inspection types anchor reference frames, offsets, effect extents, relative sizes and bounded wrap polygons plus known VML placement declarations without claiming that declared coordinates are rendered page geometry. Active-content inspection inventories OLE declarations, embedded packages, ActiveX topology, VBA/customization and signature parts without decoding binaries, opening embedded packages, running macros, following external targets or claiming cryptographic validation. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text, style definitions, paragraph/run/table style references, tracked-review structures, numbering instances and one existing empty core-title element to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
 
 The saved-package core also projects Word bibliography collections stored in Custom XML
 into source-linked collections, sources, scalar fields, locale/style metadata and
@@ -115,13 +115,16 @@ for the Word object-model evidence, safety contracts and verified limits.
 
 This is an advanced but experimental OOXML engine, not a verified claim of market leadership or complete Microsoft Word equivalence. Unsupported domains and release evidence are listed explicitly in [Known limitations](docs/KNOWN-LIMITATIONS.md) and [Testing](docs/TESTING.md).
 
-The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtual environment, an interpreter bootstrap, or a per-call helper process. Its MCP command points directly to:
+The packaged plugin does not contain or launch Python, `uv`, `pywin32`, a virtual
+environment or an interpreter bootstrap. Its MCP command points directly to one native
+runtime; only explicitly selected provider work may create a bounded native child. OCR
+uses that child as a hard process boundary rather than a startup shim:
 
 ```text
 ./runtime/win-x64/wordtoolkit-native.exe
 ```
 
-The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.37 local plugin, does not participate in its startup, and is not required at runtime.
+The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.57 local plugin, does not participate in its startup, and is not required at runtime.
 
 ## Why the runtime was replaced
 
@@ -256,14 +259,22 @@ wordtoolkit-native ocr-package --mode inspect --request inspect-ocr.json --forma
 wordtoolkit-native ocr-package --mode recognize --request run-ocr.json --format json
 ```
 
-The Tesseract adapter spawns a child process but remains trusted adapter code, not a
-sandbox. See
+The Tesseract capability now crosses a closed JSON process protocol. The host and request
+are hash/identity-bound before execution; a Windows Job Object applies a 1 GiB aggregate
+commit ceiling, at most three active processes, kill-on-close and hard timeout/tree
+termination. Only a small environment allowlist is inherited. This contains crashes,
+runaway memory and ignored cancellation, but the child still has the user's Windows token
+and direct access to the explicitly supplied executable/model paths. No restricted token,
+AppContainer, network block or filesystem broker exists, so the result is deliberately
+not called a permission sandbox. See
 [`docs/RESEARCH-OCR-PROVIDER-2026.md`](docs/RESEARCH-OCR-PROVIDER-2026.md).
 
 Catalog results expose versioned interfaces, trust/isolation, declared permissions and
-resource ceilings, but no implementation type or assembly path. `trusted_in_process`
-means full process trust, not a sandbox; `cooperative` timeout is cancellation, not safe
-preemption. See
+resource ceilings, including a process-memory ceiling when applicable, but no
+implementation type or assembly path. `trusted_in_process`/`cooperative` remains full
+process trust and best-effort cancellation. `out_of_process`/`process_boundary` proves
+only the registered host proxy and its declared hard process controls; it does not imply
+a restricted identity or brokered permissions. See
 [`docs/RESEARCH-PLUGIN-ARCHITECTURE-2026.md`](docs/RESEARCH-PLUGIN-ARCHITECTURE-2026.md).
 
 Runtime observability is explicit and content-free. Telemetry and audit persistence are
@@ -1312,7 +1323,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is 0.56.0. The latest immutable public release remains
+The development manifest/runtime is 0.57.0. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:

@@ -123,6 +123,34 @@ public sealed class WordToolkitExtensionPolicy
                 "An in-process extension cannot claim process-boundary timeout enforcement."
             );
         }
+        if (
+            extension.Isolation == WordToolkitExtensionIsolation.TrustedInProcess
+            && capability.ResourceLimits.MaxProcessMemoryBytes is not null
+        )
+        {
+            throw Invalid(
+                "An in-process extension cannot claim a process-memory boundary."
+            );
+        }
+        if (
+            extension.Isolation == WordToolkitExtensionIsolation.OutOfProcess
+            && capability.TimeoutEnforcement
+                != WordToolkitExtensionTimeoutEnforcement.ProcessBoundary
+        )
+        {
+            throw Invalid(
+                "An out-of-process extension must use process-boundary timeout enforcement."
+            );
+        }
+        if (
+            extension.Isolation == WordToolkitExtensionIsolation.OutOfProcess
+            && capability.ResourceLimits.MaxProcessMemoryBytes is null
+        )
+        {
+            throw Invalid(
+                "An out-of-process extension must declare a positive process-memory ceiling."
+            );
+        }
 
         var (major, minor) = WordToolkitExtensionValidation.ParseContractVersion(
             extension.EngineContractVersion,
@@ -186,6 +214,13 @@ public sealed class WordToolkitExtensionPolicy
             || limits.MaxOutputBytes > maximum.MaxOutputBytes
             || limits.MaxConcurrentInvocations > maximum.MaxConcurrentInvocations
             || limits.TimeoutMilliseconds > maximum.TimeoutMilliseconds
+            || (
+                limits.MaxProcessMemoryBytes is not null
+                && (
+                    maximum.MaxProcessMemoryBytes is null
+                    || limits.MaxProcessMemoryBytes > maximum.MaxProcessMemoryBytes
+                )
+            )
         )
         {
             throw Denied(

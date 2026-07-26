@@ -1,0 +1,73 @@
+{
+  "operation_contract": "wordtoolkit.benchmark.ocr_process_boundary/1.0",
+  "runtime": {
+    "os": "Microsoft Windows NT 10.0.19045.0",
+    "framework": ".NET 8.0.26",
+    "architecture": "x64"
+  },
+  "samples": 7,
+  "alternating_order": true,
+  "image": {
+    "bytes": 16734,
+    "sha256": "24a71d42dbbbfca471aa581a5d32206b7d8bec5c42b5c24debb97c147ff49290",
+    "content_type": "image/png"
+  },
+  "provider": {
+    "name": "tesseract-cli",
+    "version": "v5.5.0.20241111",
+    "binary_sha256": "ccd044d6cf16eaaad151260e1fcc5e3e1504cd1b8644e940b4f7ae3e315dd0d3",
+    "model_set_sha256": "64d8bbfce719d63c0fda3dc0dfb58da6a99b0752ca85aadd06d5ff0f1e7ca3f3",
+    "language": "eng"
+  },
+  "direct_in_process": {
+    "minimum_milliseconds": 241.9578,
+    "median_milliseconds": 248.091,
+    "p95_milliseconds": 290.0836,
+    "maximum_milliseconds": 303.3351,
+    "samples_milliseconds": [
+      241.9578,
+      242.5019,
+      244.1144,
+      248.091,
+      252.6332,
+      259.1634,
+      303.3351
+    ]
+  },
+  "isolated_process": {
+    "minimum_milliseconds": 471.0249,
+    "median_milliseconds": 482.1869,
+    "p95_milliseconds": 523.7382,
+    "maximum_milliseconds": 533.9836,
+    "samples_milliseconds": [
+      471.0249,
+      476.0073,
+      477.5619,
+      482.1869,
+      493.0513,
+      499.8322,
+      533.9836
+    ]
+  },
+  "median_overhead_milliseconds": 234.0959,
+  "median_overhead_percent": 94.36,
+  "result_sha256": "c046f002dd90b464434fb392fa2885864da9927c97eec50aeb172edffa060ca5",
+  "stable_typed_results": true,
+  "recognized_text_returned": false,
+  "recognized_text_characters": 27,
+  "process_boundary": {
+    "closed_json_ipc": true,
+    "request_identity_bound": true,
+    "host_executable_identity_bound": true,
+    "hard_timeout": true,
+    "process_tree_kill": true,
+    "windows_job_object": true,
+    "maximum_process_memory_bytes": 1073741824,
+    "maximum_active_processes": 3,
+    "minimized_environment": true,
+    "restricted_windows_token": false,
+    "network_isolation_enforced": false,
+    "filesystem_brokered": false,
+    "sandbox_claimed": false
+  }
+}

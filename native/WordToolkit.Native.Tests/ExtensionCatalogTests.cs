@@ -55,6 +55,18 @@ public sealed class ExtensionCatalogTests
         );
         Assert.True(ocrItem.CapabilityReturnsDocumentContent);
         Assert.DoesNotContain("network", ocrItem.Permissions);
+        Assert.Equal(
+            WordToolkit.Engine.Extensions.WordToolkitExtensionIsolation.OutOfProcess,
+            ocrItem.Isolation
+        );
+        Assert.Equal(
+            WordToolkit.Engine.Extensions.WordToolkitExtensionTimeoutEnforcement.ProcessBoundary,
+            ocrItem.TimeoutEnforcement
+        );
+        Assert.Equal(
+            WordToolkit.Native.Ocr.ProcessBoundaryTesseractOcrProvider.MaximumProcessMemoryBytes,
+            ocrItem.ResourceLimits.MaxProcessMemoryBytes
+        );
 
         output.GetStringBuilder().Clear();
         error.GetStringBuilder().Clear();

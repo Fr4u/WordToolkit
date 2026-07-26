@@ -1723,20 +1723,21 @@ verification surrounds provider execution. Result text, geometry and document ha
 independent opt-ins; image bytes, raw TSV, XML and paths are never returned. See
 `docs/RESEARCH-OCR-PROVIDER-2026.md` for the dated source comparison and threat model.
 
-The provider remains trusted in-process adapter code with a spawned child process. That
-is not a process sandbox: restricted identity, Job Object enforcement, brokered IPC and
-hostile-provider containment remain future work. Matching executable/model hashes do not
-produce a determinism claim because dynamic dependencies and the complete host
-environment remain unbound.
+The Tesseract capability now uses a host-owned `IWordToolkitProcessBoundaryProxy` and one
+fresh native child per recognition. The closed JSON IPC binds a random request identity,
+typed input/output, host executable/assembly hashes and strict size/depth/member limits.
+The Windows host attaches the waiting child to a Job Object before sending the request,
+with a 1 GiB aggregate memory ceiling, at most three processes, kill-on-close and hard
+timeout/tree termination. The public catalog reports `out_of_process`,
+`process_boundary` and the memory ceiling.
 
-The current registry supports only `TrustedInProcess` with cooperative cancellation.
-.NET documents that `AssemblyLoadContext` is dependency/type isolation, not a security
-boundary; all in-process code has the process's permissions. `OutOfProcess` and
-`ProcessBoundary` are reserved but rejected until a separate host provides closed IPC,
-restricted process identity, resource enforcement and crash recovery. Untrusted plugins
-therefore receive no live COM object, filesystem root, arbitrary process execution or raw
-credentials because they are not loaded at all. Generic `exec`/`eval` tools remain
-forbidden. The research and remaining boundary are recorded in
+This does not make the provider untrusted-safe. The child inherits the caller's Windows
+token; restricted identity/AppContainer, filesystem brokering and network isolation are
+not implemented. The boundary contains crashes, ignored cancellation and resource growth,
+while explicit path/model hashing supplies provenance. Matching hashes still do not prove
+determinism because dynamic dependencies and the complete host environment remain unbound.
+Arbitrary third-party assemblies are still never discovered or loaded, and generic
+`exec`/`eval` tools remain forbidden. The research and remaining boundary are recorded in
 `docs/RESEARCH-PLUGIN-ARCHITECTURE-2026.md`.
 
 ## Telemetry and privacy

@@ -10,6 +10,15 @@ other.
 
 Untrusted inputs are OAuth tokens, MCP JSON, file URLs supplied by ChatGPT, ZIP metadata, XML, relationships, image bytes, Markdown and renderer inputs. The remote service trusts only its configuration, immutable container image, configured identity provider and files it has produced inside the session root. The local plugin additionally trusts its installed runtime and explicit user-selected local paths; document contents and MCP arguments remain untrusted.
 
+Local OCR uses one fresh, hash-bound WordToolkit child behind a duplicate/unknown-field-
+rejecting JSON protocol. A Windows Job Object limits the complete child tree to 1 GiB and
+three active processes, kills it on timeout/close and receives the request only after job
+assignment. The environment is minimized and raw stderr/paths/implementation details do
+not cross IPC. This is availability and resource containment, not an authorization
+boundary: the child keeps the caller's Windows token, and network/filesystem access is not
+brokered. Only explicit local provider/model paths are accepted, but a compromised binary
+at an approved path still has the caller's authority.
+
 ## Local native MCP and COM boundary
 
 The local server accepts one JSON-RPC message per line, capped at 8 MiB. It drains an

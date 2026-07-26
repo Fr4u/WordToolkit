@@ -105,6 +105,109 @@ public sealed class ExtensionRegistryTests
     }
 
     [Fact]
+    public void OutOfProcessRegistrationRequiresHostProxyAndHardLimits()
+    {
+        var maximum = new WordToolkitExtensionResourceLimits(
+            1024,
+            1024,
+            1,
+            5000,
+            MaxProcessMemoryBytes: 4096
+        );
+        var policy = new WordToolkitExtensionPolicy(
+            ["wordtoolkit.test.process"],
+            [WordToolkitExtensionTrust.BuiltIn],
+            [WordToolkitExtensionIsolation.OutOfProcess],
+            [
+                new WordToolkitExtensionInterfaceSupport(
+                    "wordtoolkit.test-interface",
+                    "1.0",
+                    WordToolkitExtensionKind.Validator
+                ),
+            ],
+            WordToolkitExtensionPermission.ReadPackage,
+            maximum
+        );
+        var descriptor = Extension("wordtoolkit.test.process") with
+        {
+            Isolation = WordToolkitExtensionIsolation.OutOfProcess,
+        };
+        var capability = Capability("wordtoolkit.capability.process") with
+        {
+            ResourceLimits = maximum with { MaxProcessMemoryBytes = 2048 },
+            TimeoutEnforcement = WordToolkitExtensionTimeoutEnforcement.ProcessBoundary,
+        };
+
+        Assert.Equal(
+            "EXTENSION_ISOLATION_UNAVAILABLE",
+            Assert.Throws<WordToolkitExtensionException>(() =>
+                new WordToolkitExtensionRegistryBuilder(policy).Register<ITestCapability>(
+                    descriptor,
+                    capability,
+                    new EchoCapability()
+                )
+            ).Code
+        );
+        Assert.Equal(
+            "EXTENSION_REGISTRATION_INVALID",
+            Assert.Throws<WordToolkitExtensionException>(() =>
+                new WordToolkitExtensionRegistryBuilder(policy).Register<ITestCapability>(
+                    descriptor,
+                    capability with
+                    {
+                        TimeoutEnforcement = WordToolkitExtensionTimeoutEnforcement.Cooperative,
+                    },
+                    new ProcessBoundaryEchoCapability()
+                )
+            ).Code
+        );
+        Assert.Equal(
+            "EXTENSION_REGISTRATION_INVALID",
+            Assert.Throws<WordToolkitExtensionException>(() =>
+                new WordToolkitExtensionRegistryBuilder(policy).Register<ITestCapability>(
+                    descriptor,
+                    capability with
+                    {
+                        ResourceLimits = capability.ResourceLimits with
+                        {
+                            MaxProcessMemoryBytes = null,
+                        },
+                    },
+                    new ProcessBoundaryEchoCapability()
+                )
+            ).Code
+        );
+
+        var builder = new WordToolkitExtensionRegistryBuilder(policy);
+        builder.Register<ITestCapability>(
+            descriptor,
+            capability,
+            new ProcessBoundaryEchoCapability()
+        );
+        var registry = builder.Build();
+        Assert.Equal(
+            "echo",
+            registry.Invoke<ITestCapability, string>(
+                capability.CapabilityId,
+                4,
+                (service, token) => service.Echo("echo", token),
+                value => value.Length
+            )
+        );
+        var item = Assert.Single(
+            new InspectExtensionCatalogOperation(registry).Execute(
+                new InspectExtensionCatalogRequest()
+            ).Items
+        );
+        Assert.Equal(WordToolkitExtensionIsolation.OutOfProcess, item.Isolation);
+        Assert.Equal(
+            WordToolkitExtensionTimeoutEnforcement.ProcessBoundary,
+            item.TimeoutEnforcement
+        );
+        Assert.Equal(2048, item.ResourceLimits.MaxProcessMemoryBytes);
+    }
+
+    [Fact]
     public void BuilderRejectsDuplicatesConflictsAndUseAfterFreeze()
     {
         var builder = Builder("wordtoolkit.test.allowed");
@@ -421,6 +524,17 @@ public sealed class ExtensionRegistryTests
     }
 
     private sealed class EchoCapability : ITestCapability
+    {
+        public string Echo(string value, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return value;
+        }
+    }
+
+    private sealed class ProcessBoundaryEchoCapability
+        : ITestCapability,
+            IWordToolkitProcessBoundaryProxy
     {
         public string Echo(string value, CancellationToken cancellationToken)
         {

@@ -100,6 +100,7 @@ internal static partial class WordToolkitExtensionValidation
             || value.MaxOutputBytes < 1
             || value.MaxConcurrentInvocations < 1
             || value.TimeoutMilliseconds < 1
+            || value.MaxProcessMemoryBytes is <= 0
         )
         {
             throw new ArgumentOutOfRangeException(

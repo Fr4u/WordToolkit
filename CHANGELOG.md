@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+## 0.57.0 — 2026-07-26
+
+- Activated the first real `OutOfProcess`/`ProcessBoundary` extension path. The registry
+  now requires an explicit host-owned proxy, hard timeout mode and positive process-memory
+  ceiling; ordinary or mislabeled in-process implementations fail closed.
+- Moved the built-in Tesseract adapter behind one fresh native child and a closed,
+  duplicate/unknown-field-rejecting JSON protocol. Random request identity, image bytes/
+  hash, exact provider configuration and pre/post host executable/assembly hashes bind
+  every call and typed response. Paths, raw stderr, implementation types and exception
+  internals never cross the channel.
+- Attached the waiting child to a Windows Job Object before publishing the request. The
+  complete provider tree has a 1 GiB aggregate commit ceiling, three-process limit,
+  kill-on-close and hard timeout/tree termination. A minimized environment reduces
+  accidental inheritance. Restricted tokens, AppContainer, network isolation and
+  filesystem brokering remain explicitly unimplemented; this is failure/resource
+  containment, not a permission sandbox.
+- Added hostile protocol, identity, real child-process, Job Object termination, catalog
+  and content-free benchmark regressions. Pinned SDK 8.0.423 gates pass 764 Engine and
+  554 Native tests; the existing 12-test LibreOffice lane remains part of the release
+  gate. Real Tesseract 5.5.0 OCR passed end to end through the isolated host with no Word
+  invocation or source-package drift.
+- The seven-sample alternating benchmark preserved one exact typed-result SHA-256 across
+  all fourteen direct/isolated calls. Direct median was 248.0910 ms; isolated median was
+  482.1869 ms, a disclosed +234.0959 ms / +94.36% correctness cost. The benchmark returns
+  no recognized text; raw evidence is checked in.
+- Two independently named pinned-SDK builds contain identical 197-file,
+  90,040,541-byte trees and byte-identical 37,573,355-byte ZIPs at SHA-256
+  `6fc800ff906e055c2d40d1497afe5d66262c1154c34f4e5045188bd08fc60bb4`.
+  Installed and enabled `0.57.0+codex.20260726211107`; candidate, persistent personal
+  source and active cache have zero path/length/hash differences. Installed discovery
+  reports 148 actions, 15 tools and 59 explicit contracts. A full-response MCP catalog
+  smoke returned `out_of_process`, `process_boundary`, the 1 GiB ceiling and no
+  implementation type/path, assembly loading, Word or network use by inspection.
+
 ## 0.56.0 — 2026-07-26
 
 - Added typed record-control semantics to the mail-merge graph. `NEXT`, `MERGEREC` and

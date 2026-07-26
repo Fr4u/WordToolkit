@@ -11,9 +11,11 @@ Word instance from code already executing inside that process. The first impleme
 therefore permits only trusted, explicitly registered in-process modules. It does not scan
 directories, call `Assembly.LoadFrom`, or advertise dependency isolation as a sandbox.
 
-The missing untrusted-provider boundary remains a separate process with a closed IPC
-contract and operating-system enforcement. Until that exists, an untrusted extension is
-rejected, not loaded optimistically.
+Version 0.57 adds the first separate-process, closed-IPC and Job Object resource boundary
+for the built-in OCR proxy. That boundary contains failure, timeout and memory/process
+growth. The missing untrusted-provider boundary is narrower and harder: restricted OS
+identity plus brokered filesystem/network access, signed installation and lifecycle. Until
+that exists, arbitrary third-party code is still rejected rather than loaded optimistically.
 
 ## Primary-source findings
 
@@ -63,8 +65,9 @@ rejected, not loaded optimistically.
 7. `Build()` freezes registration; the public catalog is read-only, source-order
    independent and bound by a deterministic SHA-256;
 8. invocation checks the requested CLR interface exactly, takes a non-blocking
-   concurrency lease, links cancellation to the cooperative timeout and rejects oversized
-   input or output;
+   concurrency lease, links cancellation to the declared timeout and rejects oversized
+   input or output; trusted in-process capabilities remain cooperative, while the OCR
+   process proxy owns hard termination;
 9. implementation types, assembly names/paths and exception details are absent from the
    catalog and public execution errors.
 
@@ -103,6 +106,49 @@ operation version, permission, reversibility and output-schema metadata.
   36,831,975-byte distributable at SHA-256
   `2028f140497c272032e5fd24084602a8e6716998adf92f4b9049a74aae70084f`.
 
+## First process-boundary implementation — 0.57
+
+The reserved `OutOfProcess` and `ProcessBoundary` values now have one real production
+consumer rather than existing as decorative enums. Registration accepts an out-of-process
+capability only when the host explicitly supplies an
+`IWordToolkitProcessBoundaryProxy`; the same proxy is rejected if it is mislabeled as
+trusted in-process code. Policy additionally requires a hard timeout mode and a positive
+process-memory ceiling. An ordinary capability object cannot opt itself into this trust
+class.
+
+The first proxy is the Tesseract OCR adapter. The parent sends one bounded, closed JSON
+request to a fresh copy of `wordtoolkit-native`, including a random request ID, verified
+image bytes/hash, explicit provider/model paths and pre-execution hashes of the exact host
+executable and assembly. The child validates duplicate/unknown fields, protocol, request
+identity and its own binary identity before calling provider code. Its response is a
+closed typed OCR object or a bounded error code; implementation types, paths, raw stderr
+and exception text never cross the channel. The parent verifies request binding,
+exit-code consistency and host hashes again after execution.
+
+On Windows the child is attached before request publication to a Job Object with
+`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, a 1 GiB aggregate job-memory limit and an active
+process limit of three. The child blocks on stdin before it can launch Tesseract, closing
+the ordinary start/assign race for provider execution. Timeout or cancellation terminates
+the complete job and also attempts `Process.Kill(entireProcessTree: true)`. Child
+processes join the job by default, while breakaway is not enabled. These mechanics follow
+Microsoft's documented Job Object, assignment, active-process, memory and kill-on-close
+contracts: [Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects),
+[AssignProcessToJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject),
+[basic limits](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_basic_limit_information)
+and [nested jobs](https://learn.microsoft.com/en-us/windows/win32/procthread/nested-jobs).
+
+This is crash, timeout and resource containment, not a permission sandbox. Microsoft
+explicitly separates Job Object process management from per-process security policy. The
+child still uses the caller's Windows token; restricted-token/AppContainer policy,
+network isolation and filesystem brokering remain absent. The environment is minimized,
+but that is not a security boundary.
+
+The seven-sample real-Tesseract benchmark alternated direct and isolated calls over the
+same 16,734-byte PNG. All fourteen typed result hashes were identical. Direct median was
+248.0910 ms; isolated median was 482.1869 ms, a disclosed +234.0959 ms / +94.36% cost.
+Raw evidence is checked in at
+`docs/benchmarks/ocr-provider-process-boundary-2026-07-26.json`.
+
 ## Honest limits
 
 - A cooperative timeout cancels code that observes the supplied token. It cannot safely
@@ -113,8 +159,11 @@ operation version, permission, reversibility and output-schema metadata.
   proof and atomic publication transaction.
 - No third-party assembly discovery, installation, signature verification, dependency
   resolver, unload lifecycle or hot reload exists yet.
-- `OutOfProcess` and `ProcessBoundary` are reserved contract values and are rejected by
-  the current builder. The future host needs framed IPC, process identity, restricted
-  tokens/AppContainer policy where feasible, Job Object limits, network/filesystem
-  brokering, crash recovery and compatibility corpus tests before those values can be
-  claimed as implemented.
+- Out-of-process registration currently covers only the built-in OCR proxy. There is no
+  signed third-party package discovery, dependency installation, restricted token,
+  AppContainer, network isolation, filesystem broker or generic provider lifecycle.
+- Job assignment occurs before the parent publishes the request, so provider execution
+  cannot begin first. The WordToolkit child itself necessarily starts before assignment;
+  pre-assignment memory operations are not retroactively examined by
+  `AssignProcessToJobObject`, which is why identity binding and the no-request/no-provider
+  startup state are separate invariants.

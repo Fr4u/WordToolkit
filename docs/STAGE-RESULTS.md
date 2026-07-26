@@ -1,5 +1,46 @@
 # Stage results
 
+# WordToolkit 0.57.0 isolated OCR provider process boundary - 2026-07-26
+
+- The extension registry now accepts `out_of_process` only through an explicit
+  host-owned `IWordToolkitProcessBoundaryProxy`. Policy requires `process_boundary`
+  timeout enforcement and a positive process-memory ceiling; a plain object, cooperative
+  timeout, missing memory limit or in-process mislabel is rejected before registry freeze.
+- Tesseract recognition crosses one closed JSON IPC request to a fresh hash-bound native
+  child. Duplicate/unknown fields, invalid protocol/request identity, unbound responses,
+  mismatched success/exit state and untyped nested OCR objects fail closed. Neither raw
+  stderr, provider paths, implementation types nor exception internals cross IPC.
+- The child waits on stdin until the parent attaches it to a Windows Job Object. The job
+  enforces 1 GiB aggregate committed memory, at most three processes, kill-on-close and
+  hard timeout/tree termination. Environment inheritance is allowlisted. The child keeps
+  the caller's Windows token and has no network/filesystem broker; no sandbox claim is
+  made.
+- Pinned SDK 8.0.423 passes 764 Engine, 12 LibreOffice and 554 Native tests. The gated real OCR acceptance
+  generated a scan, embedded it in a DOCX and recognized it with Tesseract 5.5.0 through
+  the process host while preserving the DOCX hash, opening no Word process and conforming
+  to the closed MCP output schema.
+- Seven alternating real-provider samples produced one exact typed-result SHA-256. Direct
+  median was 248.0910 ms and isolated median 482.1869 ms: +234.0959 ms / +94.36%.
+  The raw, text-free result is in
+  `docs/benchmarks/ocr-provider-process-boundary-2026-07-26.json`.
+- Two independent pinned-SDK builds contain 197 files and 90,040,541 bytes with zero
+  path/length/SHA-256 differences. Both 37,573,355-byte ZIPs have SHA-256
+  `6fc800ff906e055c2d40d1497afe5d66262c1154c34f4e5045188bd08fc60bb4`.
+  Executable, runtime assembly, Engine, LibreOffice and Open XML SDK hashes are
+  `764b1cbf402ed827dfe43315c40c4ccc9f7b9b9faaca23c96b0ba334d45e2447`,
+  `ddcfe80ae37d49913a8ab7027fa33efe61415b34fce21aee7154a7f6723cb4a3`,
+  `9353c9f72b6f195f162bfe577413c6dbea563d239daa5744390c541d89e51be6`,
+  `cd937f2f0def910474c159503f73228afc29087fdd40e0bdb7b68d08aea514e9`
+  and `a5f00fc741600c551d487322325f2e1eb24a5066aaf80279fd6b9a8bc888b75d`.
+- Installed and enabled `0.57.0+codex.20260726211107`. Candidate, persistent source and
+  active cache have identical 197-path maps. Discovery returns 148 actions, 15 MCP tools
+  and 59 complete explicit metadata contracts. Installed full-response execution of the
+  extension catalog returned `out_of_process`, `process_boundary`,
+  `max_process_memory_bytes=1073741824`, no implementation types/assembly paths and
+  `loads_assemblies=false`, `opens_word=false`, `uses_network=false`. Version 0.56 is
+  preserved at
+  `C:\Users\Admin\plugins\wordtoolkit.backup-0.56.0-codex.20260726211107`.
+
 # WordToolkit 0.56.0 typed mail-merge record controls - 2026-07-26
 
 - `NEXT`, `MERGEREC` and `MERGESEQ` are now typed no-column record controls.

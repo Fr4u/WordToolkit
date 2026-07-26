@@ -4453,7 +4453,7 @@
     {
       "name": "inspect_wordtoolkit_extensions",
       "title": "Inspect registered WordToolkit extensions",
-      "description": "Return a bounded, content-free catalog of explicitly registered engine extensions and their versioned capability contracts. This operation does not scan or load assemblies, read a document, open Word, expose implementation types or paths, or use the network. Trusted in-process registration is not represented as a security sandbox.",
+      "description": "Return a bounded, content-free catalog of explicitly registered engine extensions and their versioned capability contracts. This operation does not scan or load assemblies, read a document, open Word, expose implementation types or paths, or use the network. Trusted in-process registration is not a sandbox; out-of-process/process-boundary metadata proves only the declared host proxy, timeout and resource controls, not a restricted identity or brokered permissions.",
       "operationVersion": "1.0",
       "permissions": {
         "filesystem": "none",
@@ -4662,6 +4662,10 @@
                           "minimum": 1
                         },
                         "timeout_milliseconds": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "max_process_memory_bytes": {
                           "type": "integer",
                           "minimum": 1
                         }
