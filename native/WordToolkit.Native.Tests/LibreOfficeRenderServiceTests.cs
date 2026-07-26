@@ -367,11 +367,23 @@ public sealed class LibreOfficeRenderServiceTests
                     )
                 );
 
-                var raw = await service.CallAsync(
-                    LibreOfficeRenderWordPackageContract.OperationName,
-                    arguments.RootElement,
-                    CancellationToken.None
-                );
+                object raw;
+                try
+                {
+                    raw = await service.CallAsync(
+                        LibreOfficeRenderWordPackageContract.OperationName,
+                        arguments.RootElement,
+                        CancellationToken.None
+                    );
+                }
+                catch (NativeToolException exception)
+                {
+                    throw new Xunit.Sdk.XunitException(
+                        $"Real LibreOffice render failed for {item.Extension}: "
+                            + $"code={exception.ErrorCode}; "
+                            + $"details={JsonSerializer.Serialize(exception.Details, JsonDefaults.Compact)}"
+                    );
+                }
                 using var result = JsonDocument.Parse(
                     JsonSerializer.Serialize(raw, JsonDefaults.Compact)
                 );
