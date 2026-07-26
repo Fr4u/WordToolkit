@@ -1,5 +1,22 @@
 # Stage results
 
+# LibreOffice isolated Writer artifact transaction - 2026-07-26
+
+- Added the public `wordtoolkit.render_ooxml_libreoffice_artifacts/1.0` action and strict
+  `libreoffice-render-package` JSON CLI. Both require exact local paths and expected
+  SHA-256 identities for LibreOffice, Java and the resolved LibreOffice Java archive;
+  the reviewed WordToolkit helper is embedded and cannot be replaced by a caller.
+- The action validates the OPC package and expected fingerprint before any process,
+  rehashes the source independently before publication, deletes private process/profile/
+  PDF/raster staging first, then publishes the PDF, optional PNG pages and manifest as one
+  create-new transaction. It never opens Word and has no hidden backend or PATH fallback.
+- Unit and closed-schema tests prove success, stale fingerprint rejection, source-drift
+  rejection, unknown-field rejection and rollback when an output already exists. Real
+  public-action Linux qualification remains pending in the dedicated hosted CI lane.
+- The result calls the output `libreoffice_writer_fixed_layout`, not Word-authoritative
+  layout. Macro `NEVER_EXECUTE` and update `NO_UPDATE` are recorded as requests; behavioral
+  prevention remains explicitly false until adversarial active-content probes exist.
+
 # WordToolkit 0.49.0 explicit LibreOffice backend identity - 2026-07-26
 
 - Added neutral `WordToolkit.LibreOffice` (`net8.0`) and one shared strict operation,

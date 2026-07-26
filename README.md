@@ -191,13 +191,13 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 144-action schema set into model context. The normative shape is
+not flatten the 145-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
 compatibility rules.
 
-The first LibreOffice backend slice is identity qualification, not rendering. It accepts
+LibreOffice support separates identity qualification from rendering. The probe accepts
 one exact absolute local executable, optionally binds its SHA-256, runs only bounded
 `--version`, and returns a closed capability block whose UNO, Writer, PDF, macro/update,
 rendering and Word-fidelity fields remain false:
@@ -211,6 +211,23 @@ The action never searches `PATH` and returns neither the executable path nor env
 values. It is still not a sandbox, vendor-signature check or atomic proof of the exact
 bytes loaded by the operating system. Those boundaries are part of the result rather than
 buried in documentation.
+
+The separate `render_ooxml_libreoffice_artifacts` action and
+`libreoffice-render-package` CLI require the saved-package fingerprint plus exact
+LibreOffice, Java and resolved LibreOffice-JAR hashes. WordToolkit supplies its own
+embedded SHA-256-bound UNO helper, uses a private profile and local pipe, and can publish
+PDF, page PNGs derived through explicit Poppler binaries, and a manifest. For example:
+
+```powershell
+wordtoolkit-native libreoffice-render-package --request render.json --format json
+```
+
+The operation deletes all private staging before its create-new public transaction and
+rehashes the source immediately before publication. It requests `NEVER_EXECUTE` macros
+and `NO_UPDATE` external updates, but does not pretend those requests are adversarial
+behavioral proof. LibreOffice output is labelled `libreoffice_writer_fixed_layout`; it is
+not sold as Microsoft Word layout fidelity and there is no silent Word/CLI/browser/PATH
+fallback.
 
 The engine extension registry is a separate, frozen contract. It contains only modules
 explicitly allowed by the host; it does not discover or load DLL files. Inspect its

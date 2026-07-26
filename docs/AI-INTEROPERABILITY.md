@@ -163,7 +163,7 @@ The response identifies:
 - `protocols.mcp`: MCP protocol version retained from that same schema;
 - `compatibility_policy`: the source schema's declared compatibility rule;
 - `source.schema_sha256`: exact embedded local schema bytes;
-- `source.native_action_contract_sha256`: canonical native 144-action subset, core
+- `source.native_action_contract_sha256`: canonical native 145-action subset, core
   exposure registry and header;
 - `source.capability_schema_sha256`: normative capability JSON Schema bytes.
 
@@ -212,12 +212,12 @@ coverage gaps visible.
 
 The manifest does not return full input schemas. After selecting one operation, call
 `inspect_wordtoolkit_action`; execute only after validating its schema and effect hints.
-This keeps discovery bounded instead of paying for all 144 schemas.
+This keeps discovery bounded instead of paying for all 145 schemas.
 
 ## Metadata coverage is evidence, not decoration
 
 `metadata_coverage` counts canonical fields actually present in the embedded source.
-All 144 operations have input schemas and MCP effect annotations. Extension catalog,
+All 145 operations have input schemas and MCP effect annotations. Extension catalog,
 the explicit LibreOffice identity probe, observability and OOXML-encryption/numbering inspection, semantic query,
 typed heading-outline and mathematical-role inspection, semantic HTML/SVG rendering, Word-authoritative
 fixed PDF/PNG rendering, semantic-style

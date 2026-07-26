@@ -130,6 +130,10 @@ private workspace, verifies SHA-256
 `583ef85be3e0e9282cd1aec06161767606d1c5b9ce91228587fa8f14e57ad462`
 before execution, rechecks it afterward and deletes it with the private profile.
 
-This does not qualify the Windows/JDK 21 combination and does not yet create a public MCP
-render action. Public exposure remains blocked until the higher-level
-PDF/PNG/manifest publication transaction is complete.
+This does not qualify the Windows/JDK 21 combination. The higher-level
+`wordtoolkit.render_ooxml_libreoffice_artifacts/1.0` action and matching strict CLI now
+wrap this provider with OPC/fingerprint validation, independent source-drift checks,
+optional Poppler page rasterization, private-staging deletion before publication and a
+create-new PDF/PNG/manifest transaction. Fake-backend, rollback and closed-schema tests
+pass locally. The public action is not called Linux-qualified until the real hosted lane
+runs that exact action rather than only this lower-level provider.

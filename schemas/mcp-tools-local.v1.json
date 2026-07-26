@@ -22,6 +22,7 @@
       "render_ooxml_semantic_html",
       "render_ooxml_semantic_svg",
       "render_ooxml_fixed_artifacts",
+      "render_ooxml_libreoffice_artifacts",
       "manage_ooxml_semantic_index",
       "compare_ooxml_semantics",
       "plan_ooxml_patch",
@@ -6434,6 +6435,262 @@
                   "python_used": {"const": false},
                   "persistent_com_sta": {"const": true},
                   "com_attachments": {"type": "integer", "minimum": 0},
+                  "total_ms": {"type": "number", "minimum": 0}
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "render_ooxml_libreoffice_artifacts",
+      "title": "Render a saved Word package through isolated LibreOffice Writer",
+      "description": "Render an exact fingerprint-bound saved DOCX, DOCM, DOTX, or DOTM through a SHA-256-bound LibreOffice Writer and Java UNO process pair with a private profile and embedded reviewed WordToolkit helper. The operation requests hidden read-only loading, NEVER_EXECUTE macros and NO_UPDATE external updates, but reports that macro/update prevention is not behaviorally proved. It can publish LibreOffice PDF, PNG pages derived from that exact PDF through explicitly configured Poppler tools, or both, plus a provenance manifest. Private staging is deleted before one no-clobber public artifact transaction. It never opens Microsoft Word, never silently falls back, and never claims Microsoft Word layout fidelity.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_input_package_and_exact_binaries_then_create_new_pdf_png_manifest_outputs",
+        "process": "spawn_exact_libreoffice_java_and_optional_poppler_processes",
+        "network": "not_requested_not_isolated",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": true,
+        "mechanism": "private_staging_cleanup_before_transactional_create_new_publication",
+        "default": "retained"
+      },
+      "limits": {
+        "pages": 500,
+        "dpi": 600,
+        "timeout_milliseconds": 120000,
+        "input_pdf_bytes": 536870912,
+        "raster_output_bytes": 536870912
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {"type": "string", "minLength": 1, "maxLength": 32767, "description": "Exact local DOCX, DOCM, DOTX, or DOTM path. UNC, device, symbolic-link and reparse paths are rejected."},
+          "expected_package_fingerprint": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$", "description": "Required fingerprint from a prior saved-package inspection."},
+          "output_directory": {"type": "string", "minLength": 1, "maxLength": 32767, "description": "Existing local non-link directory. Outputs are create-new and never overwrite files."},
+          "artifact_stem": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"},
+          "libreoffice_executable_path": {"type": "string", "minLength": 1, "maxLength": 32767, "description": "Exact absolute local LibreOffice entry-point path; PATH search is forbidden."},
+          "expected_libreoffice_executable_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+          "java_executable_path": {"type": "string", "minLength": 1, "maxLength": 32767, "description": "Exact absolute local Java executable path; PATH search is forbidden."},
+          "expected_java_executable_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+          "libreoffice_jar_path": {"type": "string", "minLength": 1, "maxLength": 32767, "description": "Exact resolved regular-file path to the LibreOffice Java archive."},
+          "expected_libreoffice_jar_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+          "output": {"type": "string", "enum": ["pdf", "png_pages", "pdf_and_png_pages"], "default": "pdf"},
+          "first_page": {"type": "integer", "minimum": 1, "maximum": 500, "default": 1},
+          "last_page": {"type": ["integer", "null"], "minimum": 1, "maximum": 500, "description": "Inclusive page. A non-default first_page requires a non-null last_page."},
+          "dpi": {"type": "integer", "minimum": 1, "maximum": 600, "default": 144, "description": "PNG raster DPI; ignored for PDF-only output."},
+          "pdf_a1b": {"type": "boolean", "default": false},
+          "export_bookmarks": {"type": "boolean", "default": true},
+          "timeout_milliseconds": {"type": "integer", "minimum": 5000, "maximum": 120000, "default": 60000},
+          "pdfinfo_path": {"type": "string", "minLength": 1, "maxLength": 32767, "description": "Explicit local pdfinfo path for PNG output. If omitted, WORDTOOLKIT_PDFINFO_PATH is required; PATH is not searched."},
+          "rasterizer_path": {"type": "string", "minLength": 1, "maxLength": 32767, "description": "Explicit local pdftoppm or pdftocairo path for PNG output. If omitted, WORDTOOLKIT_PDF_RASTERIZER_PATH is required; PATH is not searched."},
+          "rasterizer_kind": {"type": "string", "enum": ["pdf_to_ppm", "pdf_to_cairo"], "default": "pdf_to_ppm"}
+        },
+        "required": ["local_path", "expected_package_fingerprint", "output_directory", "artifact_stem", "libreoffice_executable_path", "expected_libreoffice_executable_sha256", "java_executable_path", "expected_java_executable_sha256", "libreoffice_jar_path", "expected_libreoffice_jar_sha256"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "$defs": {
+          "binary_identity": {
+            "type": "object",
+            "required": ["file_name", "bytes", "sha256", "expected_sha256_enforced", "hash_stable"],
+            "properties": {
+              "file_name": {"type": "string", "minLength": 1, "maxLength": 512},
+              "bytes": {"type": "integer", "minimum": 1, "maximum": 536870912},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "expected_sha256_enforced": {"const": true},
+              "hash_stable": {"const": true}
+            },
+            "additionalProperties": false
+          },
+          "policy": {
+            "type": "object",
+            "required": ["hidden_requested", "read_only_requested", "read_only_verified", "pick_list_disabled_requested", "repair_disabled_requested", "macro_never_execute_requested", "macro_prevention_behaviorally_verified", "update_no_update_requested", "external_update_prevention_behaviorally_verified", "input_filter_name", "input_filter_explicit"],
+            "properties": {
+              "hidden_requested": {"const": true},
+              "read_only_requested": {"const": true},
+              "read_only_verified": {"const": true},
+              "pick_list_disabled_requested": {"const": true},
+              "repair_disabled_requested": {"const": true},
+              "macro_never_execute_requested": {"const": true},
+              "macro_prevention_behaviorally_verified": {"const": false},
+              "update_no_update_requested": {"const": true},
+              "external_update_prevention_behaviorally_verified": {"const": false},
+              "input_filter_name": {"enum": ["Office Open XML Text", "Office Open XML Text Template"]},
+              "input_filter_explicit": {"const": true}
+            },
+            "additionalProperties": false
+          },
+          "cleanup": {
+            "type": "object",
+            "required": ["document_closed", "desktop_terminated", "helper_exited", "libre_office_exited", "process_tree_kill_required", "private_profile_deleted", "private_workspace_deleted"],
+            "properties": {
+              "document_closed": {"const": true},
+              "desktop_terminated": {"const": true},
+              "helper_exited": {"const": true},
+              "libre_office_exited": {"const": true},
+              "process_tree_kill_required": {"type": "boolean"},
+              "private_profile_deleted": {"const": true},
+              "private_workspace_deleted": {"const": true}
+            },
+            "additionalProperties": false
+          }
+        },
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "package_fingerprint", "source_sha256", "source_file_name", "source_mutated", "output_created", "output", "requested_first_page", "page_geometry_count", "page_geometries", "backend", "execution", "fidelity", "artifacts", "artifact_count", "policy", "cleanup", "safety", "limitations", "runtime", "python_used", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.render_ooxml_libreoffice_artifacts/1.0"},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "source_file_name": {"type": "string", "minLength": 1, "maxLength": 512},
+              "source_mutated": {"const": false},
+              "output_created": {"const": true},
+              "output": {"enum": ["pdf", "png_pages", "pdf_and_png_pages"]},
+              "requested_first_page": {"type": "integer", "minimum": 1, "maximum": 500},
+              "requested_last_page": {"type": "integer", "minimum": 1, "maximum": 500},
+              "exported_page_count": {"type": "integer", "minimum": 1, "maximum": 500},
+              "page_geometry_count": {"type": "integer", "minimum": 0, "maximum": 500},
+              "page_geometries": {
+                "type": "array",
+                "maxItems": 500,
+                "items": {
+                  "type": "object",
+                  "required": ["exported_page_number", "left_points", "bottom_points", "right_points", "top_points", "width_points", "height_points"],
+                  "properties": {
+                    "exported_page_number": {"type": "integer", "minimum": 1, "maximum": 500},
+                    "left_points": {"type": "number"},
+                    "bottom_points": {"type": "number"},
+                    "right_points": {"type": "number"},
+                    "top_points": {"type": "number"},
+                    "width_points": {"type": "number", "exclusiveMinimum": 0},
+                    "height_points": {"type": "number", "exclusiveMinimum": 0}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "dpi": {"type": "integer", "minimum": 1, "maximum": 600},
+              "backend": {
+                "type": "object",
+                "required": ["primary", "product", "version", "version_banner", "executable", "java", "libreoffice_jar", "embedded_helper", "uno_provider_contract", "pdf_geometry_inspected"],
+                "properties": {
+                  "primary": {"const": "libreoffice_writer_pdf"},
+                  "product": {"enum": ["LibreOffice", "LibreOfficeDev"]},
+                  "version": {"type": "string", "minLength": 3, "maxLength": 64},
+                  "version_banner": {"type": "string", "minLength": 1, "maxLength": 256},
+                  "executable": {"$ref": "#/$defs/binary_identity"},
+                  "java": {"$ref": "#/$defs/binary_identity"},
+                  "libreoffice_jar": {"$ref": "#/$defs/binary_identity"},
+                  "embedded_helper": {"$ref": "#/$defs/binary_identity"},
+                  "uno_provider_contract": {"const": "wordtoolkit.libreoffice_uno_render_provider/1.0"},
+                  "rasterizer": {"const": "poppler"},
+                  "pdfinfo_version": {"type": "string", "maxLength": 64},
+                  "rasterizer_version": {"type": "string", "maxLength": 64},
+                  "pdf_geometry_inspected": {"type": "boolean"}
+                },
+                "additionalProperties": false
+              },
+              "execution": {
+                "type": "object",
+                "required": ["source_kind", "target_kind", "output_format", "fidelity", "resolution_count", "all_resolved", "silent_fallback"],
+                "properties": {
+                  "source_kind": {"const": "saved_word_package"},
+                  "target_kind": {"enum": ["whole_document", "page_range"]},
+                  "output_format": {"enum": ["pdf", "png_pages", "pdf_and_png_pages"]},
+                  "fidelity": {"const": "layout_approximate"},
+                  "resolution_count": {"type": "integer", "minimum": 1},
+                  "all_resolved": {"const": true},
+                  "silent_fallback": {"const": false}
+                },
+                "additionalProperties": false
+              },
+              "fidelity": {
+                "type": "object",
+                "required": ["class_name", "paginated", "exact_text_metrics_against_microsoft_word", "microsoft_word_layout_claimed", "pixel_equivalence_claimed", "png_is_derived_from_exact_pdf"],
+                "properties": {
+                  "class_name": {"const": "libreoffice_writer_fixed_layout"},
+                  "paginated": {"const": true},
+                  "exact_text_metrics_against_microsoft_word": {"const": false},
+                  "microsoft_word_layout_claimed": {"const": false},
+                  "pixel_equivalence_claimed": {"const": false},
+                  "png_is_derived_from_exact_pdf": {"type": "boolean"}
+                },
+                "additionalProperties": false
+              },
+              "artifacts": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 502,
+                "items": {
+                  "type": "object",
+                  "required": ["artifact_id", "output_file_name", "output_path", "format", "media_type", "bytes", "sha256", "state"],
+                  "properties": {
+                    "artifact_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+                    "output_file_name": {"type": "string", "minLength": 1, "maxLength": 512},
+                    "output_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+                    "format": {"enum": ["pdf", "png", "json"]},
+                    "media_type": {"enum": ["application/pdf", "image/png", "application/json"]},
+                    "bytes": {"type": "integer", "minimum": 1, "maximum": 536870912},
+                    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "state": {"const": "resolved"},
+                    "source_page_number": {"type": "integer", "minimum": 1, "maximum": 500},
+                    "pixel_width": {"type": "integer", "minimum": 1},
+                    "pixel_height": {"type": "integer", "minimum": 1}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "artifact_count": {"type": "integer", "minimum": 2, "maximum": 502},
+              "policy": {"$ref": "#/$defs/policy"},
+              "cleanup": {"$ref": "#/$defs/cleanup"},
+              "safety": {
+                "type": "object",
+                "required": ["source_opened_read_only", "source_hash_verified_after_close", "macro_never_execute_requested", "macro_prevention_behaviorally_verified", "update_no_update_requested", "external_update_prevention_behaviorally_verified", "active_content_execution_prevented", "external_resource_loading_prevented", "raw_xml_returned", "document_text_returned", "microsoft_word_opened", "silent_backend_fallback", "public_artifacts_published_after_private_cleanup"],
+                "properties": {
+                  "source_opened_read_only": {"const": true},
+                  "source_hash_verified_after_close": {"const": true},
+                  "macro_never_execute_requested": {"const": true},
+                  "macro_prevention_behaviorally_verified": {"const": false},
+                  "update_no_update_requested": {"const": true},
+                  "external_update_prevention_behaviorally_verified": {"const": false},
+                  "active_content_execution_prevented": {"const": false},
+                  "external_resource_loading_prevented": {"const": false},
+                  "raw_xml_returned": {"const": false},
+                  "document_text_returned": {"const": false},
+                  "microsoft_word_opened": {"const": false},
+                  "silent_backend_fallback": {"const": false},
+                  "public_artifacts_published_after_private_cleanup": {"const": true}
+                },
+                "additionalProperties": false
+              },
+              "limitations": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {
+                "type": "object",
+                "required": ["runtime", "python_used", "persistent_com_sta", "com_attachments", "total_ms"],
+                "properties": {
+                  "runtime": {"const": "dotnet-native"},
+                  "python_used": {"const": false},
+                  "persistent_com_sta": {"const": false},
+                  "com_attachments": {"const": 0},
                   "total_ms": {"type": "number", "minimum": 0}
                 },
                 "additionalProperties": false

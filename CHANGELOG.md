@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Added `wordtoolkit.render_ooxml_libreoffice_artifacts/1.0` and the matching
+  `libreoffice-render-package` CLI. The operation binds a saved Word package fingerprint,
+  exact LibreOffice/Java/UNO archive hashes and an embedded reviewed UNO helper; requests
+  hidden read-only Writer loading, explicit input/PDF filters, `NEVER_EXECUTE` macros and
+  `NO_UPDATE` external updates; and publishes PDF, optional Poppler-derived PNG pages and
+  a provenance manifest without opening Microsoft Word or silently falling back.
+- Private profiles, helper materialization, source copies, PDF and raster staging are
+  removed before the no-clobber public publication transaction. The source is rehashed
+  independently immediately before publication. Failure tests prove stale fingerprints,
+  source drift, unknown fields and existing outputs create no partial public bundle.
+- The result explicitly declines Microsoft Word layout/pixel-equivalence claims and does
+  not misreport requested macro/update policies as behavioral prevention proof. Capability
+  discovery now exposes 145 actions and 56 complete explicit metadata contracts.
+
 ## 0.49.0 — 2026-07-26
 
 - Added the first honest LibreOffice backend slice as a neutral `net8.0` adapter shared

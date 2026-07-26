@@ -69,6 +69,7 @@ internal sealed partial class WordLiveService : IToolHandler
     private readonly Func<WordOperationResourceLease> _operationResourceLeaseFactory;
     private readonly WordOperationObservability _observability;
     private readonly ILibreOfficeBackendProbeProvider _libreOfficeBackendProbeProvider;
+    private readonly ILibreOfficeUnoRenderProvider _libreOfficeUnoRenderProvider;
     private readonly ConcurrentDictionary<string, LiveDocumentRecord> _records = new();
     private readonly ConcurrentDictionary<string, QuarantinedLiveDocumentRecord> _quarantinedRecords =
         new();
@@ -87,7 +88,8 @@ internal sealed partial class WordLiveService : IToolHandler
             host,
             () => new WordOperationResourceLease(),
             WordOperationObservability.Disabled,
-            new LibreOfficeBackendProbeProvider()
+            new LibreOfficeBackendProbeProvider(),
+            new LibreOfficeUnoRenderProvider()
         )
     { }
 
@@ -99,7 +101,8 @@ internal sealed partial class WordLiveService : IToolHandler
             host,
             operationResourceLeaseFactory,
             WordOperationObservability.Disabled,
-            new LibreOfficeBackendProbeProvider()
+            new LibreOfficeBackendProbeProvider(),
+            new LibreOfficeUnoRenderProvider()
         )
     { }
 
@@ -112,7 +115,8 @@ internal sealed partial class WordLiveService : IToolHandler
             host,
             operationResourceLeaseFactory,
             observability,
-            new LibreOfficeBackendProbeProvider()
+            new LibreOfficeBackendProbeProvider(),
+            new LibreOfficeUnoRenderProvider()
         )
     { }
 
@@ -122,15 +126,33 @@ internal sealed partial class WordLiveService : IToolHandler
         WordOperationObservability observability,
         ILibreOfficeBackendProbeProvider libreOfficeBackendProbeProvider
     )
+        : this(
+            host,
+            operationResourceLeaseFactory,
+            observability,
+            libreOfficeBackendProbeProvider,
+            new LibreOfficeUnoRenderProvider()
+        )
+    { }
+
+    internal WordLiveService(
+        IWordComHost host,
+        Func<WordOperationResourceLease> operationResourceLeaseFactory,
+        WordOperationObservability observability,
+        ILibreOfficeBackendProbeProvider libreOfficeBackendProbeProvider,
+        ILibreOfficeUnoRenderProvider libreOfficeUnoRenderProvider
+    )
     {
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(operationResourceLeaseFactory);
         ArgumentNullException.ThrowIfNull(observability);
         ArgumentNullException.ThrowIfNull(libreOfficeBackendProbeProvider);
+        ArgumentNullException.ThrowIfNull(libreOfficeUnoRenderProvider);
         _host = host;
         _operationResourceLeaseFactory = operationResourceLeaseFactory;
         _observability = observability;
         _libreOfficeBackendProbeProvider = libreOfficeBackendProbeProvider;
+        _libreOfficeUnoRenderProvider = libreOfficeUnoRenderProvider;
     }
 
     public Task<object> CallAsync(
@@ -204,6 +226,8 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "render_ooxml_libreoffice_artifacts" =>
+                RenderPackageLibreOfficeArtifactsAsync(arguments, cancellationToken),
             "manage_ooxml_semantic_index" => ManagePackageSemanticIndexAsync(
                 arguments,
                 cancellationToken
