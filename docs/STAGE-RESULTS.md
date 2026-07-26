@@ -1,5 +1,46 @@
 # Stage results
 
+# WordToolkit 0.50.1 LibreOffice four-package PDF/PNG qualification - 2026-07-26
+
+- Expanded the gated real public render test from one DOCX/PDF observation to minimal
+  DOCX, DOCM, DOTX and DOTM sources rendered as PDF plus PNG pages at 96 DPI. The test
+  verifies exact artifact hashes and lengths, PDF page count and MediaBox-derived PNG
+  geometry, manifest fields, unchanged source bytes, absence of Word invocation and
+  deletion of both LibreOffice and Poppler private workspaces.
+- The broader corpus found a real defect: DOTX was instantiated as a new editable
+  document and the helper correctly failed closed with `READ_ONLY_NOT_VERIFIED`. The
+  Java UNO load descriptor now sets `AsTemplate=false` independently of `ReadOnly=true`,
+  preserving the source location and making read-only verification meaningful for
+  DOTX/DOTM. The deterministic 9,026-byte embedded helper SHA-256 is
+  `cc252d63ff7a0737d261bfc76a9d211b5d0e5303a2cb6ea245db6707eda9ce91`.
+- Hosted run <https://github.com/Fr4u/WordToolkit/actions/runs/30203138387> passed all six
+  jobs at `da207cda4696312e8db2da28c1ab99dff7966b6a`. Its Ubuntu 24.04 lane qualified
+  LibreOffice 24.2.7.2, Temurin 17.0.16, `pdfinfo` 24.02.0 and `pdftoppm` 24.02.0;
+  twelve provider tests and seven public-layer tests passed, including the real
+  four-package PDF/PNG case in four seconds.
+- The DOCM/DOTM fixtures contain no adversarial VBA payload. They prove package-type
+  routing, not macro or external-update prevention; those flags remain false. A local
+  Windows attempt using LibreOffice 26.2.4.2, Temurin 17.0.16 and Poppler 25.07.0 timed
+  out while connecting to the backend, so that tuple is explicitly unqualified.
+- The release bump exposed one stale hard-coded MCP test expectation (`0.50.0`); the
+  runtime already reported `0.50.1`, so the test was corrected and rerun. Two complete
+  package builds with pinned SDK 8.0.423 then passed 739 Engine, 12 LibreOffice and 532
+  Native tests each. Both expanded trees contain 197 files and 89,608,923 bytes with
+  zero path/length/hash differences. Both 37,448,758-byte ZIPs have SHA-256
+  `9ccd63f2c8083de4ca89ad3a01a65a0f5024e734c5512333e77d4920b34b6e7c`.
+- The release executable, runtime assembly, Engine, LibreOffice and Open XML SDK
+  adapter hashes are
+  `dfcf355207f19481ffc6875fa5fc84c40386138fbfe4a8ea6cd5361d1ba4453a`,
+  `5617bde332e6450d7961f7c5467dbf42ba33b15c778438aebd74e346dcba8d44`,
+  `7d4750def2bf6be6abba3a79d415cbcf1f76d94e657c2ee875869e08552484f3`,
+  `dd7f8519c6a8daae16f7fc9c175a95368e566bfe95baf9605a09376d4877a06a`
+  and `a3b3dd6347f416a0a91a571682869910ef7665667a247be4ac8f66acf1390d72`.
+- Installed and enabled `0.50.1+codex.20260726150446`. The canonical candidate,
+  `C:\Users\Admin\plugins\wordtoolkit` and active cache contain the same 197 paths,
+  lengths and SHA-256 values. Installed discovery reports 145 actions, 15 MCP tools and
+  56 complete explicit metadata contracts. The previous source remains intact at
+  `C:\Users\Admin\plugins\wordtoolkit.backup-0.50.0-codex.20260726142219`.
+
 # LibreOffice isolated Writer artifact transaction - 2026-07-26
 
 - Added the public `wordtoolkit.render_ooxml_libreoffice_artifacts/1.0` action and strict

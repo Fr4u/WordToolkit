@@ -139,8 +139,10 @@ the reviewed helper is embedded, source-rebuilt and hash-bound by WordToolkit. C
 `pdf_and_png_pages`, supply exact `pdfinfo_path` and rasterizer paths (or their dedicated
 WordToolkit environment variables); no `PATH`, Word, browser or CLI-conversion fallback
 exists. The action uses a private LibreOffice profile and local UNO pipe, requests hidden
-read-only loading, `NEVER_EXECUTE` macros and `NO_UPDATE` external updates, then deletes
-all private profile/helper/source/PDF/raster staging before one create-new public
+read-only loading with `AsTemplate=false` so DOTX/DOTM remain the source document rather
+than an editable template instance, requests `NEVER_EXECUTE` macros and `NO_UPDATE`
+external updates, then deletes all private profile/helper/source/PDF/raster staging
+before one create-new public
 PDF/PNG/manifest transaction. Treat the returned binary hashes, source-stability,
 document-close, desktop-termination and cleanup fields as the evidence. Treat macro and
 update policies only as requests: behavioral prevention, network isolation, vendor

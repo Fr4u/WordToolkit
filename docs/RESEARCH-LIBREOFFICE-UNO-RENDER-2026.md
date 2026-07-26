@@ -57,14 +57,19 @@ The worker supplies these explicit load properties:
 
 - `Hidden=true`;
 - `ReadOnly=true`;
+- `AsTemplate=false`;
 - `PickListEntry=false`;
 - `RepairPackage=false`;
 - `MacroExecutionMode=NEVER_EXECUTE`;
 - `UpdateDocMode=NO_UPDATE`;
 - an extension-matched Writer input filter.
 
-After load it requires a Writer `TextDocument`, verifies `XStorable.isReadonly()`,
-records the original source location, exports through
+`ReadOnly` and `AsTemplate` are independent `MediaDescriptor` properties. Setting
+`AsTemplate=false` is required for DOTX/DOTM inputs: otherwise Writer may instantiate
+an editable untitled document from the template, making source-location and read-only
+verification fail even though `ReadOnly=true` was requested. After load the worker
+requires a Writer `TextDocument`, verifies `XStorable.isReadonly()`, records the
+original source location, exports through
 `XStorable.storeToURL(..., FilterName=writer_pdf_Export, ...)`, and proves that the
 source location did not change. It closes the document with
 `XCloseable.close(false)` and requires `XDesktop2.terminate()` to succeed. The parent
@@ -121,14 +126,13 @@ inputs were:
 - WordToolkit UNO helper JAR SHA-256
   `583ef85be3e0e9282cd1aec06161767606d1c5b9ce91228587fa8f14e57ad462`.
 
-This qualifies the provider on that exact Linux evidence. The reviewed helper JAR is now
-embedded in `WordToolkit.LibreOffice.dll`; callers cannot replace it with an arbitrary
-classpath entry. CI rebuilds the JAR from the committed Java source with the qualified
-JDK 17 toolchain and rejects any byte-level difference from the embedded artifact before
-running the real provider test. The provider extracts it only inside the disposable
-private workspace, verifies SHA-256
-`583ef85be3e0e9282cd1aec06161767606d1c5b9ce91228587fa8f14e57ad462`
-before execution, rechecks it afterward and deletes it with the private profile.
+This was the original 0.50.0 provider qualification on that exact Linux evidence. The
+reviewed helper JAR is embedded in `WordToolkit.LibreOffice.dll`; callers cannot replace
+it with an arbitrary classpath entry. CI rebuilds the JAR from the committed Java source
+with the qualified JDK 17 toolchain and rejects any byte-level difference from the
+embedded artifact before running the real provider test. The provider extracts it only
+inside the disposable private workspace, verifies its compiled-in SHA-256 before
+execution, rechecks it afterward and deletes it with the private profile.
 
 This does not qualify the Windows/JDK 21 combination. The higher-level
 `wordtoolkit.render_ooxml_libreoffice_artifacts/1.0` action and matching strict CLI now
@@ -140,3 +144,22 @@ pass locally. Hosted run
 action on Ubuntu 24.04 against the hash-bound LibreOffice 24.2.7.2/JDK 17 combination;
 all seven public-layer tests and all twelve provider tests passed. This qualifies that
 specific Linux combination, not other LibreOffice/JDK/OS tuples.
+
+The first four-package expansion exposed a real failure hidden by the earlier DOCX-only
+proof: DOTX was loaded as a new editable document and failed closed with
+`READ_ONLY_NOT_VERIFIED`. The helper now explicitly supplies `AsTemplate=false`.
+Hosted run <https://github.com/Fr4u/WordToolkit/actions/runs/30203138387> passed all six
+jobs and rebuilt the current 9,026-byte helper at SHA-256
+`cc252d63ff7a0737d261bfc76a9d211b5d0e5303a2cb6ea245db6707eda9ce91`.
+Its Ubuntu 24.04 lane used LibreOffice 24.2.7.2, Temurin 17.0.16, `pdfinfo` 24.02.0
+and `pdftoppm` 24.02.0. The exact public action rendered minimal DOCX, DOCM, DOTX and
+DOTM packages to PDF plus PNG at 96 DPI and verified artifact hashes and lengths, PDF
+page count and geometry, PNG dimensions, manifest fields, source-byte stability and
+deletion of the private LibreOffice and Poppler workspaces. All seven public-layer and
+all twelve provider tests passed.
+
+The DOCM/DOTM fixtures prove package-type routing, not hostile VBA behavior: they contain
+no adversarial macro payload. Macro and external-update prevention therefore remain
+requested rather than behaviorally verified. A local Windows attempt with LibreOffice
+26.2.4.2, Temurin 17.0.16 and Poppler 25.07.0 timed out during backend connection, so
+that Windows tuple is rejected and unqualified.
