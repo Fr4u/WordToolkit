@@ -19,15 +19,15 @@
   layout. Macro `NEVER_EXECUTE` and update `NO_UPDATE` are recorded as requests; behavioral
   prevention remains explicitly false until adversarial active-content probes exist.
 - Two pinned-SDK 8.0.423 package builds produced byte-identical 197-file,
-  89,607,363-byte trees and byte-identical 37,448,205-byte ZIPs at SHA-256
-  `01a8b926667322f70cad628284bff38e78adfc659ae45d7b767c80e356d88eec`.
+  89,608,757-byte trees and byte-identical 37,448,673-byte ZIPs at SHA-256
+  `d6f1dea5a29022b41516acf7ff445e5849c5b46529c3f482591fed5bfddcd98f`.
   Runtime executable, runtime assembly, Engine, LibreOffice and Open XML SDK hashes are
-  `f63241db19e004afc71f744d7a00f0463a6e55b866ea63b621f60eca68ac1298`,
-  `48fbb7e26d9be15aa35493254e7d1087b4ded444d22ddebf49ea282d146e6523`,
-  `29bd42165f2c19eba9ec8138a498babb99169645ae067d8e9b32e66647cce04a`,
-  `ca207c100581bf549aa95513e928c91daa8c14ce2694e105d10cff1ffac13e0c`
-  and `5a17ea7539f2706ec3a993000c64c9d3c55d7f22a233b45c428ce14e275f556c`.
-- Installed and enabled `0.50.0+codex.20260726141018`. The canonical candidate,
+  `3b157e2ab69ea5ed17e421c3023e0fd0ef7dfe9f430be1398785e03c1c10f439`,
+  `9af5a21c51834e572e57cb6bcafc6cb6c9e501f13cb005d922d5e78fbddfaa16`,
+  `3abbf6a090fb35abf7c9e12b790ab5a24650123c01a8027c3f7933ca0c450077`,
+  `8b14d5c918b515543bc6f56e9a2ef936d3b079c64117d091c2c6ac4f5c349b9d`
+  and `3faaa2a513fedfafa1be6397ee98931c1f662fc2b27d9c4cb3dd9d88fccd538b`.
+- Installed and enabled `0.50.0+codex.20260726142219`. The canonical candidate,
   `C:\Users\Admin\plugins\wordtoolkit` and active cache contain the same 197 paths,
   lengths and SHA-256 values. The installed executable reports 145 actions, 15 MCP tools
   and 56 complete explicit metadata contracts; the retained source backup is

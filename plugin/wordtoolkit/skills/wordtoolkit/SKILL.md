@@ -130,6 +130,23 @@ the version child process is not sandboxed. Pre/post SHA-256 does not atomically
 bytes loaded by the operating system and a recognizable banner is not a vendor-signature
 or authenticity proof. Do not use this probe as permission to open a document or silently
 substitute LibreOffice for the Word-authoritative renderer.
+Use lazy `render_ooxml_libreoffice_artifacts` only when LibreOffice Writer output is
+acceptable and Microsoft Word layout authority is not required. Retain the exact package
+fingerprint, then supply explicit absolute local paths plus expected SHA-256 values for
+LibreOffice, Java and the resolved LibreOffice Java archive. Do not supply a helper path:
+the reviewed helper is embedded, source-rebuilt and hash-bound by WordToolkit. Choose
+`pdf` unless page images are actually needed. For `png_pages` or
+`pdf_and_png_pages`, supply exact `pdfinfo_path` and rasterizer paths (or their dedicated
+WordToolkit environment variables); no `PATH`, Word, browser or CLI-conversion fallback
+exists. The action uses a private LibreOffice profile and local UNO pipe, requests hidden
+read-only loading, `NEVER_EXECUTE` macros and `NO_UPDATE` external updates, then deletes
+all private profile/helper/source/PDF/raster staging before one create-new public
+PDF/PNG/manifest transaction. Treat the returned binary hashes, source-stability,
+document-close, desktop-termination and cleanup fields as the evidence. Treat macro and
+update policies only as requests: behavioral prevention, network isolation, vendor
+authenticity, Microsoft Word text metrics and pixel equivalence remain explicitly
+unproved. On `CLEANUP_FAILED` or `ROLLBACK_FAILED`, stop and inspect the reported output
+directory before any retry.
 Use lazy `render_ooxml_fixed_artifacts` when an exact saved DOCX/DOCM/DOTX/DOTM
 must be rendered by the installed Microsoft Word build. First retain the package's
 exact 64-character fingerprint from saved-package inspection. Supply an existing local

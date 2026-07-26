@@ -21,10 +21,10 @@
   render-action tests and twelve provider tests against exact LibreOffice 24.2.7.2,
   Temurin JDK 17.0.16 and source-rebuilt helper hashes. Local pinned-SDK 8.0.423 gates
   pass 739 Engine, 12 LibreOffice and 532 Native tests.
-- Two independent 197-file, 89,607,363-byte Windows plugin trees and their
-  37,448,205-byte ZIPs are byte-identical at SHA-256
-  `01a8b926667322f70cad628284bff38e78adfc659ae45d7b767c80e356d88eec`.
-- Installed and enabled `0.50.0+codex.20260726141018`. The canonical build,
+- Two independent 197-file, 89,608,757-byte Windows plugin trees and their
+  37,448,673-byte ZIPs are byte-identical at SHA-256
+  `d6f1dea5a29022b41516acf7ff445e5849c5b46529c3f482591fed5bfddcd98f`.
+- Installed and enabled `0.50.0+codex.20260726142219`. The canonical build,
   persistent personal source and active Codex cache have identical 197-path
   length/SHA-256 maps; installed discovery reports 145 actions, 15 tools and 56
   complete explicit metadata contracts.
