@@ -123,6 +123,7 @@ public final class LibreOfficeUnoRender {
             PropertyValue[] loadProperties = new PropertyValue[] {
                 property("Hidden", Boolean.TRUE),
                 property("ReadOnly", Boolean.TRUE),
+                property("AsTemplate", Boolean.FALSE),
                 property("PickListEntry", Boolean.FALSE),
                 property("RepairPackage", Boolean.FALSE),
                 property("MacroExecutionMode", Short.valueOf(MacroExecMode.NEVER_EXECUTE)),

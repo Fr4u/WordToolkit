@@ -17,7 +17,7 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
     private const string EmbeddedHelperResourceName =
         "WordToolkit.LibreOffice.wordtoolkit-uno-helper.jar";
     private const string EmbeddedHelperSha256 =
-        "583ef85be3e0e9282cd1aec06161767606d1c5b9ce91228587fa8f14e57ad462";
+        "cc252d63ff7a0737d261bfc76a9d211b5d0e5303a2cb6ea245db6707eda9ce91";
     private static readonly TimeSpan OfficeExitGrace = TimeSpan.FromSeconds(10);
     private static readonly IReadOnlyList<string> Limitations = Array.AsReadOnly(
         new[]

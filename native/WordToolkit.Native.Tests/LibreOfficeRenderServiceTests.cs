@@ -709,8 +709,8 @@ public sealed class LibreOfficeRenderServiceTests
                     Identity(request.LibreOfficeJarPath, request.ExpectedLibreOfficeJarSha256),
                     new LibreOfficeUnoBinaryIdentity(
                         "wordtoolkit-uno-helper.jar",
-                        9_012,
-                        "583ef85be3e0e9282cd1aec06161767606d1c5b9ce91228587fa8f14e57ad462",
+                        9_026,
+                        "cc252d63ff7a0737d261bfc76a9d211b5d0e5303a2cb6ea245db6707eda9ce91",
                         true,
                         true
                     ),
