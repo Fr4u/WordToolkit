@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using WordToolkit.Engine.Packaging;
 using WordToolkit.Native.Protocol;
 using WordToolkit.Native.Word;
 
@@ -285,6 +286,212 @@ public sealed class MailMergePackageInspectionTests
         }
     }
 
+    [Fact]
+    public async Task SchemaBindingPlanIsDeterministicRedactedAndNeverExecutesMerge()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "mail-merge.docx");
+            CreatePackage(path);
+            var fingerprint = new OpcPackageReader().Read(path).Fingerprint;
+            var service = new WordLiveService(new NoInvokeHost());
+            var request = new
+            {
+                local_path = path,
+                expected_package_fingerprint = fingerprint,
+                source_columns = new[]
+                {
+                    new { name = "CustomerId", data_kind = "number" },
+                    new { name = "FirstName", data_kind = "text" },
+                    new { name = "PrivateUnused", data_kind = "text" },
+                },
+            };
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(request));
+
+            var first = await service.CallAsync(
+                "plan_ooxml_mail_merge_schema_binding",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            var second = await service.CallAsync(
+                "plan_ooxml_mail_merge_schema_binding",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            using var firstJson = JsonDocument.Parse(JsonSerializer.Serialize(first));
+            using var secondJson = JsonDocument.Parse(JsonSerializer.Serialize(second));
+            var root = firstJson.RootElement;
+
+            Assert.Equal(
+                root.GetProperty("plan_id").GetString(),
+                secondJson.RootElement.GetProperty("plan_id").GetString()
+            );
+            Assert.True(root.GetProperty("can_bind_schema").GetBoolean());
+            Assert.False(root.GetProperty("execution_supported").GetBoolean());
+            Assert.False(root.GetProperty("contains_record_values").GetBoolean());
+            Assert.False(root.GetProperty("input_record_values_accepted").GetBoolean());
+            Assert.False(root.GetProperty("word_opened").GetBoolean());
+            Assert.False(root.GetProperty("mail_merge_executed").GetBoolean());
+            Assert.False(root.GetProperty("data_sources_opened").GetBoolean());
+            Assert.False(root.GetProperty("queries_executed").GetBoolean());
+            Assert.False(root.GetProperty("external_targets_followed").GetBoolean());
+            Assert.True(root.GetProperty("external_source_ignored").GetBoolean());
+            Assert.Equal(2, root.GetProperty("resolved_exact_count").GetInt32());
+            Assert.Equal(1, root.GetProperty("unused_source_column_count").GetInt32());
+            Assert.Equal(
+                "execution_backend_not_implemented",
+                Assert.Single(root.GetProperty("execution_blocked_reasons").EnumerateArray())
+                    .GetString()
+            );
+            var raw = root.GetRawText();
+            Assert.DoesNotContain("CustomerId", raw, StringComparison.Ordinal);
+            Assert.DoesNotContain("FirstName", raw, StringComparison.Ordinal);
+            Assert.DoesNotContain("PrivateUnused", raw, StringComparison.Ordinal);
+            Assert.DoesNotContain("Provider=Sensitive", raw, StringComparison.Ordinal);
+            Assert.True(raw.Length < 5_000, $"Default plan response is too large: {raw.Length}");
+
+            using var detailArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                request.local_path,
+                request.expected_package_fingerprint,
+                request.source_columns,
+                view = "bindings",
+                include_sensitive = true,
+                include_source = true,
+            }));
+            using var detailJson = JsonDocument.Parse(JsonSerializer.Serialize(
+                await service.CallAsync(
+                    "plan_ooxml_mail_merge_schema_binding",
+                    detailArguments.RootElement,
+                    CancellationToken.None
+                )
+            ));
+            var detailItems = detailJson.RootElement.GetProperty("items").EnumerateArray()
+                .ToArray();
+            Assert.Equal(2, detailItems.Length);
+            Assert.Contains(
+                detailItems,
+                item => item.GetProperty("required_column_name").GetString()
+                    == "CustomerId"
+                    && item.GetProperty("source_column_ordinal").GetInt32() == 0
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SchemaBindingPlanRejectsStaleFingerprintsRecordValuesAndUnknownFields()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "mail-merge.docx");
+            CreatePackage(path);
+            var service = new WordLiveService(new NoInvokeHost());
+            using var stale = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = new string('0', 64),
+                source_columns = Array.Empty<object>(),
+            }));
+            var staleException = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "plan_ooxml_mail_merge_schema_binding",
+                    stale.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("VERSION_CONFLICT", staleException.ErrorCode);
+
+            using var forbidden = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = new string('0', 64),
+                source_columns = Array.Empty<object>(),
+                record_values = new[] { new { CustomerId = 1 } },
+            }));
+            var forbiddenException = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "plan_ooxml_mail_merge_schema_binding",
+                    forbidden.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("INVALID_INPUT", forbiddenException.ErrorCode);
+
+            var fingerprint = new OpcPackageReader().Read(path).Fingerprint;
+            using var invalidColumn = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = fingerprint,
+                source_columns = new[] { new { name = "CustomerId", secret = "value" } },
+            }));
+            var invalidException = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "plan_ooxml_mail_merge_schema_binding",
+                    invalidColumn.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("INVALID_INPUT", invalidException.ErrorCode);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SchemaBindingPlanContractIsClosedAndMatchesFullResponse()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "mail-merge.docx");
+            CreatePackage(path);
+            var fingerprint = new OpcPackageReader().Read(path).Fingerprint;
+            var catalog = ToolCatalog.LoadNativeWordTools();
+            var tool = catalog.InspectAction(
+                "plan_ooxml_mail_merge_schema_binding"
+            )["tool"]!.AsObject();
+            Assert.Equal("1.0", tool["operationVersion"]!.GetValue<string>());
+            Assert.Equal("none", tool["permissions"]!["network"]!.GetValue<string>());
+            Assert.Equal(
+                "none",
+                tool["permissions"]!["microsoft_word"]!.GetValue<string>()
+            );
+            Assert.False(tool["inputSchema"]!["additionalProperties"]!.GetValue<bool>());
+            var service = new WordLiveService(new NoInvokeHost());
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = fingerprint,
+                source_columns = new[] { new { name = "CustomerId" }, new { name = "FirstName" } },
+            }));
+            var result = await service.CallAsync(
+                "plan_ooxml_mail_merge_schema_binding",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            var envelope = new JsonObject
+            {
+                ["ok"] = true,
+                ["data"] = JsonSerializer.SerializeToNode(result, JsonDefaults.Compact),
+            };
+            var schema = tool["outputSchema"]!.AsObject();
+
+            PublishedOutputSchemaAssertions.AssertConforms(envelope, schema, schema);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static string TemporaryDirectory()
     {
         var directory = Path.Combine(
@@ -296,7 +503,7 @@ public sealed class MailMergePackageInspectionTests
         return directory;
     }
 
-    private static void CreatePackage(string path)
+    internal static void CreatePackage(string path)
     {
         const string w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
         const string r = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";

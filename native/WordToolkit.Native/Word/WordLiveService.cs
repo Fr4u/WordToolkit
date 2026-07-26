@@ -392,6 +392,11 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "plan_ooxml_mail_merge_schema_binding" =>
+                PlanPackageMailMergeSchemaBindingAsync(
+                    arguments,
+                    cancellationToken
+                ),
             "inspect_ooxml_dependencies" => InspectPackageDependenciesAsync(
                 arguments,
                 cancellationToken

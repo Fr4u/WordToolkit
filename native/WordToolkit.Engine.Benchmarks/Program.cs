@@ -328,6 +328,28 @@ static object RunMailMerge(Arguments options)
             allocatedBytes[index] = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
             operationUsage = resourceLease.Snapshot();
         }
+        var sourceColumns = Enumerable.Range(0, mappingCount)
+            .Select(index => new WordMailMergeSourceColumn(
+                $"Column{index:D2}",
+                index % 2 == 0
+                    ? WordMailMergeSourceDataKind.Text
+                    : WordMailMergeSourceDataKind.Number
+            ))
+            .ToArray();
+        WordMailMergeSchemaBindingPlan? schemaPlan = null;
+        var schemaPlanTimings = new double[repetitionCount];
+        var schemaPlanAllocatedBytes = new long[repetitionCount];
+        var schemaPlanner = new WordMailMergeSchemaPlanner();
+        for (var index = 0; index < repetitionCount; index++)
+        {
+            var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+            schemaPlanTimings[index] = Measure(() =>
+            {
+                schemaPlan = schemaPlanner.Plan(graph!, sourceColumns);
+            }).TotalMilliseconds;
+            schemaPlanAllocatedBytes[index] = GC.GetAllocatedBytesForCurrentThread()
+                - allocatedBefore;
+        }
         Collect();
         var final = MemorySnapshot.Capture();
         var measuredGraph = graph ?? throw new InvalidOperationException(
@@ -338,7 +360,13 @@ static object RunMailMerge(Arguments options)
         );
         var orderedTimings = timings.Order().ToArray();
         var orderedAllocatedBytes = allocatedBytes.Order().ToArray();
+        var measuredSchemaPlan = schemaPlan ?? throw new InvalidOperationException(
+            "Mail-merge benchmark did not produce a schema-binding plan."
+        );
+        var orderedSchemaPlanTimings = schemaPlanTimings.Order().ToArray();
+        var orderedSchemaPlanAllocatedBytes = schemaPlanAllocatedBytes.Order().ToArray();
         GC.KeepAlive(measuredGraph);
+        GC.KeepAlive(measuredSchemaPlan);
         return CommonReport(
             "mail_merge_graph",
             new
@@ -360,6 +388,18 @@ static object RunMailMerge(Arguments options)
                         or WordMailMergeFieldBindingStatus.ResolvedByWordPredefinedName
                 ),
                 issues = measuredGraph.Issues.Count,
+                schema_plan = new
+                {
+                    source_columns = measuredSchemaPlan.SourceColumns.Count,
+                    bindings = measuredSchemaPlan.Bindings.Count,
+                    issues = measuredSchemaPlan.Issues.Count,
+                    can_bind_schema = measuredSchemaPlan.CanBindSchema,
+                    execution_supported = measuredSchemaPlan.ExecutionSupported,
+                    contains_record_values = measuredSchemaPlan.ContainsRecordValues,
+                    unused_source_columns = measuredSchemaPlan.UnusedSourceColumnCount,
+                    plan_id_stable = measuredSchemaPlan.PlanId
+                        == schemaPlanner.Plan(measuredGraph, sourceColumns).PlanId,
+                },
                 package_fingerprint_preserved = package.Fingerprint
                     == measuredGraph.PackageFingerprint,
                 execution_policy =
@@ -386,6 +426,9 @@ static object RunMailMerge(Arguments options)
                     mail_merge_build_samples = timings,
                     mail_merge_build_median = orderedTimings[repetitionCount / 2],
                     mail_merge_build_p95 = orderedTimings[^1],
+                    schema_plan_samples = schemaPlanTimings,
+                    schema_plan_median = orderedSchemaPlanTimings[repetitionCount / 2],
+                    schema_plan_p95 = orderedSchemaPlanTimings[^1],
                     measured_setup_total = read.TotalMilliseconds
                         + project.TotalMilliseconds
                         + settingsBuild.TotalMilliseconds
@@ -396,6 +439,12 @@ static object RunMailMerge(Arguments options)
                     samples = allocatedBytes,
                     median = orderedAllocatedBytes[repetitionCount / 2],
                     p95 = orderedAllocatedBytes[^1],
+                },
+                schema_plan_allocated_bytes = new
+                {
+                    samples = schemaPlanAllocatedBytes,
+                    median = orderedSchemaPlanAllocatedBytes[repetitionCount / 2],
+                    p95 = orderedSchemaPlanAllocatedBytes[^1],
                 },
                 memory = MemoryReport(baseline, final),
             }

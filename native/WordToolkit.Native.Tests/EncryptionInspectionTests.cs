@@ -12,7 +12,7 @@ public sealed class EncryptionInspectionTests
     public void CatalogKeepsEncryptionInspectionLazyAndPublishesClosedMetadata()
     {
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(147, catalog.ActionCount);
+        Assert.Equal(148, catalog.ActionCount);
         Assert.DoesNotContain(
             catalog.Tools,
             tool => tool!["name"]!.GetValue<string>()

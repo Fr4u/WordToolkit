@@ -63,6 +63,7 @@
       "inspect_ooxml_references",
       "inspect_ooxml_bibliography",
       "inspect_ooxml_mail_merge",
+      "plan_ooxml_mail_merge_schema_binding",
       "inspect_ooxml_dependencies",
       "inspect_ooxml_charts",
       "inspect_ooxml_diagrams",
@@ -10917,6 +10918,181 @@
               "items": {"type": "array", "maxItems": 100, "items": {"type": "object"}},
               "issues": {"type": ["array", "null"], "maxItems": 30, "items": {"type": "object"}},
               "issues_truncated": {"type": "boolean"},
+              "response_budget": {
+                "type": "object",
+                "required": ["model", "used", "maximum"],
+                "properties": {
+                  "model": {"const": "mail_merge_projected_payload_characters_v1"},
+                  "used": {"type": "integer", "minimum": 0, "maximum": 65536},
+                  "maximum": {"const": 65536}
+                },
+                "additionalProperties": false
+              },
+              "response_budget_truncated": {"type": "boolean"},
+              "operation_budget": {
+                "type": "object",
+                "required": ["model", "used", "maximum"],
+                "properties": {
+                  "model": {"const": "wop1"},
+                  "used": {"type": "integer", "minimum": 0},
+                  "maximum": {"type": "integer", "minimum": 1}
+                },
+                "additionalProperties": false
+              },
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {
+                "type": "object",
+                "required": ["total_ms"],
+                "properties": {"total_ms": {"type": "number", "minimum": 0}},
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "resourceAccounting": {
+        "operation": {
+          "engineModel": "word_operation_accounted_v1",
+          "mcpModel": "wop1",
+          "responseField": "operation_budget",
+          "defaultMaximumAccountedBytes": 671088640
+        },
+        "limitErrorCode": "PACKAGE_LIMIT"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "plan_ooxml_mail_merge_schema_binding",
+      "title": "Plan Word mail merge source-schema bindings",
+      "description": "Build a deterministic fingerprint-bound binding plan between saved MERGEFIELD/MERGEBARCODE objects and a caller-supplied ordered source-column schema. The action accepts column names and declared scalar kinds but no record values. It never opens Microsoft Word, a workbook, database, ODBC/OLE DB provider, query, external relationship target or merge destination, and never executes a merge. Missing, ambiguous, case-colliding, incomplete, deleted or unsupported control fields fail closed. Names are process-HMAC fingerprinted unless include_sensitive is explicitly enabled; details are paged under a 65,536-character projected response budget.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_local_word_package",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only_plan"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "expected_package_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$",
+            "description": "Exact SHA-256 package fingerprint returned by a preceding inspection."
+          },
+          "source_columns": {
+            "type": "array",
+            "minItems": 0,
+            "maxItems": 4096,
+            "description": "Ordered source schema only. Record values are forbidden and have no input field.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {"type": "string", "minLength": 1, "maxLength": 512},
+                "data_kind": {
+                  "type": "string",
+                  "enum": ["unspecified", "text", "number", "date_time", "boolean", "binary"],
+                  "default": "unspecified"
+                }
+              },
+              "required": ["name"],
+              "additionalProperties": false
+            }
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "bindings", "issues"],
+            "default": "summary"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "include_sensitive": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded target, required-column and matched source-column names. No record values exist in this operation."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to source-schema column ordinals in binding and issue pages."
+          }
+        },
+        "required": ["local_path", "expected_package_fingerprint", "source_columns"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "package_fingerprint", "source_schema_fingerprint", "plan_id", "configuration_present", "source_column_count", "field_count", "resolved_exact_count", "resolved_case_insensitive_count", "missing_count", "ambiguous_count", "not_applicable_count", "execution_blocking_binding_count", "unused_source_column_count", "issue_count", "can_bind_schema", "execution_supported", "schema_blocked_reasons", "execution_blocked_reasons", "external_source_ignored", "sensitive_connection_metadata_ignored", "contains_record_values", "input_record_values_accepted", "execution_policy", "word_opened", "mail_merge_executed", "data_sources_opened", "queries_executed", "external_targets_followed", "sensitive_values_included", "source_locations_included", "fingerprint_scope", "view", "matched_item_count", "offset", "returned_item_count", "items", "response_budget", "response_budget_truncated", "operation_budget"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.plan_ooxml_mail_merge_schema_binding/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "source_schema_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "plan_id": {"type": "string", "pattern": "^wmmsp_[0-9a-f]{24}$"},
+              "configuration_present": {"type": "boolean"},
+              "source_column_count": {"type": "integer", "minimum": 0, "maximum": 4096},
+              "field_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "resolved_exact_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "resolved_case_insensitive_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "missing_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "ambiguous_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "not_applicable_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "execution_blocking_binding_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "unused_source_column_count": {"type": "integer", "minimum": 0, "maximum": 4096},
+              "issue_count": {"type": "integer", "minimum": 0, "maximum": 500000},
+              "can_bind_schema": {"type": "boolean"},
+              "execution_supported": {"const": false},
+              "schema_blocked_reasons": {"type": "array", "maxItems": 32, "items": {"type": "string", "maxLength": 128}},
+              "execution_blocked_reasons": {"type": "array", "maxItems": 33, "items": {"type": "string", "maxLength": 128}},
+              "external_source_ignored": {"type": "boolean"},
+              "sensitive_connection_metadata_ignored": {"type": "boolean"},
+              "contains_record_values": {"const": false},
+              "input_record_values_accepted": {"const": false},
+              "execution_policy": {"const": "plan_schema_only_never_open_word_data_source_query_external_target_or_execute_merge"},
+              "word_opened": {"const": false},
+              "mail_merge_executed": {"const": false},
+              "data_sources_opened": {"const": false},
+              "queries_executed": {"const": false},
+              "external_targets_followed": {"const": false},
+              "sensitive_values_included": {"type": "boolean"},
+              "source_locations_included": {"type": "boolean"},
+              "fingerprint_scope": {"const": "process_hmac_sha256_64"},
+              "view": {"enum": ["summary", "bindings", "issues"]},
+              "matched_item_count": {"type": "integer", "minimum": 0, "maximum": 500000},
+              "offset": {"type": "integer", "minimum": 0, "maximum": 2147483647},
+              "returned_item_count": {"type": "integer", "minimum": 0, "maximum": 100},
+              "next_offset": {"type": ["integer", "null"], "minimum": 0, "maximum": 2147483647},
+              "items": {"type": "array", "maxItems": 100, "items": {"type": "object"}},
               "response_budget": {
                 "type": "object",
                 "required": ["model", "used", "maximum"],

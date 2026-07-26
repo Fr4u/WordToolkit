@@ -15,6 +15,341 @@ internal sealed partial class WordLiveService
     private static readonly byte[] MailMergeFingerprintKey =
         RandomNumberGenerator.GetBytes(32);
 
+    private Task<object> PlanPackageMailMergeSchemaBindingAsync(
+        JsonElement arguments,
+        CancellationToken cancellationToken
+    )
+    {
+        var started = Stopwatch.GetTimestamp();
+        cancellationToken.ThrowIfCancellationRequested();
+        ValidateMailMergeSchemaPlanArguments(arguments);
+        var path = ResolveInspectablePackagePath(arguments);
+        var expectedFingerprint = RequiredSha256(
+            arguments,
+            "expected_package_fingerprint"
+        );
+        var sourceColumns = ParseMailMergeSourceColumns(arguments);
+        var view = arguments.String("view", "summary");
+        if (view is not "summary" and not "bindings" and not "issues")
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "view must be summary, bindings, or issues"
+            );
+        }
+        var offset = arguments.NullableInt64("offset") ?? 0;
+        var maximum = arguments.NullableInt64("max_items") ?? 30;
+        if (offset is < 0 or > int.MaxValue)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "offset must be between 0 and 2147483647"
+            );
+        }
+        if (maximum is < 1 or > 100)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "max_items must be between 1 and 100"
+            );
+        }
+        var includeSensitive = arguments.Boolean("include_sensitive", false);
+        var includeSource = arguments.Boolean("include_source", false);
+
+        try
+        {
+            var resourceLease = _operationResourceLeaseFactory()
+                ?? throw new InvalidOperationException(
+                    "The operation resource-lease factory returned null."
+                );
+            var package = new OpcPackageReader(
+                OpcPackageLimits.Default,
+                resourceLease
+            ).Read(path, cancellationToken);
+            if (!package.IsStructurallyValid)
+            {
+                throw new NativeToolException(
+                    "INVALID_PACKAGE",
+                    "The input package has structural OPC errors"
+                );
+            }
+            if (!string.Equals(
+                package.Fingerprint,
+                expectedFingerprint,
+                StringComparison.OrdinalIgnoreCase
+            ))
+            {
+                throw new NativeToolException(
+                    "VERSION_CONFLICT",
+                    "The package does not match expected_package_fingerprint"
+                );
+            }
+            var semantic = new WordSemanticProjector(null, resourceLease).Project(
+                package,
+                cancellationToken
+            );
+            var settings = new WordSettingsGraphBuilder(null, resourceLease).Build(
+                package,
+                semantic,
+                cancellationToken
+            );
+            var references = new WordReferenceGraphBuilder(null, resourceLease).Build(
+                package,
+                semantic,
+                cancellationToken
+            );
+            var graph = new WordMailMergeGraphBuilder(null, resourceLease).Build(
+                package,
+                semantic,
+                settings,
+                references,
+                cancellationToken
+            );
+            var plan = new WordMailMergeSchemaPlanner().Plan(
+                graph,
+                sourceColumns,
+                cancellationToken
+            );
+            var page = view switch
+            {
+                "summary" => PageMailMergeItems(
+                    MailMergeSchemaSummaryItems(plan),
+                    (int)offset,
+                    (int)maximum,
+                    item => item,
+                    cancellationToken
+                ),
+                "bindings" => PageMailMergeItems(
+                    plan.Bindings,
+                    (int)offset,
+                    (int)maximum,
+                    item => MailMergeSchemaBindingItem(
+                        item,
+                        includeSensitive,
+                        includeSource
+                    ),
+                    cancellationToken
+                ),
+                _ => PageMailMergeItems(
+                    plan.Issues,
+                    (int)offset,
+                    (int)maximum,
+                    item => MailMergeSchemaIssueItem(item, includeSource),
+                    cancellationToken
+                ),
+            };
+            var consumed = (long)offset + page.Items.Count;
+            var operationUsage = resourceLease.Snapshot();
+            return Task.FromResult<object>(new
+            {
+                operation_contract =
+                    "wordtoolkit.plan_ooxml_mail_merge_schema_binding/1.0",
+                file_name = Path.GetFileName(path),
+                package_fingerprint = plan.PackageFingerprint,
+                source_schema_fingerprint = plan.SourceSchemaFingerprint,
+                plan_id = plan.PlanId,
+                configuration_present = plan.ConfigurationId is not null,
+                source_column_count = plan.SourceColumns.Count,
+                field_count = plan.Bindings.Count,
+                resolved_exact_count = plan.Bindings.Count(item =>
+                    item.Status == WordMailMergeSchemaBindingStatus.ResolvedExact
+                ),
+                resolved_case_insensitive_count = plan.Bindings.Count(item =>
+                    item.Status
+                        == WordMailMergeSchemaBindingStatus.ResolvedCaseInsensitive
+                ),
+                missing_count = plan.Bindings.Count(item =>
+                    item.Status == WordMailMergeSchemaBindingStatus.Missing
+                ),
+                ambiguous_count = plan.Bindings.Count(item =>
+                    item.Status == WordMailMergeSchemaBindingStatus.Ambiguous
+                ),
+                not_applicable_count = plan.Bindings.Count(item =>
+                    item.Status == WordMailMergeSchemaBindingStatus.NotApplicable
+                ),
+                execution_blocking_binding_count = plan.Bindings.Count(item =>
+                    item.ExecutionBlocking
+                ),
+                unused_source_column_count = plan.UnusedSourceColumnCount,
+                issue_count = plan.Issues.Count,
+                can_bind_schema = plan.CanBindSchema,
+                execution_supported = plan.ExecutionSupported,
+                schema_blocked_reasons = plan.SchemaBlockedReasons,
+                execution_blocked_reasons = plan.ExecutionBlockedReasons,
+                external_source_ignored = plan.ExternalSourceIgnored,
+                sensitive_connection_metadata_ignored =
+                    plan.SensitiveConnectionMetadataIgnored,
+                contains_record_values = plan.ContainsRecordValues,
+                input_record_values_accepted = false,
+                execution_policy =
+                    "plan_schema_only_never_open_word_data_source_query_external_target_or_execute_merge",
+                word_opened = false,
+                mail_merge_executed = false,
+                data_sources_opened = false,
+                queries_executed = false,
+                external_targets_followed = false,
+                sensitive_values_included = includeSensitive,
+                source_locations_included = includeSource,
+                fingerprint_scope = "process_hmac_sha256_64",
+                view,
+                matched_item_count = page.MatchedCount,
+                offset,
+                returned_item_count = page.Items.Count,
+                next_offset = consumed < page.MatchedCount ? (int)consumed : (int?)null,
+                items = page.Items,
+                response_budget = new
+                {
+                    model = "mail_merge_projected_payload_characters_v1",
+                    used = page.ProjectedCharacters,
+                    maximum = MaxMailMergeResponsePayloadCharacters,
+                },
+                response_budget_truncated = page.ResponseBudgetTruncated,
+                operation_budget = new
+                {
+                    model = "wop1",
+                    used = operationUsage.AccountedBytes,
+                    maximum = operationUsage.MaximumAccountedBytes,
+                },
+                runtime = "dotnet-native",
+                python_used = false,
+                performance = new
+                {
+                    total_ms = Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+                },
+            });
+        }
+        catch (WordMailMergeSchemaPlanLimitException)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "The mail-merge source schema exceeds a bounded safety limit",
+                new { reason_code = "mail_merge_schema_plan_limit" }
+            );
+        }
+        catch (WordMailMergeSchemaPlanException)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "The supplied mail-merge source schema is invalid",
+                new { reason_code = "mail_merge_source_schema_invalid" }
+            );
+        }
+        catch (WordOperationResourceLimitException exception)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "The mail-merge schema plan exceeded its operation resource budget",
+                new
+                {
+                    reason = "The operation resource budget was exhausted",
+                    operation_budget = new
+                    {
+                        model = "wop1",
+                        used = exception.AccountedBytes,
+                        maximum = exception.MaximumAccountedBytes,
+                        attempted = exception.AttemptedBytes,
+                        stage = ToSnakeCase(exception.Stage.ToString()),
+                    },
+                }
+            );
+        }
+        catch (WordMailMergeLimitException)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "The mail-merge graph exceeds a bounded safety limit",
+                new { reason_code = "mail_merge_graph_limit" }
+            );
+        }
+        catch (WordMailMergeProjectionException)
+        {
+            throw new NativeToolException(
+                "INVALID_WORD_PACKAGE",
+                "The package cannot be resolved into a mail-merge graph",
+                new { reason_code = "mail_merge_projection_failed" }
+            );
+        }
+        catch (WordSettingsLimitException)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "The settings graph exceeds a bounded safety limit",
+                new { reason_code = "settings_graph_limit" }
+            );
+        }
+        catch (WordSettingsProjectionException)
+        {
+            throw new NativeToolException(
+                "INVALID_WORD_PACKAGE",
+                "The package cannot be resolved into a Word settings graph",
+                new { reason_code = "settings_projection_failed" }
+            );
+        }
+        catch (WordReferenceLimitException)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "The reference graph exceeds a bounded safety limit",
+                new { reason_code = "reference_graph_limit" }
+            );
+        }
+        catch (WordReferenceProjectionException)
+        {
+            throw new NativeToolException(
+                "INVALID_WORD_PACKAGE",
+                "The package cannot be resolved into a Word reference graph",
+                new { reason_code = "reference_projection_failed" }
+            );
+        }
+        catch (WordSemanticLimitException)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "Semantic projection exceeds a bounded safety limit",
+                new { reason_code = "semantic_projection_limit" }
+            );
+        }
+        catch (WordSemanticProjectionException)
+        {
+            throw new NativeToolException(
+                "INVALID_WORD_PACKAGE",
+                "The package cannot be projected as a Word semantic document",
+                new { reason_code = "semantic_projection_failed" }
+            );
+        }
+        catch (OpcPackageLimitException)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "The package exceeds a bounded safety limit",
+                new { reason_code = "opc_package_limit" }
+            );
+        }
+        catch (InvalidDataException)
+        {
+            throw new NativeToolException(
+                "INVALID_PACKAGE",
+                "The file is not a readable OPC ZIP package",
+                new { reason_code = "invalid_opc_package" }
+            );
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw new NativeToolException(
+                "ACCESS_DENIED",
+                "The Word package cannot be read with current permissions"
+            );
+        }
+        catch (IOException)
+        {
+            throw new NativeToolException(
+                "IO_ERROR",
+                "The Word package could not be read",
+                new { reason_code = "io_read_failed" }
+            );
+        }
+    }
+
     private Task<object> InspectPackageMailMergeAsync(
         JsonElement arguments,
         CancellationToken cancellationToken
@@ -690,6 +1025,221 @@ internal sealed partial class WordLiveService
                 Encoding.UTF8.GetBytes(value)
             )
         ).ToLowerInvariant()[..16];
+    }
+
+    private static IReadOnlyList<WordMailMergeSourceColumn> ParseMailMergeSourceColumns(
+        JsonElement arguments
+    )
+    {
+        if (!arguments.TryGetProperty("source_columns", out var columns)
+            || columns.ValueKind != JsonValueKind.Array)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "source_columns must be an array"
+            );
+        }
+        if (columns.GetArrayLength() > 4_096)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "source_columns exceeds 4096 items"
+            );
+        }
+        var result = new List<WordMailMergeSourceColumn>(columns.GetArrayLength());
+        foreach (var column in columns.EnumerateArray())
+        {
+            if (column.ValueKind != JsonValueKind.Object)
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "Every source_columns item must be an object"
+                );
+            }
+            foreach (var property in column.EnumerateObject())
+            {
+                if (property.Name is not "name" and not "data_kind")
+                {
+                    throw new NativeToolException(
+                        "INVALID_INPUT",
+                        "A source_columns item contains an unknown property"
+                    );
+                }
+                if (property.Value.ValueKind != JsonValueKind.String)
+                {
+                    throw new NativeToolException(
+                        "INVALID_INPUT",
+                        $"source_columns.{property.Name} must be a string"
+                    );
+                }
+            }
+            if (!column.TryGetProperty("name", out var nameElement)
+                || nameElement.ValueKind != JsonValueKind.String)
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "Every source_columns item requires name"
+                );
+            }
+            var name = nameElement.GetString() ?? string.Empty;
+            var dataKind = column.TryGetProperty("data_kind", out var kindElement)
+                ? kindElement.GetString()
+                : "unspecified";
+            var parsedKind = dataKind switch
+            {
+                "unspecified" => WordMailMergeSourceDataKind.Unspecified,
+                "text" => WordMailMergeSourceDataKind.Text,
+                "number" => WordMailMergeSourceDataKind.Number,
+                "date_time" => WordMailMergeSourceDataKind.DateTime,
+                "boolean" => WordMailMergeSourceDataKind.Boolean,
+                "binary" => WordMailMergeSourceDataKind.Binary,
+                _ => throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "source_columns.data_kind is not supported"
+                ),
+            };
+            result.Add(new WordMailMergeSourceColumn(name, parsedKind));
+        }
+        return result;
+    }
+
+    private static IReadOnlyList<object> MailMergeSchemaSummaryItems(
+        WordMailMergeSchemaBindingPlan plan
+    ) =>
+    [
+        new
+        {
+            kind = "source_schema",
+            count = plan.SourceColumns.Count,
+            resolved_count = plan.SourceColumns.Count - plan.UnusedSourceColumnCount,
+            warning_or_error_count = plan.Issues.Count,
+        },
+        new
+        {
+            kind = "field_binding",
+            count = plan.Bindings.Count,
+            resolved_count = plan.Bindings.Count(item =>
+                item.Status is WordMailMergeSchemaBindingStatus.ResolvedExact
+                    or WordMailMergeSchemaBindingStatus.ResolvedCaseInsensitive
+            ),
+            warning_or_error_count = plan.Bindings.Count(item => item.ExecutionBlocking),
+        },
+        new
+        {
+            kind = "execution",
+            count = 1,
+            resolved_count = plan.ExecutionSupported ? 1 : 0,
+            warning_or_error_count = plan.ExecutionBlockedReasons.Count,
+        },
+    ];
+
+    private static object MailMergeSchemaBindingItem(
+        WordMailMergeSchemaBinding binding,
+        bool includeSensitive,
+        bool includeSource
+    ) => new
+    {
+        kind = "field_binding",
+        field_id = binding.FieldId,
+        field_type = BoundForResponse(binding.FieldType, 128),
+        mapping_id = binding.MappingId,
+        status = ToSnakeCase(binding.Status.ToString()),
+        field_complete = binding.FieldComplete,
+        field_in_deleted_content = binding.FieldInDeletedContent,
+        execution_blocking = binding.ExecutionBlocking,
+        target_name = includeSensitive
+            ? BoundForResponse(binding.TargetName, 512)
+            : null,
+        target_name_fingerprint = FingerprintMailMergeValue(binding.TargetName),
+        required_column_name = includeSensitive
+            ? BoundForResponse(binding.RequiredColumnName, 512)
+            : null,
+        required_column_fingerprint = FingerprintMailMergeValue(
+            binding.RequiredColumnName
+        ),
+        source_column_name = includeSensitive
+            ? BoundForResponse(binding.SourceColumnName, 512)
+            : null,
+        source_column_fingerprint = FingerprintMailMergeValue(
+            binding.SourceColumnName
+        ),
+        source_data_kind = binding.SourceDataKind is null
+            ? null
+            : ToSnakeCase(binding.SourceDataKind.Value.ToString()),
+        source_column_ordinal = includeSource ? binding.SourceColumnOrdinal : null,
+    };
+
+    private static object MailMergeSchemaIssueItem(
+        WordMailMergeSchemaPlanIssue issue,
+        bool includeSource
+    ) => new
+    {
+        code = BoundForResponse(issue.Code, 128),
+        severity = ToSnakeCase(issue.Severity.ToString()),
+        message = BoundForResponse(issue.Message, 512),
+        field_id = issue.FieldId,
+        source_column_ordinal = includeSource ? issue.SourceColumnOrdinal : null,
+    };
+
+    private static void ValidateMailMergeSchemaPlanArguments(JsonElement arguments)
+    {
+        if (arguments.ValueKind != JsonValueKind.Object)
+        {
+            throw new NativeToolException("INVALID_INPUT", "arguments must be an object");
+        }
+        var allowed = new Dictionary<string, JsonValueKind>(StringComparer.Ordinal)
+        {
+            ["local_path"] = JsonValueKind.String,
+            ["expected_package_fingerprint"] = JsonValueKind.String,
+            ["source_columns"] = JsonValueKind.Array,
+            ["view"] = JsonValueKind.String,
+            ["offset"] = JsonValueKind.Number,
+            ["max_items"] = JsonValueKind.Number,
+            ["include_sensitive"] = JsonValueKind.True,
+            ["include_source"] = JsonValueKind.True,
+        };
+        foreach (var property in arguments.EnumerateObject())
+        {
+            if (!allowed.TryGetValue(property.Name, out var expected))
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "plan_ooxml_mail_merge_schema_binding received an unknown argument"
+                );
+            }
+            var validKind = expected == JsonValueKind.True
+                ? property.Value.ValueKind is JsonValueKind.True or JsonValueKind.False
+                : property.Value.ValueKind == expected;
+            if (!validKind)
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    $"{property.Name} has the wrong JSON type"
+                );
+            }
+            if (expected == JsonValueKind.Number && !property.Value.TryGetInt64(out _))
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    $"{property.Name} must be an integer"
+                );
+            }
+        }
+        foreach (var required in new[]
+        {
+            "local_path",
+            "expected_package_fingerprint",
+            "source_columns",
+        })
+        {
+            if (!arguments.TryGetProperty(required, out _))
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    $"{required} is required"
+                );
+            }
+        }
     }
 
     private static void ValidateMailMergeInspectionArguments(JsonElement arguments)

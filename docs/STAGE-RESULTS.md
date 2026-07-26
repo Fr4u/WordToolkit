@@ -1,5 +1,43 @@
 # Stage results
 
+# WordToolkit 0.55.0 deterministic mail-merge source-schema plan - 2026-07-26
+
+- Added a typed, deterministic plan between saved Word mail-merge fields and an ordered
+  caller-supplied source-column schema. Exact and unique case-insensitive matches remain
+  distinct; duplicate/case-only collisions, missing columns, ambiguous ODSO mappings,
+  incomplete/deleted fields, unsupported control fields and graph errors block binding.
+- Added the closed, fingerprint-bound
+  `plan_ooxml_mail_merge_schema_binding/1.0` action plus a neutral Engine operation and
+  `mail-merge-schema-package` CLI. All reject record values and unknown members, never
+  open Word or a data source, never run a query, never follow an external target and
+  never execute a merge. Default MCP output omits column names.
+- Stable source-schema fingerprints and plan IDs include ordered names and primitive
+  data kinds. Security regressions cover stale fingerprints, duplicate JSON members,
+  forbidden record values, unknown column members and invalid data kinds.
+- The checked-in 10,000-recipient benchmark resolves 30/30 schema bindings with zero
+  issues. After graph construction, the seven-sample plan median is 0.1113 ms and median
+  allocation is 26,000 bytes; the cold 5.5669 ms first sample remains in the evidence.
+- Pinned SDK 8.0.423 passes 761 Engine, 12 LibreOffice and 546 Native tests. Ruff is clean;
+  Python passes 1,318 tests with 16 intentional skips, and generated remote schemas have
+  zero drift.
+- Two independent package builds contain 197 files and 89,956,623 bytes with zero
+  path/length/SHA-256 differences. Both 37,544,483-byte ZIPs have SHA-256
+  `795f256c2757e3d2338c28485e29c1521527823b81cb01b934578d27754b56fa`.
+  Executable, runtime assembly, Engine, LibreOffice and Open XML SDK hashes are
+  `a50f6f204e4e29ae0af0968888e097ebea7cb1666cb795b6f9f803c78533eda9`,
+  `e8114c83df843dd8972761abf9b4cec1de4e278e785bfd248902fb5fcfb5e723`,
+  `b9abb9aed038bb7af46fd1ede4c6b8ee177df9d9b59e796547fa369218034c37`,
+  `f39236ab13e8222fd46262418610d1a3132941b08e65a8e9ff87c66527d41f1f`
+  and `dc705f2fb59330a144afdd14462b69a6765d789e87830cbc87db986640ad61a9`.
+- Installed and enabled `0.55.0+codex.20260726193615`. Candidate, persistent source and
+  active cache have identical 197-path maps. Discovery returns 148 actions, 15 MCP tools
+  and 59 complete explicit metadata contracts. Installed full-response execution of the
+  new plan action returned `word_opened=false`, `data_sources_opened=false`,
+  `queries_executed=false`, `external_targets_followed=false` and
+  `mail_merge_executed=false`. Version 0.54 is preserved at
+  `C:\Users\Admin\plugins\wordtoolkit.backup-0.54.0-codex.20260726193615`.
+
+
 # WordToolkit 0.54.0 streaming mail-merge recipients - 2026-07-26
 
 - Replaced the read-only recipient part's full byte-copy/XDocument/lossless lexical tree

@@ -346,6 +346,17 @@ permission to connect to the declared source.
 Treat missing/ambiguous bindings and recipient relationship errors as reasons to stop,
 not permission to guess source columns. Word-effective predefined address mapping is
 positional for the first 30 `fieldMapData` records even when `mappedName` disagrees.
+Before any mail-merge execution design, call
+`plan_ooxml_mail_merge_schema_binding` with the current exact package fingerprint and an
+ordered `source_columns` schema. Never send record values: the closed input contract
+rejects them. Start with `view=summary`; request `view=bindings` or `view=issues` only
+when the next decision needs a page, and set `include_sensitive=true` only when column
+names must be returned. Duplicate or case-colliding schema names, missing columns,
+ambiguous ODSO mappings, incomplete/deleted fields, unsupported merge-control fields
+and graph errors are hard blockers. `can_bind_schema=true` proves only schema binding;
+`execution_supported` remains false. The action and the neutral
+`mail-merge-schema-package` CLI do not open Word or a source, run a query, accept record
+values, follow an external target or execute a merge.
 Use lazy `inspect_ooxml_properties` instead of opening `docProps/core.xml`,
 `docProps/app.xml`, a custom-properties part or settings variables by hand. Start with
 `view=summary`; page `properties`, `parts` or `issues` only when the next decision needs

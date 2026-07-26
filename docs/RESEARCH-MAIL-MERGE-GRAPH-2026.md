@@ -92,6 +92,24 @@ the Word-effective predefined name. Results are explicit:
 No field is evaluated. A field result already stored in the document is not presented
 as current source truth.
 
+### Caller-supplied source schema plan
+
+`WordMailMergeSchemaPlanner` binds the saved graph to an ordered, caller-supplied list
+of column names plus primitive data-kind hints. It does not accept rows or cell values.
+Exact name matches win; a unique case-insensitive match is reported separately. Exact
+duplicates, case-only collisions, missing or ambiguous columns, incomplete or deleted
+fields, unsupported merge-control fields, ambiguous ODSO mappings and graph errors are
+explicit blockers. Stable schema fingerprints and plan IDs use length-prefixed SHA-256
+input, including source order and data kind, so reordered or retyped schemas cannot
+silently reuse authority from an earlier plan.
+
+`can_bind_schema` is deliberately weaker than permission to execute. The current plan
+always returns `execution_supported=false` and
+`execution_backend_not_implemented`. Microsoft documents `MailMerge.Execute` as an
+effectful application operation over a configured mail-merge object and attached data
+source; schema compatibility alone cannot authorize it. See
+[Word VBA `MailMerge.Execute`](https://learn.microsoft.com/en-us/office/vba/api/word.mailmerge.execute).
+
 ## Public inspection contract
 
 `inspect_ooxml_mail_merge` provides paged `summary`, `configuration`,
@@ -110,6 +128,14 @@ Sensitive values, relationship targets and source provenance require three indep
 opt-ins. The response has a 65,536-character projected-item budget and the whole
 operation uses the shared 640 MiB accounted resource lease. The action has no network
 or Microsoft Word permission.
+
+`plan_ooxml_mail_merge_schema_binding/1.0` requires an exact package fingerprint and a
+closed `source_columns` array. Its default summary exposes no column names. Paged
+`bindings` and `issues` views are independently bounded; names require
+`include_sensitive=true` and source locations require `include_source=true`. The same
+planner is available through the vendor-neutral Engine operation and
+`mail-merge-schema-package` CLI. All three paths reject record values and unknown input
+members before attempting package access.
 
 `analyze_ooxml_document/1.1` adds content-free mail-merge counts and the
 `MAIL_MERGE_EVIDENCE` routing signal. It returns no query, source name, target, identity
@@ -134,6 +160,7 @@ Evidence:
 - `docs/benchmarks/mail-merge-100k-2026-07-26.json`
 - `docs/benchmarks/mail-merge-streaming-10k-2026-07-26.json`
 - `docs/benchmarks/mail-merge-streaming-100k-2026-07-26.json`
+- `docs/benchmarks/mail-merge-schema-plan-10k-2026-07-26.json`
 
 These are one Windows 10 x64 workstation and .NET 8.0.29, not universal latency
 claims. The streaming path removes the non-editable byte copy, XDocument, lexical tree,
@@ -142,6 +169,12 @@ ordinals and public graph semantics. Relative to 0.53, median allocation falls 9
 10,000 recipients and 96.02% at 100,000; the 100,000 peak working set falls 85.56%.
 Deterministic operation accounting intentionally stays unchanged and conservative rather
 than being rewritten from one workstation's CLR measurements.
+
+At the 10,000-recipient point, the additional 30-column/30-field schema plan takes
+0.1113 ms median after graph construction and allocates 26,000 bytes median across seven
+samples. The first 5.5669 ms sample includes cold-path work and is retained rather than
+discarded. The plan resolves all 30 fields, reports zero issues, returns no record values
+and reproduces the same plan ID.
 
 ## Tests
 
@@ -157,11 +190,14 @@ The regression corpus covers:
 - recipient XML element/depth limits, prohibited DTDs and canonical stable-ID parity;
 - shared dependency nodes and edges;
 - default MCP redaction, independent disclosure flags and no-COM execution;
+- deterministic schema/plan identities, exact and unique case-insensitive bindings,
+  duplicate/case-collision/missing/control-field blockers, strict JSON, stale-fingerprint
+  rejection and CLI/MCP no-execution disclosures;
 - content-free high-level analysis and closed output-schema conformance.
 
 ## Remaining boundary
 
-This tranche does not implement data-source drivers, schema discovery, record value
+This tranche does not implement data-source drivers, record-value ingestion or
 materialization, conditional merge regions, template slot constraints, deterministic
 merge execution, live Word `MailMerge` control, generated-document comparison or a
 mail-merge editor. It also does not prove that a remote database, workbook, query or

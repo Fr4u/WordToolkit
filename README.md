@@ -191,7 +191,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 147-action schema set into model context. The normative shape is
+not flatten the 148-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -730,6 +730,17 @@ or the merge itself. Large recipient parts use a bounded forward-only XML projec
 retains exact source ordinals without materializing a second editable XML tree; the
 checked-in 100,000-recipient result cuts median CLR allocation by 96.02% relative to the
 preceding implementation. See `docs/RESEARCH-MAIL-MERGE-GRAPH-2026.md`.
+
+`plan_ooxml_mail_merge_schema_binding` is the separate, fingerprint-bound planning
+step before any future execution. It accepts only an ordered column schema and primitive
+data-kind hints, rejects record values and unknown members, then resolves every saved
+`MERGEFIELD`/`MERGEBARCODE` by exact or unique case-insensitive name. Duplicate and
+case-colliding columns, missing names, ambiguous ODSO mappings, incomplete or deleted
+fields, unsupported control fields and graph errors become explicit blockers. The
+default MCP summary returns counts and stable plan/schema identities without column
+names; paged binding details require an explicit sensitive-data opt-in. Neither the MCP
+action nor the neutral `mail-merge-schema-package` CLI opens Word, a data source, a
+query, an external target or the merge.
 
 Saved-package semantic queries select source-ordered nodes by kind, bounded text,
 exact properties, source story, subtree, and strict ancestor/descendant predicates.
@@ -1292,7 +1303,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is 0.54.0. The latest immutable public release remains
+The development manifest/runtime is 0.55.0. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:

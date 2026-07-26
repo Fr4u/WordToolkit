@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+## 0.55.0 — 2026-07-26
+
+- Added `WordMailMergeSchemaPlanner`, a deterministic saved-package plan joining every
+  projected `MERGEFIELD`/`MERGEBARCODE` to a caller-supplied ordered source-column
+  schema. Exact and unique case-insensitive matches are distinct; duplicate/case-only
+  collisions, missing columns, ambiguous ODSO mappings, incomplete/deleted fields,
+  unsupported control fields and graph errors fail closed.
+- Added `plan_ooxml_mail_merge_schema_binding/1.0`, a fingerprint-bound, paged and
+  privacy-redacted package action. Its closed input accepts names and primitive data-kind
+  hints only, rejects record values and unknown members, never opens Word or a source,
+  never runs a query or follows an external target, and always reports execution as
+  unsupported. Default output contains no column names.
+- Added a vendor-neutral Engine operation, strict JSON codec and
+  `mail-merge-schema-package` CLI using the same package/graph/planner contract. Stable
+  schema fingerprints and plan IDs are length-prefixed SHA-256 values that include
+  source order and data kind.
+- Added deterministic, privacy, stale-version, strict-schema, limit and CLI/MCP
+  regressions. The 10,000-recipient benchmark's additional 30-column/30-field plan runs
+  in 0.1113 ms median with 26,000 median allocated bytes after graph construction; its
+  cold first sample remains disclosed.
+- Pinned SDK 8.0.423 gates pass 761 Engine, 12 LibreOffice and 546 Native tests; Ruff is
+  clean and Python passes 1,318 tests with 16 intentional skips. Two independently named
+  self-contained builds have identical 197-file, 89,956,623-byte trees and
+  byte-identical 37,544,483-byte ZIPs at SHA-256
+  `795f256c2757e3d2338c28485e29c1521527823b81cb01b934578d27754b56fa`.
+- Installed and enabled `0.55.0+codex.20260726193615`; candidate, persistent personal
+  source and active cache have zero path/length/hash differences. Installed discovery
+  reports 148 actions, 15 tools and 59 explicit contracts. An installed full-response
+  schema-plan smoke returned the no-Word/no-source/no-query/no-execution policy fields.
+
 ## 0.54.0 — 2026-07-26
 
 - Replaced full lossless/XDocument materialization of the read-only mail-merge

@@ -259,6 +259,127 @@ public sealed class WordMailMergeGraphTests
     }
 
     [Fact]
+    public void PlansDeterministicSourceSchemaBindingsWithoutRecordValuesOrExecution()
+    {
+        using var bytes = BuildPackage();
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+        var graph = new WordMailMergeGraphBuilder().Build(package, semantic);
+        WordMailMergeSourceColumn[] columns =
+        [
+            new("CustomerId", WordMailMergeSourceDataKind.Number),
+            new("FirstName", WordMailMergeSourceDataKind.Text),
+            new("Unused", WordMailMergeSourceDataKind.Text),
+        ];
+        var planner = new WordMailMergeSchemaPlanner();
+
+        var first = planner.Plan(graph, columns);
+        var second = planner.Plan(graph, columns);
+
+        Assert.Equal(first.PlanId, second.PlanId);
+        Assert.Equal(first.SourceSchemaFingerprint, second.SourceSchemaFingerprint);
+        Assert.StartsWith("wmmsp_", first.PlanId, StringComparison.Ordinal);
+        Assert.Equal(64, first.SourceSchemaFingerprint.Length);
+        Assert.True(first.CanBindSchema);
+        Assert.False(first.ExecutionSupported);
+        Assert.False(first.ContainsRecordValues);
+        Assert.Equal(["execution_backend_not_implemented"], first.ExecutionBlockedReasons);
+        Assert.Equal(2, first.Bindings.Count);
+        Assert.All(
+            first.Bindings,
+            binding => Assert.Equal(
+                WordMailMergeSchemaBindingStatus.ResolvedExact,
+                binding.Status
+            )
+        );
+        Assert.Equal(1, first.UnusedSourceColumnCount);
+        Assert.True(first.ExternalSourceIgnored);
+        Assert.True(first.SensitiveConnectionMetadataIgnored);
+        Assert.Empty(first.Issues);
+    }
+
+    [Fact]
+    public void SchemaPlannerFailsClosedForCaseCollisionsMissingColumnsAndControlFields()
+    {
+        using var bytes = BuildPackage(
+            additionalDocumentBody: """
+            <w:p><w:fldSimple w:instr=" NEXT "><w:r><w:t>next</w:t></w:r></w:fldSimple></w:p>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+        var graph = new WordMailMergeGraphBuilder().Build(package, semantic);
+        var plan = new WordMailMergeSchemaPlanner().Plan(
+            graph,
+            [
+                new("CustomerId"),
+                new("customerid"),
+            ]
+        );
+
+        Assert.False(plan.CanBindSchema);
+        Assert.False(plan.ExecutionSupported);
+        Assert.Contains("source_schema_case_collision", plan.SchemaBlockedReasons);
+        Assert.Contains("source_column_missing", plan.SchemaBlockedReasons);
+        Assert.Contains("unsupported_mail_merge_control_fields", plan.SchemaBlockedReasons);
+        Assert.Contains(
+            plan.Issues,
+            issue => issue.Code == "MAIL_MERGE_SCHEMA_COLUMN_CASE_COLLISION"
+        );
+        Assert.Contains(
+            plan.Issues,
+            issue => issue.Code == "MAIL_MERGE_SCHEMA_SOURCE_COLUMN_MISSING"
+        );
+        Assert.Contains(
+            plan.Issues,
+            issue => issue.Code == "MAIL_MERGE_SCHEMA_FIELD_TYPE_UNSUPPORTED"
+        );
+        Assert.Contains(
+            plan.Bindings,
+            binding => binding.FieldType == "NEXT"
+                && binding.Status == WordMailMergeSchemaBindingStatus.NotApplicable
+                && binding.ExecutionBlocking
+        );
+    }
+
+    [Fact]
+    public void SchemaPlannerBoundsInputAndBindsUniqueCaseInsensitiveColumns()
+    {
+        using var bytes = BuildPackage();
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+        var graph = new WordMailMergeGraphBuilder().Build(package, semantic);
+        var planner = new WordMailMergeSchemaPlanner();
+        var plan = planner.Plan(graph, [new("customerid"), new("FIRSTNAME")]);
+
+        Assert.True(plan.CanBindSchema);
+        Assert.All(
+            plan.Bindings,
+            binding => Assert.Equal(
+                WordMailMergeSchemaBindingStatus.ResolvedCaseInsensitive,
+                binding.Status
+            )
+        );
+        Assert.NotEqual(
+            plan.PlanId,
+            planner.Plan(graph, [new("FIRSTNAME"), new("customerid")]).PlanId
+        );
+        Assert.Throws<WordMailMergeSchemaPlanLimitException>(() =>
+            new WordMailMergeSchemaPlanner(
+                new WordMailMergeSchemaPlannerOptions { MaxSourceColumns = 1 }
+            ).Plan(graph, [new("CustomerId"), new("FirstName")])
+        );
+        Assert.Throws<WordMailMergeSchemaPlanLimitException>(() =>
+            new WordMailMergeSchemaPlanner(
+                new WordMailMergeSchemaPlannerOptions { MaxColumnNameCharacters = 4 }
+            ).Plan(graph, [new("CustomerId")])
+        );
+        Assert.Throws<WordMailMergeSchemaPlanException>(() =>
+            planner.Plan(graph, [new(" ")])
+        );
+    }
+
+    [Fact]
     public void JoinsMailMergeObjectsIntoSharedDependencyGraph()
     {
         using var bytes = BuildPackage();
@@ -361,7 +482,8 @@ public sealed class WordMailMergeGraphTests
         bool ambiguousRecipientIdentity = false,
         bool recipientOwnsRelationship = false,
         bool missingRecipientTarget = false,
-        string? recipientXml = null
+        string? recipientXml = null,
+        string additionalDocumentBody = ""
     )
     {
         var w = strict
@@ -415,6 +537,7 @@ public sealed class WordMailMergeGraphTests
                   <w:body>
                     {ComplexField("CustomerId")}
                     {ComplexField("FirstName")}
+                    {additionalDocumentBody}
                     <w:sectPr/>
                   </w:body>
                 </w:document>
