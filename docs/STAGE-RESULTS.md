@@ -49,8 +49,10 @@
   count stayed at zero.
 - No mathematical- or visual-equivalence claim is made. The proof covers exact duplicate
   declarations whose normalized affected-part representation is invariant, not conflicting
-  declarations, missing structures, notation conversion or rendered Word layout. Hosted CI
-  for this checkpoint is pending.
+  declarations, missing structures, notation conversion or rendered Word layout.
+- Mandatory hosted CI run `30186198534` passed all five jobs on implementation commit
+  `43d200aee7f1741b04bc1b4e04b33ef56a19d15b`: Linux Engine, Windows Native/package,
+  Python/rendering, Open XML validator and remote service container.
 
 ## WordToolkit 0.43.0 saved-package note integrity and guarded repair — 2026-07-26
 
