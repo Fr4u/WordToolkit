@@ -469,7 +469,7 @@ public sealed class LibreOfficeRenderServiceTests
             Assert.True(File.Exists(path));
             Assert.Equal(new FileInfo(path!).Length, artifact.GetProperty("bytes").GetInt64());
             Assert.Equal(Sha256(path), artifact.GetProperty("sha256").GetString());
-            Assert.Equal("published", artifact.GetProperty("state").GetString());
+            Assert.Equal("resolved", artifact.GetProperty("state").GetString());
         }
 
         var pdfPath = Path.Combine(outputDirectory, stem + ".pdf");
