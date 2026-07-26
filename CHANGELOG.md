@@ -29,6 +29,10 @@
   reports 148 actions, 15 tools and 59 explicit contracts. A full-response schema-plan
   smoke returned the fingerprint-bound plan and the explicit no-Word/no-source/no-query/
   no-external-target/no-execution policy fields.
+- Hosted CI run `30214530318` passed all six jobs on implementation commit `367e23a`.
+  Its downloaded clean-Windows ZIP is byte-identical to both local archives: 37,549,211
+  bytes at SHA-256
+  `b01f27cb6c0e98232ebc0f53cc3518e83f1e7690bbc844e629b32b20042be392`.
 
 ## 0.55.0 — 2026-07-26
 

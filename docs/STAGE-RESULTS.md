@@ -34,6 +34,12 @@
   `queries_executed=false`, `external_targets_followed=false`,
   `execution_supported=false` and `mail_merge_executed=false`. Version 0.55 is preserved
   at `C:\Users\Admin\plugins\wordtoolkit.backup-0.55.0-codex.20260726200738`.
+- Hosted CI run
+  [`30214530318`](https://github.com/Fr4u/WordToolkit/actions/runs/30214530318) passed
+  all six jobs on implementation commit `367e23aeda28002fa92f4a250af6b578a5122b83`.
+  Its downloaded clean-Windows ZIP is byte-identical to both local archives: 37,549,211
+  bytes at SHA-256
+  `b01f27cb6c0e98232ebc0f53cc3518e83f1e7690bbc844e629b32b20042be392`.
 
 
 # WordToolkit 0.55.0 deterministic mail-merge source-schema plan - 2026-07-26
