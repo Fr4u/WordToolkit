@@ -569,6 +569,26 @@ uses them. A positive `text_preview_chars` requires `include_sensitive=true`; ot
 text remains absent and only a short fingerprint is exposed. The action is parse-only:
 it does not open Word, convert notation, fetch external content, repair malformed math,
 or prove that two notations are mathematically equivalent.
+
+For the narrow saved-package OfficeMath repair family, never edit OMML directly and never
+turn a graph warning into a mutation by hand:
+
+1. Retain the exact package fingerprint and call `inspect_ooxml_equation_repairs`. Keep
+   `include_source=false`; candidate IDs and fingerprints are sufficient for ordinary
+   review. The action returns no formula text or raw OMML.
+2. Build one `plan_ooxml_equation_repair` batch with at most 32 exact candidates. Copy
+   each `repair_kind`, `candidate_id` and `expected_candidate_fingerprint` unchanged.
+3. Review `werplan_`, removed group/XML element counts, normalized-math proof, issue
+   reduction, exact inverse, Microsoft baseline/candidate counts and block reasons.
+4. Call `apply_ooxml_equation_repair` with the unchanged batch, original fingerprint and
+   exact plan ID. Keep the sibling backup unless the user explicitly accepts its removal.
+
+This path removes only complete groups of later canonically identical duplicate OMML
+property containers or properties. Apply requires Microsoft schema errors to decrease.
+Non-equivalent duplicates, missing arguments, child reordering, ragged matrices, empty
+equations and unknown extensions are not candidates. The operation never opens Word,
+returns formula text/raw OMML, invents math, converts notation or claims visual or
+mathematical equivalence.
 Use lazy `inspect_ooxml_review` for comments and tracked changes already stored in a
 saved Word package. Start with `view=summary`, then page only the required comments,
 threads, revisions, moves, permissions, people, settings or issues. Filter by exact

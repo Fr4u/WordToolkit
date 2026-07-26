@@ -1095,7 +1095,17 @@ document's `m:mathPr` defaults. Stable equation and node IDs derive from semanti
 identities rather than paragraph indexes. Bounded validation reports malformed argument
 cardinality/order, matrix structure, property vocabularies, nested math, Word-invalid
 placement, empty equations, adjacent equations Word will merge and preserved extensions.
-It does not repair or reinterpret them.
+It does not reinterpret them. A separate `WordEquationRepairPlanner` now discovers only
+complete groups of later canonically identical duplicate OMML property containers and
+properties for which the read graph emitted matching evidence. Up to 32 candidates can
+be planned together. The planner binds package/candidate fingerprints, patches exact
+lossless XML spans, reparses the candidate, rejects every new equation issue, compares an
+independent duplicate-collapsed fingerprint for every changed part, preserves every
+unplanned OPC entry and proves an exact inverse. `apply_ooxml_equation_repair` additionally
+blocks signatures and requires Microsoft Open XML SDK errors to decrease, not merely stay
+flat. Non-equivalent duplicates, missing arguments, uncertain matrix structure, child
+reordering and preserved extensions remain explicit non-goals. See
+[`RESEARCH-OFFICEMATH-REPAIR-2026.md`](RESEARCH-OFFICEMATH-REPAIR-2026.md).
 
 Lazy `inspect_ooxml_equations` exposes compact aggregate, equation, flat-node,
 math-paragraph, settings and issue views. Formula text is absent by default, raw OMML is
@@ -1333,7 +1343,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 130 actions already have public SDK
+These are proved migration seams, not a claim that all 133 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.

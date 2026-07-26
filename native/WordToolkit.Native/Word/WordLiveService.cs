@@ -255,6 +255,18 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_ooxml_equation_repairs" => InspectPackageEquationRepairsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "plan_ooxml_equation_repair" => PlanPackageEquationRepairAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_equation_repair" => ApplyPackageEquationRepairAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_ooxml_relationships" => InspectPackageRelationshipsAsync(
                 arguments,
                 cancellationToken

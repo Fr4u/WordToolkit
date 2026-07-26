@@ -1,5 +1,57 @@
 # Stage results
 
+## WordToolkit 0.44.0 guarded saved-package OfficeMath duplicate repair — 2026-07-26
+
+- Added a bounded `WordEquationRepairPlanner` for Transitional and Strict Word packages.
+  It discovers a candidate only when the existing source-linked OfficeMath graph reports
+  the matching duplicate diagnostic and every sibling in the group is canonically
+  identical by expanded element/attribute names, sorted attributes, text, comments,
+  processing instructions and descendants. Non-equivalent properties, missing arguments,
+  child reordering, ragged matrices, empty equations and preserved extensions remain
+  explicitly unsupported.
+- Added exact package/candidate fingerprints, deterministic `werplan_` identities and
+  lossless byte-span removals for two repair kinds: later duplicate OMML property
+  containers and later duplicate scalar properties. Candidate validation requires a
+  complete reparse, selected issue reduction, exact removed-subtree counts, no new
+  issue code/severity identities, normalized affected-part equivalence, byte-identical
+  unplanned entries and an exact inverse that reconstructs the original package
+  fingerprint.
+- Added one provider-neutral Engine operation shared by strict
+  `equation-repair-package --mode inspect|plan|apply` CLI and lazy
+  `inspect_ooxml_equation_repairs`, `plan_ooxml_equation_repair` and
+  `apply_ooxml_equation_repair` MCP actions. Apply blocks signatures and any missing,
+  non-improving or newly failing Microsoft Open XML SDK validation, writes atomically and
+  retains a sibling backup by default. Responses return neither equation text nor raw
+  OMML and never open Word.
+- Full local gates pass **675 Engine**, **498 Native** and **1,313 Python tests**, with
+  16 intentional Python skips. Ruff, both .NET format gates, generated schema validation,
+  generated sample/equation documents, the 11-page/17-equation torture document and the
+  standalone Open XML SDK adapter are clean. Every .NET command used pinned SDK
+  `C:\Users\Admin\.dotnet8\dotnet.exe` 8.0.423.
+- Two self-contained win-x64 builds and the canonical build produced byte-identical
+  196-file, 88,761,160-byte trees and byte-identical 37,213,287-byte ZIPs at SHA-256
+  `e2775ba33aed6b34d0efc30c184c9fa32e532826bcb2cd9c167220cf764a8b81`.
+  Executable, runtime assembly, Engine assembly and Open XML SDK adapter hashes are
+  `b98d0a9aaf9e076c582f1829fc1eeb1553f39b88a5a26ececd058b15e0ff8cad`,
+  `6a22cd670fc13985f35a0daaa0f1de2390f752566c80101289e0478ec59badc4`,
+  `6d9505db9048e7f027a8cea516b316fbdfd55937ef8adba7bfbd0cdf0b27c561` and
+  `2d76117e010f1a5667be6d711e424acc44304d9c3a94caf5277f6d16bd7f5e21`.
+- Installed and enabled `0.44.0+codex.20260726050451`. Canonical build, persistent
+  personal source and enabled cache contain the same 196 paths, lengths and hashes.
+  Installed discovery reports 133 actions, 15 tools and 44 complete metadata contracts;
+  an equation-repair query returns exactly the three new actions.
+- The exact installed executable inspected, planned and repaired a disposable DOCX with
+  one duplicate `m:fPr` container and one duplicate `m:sty` property. Engine validation
+  passed, Microsoft schema errors fell from 2 to 0, two duplicate group members and three
+  XML elements were removed, the result matched the planned fingerprint, a second scan
+  found zero candidates, and the backup reproduced the exact original package
+  fingerprint. No sensitive equation marker or raw OMML was returned and the Word-process
+  count stayed at zero.
+- No mathematical- or visual-equivalence claim is made. The proof covers exact duplicate
+  declarations whose normalized affected-part representation is invariant, not conflicting
+  declarations, missing structures, notation conversion or rendered Word layout. Hosted CI
+  for this checkpoint is pending.
+
 ## WordToolkit 0.43.0 saved-package note integrity and guarded repair — 2026-07-26
 
 - Added a bounded `WordNoteGraphBuilder` for Transitional and Strict packages. It joins
