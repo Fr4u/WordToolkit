@@ -24,6 +24,10 @@
 - Two independent 197-file, 89,607,363-byte Windows plugin trees and their
   37,448,205-byte ZIPs are byte-identical at SHA-256
   `01a8b926667322f70cad628284bff38e78adfc659ae45d7b767c80e356d88eec`.
+- Installed and enabled `0.50.0+codex.20260726141018`. The canonical build,
+  persistent personal source and active Codex cache have identical 197-path
+  length/SHA-256 maps; installed discovery reports 145 actions, 15 tools and 56
+  complete explicit metadata contracts.
 
 ## 0.49.0 — 2026-07-26
 

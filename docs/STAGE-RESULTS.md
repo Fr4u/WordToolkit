@@ -27,6 +27,11 @@
   `29bd42165f2c19eba9ec8138a498babb99169645ae067d8e9b32e66647cce04a`,
   `ca207c100581bf549aa95513e928c91daa8c14ce2694e105d10cff1ffac13e0c`
   and `5a17ea7539f2706ec3a993000c64c9d3c55d7f22a233b45c428ce14e275f556c`.
+- Installed and enabled `0.50.0+codex.20260726141018`. The canonical candidate,
+  `C:\Users\Admin\plugins\wordtoolkit` and active cache contain the same 197 paths,
+  lengths and SHA-256 values. The installed executable reports 145 actions, 15 MCP tools
+  and 56 complete explicit metadata contracts; the retained source backup is
+  `C:\Users\Admin\plugins\wordtoolkit.backup-0.49.0-codex.20260726122100`.
 
 # WordToolkit 0.49.0 explicit LibreOffice backend identity - 2026-07-26
 
