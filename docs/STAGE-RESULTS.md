@@ -40,6 +40,9 @@
   executable projected `mammoth_footnotes.docx` into six definitions, two ordinary
   references, four special references and two policies with complete coverage, zero
   issues, no mutation, no raw XML and no Word process.
+- Mandatory hosted CI run `30183713009` passed all five jobs on implementation commit
+  `c66fd6cfd1192f57c09d6215404c1c60fb126b28`: Linux Engine, Windows Native/package,
+  Python/rendering, Open XML validator and remote service container.
 
 ## WordToolkit 0.42.0 source-linked local OCR — 2026-07-26
 
