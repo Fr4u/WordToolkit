@@ -492,6 +492,81 @@ public sealed class MailMergePackageInspectionTests
         }
     }
 
+    [Fact]
+    public async Task RecordControlOperandsAreTypedAndComparisonValuesStayRedactedByDefault()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "mail-merge-controls.docx");
+            CreatePackage(
+                path,
+                """
+                <w:p><w:fldSimple w:instr=" NEXTIF CustomerId &gt;= &quot;private-threshold&quot; "><w:r><w:t>next</w:t></w:r></w:fldSimple></w:p>
+                <w:p><w:fldSimple w:instr=" SKIPIF FirstName = &quot;&quot; "><w:r><w:t>skip</w:t></w:r></w:fldSimple></w:p>
+                """
+            );
+            var fingerprint = new OpcPackageReader().Read(path).Fingerprint;
+            var service = new WordLiveService(new NoInvokeHost());
+
+            using var inspectArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                view = "fields",
+            }));
+            using var inspected = JsonDocument.Parse(JsonSerializer.Serialize(
+                await service.CallAsync(
+                    "inspect_ooxml_mail_merge",
+                    inspectArguments.RootElement,
+                    CancellationToken.None
+                )
+            ));
+            var inspectedRaw = inspected.RootElement.GetRawText();
+            Assert.DoesNotContain("private-threshold", inspectedRaw, StringComparison.Ordinal);
+            Assert.Contains(
+                inspected.RootElement.GetProperty("items").EnumerateArray(),
+                item => item.GetProperty("field_type").GetString() == "NEXTIF"
+                    && item.GetProperty("control_kind").GetString() == "next_record_if"
+                    && item.GetProperty("control_parse_status").GetString() == "complete"
+                    && item.GetProperty("comparison_operator").GetString()
+                        == "greater_than_or_equal"
+                    && item.GetProperty("compare_to").ValueKind == JsonValueKind.Null
+            );
+
+            using var planArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = fingerprint,
+                source_columns = new[]
+                {
+                    new { name = "CustomerId", data_kind = "number" },
+                    new { name = "FirstName", data_kind = "text" },
+                },
+                view = "bindings",
+                include_sensitive = true,
+            }));
+            using var planned = JsonDocument.Parse(JsonSerializer.Serialize(
+                await service.CallAsync(
+                    "plan_ooxml_mail_merge_schema_binding",
+                    planArguments.RootElement,
+                    CancellationToken.None
+                )
+            ));
+            Assert.True(planned.RootElement.GetProperty("can_bind_schema").GetBoolean());
+            Assert.Contains(
+                planned.RootElement.GetProperty("items").EnumerateArray(),
+                item => item.GetProperty("field_type").GetString() == "NEXTIF"
+                    && item.GetProperty("compare_to").GetString() == "private-threshold"
+                    && item.GetProperty("comparison_operator").GetString()
+                        == "greater_than_or_equal"
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static string TemporaryDirectory()
     {
         var directory = Path.Combine(
@@ -503,7 +578,7 @@ public sealed class MailMergePackageInspectionTests
         return directory;
     }
 
-    internal static void CreatePackage(string path)
+    internal static void CreatePackage(string path, string additionalDocumentBody = "")
     {
         const string w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
         const string r = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
@@ -537,6 +612,7 @@ public sealed class MailMergePackageInspectionTests
             <w:document xmlns:w="{w}"><w:body>
               {Field("CustomerId")}
               {Field("FirstName")}
+              {additionalDocumentBody}
               <w:sectPr/>
             </w:body></w:document>
             """

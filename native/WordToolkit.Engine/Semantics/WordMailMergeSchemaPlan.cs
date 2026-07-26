@@ -42,7 +42,11 @@ public sealed record WordMailMergeSchemaBinding(
     WordMailMergeSchemaBindingStatus Status,
     bool FieldComplete,
     bool FieldInDeletedContent,
-    bool ExecutionBlocking
+    bool ExecutionBlocking,
+    WordMailMergeControlFieldKind ControlKind,
+    WordMailMergeControlParseStatus ControlParseStatus,
+    WordMailMergeComparisonOperator? ComparisonOperator,
+    string? CompareTo
 );
 
 public sealed record WordMailMergeSchemaPlanIssue(
@@ -359,13 +363,61 @@ public sealed class WordMailMergeSchemaPlanner
         ISet<string> schemaBlocked
     )
     {
-        if (field.FieldType is not "MERGEFIELD" and not "MERGEBARCODE")
+        var fieldInvalid = false;
+        if (!field.IsComplete)
         {
-            schemaBlocked.Add("unsupported_mail_merge_control_fields");
+            fieldInvalid = true;
+            schemaBlocked.Add("incomplete_mail_merge_fields");
             issues.Add(new WordMailMergeSchemaPlanIssue(
-                "MAIL_MERGE_SCHEMA_FIELD_TYPE_UNSUPPORTED",
+                "MAIL_MERGE_SCHEMA_FIELD_INCOMPLETE",
                 WordMailMergeIssueSeverity.Error,
-                "The schema planner does not model this mail-merge control field type.",
+                "The mail-merge field is incomplete or its instruction could not be parsed.",
+                field.Id
+            ));
+        }
+        if (field.IsInDeletedContent)
+        {
+            fieldInvalid = true;
+            schemaBlocked.Add("deleted_mail_merge_fields");
+            issues.Add(new WordMailMergeSchemaPlanIssue(
+                "MAIL_MERGE_SCHEMA_FIELD_IN_DELETED_CONTENT",
+                WordMailMergeIssueSeverity.Error,
+                "The mail-merge field is inside deleted revision content.",
+                field.Id
+            ));
+        }
+        if (field.ControlKind is WordMailMergeControlFieldKind.MergeRecordNumber
+            or WordMailMergeControlFieldKind.MergeSequenceNumber
+            or WordMailMergeControlFieldKind.NextRecord)
+        {
+            if (field.ControlParseStatus != WordMailMergeControlParseStatus.Complete)
+            {
+                fieldInvalid = true;
+                schemaBlocked.Add("mail_merge_control_syntax_invalid");
+                issues.Add(new WordMailMergeSchemaPlanIssue(
+                    "MAIL_MERGE_SCHEMA_CONTROL_FIELD_INVALID",
+                    WordMailMergeIssueSeverity.Error,
+                    "The mail-merge record-control field has invalid or unsupported operands.",
+                    field.Id
+                ));
+            }
+            return Binding(
+                field,
+                null,
+                null,
+                null,
+                null,
+                WordMailMergeSchemaBindingStatus.NotApplicable,
+                executionBlocking: fieldInvalid
+            );
+        }
+        if (field.ControlKind == WordMailMergeControlFieldKind.ConditionalIf)
+        {
+            schemaBlocked.Add("conditional_mail_merge_if_unmodeled");
+            issues.Add(new WordMailMergeSchemaPlanIssue(
+                "MAIL_MERGE_SCHEMA_CONDITIONAL_IF_UNMODELED",
+                WordMailMergeIssueSeverity.Error,
+                "A conditional IF field containing mail-merge input is visible but not executable by this planner.",
                 field.Id
             ));
             return Binding(
@@ -378,25 +430,46 @@ public sealed class WordMailMergeSchemaPlanner
                 executionBlocking: true
             );
         }
-        if (!field.IsComplete)
+        var bindsColumn = field.FieldType is "MERGEFIELD" or "MERGEBARCODE"
+            or "NEXTIF" or "SKIPIF";
+        if (!bindsColumn)
         {
-            schemaBlocked.Add("incomplete_mail_merge_fields");
+            schemaBlocked.Add("unsupported_mail_merge_control_fields");
             issues.Add(new WordMailMergeSchemaPlanIssue(
-                "MAIL_MERGE_SCHEMA_FIELD_INCOMPLETE",
+                "MAIL_MERGE_SCHEMA_FIELD_TYPE_UNSUPPORTED",
                 WordMailMergeIssueSeverity.Error,
-                "The mail-merge field is incomplete or its instruction could not be parsed.",
+                "The schema planner does not model this mail-merge field type.",
                 field.Id
             ));
+            return Binding(
+                field,
+                null,
+                null,
+                null,
+                null,
+                WordMailMergeSchemaBindingStatus.NotApplicable,
+                executionBlocking: true
+            );
         }
-        if (field.IsInDeletedContent)
+        if (field.FieldType is "NEXTIF" or "SKIPIF"
+            && field.ControlParseStatus != WordMailMergeControlParseStatus.Complete)
         {
-            schemaBlocked.Add("deleted_mail_merge_fields");
+            schemaBlocked.Add("mail_merge_control_syntax_invalid");
             issues.Add(new WordMailMergeSchemaPlanIssue(
-                "MAIL_MERGE_SCHEMA_FIELD_IN_DELETED_CONTENT",
+                "MAIL_MERGE_SCHEMA_CONTROL_FIELD_INVALID",
                 WordMailMergeIssueSeverity.Error,
-                "The mail-merge field is inside deleted revision content.",
+                "The conditional record-control field has invalid or unsupported operands.",
                 field.Id
             ));
+            return Binding(
+                field,
+                null,
+                field.TargetName,
+                null,
+                null,
+                WordMailMergeSchemaBindingStatus.Missing,
+                executionBlocking: true
+            );
         }
         if (field.BindingStatus == WordMailMergeFieldBindingStatus.Ambiguous)
         {
@@ -450,7 +523,7 @@ public sealed class WordMailMergeSchemaPlanner
                 exactOrdinal,
                 columns[exactOrdinal],
                 WordMailMergeSchemaBindingStatus.ResolvedExact,
-                executionBlocking: !field.IsComplete || field.IsInDeletedContent
+                executionBlocking: fieldInvalid
             );
         }
         if (insensitive.TryGetValue(requiredName, out var ordinals))
@@ -466,7 +539,7 @@ public sealed class WordMailMergeSchemaPlanner
                     ordinal,
                     columns[ordinal],
                     WordMailMergeSchemaBindingStatus.ResolvedCaseInsensitive,
-                    executionBlocking: !field.IsComplete || field.IsInDeletedContent
+                    executionBlocking: fieldInvalid
                 );
             }
             schemaBlocked.Add("source_column_ambiguous");
@@ -524,7 +597,11 @@ public sealed class WordMailMergeSchemaPlanner
         status,
         field.IsComplete,
         field.IsInDeletedContent,
-        executionBlocking
+        executionBlocking,
+        field.ControlKind,
+        field.ControlParseStatus,
+        field.ControlCondition?.Comparison,
+        field.ControlCondition?.CompareTo
     );
 
     private static string SourceSchemaFingerprint(
@@ -562,6 +639,10 @@ public sealed class WordMailMergeSchemaPlanner
             Append(hash, binding.SourceColumnOrdinal?.ToString(CultureInfo.InvariantCulture));
             Append(hash, binding.Status.ToString());
             Append(hash, binding.ExecutionBlocking ? "1" : "0");
+            Append(hash, binding.ControlKind.ToString());
+            Append(hash, binding.ControlParseStatus.ToString());
+            Append(hash, binding.ComparisonOperator?.ToString());
+            Append(hash, binding.CompareTo);
         }
         foreach (var blocker in blockers)
         {

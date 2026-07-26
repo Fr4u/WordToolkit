@@ -924,6 +924,17 @@ internal sealed partial class WordLiveService
         complete = item.IsComplete,
         in_deleted_content = item.IsInDeletedContent,
         binding_status = ToSnakeCase(item.BindingStatus.ToString()),
+        control_kind = ToSnakeCase(item.ControlKind.ToString()),
+        control_parse_status = ToSnakeCase(item.ControlParseStatus.ToString()),
+        comparison_operator = item.ControlCondition is null
+            ? null
+            : ToSnakeCase(item.ControlCondition.Comparison.ToString()),
+        compare_to = includeSensitive
+            ? BoundForResponse(item.ControlCondition?.CompareTo, 4_096)
+            : null,
+        compare_to_fingerprint = FingerprintMailMergeValue(
+            item.ControlCondition?.CompareTo
+        ),
         mapping_ids = item.MappingIds.Take(64).ToArray(),
         mapping_ids_truncated = item.MappingIds.Count > 64 ? true : (bool?)null,
         target_name = includeSensitive
@@ -1147,6 +1158,15 @@ internal sealed partial class WordLiveService
         field_complete = binding.FieldComplete,
         field_in_deleted_content = binding.FieldInDeletedContent,
         execution_blocking = binding.ExecutionBlocking,
+        control_kind = ToSnakeCase(binding.ControlKind.ToString()),
+        control_parse_status = ToSnakeCase(binding.ControlParseStatus.ToString()),
+        comparison_operator = binding.ComparisonOperator is null
+            ? null
+            : ToSnakeCase(binding.ComparisonOperator.Value.ToString()),
+        compare_to = includeSensitive
+            ? BoundForResponse(binding.CompareTo, 4_096)
+            : null,
+        compare_to_fingerprint = FingerprintMailMergeValue(binding.CompareTo),
         target_name = includeSensitive
             ? BoundForResponse(binding.TargetName, 512)
             : null,

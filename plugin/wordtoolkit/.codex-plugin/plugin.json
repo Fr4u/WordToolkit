@@ -1,6 +1,6 @@
 {
   "name": "wordtoolkit",
-  "version": "0.55.0+codex.20260726193615",
+  "version": "0.56.0+codex.20260726200738",
   "description": "Token-lean native Microsoft Word automation with 15 core/gateway tools and lazy access to 148 native actions.",
   "author": {
     "name": "WordToolkit contributors"
@@ -76,6 +76,7 @@
       "Typed OOXML Reference Graph",
       "Typed Word Mail Merge Graph",
       "Deterministic Mail Merge Source Schema Plans",
+      "Typed Mail Merge Record Controls",
       "Typed OOXML Classic Chart Graph",
       "Typed Native SmartArt Graph",
       "Typed Figure and Caption Graph",
@@ -180,6 +181,7 @@
       "Analyze a saved Word package broadly, without returning its text, and route me to the exact narrow inspector needed next.",
       "Inspect saved Word mail-merge configuration, mappings, recipients and field bindings without opening or executing its data source.",
       "Plan deterministic bindings between saved Word mail-merge fields and a caller-supplied column schema without sending record values or executing the merge.",
+      "Inspect and plan NEXT, NEXTIF, SKIPIF, MERGEREC and MERGESEQ controls while failing closed on dynamic conditional IF branches.",
       "Lint a saved DOCX and safely repair an empty document title into a new file.",
       "Compare two saved Word documents semantically without opening Word.",
       "Create and safely apply a reversible patch between two saved Word documents.",

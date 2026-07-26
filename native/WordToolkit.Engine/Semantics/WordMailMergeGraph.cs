@@ -156,6 +156,44 @@ public sealed record WordMailMergeRecipient(
     IReadOnlyList<string> UnmodeledElements
 );
 
+public enum WordMailMergeControlFieldKind
+{
+    None,
+    MergeRecordNumber,
+    MergeSequenceNumber,
+    NextRecord,
+    NextRecordIf,
+    SkipRecordIf,
+    ConditionalIf,
+}
+
+public enum WordMailMergeControlParseStatus
+{
+    NotApplicable,
+    Complete,
+    DynamicInstruction,
+    MissingOperand,
+    UnsupportedOperator,
+    UnexpectedOperand,
+    UnsupportedShape,
+}
+
+public enum WordMailMergeComparisonOperator
+{
+    Equal,
+    NotEqual,
+    LessThan,
+    GreaterThan,
+    LessThanOrEqual,
+    GreaterThanOrEqual,
+}
+
+public sealed record WordMailMergeControlCondition(
+    string SourceColumnName,
+    WordMailMergeComparisonOperator Comparison,
+    string CompareTo
+);
+
 public sealed record WordMailMergeField(
     string Id,
     string ReferenceFieldId,
@@ -168,7 +206,10 @@ public sealed record WordMailMergeField(
     bool IsInDeletedContent,
     string? TargetName,
     WordMailMergeFieldBindingStatus BindingStatus,
-    IReadOnlyList<string> MappingIds
+    IReadOnlyList<string> MappingIds,
+    WordMailMergeControlFieldKind ControlKind,
+    WordMailMergeControlParseStatus ControlParseStatus,
+    WordMailMergeControlCondition? ControlCondition
 );
 
 public sealed class WordMailMergeGraph
@@ -1230,12 +1271,23 @@ public sealed class WordMailMergeGraphBuilder
     )
     {
         var result = new List<WordMailMergeField>();
+        var referenceFields = references.Fields.ToArray();
+        var referenceFieldsById = referenceFields.ToDictionary(
+            item => item.Id,
+            StringComparer.Ordinal
+        );
+        var conditionalIfIds = ConditionalMailMergeIfIds(
+            referenceFields,
+            referenceFieldsById,
+            cancellationToken
+        );
         var mergeEdges = references.Edges
             .Where(edge => edge.TargetKind == WordReferenceTargetKind.MergeField)
             .GroupBy(edge => edge.SourceFieldId, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
-        foreach (var field in references.Fields.Where(item =>
+        foreach (var field in referenceFields.Where(item =>
             item.Classification == WordFieldClassification.MailMerge
+                || conditionalIfIds.Contains(item.Id)
         ))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -1246,13 +1298,16 @@ public sealed class WordMailMergeGraphBuilder
                 );
             }
             var fieldType = field.FieldType ?? "UNKNOWN";
+            var (controlKind, controlParseStatus, controlCondition) =
+                ParseControlField(field);
             var targetName = mergeEdges.TryGetValue(field.Id, out var edges)
                 && edges.Length == 1
                     ? edges[0].TargetKey
                     : fieldType == "MERGEBARCODE"
                         ? FirstPositionalArgument(field.Tokens)
-                        : null;
+                        : controlCondition?.SourceColumnName;
             ChargeMetadata(targetName, ref metadataCharacters);
+            ChargeMetadata(controlCondition?.CompareTo, ref metadataCharacters);
             var mappingIds = Array.Empty<string>();
             var bindingStatus = WordMailMergeFieldBindingStatus.NotApplicable;
             if (fieldType is "MERGEFIELD" or "MERGEBARCODE")
@@ -1299,7 +1354,10 @@ public sealed class WordMailMergeGraphBuilder
                 field.IsInDeletedContent,
                 targetName,
                 bindingStatus,
-                new ReadOnlyCollection<string>(mappingIds)
+                new ReadOnlyCollection<string>(mappingIds),
+                controlKind,
+                controlParseStatus,
+                controlCondition
             );
             if (bindingStatus == WordMailMergeFieldBindingStatus.Ambiguous)
             {
@@ -1326,9 +1384,146 @@ public sealed class WordMailMergeGraphBuilder
                     graphField.Id
                 ));
             }
+            if (controlParseStatus is not WordMailMergeControlParseStatus.NotApplicable
+                and not WordMailMergeControlParseStatus.Complete)
+            {
+                issues.Add(new WordMailMergeIssue(
+                    controlKind == WordMailMergeControlFieldKind.ConditionalIf
+                        ? "MAIL_MERGE_CONDITIONAL_IF_UNMODELED"
+                        : "MAIL_MERGE_CONTROL_FIELD_INVALID",
+                    WordMailMergeIssueSeverity.Error,
+                    controlKind == WordMailMergeControlFieldKind.ConditionalIf
+                        ? "A conditional IF field containing mail-merge input has dynamic or unsupported semantics."
+                        : "A mail-merge record-control field has missing, dynamic, unsupported or unexpected operands.",
+                    field.PartUri,
+                    field.StartElementOrdinal,
+                    graphField.Id
+                ));
+            }
             result.Add(graphField);
         }
         return result;
+    }
+
+    private static HashSet<string> ConditionalMailMergeIfIds(
+        IReadOnlyList<WordFieldDefinition> fields,
+        IReadOnlyDictionary<string, WordFieldDefinition> fieldsById,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var field in fields.Where(item =>
+            item.Classification == WordFieldClassification.MailMerge
+        ))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var visited = new HashSet<string>(StringComparer.Ordinal);
+            var parentId = field.ParentFieldId;
+            while (parentId is not null
+                && visited.Add(parentId)
+                && fieldsById.TryGetValue(parentId, out var parent))
+            {
+                if (string.Equals(parent.FieldType, "IF", StringComparison.Ordinal))
+                {
+                    result.Add(parent.Id);
+                }
+                parentId = parent.ParentFieldId;
+            }
+        }
+        return result;
+    }
+
+    private static (
+        WordMailMergeControlFieldKind Kind,
+        WordMailMergeControlParseStatus Status,
+        WordMailMergeControlCondition? Condition
+    ) ParseControlField(WordFieldDefinition field)
+    {
+        var kind = field.FieldType switch
+        {
+            "MERGEREC" => WordMailMergeControlFieldKind.MergeRecordNumber,
+            "MERGESEQ" => WordMailMergeControlFieldKind.MergeSequenceNumber,
+            "NEXT" => WordMailMergeControlFieldKind.NextRecord,
+            "NEXTIF" => WordMailMergeControlFieldKind.NextRecordIf,
+            "SKIPIF" => WordMailMergeControlFieldKind.SkipRecordIf,
+            "IF" => WordMailMergeControlFieldKind.ConditionalIf,
+            _ => WordMailMergeControlFieldKind.None,
+        };
+        if (kind == WordMailMergeControlFieldKind.None)
+        {
+            return (kind, WordMailMergeControlParseStatus.NotApplicable, null);
+        }
+        if (kind == WordMailMergeControlFieldKind.ConditionalIf)
+        {
+            return (
+                kind,
+                field.HasDynamicInstruction
+                    ? WordMailMergeControlParseStatus.DynamicInstruction
+                    : WordMailMergeControlParseStatus.UnsupportedShape,
+                null
+            );
+        }
+        if (!field.InstructionParseComplete)
+        {
+            return (kind, WordMailMergeControlParseStatus.DynamicInstruction, null);
+        }
+        var positional = field.Tokens.Where(token =>
+            token.Kind != WordFieldTokenKind.Switch
+        ).ToArray();
+        var hasSwitches = field.Tokens.Any(token =>
+            token.Kind == WordFieldTokenKind.Switch
+        );
+        if (kind is WordMailMergeControlFieldKind.MergeRecordNumber
+            or WordMailMergeControlFieldKind.MergeSequenceNumber
+            or WordMailMergeControlFieldKind.NextRecord)
+        {
+            return positional.Length == 1 && !hasSwitches
+                ? (kind, WordMailMergeControlParseStatus.Complete, null)
+                : (kind, WordMailMergeControlParseStatus.UnexpectedOperand, null);
+        }
+        if (positional.Length < 4)
+        {
+            return (kind, WordMailMergeControlParseStatus.MissingOperand, null);
+        }
+        if (positional.Length > 4 || hasSwitches)
+        {
+            return (kind, WordMailMergeControlParseStatus.UnexpectedOperand, null);
+        }
+        if (!TryComparisonOperator(positional[2].Value, out var comparison))
+        {
+            return (kind, WordMailMergeControlParseStatus.UnsupportedOperator, null);
+        }
+        if (string.IsNullOrWhiteSpace(positional[1].Value))
+        {
+            return (kind, WordMailMergeControlParseStatus.MissingOperand, null);
+        }
+        return (
+            kind,
+            WordMailMergeControlParseStatus.Complete,
+            new WordMailMergeControlCondition(
+                positional[1].Value,
+                comparison,
+                positional[3].Value
+            )
+        );
+    }
+
+    private static bool TryComparisonOperator(
+        string value,
+        out WordMailMergeComparisonOperator comparison
+    )
+    {
+        comparison = value switch
+        {
+            "=" => WordMailMergeComparisonOperator.Equal,
+            "<>" => WordMailMergeComparisonOperator.NotEqual,
+            "<" => WordMailMergeComparisonOperator.LessThan,
+            ">" => WordMailMergeComparisonOperator.GreaterThan,
+            "<=" => WordMailMergeComparisonOperator.LessThanOrEqual,
+            ">=" => WordMailMergeComparisonOperator.GreaterThanOrEqual,
+            _ => default,
+        };
+        return value is "=" or "<>" or "<" or ">" or "<=" or ">=";
     }
 
     private WordMailMergeRelationship? ParseRelationshipChild(

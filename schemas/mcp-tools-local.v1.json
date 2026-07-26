@@ -10972,7 +10972,7 @@
     {
       "name": "plan_ooxml_mail_merge_schema_binding",
       "title": "Plan Word mail merge source-schema bindings",
-      "description": "Build a deterministic fingerprint-bound binding plan between saved MERGEFIELD/MERGEBARCODE objects and a caller-supplied ordered source-column schema. The action accepts column names and declared scalar kinds but no record values. It never opens Microsoft Word, a workbook, database, ODBC/OLE DB provider, query, external relationship target or merge destination, and never executes a merge. Missing, ambiguous, case-colliding, incomplete, deleted or unsupported control fields fail closed. Names are process-HMAC fingerprinted unless include_sensitive is explicitly enabled; details are paged under a 65,536-character projected response budget.",
+      "description": "Build a deterministic fingerprint-bound binding plan between saved MERGEFIELD/MERGEBARCODE objects, typed NEXT/NEXTIF/SKIPIF/MERGEREC/MERGESEQ controls and a caller-supplied ordered source-column schema. The action accepts column names and declared scalar kinds but no record values. It never opens Microsoft Word, a workbook, database, ODBC/OLE DB provider, query, external relationship target or merge destination, and never executes a merge. Missing, ambiguous, case-colliding or incomplete fields, malformed controls and dynamic conditional IF shapes fail closed. Names and comparison literals are process-HMAC fingerprinted unless include_sensitive is explicitly enabled; details are paged under a 65,536-character projected response budget.",
       "operationVersion": "1.0",
       "permissions": {
         "filesystem": "read_local_word_package",

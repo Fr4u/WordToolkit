@@ -1088,6 +1088,8 @@ public sealed class WordReferenceGraphBuilder
                 );
                 break;
             case "MERGEFIELD":
+            case "NEXTIF":
+            case "SKIPIF":
                 AddRequiredTypedEdge(
                     field,
                     firstArgument,

@@ -736,11 +736,20 @@ step before any future execution. It accepts only an ordered column schema and p
 data-kind hints, rejects record values and unknown members, then resolves every saved
 `MERGEFIELD`/`MERGEBARCODE` by exact or unique case-insensitive name. Duplicate and
 case-colliding columns, missing names, ambiguous ODSO mappings, incomplete or deleted
-fields, unsupported control fields and graph errors become explicit blockers. The
+fields, malformed controls, unmodeled conditional `IF` shapes and graph errors become
+explicit blockers. The
 default MCP summary returns counts and stable plan/schema identities without column
 names; paged binding details require an explicit sensitive-data opt-in. Neither the MCP
 action nor the neutral `mail-merge-schema-package` CLI opens Word, a data source, a
 query, an external target or the merge.
+
+Record-control fields are no longer thrown into one opaque bucket. `NEXT`, `MERGEREC`
+and `MERGESEQ` are typed no-column controls; `NEXTIF` and `SKIPIF` carry a typed source
+column, one of six comparison operators and a privacy-gated comparison literal. Their
+column dependencies enter both the reference and mail-merge graphs. A nested `IF` that
+consumes a merge field is surfaced even though Word splits its instruction around child
+field objects; until its full branch expression is modeled it remains an explicit
+execution blocker rather than disappearing from the plan.
 
 Saved-package semantic queries select source-ordered nodes by kind, bounded text,
 exact properties, source story, subtree, and strict ancestor/descendant predicates.
@@ -1303,7 +1312,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is 0.55.0. The latest immutable public release remains
+The development manifest/runtime is 0.56.0. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:

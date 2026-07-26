@@ -299,7 +299,7 @@ public sealed class WordMailMergeGraphTests
     }
 
     [Fact]
-    public void SchemaPlannerFailsClosedForCaseCollisionsMissingColumnsAndControlFields()
+    public void SchemaPlannerFailsClosedForCaseCollisionsAndMissingColumnsWhileNextIsModeled()
     {
         using var bytes = BuildPackage(
             additionalDocumentBody: """
@@ -321,7 +321,6 @@ public sealed class WordMailMergeGraphTests
         Assert.False(plan.ExecutionSupported);
         Assert.Contains("source_schema_case_collision", plan.SchemaBlockedReasons);
         Assert.Contains("source_column_missing", plan.SchemaBlockedReasons);
-        Assert.Contains("unsupported_mail_merge_control_fields", plan.SchemaBlockedReasons);
         Assert.Contains(
             plan.Issues,
             issue => issue.Code == "MAIL_MERGE_SCHEMA_COLUMN_CASE_COLLISION"
@@ -331,14 +330,121 @@ public sealed class WordMailMergeGraphTests
             issue => issue.Code == "MAIL_MERGE_SCHEMA_SOURCE_COLUMN_MISSING"
         );
         Assert.Contains(
-            plan.Issues,
-            issue => issue.Code == "MAIL_MERGE_SCHEMA_FIELD_TYPE_UNSUPPORTED"
-        );
-        Assert.Contains(
             plan.Bindings,
             binding => binding.FieldType == "NEXT"
                 && binding.Status == WordMailMergeSchemaBindingStatus.NotApplicable
-                && binding.ExecutionBlocking
+                && !binding.ExecutionBlocking
+                && binding.ControlKind == WordMailMergeControlFieldKind.NextRecord
+                && binding.ControlParseStatus == WordMailMergeControlParseStatus.Complete
+        );
+    }
+
+    [Fact]
+    public void SchemaPlannerModelsRecordControlsAndTheirColumnDependencies()
+    {
+        using var bytes = BuildPackage(
+            additionalDocumentBody: """
+            <w:p><w:fldSimple w:instr=" NEXT "><w:r><w:t>next</w:t></w:r></w:fldSimple></w:p>
+            <w:p><w:fldSimple w:instr=" NEXTIF CustomerId &gt;= &quot;10&quot; "><w:r><w:t>next if</w:t></w:r></w:fldSimple></w:p>
+            <w:p><w:fldSimple w:instr=" SKIPIF FirstName = &quot;&quot; "><w:r><w:t>skip if</w:t></w:r></w:fldSimple></w:p>
+            <w:p><w:fldSimple w:instr=" MERGEREC "><w:r><w:t>record</w:t></w:r></w:fldSimple></w:p>
+            <w:p><w:fldSimple w:instr=" MERGESEQ "><w:r><w:t>sequence</w:t></w:r></w:fldSimple></w:p>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+        var graph = new WordMailMergeGraphBuilder().Build(package, semantic);
+        var plan = new WordMailMergeSchemaPlanner().Plan(
+            graph,
+            [new("CustomerId", WordMailMergeSourceDataKind.Number), new("FirstName")]
+        );
+
+        Assert.True(plan.CanBindSchema);
+        Assert.Equal(7, plan.Bindings.Count);
+        Assert.Empty(plan.Issues);
+        var nextIf = Assert.Single(plan.Bindings, binding =>
+            binding.FieldType == "NEXTIF"
+        );
+        Assert.Equal(WordMailMergeSchemaBindingStatus.ResolvedExact, nextIf.Status);
+        Assert.Equal(WordMailMergeControlFieldKind.NextRecordIf, nextIf.ControlKind);
+        Assert.Equal(
+            WordMailMergeControlParseStatus.Complete,
+            nextIf.ControlParseStatus
+        );
+        Assert.Equal(
+            WordMailMergeComparisonOperator.GreaterThanOrEqual,
+            nextIf.ComparisonOperator
+        );
+        Assert.Equal("10", nextIf.CompareTo);
+        var skipIf = Assert.Single(plan.Bindings, binding =>
+            binding.FieldType == "SKIPIF"
+        );
+        Assert.Equal(WordMailMergeSchemaBindingStatus.ResolvedExact, skipIf.Status);
+        Assert.Equal(string.Empty, skipIf.CompareTo);
+        Assert.All(
+            plan.Bindings.Where(binding =>
+                binding.FieldType is "NEXT" or "MERGEREC" or "MERGESEQ"
+            ),
+            binding =>
+            {
+                Assert.Equal(
+                    WordMailMergeSchemaBindingStatus.NotApplicable,
+                    binding.Status
+                );
+                Assert.False(binding.ExecutionBlocking);
+            }
+        );
+    }
+
+    [Fact]
+    public void SchemaPlannerRejectsInvalidControlsAndSurfacesNestedConditionalIf()
+    {
+        using var bytes = BuildPackage(
+            additionalDocumentBody: """
+            <w:p><w:fldSimple w:instr=" NEXTIF CustomerId ?? &quot;10&quot; "><w:r><w:t>invalid</w:t></w:r></w:fldSimple></w:p>
+            <w:p>
+              <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+              <w:r><w:instrText xml:space="preserve"> IF </w:instrText></w:r>
+              <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+              <w:r><w:instrText xml:space="preserve"> MERGEFIELD CustomerId </w:instrText></w:r>
+              <w:r><w:fldChar w:fldCharType="end"/></w:r>
+              <w:r><w:instrText xml:space="preserve"> = &quot;10&quot; &quot;yes&quot; &quot;no&quot; </w:instrText></w:r>
+              <w:r><w:fldChar w:fldCharType="end"/></w:r>
+            </w:p>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var semantic = new WordSemanticProjector().Project(package);
+        var graph = new WordMailMergeGraphBuilder().Build(package, semantic);
+        var plan = new WordMailMergeSchemaPlanner().Plan(
+            graph,
+            [new("CustomerId"), new("FirstName")]
+        );
+
+        var conditional = Assert.Single(graph.Fields, field => field.FieldType == "IF");
+        Assert.Equal(
+            WordMailMergeControlFieldKind.ConditionalIf,
+            conditional.ControlKind
+        );
+        Assert.Equal(
+            WordMailMergeControlParseStatus.DynamicInstruction,
+            conditional.ControlParseStatus
+        );
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "MAIL_MERGE_CONDITIONAL_IF_UNMODELED"
+        );
+        Assert.False(plan.CanBindSchema);
+        Assert.Contains("mail_merge_control_syntax_invalid", plan.SchemaBlockedReasons);
+        Assert.Contains("conditional_mail_merge_if_unmodeled", plan.SchemaBlockedReasons);
+        Assert.Contains("mail_merge_graph_errors", plan.SchemaBlockedReasons);
+        Assert.Contains(
+            plan.Issues,
+            issue => issue.Code == "MAIL_MERGE_SCHEMA_CONTROL_FIELD_INVALID"
+        );
+        Assert.Contains(
+            plan.Issues,
+            issue => issue.Code == "MAIL_MERGE_SCHEMA_CONDITIONAL_IF_UNMODELED"
         );
     }
 

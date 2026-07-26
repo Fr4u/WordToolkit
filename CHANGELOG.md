@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+## 0.56.0 — 2026-07-26
+
+- Added typed record-control semantics to the mail-merge graph. `NEXT`, `MERGEREC` and
+  `MERGESEQ` are complete no-column controls; `NEXTIF` and `SKIPIF` retain a source
+  column, one of six comparison operators and a privacy-gated comparison literal.
+  Their column reads now enter the shared reference graph.
+- Added parent-chain detection for conditional `IF` fields containing nested merge
+  fields. Word splits those instructions around child field objects, so the graph makes
+  the dynamic/unsupported shape visible and the schema planner blocks it instead of
+  falsely claiming complete coverage.
+- The schema planner now binds valid `NEXTIF`/`SKIPIF` source columns, accepts valid
+  `NEXT`/`MERGEREC`/`MERGESEQ` controls without inventing column dependencies, and fails
+  closed on missing, dynamic, extra or unsupported operands. Control kind, parse status,
+  operator and comparison fingerprints are available in paged inspector/plan detail;
+  the comparison literal requires `include_sensitive=true`.
+- Pinned SDK 8.0.423 gates pass 763 Engine, 12 LibreOffice and 547 Native tests. The
+  10,000-recipient benchmark includes 30 merge fields and five complete record controls;
+  its 35-binding schema plan has zero issues, takes 0.1596 ms median after graph
+  construction and allocates 32,624 bytes median across seven samples.
+- Two independently named self-contained builds have identical 197-file,
+  89,970,692-byte trees and byte-identical 37,549,211-byte ZIPs at SHA-256
+  `b01f27cb6c0e98232ebc0f53cc3518e83f1e7690bbc844e629b32b20042be392`.
+  Installed and enabled `0.56.0+codex.20260726200738`; candidate, persistent personal
+  source and active cache have zero path/length/hash differences. Installed discovery
+  reports 148 actions, 15 tools and 59 explicit contracts. A full-response schema-plan
+  smoke returned the fingerprint-bound plan and the explicit no-Word/no-source/no-query/
+  no-external-target/no-execution policy fields.
+
 ## 0.55.0 — 2026-07-26
 
 - Added `WordMailMergeSchemaPlanner`, a deterministic saved-package plan joining every

@@ -110,6 +110,32 @@ effectful application operation over a configured mail-merge object and attached
 source; schema compatibility alone cannot authorize it. See
 [Word VBA `MailMerge.Execute`](https://learn.microsoft.com/en-us/office/vba/api/word.mailmerge.execute).
 
+### Record-control fields
+
+The graph distinguishes five executable-shape families instead of treating every
+non-output field as opaque:
+
+- `NEXT`, `MERGEREC` and `MERGESEQ` are complete controls with no source-column read;
+- `NEXTIF` and `SKIPIF` require one source column, one of `=`, `<>`, `<`, `>`, `<=`,
+  `>=`, and exactly one comparison operand;
+- an `IF` containing a nested mail-merge field is found through field parentage even
+  when the outer instruction is dynamic because Word split it around the child field.
+
+Microsoft's Word object model exposes `AddNextIf` and `AddSkipIf` with an explicit merge
+field, `WdMailMergeComparison` and comparison value. It defines eight comparison modes,
+including blank/not-blank; the saved field-code parser currently models the six explicit
+symbol operators and represents blank/not-blank through an explicit comparison with an
+empty operand. It does not guess undocumented lexical aliases. See
+[AddNextIf](https://learn.microsoft.com/en-us/office/vba/api/word.mailmergefields.addnextif),
+[AddSkipIf](https://learn.microsoft.com/en-us/office/vba/api/word.mailmergefields.addskipif)
+and the
+[comparison enumeration](https://learn.microsoft.com/en-us/dotnet/api/microsoft.office.interop.word.wdmailmergecomparison?view=word-pia).
+
+Nested `IF` branch execution remains deliberately unsupported. The graph reports that
+gap as `MAIL_MERGE_CONDITIONAL_IF_UNMODELED`; the schema plan adds
+`conditional_mail_merge_if_unmodeled`. This is stricter than the prior behavior, where
+the child `MERGEFIELD` was visible but its controlling parent silently disappeared.
+
 ## Public inspection contract
 
 `inspect_ooxml_mail_merge` provides paged `summary`, `configuration`,
@@ -161,6 +187,7 @@ Evidence:
 - `docs/benchmarks/mail-merge-streaming-10k-2026-07-26.json`
 - `docs/benchmarks/mail-merge-streaming-100k-2026-07-26.json`
 - `docs/benchmarks/mail-merge-schema-plan-10k-2026-07-26.json`
+- `docs/benchmarks/mail-merge-control-plan-10k-2026-07-26.json`
 
 These are one Windows 10 x64 workstation and .NET 8.0.29, not universal latency
 claims. The streaming path removes the non-editable byte copy, XDocument, lexical tree,
@@ -175,6 +202,12 @@ At the 10,000-recipient point, the additional 30-column/30-field schema plan tak
 samples. The first 5.5669 ms sample includes cold-path work and is retained rather than
 discarded. The plan resolves all 30 fields, reports zero issues, returns no record values
 and reproduces the same plan ID.
+
+The 0.56 fixture adds `NEXT`, `NEXTIF`, `SKIPIF`, `MERGEREC` and `MERGESEQ` beside the
+same 30 merge fields and 10,000 recipients. All five controls parse completely; the
+35-binding plan reports zero issues and stable identity. Its seven-sample median is
+0.1596 ms with 32,624 median allocated bytes after graph construction. The raw first
+sample remains included.
 
 ## Tests
 

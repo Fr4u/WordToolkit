@@ -357,6 +357,13 @@ and graph errors are hard blockers. `can_bind_schema=true` proves only schema bi
 `execution_supported` remains false. The action and the neutral
 `mail-merge-schema-package` CLI do not open Word or a source, run a query, accept record
 values, follow an external target or execute a merge.
+Treat `NEXT`, `MERGEREC` and `MERGESEQ` as typed record controls with no source-column
+dependency. `NEXTIF` and `SKIPIF` are supported only when their saved instruction has
+exactly one source column, one of `=`, `<>`, `<`, `>`, `<=`, `>=`, and one comparison
+operand. Their comparison value is sensitive and stays redacted unless explicitly
+requested. Missing, dynamic, extra or unsupported operands block the plan. A nested
+mail-merge `IF` is detected through the parent/child field graph but remains
+`conditional_mail_merge_if_unmodeled`; do not infer or execute its branches.
 Use lazy `inspect_ooxml_properties` instead of opening `docProps/core.xml`,
 `docProps/app.xml`, a custom-properties part or settings variables by hand. Start with
 `view=summary`; page `properties`, `parts` or `issues` only when the next decision needs

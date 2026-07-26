@@ -373,7 +373,7 @@ static object RunMailMerge(Arguments options)
             {
                 requested_recipients = options.TargetNodes,
                 repetitions = repetitionCount,
-                fixture = "synthetic_saved_odso_with_30_bound_fields_and_unique_recipient_tags",
+                fixture = "synthetic_saved_odso_with_30_merge_fields_5_record_controls_and_unique_recipient_tags",
                 recipient_projection =
                     "bounded_streaming_xml_reader_with_source_ordinals_and_constant_space_stable_ids",
                 package_bytes = new FileInfo(path).Length,
@@ -386,6 +386,13 @@ static object RunMailMerge(Arguments options)
                 resolved_fields = measuredGraph.Fields.Count(field =>
                     field.BindingStatus is WordMailMergeFieldBindingStatus.ResolvedBySourceColumnName
                         or WordMailMergeFieldBindingStatus.ResolvedByWordPredefinedName
+                ),
+                record_control_fields = measuredGraph.Fields.Count(field =>
+                    field.ControlKind != WordMailMergeControlFieldKind.None
+                ),
+                complete_record_control_fields = measuredGraph.Fields.Count(field =>
+                    field.ControlKind != WordMailMergeControlFieldKind.None
+                        && field.ControlParseStatus == WordMailMergeControlParseStatus.Complete
                 ),
                 issues = measuredGraph.Issues.Count,
                 schema_plan = new
@@ -1331,6 +1338,11 @@ static void WriteMailMergePackage(string path, int recipientCount, int mappingCo
             writer.Write(index.ToString("D2"));
             writer.Write("\" </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t>Value</w:t></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>");
         }
+        writer.Write("<w:p><w:fldSimple w:instr=\" NEXT \"/></w:p>");
+        writer.Write("<w:p><w:fldSimple w:instr=\" NEXTIF Column00 &gt;= &quot;100&quot; \"/></w:p>");
+        writer.Write("<w:p><w:fldSimple w:instr=\" SKIPIF Column01 = &quot;&quot; \"/></w:p>");
+        writer.Write("<w:p><w:fldSimple w:instr=\" MERGEREC \"/></w:p>");
+        writer.Write("<w:p><w:fldSimple w:instr=\" MERGESEQ \"/></w:p>");
         writer.Write(PackageFixture.DocumentEnd);
     }
 

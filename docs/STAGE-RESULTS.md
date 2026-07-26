@@ -1,5 +1,41 @@
 # Stage results
 
+# WordToolkit 0.56.0 typed mail-merge record controls - 2026-07-26
+
+- `NEXT`, `MERGEREC` and `MERGESEQ` are now typed no-column record controls.
+  `NEXTIF` and `SKIPIF` retain one source-column dependency, one of six comparison
+  operators and a privacy-gated comparison literal. Their reads join the shared
+  reference graph instead of existing only as opaque field codes.
+- Parent-chain analysis now surfaces conditional `IF` fields containing nested merge
+  fields. Because Word divides the outer instruction around child fields, dynamic or
+  unsupported branch shapes remain explicit graph errors and schema-plan blockers.
+- Valid controls no longer trigger the old blanket
+  `unsupported_mail_merge_control_fields` result. Missing, dynamic, extra or unsupported
+  operands fail closed; comparison values are process-HMAC fingerprinted by default and
+  returned only under the sensitive-data opt-in.
+- Pinned SDK 8.0.423 passes 763 Engine, 12 LibreOffice and 547 Native tests. The new
+  10,000-recipient fixture contains 30 merge fields plus five complete controls. Its
+  35-binding, zero-issue plan takes 0.1596 ms median after graph construction and
+  allocates 32,624 bytes median; raw evidence is in
+  `docs/benchmarks/mail-merge-control-plan-10k-2026-07-26.json`.
+- Two independent pinned-SDK package builds contain 197 files and 89,970,692 bytes with
+  zero path/length/SHA-256 differences. Both 37,549,211-byte ZIPs have SHA-256
+  `b01f27cb6c0e98232ebc0f53cc3518e83f1e7690bbc844e629b32b20042be392`.
+  Executable, runtime assembly, Engine, LibreOffice and Open XML SDK hashes are
+  `47a1fb75a48affb38059ef876dc96afc3c088cea90bf9996a49b5c5128703cf5`,
+  `8bf114e8d8512f62c16cd9cfab38fe17dca9e0b06eae792e2d993ae0d9678593`,
+  `ad4a9bc4e0160518da579b7aeab2238639700d6a367fc6cdc5198dcd2a575eca`,
+  `d69f71b4b7dd6176c48cad174ac0e641a5d168ff9f14aa3fadd6773ac8bc51a1`
+  and `09bcf9c6eae70e03437362940ee9453d8e9d34b4742fa51e26313210c365f774`.
+- Installed and enabled `0.56.0+codex.20260726200738`. Candidate, persistent source and
+  active cache have identical 197-path maps. Discovery returns 148 actions, 15 MCP tools
+  and 59 complete explicit metadata contracts. Installed full-response execution of the
+  schema-plan action returned `word_opened=false`, `data_sources_opened=false`,
+  `queries_executed=false`, `external_targets_followed=false`,
+  `execution_supported=false` and `mail_merge_executed=false`. Version 0.55 is preserved
+  at `C:\Users\Admin\plugins\wordtoolkit.backup-0.55.0-codex.20260726200738`.
+
+
 # WordToolkit 0.55.0 deterministic mail-merge source-schema plan - 2026-07-26
 
 - Added a typed, deterministic plan between saved Word mail-merge fields and an ordered
