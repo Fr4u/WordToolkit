@@ -38,7 +38,12 @@
   catalog SHA-256 `334192c71d41b74a88ac4bd60e88d996feb12936504ea0bd4e9f3fe0fe441dff`,
   the AppContainer sandbox profile and no exact implementation/path properties. Installed
   real OCR preserves the benchmark result hash and reports network isolation/filesystem
-  brokering without returning recognized text. Hosted qualification remains pending.
+  brokering without returning recognized text.
+- Mandatory hosted CI run [`30220272858`](https://github.com/Fr4u/WordToolkit/actions/runs/30220272858)
+  passed all six jobs on implementation commit
+  `d896a1b0737db9b58804bb73c1ea3250b1422ef7`. Its downloaded Windows artifact is
+  byte-for-byte identical to both local archives: 37,582,800 bytes, SHA-256
+  `9fae274cb015bb93cae3b02f3b3b7b91b47c796b620b168b05e581ab406fe56b`.
 
 ## 0.57.0 — 2026-07-26
 

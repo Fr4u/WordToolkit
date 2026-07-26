@@ -48,7 +48,11 @@
   `c674335b9fc441e56fd04a24fc7f92acbe865ddc2883ab2898297d569affa0cc`
   and returned no recognized text. Version 0.57 is preserved at
   `C:\Users\Admin\plugins\wordtoolkit.backup-0.57.0-codex.20260726223051`.
-  Hosted qualification remains pending.
+- Mandatory hosted CI run [`30220272858`](https://github.com/Fr4u/WordToolkit/actions/runs/30220272858)
+  passed all six jobs on implementation commit
+  `d896a1b0737db9b58804bb73c1ea3250b1422ef7`. The downloaded Windows artifact is
+  byte-for-byte identical to both local archives: 37,582,800 bytes, SHA-256
+  `9fae274cb015bb93cae3b02f3b3b7b91b47c796b620b168b05e581ab406fe56b`.
 
 # WordToolkit 0.57.0 isolated OCR provider process boundary - 2026-07-26
 
