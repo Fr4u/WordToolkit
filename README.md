@@ -164,7 +164,7 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 51 tested Word Live actions plus 49 standalone,
+The runtime implements 64 tested Word Live actions plus 63 standalone,
 bounded OOXML engine actions. The initial MCP catalog exposes
 only 11 common actions plus four token-lean gateways. Rare schemas are
 searched and loaded one at a time:
@@ -191,7 +191,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 125-action schema set into model context. The normative shape is
+not flatten the 127-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -206,7 +206,28 @@ strict CLI:
 wordtoolkit-native extensions --query validator --limit 8 --format json
 ```
 
-The first production registration is the Microsoft Open XML SDK candidate validator.
+The first production registration is the Microsoft Open XML SDK candidate validator;
+the second is a provider-neutral OCR interface with one explicitly configured local
+Tesseract CLI adapter. OCR candidate inspection reads only embedded images referenced by
+the typed figure graph, verifies payload signatures, deduplicates repeated parts and
+never fetches external targets. Recognition requires an exact package fingerprint and
+explicit candidate selection. `local_only` is the default privacy mode; recognized text,
+geometry and document/image hashes are separate bounded opt-ins. The adapter requires
+local-filesystem paths, rejects UNC/mapped-network and reparse-point paths, hashes the
+exact executable and language models, streams image bytes through stdin without a
+temporary image file and returns bounded provenance rather than raw TSV or paths under
+one end-to-end timeout. It does not claim deterministic reproduction across an unbound
+host environment.
+
+```powershell
+wordtoolkit-native ocr-package --mode inspect --request inspect-ocr.json --format json
+wordtoolkit-native ocr-package --mode recognize --request run-ocr.json --format json
+```
+
+The Tesseract adapter spawns a child process but remains trusted adapter code, not a
+sandbox. See
+[`docs/RESEARCH-OCR-PROVIDER-2026.md`](docs/RESEARCH-OCR-PROVIDER-2026.md).
+
 Catalog results expose versioned interfaces, trust/isolation, declared permissions and
 resource ceilings, but no implementation type or assembly path. `trusted_in_process`
 means full process trust, not a sandbox; `cooperative` timeout is cancellation, not safe
@@ -1101,7 +1122,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is 0.41.0. The latest immutable public release remains
+The development manifest/runtime is 0.42.0. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:

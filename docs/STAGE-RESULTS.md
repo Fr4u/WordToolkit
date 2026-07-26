@@ -1,5 +1,55 @@
 # Stage results
 
+## WordToolkit 0.42.0 source-linked local OCR — 2026-07-26
+
+- Added a provider-neutral `wordtoolkit.ocr-provider/1.0` extension contract and a
+  source-linked OCR candidate graph. Candidates come only from embedded images actually
+  referenced by the typed figure graph, deduplicate repeated package parts and bind
+  stable IDs to the exact package fingerprint, canonical part URI and image SHA-256.
+  Raster signatures are verified; external relationships are never fetched and vector,
+  unresolved, mismatched or oversized inputs remain explicit failures.
+- Added the built-in `wordtoolkit.tesseract-cli` provider. It requires an explicit
+  absolute executable and model directory or named environment bindings, refuses `PATH`
+  search and every reparse-point path component, hashes the executable and selected
+  models before and after recognition, starts without a shell, streams image bytes
+  through stdin, applies one total timeout and validates bounded TSV text, confidence
+  and geometry. Raw provider output, paths, XML and image bytes never enter the result.
+- Added direct Engine, strict `ocr-package` CLI and lazy
+  `inspect_ooxml_ocr_candidates` / `run_ooxml_ocr` MCP contracts. Recognition requires
+  an exact package fingerprint and explicit selection of at most eight candidates.
+  `local_only` rejects providers declaring network or credential access before
+  invocation. Text, line/word geometry and image/document hashes are independent bounded
+  opt-ins, and the source file hash is rechecked after every provider batch.
+- Current primary-source comparison covers Windows OCR, Azure Document Intelligence,
+  Google Cloud Vision, Amazon Textract and Tesseract. The resulting threat model and the
+  unimplemented boundaries are recorded in `RESEARCH-OCR-PROVIDER-2026.md`; the trusted
+  adapter plus child process is explicitly not called a sandbox.
+- The gated real OCR test generated a 1,800×400 scan containing
+  `WORDTOOLKIT OFFLINE OCR`, embedded it in DOCX and passed local Tesseract
+  `v5.5.0.20241111` through the lazy MCP action with the expected three words, normalized
+  confidence above `0.7`, schema-valid provider/model/image provenance, unchanged DOCX
+  hash, zero COM calls and no new Word process.
+- Full local gates pass **646 Engine**, **489 Native** and **1,313 Python tests**, with
+  16 intentional Python skips. The Native suite includes the real OCR test. Ruff and
+  mypy are clean, 230 local Draft 2020-12 input/output schemas validate, four .NET format
+  gates pass, generated remote schemas have no drift, the standalone Open XML validator
+  builds without warnings, and generated sample/torture DOCX/PDF artifacts validate.
+  Every .NET command used pinned SDK `C:\Users\Admin\.dotnet8\dotnet.exe` 8.0.423.
+- Two self-contained win-x64 builds produced byte-identical 196-file,
+  88,450,913-byte trees and byte-identical 37,134,628-byte ZIPs at SHA-256
+  `8a3094709762391764645028b5b52a60e036cd68973d62642d434adfdb891fcf`.
+  Executable, runtime assembly, Engine assembly and Open XML SDK adapter hashes are
+  `8207b96a1a802fa78a26fc7a83d23114842d354e9a071ff2b2ba8349273368a5`,
+  `367753a6a83bd39dfc897038a490074216cc86c48cda0e8b501d59b3891d50bd`,
+  `66b48552a987c52e2c4dff7484a248c2dca01ca9effe8ddd9f602fc5b44e4214` and
+  `c3a806a52976e1981dd685a1370f20c53516192f0d97f41d876aaba406b992c8`.
+- Installed and enabled `0.42.0+codex.20260726022546`. Build, persistent personal source
+  and enabled cache contain the same 196 paths, lengths and hashes. Installed discovery
+  reports 127 actions, 15 tools and 38 complete metadata contracts. The exact installed
+  executable inspected two eligible images in the 11-page torture DOCX, recognized both
+  locally into five lines/eight words while suppressing text, used no network or Word,
+  returned valid provider/model hashes and left the source SHA-256 unchanged.
+
 ## WordToolkit 0.41.0 equation truthfulness, point update and hybrid publication — 2026-07-26
 
 - Unified equation preflight with the live mutation path. The default mode now creates

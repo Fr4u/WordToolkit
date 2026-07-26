@@ -251,6 +251,14 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_ooxml_ocr_candidates" => InspectPackageOcrCandidatesAsync(
+                arguments,
+                cancellationToken
+            ),
+            "run_ooxml_ocr" => RunPackageOcrAsync(
+                arguments,
+                cancellationToken
+            ),
             "plan_ooxml_relationship_repair" => PlanPackageRelationshipRepairAsync(
                 arguments,
                 cancellationToken

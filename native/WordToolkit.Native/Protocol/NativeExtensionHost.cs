@@ -1,5 +1,6 @@
 using WordToolkit.Engine.Extensions;
 using WordToolkit.Engine.Validation;
+using WordToolkit.Native.Ocr;
 using WordToolkit.OpenXmlSdk;
 
 namespace WordToolkit.Native.Protocol;
@@ -10,6 +11,9 @@ internal static class NativeExtensionHost
         "wordtoolkit.openxml-sdk";
     internal const string OpenXmlValidatorCapabilityId =
         "wordtoolkit.validator.openxml.microsoft365";
+    internal const string TesseractOcrExtensionId = TesseractCliOcrProvider.ExtensionId;
+    internal const string TesseractOcrCapabilityId =
+        TesseractCliOcrProvider.DefaultCapabilityId;
 
     private static readonly Lazy<State> Current = new(CreateState);
 
@@ -20,24 +24,36 @@ internal static class NativeExtensionHost
 
     private static State CreateState()
     {
-        var limits = new WordToolkitExtensionResourceLimits(
+        var policyLimits = new WordToolkitExtensionResourceLimits(
             MaxInputBytes: 1024L * 1024 * 1024,
-            MaxOutputBytes: 2L * 1024 * 1024,
+            MaxOutputBytes: 8L * 1024 * 1024,
             MaxConcurrentInvocations: McpServer.MaxConcurrentRequests,
-            TimeoutMilliseconds: 120_000
+            TimeoutMilliseconds: 125_000
         );
+        var validatorLimits = policyLimits with
+        {
+            MaxOutputBytes = 2L * 1024 * 1024,
+            TimeoutMilliseconds = 120_000,
+        };
         var policy = WordToolkitExtensionPolicy.BuiltInOnly(
-            [OpenXmlValidatorExtensionId],
+            [OpenXmlValidatorExtensionId, TesseractOcrExtensionId],
             [
                 new WordToolkitExtensionInterfaceSupport(
                     "wordtoolkit.package-candidate-validator",
                     "1.0",
                     WordToolkitExtensionKind.Validator
                 ),
+                new WordToolkitExtensionInterfaceSupport(
+                    WordOcrProviderContract.InterfaceContract,
+                    WordOcrProviderContract.InterfaceVersion,
+                    WordToolkitExtensionKind.OcrProvider
+                ),
             ],
             WordToolkitExtensionPermission.ReadPackage
-                | WordToolkitExtensionPermission.ReadDocumentContent,
-            limits
+                | WordToolkitExtensionPermission.ReadDocumentContent
+                | WordToolkitExtensionPermission.FilesystemRead
+                | WordToolkitExtensionPermission.SpawnProcess,
+            policyLimits
         );
         var builder = new WordToolkitExtensionRegistryBuilder(policy);
         builder.Register<IWordPackageCandidateValidator>(
@@ -57,13 +73,44 @@ internal static class NativeExtensionHost
                 "1.0",
                 WordToolkitExtensionPermission.ReadPackage
                     | WordToolkitExtensionPermission.ReadDocumentContent,
-                limits,
+                validatorLimits,
                 WordToolkitExtensionTimeoutEnforcement.Cooperative,
                 Deterministic: true,
                 Idempotent: true,
                 ReturnsDocumentContent: false
             ),
             new MicrosoftOpenXmlPackageValidator()
+        );
+        builder.Register<IWordOcrProvider>(
+            new WordToolkitExtensionDescriptor(
+                TesseractOcrExtensionId,
+                "Tesseract CLI OCR adapter",
+                "WordToolkit project",
+                "1.0.0",
+                "1.0",
+                WordToolkitExtensionTrust.BuiltIn,
+                WordToolkitExtensionIsolation.TrustedInProcess
+            ),
+            new WordToolkitExtensionCapabilityDescriptor(
+                TesseractOcrCapabilityId,
+                WordToolkitExtensionKind.OcrProvider,
+                WordOcrProviderContract.InterfaceContract,
+                WordOcrProviderContract.InterfaceVersion,
+                WordToolkitExtensionPermission.ReadDocumentContent
+                    | WordToolkitExtensionPermission.FilesystemRead
+                    | WordToolkitExtensionPermission.SpawnProcess,
+                new WordToolkitExtensionResourceLimits(
+                    MaxInputBytes: 32L * 1024 * 1024,
+                    MaxOutputBytes: 8L * 1024 * 1024,
+                    MaxConcurrentInvocations: 1,
+                    TimeoutMilliseconds: 125_000
+                ),
+                WordToolkitExtensionTimeoutEnforcement.Cooperative,
+                Deterministic: false,
+                Idempotent: true,
+                ReturnsDocumentContent: true
+            ),
+            new TesseractCliOcrProvider()
         );
         var registry = builder.Build();
         return new State(

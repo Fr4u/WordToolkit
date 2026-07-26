@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Added a source-linked OCR candidate graph for embedded images actually referenced by
+  Word figures. Repeated image parts deduplicate to one stable fingerprint-bound
+  candidate; declared raster types are checked against payload signatures, external
+  targets are never fetched and vector/oversized/unresolved inputs fail closed.
+- Added versioned `IWordOcrProvider` extension contracts and a built-in local Tesseract
+  CLI adapter. It requires explicit absolute local-filesystem executable/model paths,
+  rejects UNC/mapped-network and reparse-point paths, hashes both before and after one
+  end-to-end timeout, launches without a shell, streams images through stdin, bounds and
+  validates TSV text/confidence/geometry and never returns raw diagnostics or paths.
+- Added direct Engine, strict `ocr-package` CLI and lazy
+  `inspect_ooxml_ocr_candidates` / `run_ooxml_ocr` actions. Recognition is package-
+  fingerprint-bound, explicitly selected, `local_only` by default and independently
+  gates text, geometry and hashes. A real embedded PNG passed local Tesseract recognition
+  through MCP with schema-valid provenance, unchanged DOCX hash and no Word invocation.
+
 - Replaced the misleading equation conversion preflight with a default native Word
   execution path that uses an invisible unsaved scratch document and the same OMath
   build-up, style rewrite and bounded OMML readback as live apply. The explicitly named

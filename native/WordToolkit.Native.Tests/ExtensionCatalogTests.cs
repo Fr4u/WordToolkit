@@ -37,6 +37,25 @@ public sealed class ExtensionCatalogTests
         Assert.False(direct.Security.ReturnsDocumentContent);
         Assert.False(direct.Security.LoadsAssemblies);
 
+        var ocr = new InspectExtensionCatalogOperation(
+            NativeExtensionHost.Registry
+        ).Execute(new InspectExtensionCatalogRequest("ocr", 0, 4));
+        var ocrItem = Assert.Single(ocr.Items);
+        Assert.Equal(
+            NativeExtensionHost.TesseractOcrCapabilityId,
+            ocrItem.CapabilityId
+        );
+        Assert.Equal(
+            WordToolkit.Engine.Extensions.WordToolkitExtensionKind.OcrProvider,
+            ocrItem.Kind
+        );
+        Assert.Equal(
+            ["filesystem_read", "read_document_content", "spawn_process"],
+            ocrItem.Permissions
+        );
+        Assert.True(ocrItem.CapabilityReturnsDocumentContent);
+        Assert.DoesNotContain("network", ocrItem.Permissions);
+
         output.GetStringBuilder().Clear();
         error.GetStringBuilder().Clear();
         exitCode = ExtensionCatalogCli.Run(["--limit", "33"], output, error);
@@ -49,7 +68,7 @@ public sealed class ExtensionCatalogTests
     public void CatalogIsLazyAndHasCompleteClosedMetadata()
     {
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(125, catalog.ActionCount);
+        Assert.Equal(127, catalog.ActionCount);
         Assert.DoesNotContain(
             catalog.Tools,
             tool => tool!["name"]!.GetValue<string>()

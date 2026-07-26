@@ -1317,7 +1317,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 125 actions already have public SDK
+These are proved migration seams, not a claim that all 127 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
@@ -1559,6 +1559,31 @@ Saved-package style, comment, review, patch and rollback paths now consume it th
 registry. `InspectExtensionCatalogOperation`, the native `extensions` CLI and lazy
 `inspect_wordtoolkit_extensions` MCP return the same bounded, content-free catalog without
 opening Word, reading a document, discovering assemblies or using the network.
+
+The second production registration is the provider-neutral
+`wordtoolkit.ocr-provider/1.0` interface with one local Tesseract CLI adapter. OCR
+candidate discovery consumes the existing source-linked figure graph, deduplicates exact
+image parts and binds every stable candidate ID to the package fingerprint, canonical
+part URI and payload hash. Raster signatures are verified before eligibility; external
+relationships are never followed, vector formats require a future rasterizer and source
+projection truncation prevents a complete-coverage claim.
+
+Recognition requires an exact package fingerprint and an explicit bounded selection.
+`local_only` rejects any provider capability that declares network or credential access.
+The Tesseract adapter requires explicit absolute local-filesystem executable/model paths
+or named environment bindings, refuses `PATH` search, UNC/mapped-network roots and
+reparse points, hashes the executable and language models, launches the exact binary
+without a shell, streams the image through stdin and validates bounded TSV line/word
+text, confidence and geometry under one end-to-end timeout. Source file hash
+verification surrounds provider execution. Result text, geometry and document hashes are
+independent opt-ins; image bytes, raw TSV, XML and paths are never returned. See
+`docs/RESEARCH-OCR-PROVIDER-2026.md` for the dated source comparison and threat model.
+
+The provider remains trusted in-process adapter code with a spawned child process. That
+is not a process sandbox: restricted identity, Job Object enforcement, brokered IPC and
+hostile-provider containment remain future work. Matching executable/model hashes do not
+produce a determinism claim because dynamic dependencies and the complete host
+environment remain unbound.
 
 The current registry supports only `TrustedInProcess` with cooperative cancellation.
 .NET documents that `AssemblyLoadContext` is dependency/type isolation, not a security
