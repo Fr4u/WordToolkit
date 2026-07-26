@@ -111,9 +111,12 @@ internal static class OcrProviderBoundaryBenchmarkCli
                     maximum_active_processes = ProcessBoundaryTesseractOcrProvider.MaximumActiveProcesses,
                     minimized_environment = true,
                     restricted_windows_token = false,
-                    network_isolation_enforced = false,
-                    filesystem_brokered = false,
-                    sandbox_claimed = false,
+                    app_container_enforced = true,
+                    network_isolation_enforced = true,
+                    filesystem_brokered = true,
+                    writes_confined_to_private_profile = true,
+                    sandbox_profile = "windows_app_container_no_network_brokered_filesystem",
+                    sandbox_claimed = true,
                 },
             };
             output.WriteLine(System.Text.Json.JsonSerializer.Serialize(result, JsonDefaults.Indented));

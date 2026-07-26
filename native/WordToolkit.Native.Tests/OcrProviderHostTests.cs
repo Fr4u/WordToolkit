@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text.Json;
 using WordToolkit.Engine.Extensions;
@@ -8,6 +10,184 @@ namespace WordToolkit.Native.Tests;
 
 public sealed class OcrProviderHostTests
 {
+    [Fact]
+    public void AppContainerProfileCanBeCreatedOrOpenedWithAStablePrivateIdentity()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var profile = WindowsAppContainerProfile.CreateOrOpenOcrProviderProfile();
+
+        Assert.Equal(WindowsAppContainerProfile.OcrProviderProfileName, profile.Name);
+        Assert.StartsWith("S-1-15-2-", profile.SidValue, StringComparison.Ordinal);
+        Assert.True(Directory.Exists(profile.FolderPath));
+        Assert.True(Directory.Exists(Path.Combine(profile.FolderPath, "Temp")));
+    }
+
+    [Fact]
+    public async Task AppContainerLauncherStartsTheNativeHostWithAnAppContainerToken()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var command = OcrProviderHostCommand.Current() with
+        {
+            InternalArgument = "--internal-appcontainer-probe",
+        };
+        var profile = WindowsAppContainerProfile.CreateOrOpenOcrProviderProfile();
+        foreach (var directory in new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            Path.GetDirectoryName(command.ExecutablePath)!,
+            Path.GetDirectoryName(command.AssemblyIdentityPath)!,
+        })
+        {
+            profile.GrantReadExecuteToDirectory(directory);
+        }
+        var temporaryDirectory = Path.Combine(profile.FolderPath, "Temp");
+        var systemRoot = Environment.GetEnvironmentVariable("SystemRoot")!;
+        var environment = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["SystemRoot"] = systemRoot,
+            ["WINDIR"] = systemRoot,
+            ["LOCALAPPDATA"] = profile.FolderPath,
+            ["TEMP"] = temporaryDirectory,
+            ["TMP"] = temporaryDirectory,
+        };
+        if (command.PassAssemblyAsArgument)
+        {
+            environment["DOTNET_ROOT"] = Path.GetDirectoryName(command.ExecutablePath)!;
+        }
+
+        using var process = WindowsAppContainerProcess.LaunchSuspended(
+            command,
+            profile,
+            environment,
+            temporaryDirectory
+        );
+        using var job = WindowsJobObject.Create(512L * 1024 * 1024, 2);
+        job.Attach(process.ProcessHandle);
+        process.Resume();
+        process.StandardInput.Close();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await process.WaitForExitAsync(timeout.Token);
+        var stdout = await process.StandardOutput.ReadToEndAsync(timeout.Token);
+        var stderr = await process.StandardError.ReadToEndAsync(timeout.Token);
+
+        Assert.Equal(string.Empty, stderr);
+        Assert.Equal(0, process.ExitCode);
+        using var result = JsonDocument.Parse(stdout);
+        Assert.Equal(
+            "wordtoolkit.internal.appcontainer-probe/1.0",
+            result.RootElement.GetProperty("contract").GetString()
+        );
+        Assert.True(result.RootElement.GetProperty("is_app_container").GetBoolean());
+    }
+
+    [Fact]
+    public async Task AppContainerDeniesNetworkAndUnbrokeredFilesAndKeepsBrokerReadOnly()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-appcontainer-test-" + Guid.NewGuid().ToString("N")
+        );
+        var unbrokeredDirectory = Path.Combine(directory, "unbrokered");
+        var brokeredDirectory = Path.Combine(directory, "brokered");
+        Directory.CreateDirectory(unbrokeredDirectory);
+        Directory.CreateDirectory(brokeredDirectory);
+        var unbrokeredRead = Path.Combine(unbrokeredDirectory, "read.bin");
+        var unbrokeredWrite = Path.Combine(unbrokeredDirectory, "write.bin");
+        var brokeredRead = Path.Combine(brokeredDirectory, "read.bin");
+        var brokeredWrite = Path.Combine(brokeredDirectory, "write.bin");
+        File.WriteAllBytes(unbrokeredRead, [1]);
+        File.WriteAllBytes(brokeredRead, [2]);
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        try
+        {
+            var command = OcrProviderHostCommand.Current() with
+            {
+                InternalArgument = "--internal-appcontainer-probe",
+            };
+            var profile = WindowsAppContainerProfile.CreateOrOpenOcrProviderProfile();
+            foreach (var readableDirectory in new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                Path.GetDirectoryName(command.ExecutablePath)!,
+                Path.GetDirectoryName(command.AssemblyIdentityPath)!,
+                brokeredDirectory,
+            })
+            {
+                profile.GrantReadExecuteToDirectory(readableDirectory);
+            }
+            var temporaryDirectory = Path.Combine(profile.FolderPath, "Temp");
+            var systemRoot = Environment.GetEnvironmentVariable("SystemRoot")!;
+            var environment = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["SystemRoot"] = systemRoot,
+                ["WINDIR"] = systemRoot,
+                ["LOCALAPPDATA"] = profile.FolderPath,
+                ["TEMP"] = temporaryDirectory,
+                ["TMP"] = temporaryDirectory,
+            };
+            if (command.PassAssemblyAsArgument)
+            {
+                environment["DOTNET_ROOT"] = Path.GetDirectoryName(command.ExecutablePath)!;
+            }
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            var request = JsonSerializer.Serialize(new
+            {
+                contract = "wordtoolkit.internal.appcontainer-probe-request/1.0",
+                unbrokered_read_path = unbrokeredRead,
+                unbrokered_write_path = unbrokeredWrite,
+                brokered_read_path = brokeredRead,
+                brokered_write_path = brokeredWrite,
+                loopback_port = port,
+            }, JsonDefaults.Compact);
+
+            using var process = WindowsAppContainerProcess.LaunchSuspended(
+                command,
+                profile,
+                environment,
+                temporaryDirectory
+            );
+            using var job = WindowsJobObject.Create(512L * 1024 * 1024, 2);
+            job.Attach(process.ProcessHandle);
+            process.Resume();
+            await process.StandardInput.WriteAsync(request);
+            await process.StandardInput.FlushAsync();
+            process.StandardInput.Close();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            await process.WaitForExitAsync(timeout.Token);
+            var stdout = await process.StandardOutput.ReadToEndAsync(timeout.Token);
+            var stderr = await process.StandardError.ReadToEndAsync(timeout.Token);
+
+            Assert.Equal(string.Empty, stderr);
+            Assert.Equal(0, process.ExitCode);
+            using var result = JsonDocument.Parse(stdout);
+            var root = result.RootElement;
+            Assert.True(root.GetProperty("is_app_container").GetBoolean());
+            Assert.False(root.GetProperty("unbrokered_read_succeeded").GetBoolean());
+            Assert.False(root.GetProperty("unbrokered_write_succeeded").GetBoolean());
+            Assert.True(root.GetProperty("brokered_read_succeeded").GetBoolean());
+            Assert.False(root.GetProperty("brokered_write_succeeded").GetBoolean());
+            Assert.False(root.GetProperty("loopback_connect_succeeded").GetBoolean());
+            Assert.False(listener.Pending());
+            Assert.False(File.Exists(unbrokeredWrite));
+            Assert.False(File.Exists(brokeredWrite));
+        }
+        finally
+        {
+            listener.Stop();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Fact]
     public void ClosedProtocolRoundTripsBoundRequestSuccessAndError()
     {
@@ -274,6 +454,11 @@ public sealed class OcrProviderHostTests
             );
             Assert.True(json.RootElement.GetProperty("stable_typed_results").GetBoolean());
             Assert.False(json.RootElement.GetProperty("recognized_text_returned").GetBoolean());
+            var boundary = json.RootElement.GetProperty("process_boundary");
+            Assert.True(boundary.GetProperty("app_container_enforced").GetBoolean());
+            Assert.True(boundary.GetProperty("network_isolation_enforced").GetBoolean());
+            Assert.True(boundary.GetProperty("filesystem_brokered").GetBoolean());
+            Assert.True(boundary.GetProperty("sandbox_claimed").GetBoolean());
             Assert.DoesNotContain(directory, output.ToString(), StringComparison.Ordinal);
             Assert.DoesNotContain("recognized\"", output.ToString(), StringComparison.Ordinal);
 

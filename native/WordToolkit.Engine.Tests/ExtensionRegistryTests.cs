@@ -208,6 +208,87 @@ public sealed class ExtensionRegistryTests
     }
 
     [Fact]
+    public void AppContainerSandboxClaimRequiresBrokeredFilesystemAndNoNetwork()
+    {
+        var maximum = new WordToolkitExtensionResourceLimits(
+            1024,
+            1024,
+            1,
+            5000,
+            MaxProcessMemoryBytes: 4096
+        );
+        var policy = new WordToolkitExtensionPolicy(
+            ["wordtoolkit.test.sandbox"],
+            [WordToolkitExtensionTrust.BuiltIn],
+            [WordToolkitExtensionIsolation.OutOfProcess],
+            [
+                new WordToolkitExtensionInterfaceSupport(
+                    "wordtoolkit.test-interface",
+                    "1.0",
+                    WordToolkitExtensionKind.Validator
+                ),
+            ],
+            WordToolkitExtensionPermission.FilesystemRead
+                | WordToolkitExtensionPermission.FilesystemWrite
+                | WordToolkitExtensionPermission.Network,
+            maximum
+        );
+        var descriptor = Extension("wordtoolkit.test.sandbox") with
+        {
+            Isolation = WordToolkitExtensionIsolation.OutOfProcess,
+        };
+        var capability = Capability("wordtoolkit.capability.sandbox") with
+        {
+            Permissions = WordToolkitExtensionPermission.FilesystemRead
+                | WordToolkitExtensionPermission.FilesystemWrite,
+            ResourceLimits = maximum,
+            TimeoutEnforcement = WordToolkitExtensionTimeoutEnforcement.ProcessBoundary,
+            SandboxProfile = WordToolkitExtensionSandboxProfile.WindowsAppContainerNoNetworkBrokeredFilesystem,
+        };
+
+        var builder = new WordToolkitExtensionRegistryBuilder(policy);
+        builder.Register<ITestCapability>(
+            descriptor,
+            capability,
+            new ProcessBoundaryEchoCapability()
+        );
+        var item = Assert.Single(
+            new InspectExtensionCatalogOperation(builder.Build()).Execute(
+                new InspectExtensionCatalogRequest()
+            ).Items
+        );
+        Assert.Equal(capability.SandboxProfile, item.SandboxProfile);
+
+        Assert.Equal(
+            "EXTENSION_REGISTRATION_INVALID",
+            Assert.Throws<WordToolkitExtensionException>(() =>
+                new WordToolkitExtensionRegistryBuilder(policy).Register<ITestCapability>(
+                    descriptor,
+                    capability with
+                    {
+                        Permissions = capability.Permissions
+                            | WordToolkitExtensionPermission.Network,
+                    },
+                    new ProcessBoundaryEchoCapability()
+                )
+            ).Code
+        );
+        Assert.Equal(
+            "EXTENSION_REGISTRATION_INVALID",
+            Assert.Throws<WordToolkitExtensionException>(() =>
+                new WordToolkitExtensionRegistryBuilder(policy).Register<ITestCapability>(
+                    descriptor,
+                    capability with
+                    {
+                        Permissions = WordToolkitExtensionPermission.FilesystemRead,
+                    },
+                    new ProcessBoundaryEchoCapability()
+                )
+            ).Code
+        );
+    }
+
+    [Fact]
     public void BuilderRejectsDuplicatesConflictsAndUseAfterFreeze()
     {
         var builder = Builder("wordtoolkit.test.allowed");

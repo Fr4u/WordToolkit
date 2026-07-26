@@ -85,11 +85,13 @@ WordToolkit deliberately avoids claiming complete Microsoft Word parity.
 - The optional Microsoft Open XML SDK validator is built in Docker. Local Python-only environments report it unavailable and rely on WordToolkit's structural validator.
 - The built-in Tesseract adapter now executes behind closed JSON IPC and a Windows Job
   Object with a 1 GiB aggregate memory ceiling, three-process limit, kill-on-close and a
-  hard timeout. This contains provider crashes, ignored cancellation and runaway resource
-  use; it does not lower the Windows token, block network access or broker filesystem
-  access. A malicious configured executable still has the user's OS authority. The
-  boundary is qualified only on Windows 8+/Server 2012+ job semantics; other native hosts
-  fail closed instead of silently weakening isolation.
+  hard timeout, inside a capability-free AppContainer. The host brokers read/execute access
+  to the exact runtime/provider/model directories, confines writes to the private profile
+  and grants no network capability. This is not a VM: files already exposed by machine
+  ACLs to all AppPackages can remain readable; kernel attack surface, signed-provider
+  provenance, generic third-party lifecycle, syscall/Win32k mitigation and hostile image
+  codec fuzzing remain incomplete. Non-Windows native hosts fail closed instead of silently
+  weakening isolation.
 - OAuth tokens are verified against an external standards-compliant identity provider; WordToolkit is a resource server and does not implement user login or dynamic client registration itself.
 - Session metadata and locks are in process memory. Production is limited to one application replica until a shared backend is implemented.
 - The remote service's 33 ordinary draft mutators are now isolated copy-on-write

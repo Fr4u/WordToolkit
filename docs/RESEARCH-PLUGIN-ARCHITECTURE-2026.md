@@ -149,6 +149,38 @@ same 16,734-byte PNG. All fourteen typed result hashes were identical. Direct me
 Raw evidence is checked in at
 `docs/benchmarks/ocr-provider-process-boundary-2026-07-26.json`.
 
+## Permission boundary — 0.58
+
+The OCR proxy now creates its child suspended inside a stable per-user AppContainer with
+no capability SIDs, attaches the raw process handle to the Job Object and resumes only
+after assignment. The host verifies exact absolute reparse-free paths before adding the
+AppContainer package SID as a read/execute principal on the runtime, provider and model
+directories. A minimal environment points `TEMP`, `TMP` and `LOCALAPPDATA` to the private
+profile. The catalog binds this implementation as
+`windows_app_container_no_network_brokered_filesystem`; a proxy whose profile is `none`
+inherits none of those claims.
+
+The implementation follows Microsoft's documented AppContainer identity, dual-principal
+ACL and capability rules: [AppContainer isolation](https://learn.microsoft.com/en-us/windows/win32/secauthz/appcontainer-isolation),
+[launching an AppContainer](https://learn.microsoft.com/en-us/windows/win32/secauthz/implementing-an-appcontainer)
+and [CreateAppContainerProfile](https://learn.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-createappcontainerprofile).
+The newer [Create Process In Sandbox APIs](https://learn.microsoft.com/en-us/windows/win32/secauthz/createprocessinsandbox)
+remain experimental, Windows-11-only and headerless, so they are not used as the release
+boundary. An executed probe inside the real child proved an AppContainer token, denied
+unbrokered user-file read/write, allowed a brokered read while denying its write, and
+failed to connect to a listening localhost socket. Real Tesseract recognition then passed
+through the same child and inherited process tree.
+
+The claim is deliberately narrower than “no filesystem.” The AppContainer owns a private
+writable profile and can still read machine resources already exposed to all AppPackages
+by their existing ACLs. No Win32k syscall-disable mitigation or signed provider package
+policy exists yet.
+
+The package-exact seven-sample benchmark preserves one typed-result hash across all 14
+direct/AppContainer calls. Direct median is 324.6673 ms; AppContainer median is 743.9256 ms,
+a measured +419.2583 ms / +129.13% cost. The stripped input PNG is checked in and reproduced
+byte-for-byte in a second independent ImageMagick generation.
+
 ## Honest limits
 
 - A cooperative timeout cancels code that observes the supplied token. It cannot safely
@@ -160,10 +192,8 @@ Raw evidence is checked in at
 - No third-party assembly discovery, installation, signature verification, dependency
   resolver, unload lifecycle or hot reload exists yet.
 - Out-of-process registration currently covers only the built-in OCR proxy. There is no
-  signed third-party package discovery, dependency installation, restricted token,
-  AppContainer, network isolation, filesystem broker or generic provider lifecycle.
-- Job assignment occurs before the parent publishes the request, so provider execution
-  cannot begin first. The WordToolkit child itself necessarily starts before assignment;
-  pre-assignment memory operations are not retroactively examined by
-  `AssignProcessToJobObject`, which is why identity binding and the no-request/no-provider
-  startup state are separate invariants.
+  signed third-party package discovery, dependency installation or generic provider
+  lifecycle. The AppContainer profile is implemented only by the built-in OCR proxy.
+- The process is created suspended, assigned to the Job and then resumed, eliminating the
+  earlier pre-assignment child-execution window. Provider execution still depends on the
+  Windows AppContainer and Job Object implementations rather than a hypervisor boundary.

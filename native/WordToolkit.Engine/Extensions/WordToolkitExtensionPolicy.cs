@@ -133,6 +133,13 @@ public sealed class WordToolkitExtensionPolicy
             );
         }
         if (
+            extension.Isolation == WordToolkitExtensionIsolation.TrustedInProcess
+            && capability.SandboxProfile != WordToolkitExtensionSandboxProfile.None
+        )
+        {
+            throw Invalid("An in-process extension cannot claim a sandbox profile.");
+        }
+        if (
             extension.Isolation == WordToolkitExtensionIsolation.OutOfProcess
             && capability.TimeoutEnforcement
                 != WordToolkitExtensionTimeoutEnforcement.ProcessBoundary
@@ -149,6 +156,25 @@ public sealed class WordToolkitExtensionPolicy
         {
             throw Invalid(
                 "An out-of-process extension must declare a positive process-memory ceiling."
+            );
+        }
+        if (
+            capability.SandboxProfile
+                == WordToolkitExtensionSandboxProfile.WindowsAppContainerNoNetworkBrokeredFilesystem
+            && (
+                extension.Isolation != WordToolkitExtensionIsolation.OutOfProcess
+                || !capability.Permissions.HasFlag(
+                    WordToolkitExtensionPermission.FilesystemRead
+                )
+                || !capability.Permissions.HasFlag(
+                    WordToolkitExtensionPermission.FilesystemWrite
+                )
+                || capability.Permissions.HasFlag(WordToolkitExtensionPermission.Network)
+            )
+        )
+        {
+            throw Invalid(
+                "The AppContainer broker profile requires out-of-process filesystem read/write declarations and forbids network permission. Writes remain confined to the private profile by the host implementation."
             );
         }
 

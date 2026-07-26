@@ -50,7 +50,7 @@ public sealed class ExtensionCatalogTests
             ocrItem.Kind
         );
         Assert.Equal(
-            ["filesystem_read", "read_document_content", "spawn_process"],
+            ["filesystem_read", "filesystem_write", "read_document_content", "spawn_process"],
             ocrItem.Permissions
         );
         Assert.True(ocrItem.CapabilityReturnsDocumentContent);
@@ -62,6 +62,10 @@ public sealed class ExtensionCatalogTests
         Assert.Equal(
             WordToolkit.Engine.Extensions.WordToolkitExtensionTimeoutEnforcement.ProcessBoundary,
             ocrItem.TimeoutEnforcement
+        );
+        Assert.Equal(
+            WordToolkit.Engine.Extensions.WordToolkitExtensionSandboxProfile.WindowsAppContainerNoNetworkBrokeredFilesystem,
+            ocrItem.SandboxProfile
         );
         Assert.Equal(
             WordToolkit.Native.Ocr.ProcessBoundaryTesseractOcrProvider.MaximumProcessMemoryBytes,

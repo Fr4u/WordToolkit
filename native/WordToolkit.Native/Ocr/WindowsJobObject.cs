@@ -81,7 +81,16 @@ internal sealed class WindowsJobObject : IDisposable
     internal void Attach(Process process)
     {
         ArgumentNullException.ThrowIfNull(process);
-        if (_handle == IntPtr.Zero || !AssignProcessToJobObject(_handle, process.Handle))
+        Attach(process.Handle);
+    }
+
+    internal void Attach(IntPtr processHandle)
+    {
+        if (
+            _handle == IntPtr.Zero
+            || processHandle == IntPtr.Zero
+            || !AssignProcessToJobObject(_handle, processHandle)
+        )
         {
             throw new Win32Exception(Marshal.GetLastWin32Error());
         }

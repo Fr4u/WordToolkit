@@ -50,7 +50,8 @@ public sealed record ExtensionCatalogCapabilityItem(
     WordToolkitExtensionTimeoutEnforcement TimeoutEnforcement,
     bool Deterministic,
     bool Idempotent,
-    bool CapabilityReturnsDocumentContent
+    bool CapabilityReturnsDocumentContent,
+    WordToolkitExtensionSandboxProfile SandboxProfile
 );
 
 public sealed record InspectExtensionCatalogResult(
@@ -178,7 +179,8 @@ public sealed class InspectExtensionCatalogOperation
         capability.TimeoutEnforcement,
         capability.Deterministic,
         capability.Idempotent,
-        capability.ReturnsDocumentContent
+        capability.ReturnsDocumentContent,
+        capability.SandboxProfile
     );
 
     private static bool Matches(ExtensionCatalogCapabilityItem item, string query) =>

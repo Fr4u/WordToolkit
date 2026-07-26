@@ -25,11 +25,11 @@ publisher, kind or interface and keep the page small. The result is a frozen, SH
 catalog only: it reads no document, opens no Word instance, scans or loads no assembly,
 uses no network and returns no implementation type or path. Treat
 `trusted_in_process` and `cooperative` literally. They are not a sandbox or a hard-kill
-timeout. The built-in OCR adapter reports `out_of_process` and `process_boundary`: its
-closed IPC, host identity, 1 GiB Job Object memory ceiling, three-process limit and hard
-tree termination contain failures and resource growth. They do not provide a restricted
-Windows token, network isolation or filesystem brokering, so never call it a permission
-sandbox.
+timeout. The built-in OCR adapter reports `out_of_process`, `process_boundary` and
+`windows_app_container_no_network_brokered_filesystem`: its closed IPC, AppContainer,
+explicit provider read roots, private writable profile, 1 GiB Job Object memory ceiling,
+three-process limit and hard tree termination form the enforced sandbox. Do not generalize
+that profile to other out-of-process capabilities whose `sandbox_profile` is `none`.
 
 Use lazy `inspect_wordtoolkit_observability` only to diagnose runtime health. Start with
 `view=summary`; request a small event page only when counts are insufficient. Audit is off

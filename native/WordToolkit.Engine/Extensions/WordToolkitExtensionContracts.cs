@@ -36,6 +36,12 @@ public enum WordToolkitExtensionTimeoutEnforcement
     ProcessBoundary,
 }
 
+public enum WordToolkitExtensionSandboxProfile
+{
+    None,
+    WindowsAppContainerNoNetworkBrokeredFilesystem,
+}
+
 [Flags]
 public enum WordToolkitExtensionPermission
 {
@@ -97,7 +103,8 @@ public sealed record WordToolkitExtensionCapabilityDescriptor(
     WordToolkitExtensionTimeoutEnforcement TimeoutEnforcement,
     bool Deterministic,
     bool Idempotent,
-    bool ReturnsDocumentContent
+    bool ReturnsDocumentContent,
+    WordToolkitExtensionSandboxProfile SandboxProfile = WordToolkitExtensionSandboxProfile.None
 );
 
 public sealed record WordToolkitExtensionInterfaceSupport(

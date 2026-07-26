@@ -13,8 +13,12 @@ does not expose a listening port.
 The built plugin contains a self-contained `runtime/win-x64/wordtoolkit-native.exe`.
 It does not contain or launch Python, `uv`, a virtual environment or an interpreter
 helper. Explicit OCR recognition launches one bounded copy of the native runtime as its
-Job Object process boundary; ordinary startup and non-provider actions do not. Document
-sessions are owned by the native process and the attached Word application.
+AppContainer/Job Object process boundary; ordinary startup and non-provider actions do
+not. The first OCR call creates or opens the per-user
+`WordToolkit.OcrProviderHost.v1` AppContainer profile and adds its package SID as a
+read/execute principal on the exact runtime, provider and model directories. The child has
+no network capability; its writes are confined to the private AppContainer profile.
+Document sessions are owned by the native process and the attached Word application.
 Saved-package actions accept explicit local paths according to their individual schemas.
 
 The executable is also a non-interactive automation CLI. Saved-package inspection uses

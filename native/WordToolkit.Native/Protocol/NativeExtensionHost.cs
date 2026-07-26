@@ -59,6 +59,7 @@ internal static class NativeExtensionHost
             WordToolkitExtensionPermission.ReadPackage
                 | WordToolkitExtensionPermission.ReadDocumentContent
                 | WordToolkitExtensionPermission.FilesystemRead
+                | WordToolkitExtensionPermission.FilesystemWrite
                 | WordToolkitExtensionPermission.SpawnProcess,
             policyLimits
         );
@@ -105,6 +106,7 @@ internal static class NativeExtensionHost
                 WordOcrProviderContract.InterfaceVersion,
                 WordToolkitExtensionPermission.ReadDocumentContent
                     | WordToolkitExtensionPermission.FilesystemRead
+                    | WordToolkitExtensionPermission.FilesystemWrite
                     | WordToolkitExtensionPermission.SpawnProcess,
                 new WordToolkitExtensionResourceLimits(
                     MaxInputBytes: 32L * 1024 * 1024,
@@ -116,7 +118,8 @@ internal static class NativeExtensionHost
                 WordToolkitExtensionTimeoutEnforcement.ProcessBoundary,
                 Deterministic: false,
                 Idempotent: true,
-                ReturnsDocumentContent: true
+                ReturnsDocumentContent: true,
+                SandboxProfile: WordToolkitExtensionSandboxProfile.WindowsAppContainerNoNetworkBrokeredFilesystem
             ),
             new ProcessBoundaryTesseractOcrProvider()
         );

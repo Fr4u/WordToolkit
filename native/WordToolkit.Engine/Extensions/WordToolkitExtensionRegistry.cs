@@ -402,6 +402,7 @@ public sealed class WordToolkitExtensionRegistry
                 Add(canonical, capability.Deterministic ? "1" : "0");
                 Add(canonical, capability.Idempotent ? "1" : "0");
                 Add(canonical, capability.ReturnsDocumentContent ? "1" : "0");
+                Add(canonical, capability.SandboxProfile.ToString());
             }
         }
         return Convert.ToHexString(

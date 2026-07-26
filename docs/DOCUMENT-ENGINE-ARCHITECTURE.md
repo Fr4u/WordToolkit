@@ -1728,13 +1728,17 @@ fresh native child per recognition. The closed JSON IPC binds a random request i
 typed input/output, host executable/assembly hashes and strict size/depth/member limits.
 The Windows host attaches the waiting child to a Job Object before sending the request,
 with a 1 GiB aggregate memory ceiling, at most three processes, kill-on-close and hard
-timeout/tree termination. The public catalog reports `out_of_process`,
-`process_boundary` and the memory ceiling.
+timeout/tree termination. In 0.58 the child is created suspended inside a capability-free
+AppContainer, attached to the Job and only then resumed. The host brokers package-SID
+read/execute access to its runtime and the exact verified provider/model directories;
+writes go only to the private AppContainer profile. The public catalog reports
+`out_of_process`, `process_boundary`, the memory ceiling and
+`windows_app_container_no_network_brokered_filesystem`.
 
-This does not make the provider untrusted-safe. The child inherits the caller's Windows
-token; restricted identity/AppContainer, filesystem brokering and network isolation are
-not implemented. The boundary contains crashes, ignored cancellation and resource growth,
-while explicit path/model hashing supplies provenance. Matching hashes still do not prove
+The sandbox probe confirms the AppContainer token, denied access to an unbrokered user
+file, read-only access to one explicitly brokered directory and denied localhost TCP.
+Windows resources already granted to all AppPackages by machine ACL remain visible, and
+the private profile remains writable. Matching provider/model hashes still do not prove
 determinism because dynamic dependencies and the complete host environment remain unbound.
 Arbitrary third-party assemblies are still never discovered or loaded, and generic
 `exec`/`eval` tools remain forbidden. The research and remaining boundary are recorded in

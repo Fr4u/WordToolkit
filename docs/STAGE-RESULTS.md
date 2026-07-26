@@ -1,5 +1,55 @@
 # Stage results
 
+# WordToolkit 0.58.0 AppContainer OCR permission sandbox - 2026-07-26
+
+- The OCR child is created suspended in the stable per-user
+  `WordToolkit.OcrProviderHost.v1` AppContainer with zero capability SIDs, attached to the
+  existing Job Object and only then resumed. The 1 GiB aggregate memory ceiling,
+  three-process limit, kill-on-close and hard timeout continue to apply to Tesseract and
+  its complete child tree.
+- The trusted parent verifies every host/provider/model path as absolute, local and
+  reparse-free before adding the AppContainer package SID as a read/execute principal on
+  the exact directories. The child's writable environment points only to its private
+  profile; no network capability is granted. Existing all-AppPackages machine ACLs remain
+  an explicit, documented source of read visibility.
+- Extension policy and the content-free catalog now bind
+  `windows_app_container_no_network_brokered_filesystem`. The profile requires an
+  out-of-process host proxy, hard timeout/memory controls, filesystem read/write
+  declarations and no network permission. In-process or contradictory claims fail closed.
+- The real internal probe reported an AppContainer token, denied unbrokered file read and
+  write, allowed a brokered read, denied its write and failed to connect to a listening
+  localhost socket. Real gated Tesseract recognition of an embedded DOCX scan passed
+  afterward through the same boundary with unchanged source hash and no Word invocation.
+- The checked-in stripped 15,283-byte PNG reproduces at SHA-256
+  `a8ff46458b7d6b4ec59557213d9280fd7e1f93de5c54f2834b0cbe854a4fb32c`.
+  Seven alternating samples through the exact self-contained release executable kept one
+  result hash across all 14 calls. Direct median was 324.6673 ms; AppContainer median was
+  743.9256 ms, +419.2583 ms / +129.13%. The raw content-free result is
+  `docs/benchmarks/ocr-provider-appcontainer-2026-07-26.json`.
+- Pinned SDK 8.0.423 passes 765 Engine, 12 LibreOffice and 557 Native tests. Ruff passes;
+  Python compatibility passes 1,318 tests with 16 intentional skips. Two independent
+  package builds contain 197 files/90,070,384 bytes and byte-identical 37,582,800-byte ZIPs
+  at SHA-256 `9fae274cb015bb93cae3b02f3b3b7b91b47c796b620b168b05e581ab406fe56b`.
+  Executable, runtime assembly, Engine, LibreOffice and Open XML SDK hashes are
+  `95c8941c765e24fb6b8acac56d0267c0d1c9dd1bdacf624fe59df0e6c636aad5`,
+  `a818df3f48b22442121ec9b38fccdf1a28743211fdf8dcfb5f1f9c7a57410df8`,
+  `b0c504207410ace0e1647b11425efac2dcdc9910bbd8b0e1658f55b1b2bbd4c8`,
+  `850e133daeed2cb5bb2edb7067916371a0a509f28f83fb6b6aafc9971c8783e3`
+  and `7af15503725751bae19b00d204675ad9b608c2bc28a1765ecc563744482dc1fe`.
+- Installed and enabled `0.58.0+codex.20260726223051`; candidate, persistent source and
+  active cache have identical 197-path length/hash maps. Installed full-response MCP
+  catalog SHA-256 is
+  `334192c71d41b74a88ac4bd60e88d996feb12936504ea0bd4e9f3fe0fe441dff`.
+  The OCR item reports `out_of_process`, `process_boundary`, the 1 GiB ceiling,
+  filesystem read/write, no network permission and
+  `windows_app_container_no_network_brokered_filesystem`; exact implementation/executable/
+  assembly path properties are absent. A three-sample real OCR smoke from the active cache
+  preserved result SHA-256
+  `c674335b9fc441e56fd04a24fc7f92acbe865ddc2883ab2898297d569affa0cc`
+  and returned no recognized text. Version 0.57 is preserved at
+  `C:\Users\Admin\plugins\wordtoolkit.backup-0.57.0-codex.20260726223051`.
+  Hosted qualification remains pending.
+
 # WordToolkit 0.57.0 isolated OCR provider process boundary - 2026-07-26
 
 - The extension registry now accepts `out_of_process` only through an explicit

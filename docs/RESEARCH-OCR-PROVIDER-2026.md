@@ -59,7 +59,7 @@ explicit provider configuration. It returns image dimensions, line/word boxes, n
 confidence, bounded text/warnings and provenance.
 
 The built-in `wordtoolkit.tesseract-cli` registration declares document-content read,
-filesystem-read and process-spawn permissions. It declares no network or credential
+filesystem-read/write and process-spawn permissions. It declares no network or credential
 permission. Execution:
 
 1. requires an absolute local-filesystem executable and model directory from the request or
@@ -88,10 +88,33 @@ Windows Job Object with a 1 GiB aggregate memory ceiling, three-process limit,
 kill-on-close and hard timeout/tree termination. A random request ID and pre/post host
 binary hashes bind the response to the intended invocation.
 
-That boundary contains crashes, ignored cancellation and resource growth; it is not a
-permission sandbox. The configured executable still runs with the user's OS token. There
-is no restricted token/AppContainer, network block, syscall policy or filesystem broker.
-Hashing and explicit paths provide identity/provenance, not reduced authority.
+In 0.58 the host creates the child suspended inside the stable per-user
+`WordToolkit.OcrProviderHost.v1` AppContainer, attaches it to the Job Object and only then
+resumes it. No capability SID is supplied, so AppContainer network access is denied. The
+parent verifies absolute reparse-free paths and grants the package SID read/execute access
+only to the host runtime and explicit provider/model directories. `TEMP`, `TMP` and
+`LOCALAPPDATA` point into the private AppContainer profile; declared filesystem-write use
+therefore describes the private scratch surface rather than authority to modify user
+documents. A hostile probe from the real child denied unbrokered file read/write, allowed
+one brokered read while denying its write and failed to connect to a listening localhost
+socket. This follows Microsoft's AppContainer dual-principal and capability model:
+[AppContainer isolation](https://learn.microsoft.com/en-us/windows/win32/secauthz/appcontainer-isolation),
+[launching an AppContainer](https://learn.microsoft.com/en-us/windows/win32/secauthz/implementing-an-appcontainer)
+and [profile creation](https://learn.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-createappcontainerprofile).
+The newer `Experimental_CreateProcessInSandbox` API was not used: Microsoft marks it
+Windows 11 experimental, exposes no public header and specifies a FlatBuffer contract;
+WordToolkit retains the documented Windows 8+ AppContainer APIs instead.
+
+This is still not an empty-filesystem VM. Machine resources whose existing ACLs already
+grant read access to all AppPackages can remain visible, the private profile is writable,
+and there is no Win32k syscall-disable policy. Hashing supplies provider provenance but
+does not prove that an unsigned configured binary is benevolent.
+
+The package-exact seven-sample benchmark uses the checked-in 15,283-byte stripped PNG and
+the self-contained 0.58 executable. All fourteen direct/AppContainer calls produced the
+same typed-result SHA-256. Direct median was 324.6673 ms and AppContainer median was
+743.9256 ms, a disclosed +419.2583 ms / +129.13% boundary cost. No recognized text is
+stored in `docs/benchmarks/ocr-provider-appcontainer-2026-07-26.json`.
 
 ## Privacy and stale-state rules
 

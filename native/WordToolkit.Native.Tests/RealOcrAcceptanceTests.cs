@@ -109,6 +109,10 @@ public sealed class RealOcrAcceptanceTests
 
             var response = JsonNode.Parse(output.ToString().Trim())!.AsObject();
             var structured = response["result"]!["structuredContent"]!;
+            Assert.True(
+                structured["ok"]!.GetValue<bool>(),
+                structured.ToJsonString(JsonDefaults.Indented)
+            );
             var schema = catalog.InspectAction(
                 OcrWordPackageContract.RecognizeOperationName
             )["tool"]!["outputSchema"]!.AsObject();

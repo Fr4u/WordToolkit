@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+## 0.58.0 — 2026-07-26
+
+- Moved the built-in OCR host from caller-token process containment into a real Windows
+  AppContainer with no capability SIDs. The child is created suspended, attached to the
+  existing 1 GiB/three-process/kill-on-close Job Object and only then resumed, eliminating
+  the pre-assignment execution window.
+- Added a package-SID filesystem broker. The trusted parent verifies absolute,
+  reparse-free host/provider/model paths and grants read/execute access only to those
+  directories. `TEMP`, `TMP` and `LOCALAPPDATA` point to the private writable AppContainer
+  profile; no network capability is granted. Existing machine ACLs for all AppPackages
+  remain an explicit limit rather than being hidden behind an empty-filesystem claim.
+- Added the compact catalog profile
+  `windows_app_container_no_network_brokered_filesystem`. Policy rejects that claim unless
+  the capability is out of process, declares filesystem read/write, uses the hard process
+  boundary and requests no network permission. The catalog hash binds the profile.
+- Added a strict internal sandbox probe and executed it through the real launcher. It
+  proved the AppContainer token, denied unbrokered user-file read/write, allowed one
+  brokered read while denying its write, and failed to connect to a listening localhost
+  socket. Real Tesseract OCR then passed through the same isolated process tree.
+- Added reproducible, stripped benchmark input at
+  `docs/benchmarks/ocr-provider-appcontainer-input.png`; two independent generations have
+  SHA-256 `a8ff46458b7d6b4ec59557213d9280fd7e1f93de5c54f2834b0cbe854a4fb32c`.
+  Seven alternating real-provider samples kept one exact typed-result hash across all 14
+  calls through the exact self-contained release executable. Direct median was 324.6673 ms
+  and AppContainer median 743.9256 ms: a disclosed +419.2583 ms / +129.13% security cost.
+  No recognized text is stored in the benchmark.
+- Pinned SDK 8.0.423 gates pass 765 Engine, 12 LibreOffice and 557 Native tests. Ruff is
+  clean and the retained Python compatibility lane passes 1,318 tests with 16 intentional
+  skips. Two independent 197-file, 90,070,384-byte package trees and their 37,582,800-byte
+  ZIPs are byte-identical at SHA-256
+  `9fae274cb015bb93cae3b02f3b3b7b91b47c796b620b168b05e581ab406fe56b`.
+- Installed and enabled `0.58.0+codex.20260726223051`. Candidate, persistent source and
+  active cache have zero path/length/hash differences. Installed full-response MCP reports
+  catalog SHA-256 `334192c71d41b74a88ac4bd60e88d996feb12936504ea0bd4e9f3fe0fe441dff`,
+  the AppContainer sandbox profile and no exact implementation/path properties. Installed
+  real OCR preserves the benchmark result hash and reports network isolation/filesystem
+  brokering without returning recognized text. Hosted qualification remains pending.
+
 ## 0.57.0 — 2026-07-26
 
 - Activated the first real `OutOfProcess`/`ProcessBoundary` extension path. The registry

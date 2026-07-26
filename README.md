@@ -262,11 +262,15 @@ wordtoolkit-native ocr-package --mode recognize --request run-ocr.json --format 
 The Tesseract capability now crosses a closed JSON process protocol. The host and request
 are hash/identity-bound before execution; a Windows Job Object applies a 1 GiB aggregate
 commit ceiling, at most three active processes, kill-on-close and hard timeout/tree
-termination. Only a small environment allowlist is inherited. This contains crashes,
-runaway memory and ignored cancellation, but the child still has the user's Windows token
-and direct access to the explicitly supplied executable/model paths. No restricted token,
-AppContainer, network block or filesystem broker exists, so the result is deliberately
-not called a permission sandbox. See
+termination. The waiting child is created inside a capability-free Windows AppContainer,
+then attached to the Job before it is resumed. The host grants package-SID read/execute
+access only to its runtime and the explicitly verified provider/model directories; writes
+are confined to the private AppContainer profile and no network capability is granted.
+An executed hostile probe proved denial of an unbrokered user file, denial of writes to a
+read-brokered directory and denial of a localhost TCP connection. Files already readable
+by all AppPackages under the machine's existing ACLs remain readable, so this is a concrete
+Windows sandbox profile rather than a claim that the child sees no operating-system files.
+See
 [`docs/RESEARCH-OCR-PROVIDER-2026.md`](docs/RESEARCH-OCR-PROVIDER-2026.md).
 
 Catalog results expose versioned interfaces, trust/isolation, declared permissions and
@@ -274,7 +278,10 @@ resource ceilings, including a process-memory ceiling when applicable, but no
 implementation type or assembly path. `trusted_in_process`/`cooperative` remains full
 process trust and best-effort cancellation. `out_of_process`/`process_boundary` proves
 only the registered host proxy and its declared hard process controls; it does not imply
-a restricted identity or brokered permissions. See
+a restricted identity or brokered permissions unless the same item reports a non-`none`
+`sandbox_profile`. The built-in OCR item reports
+`windows_app_container_no_network_brokered_filesystem`; other process proxies do not
+inherit that claim. See
 [`docs/RESEARCH-PLUGIN-ARCHITECTURE-2026.md`](docs/RESEARCH-PLUGIN-ARCHITECTURE-2026.md).
 
 Runtime observability is explicit and content-free. Telemetry and audit persistence are
@@ -1323,7 +1330,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is 0.57.0. The latest immutable public release remains
+The development manifest/runtime is 0.58.0. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:

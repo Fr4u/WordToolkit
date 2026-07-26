@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text;
 using WordToolkit.Engine.Extensions;
 using WordToolkit.Native.Ocr;
@@ -82,6 +83,28 @@ internal static class OcrProviderHostCli
                     requestId,
                     "EXTENSION_TIMEOUT",
                     retryable: true
+                )
+            );
+            return 70;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            await output.WriteLineAsync(
+                OcrProviderHostProtocol.SerializeError(
+                    requestId,
+                    "OCR_PROVIDER_ACCESS_DENIED",
+                    retryable: false
+                )
+            );
+            return 70;
+        }
+        catch (Win32Exception)
+        {
+            await output.WriteLineAsync(
+                OcrProviderHostProtocol.SerializeError(
+                    requestId,
+                    "OCR_PROVIDER_START_FAILED",
+                    retryable: false
                 )
             );
             return 70;

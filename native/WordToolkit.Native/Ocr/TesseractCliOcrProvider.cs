@@ -43,6 +43,7 @@ internal sealed class TesseractCliOcrProvider : IWordOcrProvider
         );
         cancellationToken = linked.Token;
         var started = Stopwatch.GetTimestamp();
+        var stage = "REQUEST";
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -66,24 +67,29 @@ internal sealed class TesseractCliOcrProvider : IWordOcrProvider
                 );
             }
 
+            stage = "PATH";
             var executablePath = ResolveExecutable(request.Configuration.ExecutablePath);
             var modelDirectory = ResolveModelDirectory(request.Configuration.ModelDirectory);
+            stage = "BINARY_HASH";
             var executableHash = HashFile(
                 executablePath,
                 128L * 1024 * 1024,
                 cancellationToken
             );
+            stage = "MODEL_HASH";
             var modelHashes = ValidateModels(
                 modelDirectory,
                 request.Languages,
                 cancellationToken
             );
             var modelSetHash = ModelSetHash(modelHashes);
+            stage = "VERSION_PROBE";
             var version = ProbeVersion(
                 executablePath,
                 RemainingTimeout(started, request.TimeoutMilliseconds, cancellationToken),
                 cancellationToken
             );
+            stage = "LANGUAGE_PROBE";
             var availableLanguages = ProbeLanguages(
                 executablePath,
                 modelDirectory,
@@ -114,6 +120,7 @@ internal sealed class TesseractCliOcrProvider : IWordOcrProvider
             "-c",
             "tessedit_create_tsv=1",
         };
+            stage = "RECOGNITION";
             var processResult = Run(
                 executablePath,
                 arguments,
@@ -144,6 +151,7 @@ internal sealed class TesseractCliOcrProvider : IWordOcrProvider
                     "The OCR provider output exceeded the configured character limit."
                 );
             }
+            stage = "POST_VERIFICATION";
             var executableHashAfter = HashFile(
                 executablePath,
                 128L * 1024 * 1024,
@@ -182,6 +190,22 @@ internal sealed class TesseractCliOcrProvider : IWordOcrProvider
                     NetworkUsed: false,
                     DeterministicForBoundInputs: false
                 )
+            );
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            throw Error(
+                $"OCR_PROVIDER_{stage}_ACCESS_DENIED",
+                "The OCR AppContainer could not read an explicitly bound provider resource.",
+                innerException: exception
+            );
+        }
+        catch (System.ComponentModel.Win32Exception exception)
+        {
+            throw Error(
+                $"OCR_PROVIDER_{stage}_START_FAILED",
+                "The OCR AppContainer could not start an explicitly bound provider process.",
+                innerException: exception
             );
         }
         catch (OperationCanceledException) when (
@@ -365,7 +389,21 @@ internal sealed class TesseractCliOcrProvider : IWordOcrProvider
         var root = Path.GetPathRoot(path);
         for (var current = path; current is not null; current = Path.GetDirectoryName(current))
         {
-            if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+            FileAttributes attributes;
+            try
+            {
+                attributes = File.GetAttributes(current);
+            }
+            catch (UnauthorizedAccessException) when (
+                !string.Equals(current, path, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                // The trusted process-boundary parent already verified every ancestor
+                // before granting the AppContainer the exact leaf resource. The child
+                // must not require metadata access outside that read-only grant.
+                break;
+            }
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
             {
                 throw Error(
                     "OCR_PROVIDER_UNAVAILABLE",
@@ -897,8 +935,9 @@ internal sealed class TesseractCliOcrProvider : IWordOcrProvider
     private static WordToolkitExtensionException Error(
         string code,
         string message,
-        bool retryable = false
-    ) => new(code, message, retryable);
+        bool retryable = false,
+        Exception? innerException = null
+    ) => new(code, message, retryable, innerException);
 
     private sealed record BoundedText(string Text, bool Truncated);
 

@@ -88,6 +88,7 @@ internal sealed class OcrProviderProcessHostClient : IOcrProviderHostClient
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+        var boundRequest = BindProviderConfiguration(request);
         var identity = OcrProviderHostIdentityResolver.ForPaths(
             _command.ExecutablePath,
             _command.AssemblyIdentityPath,
@@ -95,29 +96,21 @@ internal sealed class OcrProviderProcessHostClient : IOcrProviderHostClient
         );
         var requestId = OcrProviderHostProtocol.NewRequestId();
         var requestJson = OcrProviderHostProtocol.SerializeRequest(
-            request,
+            boundRequest,
             requestId,
             identity
         );
-        using var process = new Process { StartInfo = StartInfo(_command) };
         using var job = WindowsJobObject.Create(
             maximumProcessMemoryBytes,
             maximumActiveProcesses
         );
-        var processStarted = false;
+        using var process = StartIsolatedProcess(boundRequest);
         try
         {
-            if (!process.Start())
-            {
-                throw Error(
-                    "EXTENSION_START_FAILED",
-                    "The OCR process host could not be started."
-                );
-            }
-            processStarted = true;
             try
             {
-                job.Attach(process);
+                job.Attach(process.ProcessHandle);
+                process.Resume();
             }
             catch (Exception exception)
             {
@@ -236,59 +229,170 @@ internal sealed class OcrProviderProcessHostClient : IOcrProviderHostClient
         }
         finally
         {
-            if (processStarted && !process.HasExited)
+            if (!process.HasExited)
             {
                 TryKill(process, job);
             }
         }
     }
 
-    private static ProcessStartInfo StartInfo(OcrProviderHostCommand command)
+    private WindowsAppContainerProcess StartIsolatedProcess(
+        WordOcrProviderRequest request
+    )
     {
-        var start = new ProcessStartInfo
+        WindowsAppContainerProfile profile;
+        try
         {
-            FileName = command.ExecutablePath,
-            UseShellExecute = false,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true,
-            WorkingDirectory = Path.GetTempPath(),
-            StandardInputEncoding = new UTF8Encoding(false),
-            StandardOutputEncoding = new UTF8Encoding(false),
-            StandardErrorEncoding = new UTF8Encoding(false),
+            profile = WindowsAppContainerProfile.CreateOrOpenOcrProviderProfile();
+        }
+        catch (Exception exception)
+        {
+            throw Error(
+                "EXTENSION_SANDBOX_PROFILE_FAILED",
+                "The OCR AppContainer profile could not be created or opened.",
+                innerException: exception
+            );
+        }
+
+        try
+        {
+            var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                Path.GetDirectoryName(_command.ExecutablePath)!,
+                Path.GetDirectoryName(_command.AssemblyIdentityPath)!,
+                Path.GetDirectoryName(request.Configuration.ExecutablePath!)!,
+                request.Configuration.ModelDirectory!,
+            };
+            foreach (var directory in directories)
+            {
+                profile.GrantReadExecuteToDirectory(directory);
+            }
+        }
+        catch (Exception exception)
+        {
+            throw Error(
+                "EXTENSION_SANDBOX_BROKER_FAILED",
+                "The OCR AppContainer read-only resource grants could not be established.",
+                innerException: exception
+            );
+        }
+
+        try
+        {
+            var workingDirectory = Path.Combine(profile.FolderPath, "Temp");
+            return WindowsAppContainerProcess.LaunchSuspended(
+                _command,
+                profile,
+                AppContainerEnvironment(profile, _command),
+                workingDirectory
+            );
+        }
+        catch (Exception exception)
+        {
+            throw Error(
+                "EXTENSION_START_FAILED",
+                "The OCR process host could not be started inside its AppContainer boundary.",
+                innerException: exception
+            );
+        }
+    }
+
+    private static WordOcrProviderRequest BindProviderConfiguration(
+        WordOcrProviderRequest request
+    )
+    {
+        var executable = ResolveProviderPath(
+            request.Configuration.ExecutablePath,
+            TesseractCliOcrProvider.ExecutableEnvironmentVariable,
+            expectDirectory: false
+        );
+        var models = ResolveProviderPath(
+            request.Configuration.ModelDirectory,
+            TesseractCliOcrProvider.ModelDirectoryEnvironmentVariable,
+            expectDirectory: true
+        );
+        return request with
+        {
+            Configuration = new WordOcrProviderConfiguration(executable, models),
+        };
+    }
+
+    private static string ResolveProviderPath(
+        string? configured,
+        string environmentVariable,
+        bool expectDirectory
+    )
+    {
+        var value = string.IsNullOrWhiteSpace(configured)
+            ? Environment.GetEnvironmentVariable(environmentVariable)
+            : configured;
+        if (string.IsNullOrWhiteSpace(value) || !Path.IsPathFullyQualified(value))
+        {
+            throw Error(
+                "OCR_PROVIDER_UNAVAILABLE",
+                "The OCR provider requires explicit absolute executable and model paths."
+            );
+        }
+        var fullPath = Path.GetFullPath(value);
+        if (expectDirectory ? !Directory.Exists(fullPath) : !File.Exists(fullPath))
+        {
+            throw Error(
+                "OCR_PROVIDER_UNAVAILABLE",
+                "The configured OCR provider resource is unavailable."
+            );
+        }
+        VerifyNoReparsePoints(fullPath);
+        return fullPath;
+    }
+
+    private static void VerifyNoReparsePoints(string path)
+    {
+        var root = Path.GetPathRoot(path);
+        for (var current = path; current is not null; current = Path.GetDirectoryName(current))
+        {
+            if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw Error(
+                    "OCR_PROVIDER_UNAVAILABLE",
+                    "OCR provider paths cannot contain symbolic links or reparse points."
+                );
+            }
+            if (string.Equals(
+                Path.TrimEndingDirectorySeparator(current),
+                Path.TrimEndingDirectorySeparator(root ?? current),
+                StringComparison.OrdinalIgnoreCase
+            ))
+            {
+                break;
+            }
+        }
+    }
+
+    private static IReadOnlyDictionary<string, string> AppContainerEnvironment(
+        WindowsAppContainerProfile profile,
+        OcrProviderHostCommand command
+    )
+    {
+        var systemRoot = Environment.GetEnvironmentVariable("SystemRoot")
+            ?? Environment.GetEnvironmentVariable("WINDIR")
+            ?? throw Error(
+                "EXTENSION_ISOLATION_FAILED",
+                "The Windows system directory is unavailable for the OCR AppContainer."
+            );
+        var temporaryDirectory = Path.Combine(profile.FolderPath, "Temp");
+        var environment = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["SystemRoot"] = systemRoot,
+            ["WINDIR"] = systemRoot,
+            ["LOCALAPPDATA"] = profile.FolderPath,
+            ["TEMP"] = temporaryDirectory,
+            ["TMP"] = temporaryDirectory,
         };
         if (command.PassAssemblyAsArgument)
         {
-            start.ArgumentList.Add(command.AssemblyIdentityPath);
+            environment["DOTNET_ROOT"] = Path.GetDirectoryName(command.ExecutablePath)!;
         }
-        start.ArgumentList.Add("--internal-ocr-provider-host");
-        MinimizeEnvironment(start);
-        return start;
-    }
-
-    private static void MinimizeEnvironment(ProcessStartInfo start)
-    {
-        var inherited = start.Environment.ToArray();
-        start.Environment.Clear();
-        foreach (var name in new[]
-        {
-            "SystemRoot",
-            "WINDIR",
-            "TEMP",
-            "TMP",
-            "DOTNET_ROOT",
-            "DOTNET_ROOT(x86)",
-        })
-        {
-            var value = inherited.FirstOrDefault(pair =>
-                string.Equals(pair.Key, name, StringComparison.OrdinalIgnoreCase)
-            ).Value;
-            if (!string.IsNullOrEmpty(value))
-            {
-                start.Environment[name] = value;
-            }
-        }
+        return environment;
     }
 
     private static async Task<string> ReadBoundedAsync(
@@ -318,19 +422,12 @@ internal sealed class OcrProviderProcessHostClient : IOcrProviderHostClient
         return result.ToString();
     }
 
-    private static void TryKill(Process process, WindowsJobObject job)
+    private static void TryKill(WindowsAppContainerProcess process, WindowsJobObject job)
     {
         job.Terminate();
-        try
+        if (!process.HasExited)
         {
-            if (!process.HasExited)
-            {
-                process.Kill(entireProcessTree: true);
-            }
-        }
-        catch
-        {
-            // Job close remains the final process-tree kill boundary.
+            process.Kill();
         }
     }
 
@@ -345,7 +442,8 @@ internal sealed class OcrProviderProcessHostClient : IOcrProviderHostClient
 internal sealed record OcrProviderHostCommand(
     string ExecutablePath,
     string AssemblyIdentityPath,
-    bool PassAssemblyAsArgument
+    bool PassAssemblyAsArgument,
+    string InternalArgument = "--internal-ocr-provider-host"
 )
 {
     internal static OcrProviderHostCommand Current()

@@ -38,6 +38,15 @@ internal static class Program
             );
         }
 
+        if (args.Length == 1 && args[0] == "--internal-appcontainer-probe")
+        {
+            return await AppContainerProbeCli.RunAsync(
+                Console.In,
+                Console.Out,
+                Console.Error
+            );
+        }
+
         if (args.Length == 2 && args[0] == "--create-test-document")
         {
             var result = NativeTestDocument.Create(Path.GetFullPath(args[1]));

@@ -12,12 +12,16 @@ Untrusted inputs are OAuth tokens, MCP JSON, file URLs supplied by ChatGPT, ZIP 
 
 Local OCR uses one fresh, hash-bound WordToolkit child behind a duplicate/unknown-field-
 rejecting JSON protocol. A Windows Job Object limits the complete child tree to 1 GiB and
-three active processes, kills it on timeout/close and receives the request only after job
-assignment. The environment is minimized and raw stderr/paths/implementation details do
-not cross IPC. This is availability and resource containment, not an authorization
-boundary: the child keeps the caller's Windows token, and network/filesystem access is not
-brokered. Only explicit local provider/model paths are accepted, but a compromised binary
-at an approved path still has the caller's authority.
+three active processes and kills it on timeout/close. The child is created suspended in a
+capability-free AppContainer, attached to the Job, and only then resumed. The host verifies
+reparse-free absolute paths before granting the AppContainer package SID read/execute
+access to the exact host, provider and model directories. No network capability is granted;
+writes are confined to the AppContainer's private profile. Raw stderr, paths and
+implementation details do not cross IPC. An executed hostile probe denied unbrokered user
+file read/write, denied writes through the provider read broker and denied loopback TCP.
+Existing machine ACLs that independently grant access to all AppPackages still apply, and
+the private profile is writable, so this is a defined AppContainer policy rather than a
+fictional empty-filesystem VM. Arbitrary third-party package loading remains absent.
 
 ## Local native MCP and COM boundary
 
