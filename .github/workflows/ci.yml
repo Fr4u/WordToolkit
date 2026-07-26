@@ -47,7 +47,11 @@ jobs:
           executable="$(readlink -f "$(command -v libreoffice)")"
           test -n "$executable"
           test -f "$executable"
+          executable_sha256="$(sha256sum "$executable" | cut -d' ' -f1)"
+          printf 'qualified_libreoffice_version=%s\n' "$("$executable" --version | tr -d '\r')"
+          printf 'qualified_libreoffice_executable_sha256=%s\n' "$executable_sha256"
           WORDTOOLKIT_TEST_LIBREOFFICE_PATH="$executable" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_SHA256="$executable_sha256" \
             dotnet test native/WordToolkit.LibreOffice.Tests/WordToolkit.LibreOffice.Tests.csproj \
               -c Release --no-restore --logger "console;verbosity=normal"
 

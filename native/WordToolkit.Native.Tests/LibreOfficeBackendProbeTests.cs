@@ -268,15 +268,23 @@ public sealed class LibreOfficeBackendProbeTests
         {
             return;
         }
+        var expectedHash = Environment.GetEnvironmentVariable(
+            "WORDTOOLKIT_TEST_LIBREOFFICE_SHA256"
+        );
 
         var result = await new InspectLibreOfficeBackendOperation(
             new LibreOfficeBackendProbeProvider()
-        ).ExecuteAsync(new InspectLibreOfficeBackendRequest(path));
+        ).ExecuteAsync(new InspectLibreOfficeBackendRequest(path, expectedHash));
 
         Assert.True(result.Available);
         Assert.StartsWith("LibreOffice", result.Identity.Product, StringComparison.Ordinal);
         Assert.True(result.Capabilities.VersionProbeVerified);
         Assert.False(result.Capabilities.RenderingVerified);
+        if (expectedHash is not null)
+        {
+            Assert.Equal(expectedHash, result.Identity.ExecutableSha256);
+            Assert.True(result.Identity.ExpectedExecutableHashEnforced);
+        }
     }
 
     private static LibreOfficeBackendProbeProviderRequest Request(

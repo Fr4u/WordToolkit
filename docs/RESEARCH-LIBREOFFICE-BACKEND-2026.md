@@ -133,7 +133,8 @@ Version `0.49.0` implements item 1 through one shared operation contract:
   strict/duplicate JSON, closed capabilities and invalid provider evidence; Native tests
   cover CLI/MCP convergence and prove Microsoft Word is never invoked;
 - a dedicated Ubuntu CI lane installs `libreoffice-writer`, resolves the exact executable
-  path and runs the real version probe through the neutral adapter.
+  path, records its reported version and SHA-256, passes that digest as the adapter's
+  expected executable hash and runs the real version probe through the neutral adapter.
 
 The result intentionally discloses two further limits. A recognizable banner is not a
 vendor-signature/authenticity proof, and equal hashes before and after execution do not
