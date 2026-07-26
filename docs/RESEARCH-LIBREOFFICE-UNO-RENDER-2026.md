@@ -79,6 +79,13 @@ network isolation, syscall confinement, a complete hash closure over every dynam
 loaded LibreOffice module, vendor-signature proof or an atomic binding between the
 hashed path and the bytes mapped by the operating system.
 
+Downstream packages may expose `program/classes/libreoffice.jar` as a symlink to a
+distribution-owned archive under `/usr/share/java`. WordToolkit requires the caller to
+resolve that link first and binds the resolved regular file by SHA-256; it does not
+accept the symlink itself. The runtime render proves that the selected JAR can control
+the selected office build, but it is not package-manager or vendor-signature proof that
+both files came from the same release.
+
 `MacroExecutionMode=NEVER_EXECUTE` and `UpdateDocMode=NO_UPDATE` are explicit official
 load requests. Until adversarial fixtures prove that a macro and an external update do
 not produce observable effects, the public evidence must say “requested”, not

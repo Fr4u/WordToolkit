@@ -25,6 +25,7 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
             "no_vendor_signature_or_module_authenticity_proof",
             "no_atomic_executable_handle_binding",
             "dynamic_dependency_bytes_not_fully_bound",
+            "libreoffice_java_archive_version_affinity_not_proven",
             "filesystem_mount_network_status_not_proven_on_unix",
             "java_uno_local_context_released_by_one_shot_process_exit",
         }
@@ -578,28 +579,6 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
         {
             throw Error("UNSUPPORTED_FORMAT", "UNO rendering accepts Word OOXML packages");
         }
-        var programDirectory = Path.GetDirectoryName(libreOffice)!;
-        var jarProgramDirectory = Directory.GetParent(
-            Path.GetDirectoryName(libreOfficeJar)!
-        )?.FullName;
-        if (!string.Equals(
-                Path.GetFullPath(programDirectory).TrimEnd(
-                    Path.DirectorySeparatorChar,
-                    Path.AltDirectorySeparatorChar
-                ),
-                Path.GetFullPath(jarProgramDirectory ?? string.Empty).TrimEnd(
-                    Path.DirectorySeparatorChar,
-                    Path.AltDirectorySeparatorChar
-                ),
-                PathComparison
-            ))
-        {
-            throw Error(
-                "INVALID_INPUT",
-                "LibreOffice executable and libreoffice.jar must belong to one program directory"
-            );
-        }
-
         return request with
         {
             LibreOfficeExecutablePath = libreOffice,
@@ -1305,10 +1284,6 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
 
     private static string ArchitectureName(Architecture architecture) =>
         architecture.ToString().ToLowerInvariant();
-
-    private static StringComparison PathComparison => OperatingSystem.IsWindows()
-        ? StringComparison.OrdinalIgnoreCase
-        : StringComparison.Ordinal;
 
     private static WordToolkitOperationException Error(
         string code,
