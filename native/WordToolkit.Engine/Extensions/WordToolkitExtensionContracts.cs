@@ -42,6 +42,12 @@ public enum WordToolkitExtensionSandboxProfile
     WindowsAppContainerNoNetworkBrokeredFilesystem,
 }
 
+public enum WordToolkitExtensionProviderIdentityPolicy
+{
+    HostBuiltIn,
+    SignedManifestSessionPinned,
+}
+
 [Flags]
 public enum WordToolkitExtensionPermission
 {
@@ -104,7 +110,9 @@ public sealed record WordToolkitExtensionCapabilityDescriptor(
     bool Deterministic,
     bool Idempotent,
     bool ReturnsDocumentContent,
-    WordToolkitExtensionSandboxProfile SandboxProfile = WordToolkitExtensionSandboxProfile.None
+    WordToolkitExtensionSandboxProfile SandboxProfile = WordToolkitExtensionSandboxProfile.None,
+    WordToolkitExtensionProviderIdentityPolicy ProviderIdentityPolicy =
+        WordToolkitExtensionProviderIdentityPolicy.HostBuiltIn
 );
 
 public sealed record WordToolkitExtensionInterfaceSupport(

@@ -56,7 +56,10 @@ internal static class OcrProviderHostCli
                 );
             }
 
-            var result = (provider ?? new TesseractCliOcrProvider()).Recognize(
+            var result = (provider ?? new TesseractCliOcrProvider(
+                request.TrustBinding,
+                resourcesVerifiedByParent: true
+            )).Recognize(
                 request.ToProviderRequest(),
                 cancellationToken
             );

@@ -1,5 +1,57 @@
 # Stage results
 
+# WordToolkit 0.59.0 signed OCR provider identity - 2026-07-27
+
+- Local OCR now requires a strict ECDSA P-256 manifest verified against a host-owned
+  publisher-key store. It binds provider/publisher/key/interface identity, a maximum
+  366-day lifetime, the exact executable, every top-level runtime file and every allowed
+  model. Unknown/duplicate fields, wrong curves/algorithms, invalid signatures, stale
+  manifests, untrusted keys, extra files and changed bytes fail closed.
+- The first use opens and hashes every signed runtime/model file without write/delete
+  sharing and pins up to four configurations for the native-host session. This closes the
+  hash-to-loader change window. Exact top-level runtime membership is also rechecked before
+  child launch and after its result; a detected directory-set change fails the call instead
+  of returning stale success. Provider updates or manifest renewal require a host restart.
+- The extension catalog reports `signed_manifest_session_pinned` separately from the
+  existing `windows_app_container_no_network_brokered_filesystem` sandbox. AI/MCP OCR
+  requests contain no manifest, public/private key, signature or expected hash fields.
+- Local strict `ocr-provider-trust` keygen/issue/verify CLI lanes publish new artifacts
+  only and return neither paths nor private key material. A real 92-file Tesseract runtime
+  and `eng` model were issued and verified; the user-level manifest and trust-store hashes
+  are `21ad22caf61aa1b6cbd26b039d19102affafcbe48caa86f6373339c1a0cfb33f` and
+  `fa7b9a227c863925b407f9eed051bd18a21de972039f5c12f55ad986a52bbe6f`.
+- Real MCP OCR passed through signed identity, session pinning, AppContainer and Job Object
+  without opening Word or changing the source. The exact self-contained seven-sample
+  benchmark kept typed-result SHA-256
+  `c674335b9fc441e56fd04a24fc7f92acbe865ddc2883ab2898297d569affa0cc` across all 14
+  calls. Direct median is 300.4712 ms; signed AppContainer median is 585.0561 ms,
+  +284.5849 ms / +94.71%. No OCR text, path or private key is retained.
+- Pinned SDK 8.0.423 passes 765 Engine, 12 LibreOffice and 567 Native tests. The Python
+  compatibility lane passes 1,318 with 16 intentional skips; Ruff and `dotnet format` are
+  clean. The packaging script now resolves the pinned SDK explicitly after its Windows
+  PowerShell re-entry.
+- Two independently named release builds produce identical 197-file, 90,166,894-byte
+  trees with expanded-manifest SHA-256
+  `6f883df02e27931ccf20abf47298a866e78bef3b5c2aaac72b0797c612a63dff` and byte-identical
+  37,613,426-byte ZIPs at SHA-256
+  `c6817fbadfbebd701e88aac078f0e4894e496d142c81e3f7b0782f4d47f426a5`.
+  Executable/runtime/Engine/LibreOffice/OpenXmlSdk hashes are
+  `0fba84b135dac2470376cb45c656ef386f044cccd541006c94ebeaaca692bed6`,
+  `5b28d7218641fbd08daa5a5812d653281b84e02baab2855d2b3cd71619ce1236`,
+  `46ae5b012ba6e450340733d5ec23614f1b9b5804aab2ff0c886d4e2736a2a050`,
+  `f9be819f89ae06f9448298b4236538885451b531cc913894ddfead5da68e48b3` and
+  `5206901a7e0debd597ddced4b74e91ca3f7688b1e63080927b64168bc7bd066e`.
+- Installed and enabled `0.59.0+codex.20260727004624`. Candidate, persistent marketplace
+  source and active cache each contain 197 files / 90,166,894 bytes with zero path, length
+  or hash differences; the prior 0.58 source remains in a separate backup. Installed
+  discovery returns catalog SHA-256
+  `d62313d487baf4717f54cd334956fe82bbc6cc812e840300ddf6514a1b936afb`,
+  AppContainer isolation and `signed_manifest_session_pinned`, with no implementation path
+  or type. A three-sample run from the exact active-cache executable preserved the same
+  typed OCR result hash. User-level environment variables point to the signed public
+  manifest/trust store and explicit Tesseract/model roots; the private key is stored outside
+  the plugin tree under a non-inheriting ACL and is never returned by MCP.
+
 # WordToolkit 0.58.0 AppContainer OCR permission sandbox - 2026-07-26
 
 - The OCR child is created suspended in the stable per-user

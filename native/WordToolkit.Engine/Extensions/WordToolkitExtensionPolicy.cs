@@ -177,6 +177,24 @@ public sealed class WordToolkitExtensionPolicy
                 "The AppContainer broker profile requires out-of-process filesystem read/write declarations and forbids network permission. Writes remain confined to the private profile by the host implementation."
             );
         }
+        if (
+            capability.ProviderIdentityPolicy
+                == WordToolkitExtensionProviderIdentityPolicy.SignedManifestSessionPinned
+            && (
+                extension.Isolation != WordToolkitExtensionIsolation.OutOfProcess
+                || capability.TimeoutEnforcement
+                    != WordToolkitExtensionTimeoutEnforcement.ProcessBoundary
+                || capability.SandboxProfile == WordToolkitExtensionSandboxProfile.None
+                || !capability.Permissions.HasFlag(
+                    WordToolkitExtensionPermission.FilesystemRead
+                )
+            )
+        )
+        {
+            throw Invalid(
+                "A session-pinned signed provider identity requires an out-of-process sandbox, process-boundary timeout and filesystem-read permission."
+            );
+        }
 
         var (major, minor) = WordToolkitExtensionValidation.ParseContractVersion(
             extension.EngineContractVersion,

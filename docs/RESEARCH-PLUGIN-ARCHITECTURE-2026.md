@@ -173,13 +173,43 @@ through the same child and inherited process tree.
 
 The claim is deliberately narrower than “no filesystem.” The AppContainer owns a private
 writable profile and can still read machine resources already exposed to all AppPackages
-by their existing ACLs. No Win32k syscall-disable mitigation or signed provider package
-policy exists yet.
+by their existing ACLs. No Win32k syscall-disable mitigation exists yet.
 
 The package-exact seven-sample benchmark preserves one typed-result hash across all 14
 direct/AppContainer calls. Direct median is 324.6673 ms; AppContainer median is 743.9256 ms,
 a measured +419.2583 ms / +129.13% cost. The stripped input PNG is checked in and reproduced
 byte-for-byte in a second independent ImageMagick generation.
+
+## Signed provider identity — 0.59
+
+The OCR proxy now refuses an explicit executable path unless a strict host-owned manifest
+is signed by a P-256 key present in the host trust store. The manifest binds provider,
+publisher, key and interface identity, a bounded validity window, the executable, every
+top-level runtime file and every permitted model. Unknown/duplicate JSON, duplicate models
+or files, noncanonical base64, a wrong curve/algorithm, missing executable entry, stale
+time, an untrusted key, changed bytes, extra runtime files and unsafe paths fail closed.
+
+One native host pins up to four verified provider/model/language configurations. The first
+call hashes every signed byte while acquiring non-write-sharing file handles; those handles
+remain alive for the session and close the hash-to-loader rename/write race. Subsequent
+calls reuse the unchanged proof. The parent also re-enumerates the exact signed top-level
+runtime set immediately before launch and after the child result, rejecting detected
+directory-membership drift without pretending that the directory itself is locked. The
+catalog exposes
+`signed_manifest_session_pinned`. The exact binding crosses only the private child IPC.
+The AI request remains unchanged and contains no trust material. A local content-free CLI
+supports key generation, issuance and verification; it never prints paths or private keys.
+
+The exact 0.59 self-contained release benchmark alternates seven direct and seven signed
+AppContainer calls over the checked-in 15,283-byte PNG. All results keep the same typed
+hash. Direct median is 300.4712 ms and the complete signed isolated median is 585.0561 ms:
++284.5849 ms / +94.71%. Raw content-free evidence is stored in
+`docs/benchmarks/ocr-provider-signed-manifest-2026-07-27.json`.
+
+This is a signed local identity policy, not a generic provider marketplace. Trust still
+begins with the local trust-store ACL and publisher-key custody. The manifest does not bind
+Windows system DLLs. Revocation, secure update/uninstall, dependency resolution, archive
+installation, publisher transparency and generic third-party lifecycle remain open.
 
 ## Honest limits
 
@@ -189,10 +219,11 @@ byte-for-byte in a second independent ImageMagick generation.
 - Output size is checked before the result leaves the registry, but after the capability
   returns. Mutating extensions still require the engine's staged candidate, invariant
   proof and atomic publication transaction.
-- No third-party assembly discovery, installation, signature verification, dependency
-  resolver, unload lifecycle or hot reload exists yet.
+- No third-party assembly discovery, archive installation, dependency resolver, revocation,
+  unload lifecycle or hot reload exists yet. Signature verification currently binds only
+  the explicit local OCR provider runtime/model set.
 - Out-of-process registration currently covers only the built-in OCR proxy. There is no
-  signed third-party package discovery, dependency installation or generic provider
+  signed third-party archive discovery, dependency installation or generic provider
   lifecycle. The AppContainer profile is implemented only by the built-in OCR proxy.
 - The process is created suspended, assigned to the Job and then resumed, eliminating the
   earlier pre-assignment child-execution window. Provider execution still depends on the

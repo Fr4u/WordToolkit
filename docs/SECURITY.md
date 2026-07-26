@@ -19,9 +19,22 @@ access to the exact host, provider and model directories. No network capability 
 writes are confined to the AppContainer's private profile. Raw stderr, paths and
 implementation details do not cross IPC. An executed hostile probe denied unbrokered user
 file read/write, denied writes through the provider read broker and denied loopback TCP.
+Before any provider ACL is granted, the parent verifies a strict ECDSA P-256 signed
+provider manifest against a host-owned publisher-key store. The manifest binds the exact
+Tesseract executable, every top-level runtime file, every allowed language model, the
+provider interface and an expiry no more than 366 days after issuance. The first use pins
+read-only handles to every bound runtime/model file for the native-host session; replacement,
+write sharing and an unlisted runtime file fail closed. The compact extension catalog calls
+this `signed_manifest_session_pinned`. Manifest, key, signature and expected hashes remain
+host configuration and never enter an AI request. Local `ocr-provider-trust` keygen/issue/
+verify responses return neither paths nor private key material; the signing key must still
+be protected or moved offline by the operator.
+
 Existing machine ACLs that independently grant access to all AppPackages still apply, and
 the private profile is writable, so this is a defined AppContainer policy rather than a
-fictional empty-filesystem VM. Arbitrary third-party package loading remains absent.
+fictional empty-filesystem VM. The host trust-store ACL, publisher private-key custody and
+Windows system/runtime dependencies remain bootstrap trust. Generic third-party archive
+installation, revocation, update and unload remain absent.
 
 ## Local native MCP and COM boundary
 

@@ -52,15 +52,25 @@ internal interface IOcrProviderHostClient
 
 internal sealed class OcrProviderProcessHostClient : IOcrProviderHostClient
 {
+    private const int MaximumPinnedTrustConfigurations = 4;
     private readonly OcrProviderHostCommand _command;
+    private readonly IOcrProviderTrustPolicy? _trustPolicy;
+    private readonly object _trustGate = new();
+    private readonly Dictionary<string, OcrProviderTrustSnapshot> _pinnedTrust =
+        new(StringComparer.Ordinal);
+    private IOcrProviderTrustPolicy? _resolvedTrustPolicy;
 
     internal OcrProviderProcessHostClient()
         : this(OcrProviderHostCommand.Current()) { }
 
-    internal OcrProviderProcessHostClient(OcrProviderHostCommand command)
+    internal OcrProviderProcessHostClient(
+        OcrProviderHostCommand command,
+        IOcrProviderTrustPolicy? trustPolicy = null
+    )
     {
         ArgumentNullException.ThrowIfNull(command);
         _command = command;
+        _trustPolicy = trustPolicy;
     }
 
     public WordOcrProviderResult Invoke(
@@ -89,6 +99,8 @@ internal sealed class OcrProviderProcessHostClient : IOcrProviderHostClient
 
         cancellationToken.ThrowIfCancellationRequested();
         var boundRequest = BindProviderConfiguration(request);
+        var trustSnapshot = GetPinnedTrustSnapshot(boundRequest, cancellationToken);
+        trustSnapshot.VerifyDirectorySet();
         var identity = OcrProviderHostIdentityResolver.ForPaths(
             _command.ExecutablePath,
             _command.AssemblyIdentityPath,
@@ -98,7 +110,8 @@ internal sealed class OcrProviderProcessHostClient : IOcrProviderHostClient
         var requestJson = OcrProviderHostProtocol.SerializeRequest(
             boundRequest,
             requestId,
-            identity
+            identity,
+            trustSnapshot.Binding
         );
         using var job = WindowsJobObject.Create(
             maximumProcessMemoryBytes,
@@ -225,6 +238,8 @@ internal sealed class OcrProviderProcessHostClient : IOcrProviderHostClient
                     retryable: true
                 );
             }
+            ValidateTrustedResult(response.Result, trustSnapshot.Binding);
+            trustSnapshot.VerifyDirectorySet();
             return response.Result;
         }
         finally
@@ -233,6 +248,84 @@ internal sealed class OcrProviderProcessHostClient : IOcrProviderHostClient
             {
                 TryKill(process, job);
             }
+        }
+    }
+
+    private OcrProviderTrustSnapshot GetPinnedTrustSnapshot(
+        WordOcrProviderRequest request,
+        CancellationToken cancellationToken
+    )
+    {
+        var executablePath = request.Configuration.ExecutablePath!;
+        var modelDirectory = request.Configuration.ModelDirectory!;
+        var key = string.Join('\0',
+            executablePath,
+            modelDirectory,
+            string.Join('\0', request.Languages.OrderBy(item => item, StringComparer.Ordinal))
+        );
+        lock (_trustGate)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_pinnedTrust.TryGetValue(key, out var existing))
+            {
+                if (existing.ExpiresAtUtc <= DateTimeOffset.UtcNow)
+                {
+                    throw Error(
+                        "OCR_PROVIDER_MANIFEST_EXPIRED",
+                        "The session-pinned OCR provider manifest expired; restart the host after installing a renewed manifest."
+                    );
+                }
+                return existing;
+            }
+            if (_pinnedTrust.Count >= MaximumPinnedTrustConfigurations)
+            {
+                throw Error(
+                    "OCR_PROVIDER_TRUST_CACHE_LIMIT",
+                    "The OCR host reached its session-pinned provider configuration limit."
+                );
+            }
+            _resolvedTrustPolicy ??= _trustPolicy
+                ?? OcrProviderTrustPolicy.FromEnvironment();
+            var created = _resolvedTrustPolicy.Authorize(
+                executablePath,
+                modelDirectory,
+                request.Languages,
+                cancellationToken
+            );
+            _pinnedTrust.Add(key, created);
+            return created;
+        }
+    }
+
+    private static void ValidateTrustedResult(
+        WordOcrProviderResult result,
+        OcrProviderTrustBinding binding
+    )
+    {
+        if (
+            !string.Equals(result.Provenance.ProviderName, "tesseract-cli", StringComparison.Ordinal)
+            || !string.Equals(
+                result.Provenance.ProviderBinarySha256,
+                binding.ExecutableSha256,
+                StringComparison.Ordinal
+            )
+            || !string.Equals(
+                result.Provenance.ModelSetSha256,
+                binding.ModelSetSha256,
+                StringComparison.Ordinal
+            )
+            || !result.Provenance.EffectiveLanguages
+                .OrderBy(item => item, StringComparer.Ordinal)
+                .SequenceEqual(
+                binding.Models.Select(item => item.Language).OrderBy(item => item, StringComparer.Ordinal),
+                StringComparer.Ordinal
+            )
+        )
+        {
+            throw Error(
+                "OCR_PROVIDER_IDENTITY_MISMATCH",
+                "The isolated OCR provider result does not match its signed trust binding."
+            );
         }
     }
 

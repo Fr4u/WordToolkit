@@ -18,6 +18,23 @@ not. The first OCR call creates or opens the per-user
 `WordToolkit.OcrProviderHost.v1` AppContainer profile and adds its package SID as a
 read/execute principal on the exact runtime, provider and model directories. The child has
 no network capability; its writes are confined to the private AppContainer profile.
+OCR also requires a signed provider identity. Set these host variables before starting
+Codex/WordToolkit:
+
+- `WORDTOOLKIT_TESSERACT_PATH` and `WORDTOOLKIT_TESSDATA_DIR`;
+- `WORDTOOLKIT_OCR_PROVIDER_MANIFEST_PATH`;
+- `WORDTOOLKIT_OCR_TRUST_STORE_PATH`.
+
+Provisioning stays outside MCP. Use
+`wordtoolkit-native ocr-provider-trust --mode keygen --request <json>` once to create an
+ECDSA P-256 publisher key and trust store, then `--mode issue` to sign the exact executable,
+top-level runtime set and allowed language models. Use `--mode verify` before configuring
+the two public paths. Every output path must be new; the manifest/trust store and private
+key must remain outside the provider runtime directory. The CLI returns no path or private
+key material. Protect or move the private key offline after issuance. A manifest is valid
+for at most 366 days. The first OCR use pins the signed files open for the native-host
+session, so provider updates or renewed manifests require restarting the host.
+
 Document sessions are owned by the native process and the attached Word application.
 Saved-package actions accept explicit local paths according to their individual schemas.
 

@@ -1,6 +1,6 @@
 {
   "name": "wordtoolkit",
-  "version": "0.58.0+codex.20260726223051",
+  "version": "0.59.0+codex.20260727004624",
   "description": "Token-lean native Microsoft Word automation with 15 core/gateway tools and lazy access to 148 native actions.",
   "author": {
     "name": "WordToolkit contributors"
@@ -105,6 +105,7 @@
       "Bounded Extension Catalog",
       "Source-Linked OCR Candidates",
       "AppContainer-Sandboxed Tesseract OCR with Provenance",
+      "Signed Session-Pinned OCR Provider Identity",
       "Opt-In Content-Free Observability",
       "Bounded Local Audit Chain",
       "Bounded OOXML Encryption Detection",

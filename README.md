@@ -248,15 +248,21 @@ the typed figure graph, verifies payload signatures, deduplicates repeated parts
 never fetches external targets. Recognition requires an exact package fingerprint and
 explicit candidate selection. `local_only` is the default privacy mode; recognized text,
 geometry and document/image hashes are separate bounded opt-ins. The adapter requires
-local-filesystem paths, rejects UNC/mapped-network and reparse-point paths, hashes the
-exact executable and language models, streams image bytes through stdin without a
-temporary image file and returns bounded provenance rather than raw TSV or paths under
-one end-to-end timeout. It does not claim deterministic reproduction across an unbound
-host environment.
+local-filesystem paths and rejects UNC/mapped-network and reparse-point paths. A host-owned
+P-256 trust store verifies a signed manifest for the exact executable, every top-level
+runtime file and every allowed language model. The first call hashes and session-pins
+non-write-sharing handles to all signed resources; a provider update requires restarting
+the host. Manifest/key/signature/hash material never enters an AI request. The adapter
+streams image bytes through stdin without a temporary image, returns bounded provenance
+rather than raw TSV or paths and does not claim deterministic reproduction across the
+otherwise unbound host environment.
 
 ```powershell
 wordtoolkit-native ocr-package --mode inspect --request inspect-ocr.json --format json
 wordtoolkit-native ocr-package --mode recognize --request run-ocr.json --format json
+wordtoolkit-native ocr-provider-trust --mode keygen --request keygen.json --format json
+wordtoolkit-native ocr-provider-trust --mode issue --request issue.json --format json
+wordtoolkit-native ocr-provider-trust --mode verify --request verify.json --format json
 ```
 
 The Tesseract capability now crosses a closed JSON process protocol. The host and request
@@ -280,8 +286,8 @@ process trust and best-effort cancellation. `out_of_process`/`process_boundary` 
 only the registered host proxy and its declared hard process controls; it does not imply
 a restricted identity or brokered permissions unless the same item reports a non-`none`
 `sandbox_profile`. The built-in OCR item reports
-`windows_app_container_no_network_brokered_filesystem`; other process proxies do not
-inherit that claim. See
+`windows_app_container_no_network_brokered_filesystem` plus provider identity policy
+`signed_manifest_session_pinned`; other process proxies inherit neither claim. See
 [`docs/RESEARCH-PLUGIN-ARCHITECTURE-2026.md`](docs/RESEARCH-PLUGIN-ARCHITECTURE-2026.md).
 
 Runtime observability is explicit and content-free. Telemetry and audit persistence are
@@ -1330,7 +1336,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is 0.58.0. The latest immutable public release remains
+The development manifest/runtime is 0.59.0. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:

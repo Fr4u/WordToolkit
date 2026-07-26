@@ -15,6 +15,8 @@ internal sealed class TesseractCliOcrProvider : IWordOcrProvider
     private const int MaximumRows = 250_000;
     private const int MaximumWords = 100_000;
     private const int MaximumLines = 20_000;
+    private readonly OcrProviderTrustBinding? _trustBinding;
+    private readonly bool _resourcesVerifiedByParent;
     private static readonly IReadOnlySet<string> SupportedContentTypes =
         new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -25,6 +27,19 @@ internal sealed class TesseractCliOcrProvider : IWordOcrProvider
             "image/tiff",
             "image/webp",
         };
+
+    internal TesseractCliOcrProvider() { }
+
+    internal TesseractCliOcrProvider(
+        OcrProviderTrustBinding trustBinding,
+        bool resourcesVerifiedByParent = false
+    )
+    {
+        ArgumentNullException.ThrowIfNull(trustBinding);
+        OcrProviderTrustPolicy.ValidateBinding(trustBinding);
+        _trustBinding = trustBinding;
+        _resourcesVerifiedByParent = resourcesVerifiedByParent;
+    }
 
     public WordOcrProviderResult Recognize(
         WordOcrProviderRequest request,
@@ -70,19 +85,35 @@ internal sealed class TesseractCliOcrProvider : IWordOcrProvider
             stage = "PATH";
             var executablePath = ResolveExecutable(request.Configuration.ExecutablePath);
             var modelDirectory = ResolveModelDirectory(request.Configuration.ModelDirectory);
+            stage = "RESOURCE_LEASE";
+            using var resourceLease = _trustBinding is null || _resourcesVerifiedByParent
+                ? null
+                : OcrProviderResourceLease.Acquire(
+                    executablePath,
+                    modelDirectory,
+                    _trustBinding
+                );
             stage = "BINARY_HASH";
-            var executableHash = HashFile(
-                executablePath,
-                128L * 1024 * 1024,
-                cancellationToken
-            );
+            var executableHash = _trustBinding?.ExecutableSha256
+                ?? HashFile(
+                    executablePath,
+                    128L * 1024 * 1024,
+                    cancellationToken
+                );
             stage = "MODEL_HASH";
-            var modelHashes = ValidateModels(
-                modelDirectory,
-                request.Languages,
-                cancellationToken
-            );
-            var modelSetHash = ModelSetHash(modelHashes);
+            var modelHashes = _trustBinding is null
+                ? ValidateModels(
+                    modelDirectory,
+                    request.Languages,
+                    cancellationToken
+                )
+                : _trustBinding.Models.ToDictionary(
+                    item => item.Language,
+                    item => item.Sha256,
+                    StringComparer.Ordinal
+                );
+            var modelSetHash = _trustBinding?.ModelSetSha256
+                ?? ModelSetHash(modelHashes);
             stage = "VERSION_PROBE";
             var version = ProbeVersion(
                 executablePath,
@@ -152,22 +183,28 @@ internal sealed class TesseractCliOcrProvider : IWordOcrProvider
                 );
             }
             stage = "POST_VERIFICATION";
-            var executableHashAfter = HashFile(
-                executablePath,
-                128L * 1024 * 1024,
-                cancellationToken
-            );
-            var modelSetHashAfter = ModelSetHash(
-                ValidateModels(modelDirectory, request.Languages, cancellationToken)
-            );
-            if (!string.Equals(executableHash, executableHashAfter, StringComparison.Ordinal)
-                || !string.Equals(modelSetHash, modelSetHashAfter, StringComparison.Ordinal))
+            if (_trustBinding is null)
             {
-                throw Error(
-                    "OCR_PROVIDER_CHANGED",
-                    "The OCR provider binary or language model changed during recognition.",
-                    retryable: true
+                var executableHashAfter = HashFile(
+                    executablePath,
+                    128L * 1024 * 1024,
+                    cancellationToken
                 );
+                var modelHashesAfter = ValidateModels(
+                    modelDirectory,
+                    request.Languages,
+                    cancellationToken
+                );
+                var modelSetHashAfter = ModelSetHash(modelHashesAfter);
+                if (!string.Equals(executableHash, executableHashAfter, StringComparison.Ordinal)
+                    || !string.Equals(modelSetHash, modelSetHashAfter, StringComparison.Ordinal))
+                {
+                    throw Error(
+                        "OCR_PROVIDER_CHANGED",
+                        "The OCR provider binary or language model changed during recognition.",
+                        retryable: true
+                    );
+                }
             }
 
             var parsed = ParseTsv(processResult.StandardOutput);
@@ -988,4 +1025,171 @@ internal sealed class TesseractCliOcrProvider : IWordOcrProvider
             );
         }
     }
+}
+
+internal sealed class OcrProviderResourceLease : IDisposable
+{
+    private readonly IReadOnlyList<FileStream> _streams;
+    private readonly string _runtimeDirectory;
+    private readonly IReadOnlyList<string> _runtimeFileNames;
+
+    private OcrProviderResourceLease(
+        IReadOnlyList<FileStream> streams,
+        string runtimeDirectory,
+        IReadOnlyList<string> runtimeFileNames
+    )
+    {
+        _streams = streams;
+        _runtimeDirectory = runtimeDirectory;
+        _runtimeFileNames = runtimeFileNames;
+    }
+
+    internal static OcrProviderResourceLease Acquire(
+        string executablePath,
+        string modelDirectory,
+        OcrProviderTrustBinding binding
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(executablePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(modelDirectory);
+        ArgumentNullException.ThrowIfNull(binding);
+        OcrProviderTrustPolicy.ValidateBinding(binding);
+        var streams = new List<FileStream>(binding.RuntimeFiles.Count + binding.Models.Count);
+        try
+        {
+            var runtimeDirectory = Path.GetDirectoryName(executablePath)
+                ?? throw IdentityMismatch();
+            var actualRuntimeNames = Directory
+                .EnumerateFiles(runtimeDirectory, "*", SearchOption.TopDirectoryOnly)
+                .Select(Path.GetFileName)
+                .OrderBy(item => item, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var expectedRuntimeNames = binding.RuntimeFiles
+                .Select(item => item.FileName)
+                .OrderBy(item => item, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (!actualRuntimeNames.SequenceEqual(
+                expectedRuntimeNames,
+                StringComparer.OrdinalIgnoreCase
+            ))
+            {
+                throw IdentityMismatch();
+            }
+
+            foreach (var file in binding.RuntimeFiles)
+            {
+                var stream = OpenReadLease(Path.Combine(runtimeDirectory, file.FileName));
+                streams.Add(stream);
+                if (!HashMatches(stream, file.Sha256))
+                {
+                    throw IdentityMismatch();
+                }
+            }
+            foreach (var model in binding.Models)
+            {
+                var stream = OpenReadLease(Path.Combine(modelDirectory, model.FileName));
+                streams.Add(stream);
+                if (!HashMatches(stream, model.Sha256))
+                {
+                    throw IdentityMismatch();
+                }
+            }
+            return new OcrProviderResourceLease(
+                streams.AsReadOnly(),
+                runtimeDirectory,
+                Array.AsReadOnly(expectedRuntimeNames)
+            );
+        }
+        catch (WordToolkitExtensionException)
+        {
+            DisposeAll(streams);
+            throw;
+        }
+        catch (Exception exception) when (
+            exception is IOException
+                or UnauthorizedAccessException
+                or System.Security.SecurityException
+        )
+        {
+            DisposeAll(streams);
+            throw new WordToolkitExtensionException(
+                "OCR_PROVIDER_IDENTITY_MISMATCH",
+                "The OCR provider resources could not be locked to their signed identity.",
+                innerException: exception
+            );
+        }
+    }
+
+    public void Dispose() => DisposeAll(_streams);
+
+    internal void VerifyDirectorySet()
+    {
+        string?[] actual;
+        try
+        {
+            actual = Directory
+                .EnumerateFiles(_runtimeDirectory, "*", SearchOption.TopDirectoryOnly)
+                .Select(Path.GetFileName)
+                .OrderBy(item => item, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch (Exception exception) when (
+            exception is IOException
+                or UnauthorizedAccessException
+                or System.Security.SecurityException
+        )
+        {
+            throw new WordToolkitExtensionException(
+                "OCR_PROVIDER_IDENTITY_MISMATCH",
+                "The signed OCR provider runtime directory could not be revalidated.",
+                innerException: exception
+            );
+        }
+        if (!actual.SequenceEqual(_runtimeFileNames, StringComparer.OrdinalIgnoreCase))
+        {
+            throw IdentityMismatch();
+        }
+    }
+
+    private static FileStream OpenReadLease(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        if (!File.Exists(fullPath)
+            || (File.GetAttributes(fullPath) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw IdentityMismatch();
+        }
+        return new FileStream(
+            fullPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            128 * 1024,
+            FileOptions.SequentialScan
+        );
+    }
+
+    private static bool HashMatches(FileStream stream, string expectedSha256)
+    {
+        stream.Position = 0;
+        var actual = SHA256.HashData(stream);
+        stream.Position = 0;
+        return CryptographicOperations.FixedTimeEquals(
+            actual,
+            Convert.FromHexString(expectedSha256)
+        );
+    }
+
+    private static void DisposeAll(IEnumerable<FileStream> streams)
+    {
+        foreach (var stream in streams)
+        {
+            stream.Dispose();
+        }
+    }
+
+    private static WordToolkitExtensionException IdentityMismatch() => new(
+        "OCR_PROVIDER_IDENTITY_MISMATCH",
+        "The OCR provider resources do not match their signed identity."
+    );
 }

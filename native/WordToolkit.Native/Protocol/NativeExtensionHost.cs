@@ -119,7 +119,8 @@ internal static class NativeExtensionHost
                 Deterministic: false,
                 Idempotent: true,
                 ReturnsDocumentContent: true,
-                SandboxProfile: WordToolkitExtensionSandboxProfile.WindowsAppContainerNoNetworkBrokeredFilesystem
+                SandboxProfile: WordToolkitExtensionSandboxProfile.WindowsAppContainerNoNetworkBrokeredFilesystem,
+                ProviderIdentityPolicy: WordToolkitExtensionProviderIdentityPolicy.SignedManifestSessionPinned
             ),
             new ProcessBoundaryTesseractOcrProvider()
         );

@@ -68,6 +68,10 @@ public sealed class ExtensionCatalogTests
             ocrItem.SandboxProfile
         );
         Assert.Equal(
+            WordToolkit.Engine.Extensions.WordToolkitExtensionProviderIdentityPolicy.SignedManifestSessionPinned,
+            ocrItem.ProviderIdentityPolicy
+        );
+        Assert.Equal(
             WordToolkit.Native.Ocr.ProcessBoundaryTesseractOcrProvider.MaximumProcessMemoryBytes,
             ocrItem.ResourceLimits.MaxProcessMemoryBytes
         );

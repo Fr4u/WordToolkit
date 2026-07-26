@@ -2,6 +2,48 @@
 
 ## Unreleased
 
+## 0.59.0 — 2026-07-26
+
+- Replaced path-only OCR trust with a strict ECDSA P-256 signed provider manifest and a
+  host-owned publisher-key store. The manifest binds provider/publisher/key/interface
+  identity, a maximum 366-day validity window, the exact Tesseract executable, every
+  top-level runtime file and every allowed language model. Duplicate/unknown fields,
+  noncanonical base64, wrong curves, expired manifests, untrusted keys, extra files and
+  changed bytes fail closed.
+- Closed the hash-to-loader race by opening every signed provider/model resource without
+  write or delete sharing while hashing it. Up to four exact provider/model/language
+  configurations remain pinned for the native-host session; provider updates require a
+  restart. The parent also re-enumerates the exact signed top-level runtime set immediately
+  before child launch and after its result, so a directory-set change cannot be reported as
+  a successful call. The child receives only the parent-verified binding through closed IPC
+  and still runs inside the capability-free AppContainer and bounded Job Object.
+- Added the content-free local `ocr-provider-trust` CLI with strict `keygen`, `issue` and
+  `verify` modes. It publishes new artifacts only, returns neither paths nor private key
+  material and keeps all trust material outside MCP/AI requests.
+- Added catalog policy `signed_manifest_session_pinned` and bound it into the catalog hash.
+  The OCR action contract and token cost are unchanged; manifest, key, signature and
+  expected runtime hashes are host configuration rather than repeated model input.
+- Added negative coverage for manifest/trust-store schema attacks, signature/key/expiry
+  failure, executable/model/runtime drift, unlisted runtime files, write-sharing denial,
+  malformed IPC bindings and keygen/issue/verify disclosure boundaries. Real Tesseract OCR
+  passes through the complete signed AppContainer path with no Word invocation or source
+  mutation.
+- The exact self-contained release benchmark keeps one typed result hash across all 14
+  calls. Direct median is 300.4712 ms; signed AppContainer median is 585.0561 ms, a
+  disclosed +284.5849 ms / +94.71% cost. No recognized text, path or private key is stored.
+- Fixed `build_native_plugin.ps1` so Windows PowerShell resolves the exact 8.0.423 SDK from
+  `global.json` through an explicit pinned-host search instead of silently selecting an
+  incompatible global 9.x/10.x installation.
+- Two independent release builds are byte-identical: 197 files / 90,166,894 expanded
+  bytes, 37,613,426-byte ZIP, SHA-256
+  `c6817fbadfbebd701e88aac078f0e4894e496d142c81e3f7b0782f4d47f426a5`.
+  Local gates pass 765 Engine, 12 LibreOffice, 567 Native and 1,318 Python tests with 16
+  intentional skips; Ruff and `dotnet format` are clean.
+- Installed and enabled `0.59.0+codex.20260727004624`. Candidate, persistent source and
+  active cache have zero differences across all 197 files. Installed catalog SHA-256 is
+  `d62313d487baf4717f54cd334956fe82bbc6cc812e840300ddf6514a1b936afb`, and the exact
+  active-cache executable passes signed AppContainer OCR with the release typed-result hash.
+
 ## 0.58.0 — 2026-07-26
 
 - Moved the built-in OCR host from caller-token process containment into a real Windows

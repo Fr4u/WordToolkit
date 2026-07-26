@@ -66,15 +66,15 @@ permission. Execution:
    `WORDTOOLKIT_TESSERACT_PATH` / `WORDTOOLKIT_TESSDATA_DIR`;
 2. refuses relative, UNC, mapped-network, missing and reparse-point paths rather than
    searching `PATH`;
-3. hashes the executable and every selected `.traineddata` model before recognition and
-   verifies the same hashes again after recognition;
+3. requires a host-owned ECDSA P-256 signed manifest and trust store, then binds the exact
+   executable, every top-level runtime file and every allowed `.traineddata` model;
 4. probes the exact executable version and its available languages;
 5. starts the executable directly with `UseShellExecute=false` and structured argument
    passing, never through a shell;
 6. streams the embedded image through standard input and creates no temporary image;
 7. fixes `OMP_THREAD_LIMIT=1`, bounds stdout/stderr and applies one end-to-end timeout
-   across hashing, version/language probes, stdin and recognition, killing the process
-   tree when needed;
+   across trust verification, version/language probes, stdin and recognition, killing the
+   process tree when needed;
 8. validates TSV shape, row/count limits, text safety, image dimensions, every word box,
    confidence and the provider result again at the operation boundary;
 9. redacts raw provider diagnostics, executable/model paths and raw TSV from responses.
@@ -105,16 +105,52 @@ The newer `Experimental_CreateProcessInSandbox` API was not used: Microsoft mark
 Windows 11 experimental, exposes no public header and specifies a FlatBuffer contract;
 WordToolkit retains the documented Windows 8+ AppContainer APIs instead.
 
+In 0.59 the provider path is no longer trusted merely because it was explicit. The local
+host requires `WORDTOOLKIT_OCR_PROVIDER_MANIFEST_PATH` and
+`WORDTOOLKIT_OCR_TRUST_STORE_PATH`. The strict duplicate/unknown-field-rejecting manifest
+uses `ecdsa-p256-sha256-p1363`, has a maximum 366-day lifetime and binds provider/publisher/
+key IDs, interface version, the executable, the complete top-level runtime file set and
+each permitted language model. The host trust store binds publisher and key IDs to an
+X.509 SubjectPublicKeyInfo P-256 public key. Signature verification follows a fixed
+canonical JSON payload; the public key is imported as exact DER SubjectPublicKeyInfo using
+.NET's documented API, while the canonical-payload design follows the duplicate-free,
+deterministic principles of [RFC 8785](https://www.rfc-editor.org/rfc/rfc8785.html).
+
+The first use of one provider/model/language configuration verifies every signed byte and
+opens all runtime/model files with read-only sharing. Those handles stay pinned for the
+native-host session, so a concurrent writer, rename or provider update fails rather than
+creating a loader race. Up to four configurations may be pinned. The exact signed binding
+crosses the closed internal IPC and the child uses only that parent-verified identity. The
+parent re-enumerates the exact signed top-level runtime set immediately before launch and
+after the child result. That detects a concurrent directory-membership change and rejects
+the call; it is detection around execution, not a claim that Windows locks the directory
+itself against a same-user process.
+Provider updates and manifest renewal therefore require a native-host restart. This keeps
+MCP token use unchanged: AI requests contain neither manifest content, keys, signatures nor
+expected hashes. Local operators use the content-free
+`ocr-provider-trust --mode keygen|issue|verify` CLI; private key material is never printed
+and should be moved offline after issuance.
+
 This is still not an empty-filesystem VM. Machine resources whose existing ACLs already
 grant read access to all AppPackages can remain visible, the private profile is writable,
-and there is no Win32k syscall-disable policy. Hashing supplies provider provenance but
-does not prove that an unsigned configured binary is benevolent.
+and there is no Win32k syscall-disable policy. The host-owned trust-store ACL remains the
+bootstrap trust boundary; a stolen publisher private key can sign malicious bytes. Windows
+system DLLs and the broader operating environment are outside the provider manifest.
 
 The package-exact seven-sample benchmark uses the checked-in 15,283-byte stripped PNG and
 the self-contained 0.58 executable. All fourteen direct/AppContainer calls produced the
 same typed-result SHA-256. Direct median was 324.6673 ms and AppContainer median was
 743.9256 ms, a disclosed +419.2583 ms / +129.13% boundary cost. No recognized text is
 stored in `docs/benchmarks/ocr-provider-appcontainer-2026-07-26.json`.
+
+The exact self-contained 0.59 release benchmark then exercises the signed manifest,
+92-file runtime binding, session pin and AppContainer on the same 15,283-byte input. Seven
+alternating samples again preserve typed-result SHA-256
+`c674335b9fc441e56fd04a24fc7f92acbe865ddc2883ab2898297d569affa0cc` across all 14
+calls. Direct median is 300.4712 ms; the full signed isolated path is 585.0561 ms,
++284.5849 ms / +94.71%. The first isolated sample includes trust establishment; later
+samples reuse the still-locked session proof. No recognized text, path or private key is
+stored in `docs/benchmarks/ocr-provider-signed-manifest-2026-07-27.json`.
 
 ## Privacy and stale-state rules
 
@@ -141,8 +177,8 @@ bounded line/word geometry, normalized confidence above the required threshold, 
 provider/model/image hashes and `network_used=false`. The successful MCP envelope
 conformed to the published closed output schema. The DOCX SHA-256 and the observed Word
 process count were unchanged; the COM host invocation count was zero. The same acceptance
-now executes through the separate Job Object host rather than invoking the adapter inside
-the MCP process.
+now executes through the signed, session-pinned provider identity and the separate
+AppContainer/Job Object host rather than invoking the adapter inside the MCP process.
 
 The seven-sample alternating benchmark used real Tesseract 5.5.0 and the same bound model
 over one 16,734-byte PNG. Direct in-process median was 248.0910 ms; the isolated path was
@@ -155,11 +191,15 @@ relationships, incomplete figure projection, compact content suppression, source
 and file-hash drift, local-only denial before provider execution, confidence gates, invalid
 provider geometry, strict JSON, explicit selection, lazy MCP/CLI parity, unsafe language
 identifiers, empty/UNC/mapped-network/reparse provider paths and refusal to search `PATH`.
+The signed-provider suite separately covers key generation/issuance/verification, strict
+manifest/trust-store JSON, unknown and duplicate fields, tampered signatures, untrusted
+publisher keys, expiry, executable/model/runtime drift, extra DLLs, locked-resource write
+denial, IPC binding consistency and content/path/private-key suppression.
 
 ## Remaining hard work
 
-- signed/installable third-party provider packages and a restricted-identity/network/
-  filesystem-brokered provider sandbox beyond the current crash/resource boundary;
+- installable third-party provider archives, dependency resolution, revocation, key rotation,
+  secure update/uninstall and a generic provider lifecycle beyond the signed local manifest;
 - Windows OCR and explicitly authorized Azure/Google/AWS adapters;
 - vector/PDF/page rasterization with its own versioned provenance and pixel limits;
 - EXIF orientation, rotation, multi-frame images, color/bit-depth bombs and broader

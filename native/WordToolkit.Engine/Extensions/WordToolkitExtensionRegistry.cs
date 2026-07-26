@@ -403,6 +403,7 @@ public sealed class WordToolkitExtensionRegistry
                 Add(canonical, capability.Idempotent ? "1" : "0");
                 Add(canonical, capability.ReturnsDocumentContent ? "1" : "0");
                 Add(canonical, capability.SandboxProfile.ToString());
+                Add(canonical, capability.ProviderIdentityPolicy.ToString());
             }
         }
         return Convert.ToHexString(

@@ -258,6 +258,10 @@ public sealed class ExtensionRegistryTests
             ).Items
         );
         Assert.Equal(capability.SandboxProfile, item.SandboxProfile);
+        Assert.Equal(
+            WordToolkitExtensionProviderIdentityPolicy.HostBuiltIn,
+            item.ProviderIdentityPolicy
+        );
 
         Assert.Equal(
             "EXTENSION_REGISTRATION_INVALID",

@@ -33,6 +33,35 @@ if ($PSVersionTable.PSEdition -ne "Desktop" -and $IsWindows) {
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
+$globalJsonPath = Join-Path $root "global.json"
+$requiredSdk = [string]((Get-Content -LiteralPath $globalJsonPath -Raw | ConvertFrom-Json).sdk.version)
+$dotnetCandidates = @(
+    $env:WORDTOOLKIT_DOTNET_PATH,
+    $env:DOTNET_HOST_PATH,
+    (Join-Path $HOME ".dotnet8\dotnet.exe"),
+    (Join-Path $HOME ".dotnet\dotnet.exe")
+)
+$pathDotnet = Get-Command dotnet -ErrorAction SilentlyContinue
+if ($pathDotnet) {
+    $dotnetCandidates += $pathDotnet.Source
+}
+$dotnet = $null
+foreach ($candidate in $dotnetCandidates | Where-Object { $_ } | Select-Object -Unique) {
+    if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+        continue
+    }
+    $installed = @(& $candidate --list-sdks 2>$null)
+    $matchesRequiredSdk = @($installed | Where-Object {
+        $_.StartsWith("$requiredSdk [", [StringComparison]::Ordinal)
+    })
+    if ($LASTEXITCODE -eq 0 -and $matchesRequiredSdk.Count -gt 0) {
+        $dotnet = [IO.Path]::GetFullPath($candidate)
+        break
+    }
+}
+if (-not $dotnet) {
+    throw "Pinned .NET SDK $requiredSdk from global.json is unavailable"
+}
 $dist = [IO.Path]::GetFullPath((Join-Path $root "dist"))
 $pluginSource = Join-Path $root "plugin\wordtoolkit"
 $manifestPath = Join-Path $pluginSource ".codex-plugin\plugin.json"
@@ -120,15 +149,15 @@ $libreOfficeTests = Join-Path `
     "native\WordToolkit.LibreOffice.Tests\WordToolkit.LibreOffice.Tests.csproj"
 
 if (-not $SkipTests) {
-    & dotnet test $engineTests -c Release
+    & $dotnet test $engineTests -c Release
     if ($LASTEXITCODE -ne 0) {
         throw "Document engine tests failed"
     }
-    & dotnet test $libreOfficeTests -c Release
+    & $dotnet test $libreOfficeTests -c Release
     if ($LASTEXITCODE -ne 0) {
         throw "LibreOffice backend tests failed"
     }
-    & dotnet test $tests -c Release
+    & $dotnet test $tests -c Release
     if ($LASTEXITCODE -ne 0) {
         throw "Native tests failed"
     }
@@ -177,7 +206,7 @@ Write-CanonicalUtf8Text `
 
 $runtime = Join-Path $resolvedOutput "runtime\win-x64"
 New-Item -ItemType Directory -Path $runtime -Force | Out-Null
-& dotnet publish `
+& $dotnet publish `
     $project `
     -c Release `
     -r win-x64 `
@@ -331,7 +360,7 @@ $files = @(Get-ChildItem -LiteralPath $resolvedOutput -Recurse -File)
 $result = [ordered]@{
     name = $manifest.name
     version = $manifest.version
-    dotnet_sdk = (& dotnet --version).Trim()
+    dotnet_sdk = (& $dotnet --version).Trim()
     runtime = "dotnet-self-contained-win-x64"
     python_runtime = $false
     mcp_command = $command

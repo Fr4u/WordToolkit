@@ -51,7 +51,8 @@ public sealed record ExtensionCatalogCapabilityItem(
     bool Deterministic,
     bool Idempotent,
     bool CapabilityReturnsDocumentContent,
-    WordToolkitExtensionSandboxProfile SandboxProfile
+    WordToolkitExtensionSandboxProfile SandboxProfile,
+    WordToolkitExtensionProviderIdentityPolicy ProviderIdentityPolicy
 );
 
 public sealed record InspectExtensionCatalogResult(
@@ -180,7 +181,8 @@ public sealed class InspectExtensionCatalogOperation
         capability.Deterministic,
         capability.Idempotent,
         capability.ReturnsDocumentContent,
-        capability.SandboxProfile
+        capability.SandboxProfile,
+        capability.ProviderIdentityPolicy
     );
 
     private static bool Matches(ExtensionCatalogCapabilityItem item, string query) =>

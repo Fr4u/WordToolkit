@@ -4453,7 +4453,7 @@
     {
       "name": "inspect_wordtoolkit_extensions",
       "title": "Inspect registered WordToolkit extensions",
-      "description": "Return a bounded, content-free catalog of explicitly registered engine extensions and their versioned capability contracts. This operation does not scan or load assemblies, read a document, open Word, expose implementation types or paths, or use the network. Trusted in-process registration is not a sandbox. A non-none sandbox_profile is a host-enforced closed policy; the Windows AppContainer profile denies network, brokers explicit provider read roots and confines writes to the container's private profile.",
+      "description": "Return a bounded, content-free catalog of explicitly registered engine extensions and their versioned capability contracts. This operation does not scan or load assemblies, read a document, open Word, expose implementation types or paths, or use the network. Trusted in-process registration is not a sandbox. A non-none sandbox_profile is a host-enforced closed policy; the Windows AppContainer profile denies network, brokers explicit provider read roots and confines writes to the container's private profile. signed_manifest_session_pinned means the host verified a publisher-key-bound manifest for the complete provider runtime/model set and pins non-write-sharing resource handles for the session; it is not a generic provider installer or revocation service.",
       "operationVersion": "1.0",
       "permissions": {
         "filesystem": "none",
@@ -4562,7 +4562,8 @@
                     "deterministic",
                     "idempotent",
                     "capability_returns_document_content",
-                    "sandbox_profile"
+                    "sandbox_profile",
+                    "provider_identity_policy"
                   ],
                   "properties": {
                     "extension_id": {
@@ -4692,6 +4693,12 @@
                       "enum": [
                         "none",
                         "windows_app_container_no_network_brokered_filesystem"
+                      ]
+                    },
+                    "provider_identity_policy": {
+                      "enum": [
+                        "host_built_in",
+                        "signed_manifest_session_pinned"
                       ]
                     }
                   },

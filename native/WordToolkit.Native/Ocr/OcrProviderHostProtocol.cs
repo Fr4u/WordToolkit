@@ -23,7 +23,8 @@ internal sealed record OcrProviderHostRequest(
     int MaximumOutputCharacters,
     WordOcrProviderConfiguration Configuration,
     string HostExecutableSha256,
-    string HostAssemblySha256
+    string HostAssemblySha256,
+    OcrProviderTrustBinding TrustBinding
 )
 {
     internal WordOcrProviderRequest ToProviderRequest() => new(
@@ -66,11 +67,14 @@ internal static partial class OcrProviderHostProtocol
     internal static string SerializeRequest(
         WordOcrProviderRequest request,
         string requestId,
-        OcrProviderHostIdentity identity
+        OcrProviderHostIdentity identity,
+        OcrProviderTrustBinding trustBinding
     )
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(identity);
+        ArgumentNullException.ThrowIfNull(trustBinding);
+        OcrProviderTrustPolicy.ValidateBinding(trustBinding);
         var value = new OcrProviderHostRequest(
             Contract,
             requestId,
@@ -83,7 +87,8 @@ internal static partial class OcrProviderHostProtocol
             request.MaximumOutputCharacters,
             request.Configuration,
             identity.ExecutableSha256,
-            identity.AssemblySha256
+            identity.AssemblySha256,
+            trustBinding
         );
         var json = WordToolkitOperationJson.Serialize(value);
         if (json.Length > MaximumRequestCharacters)
@@ -113,7 +118,8 @@ internal static partial class OcrProviderHostProtocol
             "maximum_output_characters",
             "configuration",
             "host_executable_sha256",
-            "host_assembly_sha256"
+            "host_assembly_sha256",
+            "trust_binding"
         );
         var protocol = RequiredString(root, "protocol", 128);
         if (!string.Equals(protocol, Contract, StringComparison.Ordinal))
@@ -145,10 +151,69 @@ internal static partial class OcrProviderHostProtocol
                 OptionalString(configurationObject, "model_directory", 32_767)
             ),
             RequiredSha256(root, "host_executable_sha256"),
-            RequiredSha256(root, "host_assembly_sha256")
+            RequiredSha256(root, "host_assembly_sha256"),
+            ParseTrustBinding(Required(root, "trust_binding"))
         );
+        OcrProviderTrustPolicy.ValidateBinding(request.TrustBinding);
         _ = request.ToProviderRequest();
         return request;
+    }
+
+    private static OcrProviderTrustBinding ParseTrustBinding(JsonElement value)
+    {
+        var binding = Object(value, "trust_binding");
+        RequireOnly(
+            binding,
+            "contract",
+            "provider_id",
+            "publisher_id",
+            "publisher_key_id",
+            "provider_version",
+            "executable_file_name",
+            "executable_sha256",
+            "runtime_set_sha256",
+            "runtime_files",
+            "model_set_sha256",
+            "models",
+            "manifest_sha256",
+            "trust_store_sha256"
+        );
+        var runtimeFiles = new List<OcrProviderTrustRuntimeFileBinding>();
+        foreach (var runtimeValue in RequiredArray(binding, "runtime_files", 512))
+        {
+            var file = Object(runtimeValue, "trust_binding runtime file");
+            RequireOnly(file, "file_name", "sha256");
+            runtimeFiles.Add(new OcrProviderTrustRuntimeFileBinding(
+                RequiredString(file, "file_name", 128),
+                RequiredSha256(file, "sha256")
+            ));
+        }
+        var models = new List<OcrProviderTrustModelBinding>();
+        foreach (var valueModel in RequiredArray(binding, "models", 64))
+        {
+            var model = Object(valueModel, "trust_binding model");
+            RequireOnly(model, "language", "file_name", "sha256");
+            models.Add(new OcrProviderTrustModelBinding(
+                RequiredString(model, "language", 32),
+                RequiredString(model, "file_name", 128),
+                RequiredSha256(model, "sha256")
+            ));
+        }
+        return new OcrProviderTrustBinding(
+            RequiredString(binding, "contract", 128),
+            RequiredString(binding, "provider_id", 128),
+            RequiredString(binding, "publisher_id", 128),
+            RequiredString(binding, "publisher_key_id", 128),
+            RequiredString(binding, "provider_version", 128),
+            RequiredString(binding, "executable_file_name", 128),
+            RequiredSha256(binding, "executable_sha256"),
+            RequiredSha256(binding, "runtime_set_sha256"),
+            runtimeFiles.AsReadOnly(),
+            RequiredSha256(binding, "model_set_sha256"),
+            models.AsReadOnly(),
+            RequiredSha256(binding, "manifest_sha256"),
+            RequiredSha256(binding, "trust_store_sha256")
+        );
     }
 
     internal static string SerializeSuccess(

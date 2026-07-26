@@ -197,7 +197,8 @@ public sealed class OcrProviderHostTests
         var json = OcrProviderHostProtocol.SerializeRequest(
             request,
             requestId,
-            identity
+            identity,
+            Binding()
         );
         var parsed = OcrProviderHostProtocol.ParseRequest(json);
 
@@ -236,7 +237,8 @@ public sealed class OcrProviderHostTests
         var requestJson = OcrProviderHostProtocol.SerializeRequest(
             Request(),
             requestId,
-            OcrProviderHostIdentityResolver.Current()
+            OcrProviderHostIdentityResolver.Current(),
+            Binding()
         );
         var unknown = requestJson[..^1] + ",\"surprise\":true}";
         Assert.Equal(
@@ -288,7 +290,8 @@ public sealed class OcrProviderHostTests
         var input = OcrProviderHostProtocol.SerializeRequest(
             Request(),
             requestId,
-            OcrProviderHostIdentityResolver.Current()
+            OcrProviderHostIdentityResolver.Current(),
+            Binding()
         );
         var output = new StringWriter();
         var error = new StringWriter();
@@ -458,6 +461,10 @@ public sealed class OcrProviderHostTests
             Assert.True(boundary.GetProperty("app_container_enforced").GetBoolean());
             Assert.True(boundary.GetProperty("network_isolation_enforced").GetBoolean());
             Assert.True(boundary.GetProperty("filesystem_brokered").GetBoolean());
+            Assert.True(boundary.GetProperty("signed_provider_manifest_required").GetBoolean());
+            Assert.True(boundary.GetProperty("complete_top_level_runtime_bound").GetBoolean());
+            Assert.True(boundary.GetProperty("provider_resources_session_pinned").GetBoolean());
+            Assert.False(boundary.GetProperty("ai_request_trust_material_required").GetBoolean());
             Assert.True(boundary.GetProperty("sandbox_claimed").GetBoolean());
             Assert.DoesNotContain(directory, output.ToString(), StringComparison.Ordinal);
             Assert.DoesNotContain("recognized\"", output.ToString(), StringComparison.Ordinal);
@@ -529,6 +536,33 @@ public sealed class OcrProviderHostTests
             DeterministicForBoundInputs: true
         )
     );
+
+    private static OcrProviderTrustBinding Binding()
+    {
+        var models = new[]
+        {
+            new OcrProviderTrustModelBinding("eng", "eng.traineddata", new string('b', 64)),
+        };
+        var runtimeFiles = new[]
+        {
+            new OcrProviderTrustRuntimeFileBinding("tesseract.exe", new string('a', 64)),
+        };
+        return new OcrProviderTrustBinding(
+            OcrProviderTrustPolicy.BindingContract,
+            TesseractCliOcrProvider.ExtensionId,
+            "wordtoolkit.project",
+            "release-2026",
+            "1.0.0",
+            "tesseract.exe",
+            new string('a', 64),
+            OcrProviderTrustPolicy.RuntimeSetHash(runtimeFiles),
+            runtimeFiles,
+            OcrProviderTrustPolicy.ModelSetHash(models),
+            models,
+            new string('c', 64),
+            new string('d', 64)
+        );
+    }
 
     private sealed class FixedProvider : IWordOcrProvider
     {
