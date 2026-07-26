@@ -71,6 +71,7 @@
       "inspect_ooxml_properties",
       "inspect_ooxml_tables",
       "inspect_ooxml_markup_compatibility",
+      "analyze_ooxml_document",
       "lint_ooxml_document",
       "plan_ooxml_lint_repair",
       "apply_ooxml_lint_repair",
@@ -11699,6 +11700,237 @@
           }
         },
         "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "analyze_ooxml_document",
+      "title": "Analyze a Word document for AI planning",
+      "description": "Build one bounded, fingerprint-bound, high-level analysis spanning OPC structure, semantic object counts, the cross-domain dependency graph, all native lint rule packs, typed active-content presence, markup-compatibility evidence, repair opportunities and prioritized next-action signals. The response is content-free and token-lean: it returns no document text, XML, source locations, relationship targets or binaries, never follows external relationships, never executes active content, never opens Word and never mutates the package. Execution completeness, document coverage, semantic completeness and resource-budget coverage remain separate so the summary cannot masquerade as proof about unmodeled domains.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_local_word_package",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "expected_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "max_signals": {"type": "integer", "minimum": 1, "maximum": 32, "default": 12}
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "package_fingerprint", "main_part_uri", "package", "semantic", "dependencies", "quality", "safety", "compatibility", "signal_count", "returned_signal_count", "signals_truncated", "signals", "coverage", "disclosure", "operation_budget"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.analyze_ooxml_document/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "main_part_uri": {"type": "string", "maxLength": 512},
+              "package": {
+                "type": "object",
+                "required": ["bytes", "entry_count", "part_count", "relationship_count", "external_relationship_count", "unreachable_part_count", "package_diagnostic_count", "structurally_valid"],
+                "properties": {
+                  "bytes": {"type": "integer", "minimum": 0},
+                  "entry_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                  "part_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                  "relationship_count": {"type": "integer", "minimum": 0, "maximum": 1000000},
+                  "external_relationship_count": {"type": "integer", "minimum": 0, "maximum": 1000000},
+                  "unreachable_part_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                  "package_diagnostic_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                  "structurally_valid": {"type": "boolean"}
+                },
+                "additionalProperties": false
+              },
+              "semantic": {
+                "type": "object",
+                "required": ["projected_part_count", "semantic_node_count", "projection_warning_count", "object_counts"],
+                "properties": {
+                  "projected_part_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                  "semantic_node_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+                  "projection_warning_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                  "object_counts": {"$ref": "#/$defs/analysis_count_array"}
+                },
+                "additionalProperties": false
+              },
+              "dependencies": {
+                "type": "object",
+                "required": ["node_count", "edge_count", "issue_count", "unresolved_node_count", "unresolved_edge_count", "external_node_count", "unreachable_part_node_count", "diagnostic_domains"],
+                "properties": {
+                  "node_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                  "edge_count": {"type": "integer", "minimum": 0, "maximum": 200000},
+                  "issue_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "unresolved_node_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                  "unresolved_edge_count": {"type": "integer", "minimum": 0, "maximum": 200000},
+                  "external_node_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                  "unreachable_part_node_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                  "diagnostic_domains": {"$ref": "#/$defs/analysis_count_array"}
+                },
+                "additionalProperties": false
+              },
+              "quality": {
+                "type": "object",
+                "required": ["finding_count", "info_count", "warning_count", "error_count", "fatal_count", "implemented_fix_candidate_count", "review_required_candidate_count", "finding_page_truncated", "execution_complete", "document_coverage_complete", "finding_categories", "opportunities"],
+                "properties": {
+                  "finding_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "info_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "warning_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "error_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "fatal_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "implemented_fix_candidate_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "review_required_candidate_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "finding_page_truncated": {"type": "boolean"},
+                  "execution_complete": {"type": "boolean"},
+                  "document_coverage_complete": {"type": "boolean"},
+                  "finding_categories": {"$ref": "#/$defs/analysis_count_array"},
+                  "opportunities": {
+                    "type": "array",
+                    "maxItems": 25,
+                    "items": {
+                      "type": "object",
+                      "required": ["repair_kind", "safety", "implemented", "candidate_count"],
+                      "properties": {
+                        "repair_kind": {"type": "string", "maxLength": 128},
+                        "safety": {"enum": ["none", "review_required", "external_application_required"]},
+                        "implemented": {"type": "boolean"},
+                        "candidate_count": {"type": "integer", "minimum": 1, "maximum": 10000}
+                      },
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "additionalProperties": false
+              },
+              "safety": {
+                "type": "object",
+                "required": ["external_relationship_count", "active_content_declaration_count", "active_content_payload_count", "active_x_control_count", "unresolved_active_content_node_count", "active_content_present", "binary_payloads_decoded", "embedded_packages_opened", "external_targets_followed", "cryptographic_signature_validation_performed"],
+                "properties": {
+                  "external_relationship_count": {"type": "integer", "minimum": 0, "maximum": 1000000},
+                  "active_content_declaration_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                  "active_content_payload_count": {"type": "integer", "minimum": 0, "maximum": 50000},
+                  "active_x_control_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                  "unresolved_active_content_node_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+                  "active_content_present": {"type": "boolean"},
+                  "binary_payloads_decoded": {"const": false},
+                  "embedded_packages_opened": {"const": false},
+                  "external_targets_followed": {"const": false},
+                  "cryptographic_signature_validation_performed": {"const": false}
+                },
+                "additionalProperties": false
+              },
+              "compatibility": {
+                "type": "object",
+                "required": ["parsed_xml_part_count", "parsed_element_count", "namespace_count", "rule_count", "alternate_content_count", "must_understand_mismatch_count", "issue_count", "application_configuration"],
+                "properties": {
+                  "parsed_xml_part_count": {"type": "integer", "minimum": 0, "maximum": 4096},
+                  "parsed_element_count": {"type": "integer", "minimum": 0, "maximum": 1000000},
+                  "namespace_count": {"type": "integer", "minimum": 0, "maximum": 8192},
+                  "rule_count": {"type": "integer", "minimum": 0, "maximum": 200000},
+                  "alternate_content_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                  "must_understand_mismatch_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                  "issue_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "issues_truncated": {"type": "boolean"},
+                  "application_configuration": {"const": "empty_understood_namespace_and_extension_profile"}
+                },
+                "additionalProperties": false
+              },
+              "signal_count": {"type": "integer", "minimum": 0, "maximum": 32},
+              "returned_signal_count": {"type": "integer", "minimum": 0, "maximum": 32},
+              "signals_truncated": {"type": "boolean"},
+              "signals": {
+                "type": "array",
+                "maxItems": 32,
+                "items": {
+                  "type": "object",
+                  "required": ["code", "severity", "domain", "evidence_count", "next_action", "blocks_automatic_mutation"],
+                  "properties": {
+                    "code": {"type": "string", "maxLength": 128},
+                    "severity": {"enum": ["info", "warning", "error", "critical"]},
+                    "domain": {"type": "string", "maxLength": 128},
+                    "evidence_count": {"type": "integer", "minimum": 1, "maximum": 1000000},
+                    "next_action": {"type": "string", "maxLength": 128},
+                    "blocks_automatic_mutation": {"type": "boolean"}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "coverage": {
+                "type": "object",
+                "required": ["analysis_execution_complete", "document_coverage_complete", "semantic_completeness_claimed", "operation_budget_coverage_complete", "explicitly_unmodeled_domains", "omissions"],
+                "properties": {
+                  "analysis_execution_complete": {"type": "boolean"},
+                  "document_coverage_complete": {"const": false},
+                  "semantic_completeness_claimed": {"const": false},
+                  "operation_budget_coverage_complete": {"const": false},
+                  "explicitly_unmodeled_domains": {"type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
+                  "omissions": {"type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}}
+                },
+                "additionalProperties": false
+              },
+              "disclosure": {
+                "type": "object",
+                "required": ["document_text_returned", "raw_xml_returned", "source_locations_returned", "external_relationship_targets_returned", "external_relationships_followed", "active_content_executed", "mutation_performed", "word_opened", "document_content_is_untrusted"],
+                "properties": {
+                  "document_text_returned": {"const": false},
+                  "raw_xml_returned": {"const": false},
+                  "source_locations_returned": {"const": false},
+                  "external_relationship_targets_returned": {"const": false},
+                  "external_relationships_followed": {"const": false},
+                  "active_content_executed": {"const": false},
+                  "mutation_performed": {"const": false},
+                  "word_opened": {"const": false},
+                  "document_content_is_untrusted": {"const": true}
+                },
+                "additionalProperties": false
+              },
+              "operation_budget": {
+                "type": "object",
+                "required": ["model", "used", "maximum"],
+                "properties": {
+                  "model": {"const": "word_operation_accounted_v1"},
+                  "used": {"type": "integer", "minimum": 0},
+                  "maximum": {"const": 671088640}
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "$defs": {
+          "analysis_count_array": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "object",
+              "required": ["kind", "count"],
+              "properties": {
+                "kind": {"type": "string", "maxLength": 128},
+                "count": {"type": "integer", "minimum": 1, "maximum": 1000000}
+              },
+              "additionalProperties": false
+            }
+          }
+        },
         "additionalProperties": false
       },
       "annotations": {

@@ -1,5 +1,49 @@
 # Stage results
 
+# WordToolkit 0.51.0 high-level content-free document analysis - 2026-07-26
+
+- Added `wordtoolkit.analyze_ooxml_document/1.0` once in the neutral Engine and exposed
+  that same strict contract through `analyze-package` CLI and lazy
+  `analyze_ooxml_document` MCP. One fingerprint-bound read joins OPC structure, semantic
+  object counts, dependency diagnostics, all native lint packs, grouped repair
+  opportunities, typed active-content/external-link presence and markup-compatibility
+  evidence into at most 32 deterministic exact next-action signals.
+- The response has no document-text, raw-XML, source-location, external-target or binary
+  field and never opens Word, follows a relationship, executes active content or mutates
+  the package. Execution completeness is separate from document coverage, semantic
+  completeness and operation-budget coverage; rendered layout, active-content internals,
+  signature cryptography, encryption, coauthoring and a complete target-application MCE
+  profile remain explicit gaps.
+- A real equation-heavy DOCX exposed a rotten classification in the first draft: four
+  ordinary lint errors were called a critical structural/fatal failure even though OPC
+  validity was true. The final code emits `STRUCTURAL_PACKAGE_INVALID` only for actual
+  structural invalidity or fatal lint evidence and routes ordinary errors through the
+  separate blocking `LINT_ERROR_FINDINGS` signal.
+- The closed MCP regression proves zero COM invocations, rejects secret body-text leakage,
+  validates the complete output schema and keeps the representative default compact result
+  below 7,500 characters. Determinism, stale-fingerprint rejection, unknown-field
+  rejection, bounded signal paging, active-content classification and stream-position
+  restoration are also covered.
+- Pinned SDK 8.0.423 gates pass 744 Engine, 12 LibreOffice and 535 Native tests. Ruff is
+  clean; Python compatibility passes 1,318 with 16 intentional skips; four changed .NET
+  projects pass format verification; schema export is clean; the standalone Open XML
+  validator builds with zero warnings.
+- Two complete package builds produced byte-identical 197-file, 89,695,110-byte trees and
+  byte-identical 37,474,662-byte ZIPs at SHA-256
+  `41f3a59f22341803fcaca22e3c339900b87ac532eaa54ec2710633e3857064d8`.
+  Executable, runtime assembly, Engine, LibreOffice and Open XML SDK hashes are
+  `fbf941ce9de529a0e3a8c278fa510459bd82a87f73f66aca83ecb45cbb1a467e`,
+  `8690d1cd456832509c1de8151cb7ae26a6033844e314055dab3a4e428f287948`,
+  `70a1504cdac5b258edb3ea4047605736930cbf7a2227f6495df1deec9abd2f37`,
+  `41a1f0ed01d3dbaa3b13deee5748a7ab55924ab63bd616d645c5ed597d09127c`
+  and `1adf0c66256e00b29a272275e7b09c4e70f4378a12b6565f6ced255f74f800a`.
+- Installed and enabled `0.51.0+codex.20260726154529`. The canonical candidate,
+  `C:\Users\Admin\plugins\wordtoolkit` and active cache contain the same 197 paths,
+  lengths and SHA-256 values. Installed discovery reports 146 actions, 15 MCP tools and
+  57 complete explicit metadata contracts. The previous source remains intact at
+  `C:\Users\Admin\plugins\wordtoolkit.backup-0.50.1-codex.20260726150446`.
+- Hosted CI qualification is not claimed until the exact committed branch passes.
+
 # WordToolkit 0.50.1 LibreOffice four-package PDF/PNG qualification - 2026-07-26
 
 - Expanded the gated real public render test from one DOCX/PDF observation to minimal

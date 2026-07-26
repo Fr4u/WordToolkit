@@ -420,6 +420,10 @@ internal sealed partial class WordLiveService : IToolHandler
             ),
             "inspect_ooxml_markup_compatibility" =>
                 InspectPackageMarkupCompatibilityAsync(arguments, cancellationToken),
+            "analyze_ooxml_document" => AnalyzePackageDocumentAsync(
+                arguments,
+                cancellationToken
+            ),
             "lint_ooxml_document" => LintPackageAsync(
                 arguments,
                 cancellationToken

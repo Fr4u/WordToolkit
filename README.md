@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-WordToolkit 0.50 (development line) is a local Windows MCP plugin plus a neutral .NET document-engine spine. It starts or attaches to the real Microsoft Word application through a persistent COM STA thread, while the cross-platform LibreOffice layer separates bounded exact-binary identity probing from a real one-shot Java UNO Writer renderer that uses a private profile, an embedded source-rebuilt helper, source-drift checks and transactional PDF/PNG/manifest publication without pretending to provide Microsoft Word layout fidelity or a process/network sandbox. The document-engine core can also inspect the package graph, semantic structure, conservative theorem/definition/proof role evidence, section bindings, typed table/grid/merge topology, style, numbering, theme, settings, font-table, field/bookmark/reference, classic DrawingML chart, source-linked figure/caption and declared DrawingML/VML placement, active-content metadata, canonical OfficeMath and review/revision graphs, rewrite ordinary text slots around exact-byte immutable OfficeMath anchors, repair only canonically identical duplicate OfficeMath property containers and properties, lint a saved package with deterministic source-linked rule packs, plan and apply source-bound title and numbering-sequence repairs, reconstruct reviewed single- or multilevel numbering definitions even when the numbering part is missing, create, clone, safely consolidate exact typed style definitions, delete proven-unused custom definitions, rename only a custom style's primary visible name, align complete stable-ID style dependency closures from a separate template without attaching or mutating it, and assign styles through one semantic transaction, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Classic chart inspection covers all 16 plot families, series, axes, cache metadata and related parts without retaining point values or opening workbooks. Figure inspection types anchor reference frames, offsets, effect extents, relative sizes and bounded wrap polygons plus known VML placement declarations without claiming that declared coordinates are rendered page geometry. Active-content inspection inventories OLE declarations, embedded packages, ActiveX topology, VBA/customization and signature parts without decoding binaries, opening embedded packages, running macros, following external targets or claiming cryptographic validation. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text, style definitions, paragraph/run/table style references, tracked-review structures, numbering instances and one existing empty core-title element to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
+WordToolkit 0.51 (development line) is a local Windows MCP plugin plus a neutral .NET document-engine spine. It starts or attaches to the real Microsoft Word application through a persistent COM STA thread, while the cross-platform LibreOffice layer separates bounded exact-binary identity probing from a real one-shot Java UNO Writer renderer that uses a private profile, an embedded source-rebuilt helper, source-drift checks and transactional PDF/PNG/manifest publication without pretending to provide Microsoft Word layout fidelity or a process/network sandbox. The document-engine core can also inspect the package graph, semantic structure, conservative theorem/definition/proof role evidence, section bindings, typed table/grid/merge topology, style, numbering, theme, settings, font-table, field/bookmark/reference, classic DrawingML chart, source-linked figure/caption and declared DrawingML/VML placement, active-content metadata, canonical OfficeMath and review/revision graphs, rewrite ordinary text slots around exact-byte immutable OfficeMath anchors, repair only canonically identical duplicate OfficeMath property containers and properties, lint a saved package with deterministic source-linked rule packs, plan and apply source-bound title and numbering-sequence repairs, reconstruct reviewed single- or multilevel numbering definitions even when the numbering part is missing, create, clone, safely consolidate exact typed style definitions, delete proven-unused custom definitions, rename only a custom style's primary visible name, align complete stable-ID style dependency closures from a separate template without attaching or mutating it, and assign styles through one semantic transaction, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Classic chart inspection covers all 16 plot families, series, axes, cache metadata and related parts without retaining point values or opening workbooks. Figure inspection types anchor reference frames, offsets, effect extents, relative sizes and bounded wrap polygons plus known VML placement declarations without claiming that declared coordinates are rendered page geometry. Active-content inspection inventories OLE declarations, embedded packages, ActiveX topology, VBA/customization and signature parts without decoding binaries, opening embedded packages, running macros, following external targets or claiming cryptographic validation. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text, style definitions, paragraph/run/table style references, tracked-review structures, numbering instances and one existing empty core-title element to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
 
 The saved-package core also projects Word bibliography collections stored in Custom XML
 into source-linked collections, sources, scalar fields, locale/style metadata and
@@ -191,7 +191,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 145-action schema set into model context. The normative shape is
+not flatten the 146-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -316,6 +316,25 @@ var result = new InspectWordPackageOperation().Execute(
 );
 Console.WriteLine(WordToolkitOperationJson.Serialize(result));
 ```
+
+For one broad, token-lean planning pass, use the separate high-level analysis instead
+of asking an AI client to call and combine every inspector itself:
+
+```powershell
+'{"local_path":"C:\\docs\\input.docx","max_signals":12}' |
+  wordtoolkit-native analyze-package --request - --format json
+```
+
+The shared `wordtoolkit.analyze_ooxml_document/1.0` contract joins bounded package,
+semantic, dependency, lint, active-content and markup-compatibility evidence. It returns
+only counts, grouped repair opportunities and prioritized exact next-action names. It
+returns no document text, raw XML, source location, external target or binary; it does
+not follow links, execute active content, open Word or mutate the package. A package
+fingerprint can be supplied to reject stale input. `analysis_execution_complete`,
+`document_coverage_complete`, `semantic_completeness_claimed` and
+`operation_budget_coverage_complete` are deliberately separate: a successful run is
+not a lie that unmodeled document domains were proved clean. See
+[`docs/RESEARCH-DOCUMENT-ANALYSIS-2026.md`](docs/RESEARCH-DOCUMENT-ANALYSIS-2026.md).
 
 Encrypted OOXML uses an OLE Compound File Binary envelope instead of an OPC ZIP.
 Detect it without requesting a password, decrypting content or opening Word:
@@ -593,6 +612,7 @@ inspect_ooxml_settings
 inspect_ooxml_references
 inspect_ooxml_bibliography
 inspect_ooxml_dependencies
+analyze_ooxml_document
 lint_ooxml_document
 plan_ooxml_lint_repair
 apply_ooxml_lint_repair
@@ -1251,7 +1271,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is 0.50.0. The latest immutable public release remains
+The development manifest/runtime is 0.51.0. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:

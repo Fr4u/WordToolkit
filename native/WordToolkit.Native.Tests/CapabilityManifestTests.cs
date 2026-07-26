@@ -48,16 +48,16 @@ public sealed class CapabilityManifestTests
 
         Assert.Equal("wordtoolkit.capabilities/1.0", manifest["contract_schema"]!.GetValue<string>());
         Assert.Equal("1.0.0", manifest["contract_schema_version"]!.GetValue<string>());
-        Assert.Equal(145, manifest["operation_count"]!.GetValue<int>());
+        Assert.Equal(146, manifest["operation_count"]!.GetValue<int>());
         Assert.Equal(15, manifest["exposed_mcp_tool_count"]!.GetValue<int>());
         Assert.Equal(12, manifest["operations"]!.AsArray().Count);
         Assert.Equal(12, manifest["paging"]!["next_offset"]!.GetValue<int>());
-        Assert.Equal(145, manifest["metadata_coverage"]!["input_schema"]!.GetValue<int>());
-        Assert.Equal(145, manifest["metadata_coverage"]!["mcp_effect_annotations"]!.GetValue<int>());
-        Assert.Equal(56, manifest["metadata_coverage"]!["explicit_output_schema"]!.GetValue<int>());
-        Assert.Equal(56, manifest["metadata_coverage"]!["explicit_permissions"]!.GetValue<int>());
-        Assert.Equal(56, manifest["metadata_coverage"]!["explicit_reversibility"]!.GetValue<int>());
-        Assert.Equal(56, manifest["metadata_coverage"]!["explicit_operation_version"]!.GetValue<int>());
+        Assert.Equal(146, manifest["metadata_coverage"]!["input_schema"]!.GetValue<int>());
+        Assert.Equal(146, manifest["metadata_coverage"]!["mcp_effect_annotations"]!.GetValue<int>());
+        Assert.Equal(57, manifest["metadata_coverage"]!["explicit_output_schema"]!.GetValue<int>());
+        Assert.Equal(57, manifest["metadata_coverage"]!["explicit_permissions"]!.GetValue<int>());
+        Assert.Equal(57, manifest["metadata_coverage"]!["explicit_reversibility"]!.GetValue<int>());
+        Assert.Equal(57, manifest["metadata_coverage"]!["explicit_operation_version"]!.GetValue<int>());
         Assert.Equal(
             "operation-specific",
             manifest["format_support"]!["scope"]!.GetValue<string>()

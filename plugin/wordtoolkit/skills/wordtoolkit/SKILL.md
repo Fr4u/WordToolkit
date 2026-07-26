@@ -589,6 +589,21 @@ and affected local names are redacted by default, and source paths/hashes/ordina
 a separate opt-in. The action evaluates and reports the ECMA-376 Part 3 fifth-edition
 model without preprocessing or rewriting the package. Legacy `PreserveElements` and
 `PreserveAttributes` hints are inventoried, not executed as current-edition rules.
+Use lazy `analyze_ooxml_document` when the request is broad—analyse, audit, assess,
+diagnose, or decide what to inspect next—and a saved DOCX/DOCM/DOTX/DOTM already exists.
+Start with the default `max_signals=12`. Retain `package_fingerprint`, then follow only
+the exact `next_action` of a relevant returned signal. Do not fan out across all narrow
+inspectors before this summary proves that their domain contains evidence. The response
+contains counts, grouped repair opportunities and bounded prioritized signals; it has no
+field for document text, raw XML, source locations, external relationship targets or
+binaries, and it never opens Word or mutates the package. Treat
+`analysis_execution_complete=true` only as proof that this bounded pass finished. It is
+not proof of complete document coverage, semantic completeness or complete operation-
+budget accounting; read the three separate coverage flags and explicit omissions. A
+critical structural signal blocks mutation. A lint error is not automatically structural
+corruption, but its `blocks_automatic_mutation` value still requires narrow inspection
+before editing. On every subsequent call pass the retained fingerprint where that action
+supports a package precondition so a stale analysis cannot drive a new mutation.
 Use lazy `lint_ooxml_document` for a bounded quality or safety audit of a saved package.
 Start with `view=summary` and one rule pack when the task is narrow; request paged
 `findings` only after the counts show relevant evidence. Keep `include_source=false`
