@@ -50,6 +50,12 @@
   of 310/355/546/617 characters and compact responses of 888/1,272/1,079/909 characters.
   Apply returns exact equation-byte, paragraph-structure, inverse and zero-error SDK proof
   without document prose or OMML.
+- Mandatory hosted CI run `30192186347` passed all five jobs on implementation commit
+  `505cb4154f4baa55240c3d77807633e511b1bdb5`: Linux Engine, Windows Native tests and
+  distributable ZIP, Python compatibility/rendering, standalone Open XML validator and
+  remote service container. The downloaded 37,290,276-byte Windows artifact is byte-for-
+  byte identical to the local canonical ZIP at SHA-256
+  `1277483e8682209dd3176739deb853816a87e7d5ec58b6644bfb36a1a744c672`.
 
 ## WordToolkit 0.45.0 deterministic template style alignment - 2026-07-26
 
