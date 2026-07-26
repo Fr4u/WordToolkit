@@ -31,6 +31,10 @@
   reports 147 actions, 15 tools and 58 explicit contracts. An installed full-response
   `inspect_ooxml_mail_merge` smoke remained read-only and opened neither Word nor a data
   source or external target.
+- Hosted CI run `30211742920` passed all six jobs on implementation commit `4166a94`.
+  Its downloaded clean-Windows ZIP is byte-identical to both local archives: 37,523,118
+  bytes at SHA-256
+  `4451f221021c556ed790a127952ba6e2386176379b9acf8fcb7b437b20e524d4`.
 
 ## 0.53.0 — 2026-07-26
 

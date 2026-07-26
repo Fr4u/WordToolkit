@@ -41,8 +41,12 @@
   `word_opened=false`, `data_sources_opened=false` and
   `external_targets_followed=false`; the prior source is preserved at
   `C:\Users\Admin\plugins\wordtoolkit.backup-0.53.0-codex.20260726184900`.
-- Hosted qualification of the 0.54.0 implementation commit remains pending; the package
-  is locally reproducible and installed, not yet claimed as hosted-qualified.
+- Hosted CI run
+  [`30211742920`](https://github.com/Fr4u/WordToolkit/actions/runs/30211742920) passed
+  all six jobs on implementation commit `4166a948f459e7de4dc533c0d62b59c1d8c74312`.
+  Its downloaded clean-Windows ZIP is byte-identical to both local archives: 37,523,118
+  bytes at SHA-256
+  `4451f221021c556ed790a127952ba6e2386176379b9acf8fcb7b437b20e524d4`.
 
 # WordToolkit 0.53.0 native mail-merge graph - 2026-07-26
 
