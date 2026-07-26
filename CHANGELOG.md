@@ -26,6 +26,18 @@
   contracts. The isolated UNO document-load/export lane and shared Word-versus-
   LibreOffice visual corpus remain deliberately unfinished and are not hidden behind the
   successful version probe.
+- Verified 739 Engine, 8 neutral LibreOffice-adapter, 522 Native and 1,318 Python passes
+  with 16 intentional skips on pinned SDK 8.0.423; Ruff, six .NET format gates, schema
+  export and the standalone validator are clean. Hosted CI run 30198749524 passed six
+  jobs, including a real Ubuntu LibreOffice 24.2.7.2 binary at SHA-256
+  `eef555c71025262c67274dc6e98d00168c2a2ce0fcd16473c38609ff3ce2ace9`
+  bound as the adapter's expected executable hash.
+- Two independent 197-file, 89,444,147-byte plugin trees and their 37,397,666-byte ZIPs
+  are byte-identical at SHA-256
+  `30a9c9ad4a4291969c0e723e9eaeb68be6234f266bc90161038af97635abb927`.
+  Installed and enabled `0.49.0+codex.20260726122100`; canonical build, persistent source
+  and active cache have zero path/length/hash differences and installed discovery reports
+  144 actions, 15 tools and 55 complete explicit metadata contracts.
 
 ## 0.48.0 — 2026-07-26
 

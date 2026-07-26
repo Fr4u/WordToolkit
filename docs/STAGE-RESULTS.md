@@ -1,5 +1,47 @@
 # Stage results
 
+# WordToolkit 0.49.0 explicit LibreOffice backend identity - 2026-07-26
+
+- Added neutral `WordToolkit.LibreOffice` (`net8.0`) and one shared strict operation,
+  `wordtoolkit.inspect_libreoffice_backend/1.0`, exposed through direct Engine, the
+  `libreoffice-backend` JSON CLI and lazy MCP. The request requires one absolute local
+  executable, never searches `PATH`, rejects UNC/device/mapped-network/reparse paths,
+  optionally enforces an expected SHA-256, runs only bounded `--version` with closed
+  stdin and process-tree timeout termination, and rehashes after exit.
+- The result returns a normalized reported product/version, executable filename/size/hash
+  and coarse host architecture without returning the path, environment values or process
+  diagnostics. It proves no UNO connection, Writer component, PDF export, document-load
+  policy, macro prevention, external-update prevention, rendering or Word fidelity.
+  Network is not requested but is not isolated. A reported banner is not a vendor-
+  signature proof, and pre/post hashes are not an atomic OS-loader binding.
+- Local pinned-SDK gates pass 739 Engine, 8 neutral LibreOffice-adapter and 522 Native
+  tests. Python compatibility passes 1,318 with 16 intentional skips; Ruff, six .NET
+  format gates, schema export, standalone OpenXmlValidator and `git diff --check` are
+  clean.
+- Hosted CI run
+  <https://github.com/Fr4u/WordToolkit/actions/runs/30198749524> passed six jobs on
+  `76ee60f`. The dedicated Linux lane recorded LibreOffice
+  `24.2.7.2 420(Build:2)` with executable SHA-256
+  `eef555c71025262c67274dc6e98d00168c2a2ce0fcd16473c38609ff3ce2ace9`,
+  supplied that digest as the adapter's expected hash and passed the real probe.
+- Two independent package builds contain 197 files and 89,444,147 bytes with zero
+  path/length/hash differences. Their 37,397,666-byte ZIPs are byte-identical at SHA-256
+  `30a9c9ad4a4291969c0e723e9eaeb68be6234f266bc90161038af97635abb927`.
+  Runtime executable, runtime assembly, Engine, LibreOffice adapter and Open XML SDK
+  adapter hashes are `3c3d568bcc01f4c747a1efee0c33cca1146d33d811f94e395857966e3288395b`,
+  `fb85dbfc03c08cbcf9abdfdb56ed9cabbc294328c935f1c2a3941d55409c5356`,
+  `aed2f4ca934bfec9b18e3d8f4ca0ae1fac75c80df23e8d874e6d7df49fcc167c`,
+  `b924d9b42d73a1cc0328b7bac6255465cac5538b19c43d4ac4eaa7f5dbfab82c`
+  and `43f5191d6fe622925087556727c681caac0b1db157f495527a0f08e259b90a46`.
+- Installed and enabled `0.49.0+codex.20260726122100`. Canonical build, persistent
+  personal source and active cache contain the same 197 paths/lengths/hashes. Installed
+  capability discovery reports 144 actions, 15 MCP tools and 55 complete explicit
+  metadata contracts. The previous persistent source is retained at
+  `C:\Users\Admin\plugins\wordtoolkit.backup-0.48.0-codex.20260726112849`.
+- This tranche is not a LibreOffice renderer. One-shot UNO loading with explicit
+  `MacroExecutionMode`/`UpdateDocMode`, transactional PDF/PNG/manifest publication and the
+  shared Word-versus-LibreOffice visual corpus remain missing.
+
 ## WordToolkit 0.48.0 semantic role evidence graph - 2026-07-26
 
 - Added a separate source-linked role graph for theorem, lemma, proposition, corollary,

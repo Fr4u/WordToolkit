@@ -144,6 +144,15 @@ between those observations. No render or active-content claim is derived from th
 The one-shot UNO load/export adapter, transactional artifacts and shared visual corpus are
 still unimplemented.
 
+Hosted qualification run
+<https://github.com/Fr4u/WordToolkit/actions/runs/30198749524> passed all six jobs on
+commit `76ee60f`. Its dedicated Linux lane recorded LibreOffice
+`24.2.7.2 420(Build:2)` and executable SHA-256
+`eef555c71025262c67274dc6e98d00168c2a2ce0fcd16473c38609ff3ce2ace9`,
+then supplied that exact digest to the adapter as `expected_executable_sha256`. This is
+real binary/version identity evidence for the qualified runner image. It is not a stable
+distribution-wide pin, a vendor-signature proof or a render qualification.
+
 ## Implementation order
 
 1. public explicit-path version probe with deterministic tests;
