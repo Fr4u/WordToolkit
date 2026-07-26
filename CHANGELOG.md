@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+## 0.48.0 — 2026-07-26
+
+- Added a source-linked semantic-role evidence graph for theorem, lemma, proposition,
+  corollary, definition, proof, example, remark, axiom and assumption paragraphs. The
+  closed Polish/English profile keeps exact enclosing SDT declarations, explicit and
+  inherited paragraph-style conventions, and strict leading labels as separate evidence
+  channels; conflicts choose no winner and semantic completeness is never claimed.
+- Added one shared direct Engine operation, strict `semantic-role-package` JSON CLI and
+  closed lazy `inspect_ooxml_semantic_roles` MCP action. The default returns usable
+  main-story theorem candidates without paragraph text or evidence identities. Paging is
+  fingerprint-bound; evidence, styles, content-control IDs, short hashes, source and text
+  are separately gated; raw XML and Custom XML values have no response field.
+- Hardened false-positive and failure boundaries: a run-level content control nested
+  inside a paragraph cannot declare that paragraph's role; the default paragraph style,
+  typography, numbering, fuzzy similarity and private Custom XML vocabulary names are not
+  evidence; unresolved style chains reduce coverage; every text/evidence/issue budget
+  fails closed instead of silently truncating classification.
+- Added Engine, CLI, JSON-RPC/schema, privacy, stale-page, conflict, inheritance,
+  ambiguity and hard-limit regressions. A gated Microsoft Word 16.0 build 16.0.20131
+  acceptance test saved the fixture, retained all three valid evidence classes, rejected
+  the inline-SDT false positive and passed Microsoft Open XML SDK validation after save.
+- Verified 731 Engine, 513 Native and 1,318 Python passes with 16 intentional skips on
+  pinned SDK 8.0.423; Ruff, four .NET format gates, schema export and the standalone
+  validator are clean. Two independent 196-file, 89,352,581-byte plugin trees and their
+  37,370,393-byte ZIPs are byte-identical at SHA-256
+  `b50acb29b74e1f1d705ecd89f9be768cf289a2b7a144d0526befdb4f2963c3fa`.
+- Installed and enabled `0.48.0+codex.20260726112849`. Canonical build, persistent source
+  and active cache have zero path/length/hash differences. Installed discovery reports
+  143 actions, 15 tools and 54 complete explicit metadata contracts.
+
 ## 0.47.0 — 2026-07-26
 
 - Added semantic numbering reconstruction across direct Engine, strict

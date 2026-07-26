@@ -303,6 +303,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_ooxml_semantic_roles" => InspectPackageSemanticRolesAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_ooxml_ocr_candidates" => InspectPackageOcrCandidatesAsync(
                 arguments,
                 cancellationToken

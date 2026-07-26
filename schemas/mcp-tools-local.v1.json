@@ -39,6 +39,7 @@
       "apply_ooxml_template_style_alignment",
       "inspect_ooxml_numbering",
       "inspect_ooxml_heading_outline",
+      "inspect_ooxml_semantic_roles",
       "inspect_ooxml_ocr_candidates",
       "run_ooxml_ocr",
       "plan_ooxml_numbering_repair",
@@ -8681,6 +8682,203 @@
                 },
                 "additionalProperties": false
               }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_ooxml_semantic_roles",
+      "title": "Find source-linked theorem and mathematical-role candidates",
+      "description": "Inspect bounded theorem, lemma, proposition, corollary, definition, proof, example, remark, axiom or assumption paragraph candidates from explicit Word content-control declarations, exact style conventions and conservative Polish/English leading labels. Evidence authority and conflicts remain separate; the action never claims semantic completeness, returns text or identities without opt-in, opens Word, follows external relationships or mutates the package.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_local_word_package",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "view": {"enum": ["summary", "candidates", "issues"], "default": "candidates"},
+          "story_kind": {"enum": ["all", "main", "header", "footer", "footnote", "endnote", "comment", "glossary_entry", "text_box", "other"], "default": "main"},
+          "expected_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "roles": {"type": "array", "minItems": 1, "maxItems": 10, "uniqueItems": true, "default": ["theorem"], "items": {"enum": ["theorem", "lemma", "proposition", "corollary", "definition", "proof", "example", "remark", "axiom", "assumption"]}},
+          "minimum_evidence": {"enum": ["any", "declared_or_style", "declared_only"], "default": "any"},
+          "usable_only": {"type": "boolean", "default": true},
+          "candidate_id": {"type": "string", "pattern": "^wdsr_[A-Za-z0-9_-]+$", "maxLength": 128},
+          "paragraph_node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$", "maxLength": 128},
+          "classification": {"enum": ["declared", "style_convention", "lexical_candidate", "conflicting"]},
+          "offset": {"type": "integer", "minimum": 0, "default": 0},
+          "max_items": {"type": "integer", "minimum": 1, "maximum": 100, "default": 30},
+          "include_evidence": {"type": "boolean", "default": false},
+          "include_styles": {"type": "boolean", "default": false},
+          "include_declarations": {"type": "boolean", "default": false},
+          "include_hashes": {"type": "boolean", "default": false},
+          "include_source": {"type": "boolean", "default": false},
+          "include_sensitive": {"type": "boolean", "default": false},
+          "text_preview_chars": {"type": "integer", "minimum": 0, "maximum": 512, "default": 0}
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "package_fingerprint", "main_part_uri", "profile", "view", "story_kind", "requested_roles", "minimum_evidence", "usable_only", "examined_paragraph_count", "eligible_paragraph_count", "ambiguous_paragraph_count", "candidate_count", "usable_candidate_count", "conflict_count", "issue_count", "analysis_execution_complete", "semantic_role_coverage_complete", "semantic_completeness_claimed", "styles_with_effects_present", "coverage_omissions", "role_summaries", "matched_candidate_count", "offset", "returned_item_count", "items", "matched_issue_count", "returned_issue_count", "issue_page_truncated", "issues", "disclosure", "runtime", "python_used", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.inspect_ooxml_semantic_roles/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "main_part_uri": {"type": "string", "maxLength": 512},
+              "profile": {"const": "conservative_pl_en_v1"},
+              "view": {"enum": ["summary", "candidates", "issues"]},
+              "story_kind": {"enum": ["all", "main", "header", "footer", "footnote", "endnote", "comment", "glossary_entry", "text_box", "other"]},
+              "requested_roles": {"type": "array", "minItems": 1, "maxItems": 10, "uniqueItems": true, "items": {"enum": ["theorem", "lemma", "proposition", "corollary", "definition", "proof", "example", "remark", "axiom", "assumption"]}},
+              "minimum_evidence": {"enum": ["any", "declared_or_style", "declared_only"]},
+              "usable_only": {"type": "boolean"},
+              "examined_paragraph_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "eligible_paragraph_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "ambiguous_paragraph_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "candidate_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "usable_candidate_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "conflict_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "issue_count": {"type": "integer", "minimum": 0, "maximum": 1000},
+              "analysis_execution_complete": {"const": true},
+              "semantic_role_coverage_complete": {"const": false},
+              "semantic_completeness_claimed": {"const": false},
+              "styles_with_effects_present": {"type": "boolean"},
+              "coverage_omissions": {"type": "array", "minItems": 1, "maxItems": 5, "uniqueItems": true, "items": {"enum": ["unstated_author_conventions", "revision_or_mce_view_selection", "styles_with_effects_word_execution", "content_control_binding_diagnostics", "modeled_evidence_incomplete"]}},
+              "role_summaries": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 10,
+                "items": {
+                  "type": "object",
+                  "required": ["role", "candidate_count", "usable_candidate_count", "declared_count", "style_convention_count", "lexical_candidate_count", "conflict_evidence_count"],
+                  "properties": {
+                    "role": {"enum": ["theorem", "lemma", "proposition", "corollary", "definition", "proof", "example", "remark", "axiom", "assumption"]},
+                    "candidate_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                    "usable_candidate_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                    "declared_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                    "style_convention_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                    "lexical_candidate_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+                    "conflict_evidence_count": {"type": "integer", "minimum": 0, "maximum": 100000}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "matched_candidate_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "offset": {"type": "integer", "minimum": 0},
+              "returned_item_count": {"type": "integer", "minimum": 0, "maximum": 100},
+              "next_offset": {"type": "integer", "minimum": 1},
+              "items": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "required": ["candidate_id", "candidate_fingerprint", "paragraph_node_id", "classification", "story_kind", "source_order", "view_ambiguous", "usable_as_semantic_role", "evidence_count", "text_preview_truncated"],
+                  "properties": {
+                    "candidate_id": {"type": "string", "pattern": "^wdsr_[A-Za-z0-9_-]+$", "maxLength": 128},
+                    "candidate_fingerprint": {"type": "string", "pattern": "^wdsrf_[A-Za-z0-9_-]+$", "maxLength": 128},
+                    "paragraph_node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$", "maxLength": 128},
+                    "role": {"enum": ["theorem", "lemma", "proposition", "corollary", "definition", "proof", "example", "remark", "axiom", "assumption"]},
+                    "classification": {"enum": ["declared", "style_convention", "lexical_candidate", "conflicting"]},
+                    "story_kind": {"enum": ["main", "header", "footer", "footnote", "endnote", "comment", "glossary_entry", "text_box", "other"]},
+                    "source_order": {"type": "integer", "minimum": 0},
+                    "paragraph_character_count": {"type": "integer", "minimum": 0, "maximum": 65536},
+                    "label_character_count": {"type": "integer", "minimum": 0, "maximum": 64},
+                    "paragraph_text_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
+                    "view_ambiguous": {"type": "boolean"},
+                    "usable_as_semantic_role": {"type": "boolean"},
+                    "evidence_count": {"type": "integer", "minimum": 1, "maximum": 32},
+                    "evidence": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 32,
+                      "items": {
+                        "type": "object",
+                        "required": ["evidence_id", "kind", "role", "author_declared"],
+                        "properties": {
+                          "evidence_id": {"type": "string", "pattern": "^wdsre_[A-Za-z0-9_-]+$", "maxLength": 128},
+                          "kind": {"enum": ["content_control_tag", "content_control_alias", "direct_style_id", "style_name", "style_alias", "inherited_style_id", "lexical_label"]},
+                          "role": {"enum": ["theorem", "lemma", "proposition", "corollary", "definition", "proof", "example", "remark", "axiom", "assumption"]},
+                          "author_declared": {"type": "boolean"},
+                          "content_control_id": {"type": "string", "pattern": "^wccc_[A-Za-z0-9_-]+$", "maxLength": 128},
+                          "style_id": {"type": "string", "maxLength": 253},
+                          "value_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{16}$"}
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "text_preview": {"type": "string", "maxLength": 512},
+                    "text_preview_truncated": {"type": "boolean"},
+                    "source_part_uri": {"type": "string", "maxLength": 512},
+                    "source_element_ordinal": {"type": "integer", "minimum": 0}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "matched_issue_count": {"type": "integer", "minimum": 0, "maximum": 1000},
+              "returned_issue_count": {"type": "integer", "minimum": 0, "maximum": 100},
+              "issue_page_truncated": {"type": "boolean"},
+              "issues": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "required": ["code", "severity", "message"],
+                  "properties": {
+                    "code": {"type": "string", "maxLength": 128},
+                    "severity": {"enum": ["info", "warning", "error"]},
+                    "message": {"type": "string", "maxLength": 512},
+                    "paragraph_node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$", "maxLength": 128},
+                    "story_kind": {"enum": ["main", "header", "footer", "footnote", "endnote", "comment", "glossary_entry", "text_box", "other"]},
+                    "source_order": {"type": "integer", "minimum": 0},
+                    "candidate_id": {"type": "string", "pattern": "^wdsr_[A-Za-z0-9_-]+$", "maxLength": 128}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "disclosure": {
+                "type": "object",
+                "required": ["text_returned", "evidence_returned", "styles_returned", "declarations_returned", "hashes_returned", "source_returned", "raw_xml_returned", "custom_xml_values_returned", "external_relationships_followed", "mutation_performed", "word_opened", "document_content_is_untrusted"],
+                "properties": {
+                  "text_returned": {"type": "boolean"},
+                  "evidence_returned": {"type": "boolean"},
+                  "styles_returned": {"type": "boolean"},
+                  "declarations_returned": {"type": "boolean"},
+                  "hashes_returned": {"type": "boolean"},
+                  "source_returned": {"type": "boolean"},
+                  "raw_xml_returned": {"const": false},
+                  "custom_xml_values_returned": {"const": false},
+                  "external_relationships_followed": {"const": false},
+                  "mutation_performed": {"const": false},
+                  "word_opened": {"const": false},
+                  "document_content_is_untrusted": {"const": true}
+                },
+                "additionalProperties": false
+              },
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {"type": "object", "required": ["total_ms"], "properties": {"total_ms": {"type": "number", "minimum": 0}}, "additionalProperties": false}
             },
             "additionalProperties": false
           }

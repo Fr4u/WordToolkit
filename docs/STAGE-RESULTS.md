@@ -1,5 +1,48 @@
 # Stage results
 
+## WordToolkit 0.48.0 semantic role evidence graph - 2026-07-26
+
+- Added a separate source-linked role graph for theorem, lemma, proposition, corollary,
+  definition, proof, example, remark, axiom and assumption paragraphs. Exact enclosing
+  `wordtoolkit:role=<role>` SDT declarations, exact explicit/inherited paragraph-style
+  conventions and strict Polish/English leading labels remain independent evidence
+  channels. Conflicts choose no winner and semantic completeness is never claimed.
+- Direct Engine, strict `semantic-role-package` CLI and lazy
+  `inspect_ooxml_semantic_roles` MCP share one closed JSON contract. Default output is
+  usable main-story theorem candidates without paragraph text or evidence identities;
+  paging is fingerprint-bound and evidence, style/control identity, hashes, source and
+  text are separately gated. Raw XML and Custom XML values have no response field.
+- False-positive and failure boundaries are explicit: an inline run-level SDT cannot
+  declare the enclosing paragraph, default style/typography/numbering/fuzzy similarity/
+  private XML vocabulary names are not evidence, unresolved style chains reduce coverage
+  and exhausted text/evidence/issue budgets fail closed.
+- Full local gates pass **731 Engine**, **513 Native** and **1,318 Python tests**, with 16
+  intentional Python skips. Ruff, four .NET format gates, deterministic schema export and
+  the standalone Open XML SDK validator are clean. Every .NET command used pinned SDK
+  `C:\Users\Admin\.dotnet8\dotnet.exe` 8.0.423.
+- Two independent self-contained win-x64 builds produced byte-identical 196-file,
+  89,352,581-byte trees and byte-identical 37,370,393-byte ZIPs at SHA-256
+  `b50acb29b74e1f1d705ecd89f9be768cf289a2b7a144d0526befdb4f2963c3fa`.
+  Executable, runtime assembly, Engine assembly and Open XML SDK adapter hashes are
+  `39645d966ec73e9bb1211030b02328c24600f9353f6f8ab16a4296b95b9948ed`,
+  `03bc1c8dd86e523d4056b09caadac4b4af638225de057d9b348c11f97b56eb6b`,
+  `6709ea67cdda7b4b2176baa4a8d26041639b3225e8deb24c80497da17a23466b` and
+  `5f30355da29e8992091a41a63825105c401eacfde161f29a92bb7571222481ea`.
+- Installed and enabled `0.48.0+codex.20260726112849`. Canonical build, persistent
+  personal source and enabled cache contain the same 196 paths, lengths and hashes with
+  zero differences. Installed capability discovery reports 143 actions, 15 MCP tools and
+  54 complete explicit metadata contracts and returns exactly
+  `inspect_ooxml_semantic_roles` for a `semantic_role` query.
+- A guarded Word 16.0 build 16.0.20131 acceptance test saved the fixture and then passed
+  Microsoft Open XML SDK validation. The engine recovered lexical, explicit-style and
+  enclosing-SDT theorem candidates after Word normalization and did not promote an
+  inline SDT to paragraph evidence.
+- Cross-paragraph theorem extent, proof-to-theorem linkage, caller-defined semantic
+  profiles/dictionaries, broader languages, chosen revision/MCE views, mutation and a
+  qualified cross-version corpus remain missing. This release closes one conservative
+  read-only slice of `find every theorem`; it does not close the full document-engine
+  objective.
+
 ## WordToolkit 0.47.0 semantic numbering reconstruction - 2026-07-26
 
 - Added a separate reconstruction engine instead of widening the old list-tail restart.

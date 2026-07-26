@@ -49,6 +49,16 @@ detail tests reject absolute paths and payload text.
   `WORDTOOLKIT_REAL_WORD_NUMBERING_REBUILD_TEST=1` additionally opens the reconstructed
   package read-only in licensed Word, compares exact `ListString` labels with the engine,
   validates with Microsoft Open XML SDK, exports PDF and proves the source hash unchanged.
+- Semantic-role parity: Engine and native tests drive one conservative theorem/definition/
+  proof evidence graph through direct .NET, strict `semantic-role-package` JSON CLI and
+  the published lazy MCP schema. They cover exact enclosing SDT declarations, explicit
+  and inherited style conventions, Polish/English leading labels, conflicts, revision
+  ambiguity, unresolved styles, hard text/evidence/issue limits, fingerprint-bound paging,
+  independent disclosure gates, compact-response bounds, unknown-field rejection and zero
+  Word dispatch. `WORDTOOLKIT_REAL_WORD_SEMANTIC_ROLE_TEST=1` additionally saves the
+  fixture in licensed Word, revalidates it with Microsoft Open XML SDK and proves that all
+  three valid evidence classes survive while a run-level inline SDT does not become a
+  paragraph declaration.
 - AI capability contract: native tests verify the embedded schema/MCP/compatibility
   header, deterministic 64-hex digests, sorted paging, exact CLI/MCP data parity,
   JSON round-trip, fail-closed malformed/unknown input, sub-10,000-character default

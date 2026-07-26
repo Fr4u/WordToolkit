@@ -166,6 +166,23 @@ name such as `Heading 1` or `Nagłówek 1` is never evidence by itself. Treat un
 style chains, revision/MCE ambiguity, `stylesWithEffects` and incomplete coverage as
 hard boundaries. Do not use the result to infer semantic roles such as theorem or
 chapter, and do not mutate heading styles through generic XML operations.
+Use lazy `inspect_ooxml_semantic_roles` when the task asks to find theorem, lemma,
+proposition, corollary, definition, proof, example, remark, axiom or assumption
+paragraphs. The default returns usable main-story theorem candidates without paragraph
+text or evidence identities. It separates exact enclosing SDT declarations, exact
+explicit/inherited paragraph-style conventions and conservative Polish/English leading
+labels; a conflict never chooses a winner. Start with `minimum_evidence=declared_or_style`
+when false positives are costly, or keep `any` when lexical candidates are useful for
+review. Set `usable_only=false` only to diagnose conflicts or revision/MCE ambiguity.
+Request evidence, style IDs, content-control IDs, hashes, source provenance or a bounded
+text preview only when the next decision consumes each disclosure. Custom XML bindings,
+typography, numbering and fuzzy similarity are not role evidence in the current profile.
+`analysis_execution_complete=true` proves only that the bounded profile ran over every
+eligible projected paragraph. `semantic_completeness_claimed` and
+`semantic_role_coverage_complete` remain false because Word has no standardized theorem
+element and an author may use an unstated convention. The first slice identifies the
+role-bearing paragraph, not the entire multi-paragraph theorem body; do not silently
+expand it into following paragraphs or mutate styles from this read-only result alone.
 Use lazy `inspect_ooxml_numbering` instead of reading `numbering.xml`. Keep the
 default `view=instances` and `detail=metadata` for discovery. Filter by
 `number_id` or `abstract_number_id`; request `view=resolved_level` with one

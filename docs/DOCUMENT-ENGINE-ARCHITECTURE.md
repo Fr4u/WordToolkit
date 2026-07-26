@@ -314,6 +314,31 @@ dependency graph reuses paragraph identities for `outline_parent` and
 qualifies OOXML 0–8 to COM 1–9 and body text to COM 10 across main and header stories.
 See `docs/RESEARCH-OOXML-HEADING-OUTLINE-2026.md`.
 
+`WordSemanticRoleGraphBuilder` is a separate evidence layer above paragraphs, styles and
+content controls. WordprocessingML has no theorem element, so the graph never turns an
+unstated convention into a standards claim. The closed `conservative_pl_en_v1` profile
+recognizes theorem, lemma, proposition, corollary, definition, proof, example, remark,
+axiom and assumption through three independent authorities: an exact
+`wordtoolkit:role=<role>` tag or alias on an enclosing content control, an exact role term
+on the explicitly assigned paragraph style or one inherited style ID, and a strict
+Polish/English label at the beginning of the paragraph. Run-level controls nested inside
+the paragraph cannot declare the paragraph role. Default paragraph style, typography,
+numbering, fuzzy similarity and Custom XML vocabulary names are not evidence.
+
+The graph retains package-bound candidate/evidence identities, source paragraph/story,
+authority, conflict state, revision/MCE ambiguity and bounded issues. A conflict chooses
+no winner; an unresolved style chain and any exhausted evidence/issue/text budget fail
+closed. Lazy `inspect_ooxml_semantic_roles` defaults to usable main-story theorem
+candidates without paragraph text or evidence identities, pages only under the exact
+package fingerprint and gates evidence, style/control identity, hashes, source and text
+separately. `analysis_execution_complete` means the selected bounded profile ran;
+`semantic_completeness_claimed` and `semantic_role_coverage_complete` remain false because
+authors may use unmodeled conventions. The current object is the role-bearing paragraph,
+not the full multi-paragraph theorem body. A gated Word 16.0 build 16.0.20131 acceptance
+test proves that declared, style and lexical evidence survive a real Word save while an
+inline SDT does not become a paragraph declaration. See
+`docs/RESEARCH-WORD-SEMANTIC-ROLE-DISCOVERY-2026.md`.
+
 `WordNumberingGraphBuilder` is the first numbering adapter. It follows only the exact
 transitional or strict numbering relationship, validates the content type and
 `w:numbering` root, and retains source ordinals for picture bullets, abstract
@@ -1384,7 +1409,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 142 actions already have public SDK
+These are proved migration seams, not a claim that all 143 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
