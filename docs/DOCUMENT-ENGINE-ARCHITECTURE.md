@@ -638,7 +638,7 @@ prefix collisions, signed packages, plan drift, and new Open XML SDK errors fail
 Creation does not accept arbitrary formatting-property payloads; cloning is the current
 lossless formatting-preservation path. Stable style-ID changes, deletion of referenced or
 built-in definitions, fuzzy consolidation,
-automatic linked-style repair, template alignment and conditional table styles remain
+automatic linked-style repair and conditional table styles remain
 future work.
 
 Bulk assignment does not require the model to echo a list of node IDs. A bounded
@@ -663,6 +663,34 @@ default, while a no-op does not touch the file. Packages carrying OPC digital-si
 or relationships fail closed because silently leaving an invalid signature would be
 corruption disguised as success. This stateless design spends some repeated input
 tokens, but avoids retaining document text in a long-lived MCP cache.
+
+Template style alignment is a separate two-package transaction, not a disguised copy of
+`styles.xml`. `WordTemplateStyleAlignmentPlanner` compares definitions only by stable
+`w:styleId`; localized `w:name` values never establish identity. A selected root expands
+through its complete `basedOn`, `next` and linked-style closure and through numbering
+style links and level paragraph-style references. The whole closure is one candidate.
+Existing target definitions must retain their style type. Theme-dependent definitions
+are admitted only when canonical theme content and `themeFontLang` context are equal.
+Numbered definitions are admitted only when the exact target and template numbering
+instances and abstract definitions are already equivalent; picture bullets fail closed.
+When both packages contain `stylesWithEffects`, the same selected IDs are mirrored in
+both parts. An asymmetric effects-part topology blocks the entire catalogue.
+
+The planner translates only the standard Strict/Transitional Word namespace while
+preserving extension namespaces, comments, processing instructions and opaque style
+children. Target-only and unselected definitions and every unrelated OPC entry retain
+their prior bytes. Planning reparses the exact candidate, reprojects semantics, proves
+that selected definitions match the template, checks that no style or numbering issue was
+added, verifies numbering and theme dependencies again, computes the complete result
+fingerprint and materializes an exact inverse. Public inspect/plan/apply contracts bind
+both package fingerprints, candidate fingerprints and a deterministic plan ID. Apply
+requires baseline-aware Microsoft Open XML SDK validation, rejects signed targets,
+re-reads the template immediately before target publication to close the template-side
+TOCTOU window, then atomically replaces only the target package and retains a sibling
+backup by default. It never attaches, rewrites or publishes the template and never opens
+Word. Fuzzy role inference, target-only deletion, attached-template relationships, theme
+replacement, numbering rebuild, content restyling and cross-version visual equivalence
+are deliberately outside this slice.
 
 The generic package-patch slice now carries exact saved-package changes across process
 and machine boundaries. `OpcPackagePatchBuilder` compares two immutable snapshots and
@@ -1343,7 +1371,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 133 actions already have public SDK
+These are proved migration seams, not a claim that all 136 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
@@ -1702,8 +1730,11 @@ No feature is “supported” until it passes the relevant gates:
 - command schema, preconditions, plan/apply, inverse patches — **bounded multi-text plus
   heterogeneous style create/clone/exact-consolidation/proven-unused deletion/primary-name rename/exact-or-selected assignment planning,
   package/node/part/property preconditions, one patch set per part, predicted result
-  fingerprint and exact part-byte inverse implemented; arbitrary style formatting,
-  stable-ID change/referenced-or-built-in delete/fuzzy repair/template alignment, broader commands, permissions, approval and semantic
+  fingerprint and exact part-byte inverse implemented; separate stable-ID template closure
+  alignment is also implemented with exact two-package fingerprints, symmetric effects-style
+  handling and theme/numbering equivalence gates; arbitrary style formatting,
+  stable-ID change/referenced-or-built-in delete/fuzzy repair, template theme/numbering migration,
+  automatic content restyling, broader commands, permissions, approval and semantic
   inverses remain**;
 - style and numbering resolvers;
 - fields/references and source-linked review read graph — **initial implementations

@@ -34,6 +34,9 @@
       "apply_ooxml_merge",
       "inspect_ooxml_sections",
       "inspect_ooxml_styles",
+      "inspect_ooxml_template_style_alignment",
+      "plan_ooxml_template_style_alignment",
+      "apply_ooxml_template_style_alignment",
       "inspect_ooxml_numbering",
       "inspect_ooxml_heading_outline",
       "inspect_ooxml_ocr_candidates",
@@ -7341,6 +7344,414 @@
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_ooxml_template_style_alignment",
+      "title": "Inspect deterministic template style alignment",
+      "description": "Compare a target Word package with a distinct DOCX, DOCM, DOTX, or DOTM template package by stable style ID. Returns fingerprint-bound candidates for complete basedOn, next, linked-style, theme, numbering, and stylesWithEffects dependency closures. It never matches localized style names, attaches or mutates the template, returns document text or raw XML, or opens Word.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_two_local_word_packages",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "template_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "expected_target_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "expected_template_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "max_items": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50},
+          "include_issues": {"type": "boolean", "default": true},
+          "include_dependencies": {"type": "boolean", "default": false}
+        },
+        "required": ["target_path", "template_path", "expected_target_package_fingerprint", "expected_template_package_fingerprint"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "$defs": {
+          "candidate": {
+            "type": "object",
+            "required": ["id", "fingerprint", "style_id", "style_type", "alignment_action", "dependency_style_count", "added_style_count", "replaced_style_count", "already_aligned_style_count", "theme_context_verified", "numbering_dependencies_verified", "styles_with_effects_mirrored"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^wtsa_[a-f0-9]{24}$", "maxLength": 128},
+              "fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "style_id": {"type": "string", "minLength": 1, "maxLength": 253},
+              "style_type": {"enum": ["paragraph", "character", "table", "numbering", "unknown"]},
+              "alignment_action": {"enum": ["add_style", "replace_style", "align_dependency_closure"]},
+              "dependency_style_count": {"type": "integer", "minimum": 0, "maximum": 1024},
+              "dependency_style_ids": {"type": "array", "maxItems": 1024, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 253}},
+              "added_style_count": {"type": "integer", "minimum": 0, "maximum": 1024},
+              "replaced_style_count": {"type": "integer", "minimum": 0, "maximum": 1024},
+              "already_aligned_style_count": {"type": "integer", "minimum": 0, "maximum": 1024},
+              "theme_context_verified": {"type": "boolean"},
+              "numbering_dependencies_verified": {"type": "boolean"},
+              "styles_with_effects_mirrored": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          },
+          "issue": {
+            "type": "object",
+            "required": ["code", "severity"],
+            "properties": {
+              "code": {"type": "string", "maxLength": 128},
+              "severity": {"enum": ["info", "warning", "error"]},
+              "style_id": {"type": "string", "minLength": 1, "maxLength": 253}
+            },
+            "additionalProperties": false
+          },
+          "performance": {
+            "type": "object",
+            "required": ["total_ms"],
+            "properties": {"total_ms": {"type": "number", "minimum": 0}},
+            "additionalProperties": false
+          }
+        },
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "target_file_name", "template_file_name", "target_package_fingerprint", "template_package_fingerprint", "analysis_execution_complete", "alignment_coverage_complete", "can_plan", "styles_with_effects_symmetric", "candidate_count", "add_candidate_count", "replace_candidate_count", "dependency_closure_candidate_count", "already_aligned_style_count", "issue_count", "error_count", "warning_count", "returned_candidate_count", "candidates_truncated", "candidates", "returned_issue_count", "localized_name_matching_used", "template_attached", "template_mutation_performed", "document_text_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.inspect_ooxml_template_style_alignment/1.0"},
+              "target_file_name": {"type": "string", "maxLength": 512},
+              "template_file_name": {"type": "string", "maxLength": 512},
+              "target_package_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "template_package_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "analysis_execution_complete": {"const": true},
+              "alignment_coverage_complete": {"const": true},
+              "can_plan": {"type": "boolean"},
+              "styles_with_effects_symmetric": {"type": "boolean"},
+              "candidate_count": {"type": "integer", "minimum": 0, "maximum": 16384},
+              "add_candidate_count": {"type": "integer", "minimum": 0, "maximum": 16384},
+              "replace_candidate_count": {"type": "integer", "minimum": 0, "maximum": 16384},
+              "dependency_closure_candidate_count": {"type": "integer", "minimum": 0, "maximum": 16384},
+              "already_aligned_style_count": {"type": "integer", "minimum": 0},
+              "issue_count": {"type": "integer", "minimum": 0},
+              "error_count": {"type": "integer", "minimum": 0},
+              "warning_count": {"type": "integer", "minimum": 0},
+              "returned_candidate_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "candidates_truncated": {"type": "boolean"},
+              "candidates": {"type": "array", "maxItems": 200, "items": {"$ref": "#/$defs/candidate"}},
+              "returned_issue_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "issues_truncated": {"type": "boolean"},
+              "issues": {"type": "array", "maxItems": 200, "items": {"$ref": "#/$defs/issue"}},
+              "localized_name_matching_used": {"const": false},
+              "template_attached": {"const": false},
+              "template_mutation_performed": {"const": false},
+              "document_text_returned": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"const": false},
+              "word_opened": {"const": false},
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {"$ref": "#/$defs/performance"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "plan_ooxml_template_style_alignment",
+      "title": "Plan deterministic template style alignment",
+      "description": "Build and independently validate an exact target-package candidate for a reviewed set of fingerprint-bound style-ID closures. The plan proves semantic-content preservation, exact inverse, target-only style preservation, mirrored stylesWithEffects, equivalent theme and numbering dependencies, and no new style, numbering, OPC, or Microsoft Open XML SDK errors. It does not mutate either package or open Word.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_two_local_word_packages",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "planning_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "$defs": {
+          "command": {
+            "type": "object",
+            "required": ["candidate_id", "expected_candidate_fingerprint"],
+            "properties": {
+              "candidate_id": {"type": "string", "pattern": "^wtsa_[a-f0-9]{24}$", "maxLength": 128},
+              "expected_candidate_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "properties": {
+          "target_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "template_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "expected_target_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "expected_template_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "commands": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/command"}},
+          "include_details": {"type": "boolean", "default": false}
+        },
+        "required": ["target_path", "template_path", "expected_target_package_fingerprint", "expected_template_package_fingerprint", "commands"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "$defs": {
+          "validationIssue": {
+            "type": "object",
+            "required": ["error_type"],
+            "properties": {
+              "id": {"type": "string", "maxLength": 128},
+              "error_type": {"type": "string", "maxLength": 64},
+              "part_uri": {"type": "string", "maxLength": 512},
+              "path": {"type": "string", "maxLength": 512},
+              "node": {"type": "string", "maxLength": 128}
+            },
+            "additionalProperties": false
+          },
+          "candidateValidation": {
+            "type": "object",
+            "required": ["performed", "valid", "no_new_errors", "error_count", "baseline_error_count", "candidate_error_count", "errors_truncated", "issues"],
+            "properties": {
+              "performed": {"type": "boolean"},
+              "valid": {"type": "boolean"},
+              "no_new_errors": {"type": "boolean"},
+              "error_count": {"type": "integer", "minimum": 0},
+              "baseline_error_count": {"type": "integer", "minimum": 0},
+              "candidate_error_count": {"type": "integer", "minimum": 0},
+              "errors_truncated": {"type": "boolean"},
+              "not_performed_reason": {"type": "string", "maxLength": 129},
+              "issues": {"type": "array", "maxItems": 200, "items": {"$ref": "#/$defs/validationIssue"}}
+            },
+            "additionalProperties": false
+          },
+          "engineValidation": {
+            "type": "object",
+            "required": ["candidate_package_structurally_valid", "candidate_semantic_content_preserved", "selected_styles_match_template", "dependency_closure_resolved", "target_only_and_unselected_styles_preserved", "styles_with_effects_mirrored", "theme_context_verified", "numbering_dependencies_verified", "no_new_style_issues", "no_new_numbering_issues", "unplanned_entries_preserved", "exact_inverse_verified", "added_style_count", "replaced_style_count", "changed_part_count", "before_style_issue_count", "after_style_issue_count", "before_numbering_issue_count", "after_numbering_issue_count", "passed"],
+            "properties": {
+              "candidate_package_structurally_valid": {"type": "boolean"},
+              "candidate_semantic_content_preserved": {"type": "boolean"},
+              "selected_styles_match_template": {"type": "boolean"},
+              "dependency_closure_resolved": {"type": "boolean"},
+              "target_only_and_unselected_styles_preserved": {"type": "boolean"},
+              "styles_with_effects_mirrored": {"type": "boolean"},
+              "theme_context_verified": {"type": "boolean"},
+              "numbering_dependencies_verified": {"type": "boolean"},
+              "no_new_style_issues": {"type": "boolean"},
+              "no_new_numbering_issues": {"type": "boolean"},
+              "unplanned_entries_preserved": {"type": "boolean"},
+              "exact_inverse_verified": {"type": "boolean"},
+              "added_style_count": {"type": "integer", "minimum": 0, "maximum": 1024},
+              "replaced_style_count": {"type": "integer", "minimum": 0, "maximum": 1024},
+              "changed_part_count": {"type": "integer", "minimum": 0, "maximum": 2},
+              "before_style_issue_count": {"type": "integer", "minimum": 0},
+              "after_style_issue_count": {"type": "integer", "minimum": 0},
+              "before_numbering_issue_count": {"type": "integer", "minimum": 0},
+              "after_numbering_issue_count": {"type": "integer", "minimum": 0},
+              "passed": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          },
+          "candidate": {
+            "type": "object",
+            "required": ["id", "fingerprint", "style_id", "style_type", "alignment_action", "dependency_style_count", "added_style_count", "replaced_style_count", "already_aligned_style_count", "theme_context_verified", "numbering_dependencies_verified", "styles_with_effects_mirrored"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^wtsa_[a-f0-9]{24}$", "maxLength": 128},
+              "fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "style_id": {"type": "string", "minLength": 1, "maxLength": 253},
+              "style_type": {"enum": ["paragraph", "character", "table", "numbering", "unknown"]},
+              "alignment_action": {"enum": ["add_style", "replace_style", "align_dependency_closure"]},
+              "dependency_style_count": {"type": "integer", "minimum": 0, "maximum": 1024},
+              "dependency_style_ids": {"type": "array", "maxItems": 1024, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 253}},
+              "added_style_count": {"type": "integer", "minimum": 0, "maximum": 1024},
+              "replaced_style_count": {"type": "integer", "minimum": 0, "maximum": 1024},
+              "already_aligned_style_count": {"type": "integer", "minimum": 0, "maximum": 1024},
+              "theme_context_verified": {"type": "boolean"},
+              "numbering_dependencies_verified": {"type": "boolean"},
+              "styles_with_effects_mirrored": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          },
+          "partChange": {
+            "type": "object",
+            "required": ["part_uri", "before_sha256", "after_sha256", "before_bytes", "after_bytes"],
+            "properties": {
+              "part_uri": {"type": "string", "maxLength": 512},
+              "before_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "after_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "before_bytes": {"type": "integer", "minimum": 0},
+              "after_bytes": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": false
+          },
+          "performance": {
+            "type": "object",
+            "required": ["total_ms"],
+            "properties": {"total_ms": {"type": "number", "minimum": 0}},
+            "additionalProperties": false
+          }
+        },
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "target_file_name", "template_file_name", "plan_id", "target_package_fingerprint", "template_package_fingerprint", "result_package_fingerprint", "command_count", "candidate_count", "aligned_style_count", "added_style_count", "replaced_style_count", "changed_part_count", "total_byte_delta", "has_changes", "can_apply", "apply_blocked", "apply_blocked_reasons", "engine_validation", "candidate_validation", "safety_rules", "localized_name_matching_used", "template_attached", "template_mutation_performed", "document_text_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.plan_ooxml_template_style_alignment/1.0"},
+              "target_file_name": {"type": "string", "maxLength": 512},
+              "template_file_name": {"type": "string", "maxLength": 512},
+              "plan_id": {"type": "string", "pattern": "^wtsaplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "target_package_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "template_package_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "result_package_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "command_count": {"type": "integer", "minimum": 1, "maximum": 64},
+              "candidate_count": {"type": "integer", "minimum": 1, "maximum": 64},
+              "aligned_style_count": {"type": "integer", "minimum": 1, "maximum": 65536},
+              "added_style_count": {"type": "integer", "minimum": 0, "maximum": 65536},
+              "replaced_style_count": {"type": "integer", "minimum": 0, "maximum": 65536},
+              "changed_part_count": {"type": "integer", "minimum": 1, "maximum": 2},
+              "total_byte_delta": {"type": "integer"},
+              "has_changes": {"type": "boolean"},
+              "can_apply": {"type": "boolean"},
+              "apply_blocked": {"type": "boolean"},
+              "apply_blocked_reasons": {"type": "array", "maxItems": 8, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
+              "engine_validation": {"$ref": "#/$defs/engineValidation"},
+              "candidate_validation": {"$ref": "#/$defs/candidateValidation"},
+              "safety_rules": {"type": "array", "minItems": 8, "maxItems": 32, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
+              "candidates": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/candidate"}},
+              "aligned_style_ids": {"type": "array", "maxItems": 65536, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 253}},
+              "changed_parts": {"type": "array", "maxItems": 2, "items": {"$ref": "#/$defs/partChange"}},
+              "localized_name_matching_used": {"const": false},
+              "template_attached": {"const": false},
+              "template_mutation_performed": {"const": false},
+              "document_text_returned": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"const": false},
+              "word_opened": {"const": false},
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {"$ref": "#/$defs/performance"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "apply_ooxml_template_style_alignment",
+      "title": "Apply reviewed template style alignment atomically",
+      "description": "Reproduce an exact reviewed plan, revalidate both package fingerprints and the template immediately before publication, reject signed targets and schema regressions, and atomically publish only the target styles parts with an optional sibling recovery backup. The template is never attached or mutated and Word is never opened.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_template_and_atomically_replace_target_word_package",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": true,
+        "mechanism": "exact_sibling_backup_and_verified_inverse",
+        "default_backup": true
+      },
+      "inputSchema": {
+        "type": "object",
+        "$defs": {
+          "command": {
+            "type": "object",
+            "required": ["candidate_id", "expected_candidate_fingerprint"],
+            "properties": {
+              "candidate_id": {"type": "string", "pattern": "^wtsa_[a-f0-9]{24}$", "maxLength": 128},
+              "expected_candidate_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "properties": {
+          "target_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "template_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "expected_target_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "expected_template_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "expected_plan_id": {"type": "string", "pattern": "^wtsaplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+          "commands": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/command"}},
+          "keep_backup": {"type": "boolean", "default": true}
+        },
+        "required": ["target_path", "template_path", "expected_target_package_fingerprint", "expected_template_package_fingerprint", "expected_plan_id", "commands"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "$defs": {
+          "performance": {
+            "type": "object",
+            "required": ["total_ms"],
+            "properties": {"total_ms": {"type": "number", "minimum": 0}},
+            "additionalProperties": false
+          }
+        },
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "target_file_name", "template_file_name", "plan_id", "applied", "candidate_count", "aligned_style_count", "added_style_count", "replaced_style_count", "previous_target_package_fingerprint", "template_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "backup_path", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "localized_name_matching_used", "template_attached", "template_mutation_performed", "document_text_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.apply_ooxml_template_style_alignment/1.0"},
+              "target_file_name": {"type": "string", "maxLength": 512},
+              "template_file_name": {"type": "string", "maxLength": 512},
+              "plan_id": {"type": "string", "pattern": "^wtsaplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "applied": {"const": true},
+              "candidate_count": {"type": "integer", "minimum": 1, "maximum": 64},
+              "aligned_style_count": {"type": "integer", "minimum": 1, "maximum": 65536},
+              "added_style_count": {"type": "integer", "minimum": 0, "maximum": 65536},
+              "replaced_style_count": {"type": "integer", "minimum": 0, "maximum": 65536},
+              "previous_target_package_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "template_package_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "package_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "predicted_package_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "backup_path": {"type": ["string", "null"], "maxLength": 32767},
+              "changed_entry_names": {"type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": {"type": "string", "maxLength": 512}},
+              "diagnostic_count": {"type": "integer", "minimum": 0},
+              "microsoft_schema_valid": {"type": "boolean"},
+              "microsoft_schema_no_new_errors": {"type": "boolean"},
+              "localized_name_matching_used": {"const": false},
+              "template_attached": {"const": false},
+              "template_mutation_performed": {"const": false},
+              "document_text_returned": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"const": true},
+              "word_opened": {"const": false},
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {"$ref": "#/$defs/performance"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
         "openWorldHint": false
       }
     },

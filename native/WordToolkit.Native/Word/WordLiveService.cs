@@ -231,6 +231,21 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_ooxml_template_style_alignment" =>
+                InspectPackageTemplateStyleAlignmentAsync(
+                    arguments,
+                    cancellationToken
+                ),
+            "plan_ooxml_template_style_alignment" =>
+                PlanPackageTemplateStyleAlignmentAsync(
+                    arguments,
+                    cancellationToken
+                ),
+            "apply_ooxml_template_style_alignment" =>
+                ApplyPackageTemplateStyleAlignmentAsync(
+                    arguments,
+                    cancellationToken
+                ),
             "inspect_ooxml_numbering" => InspectPackageNumberingAsync(
                 arguments,
                 cancellationToken

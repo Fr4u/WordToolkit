@@ -41,10 +41,14 @@ WordToolkit deliberately avoids claiming complete Microsoft Word parity.
   selected semantic nodes in the same atomic transaction. `create_style` does not accept
   arbitrary formatting blocks; `clone_style` preserves source formatting and opaque
   extensions but deliberately strips default and linked-style identity. The engine does
-  not change stable style IDs, delete referenced or built-in definitions, fuzzily repair, or align
-  definitions to templates; infer domain labels such as APA/IEEE; model conditional table-style
-  rendering; or enforce document protection/permission semantics. Definition edits fail
-  closed when `stylesWithEffects.xml` exists because mirrored mutation is not implemented.
+  not change stable style IDs, delete referenced or built-in definitions, fuzzily repair,
+  infer domain labels such as APA/IEEE, model conditional table-style rendering, or enforce
+  document protection/permission semantics. A separate two-package aligner can copy only
+  reviewed stable-ID dependency closures when theme and numbering contexts are already
+  equivalent. It does not migrate either context, restyle document content, delete target-only
+  styles or infer identity from visible names. Generic definition edits fail closed when
+  `stylesWithEffects.xml` exists; the dedicated aligner handles only a symmetric target/template
+  pair and mirrors the selected IDs in both style parts.
   Planning and apply are bounded to 200 resolved operations and block signatures and new
   SDK validation errors. Bulk selectors are limited to 16 commands and 200
   resolved nodes; they support one paragraph/run/table kind plus bounded text, exact

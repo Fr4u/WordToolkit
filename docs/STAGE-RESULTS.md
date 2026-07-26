@@ -1,5 +1,70 @@
 # Stage results
 
+## WordToolkit 0.45.0 deterministic template style alignment - 2026-07-26
+
+- Added `WordTemplateStyleAlignmentPlanner` as a two-package, stable-ID operation rather
+  than a `styles.xml` copy. One reviewed root expands through complete `basedOn`, `next`,
+  linked-style, numbering-style-link, style-link and numbering-level paragraph-style
+  dependencies. Existing target types must match. Localized visible names never define
+  identity.
+- Transitional and Strict Word namespaces are normalized only for the standard Word
+  vocabulary. Extension namespaces, comments, processing instructions and opaque style
+  children remain significant and are preserved. Target-only and unselected styles and
+  every unrelated OPC entry retain their prior bytes. A symmetric `stylesWithEffects`
+  part is mirrored for the same selected IDs; an asymmetric pair fails closed.
+- Theme-dependent closures require equal canonical theme content and `themeFontLang`.
+  Numbered closures require the exact target/template numbering instances and abstract
+  definitions to be equivalent; picture bullets fail closed. The aligner does not attach
+  or mutate the template, migrate themes/numbering, restyle content, infer roles from
+  names or claim visual equivalence across Word versions.
+- Added strict public inspect/plan/apply Engine contracts, a shared
+  `template-style-alignment-package` CLI and three lazy MCP actions. Both package
+  fingerprints, every candidate fingerprint and the deterministic `wtsaplan_` ID are
+  reproduced at apply. Apply requires Microsoft Open XML SDK validation, blocks signed
+  targets, re-reads the template immediately before atomic target publication and keeps
+  a sibling recovery backup by default.
+- Candidate validation reparses the exact package, reprojects semantics, verifies the
+  complete selected closure against the template, re-proves theme and numbering context,
+  rejects new style or numbering issues, checks unplanned entry hashes and constructs an
+  exact inverse. Public responses return no document text or raw XML and never open Word.
+- Full local gates pass **686 Engine**, **502 Native** and **1,313 Python tests**, with
+  16 intentional Python skips. Ruff, both .NET format gates, remote schema export, sample
+  generation, the 11-page/17-equation torture document and the standalone Open XML SDK
+  validator are clean. Every .NET command used pinned SDK
+  `C:\Users\Admin\.dotnet8\dotnet.exe` 8.0.423.
+- Two self-contained win-x64 builds produced byte-identical 196-file,
+  88,930,113-byte trees and byte-identical 37,257,187-byte ZIPs at SHA-256
+  `6bea91fc4d577c13cd47b26be991da01d7a321efd7849ebef2ae013c81e98931`.
+  Executable, runtime assembly, Engine assembly and Open XML SDK adapter hashes are
+  `517f551469ddc62b7eb8946ff983b394b4457b76ddf666dc6d70e0882edd6758`,
+  `40e24063ea9353319c8f3b42da7d3c3968ba19d088bac07801d017224caabe19`,
+  `71a0d3786e6dc19499c8d4e72fb010577e4f835e86e311f5391ab4f10976c6a0` and
+  `c9ba519f9cc857136bcab65a2b0db494a0340b26db11347aac27efa563349e05`.
+- Installed and enabled `0.45.0+codex.20260726070205`. Canonical build, persistent
+  personal source and enabled Codex cache contain the same 196 paths, lengths and hashes.
+  Installed discovery reports 136 actions, 15 tools and 47 complete metadata contracts;
+  a template-style-alignment query returns exactly the inspect/plan/apply trio. The full
+  1,019-line installed skill was reread after installation.
+- A real Word-created target cloned `Normal` into `AlignedStyle`; a separate Word-created
+  template cloned `Title` into the same stable ID. The packaged 0.45 runtime inspected
+  candidate `wtsa_9e36e30bc87e5607a5cfa622`, expanded dependency `Normal`, planned
+  `wtsaplan_naZNVR0YLYKg3qDzMd-6j0zw`, replaced one style in one part and reproduced the
+  exact predicted target fingerprint
+  `685e22ac9eb6ddc657e7cbe8bea49e24b5d146780d211f8469c5a2ce74b55a52`.
+  Template package fingerprint
+  `7908eae79fa5430e0b3b46ce041ed3de7b0b8c740ff68df11ce04f5a792ebaf2`
+  and file SHA-256 remained unchanged. Both final packages have zero Open XML SDK errors.
+- Microsoft Word 16.0 build 16.0.20131 rendered the before and after packages read-only,
+  rechecked their hashes after close and produced one 1191x1684 PNG page for each at
+  144 DPI. Visual inspection shows the same paragraph changing from ordinary body text
+  to the large `Title`-derived appearance, with no clipping, overlap, raw XML or content
+  change. The first render attempt deliberately failed closed when a `.cmd` Poppler shim
+  returned exit code 3; direct verified Poppler executables then completed the transaction.
+- The exact installed executable repeated inspect/plan/apply against a fresh copy of the
+  pre-alignment target. It reproduced the same candidate ID, plan ID and final fingerprint,
+  retained an existing backup and passed the standalone Microsoft validator with zero
+  errors. `codex plugin list --json` reports the personal plugin installed and enabled.
+
 ## WordToolkit 0.44.0 guarded saved-package OfficeMath duplicate repair — 2026-07-26
 
 - Added a bounded `WordEquationRepairPlanner` for Transitional and Strict Word packages.

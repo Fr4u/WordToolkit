@@ -874,11 +874,48 @@ existing style/numbering graph damage, unmodeled XML consumers, matching latent-
 exceptions, unsafe `STYLEREF`, macros, `altChunk`, automatic linked-template updates and
 `stylesWithEffects` all fail closed. Rename preserves the stable `styleId`, aliases,
 formatting and ID-based references; collisions and name-addressed fields block rather than
-being rewritten. The family still does not change style IDs, delete referenced or built-in
-definitions, or perform fuzzy repair, infer document roles, align to a template, or implement
+being rewritten. The semantic-edit family still does not change style IDs, delete referenced
+or built-in definitions, perform fuzzy repair, infer document roles, or implement
 conditional table-style semantics. Planning writes nothing; apply blocks signatures, stale
 sources, changed intent, plan drift and new Microsoft Open XML validation errors. Neither
 action opens Word or returns XML/document text.
+
+For alignment against a separate Word template package, use the dedicated token-lean
+workflow. Do not simulate it with repeated `clone_style`, visible-name matching, raw XML,
+or an attached-template relationship:
+
+1. Inspect the target and the distinct template DOCX, DOCM, DOTX, or DOTM and retain both
+   exact 64-character package fingerprints. Never use the same path for both roles.
+2. Call `inspect_ooxml_template_style_alignment` with both paths and fingerprints. Start
+   with `max_items=50`, `include_issues=false`, and `include_dependencies=false`. Request
+   issues only when `can_plan=false` or a required stable `style_id` has no candidate;
+   request dependencies only for the candidate that will actually be reviewed.
+3. Select candidates only by exact returned `style_id`, `id`, and `fingerprint`. One
+   candidate already contains the complete `basedOn`, `next`, linked-style and
+   numbering-linked style closure. Do not send separate dependency candidates unless the
+   user independently wants them; overlapping closures are deduplicated by the planner.
+4. Call `plan_ooxml_template_style_alignment` with the two original fingerprints and a
+   bounded command list of `candidate_id` plus `expected_candidate_fingerprint`. Keep
+   `include_details=false` for ordinary review. Check `plan_id`, added/replaced/aligned
+   counts, changed-part count, `engine_validation`, `candidate_validation`, `can_apply`,
+   and every `apply_blocked_reason`.
+5. Only after approval, call `apply_ooxml_template_style_alignment` with identical paths,
+   fingerprints and commands plus the exact reviewed plan ID. Keep the sibling recovery
+   backup by default. Reinspect the target fingerprint after apply. The template fingerprint
+   must remain the original value.
+
+Identity is stable `w:styleId`, never localized `w:name`. Existing target/template style
+types must agree. Theme-dependent closures require equal canonical theme content and
+`themeFontLang`; numbered closures require already-equivalent numbering instances and
+abstract definitions, and picture bullets fail closed. `stylesWithEffects` must exist in
+both packages or neither, and selected IDs are mirrored when it exists. The engine
+translates only standard Strict/Transitional Word namespaces, preserves extension content,
+target-only/unselected styles and unrelated OPC entries, verifies semantic equivalence,
+no new style/numbering/SDK errors and an exact inverse, then rechecks template drift just
+before atomic target publication. It never attaches, mutates or publishes the template,
+returns document text/raw XML, opens Word, migrates themes/numbering, reassigns content,
+or claims visual equivalence across Word builds. Signed targets and missing schema
+validation are hard blocks.
 
 1. `list_live_word_documents`.
 2. Use `start_word_application` only when Word is unavailable.
