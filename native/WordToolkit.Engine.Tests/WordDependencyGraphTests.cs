@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using WordToolkit.Engine.Packaging;
@@ -594,19 +595,12 @@ public sealed class WordDependencyGraphTests
         Assert.Throws<InvalidOperationException>(() => _ = enumerator.Current);
 
         var allocationView = first.OutgoingView(first.Edges[0].SourceNodeId);
-        var observed = 0;
-        foreach (var edge in allocationView)
-        {
-            observed += edge.IsResolved ? 1 : 0;
-        }
+        // Compile the measured path before opening the allocation window. In a hot loop,
+        // tiered JIT/OSR can otherwise charge one-time runtime bookkeeping to this thread
+        // and make the test report framework allocations as collection allocations.
+        var observed = CountResolvedEdges(allocationView, 1);
         var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-        for (var iteration = 0; iteration < 10_000; iteration++)
-        {
-            foreach (var edge in allocationView)
-            {
-                observed += edge.IsResolved ? 1 : 0;
-            }
-        }
+        observed += CountResolvedEdges(allocationView, 10_000);
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - allocatedBefore);
         GC.KeepAlive(observed);
 
@@ -634,6 +628,23 @@ public sealed class WordDependencyGraphTests
                 new WordDependencyGraphOptions { MaxMetadataCharacters = 8 }
             ).Build(package, semantic)
         );
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+    private static int CountResolvedEdges(
+        WordDependencyEdgeCollection edges,
+        int iterations
+    )
+    {
+        var observed = 0;
+        for (var iteration = 0; iteration < iterations; iteration++)
+        {
+            foreach (var edge in edges)
+            {
+                observed += edge.IsResolved ? 1 : 0;
+            }
+        }
+        return observed;
     }
 
     [Fact]
