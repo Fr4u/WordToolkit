@@ -35,6 +35,10 @@
   reports 148 actions, 15 tools and 59 explicit contracts. A full-response MCP catalog
   smoke returned `out_of_process`, `process_boundary`, the 1 GiB ceiling and no
   implementation type/path, assembly loading, Word or network use by inspection.
+- Mandatory hosted CI run [`30217194508`](https://github.com/Fr4u/WordToolkit/actions/runs/30217194508)
+  passed all six jobs. Its downloaded Windows artifact is byte-for-byte identical to
+  both local archives: 37,573,355 bytes, SHA-256
+  `6fc800ff906e055c2d40d1497afe5d66262c1154c34f4e5045188bd08fc60bb4`.
 
 ## 0.56.0 — 2026-07-26
 

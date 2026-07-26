@@ -40,6 +40,11 @@
   `loads_assemblies=false`, `opens_word=false`, `uses_network=false`. Version 0.56 is
   preserved at
   `C:\Users\Admin\plugins\wordtoolkit.backup-0.56.0-codex.20260726211107`.
+- Mandatory hosted CI run [`30217194508`](https://github.com/Fr4u/WordToolkit/actions/runs/30217194508)
+  passed all six jobs on implementation commit
+  `a739b58935506459f62948f0deb65c9aaab9b75b`. The downloaded Windows artifact is
+  byte-for-byte identical to both local archives: 37,573,355 bytes, SHA-256
+  `6fc800ff906e055c2d40d1497afe5d66262c1154c34f4e5045188bd08fc60bb4`.
 
 # WordToolkit 0.56.0 typed mail-merge record controls - 2026-07-26
 
