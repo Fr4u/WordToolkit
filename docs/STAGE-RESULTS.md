@@ -1,5 +1,46 @@
 # Stage results
 
+## WordToolkit 0.43.0 saved-package note integrity and guarded repair — 2026-07-26
+
+- Added a bounded `WordNoteGraphBuilder` for Transitional and Strict packages. It joins
+  footnote/endnote definitions, ordinary references, document-wide special references
+  and document/section placement, format, start and restart policies without hardcoding
+  separator IDs. Invalid IDs, missing/ambiguous definitions, nested note references,
+  invalid custom marks, missing reference marks, complex/contentful orphans and invalid
+  policies remain explicit diagnostics.
+- Added exact definition/package fingerprints and two deliberately narrow repair kinds:
+  removal of an empty simple ordinary orphan, or of a later canonically identical
+  redundant duplicate. Missing note content and missing special definitions are never
+  synthesized. A candidate must preserve every untargeted definition, ordinary/special
+  reference and numbering policy, add no note issues, preserve every unplanned entry and
+  reconstruct the base fingerprint through an exact inverse.
+- Added direct Engine, strict `note-package --mode inspect|plan|apply` CLI and lazy
+  `inspect_ooxml_notes`, `plan_ooxml_note_repair` and `apply_ooxml_note_repair` MCP
+  contracts. Plan/apply are stateless and bind the current package, exact definition and
+  deterministic plan ID. Apply blocks signatures, requires baseline-aware Microsoft Open
+  XML SDK validation, writes atomically and retains a sibling backup by default. Responses
+  expose neither note prose nor raw XML and never open Word or use the network.
+- Full local gates pass **664 Engine**, **493 Native** and **1,313 Python tests**, with
+  16 intentional Python skips. The focused Release slice contributes 18 note graph/
+  operation tests and four CLI/MCP cases, including Strict namespaces, negative and zero
+  special IDs, duplicates, orphans, malformed references, bounded limits, exact inverse,
+  validator absence, stale plans and published closed-schema conformance. Every .NET
+  command used pinned SDK `C:\Users\Admin\.dotnet8\dotnet.exe` 8.0.423.
+- Two self-contained win-x64 builds produced byte-identical 196-file,
+  88,631,592-byte trees and byte-identical 37,182,081-byte ZIPs at SHA-256
+  `9ca0e1428ff69dcbfec2a53782b842eee6b6b10e3cba56defbe3addd4ff27419`.
+  Executable, runtime assembly, Engine assembly and Open XML SDK adapter hashes are
+  `70ae9fe1210ed3311558cb7763538457d12047fa8f8e09758e5e9422da0456e6`,
+  `13777134ba22a1db2b60a317737c74c5f46d90ca7dc29426a8b33db15e32fe9b`,
+  `7164074569abf4f9adaa49ee668a01214188c76b224793218d42f46773f619c4` and
+  `6bf91f1a2e5864967700b7feb046bc3ecd5e94eaed6ae611b98630608c45c075`.
+- Installed and enabled `0.43.0+codex.20260726035032`. Build, persistent personal source
+  and enabled cache contain the same 196 paths, lengths and hashes. Installed discovery
+  reports 130 actions, 15 tools and 41 complete metadata contracts. The exact installed
+  executable projected `mammoth_footnotes.docx` into six definitions, two ordinary
+  references, four special references and two policies with complete coverage, zero
+  issues, no mutation, no raw XML and no Word process.
+
 ## WordToolkit 0.42.0 source-linked local OCR — 2026-07-26
 
 - Added a provider-neutral `wordtoolkit.ocr-provider/1.0` extension contract and a

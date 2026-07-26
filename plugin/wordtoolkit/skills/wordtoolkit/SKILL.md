@@ -710,6 +710,29 @@ most decisions; call the dedicated graph inspectors only when their declarations
 or diagnostics are actually needed.
 Prefer an object-specific saved-package edit whenever one exists.
 
+For saved-package footnote/endnote integrity, do not infer a separator type from a numeric
+ID and never synthesize missing note content. Use this strict lazy workflow:
+
+1. Retain the exact package fingerprint and call `inspect_ooxml_notes`. The compact
+   default returns only empty simple orphan and canonically redundant duplicate candidates
+   plus bounded issues. Set `include_all=true` only to diagnose blocked definitions and
+   `include_details=true` only when reference or numbering-policy metadata is necessary.
+2. Call `plan_ooxml_note_repair` with one exact `definition_id`, its returned fingerprint
+   and either `remove_empty_orphan_definition` or
+   `remove_redundant_duplicate_definition`.
+3. Review `wnrplan_`, the byte delta, engine proof, Microsoft schema comparison and block
+   reasons. The plan must preserve every ordinary/special reference, numbering policy and
+   untargeted definition, add no note issues, preserve every unplanned entry and prove an
+   exact inverse.
+4. Call `apply_ooxml_note_repair` with the original package fingerprint, exact plan ID and
+   unchanged target fields. Keep the recovery backup by default.
+
+Contentful/complex orphans, non-equivalent duplicates, missing definitions, missing
+special definitions, invalid numbering properties and ambiguous note relationships are
+not repair candidates. Inspection and repair return neither note text nor raw XML, never
+open Word, block signed packages and require baseline-aware Microsoft Open XML validation
+before mutation.
+
 For saved-package OPC relationship cleanup, never infer that an unreachable part or an
 unreferenced-looking relationship may be deleted. Use this strict lazy workflow:
 

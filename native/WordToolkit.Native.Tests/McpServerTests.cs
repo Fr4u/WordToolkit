@@ -45,7 +45,7 @@ public sealed class McpServerTests
                 .GetString()
         );
         Assert.Equal(
-            "0.42.0",
+            "0.43.0",
             responses[0].RootElement
                 .GetProperty("result")
                 .GetProperty("serverInfo")
@@ -187,7 +187,7 @@ public sealed class McpServerTests
         ) + "\n";
         var output = new StringWriter();
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(127, catalog.ActionCount);
+        Assert.Equal(130, catalog.ActionCount);
         var server = new McpServer(
             new StringReader(input),
             output,

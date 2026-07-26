@@ -40,6 +40,9 @@
       "run_ooxml_ocr",
       "plan_ooxml_numbering_repair",
       "apply_ooxml_numbering_repair",
+      "inspect_ooxml_notes",
+      "plan_ooxml_note_repair",
+      "apply_ooxml_note_repair",
       "inspect_ooxml_relationships",
       "plan_ooxml_relationship_repair",
       "apply_ooxml_relationship_repair",
@@ -8330,6 +8333,213 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    },
+    {
+      "name": "inspect_ooxml_notes",
+      "title": "Inspect Word footnote and endnote integrity",
+      "description": "Inspect a bounded source-linked graph of footnote/endnote definitions, ordinary references, document-wide special references and document/section numbering policies without opening Word. The compact default returns only guarded removal candidates and bounded issues; raw XML and note text are never returned.",
+      "operationVersion": "1.0",
+      "permissions": {"filesystem": "read_local_word_package", "network": "none", "microsoft_word": "none"},
+      "reversibility": {"applicable": false, "reason": "read_only"},
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "expected_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "include_all": {"type": "boolean", "default": false},
+          "include_details": {"type": "boolean", "default": false},
+          "max_items": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50}
+        },
+        "required": ["local_path", "expected_package_fingerprint"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "package_fingerprint", "analysis_execution_complete", "document_coverage_complete", "definition_count", "reference_count", "special_reference_count", "numbering_policy_count", "issue_count", "error_count", "warning_count", "empty_orphan_removal_candidate_count", "redundant_duplicate_removal_candidate_count", "returned_definition_count", "definitions_truncated", "definitions", "returned_issue_count", "returned_issues_truncated", "issues", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.inspect_ooxml_notes/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "analysis_execution_complete": {"const": true},
+              "document_coverage_complete": {"type": "boolean"},
+              "issues_truncated": {"type": "boolean"},
+              "definition_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "reference_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "special_reference_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+              "numbering_policy_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+              "issue_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+              "error_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+              "warning_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+              "empty_orphan_removal_candidate_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "redundant_duplicate_removal_candidate_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "returned_definition_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "definitions_truncated": {"type": "boolean"},
+              "definitions": {
+                "type": "array",
+                "maxItems": 200,
+                "items": {
+                  "type": "object",
+                  "required": ["id", "fingerprint", "kind", "definition_type", "part_uri", "reference_count", "special_reference_count", "paragraph_count", "text_character_count", "has_reference_mark", "has_complex_content", "is_orphan", "empty_orphan_removal_candidate", "redundant_duplicate_removal_candidate"],
+                  "properties": {
+                    "id": {"type": "string", "pattern": "^wnd_[0-9a-f]{24}$"},
+                    "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "kind": {"enum": ["footnote", "endnote"]},
+                    "definition_type": {"enum": ["normal", "separator", "continuation_separator", "continuation_notice", "unknown"]},
+                    "ooxml_id": {"type": ["integer", "null"], "minimum": -2147483648, "maximum": 2147483647},
+                    "part_uri": {"type": "string", "maxLength": 2048},
+                    "reference_count": {"type": "integer", "minimum": 0},
+                    "special_reference_count": {"type": "integer", "minimum": 0},
+                    "paragraph_count": {"type": "integer", "minimum": 0},
+                    "text_character_count": {"type": "integer", "minimum": 0},
+                    "has_reference_mark": {"type": "boolean"},
+                    "has_complex_content": {"type": "boolean"},
+                    "is_orphan": {"type": "boolean"},
+                    "empty_orphan_removal_candidate": {"type": "boolean"},
+                    "redundant_duplicate_removal_candidate": {"type": "boolean"}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "returned_issue_count": {"type": "integer", "minimum": 0, "maximum": 200},
+              "returned_issues_truncated": {"type": "boolean"},
+              "issues": {"type": "array", "maxItems": 200, "items": {"type": "object", "required": ["id", "code", "severity", "repair_candidate"], "properties": {"id": {"type": "string", "pattern": "^wni_[0-9a-f]{24}$"}, "code": {"type": "string", "maxLength": 128}, "severity": {"enum": ["info", "warning", "error"]}, "kind": {"type": ["string", "null"], "enum": ["footnote", "endnote", null]}, "subject_id": {"type": ["string", "null"], "maxLength": 128}, "part_uri": {"type": ["string", "null"], "maxLength": 2048}, "repair_candidate": {"type": "boolean"}}, "additionalProperties": false}},
+              "reference_details_truncated": {"type": "boolean"},
+              "special_reference_details_truncated": {"type": "boolean"},
+              "numbering_policy_details_truncated": {"type": "boolean"},
+              "references": {"type": ["array", "null"], "maxItems": 200, "items": {"type": "object", "required": ["id", "kind", "part_uri", "custom_mark_follows", "custom_mark_value_valid", "nested_inside_note_story", "resolution_status"], "properties": {"id": {"type": "string", "pattern": "^wnr_[0-9a-f]{24}$"}, "kind": {"enum": ["footnote", "endnote"]}, "ooxml_id": {"type": ["integer", "null"], "minimum": -2147483648, "maximum": 2147483647}, "part_uri": {"type": "string", "maxLength": 2048}, "custom_mark_follows": {"type": "boolean"}, "custom_mark_value_valid": {"type": "boolean"}, "nested_inside_note_story": {"type": "boolean"}, "resolution_status": {"enum": ["unresolved", "invalid_id", "definition_missing", "definition_ambiguous", "special_definition", "resolved"]}}, "additionalProperties": false}},
+              "special_references": {"type": ["array", "null"], "maxItems": 200, "items": {"type": "object", "required": ["id", "kind", "part_uri", "resolution_status"], "properties": {"id": {"type": "string", "pattern": "^wns_[0-9a-f]{24}$"}, "kind": {"enum": ["footnote", "endnote"]}, "ooxml_id": {"type": ["integer", "null"], "minimum": -2147483648, "maximum": 2147483647}, "part_uri": {"type": "string", "maxLength": 2048}, "resolution_status": {"enum": ["unresolved", "invalid_id", "definition_missing", "definition_ambiguous", "normal_definition", "unknown_definition_type", "resolved"]}}, "additionalProperties": false}},
+              "numbering_policies": {"type": ["array", "null"], "maxItems": 200, "items": {"type": "object", "required": ["id", "kind", "scope", "values_valid"], "properties": {"id": {"type": "string", "pattern": "^wnp_[0-9a-f]{24}$"}, "kind": {"enum": ["footnote", "endnote"]}, "scope": {"enum": ["document", "section"]}, "section_index": {"type": ["integer", "null"], "minimum": 1}, "position": {"type": ["string", "null"], "maxLength": 128}, "number_format": {"type": ["string", "null"], "maxLength": 128}, "number_start": {"type": ["integer", "null"], "minimum": -2147483648, "maximum": 2147483647}, "number_restart": {"type": ["string", "null"], "maxLength": 128}, "values_valid": {"type": "boolean"}}, "additionalProperties": false}},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"const": false},
+              "word_opened": {"const": false}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
+    },
+    {
+      "name": "plan_ooxml_note_repair",
+      "title": "Plan guarded footnote or endnote repair",
+      "description": "Plan removal of one fingerprinted empty orphan or one canonically identical redundant duplicate note definition. The engine never invents note content or special-note types; it reparses the exact candidate, preserves every reference and numbering policy, forbids new note issues, checks unplanned entries and proves an exact inverse.",
+      "operationVersion": "1.0",
+      "permissions": {"filesystem": "read_local_word_package", "network": "none", "microsoft_word": "none"},
+      "reversibility": {"applicable": false, "reason": "planning_only"},
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "expected_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "repair_kind": {"enum": ["remove_empty_orphan_definition", "remove_redundant_duplicate_definition"]},
+          "definition_id": {"type": "string", "pattern": "^wnd_[0-9a-f]{24}$"},
+          "expected_definition_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "include_details": {"type": "boolean", "default": false}
+        },
+        "required": ["local_path", "expected_package_fingerprint", "repair_kind", "definition_id", "expected_definition_fingerprint"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "repair_kind", "plan_id", "base_package_fingerprint", "result_package_fingerprint", "definition_id", "definition_fingerprint", "note_kind", "part_uri", "changed_part_count", "total_byte_delta", "has_changes", "can_apply", "apply_blocked", "apply_blocked_reasons", "engine_validation", "candidate_validation", "safety_rules", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.plan_ooxml_note_repair/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "repair_kind": {"enum": ["remove_empty_orphan_definition", "remove_redundant_duplicate_definition"]},
+              "plan_id": {"type": "string", "pattern": "^wnrplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "base_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "result_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "definition_id": {"type": "string", "pattern": "^wnd_[0-9a-f]{24}$"},
+              "definition_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "note_kind": {"enum": ["footnote", "endnote"]},
+              "ooxml_id": {"type": ["integer", "null"], "minimum": -2147483648, "maximum": 2147483647},
+              "part_uri": {"type": "string", "maxLength": 2048},
+              "changed_part_count": {"const": 1},
+              "total_byte_delta": {"type": "integer", "maximum": -1},
+              "has_changes": {"const": true},
+              "can_apply": {"type": "boolean"},
+              "apply_blocked": {"type": "boolean"},
+              "apply_blocked_reasons": {"type": "array", "maxItems": 3, "uniqueItems": true, "items": {"enum": ["digital_signature_present", "engine_validation_failed", "schema_validator_unavailable", "microsoft_schema_validation_failed"]}},
+              "engine_validation": {"type": "object", "required": ["candidate_package_structurally_valid", "candidate_note_graph_complete", "target_definition_removed", "untargeted_definitions_preserved", "reference_markup_preserved", "special_reference_markup_preserved", "numbering_policies_preserved", "no_new_note_issues", "unplanned_entries_preserved", "exact_inverse_verified", "before_note_issue_count", "after_note_issue_count", "before_note_error_count", "after_note_error_count", "passed"], "properties": {"candidate_package_structurally_valid": {"type": "boolean"}, "candidate_note_graph_complete": {"type": "boolean"}, "target_definition_removed": {"type": "boolean"}, "untargeted_definitions_preserved": {"type": "boolean"}, "reference_markup_preserved": {"type": "boolean"}, "special_reference_markup_preserved": {"type": "boolean"}, "numbering_policies_preserved": {"type": "boolean"}, "no_new_note_issues": {"type": "boolean"}, "unplanned_entries_preserved": {"type": "boolean"}, "exact_inverse_verified": {"type": "boolean"}, "before_note_issue_count": {"type": "integer", "minimum": 0}, "after_note_issue_count": {"type": "integer", "minimum": 0}, "before_note_error_count": {"type": "integer", "minimum": 0}, "after_note_error_count": {"type": "integer", "minimum": 0}, "passed": {"type": "boolean"}}, "additionalProperties": false},
+              "candidate_validation": {"type": "object", "required": ["performed", "valid", "no_new_errors", "error_count", "baseline_error_count", "candidate_error_count", "errors_truncated", "issues"], "properties": {"performed": {"type": "boolean"}, "valid": {"type": "boolean"}, "no_new_errors": {"type": "boolean"}, "error_count": {"type": "integer", "minimum": 0}, "baseline_error_count": {"type": "integer", "minimum": 0}, "candidate_error_count": {"type": "integer", "minimum": 0}, "errors_truncated": {"type": "boolean"}, "not_performed_reason": {"type": "string", "maxLength": 128}, "issues": {"type": "array", "maxItems": 200, "items": {"type": "object"}}}, "additionalProperties": false},
+              "safety_rules": {"type": "array", "minItems": 6, "maxItems": 6, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
+              "changed_parts": {"type": ["array", "null"], "maxItems": 1, "items": {"type": "object", "required": ["part_uri", "before_sha256", "after_sha256", "before_bytes", "after_bytes"], "additionalProperties": false, "properties": {"part_uri": {"type": "string", "maxLength": 2048}, "before_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "after_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "before_bytes": {"type": "integer", "minimum": 0}, "after_bytes": {"type": "integer", "minimum": 0}}}},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"const": false},
+              "word_opened": {"const": false}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
+    },
+    {
+      "name": "apply_ooxml_note_repair",
+      "title": "Apply reviewed footnote or endnote repair",
+      "description": "Rebuild and atomically apply the exact reviewed note-definition removal to the fingerprinted package. The action rejects plan drift, source drift, signatures, missing Microsoft schema validation and new schema errors, and retains a sibling backup by default.",
+      "operationVersion": "1.0",
+      "permissions": {"filesystem": "read_write_input_package_and_optional_sibling_backup", "network": "none", "microsoft_word": "none"},
+      "reversibility": {"applicable": true, "mechanism": "atomic_sibling_backup", "default": "retained"},
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "expected_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "expected_plan_id": {"type": "string", "pattern": "^wnrplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+          "repair_kind": {"enum": ["remove_empty_orphan_definition", "remove_redundant_duplicate_definition"]},
+          "definition_id": {"type": "string", "pattern": "^wnd_[0-9a-f]{24}$"},
+          "expected_definition_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "keep_backup": {"type": "boolean", "default": true}
+        },
+        "required": ["local_path", "expected_package_fingerprint", "expected_plan_id", "repair_kind", "definition_id", "expected_definition_fingerprint"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "repair_kind", "plan_id", "applied", "definition_id", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "backup_path", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.apply_ooxml_note_repair/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "repair_kind": {"enum": ["remove_empty_orphan_definition", "remove_redundant_duplicate_definition"]},
+              "plan_id": {"type": "string", "pattern": "^wnrplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "applied": {"const": true},
+              "definition_id": {"type": "string", "pattern": "^wnd_[0-9a-f]{24}$"},
+              "previous_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "predicted_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "backup_path": {"type": ["string", "null"]},
+              "changed_entry_names": {"type": "array", "minItems": 1, "maxItems": 1, "uniqueItems": true, "items": {"type": "string", "maxLength": 1024}},
+              "diagnostic_count": {"type": "integer", "minimum": 0},
+              "microsoft_schema_valid": {"type": "boolean"},
+              "microsoft_schema_no_new_errors": {"const": true},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"const": true},
+              "word_opened": {"const": false}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false}
     },
     {
       "name": "inspect_ooxml_relationships",

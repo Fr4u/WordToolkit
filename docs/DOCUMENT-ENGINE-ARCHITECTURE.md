@@ -266,6 +266,22 @@ semantics. Missing `sectPr` yields one explicit implicit-default section; duplic
 wrong relationship types, external targets, malformed settings and limit overflow fail
 closed. Lazy `inspect_ooxml_sections` pages this graph without returning document text.
 
+`WordNoteGraphBuilder` now joins ordinary footnote/endnote references, dedicated-part
+definitions, document-wide special-note references and document/section numbering policies
+without assuming magic separator IDs. It accepts both Transitional and Strict namespaces,
+retains exact part/element provenance, rejects references nested inside note stories and
+classifies missing, ambiguous, invalid and orphaned objects. The default lazy
+`inspect_ooxml_notes` response returns only guarded repair candidates and bounded issues;
+note prose and raw XML stay private. `plan_ooxml_note_repair` and
+`apply_ooxml_note_repair` remove only an empty simple orphan or a canonically identical
+redundant duplicate. They never synthesize missing content or infer a special-note type
+from an ID. The planner binds the exact definition fingerprint, reparses the candidate,
+preserves every reference and numbering policy, rejects new note issues, verifies all
+unplanned package bytes and proves an exact inverse. Apply additionally requires
+baseline-aware Microsoft Open XML SDK validation, blocks signed packages and publishes
+through the atomic writer with a retained sibling backup by default. The research and
+non-goals are recorded in `RESEARCH-WORD-NOTE-INTEGRITY-2026.md`.
+
 `WordStyleGraphBuilder` is the next dependency adapter. It locates only an exact
 transitional or strict styles relationship from the main document, validates the
 dedicated content type and `w:styles` root, and parses it through the same bounded,
@@ -1317,7 +1333,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 127 actions already have public SDK
+These are proved migration seams, not a claim that all 130 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
