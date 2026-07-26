@@ -1,5 +1,48 @@
 # Stage results
 
+# WordToolkit 0.53.0 native mail-merge graph - 2026-07-26
+
+- Added a bounded `WordMailMergeGraph` spanning saved configuration, top-level and ODSO
+  source roles, exact Transitional/Strict relationships, positional predefined-address
+  mappings, recipient-data records and cross-story `MERGEFIELD`/`MERGEBARCODE`
+  bindings. The same objects now enter the unified dependency graph. External target
+  resolution is structural evidence only; no source, query, field or merge is executed.
+- Added `inspect_ooxml_mail_merge/1.0` with seven paged views, independent sensitive/
+  relationship-target/source gates, process-HMAC fingerprints, a 65,536-character
+  projected-response budget and no network or Word permission. Installed MCP smoke
+  executes the action through the lazy gateway with `word_opened=false`,
+  `data_sources_opened=false` and `external_targets_followed=false`.
+- Upgraded high-level analysis to `wordtoolkit.analyze_ooxml_document/1.1` with content-
+  free mail-merge counts and exact routing. The dependency builder accepts the already
+  projected mail-merge graph so broad analysis does not allocate it twice.
+- Transitional/Strict, positional mapping, field binding, recipient inclusion/identity,
+  missing/wrong relationship, forbidden-recipient-relationship, limit, operation-budget,
+  dependency, privacy, no-COM and closed-schema regressions are green. Pinned SDK
+  8.0.423 passes 757 Engine, 12 LibreOffice and 540 Native tests. Ruff is clean; Python
+  compatibility passes 1,318 tests with 16 intentional skips; five changed .NET project
+  format gates and generated remote-schema drift checks are clean.
+- The checked-in seven-sample Release benchmarks retain 30/30 resolved fields with zero
+  issues and preserve the package fingerprint. The 10,000-recipient graph takes
+  314.3591 ms median and 367.0644 ms p95/max with 24,942,744 accounted bytes. The
+  100,000-recipient graph takes 2,151.7312 ms median and 2,770.7688 ms p95/max with
+  248,862,744 accounted bytes; its 1.03 GB median allocation and 1.17 GB peak working set
+  remain an explicit streaming-optimization debt.
+- Three pinned-SDK builds produced the same 197-file, 89,864,527-byte tree. Two
+  independently named trees have zero path/length/SHA-256 differences and byte-identical
+  37,521,314-byte ZIPs at SHA-256
+  `9647b0fd5eb49333e00eb85e271601940e850dc373566e3b67216171d5956243`.
+  Executable, runtime assembly, Engine, LibreOffice and Open XML SDK hashes are
+  `18702dd6fb54149bcee91477fc525fdbde4394cc67f31b5a9562a6415e7e56a2`,
+  `c1ea1a39014c23d84339b9d348e5cddb1ba05872717de5f54815363726b5b567`,
+  `973bccfe92d9f217c6992691d0df732f8bbbe44f9a5c72a78274b36ed823f074`,
+  `71219ad29fafb9c5f0c60d70409d86477afffea8c1bc20399fdd2fc3c97371fa`
+  and `23ec2f71358f6cb67edd3ecd3d86f8ea1a9236d6d7114b27876e1a723810e2cd`.
+- Installed and enabled `0.53.0+codex.20260726180000`. Candidate, persistent personal
+  source and active Codex cache contain the same 197 paths, lengths and hashes. Installed
+  discovery reports 147 actions, 15 MCP tools and 58 complete explicit metadata
+  contracts. The previous source is preserved at
+  `C:\Users\Admin\plugins\wordtoolkit.backup-0.52.0-codex.20260726180000`.
+
 # WordToolkit 0.52.0 operation-scoped lossless XML parse reuse - 2026-07-26
 
 - Added one byte-exact immutable lossless XML parse cache owned by a single

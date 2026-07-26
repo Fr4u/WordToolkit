@@ -42,6 +42,12 @@ public enum WordDependencyNodeKind
     DocumentVariable,
     Diagram,
     DiagramPoint,
+    MailMergeConfiguration,
+    MailMergeDataSourceObject,
+    MailMergeFieldMapping,
+    MailMergeRecipientData,
+    MailMergeRecipient,
+    MailMergeField,
 }
 
 public enum WordDependencyEdgeKind
@@ -108,6 +114,16 @@ public enum WordDependencyEdgeKind
     DiagramUsesPart,
     OutlineParent,
     OutlineLevelDerivedFromStyle,
+    DefinesMailMergeConfiguration,
+    MailMergeUsesDataSource,
+    MailMergeUsesHeaderSource,
+    MailMergeDefinesDataSourceObject,
+    MailMergeDataSourceUsesPart,
+    MailMergeDataSourceContainsMapping,
+    MailMergeDataSourceUsesRecipientData,
+    RecipientDataContainsRecipient,
+    MailMergeContainsField,
+    MailMergeFieldUsesMapping,
 }
 
 public enum WordDependencyIssueSeverity
@@ -170,6 +186,7 @@ public sealed record WordDependencyCoverage(
     bool DocumentPropertiesAndVariables,
     bool SmartArtDiagrams,
     bool HeadingsAndOutline,
+    bool MailMerge,
     IReadOnlyList<string> ExplicitlyUnmodeledDomains
 );
 
@@ -294,7 +311,8 @@ public sealed class WordDependencyGraph
         int documentPropertyIssueCount,
         int settingsIssueCount,
         int diagramIssueCount,
-        int outlineIssueCount
+        int outlineIssueCount,
+        int mailMergeIssueCount
     )
     {
         var nodeArray = nodes as WordDependencyNode[] ?? nodes.ToArray();
@@ -322,6 +340,7 @@ public sealed class WordDependencyGraph
         SettingsIssueCount = settingsIssueCount;
         DiagramIssueCount = diagramIssueCount;
         OutlineIssueCount = outlineIssueCount;
+        MailMergeIssueCount = mailMergeIssueCount;
         var nodeIndexes = new Dictionary<string, int>(nodeArray.Length, StringComparer.Ordinal);
         for (var index = 0; index < nodeArray.Length; index++)
         {
@@ -397,6 +416,8 @@ public sealed class WordDependencyGraph
     public int DiagramIssueCount { get; }
 
     public int OutlineIssueCount { get; }
+
+    public int MailMergeIssueCount { get; }
 
     public bool TryGetNode(string nodeId, out WordDependencyNode? node)
     {
@@ -861,6 +882,62 @@ public sealed class WordDependencyGraphBuilder
         WordContentControlBindingGraph contentControls,
         WordTableGraph tables,
         CancellationToken cancellationToken = default
+    ) => BuildCore(
+        package,
+        semanticDocument,
+        styles,
+        numbering,
+        references,
+        sections,
+        charts,
+        contentControls,
+        tables,
+        suppliedMailMerge: null,
+        cancellationToken
+    );
+
+    public WordDependencyGraph Build(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordStyleGraph styles,
+        WordNumberingGraph numbering,
+        WordReferenceGraph references,
+        WordSectionGraph sections,
+        WordChartGraph charts,
+        WordContentControlBindingGraph contentControls,
+        WordTableGraph tables,
+        WordMailMergeGraph mailMerge,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(mailMerge);
+        return BuildCore(
+            package,
+            semanticDocument,
+            styles,
+            numbering,
+            references,
+            sections,
+            charts,
+            contentControls,
+            tables,
+            mailMerge,
+            cancellationToken
+        );
+    }
+
+    private WordDependencyGraph BuildCore(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordStyleGraph styles,
+        WordNumberingGraph numbering,
+        WordReferenceGraph references,
+        WordSectionGraph sections,
+        WordChartGraph charts,
+        WordContentControlBindingGraph contentControls,
+        WordTableGraph tables,
+        WordMailMergeGraph? suppliedMailMerge,
+        CancellationToken cancellationToken
     )
     {
         ArgumentNullException.ThrowIfNull(package);
@@ -921,6 +998,15 @@ public sealed class WordDependencyGraphBuilder
             styles,
             cancellationToken
         );
+        var mailMerge = suppliedMailMerge ?? (_resourceLease is null
+                ? new WordMailMergeGraphBuilder()
+                : new WordMailMergeGraphBuilder(null, _resourceLease)).Build(
+                package,
+                semanticDocument,
+                settings,
+                references,
+                cancellationToken
+            );
         EnsureFingerprint(
             package.Fingerprint,
             semanticDocument.PackageFingerprint,
@@ -937,7 +1023,8 @@ public sealed class WordDependencyGraphBuilder
             documentProperties.PackageFingerprint,
             settings.PackageFingerprint,
             diagrams.PackageFingerprint,
-            outline.PackageFingerprint
+            outline.PackageFingerprint,
+            mailMerge.PackageFingerprint
         );
 
         var state = new BuildState(_options, _resourceLease);
@@ -1061,6 +1148,14 @@ public sealed class WordDependencyGraphBuilder
             reachableParts,
             cancellationToken
         );
+        AddMailMergeDependencies(
+            state,
+            package,
+            semanticDocument,
+            mailMerge,
+            reachableParts,
+            cancellationToken
+        );
         AddOutlineDependencies(
             state,
             semanticDocument,
@@ -1093,6 +1188,7 @@ public sealed class WordDependencyGraphBuilder
                 DocumentPropertiesAndVariables: true,
                 SmartArtDiagrams: true,
                 HeadingsAndOutline: true,
+                MailMerge: true,
                 ExplicitlyUnmodeledDomains
             ),
             resourceUsage,
@@ -1112,8 +1208,320 @@ public sealed class WordDependencyGraphBuilder
             documentProperties.Issues.Count,
             settings.Issues.Count,
             diagrams.Issues.Count,
-            outline.Issues.Count
+            outline.Issues.Count,
+            mailMerge.Issues.Count
         );
+    }
+
+    private static void AddMailMergeDependencies(
+        BuildState state,
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        WordMailMergeGraph mailMerge,
+        IReadOnlySet<string> reachableParts,
+        CancellationToken cancellationToken
+    )
+    {
+        var nodesBySubjectId = new Dictionary<string, string>(StringComparer.Ordinal);
+        string? configurationNodeId = null;
+        string? dataSourceObjectNodeId = null;
+
+        string RelationshipTargetNode(WordMailMergeRelationship relationship)
+        {
+            if (relationship.ResolvedTargetPartUri is { } resolvedPartUri)
+            {
+                return PartNode(state, package, reachableParts, resolvedPartUri);
+            }
+            if (relationship.IsExternal)
+            {
+                return state.AddNode(
+                    WordDependencyNodeKind.ExternalTarget,
+                    relationship.Target ?? $"mail-merge:{relationship.RelationshipId}",
+                    isResolved: false,
+                    isExternal: true,
+                    isPackageReachable: false
+                );
+            }
+            return state.AddNode(
+                WordDependencyNodeKind.Part,
+                relationship.Target
+                    ?? $"{relationship.SourcePartUri}#{relationship.RelationshipId}",
+                isResolved: false,
+                isExternal: false,
+                isPackageReachable: false,
+                partUri: relationship.ResolvedTargetPartUri
+            );
+        }
+
+        void AddRelationshipEdge(
+            WordMailMergeRelationship? relationship,
+            string sourceNodeId,
+            WordDependencyEdgeKind kind
+        )
+        {
+            if (relationship is null)
+            {
+                return;
+            }
+            var targetNodeId = RelationshipTargetNode(relationship);
+            nodesBySubjectId[relationship.Id] = targetNodeId;
+            state.AddEdge(
+                kind,
+                sourceNodeId,
+                targetNodeId,
+                relationship.IsResolved,
+                relationship.IsExternal,
+                qualifier: relationship.Role.ToString().ToLowerInvariant(),
+                partUri: relationship.SourcePartUri,
+                sourceElementOrdinal: relationship.SourceElementOrdinal,
+                relationshipId: relationship.RelationshipId,
+                relationshipType: relationship.RelationshipType
+            );
+        }
+
+        if (mailMerge.Configuration is { } configuration)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            configurationNodeId = state.AddNode(
+                WordDependencyNodeKind.MailMergeConfiguration,
+                configuration.Id,
+                isResolved: true,
+                isExternal: false,
+                isPackageReachable: reachableParts.Contains(configuration.SettingsPartUri),
+                partUri: configuration.SettingsPartUri,
+                sourceElementOrdinal: configuration.SourceElementOrdinal
+            );
+            nodesBySubjectId[configuration.Id] = configurationNodeId;
+            var settingsPartNodeId = PartNode(
+                state,
+                package,
+                reachableParts,
+                configuration.SettingsPartUri
+            );
+            state.AddEdge(
+                WordDependencyEdgeKind.DefinesMailMergeConfiguration,
+                settingsPartNodeId,
+                configurationNodeId,
+                isResolved: true,
+                isExternal: false,
+                partUri: configuration.SettingsPartUri,
+                sourceElementOrdinal: configuration.SourceElementOrdinal
+            );
+            AddRelationshipEdge(
+                configuration.DataSourceRelationship,
+                configurationNodeId,
+                WordDependencyEdgeKind.MailMergeUsesDataSource
+            );
+            AddRelationshipEdge(
+                configuration.HeaderSourceRelationship,
+                configurationNodeId,
+                WordDependencyEdgeKind.MailMergeUsesHeaderSource
+            );
+
+            if (configuration.DataSourceObject is { } dataSourceObject)
+            {
+                dataSourceObjectNodeId = state.AddNode(
+                    WordDependencyNodeKind.MailMergeDataSourceObject,
+                    dataSourceObject.Id,
+                    isResolved: true,
+                    isExternal: false,
+                    isPackageReachable: reachableParts.Contains(configuration.SettingsPartUri),
+                    partUri: configuration.SettingsPartUri,
+                    sourceElementOrdinal: dataSourceObject.SourceElementOrdinal
+                );
+                nodesBySubjectId[dataSourceObject.Id] = dataSourceObjectNodeId;
+                state.AddEdge(
+                    WordDependencyEdgeKind.MailMergeDefinesDataSourceObject,
+                    configurationNodeId,
+                    dataSourceObjectNodeId,
+                    isResolved: true,
+                    isExternal: false,
+                    partUri: configuration.SettingsPartUri,
+                    sourceElementOrdinal: dataSourceObject.SourceElementOrdinal
+                );
+                AddRelationshipEdge(
+                    dataSourceObject.SourceRelationship,
+                    dataSourceObjectNodeId,
+                    WordDependencyEdgeKind.MailMergeDataSourceUsesPart
+                );
+            }
+        }
+
+        foreach (var mapping in mailMerge.Mappings)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var mappingNodeId = state.AddNode(
+                WordDependencyNodeKind.MailMergeFieldMapping,
+                mapping.Id,
+                isResolved: true,
+                isExternal: false,
+                isPackageReachable: mailMerge.Configuration is { } currentConfiguration
+                    && reachableParts.Contains(currentConfiguration.SettingsPartUri),
+                partUri: mailMerge.Configuration?.SettingsPartUri,
+                sourceElementOrdinal: mapping.SourceElementOrdinal
+            );
+            nodesBySubjectId[mapping.Id] = mappingNodeId;
+            if (dataSourceObjectNodeId is not null)
+            {
+                state.AddEdge(
+                    WordDependencyEdgeKind.MailMergeDataSourceContainsMapping,
+                    dataSourceObjectNodeId,
+                    mappingNodeId,
+                    isResolved: true,
+                    isExternal: false,
+                    qualifier: mapping.Position.ToString(CultureInfo.InvariantCulture),
+                    partUri: mailMerge.Configuration?.SettingsPartUri,
+                    sourceElementOrdinal: mapping.SourceElementOrdinal
+                );
+            }
+        }
+
+        string? recipientDataNodeId = null;
+        if (mailMerge.RecipientDataPart is { } recipientDataPart)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            recipientDataNodeId = state.AddNode(
+                WordDependencyNodeKind.MailMergeRecipientData,
+                recipientDataPart.Id,
+                isResolved: true,
+                isExternal: false,
+                isPackageReachable: recipientDataPart.IsPackageReachable,
+                partUri: recipientDataPart.PartUri,
+                sourceElementOrdinal: recipientDataPart.SourceElementOrdinal
+            );
+            nodesBySubjectId[recipientDataPart.Id] = recipientDataNodeId;
+            var recipientRelationship =
+                mailMerge.Configuration?.DataSourceObject?.RecipientDataRelationship;
+            if (dataSourceObjectNodeId is not null && recipientRelationship is not null)
+            {
+                nodesBySubjectId[recipientRelationship.Id] = recipientDataNodeId;
+                state.AddEdge(
+                    WordDependencyEdgeKind.MailMergeDataSourceUsesRecipientData,
+                    dataSourceObjectNodeId,
+                    recipientDataNodeId,
+                    recipientRelationship.IsResolved,
+                    isExternal: false,
+                    qualifier: recipientRelationship.Role.ToString().ToLowerInvariant(),
+                    partUri: recipientRelationship.SourcePartUri,
+                    sourceElementOrdinal: recipientRelationship.SourceElementOrdinal,
+                    relationshipId: recipientRelationship.RelationshipId,
+                    relationshipType: recipientRelationship.RelationshipType
+                );
+            }
+        }
+
+        foreach (var recipient in mailMerge.Recipients)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var recipientNodeId = state.AddNode(
+                WordDependencyNodeKind.MailMergeRecipient,
+                recipient.Id,
+                isResolved: recipient.IdentityKind is not WordMailMergeRecipientIdentityKind.Missing
+                    and not WordMailMergeRecipientIdentityKind.Ambiguous,
+                isExternal: false,
+                isPackageReachable: mailMerge.RecipientDataPart?.IsPackageReachable == true,
+                partUri: recipient.PartUri,
+                sourceElementOrdinal: recipient.SourceElementOrdinal
+            );
+            nodesBySubjectId[recipient.Id] = recipientNodeId;
+            if (recipientDataNodeId is not null)
+            {
+                state.AddEdge(
+                    WordDependencyEdgeKind.RecipientDataContainsRecipient,
+                    recipientDataNodeId,
+                    recipientNodeId,
+                    isResolved: true,
+                    isExternal: false,
+                    qualifier: recipient.Sequence.ToString(CultureInfo.InvariantCulture),
+                    partUri: recipient.PartUri,
+                    sourceElementOrdinal: recipient.SourceElementOrdinal
+                );
+            }
+        }
+
+        foreach (var field in mailMerge.Fields)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            WordSemanticNode? semanticNode = null;
+            if (field.SemanticNodeId is { } semanticNodeId)
+            {
+                semanticDocument.TryGetNode(semanticNodeId, out semanticNode);
+            }
+            var fieldNodeId = state.AddNode(
+                WordDependencyNodeKind.MailMergeField,
+                field.Id,
+                isResolved: field.IsComplete,
+                isExternal: false,
+                isPackageReachable: reachableParts.Contains(field.PartUri),
+                partUri: field.PartUri,
+                sourceElementOrdinal: field.SourceElementOrdinal,
+                semanticNodeId: semanticNode?.Id,
+                semanticKind: semanticNode?.Kind
+            );
+            nodesBySubjectId[field.Id] = fieldNodeId;
+            nodesBySubjectId[field.ReferenceFieldId] = fieldNodeId;
+            var ownerNodeId = configurationNodeId;
+            if (ownerNodeId is null)
+            {
+                ownerNodeId = semanticNode is null
+                    ? PartNode(state, package, reachableParts, field.PartUri)
+                    : SemanticNode(
+                        state,
+                        semanticNode,
+                        reachableParts.Contains(semanticNode.SourcePartUri)
+                    );
+            }
+            state.AddEdge(
+                WordDependencyEdgeKind.MailMergeContainsField,
+                ownerNodeId,
+                fieldNodeId,
+                isResolved: field.IsComplete,
+                isExternal: false,
+                qualifier: field.FieldType.ToLowerInvariant(),
+                partUri: field.PartUri,
+                sourceElementOrdinal: field.SourceElementOrdinal
+            );
+            foreach (var mappingId in field.MappingIds)
+            {
+                var resolved = nodesBySubjectId.TryGetValue(mappingId, out var mappingNodeId);
+                mappingNodeId ??= state.AddNode(
+                    WordDependencyNodeKind.MailMergeFieldMapping,
+                    mappingId,
+                    isResolved: false,
+                    isExternal: false,
+                    isPackageReachable: false
+                );
+                state.AddEdge(
+                    WordDependencyEdgeKind.MailMergeFieldUsesMapping,
+                    fieldNodeId,
+                    mappingNodeId,
+                    resolved,
+                    isExternal: false,
+                    qualifier: field.BindingStatus.ToString().ToLowerInvariant(),
+                    partUri: field.PartUri,
+                    sourceElementOrdinal: field.SourceElementOrdinal
+                );
+            }
+        }
+
+        foreach (var issue in mailMerge.Issues)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            nodesBySubjectId.TryGetValue(issue.SubjectId ?? string.Empty, out var nodeId);
+            state.AddIssue(
+                "WDG062",
+                issue.Severity switch
+                {
+                    WordMailMergeIssueSeverity.Error => WordDependencyIssueSeverity.Error,
+                    WordMailMergeIssueSeverity.Warning => WordDependencyIssueSeverity.Warning,
+                    _ => WordDependencyIssueSeverity.Info,
+                },
+                $"{issue.Code}: {issue.Message}",
+                nodeId: nodeId,
+                partUri: issue.PartUri,
+                sourceElementOrdinal: issue.SourceElementOrdinal
+            );
+        }
     }
 
     private static void AddOutlineDependencies(

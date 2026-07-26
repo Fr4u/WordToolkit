@@ -416,6 +416,25 @@ the lazy `inspect_ooxml_settings` action redacts variable values and mail-merge 
 connection and target details unless explicitly requested. Protection is an editing
 restriction signal, not a claim that the package is encrypted.
 
+`WordMailMergeGraphBuilder` is the dedicated saved-package mail-merge adapter. It joins
+the settings configuration to top-level and ODSO data-source roles, validates exact
+Transitional/Strict relationship types and targets, projects `fieldMapData` in document
+order, applies Word's specified 30-position predefined-address mapping behavior, reads
+the optional recipient-data part and binds cross-story `MERGEFIELD`/`MERGEBARCODE`
+targets to zero, one or several mappings. Configuration, ODSO, mappings, recipients and
+fields are native dependency nodes; source and binding relations are native dependency
+edges. External URI resolution means only that the relationship is structurally valid;
+the engine never opens or follows it.
+
+The lazy `inspect_ooxml_mail_merge` action pages summary, configuration, relationship,
+mapping, recipient, field and issue views under a 65,536-character projected-response
+budget. Query/connection/UDL/table/column/field/identity values, relationship targets
+and source provenance have independent disclosure gates; process-HMAC fingerprints are
+returned by default. `analyze_ooxml_document/1.1` adds content-free mail-merge counts
+and a narrow routing signal. Neither operation opens Word, runs SQL, opens a workbook or
+database, executes fields or performs a merge. See
+`docs/RESEARCH-MAIL-MERGE-GRAPH-2026.md`.
+
 `WordFontTableGraphBuilder` follows only the exact transitional or strict font-table
 relationship and validates `w:fonts`. It types font names, alternate names, character
 sets, family, pitch, PANOSE and Unicode/code-page signatures plus regular, bold, italic
@@ -1428,7 +1447,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 146 actions already have public SDK
+These are proved migration seams, not a claim that all 147 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.

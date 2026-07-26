@@ -62,6 +62,7 @@
       "inspect_ooxml_settings",
       "inspect_ooxml_references",
       "inspect_ooxml_bibliography",
+      "inspect_ooxml_mail_merge",
       "inspect_ooxml_dependencies",
       "inspect_ooxml_charts",
       "inspect_ooxml_diagrams",
@@ -10813,6 +10814,161 @@
       }
     },
     {
+      "name": "inspect_ooxml_mail_merge",
+      "title": "Inspect Word mail merge configuration and bindings",
+      "description": "Inspect a bounded typed graph of saved Word mail-merge settings, ODSO configuration, source relationships, positional field mappings, recipient-selection data and MERGEFIELD/MERGEBARCODE bindings without opening Word, opening a data source, executing a query or merge, or following external targets. Supports Transitional and Strict WordprocessingML plus the legacy recipient-data namespace. Queries, connection strings, UDL strings, table and column names, field targets, recipient identities, relationship targets and source locations are redacted by default with process-scoped keyed fingerprints. Views are paged under a 65,536-character projected-payload budget.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_local_word_package",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "description": "Absolute or workspace-relative path to the local DOCX, DOCM, DOTX, or DOTM file."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "configuration", "relationships", "mappings", "recipients", "fields", "issues"],
+            "default": "summary",
+            "description": "Return compact object-family counts, mail-merge configuration, source relationships, ODSO mappings, recipient-selection records, merge fields, or diagnostics."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647,
+            "default": 0
+          },
+          "max_items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 30
+          },
+          "include_sensitive": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to bounded queries, connection and UDL strings, table and column names, declared mapping names, field targets, mail subject/address metadata, and recipient identity values. This does not open or execute the source."
+          },
+          "include_relationship_targets": {
+            "type": "boolean",
+            "default": false,
+            "description": "Separately opt in to bounded declared internal and external relationship targets. External targets are never followed."
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Separately opt in to bounded part URIs, semantic/story IDs, resolved target part URIs, and XML element ordinals."
+          },
+          "include_issues": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include at most 30 bounded mail-merge diagnostics beside non-issues views."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["file_name", "package_fingerprint", "present", "configuration_count", "mapping_count", "recipient_count", "included_recipient_count", "field_count", "resolved_field_count", "unresolved_or_ambiguous_field_count", "issue_count", "issues_truncated_at_source", "has_external_data_source", "has_sensitive_connection_metadata", "execution_policy", "word_opened", "mail_merge_executed", "data_sources_opened", "queries_executed", "external_targets_followed", "sensitive_values_included", "source_locations_included", "relationship_targets_included", "fingerprint_scope", "view", "matched_item_count", "offset", "returned_item_count", "items", "issues", "response_budget", "response_budget_truncated", "operation_budget"],
+            "properties": {
+              "file_name": {"type": "string", "maxLength": 512},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "present": {"type": "boolean"},
+              "configuration_count": {"type": "integer", "minimum": 0, "maximum": 1},
+              "mapping_count": {"type": "integer", "minimum": 0, "maximum": 4096},
+              "recipient_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "included_recipient_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "field_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "resolved_field_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "unresolved_or_ambiguous_field_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "issue_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+              "issues_truncated_at_source": {"type": "boolean"},
+              "has_external_data_source": {"type": "boolean"},
+              "has_sensitive_connection_metadata": {"type": "boolean"},
+              "execution_policy": {"const": "parse_saved_package_only_never_open_word_execute_mail_merge_open_data_source_run_query_or_follow_external_targets"},
+              "word_opened": {"const": false},
+              "mail_merge_executed": {"const": false},
+              "data_sources_opened": {"const": false},
+              "queries_executed": {"const": false},
+              "external_targets_followed": {"const": false},
+              "sensitive_values_included": {"type": "boolean"},
+              "source_locations_included": {"type": "boolean"},
+              "relationship_targets_included": {"type": "boolean"},
+              "fingerprint_scope": {"const": "process_hmac_sha256_64"},
+              "view": {"enum": ["summary", "configuration", "relationships", "mappings", "recipients", "fields", "issues"]},
+              "matched_item_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "offset": {"type": "integer", "minimum": 0, "maximum": 2147483647},
+              "returned_item_count": {"type": "integer", "minimum": 0, "maximum": 100},
+              "next_offset": {"type": ["integer", "null"], "minimum": 0, "maximum": 2147483647},
+              "items": {"type": "array", "maxItems": 100, "items": {"type": "object"}},
+              "issues": {"type": ["array", "null"], "maxItems": 30, "items": {"type": "object"}},
+              "issues_truncated": {"type": "boolean"},
+              "response_budget": {
+                "type": "object",
+                "required": ["model", "used", "maximum"],
+                "properties": {
+                  "model": {"const": "mail_merge_projected_payload_characters_v1"},
+                  "used": {"type": "integer", "minimum": 0, "maximum": 65536},
+                  "maximum": {"const": 65536}
+                },
+                "additionalProperties": false
+              },
+              "response_budget_truncated": {"type": "boolean"},
+              "operation_budget": {
+                "type": "object",
+                "required": ["model", "used", "maximum"],
+                "properties": {
+                  "model": {"const": "wop1"},
+                  "used": {"type": "integer", "minimum": 0},
+                  "maximum": {"type": "integer", "minimum": 1}
+                },
+                "additionalProperties": false
+              },
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {
+                "type": "object",
+                "required": ["total_ms"],
+                "properties": {"total_ms": {"type": "number", "minimum": 0}},
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "resourceAccounting": {
+        "operation": {
+          "engineModel": "word_operation_accounted_v1",
+          "mcpModel": "wop1",
+          "responseField": "operation_budget",
+          "defaultMaximumAccountedBytes": 671088640
+        },
+        "limitErrorCode": "PACKAGE_LIMIT"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "inspect_ooxml_dependencies",
       "title": "Inspect the Word document dependency graph",
       "description": "Inspect one source-linked dependency graph spanning OPC reachability, semantic containment, styles, numbering, typed heading hierarchy and outline-level authority, fields/bookmarks, bibliography sources and resolved CITATION tags, core/extended/custom properties, persistent document variables and resolved DOCPROPERTY/DOCVARIABLE fields, section stories, classic charts, logical figures/resources/captions, content controls/Custom XML bindings, nested-table topology, and typed active-content declarations, payloads and ActiveX bindings without opening Word. Unresolved and external targets remain explicit; external targets are never followed. Fields and active content are never executed, binary payloads are never decoded, embedded packages are never opened, and signature presence is not cryptographic validation. One operation-wide accounted resource lease covers bounded ZIP/OPC admission and metadata, XML parsing, semantic and typed projections, while the graph keeps its independent local byte budget and compact adjacency. Keys and source are redacted by default, views are paged, and unmodeled domains stay explicit.",
@@ -10870,7 +11026,13 @@
               "document_property",
               "document_variable",
               "diagram",
-              "diagram_point"
+              "diagram_point",
+              "mail_merge_configuration",
+              "mail_merge_data_source_object",
+              "mail_merge_field_mapping",
+              "mail_merge_recipient_data",
+              "mail_merge_recipient",
+              "mail_merge_field"
             ],
             "description": "Optional exact node-kind filter for the nodes view."
           },
@@ -10938,7 +11100,17 @@
               "diagram_connects_points",
               "diagram_uses_part",
               "outline_parent",
-              "outline_level_derived_from_style"
+              "outline_level_derived_from_style",
+              "defines_mail_merge_configuration",
+              "mail_merge_uses_data_source",
+              "mail_merge_uses_header_source",
+              "mail_merge_defines_data_source_object",
+              "mail_merge_data_source_uses_part",
+              "mail_merge_data_source_contains_mapping",
+              "mail_merge_data_source_uses_recipient_data",
+              "recipient_data_contains_recipient",
+              "mail_merge_contains_field",
+              "mail_merge_field_uses_mapping"
             ],
             "description": "Optional exact edge-kind filter for edge, unresolved, and impact views."
           },
@@ -11712,8 +11884,8 @@
     {
       "name": "analyze_ooxml_document",
       "title": "Analyze a Word document for AI planning",
-      "description": "Build one bounded, fingerprint-bound, high-level analysis spanning OPC structure, semantic object counts, the cross-domain dependency graph, all native lint rule packs, typed active-content presence, markup-compatibility evidence, repair opportunities and prioritized next-action signals. The response is content-free and token-lean: it returns no document text, XML, source locations, relationship targets or binaries, never follows external relationships, never executes active content, never opens Word and never mutates the package. Execution completeness, document coverage, semantic completeness and resource-budget coverage remain separate so the summary cannot masquerade as proof about unmodeled domains.",
-      "operationVersion": "1.0",
+      "description": "Build one bounded, fingerprint-bound, high-level analysis spanning OPC structure, semantic object counts, the cross-domain dependency graph, all native lint rule packs, typed active-content presence, mail-merge configuration/binding evidence, markup-compatibility evidence, repair opportunities and prioritized next-action signals. The response is content-free and token-lean: it returns no document text, XML, source locations, relationship targets, queries, connection strings, recipient identities or binaries, never follows external relationships, opens mail-merge data sources, executes active content, opens Word or mutates the package. Execution completeness, document coverage, semantic completeness and resource-budget coverage remain separate so the summary cannot masquerade as proof about unmodeled domains.",
+      "operationVersion": "1.1",
       "permissions": {
         "filesystem": "read_local_word_package",
         "network": "none",
@@ -11740,9 +11912,9 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "package_fingerprint", "main_part_uri", "package", "semantic", "dependencies", "quality", "safety", "compatibility", "signal_count", "returned_signal_count", "signals_truncated", "signals", "coverage", "disclosure", "operation_budget"],
+            "required": ["operation_contract", "file_name", "package_fingerprint", "main_part_uri", "package", "semantic", "dependencies", "quality", "safety", "compatibility", "mail_merge", "signal_count", "returned_signal_count", "signals_truncated", "signals", "coverage", "disclosure", "operation_budget"],
             "properties": {
-              "operation_contract": {"const": "wordtoolkit.analyze_ooxml_document/1.0"},
+              "operation_contract": {"const": "wordtoolkit.analyze_ooxml_document/1.1"},
               "file_name": {"type": "string", "maxLength": 512},
               "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
               "main_part_uri": {"type": "string", "maxLength": 512},
@@ -11850,6 +12022,25 @@
                   "issue_count": {"type": "integer", "minimum": 0, "maximum": 10000},
                   "issues_truncated": {"type": "boolean"},
                   "application_configuration": {"const": "empty_understood_namespace_and_extension_profile"}
+                },
+                "additionalProperties": false
+              },
+              "mail_merge": {
+                "type": "object",
+                "required": ["present", "configuration_count", "mapping_count", "recipient_count", "included_recipient_count", "field_count", "resolved_field_count", "issue_count", "has_external_data_source", "has_sensitive_connection_metadata", "external_data_sources_opened"],
+                "properties": {
+                  "present": {"type": "boolean"},
+                  "configuration_count": {"type": "integer", "minimum": 0, "maximum": 1},
+                  "mapping_count": {"type": "integer", "minimum": 0, "maximum": 4096},
+                  "recipient_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+                  "included_recipient_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+                  "field_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+                  "resolved_field_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+                  "issue_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "issues_truncated": {"type": "boolean"},
+                  "has_external_data_source": {"type": "boolean"},
+                  "has_sensitive_connection_metadata": {"type": "boolean"},
+                  "external_data_sources_opened": {"const": false}
                 },
                 "additionalProperties": false
               },

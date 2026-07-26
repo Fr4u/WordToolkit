@@ -18,7 +18,7 @@ erase those boundaries and turn absence of evidence into a false clean bill of h
 
 ## Implemented contract
 
-`wordtoolkit.analyze_ooxml_document/1.0` is one read-only Engine operation exposed by the
+`wordtoolkit.analyze_ooxml_document/1.1` is one read-only Engine operation exposed by the
 strict `analyze-package` JSON CLI and lazy `analyze_ooxml_document` MCP action. Its request
 contains only:
 
@@ -33,14 +33,17 @@ The result joins high-level evidence from one package pass:
 - dependency node, edge, unresolved, external and diagnostic-domain counts;
 - lint severity/category counts and grouped repair opportunities;
 - typed active-content and external-relationship presence;
+- content-free mail-merge configuration, mapping, recipient, field, issue and external/
+  sensitive-source counts without query, connection, table, column, identity or target
+  values;
 - markup-compatibility counts under an explicitly empty application capability profile;
 - deterministic prioritized signals naming the exact narrow action to call next;
 - separate execution, document-coverage, semantic-completeness and resource-accounting
   boundaries.
 
 The operation never opens Word, starts a renderer, follows an external relationship,
-decodes a binary payload, opens an embedded package, executes active content or mutates
-the source.
+opens a mail-merge data source, runs a saved query or merge, decodes a binary payload,
+opens an embedded package, executes active content or mutates the source.
 
 ## Pipeline and identity
 
@@ -69,14 +72,17 @@ or lint produced a fatal finding. Ordinary lint errors use the separate
 corruption would poison planning and hide the difference between a valid package with bad
 content structure and a broken package container.
 
-Active content, unresolved dependencies, external relationships and unsupported markup
-can block automatic mutation even when the package is parseable. An implemented repair
+Active content, unresolved dependencies, external relationships, sensitive/external
+mail-merge source evidence and unsupported markup can block automatic mutation even when
+the package is parseable. `MAIL_MERGE_EVIDENCE` routes to the narrow privacy-redacted
+`inspect_ooxml_mail_merge` action. An implemented repair
 candidate is only a route to a reviewed plan action; it is never permission to edit.
 
 ## Privacy and token discipline
 
 The public result has no field for document text, raw XML, XML byte spans, source paths,
-relationship targets, binary payloads or active-content code. The absolute input path is
+relationship targets, mail-merge queries/connections/source names/recipient identities,
+binary payloads or active-content code. The absolute input path is
 not echoed; only the leaf file name is returned. Disclosure booleans make those absences
 machine-checkable.
 

@@ -13,6 +13,7 @@ var report = options.Scenario switch
 {
     "graph" => RunGraph(options),
     "bibliography" => RunBibliography(options),
+    "mail-merge" => RunMailMerge(options),
     "bindings" => RunBindings(options),
     "tables" => RunTables(options),
     "figures" => RunFigures(options),
@@ -21,7 +22,7 @@ var report = options.Scenario switch
     "semantic-html" => RunSemanticHtml(options),
     "semantic-svg" => RunSemanticSvg(options),
     _ => throw new ArgumentException(
-        "scenario must be 'graph', 'bibliography', 'bindings', 'tables', 'figures', 'mce', 'patch', 'semantic-html', or 'semantic-svg'"
+        "scenario must be 'graph', 'bibliography', 'mail-merge', 'bindings', 'tables', 'figures', 'mce', 'patch', 'semantic-html', or 'semantic-svg'"
     ),
 };
 var json = JsonSerializer.Serialize(report, new JsonSerializerOptions
@@ -254,6 +255,141 @@ static object RunBibliography(Arguments options)
                         + referenceBuild.TotalMilliseconds,
                 },
                 bibliography_build_allocated_bytes = new
+                {
+                    samples = allocatedBytes,
+                    median = orderedAllocatedBytes[repetitionCount / 2],
+                    p95 = orderedAllocatedBytes[^1],
+                },
+                memory = MemoryReport(baseline, final),
+            }
+        );
+    }
+    finally
+    {
+        File.Delete(path);
+    }
+}
+
+static object RunMailMerge(Arguments options)
+{
+    if (options.TargetNodes is < 100 or > 250_000)
+    {
+        throw new ArgumentOutOfRangeException(
+            nameof(options.TargetNodes),
+            "mail-merge target must be between 100 and 250000 recipients"
+        );
+    }
+    const int repetitionCount = 7;
+    const int mappingCount = 30;
+    var path = TemporaryPath("mail-merge", ".docx");
+    try
+    {
+        var generation = Measure(() => WriteMailMergePackage(
+            path,
+            options.TargetNodes,
+            mappingCount
+        ));
+        Collect();
+        var baseline = MemorySnapshot.Capture();
+
+        OpcPackageSnapshot? package = null;
+        WordSemanticDocument? semantic = null;
+        WordSettingsGraph? settings = null;
+        WordReferenceGraph? references = null;
+        var read = Measure(() => package = new OpcPackageReader().Read(path));
+        var project = Measure(() =>
+            semantic = new WordSemanticProjector().Project(package!)
+        );
+        var settingsBuild = Measure(() =>
+            settings = new WordSettingsGraphBuilder().Build(package!, semantic!)
+        );
+        var referenceBuild = Measure(() =>
+            references = new WordReferenceGraphBuilder().Build(package!, semantic!)
+        );
+        WordMailMergeGraph? graph = null;
+        WordOperationResourceUsage? operationUsage = null;
+        var timings = new double[repetitionCount];
+        var allocatedBytes = new long[repetitionCount];
+        for (var index = 0; index < repetitionCount; index++)
+        {
+            var resourceLease = new WordOperationResourceLease(
+                checked((long)options.OperationBudgetMiB * 1024 * 1024)
+            );
+            var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+            timings[index] = Measure(() =>
+            {
+                graph = new WordMailMergeGraphBuilder(null, resourceLease).Build(
+                    package!,
+                    semantic!,
+                    settings!,
+                    references!
+                );
+            }).TotalMilliseconds;
+            allocatedBytes[index] = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+            operationUsage = resourceLease.Snapshot();
+        }
+        Collect();
+        var final = MemorySnapshot.Capture();
+        var measuredGraph = graph ?? throw new InvalidOperationException(
+            "Mail-merge benchmark did not produce a graph."
+        );
+        var measuredUsage = operationUsage ?? throw new InvalidOperationException(
+            "Mail-merge benchmark did not record resource usage."
+        );
+        var orderedTimings = timings.Order().ToArray();
+        var orderedAllocatedBytes = allocatedBytes.Order().ToArray();
+        GC.KeepAlive(measuredGraph);
+        return CommonReport(
+            "mail_merge_graph",
+            new
+            {
+                requested_recipients = options.TargetNodes,
+                repetitions = repetitionCount,
+                fixture = "synthetic_saved_odso_with_30_bound_fields_and_unique_recipient_tags",
+                package_bytes = new FileInfo(path).Length,
+                package_parts = package!.Entries.Count,
+                semantic_nodes = semantic!.NodeCount,
+                mappings = measuredGraph.Mappings.Count,
+                recipients = measuredGraph.Recipients.Count,
+                included_recipients = measuredGraph.Recipients.Count(item => item.IsIncluded),
+                fields = measuredGraph.Fields.Count,
+                resolved_fields = measuredGraph.Fields.Count(field =>
+                    field.BindingStatus is WordMailMergeFieldBindingStatus.ResolvedBySourceColumnName
+                        or WordMailMergeFieldBindingStatus.ResolvedByWordPredefinedName
+                ),
+                issues = measuredGraph.Issues.Count,
+                package_fingerprint_preserved = package.Fingerprint
+                    == measuredGraph.PackageFingerprint,
+                execution_policy =
+                    "parse_saved_package_only_never_open_word_execute_mail_merge_open_data_source_run_query_or_follow_external_targets",
+                operation_resource_usage = new
+                {
+                    scope = "mail_merge_graph_only_package_semantic_settings_reference_setup_excluded",
+                    accounting_model = measuredUsage.AccountingModel,
+                    accounted_bytes = measuredUsage.AccountedBytes,
+                    maximum_accounted_bytes = measuredUsage.MaximumAccountedBytes,
+                    stages = measuredUsage.Stages.Select(item => new
+                    {
+                        stage = item.Stage.ToString(),
+                        accounted_bytes = item.AccountedBytes,
+                    }),
+                },
+                timings_ms = new
+                {
+                    generate = generation.TotalMilliseconds,
+                    package_read = read.TotalMilliseconds,
+                    semantic_projection = project.TotalMilliseconds,
+                    settings_build = settingsBuild.TotalMilliseconds,
+                    reference_build = referenceBuild.TotalMilliseconds,
+                    mail_merge_build_samples = timings,
+                    mail_merge_build_median = orderedTimings[repetitionCount / 2],
+                    mail_merge_build_p95 = orderedTimings[^1],
+                    measured_setup_total = read.TotalMilliseconds
+                        + project.TotalMilliseconds
+                        + settingsBuild.TotalMilliseconds
+                        + referenceBuild.TotalMilliseconds,
+                },
+                mail_merge_build_allocated_bytes = new
                 {
                     samples = allocatedBytes,
                     median = orderedAllocatedBytes[repetitionCount / 2],
@@ -1079,6 +1215,111 @@ static void WriteBibliographyPackage(string path, int sourceCount)
     sourceWriter.Write("</b:Sources>");
 }
 
+static void WriteMailMergePackage(string path, int recipientCount, int mappingCount)
+{
+    string[] predefinedNames =
+    [
+        "Unique", "CourtesyTitle", "FirstName", "MiddleName", "LastName", "Suffix",
+        "Nickname", "JobTitle", "Company", "Address1", "Address2", "City", "State",
+        "PostalCode", "CountryorRegion", "BusinessPhone", "BusinessFax", "HomePhone",
+        "HomeFax", "EmailAddress", "WebPage", "SpouseCourtesyTitle",
+        "SpouseFirstName", "SpouseMiddleName", "SpouseLastName", "SpouseNickname",
+        "RubyFirstName", "RubyLastName", "Address3", "Department",
+    ];
+    if (mappingCount > predefinedNames.Length)
+    {
+        throw new ArgumentOutOfRangeException(nameof(mappingCount));
+    }
+
+    using var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+    using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+    WriteTextEntry(
+        archive,
+        "[Content_Types].xml",
+        """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+          <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+          <Default Extension="xml" ContentType="application/xml"/>
+          <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+          <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
+          <Override PartName="/word/recipients.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.mailMergeRecipientData+xml"/>
+        </Types>
+        """
+    );
+    WriteTextEntry(archive, "_rels/.rels", PackageFixture.RootRelationships);
+    WriteTextEntry(
+        archive,
+        "word/_rels/document.xml.rels",
+        """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
+        </Relationships>
+        """
+    );
+    WriteTextEntry(
+        archive,
+        "word/_rels/settings.xml.rels",
+        """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdRecipients" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/recipientData" Target="recipients.xml"/>
+        </Relationships>
+        """
+    );
+
+    var documentEntry = archive.CreateEntry("word/document.xml", CompressionLevel.Fastest);
+    using (var stream = documentEntry.Open())
+    using (var writer = new StreamWriter(stream, new UTF8Encoding(false), 64 * 1024))
+    {
+        writer.Write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>");
+        for (var index = 0; index < mappingCount; index++)
+        {
+            writer.Write("<w:p><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> MERGEFIELD \"Column");
+            writer.Write(index.ToString("D2"));
+            writer.Write("\" </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t>Value</w:t></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>");
+        }
+        writer.Write(PackageFixture.DocumentEnd);
+    }
+
+    var settingsEntry = archive.CreateEntry("word/settings.xml", CompressionLevel.Fastest);
+    using (var stream = settingsEntry.Open())
+    using (var writer = new StreamWriter(stream, new UTF8Encoding(false), 64 * 1024))
+    {
+        writer.Write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:mailMerge><w:mainDocumentType w:val=\"formLetters\"/><w:dataType w:val=\"database\"/><w:destination w:val=\"newDocument\"/><w:odso><w:fHdr w:val=\"1\"/>");
+        for (var index = 0; index < mappingCount; index++)
+        {
+            writer.Write("<w:fieldMapData><w:type w:val=\"dbColumn\"/><w:name w:val=\"Column");
+            writer.Write(index.ToString("D2"));
+            writer.Write("\"/><w:mappedName w:val=\"");
+            writer.Write(predefinedNames[index]);
+            writer.Write("\"/><w:column w:val=\"");
+            writer.Write(index);
+            writer.Write("\"/></w:fieldMapData>");
+        }
+        writer.Write("<w:recipientData r:id=\"rIdRecipients\"/></w:odso></w:mailMerge></w:settings>");
+    }
+
+    var recipientEntry = archive.CreateEntry("word/recipients.xml", CompressionLevel.Fastest);
+    using var recipientStream = recipientEntry.Open();
+    using var recipientWriter = new StreamWriter(
+        recipientStream,
+        new UTF8Encoding(false),
+        64 * 1024
+    );
+    recipientWriter.Write("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:recipients xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">");
+    for (var index = 0; index < recipientCount; index++)
+    {
+        recipientWriter.Write("<w:recipientData><w:active w:val=\"1\"/><w:column w:val=\"");
+        recipientWriter.Write(index);
+        recipientWriter.Write("\"/><w:uniqueTag w:val=\"recipient-");
+        recipientWriter.Write(index.ToString("D8"));
+        recipientWriter.Write("\"/></w:recipientData>");
+    }
+    recipientWriter.Write("</w:recipients>");
+}
+
 static void WriteFigurePackage(string path, int figureCount)
 {
     using var file = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
@@ -1337,7 +1578,7 @@ internal sealed record Arguments(
         if (args.Length == 0)
         {
             throw new ArgumentException(
-                "usage: graph --target-nodes N [--graph-budget-mib N] [--operation-budget-mib N] | bibliography --target-nodes N [--operation-budget-mib N] | bindings --target-nodes N | tables --target-nodes N | figures --target-nodes N | mce --target-nodes N | semantic-html --target-nodes N | semantic-svg --target-nodes N | patch --payload-mib N [--parts N]"
+                "usage: graph --target-nodes N [--graph-budget-mib N] [--operation-budget-mib N] | bibliography --target-nodes N [--operation-budget-mib N] | mail-merge --target-nodes N [--operation-budget-mib N] | bindings --target-nodes N | tables --target-nodes N | figures --target-nodes N | mce --target-nodes N | semantic-html --target-nodes N | semantic-svg --target-nodes N | patch --payload-mib N [--parts N]"
             );
         }
         var values = new Dictionary<string, string>(StringComparer.Ordinal);

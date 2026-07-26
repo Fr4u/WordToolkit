@@ -329,6 +329,20 @@ Open XML 2006 and legacy Word 2004/10 bibliography namespaces, validates typed s
 identity/type/LCID evidence and never opens Word, evaluates fields, executes bibliography
 XSLT or follows an external target. It is read-only: it does not refresh citations,
 render a formatted bibliography or authorize source deletion.
+Use lazy `inspect_ooxml_mail_merge` instead of reading `settings.xml`, its relationships,
+recipient data and field codes separately. Start with `view=summary`; page
+`configuration`, `relationships`, `mappings`, `recipients`, `fields` or `issues` only
+when the next decision needs them. Query/connection/UDL strings, table/column/mapped
+names, merge-field targets, mail metadata and recipient identities require
+`include_sensitive=true`. Relationship targets require the independent
+`include_relationship_targets=true`; source paths and ordinals require
+`include_source=true`. Default fingerprints are process-scoped keyed equality tokens,
+not durable IDs. Structural resolution of an external URI does not mean it was opened.
+The action parses only the saved package and never opens Word, Excel, Access, ODBC or
+OLE DB, runs a query, follows an external target, evaluates a field or executes a merge.
+Treat missing/ambiguous bindings and recipient relationship errors as reasons to stop,
+not permission to guess source columns. Word-effective predefined address mapping is
+positional for the first 30 `fieldMapData` records even when `mappedName` disagrees.
 Use lazy `inspect_ooxml_properties` instead of opening `docProps/core.xml`,
 `docProps/app.xml`, a custom-properties part or settings variables by hand. Start with
 `view=summary`; page `properties`, `parts` or `issues` only when the next decision needs
@@ -351,7 +365,8 @@ decision. The graph joins the
 explicitly reported OPC, semantic-containment, style, numbering, reference, section,
   classic-chart, SmartArt diagram/point/connection/part, logical-figure/representation/resource/caption, content-control,
 physical/built-in XML-store, binding-target, repeating-section, bibliography collection,
-source and resolved CITATION domains, typed active-content payloads/declarations,
+source and resolved CITATION domains, mail-merge configuration/ODSO/mapping/recipient/
+field bindings, typed active-content payloads/declarations,
 ActiveX binary bindings, core/extended/custom document properties, persistent document
 variables and their proven field reads, typed heading/style authority and per-story
 outline-parent edges plus nested-table and vertical-merge topology. Its
@@ -363,7 +378,7 @@ The summary's `byte_budget` remains the graph-local deterministic boundary. Its 
 `operation_budget` (`wop1`) is one shared 640 MiB accounted lease spanning ZIP/OPC
 admission and metadata,
   lossless XML reservations, semantic/style/numbering/reference/section/chart/diagram/figure/
-content-control/table/bibliography/active-content/property/settings projections and the final graph. Treat `PACKAGE_LIMIT` as a hard
+content-control/table/bibliography/mail-merge/active-content/property/settings projections and the final graph. Treat `PACKAGE_LIMIT` as a hard
 stop; an operation-budget error reports only the bounded stage and attempted charge.
 Do not retry with broader output or call this an exact CLR heap, peak-live-memory or
 resident-set limit. Accounting is cumulative and conservative. Migrated builders reuse
@@ -593,7 +608,8 @@ model without preprocessing or rewriting the package. Legacy `PreserveElements` 
 Use lazy `analyze_ooxml_document` when the request is broad—analyse, audit, assess,
 diagnose, or decide what to inspect next—and a saved DOCX/DOCM/DOTX/DOTM already exists.
 Start with the default `max_signals=12`. Retain `package_fingerprint`, then follow only
-the exact `next_action` of a relevant returned signal. Do not fan out across all narrow
+the exact `next_action` of a relevant returned signal, including
+`inspect_ooxml_mail_merge` when saved mail-merge evidence exists. Do not fan out across all narrow
 inspectors before this summary proves that their domain contains evidence. The response
 contains counts, grouped repair opportunities and bounded prioritized signals; it has no
 field for document text, raw XML, source locations, external relationship targets or

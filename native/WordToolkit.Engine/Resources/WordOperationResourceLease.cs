@@ -26,6 +26,7 @@ public enum WordOperationResourceStage
     MarkupCompatibility,
     Lint,
     ListSequences,
+    MailMerge,
     DependencyGraph,
 }
 

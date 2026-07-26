@@ -1,0 +1,84 @@
+{
+  "schema": "wordtoolkit-engine-benchmark-v1",
+  "scenario": "mail_merge_graph",
+  "utc": "2026-07-26T15:53:35.0089152+00:00",
+  "runtime": ".NET 8.0.29",
+  "operating_system": "Microsoft Windows 10.0.19045",
+  "architecture": "X64",
+  "engine_version": "0.52.0",
+  "processor_count": 12,
+  "server_gc": false,
+  "measurements": {
+    "requested_recipients": 10000,
+    "repetitions": 7,
+    "fixture": "synthetic_saved_odso_with_30_bound_fields_and_unique_recipient_tags",
+    "package_bytes": 60590,
+    "package_parts": 7,
+    "semantic_nodes": 333,
+    "mappings": 30,
+    "recipients": 10000,
+    "included_recipients": 10000,
+    "fields": 30,
+    "resolved_fields": 30,
+    "issues": 0,
+    "package_fingerprint_preserved": true,
+    "execution_policy": "parse_saved_package_only_never_open_word_execute_mail_merge_open_data_source_run_query_or_follow_external_targets",
+    "operation_resource_usage": {
+      "scope": "mail_merge_graph_only_package_semantic_settings_reference_setup_excluded",
+      "accounting_model": "word_operation_accounted_v1",
+      "accounted_bytes": 24942744,
+      "maximum_accounted_bytes": 671088640,
+      "stages": [
+        {
+          "stage": "Operation",
+          "accounted_bytes": 4096
+        },
+        {
+          "stage": "MailMerge",
+          "accounted_bytes": 24938648
+        }
+      ]
+    },
+    "timings_ms": {
+      "generate": 18.4363,
+      "package_read": 66.9488,
+      "semantic_projection": 24.734,
+      "settings_build": 6.9018,
+      "reference_build": 19.9566,
+      "mail_merge_build_samples": [
+        367.0644,
+        310.2516,
+        348.0099,
+        319.1171,
+        314.3591,
+        244.1692,
+        244.6858
+      ],
+      "mail_merge_build_median": 314.3591,
+      "mail_merge_build_p95": 367.0644,
+      "measured_setup_total": 118.5412
+    },
+    "mail_merge_build_allocated_bytes": {
+      "samples": [
+        105117008,
+        105111504,
+        105105448,
+        105105216,
+        105113360,
+        105105176,
+        105107424
+      ],
+      "median": 105107424,
+      "p95": 105117008
+    },
+    "memory": {
+      "baseline_managed_bytes": 154032,
+      "final_managed_bytes": 34205960,
+      "retained_managed_delta_bytes": 34051928,
+      "allocated_delta_bytes": 741064464,
+      "baseline_working_set_bytes": 26886144,
+      "final_working_set_bytes": 122937344,
+      "process_peak_working_set_bytes": 175599616
+    }
+  }
+}

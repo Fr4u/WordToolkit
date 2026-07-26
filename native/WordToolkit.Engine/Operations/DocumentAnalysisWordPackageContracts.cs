@@ -3,7 +3,7 @@ namespace WordToolkit.Engine.Operations;
 public static class DocumentAnalysisWordPackageContract
 {
     public const string OperationName = "analyze_ooxml_document";
-    public const string Contract = "wordtoolkit.analyze_ooxml_document/1.0";
+    public const string Contract = "wordtoolkit.analyze_ooxml_document/1.1";
     public const int DefaultMaxSignals = 12;
     public const int MaximumMaxSignals = 32;
     public const int MaximumRequestJsonCharacters = 64 * 1024;
@@ -94,6 +94,21 @@ public sealed record DocumentAnalysisCompatibilitySummary(
     string ApplicationConfiguration
 );
 
+public sealed record DocumentAnalysisMailMergeSummary(
+    bool Present,
+    int ConfigurationCount,
+    int MappingCount,
+    int RecipientCount,
+    int IncludedRecipientCount,
+    int FieldCount,
+    int ResolvedFieldCount,
+    int IssueCount,
+    bool IssuesTruncated,
+    bool HasExternalDataSource,
+    bool HasSensitiveConnectionMetadata,
+    bool ExternalDataSourcesOpened
+);
+
 public enum DocumentAnalysisSignalSeverity
 {
     Info,
@@ -158,6 +173,7 @@ public sealed record DocumentAnalysisResult(
     DocumentAnalysisQualitySummary Quality,
     DocumentAnalysisSafetySummary Safety,
     DocumentAnalysisCompatibilitySummary Compatibility,
+    DocumentAnalysisMailMergeSummary MailMerge,
     int SignalCount,
     int ReturnedSignalCount,
     bool SignalsTruncated,

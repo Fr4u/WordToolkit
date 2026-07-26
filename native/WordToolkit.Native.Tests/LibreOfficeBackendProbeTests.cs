@@ -16,7 +16,7 @@ public sealed class LibreOfficeBackendProbeTests
     public void CatalogKeepsProbeLazyAndPublishesClosedMetadata()
     {
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(146, catalog.ActionCount);
+        Assert.Equal(147, catalog.ActionCount);
         Assert.DoesNotContain(
             catalog.Tools,
             tool => tool!["name"]!.GetValue<string>()

@@ -168,6 +168,7 @@ internal sealed partial class WordLiveService
                     settings = graph.SettingsIssueCount,
                     smartart_diagrams = graph.DiagramIssueCount,
                     headings_and_outline = graph.OutlineIssueCount,
+                    mail_merge = graph.MailMergeIssueCount,
                 },
                 coverage = new
                 {
@@ -189,11 +190,12 @@ internal sealed partial class WordLiveService
                         .DocumentPropertiesAndVariables,
                     smartart_diagrams = graph.Coverage.SmartArtDiagrams,
                     headings_and_outline = graph.Coverage.HeadingsAndOutline,
+                    mail_merge = graph.Coverage.MailMerge,
                     explicitly_unmodeled_domains = graph.Coverage
                         .ExplicitlyUnmodeledDomains,
                 },
                 execution_policy =
-                    "metadata_only_never_execute_fields_or_active_content_decode_binary_open_embedded_packages_validate_signatures_or_follow_external_targets",
+                    "metadata_only_never_execute_fields_mail_merge_or_active_content_open_data_sources_decode_binary_open_embedded_packages_validate_signatures_or_follow_external_targets",
                 word_opened = false,
                 external_targets_followed = false,
                 active_content_executed = false,

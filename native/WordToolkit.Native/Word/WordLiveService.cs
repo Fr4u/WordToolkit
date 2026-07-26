@@ -388,6 +388,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_ooxml_mail_merge" => InspectPackageMailMergeAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_ooxml_dependencies" => InspectPackageDependenciesAsync(
                 arguments,
                 cancellationToken

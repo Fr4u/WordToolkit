@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+## 0.53.0 — 2026-07-26
+
+- Added `WordMailMergeGraphBuilder`, a bounded typed saved-package graph for Word mail
+  merge. It joins settings configuration, top-level and ODSO data-source roles,
+  Transitional/Strict relationships, Word's positional 30-field predefined-address
+  mapping behavior, recipient-data inclusion/identity records and cross-story
+  `MERGEFIELD`/`MERGEBARCODE` bindings. Missing, ambiguous, mistyped and forbidden
+  relationships remain source-linked diagnostics.
+- Added mail-merge configuration, ODSO, mapping, recipient-data, recipient and field
+  nodes plus source/binding edges to the unified dependency graph. The graph preserves
+  unresolved and external evidence but never follows a target or executes a field.
+- Added lazy `inspect_ooxml_mail_merge/1.0` with summary, configuration, relationship,
+  mapping, recipient, field and issue views. Query/connection/UDL strings, table/column
+  names, declared mapping/field names, recipient identities, relationship targets and
+  source provenance are independently gated; defaults return only counts and
+  process-HMAC equality fingerprints. One 65,536-character projected-response budget
+  and the shared operation resource lease bound the action. Its declared permissions
+  include no network and no Microsoft Word.
+- Upgraded the shared high-level analysis contract to
+  `wordtoolkit.analyze_ooxml_document/1.1`. It adds content-free mail-merge counts and a
+  `MAIL_MERGE_EVIDENCE` exact next-action signal without returning queries, source names,
+  identities or targets. External/sensitive sources or mail-merge errors block automatic
+  mutation.
+- Added Transitional, Strict, relationship-error, recipient-cardinality, ambiguity,
+  privacy, no-COM, closed-schema, deterministic-budget and dependency-integration
+  regressions. Pinned SDK 8.0.423 gates pass 757 Engine, 12 LibreOffice and 540 Native
+  tests; Python compatibility passes 1,318 with 16 intentional skips.
+- Extended the benchmark harness with `mail-merge`. The checked-in 10,000-recipient
+  point builds in 314.3591 ms median and 367.0644 ms p95/max; the 100,000-recipient
+  point builds in 2,151.7312 ms median and 2,770.7688 ms p95/max. Both resolve all 30
+  fields, preserve the package fingerprint and report zero issues. The 100,000 point's
+  1.03 GB median allocation and 1.17 GB peak working set are disclosed, not hidden.
+- Capability discovery now exposes 147 native actions and 58 complete explicit metadata
+  contracts. Research, architecture, skill guidance and known limits document the hard
+  separation between saved evidence and effectful data-source/merge execution.
+
 ## 0.52.0 — 2026-07-26
 
 - Added an operation-scoped, byte-exact cache for immutable `LosslessXmlDocument`

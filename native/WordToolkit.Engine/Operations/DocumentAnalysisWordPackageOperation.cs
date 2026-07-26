@@ -176,6 +176,13 @@ public sealed class DocumentAnalysisWordPackageOperation
             semantic,
             cancellationToken
         );
+        var mailMerge = new WordMailMergeGraphBuilder(null, resourceLease).Build(
+            package,
+            semantic,
+            settings,
+            references,
+            cancellationToken
+        );
         var fonts = new WordFontTableGraphBuilder(null, resourceLease).Build(
             package,
             semantic,
@@ -204,6 +211,7 @@ public sealed class DocumentAnalysisWordPackageOperation
             charts,
             contentControls,
             tables,
+            mailMerge,
             cancellationToken
         );
         var lint = new WordDocumentLinter(null, resourceLease).Analyze(
@@ -284,6 +292,7 @@ public sealed class DocumentAnalysisWordPackageOperation
             dependencies,
             lint,
             compatibility,
+            mailMerge,
             activeDeclarations + activePayloads + activeXControls,
             externalRelationships
         );
@@ -384,6 +393,23 @@ public sealed class DocumentAnalysisWordPackageOperation
                 compatibility.IssuesTruncated,
                 "empty_understood_namespace_and_extension_profile"
             ),
+            new DocumentAnalysisMailMergeSummary(
+                mailMerge.HasMailMergeEvidence,
+                mailMerge.Configuration is null ? 0 : 1,
+                mailMerge.Mappings.Count,
+                mailMerge.Recipients.Count,
+                mailMerge.Recipients.Count(recipient => recipient.IsIncluded),
+                mailMerge.Fields.Count,
+                mailMerge.Fields.Count(field =>
+                    field.BindingStatus is WordMailMergeFieldBindingStatus.ResolvedBySourceColumnName
+                        or WordMailMergeFieldBindingStatus.ResolvedByWordPredefinedName
+                ),
+                mailMerge.Issues.Count,
+                mailMerge.IssuesTruncated,
+                mailMerge.Configuration?.HasExternalDataSource == true,
+                mailMerge.Configuration?.HasSensitiveConnectionMetadata == true,
+                ExternalDataSourcesOpened: false
+            ),
             allSignals.Count,
             signals.Length,
             signals.Length < allSignals.Count,
@@ -427,6 +453,7 @@ public sealed class DocumentAnalysisWordPackageOperation
         WordDependencyGraph dependencies,
         WordLintReport lint,
         WordMarkupCompatibilityGraph compatibility,
+        WordMailMergeGraph mailMerge,
         int activeContentNodeCount,
         int externalRelationshipCount
     )
@@ -476,6 +503,29 @@ public sealed class DocumentAnalysisWordPackageOperation
                 externalRelationshipCount,
                 "inspect_ooxml_dependencies",
                 BlocksAutomaticMutation: true
+            ));
+        }
+        if (mailMerge.HasMailMergeEvidence)
+        {
+            var hasBlockingEvidence = mailMerge.Configuration?.HasExternalDataSource == true
+                || mailMerge.Configuration?.HasSensitiveConnectionMetadata == true
+                || mailMerge.Issues.Any(issue =>
+                    issue.Severity == WordMailMergeIssueSeverity.Error
+                );
+            signals.Add(new(
+                "MAIL_MERGE_EVIDENCE",
+                hasBlockingEvidence
+                    ? DocumentAnalysisSignalSeverity.Warning
+                    : DocumentAnalysisSignalSeverity.Info,
+                "mail_merge",
+                Math.Max(
+                    1,
+                    mailMerge.Fields.Count
+                        + mailMerge.Mappings.Count
+                        + mailMerge.Recipients.Count
+                ),
+                "inspect_ooxml_mail_merge",
+                BlocksAutomaticMutation: hasBlockingEvidence
             ));
         }
         AddCategorySignal(
@@ -616,6 +666,7 @@ public sealed class DocumentAnalysisWordPackageOperation
             ["settings"] = graph.SettingsIssueCount,
             ["diagrams"] = graph.DiagramIssueCount,
             ["outline"] = graph.OutlineIssueCount,
+            ["mail_merge"] = graph.MailMergeIssueCount,
         };
         return new ReadOnlyCollection<DocumentAnalysisCount>(
             values

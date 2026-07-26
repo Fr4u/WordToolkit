@@ -191,7 +191,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 146-action schema set into model context. The normative shape is
+not flatten the 147-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -325,7 +325,7 @@ of asking an AI client to call and combine every inspector itself:
   wordtoolkit-native analyze-package --request - --format json
 ```
 
-The shared `wordtoolkit.analyze_ooxml_document/1.0` contract joins bounded package,
+The shared `wordtoolkit.analyze_ooxml_document/1.1` contract joins bounded package,
 semantic, dependency, lint, active-content and markup-compatibility evidence. It returns
 only counts, grouped repair opportunities and prioritized exact next-action names. It
 returns no document text, raw XML, source location, external target or binary; it does
@@ -616,6 +616,7 @@ inspect_ooxml_theme
 inspect_ooxml_settings
 inspect_ooxml_references
 inspect_ooxml_bibliography
+inspect_ooxml_mail_merge
 inspect_ooxml_dependencies
 analyze_ooxml_document
 lint_ooxml_document
@@ -715,6 +716,17 @@ classified but never followed or executed. Comment/revision text, author/editor/
 names, provider/user identifiers and move names are fingerprinted and redacted by
 default. Font hashes are opt-in metadata only. Protection is reported as an editing
 restriction, not misrepresented as document encryption.
+
+Saved-package mail merge now has its own native typed graph instead of stopping at
+settings metadata. It validates top-level and ODSO source relationships, applies Word's
+30-position predefined address-field mapping rule, reads recipient include/exclude and
+identity records, and binds `MERGEFIELD`/`MERGEBARCODE` objects across projected
+stories. `inspect_ooxml_mail_merge` returns paged summaries, configuration,
+relationships, mappings, recipients, fields or diagnostics. Queries, connection/UDL
+strings, table and column names, field targets, recipient identities, relationship
+targets and source locations are separately redacted by default. The action parses only
+the saved package: it never opens Word, a workbook/database, a query, an external target
+or the merge itself. See `docs/RESEARCH-MAIL-MERGE-GRAPH-2026.md`.
 
 Saved-package semantic queries select source-ordered nodes by kind, bounded text,
 exact properties, source story, subtree, and strict ancestor/descendant predicates.
@@ -1277,7 +1289,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is 0.52.0. The latest immutable public release remains
+The development manifest/runtime is 0.53.0. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:
