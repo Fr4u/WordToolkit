@@ -873,16 +873,22 @@ source-graph stage and the final dependency graph. Bounded EOCD/ZIP64 preflight 
 central-directory count, size and malformed arithmetic before `ZipArchive.Entries`;
 package/XML charges precede guarded byte copies, and derived content-type, part,
 relationship and diagnostic records have count/resource bounds. Dependency items still
-charge before insertion. Engine usage keeps
-a stable per-stage breakdown, while MCP exposes only the three-field `wop1`
-`operation_budget`. Exhaustion maps to `PACKAGE_LIMIT` with a bounded stable stage and no
-document data. The input schema cannot raise the ceiling.
+charge before insertion. Engine usage keeps a stable per-stage breakdown. The narrow
+dependency MCP response exposes only the three-field `wop1` `operation_budget`; high-level
+document analysis additionally exposes compact operation-local XML parse-cache requests,
+unique parses, hits and avoided conservative parse charges. Exhaustion maps to
+`PACKAGE_LIMIT` with a bounded stable stage and no document data. The input schema cannot
+raise the ceiling.
 
 This is deterministic resource accounting, not a GC, resident-set or peak-live-memory
-claim. The lease does not release earlier charges, and the repeated story parsers consume
-the same lease repeatedly. Shared immutable parsed-story storage remains the next memory
-architecture target. The accounting formula and calibration are recorded in
-`RESEARCH-OPERATION-RESOURCE-LEASE-2026.md`.
+claim. The lease does not release earlier charges. Lossless XML parsing now uses a
+byte-exact immutable cache owned by that lease: array identity is only a fast lookup and
+still receives full byte comparison, separate arrays use SHA-256 plus exact comparison,
+and every hit rechecks the current caller's XML limits. A weak lease key prevents global
+or cross-operation content retention. Typed graphs still materialize independent
+projections and separate actions still reparse. The accounting formula, cache design and
+qualification are recorded in `RESEARCH-OPERATION-RESOURCE-LEASE-2026.md` and
+`RESEARCH-OPERATION-SCOPED-XML-PARSE-CACHE-2026.md`.
 
 Incoming and outgoing adjacency use compressed-row offset and edge-index arrays rather
 than two dictionaries of per-node edge arrays. Direct adjacency views do not allocate.

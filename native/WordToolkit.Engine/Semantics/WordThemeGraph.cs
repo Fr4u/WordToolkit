@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
@@ -867,10 +868,22 @@ public sealed class WordThemeGraphBuilder
     ];
 
     private readonly WordThemeGraphOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
 
     public WordThemeGraphBuilder(WordThemeGraphOptions? options = null)
     {
         _options = options ?? WordThemeGraphOptions.Default;
+        _options.Validate();
+    }
+
+    public WordThemeGraphBuilder(
+        WordThemeGraphOptions? options,
+        WordOperationResourceLease resourceLease
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        _options = options ?? WordThemeGraphOptions.Default;
+        _resourceLease = resourceLease;
         _options.Validate();
     }
 
@@ -883,6 +896,10 @@ public sealed class WordThemeGraphBuilder
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(semanticDocument);
         cancellationToken.ThrowIfCancellationRequested();
+        WordOperationResourceAccounting.ChargeProjectionBase(
+            _resourceLease,
+            WordOperationResourceStage.Theme
+        );
         if (
             !string.Equals(
                 package.Fingerprint,
@@ -914,6 +931,12 @@ public sealed class WordThemeGraphBuilder
         }
 
         var source = ParseThemePart(themePart, cancellationToken);
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.Theme,
+            source.Elements.Count,
+            768
+        );
         var root = source.ParsedDocument.Root;
         if (
             root is null
@@ -1317,18 +1340,23 @@ public sealed class WordThemeGraphBuilder
     {
         try
         {
-            return LosslessXmlDocument.Parse(
-                part.Entry.Content,
-                new LosslessXmlOptions
-                {
-                    MaxSourceBytes = _options.MaxThemePartBytes,
-                    MaxXmlCharacters = _options.MaxThemePartBytes,
-                    MaxXmlElements = 262_144,
-                    MaxXmlDepth = 128,
-                    MaxTextCharacters = _options.MaxThemePartBytes,
-                },
-                cancellationToken
-            );
+            var options = new LosslessXmlOptions
+            {
+                MaxSourceBytes = _options.MaxThemePartBytes,
+                MaxXmlCharacters = _options.MaxThemePartBytes,
+                MaxXmlElements = 262_144,
+                MaxXmlDepth = 128,
+                MaxTextCharacters = _options.MaxThemePartBytes,
+            };
+            return _resourceLease is null
+                ? LosslessXmlDocument.Parse(part.Entry.Content, options, cancellationToken)
+                : LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    _resourceLease,
+                    WordOperationResourceStage.Theme,
+                    cancellationToken
+                );
         }
         catch (LosslessXmlLimitException exception)
         {

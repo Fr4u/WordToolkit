@@ -671,7 +671,11 @@ public sealed class WordDependencyGraphTests
         );
         var sourceHash = SHA256.HashData(bytes.ToArray());
 
-        static (WordDependencyGraph Graph, WordOperationResourceUsage Usage) Build(
+        static (
+            WordDependencyGraph Graph,
+            WordOperationResourceUsage Usage,
+            WordOperationXmlParseCacheUsage XmlCache
+        ) Build(
             Stream source,
             long maximum = WordOperationResourceLease.DefaultMaximumAccountedBytes
         )
@@ -687,7 +691,8 @@ public sealed class WordDependencyGraphTests
             return (
                 graph,
                 graph.OperationResourceUsage
-                    ?? throw new InvalidOperationException("Operation usage is missing.")
+                    ?? throw new InvalidOperationException("Operation usage is missing."),
+                lease.SnapshotXmlParseCache()
             );
         }
 
@@ -700,6 +705,13 @@ public sealed class WordDependencyGraphTests
             second.Usage.MaximumAccountedBytes
         );
         Assert.Equal(first.Usage.Stages, second.Usage.Stages);
+        Assert.Equal(first.XmlCache, second.XmlCache);
+        Assert.True(first.XmlCache.CacheHits > 0);
+        Assert.Equal(
+            first.XmlCache.Requests,
+            first.XmlCache.UniqueParses + first.XmlCache.CacheHits
+        );
+        Assert.True(first.XmlCache.AvoidedAccountedBytes > 0);
         Assert.True(first.Usage.AccountedBytes > first.Graph.ResourceUsage.AccountedBytes);
         Assert.Equal(
             WordOperationResourceLease.AccountingModel,
@@ -707,7 +719,14 @@ public sealed class WordDependencyGraphTests
         );
         Assert.Equal(
             Enum.GetValues<WordOperationResourceStage>()
-                .Except([WordOperationResourceStage.Operation])
+                .Except([
+                    WordOperationResourceStage.Operation,
+                    WordOperationResourceStage.Theme,
+                    WordOperationResourceStage.FontTable,
+                    WordOperationResourceStage.MarkupCompatibility,
+                    WordOperationResourceStage.Lint,
+                    WordOperationResourceStage.ListSequences,
+                ])
                 .Order(),
             first.Usage.Stages.Select(item => item.Stage)
                 .Except([WordOperationResourceStage.Operation])

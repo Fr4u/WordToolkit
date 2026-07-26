@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
@@ -250,10 +251,22 @@ public sealed class WordFontTableGraphBuilder
         };
 
     private readonly WordFontTableGraphOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
 
     public WordFontTableGraphBuilder(WordFontTableGraphOptions? options = null)
     {
         _options = options ?? WordFontTableGraphOptions.Default;
+        _options.Validate();
+    }
+
+    public WordFontTableGraphBuilder(
+        WordFontTableGraphOptions? options,
+        WordOperationResourceLease resourceLease
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        _options = options ?? WordFontTableGraphOptions.Default;
+        _resourceLease = resourceLease;
         _options.Validate();
     }
 
@@ -266,6 +279,10 @@ public sealed class WordFontTableGraphBuilder
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(semanticDocument);
         cancellationToken.ThrowIfCancellationRequested();
+        WordOperationResourceAccounting.ChargeProjectionBase(
+            _resourceLease,
+            WordOperationResourceStage.FontTable
+        );
         if (
             !string.Equals(
                 package.Fingerprint,
@@ -285,6 +302,12 @@ public sealed class WordFontTableGraphBuilder
             return EmptyGraph(package.Fingerprint, semanticDocument.MainPartUri);
         }
         var source = ParseFontTablePart(part, cancellationToken);
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.FontTable,
+            source.Elements.Count,
+            768
+        );
         var root = source.ParsedDocument.Root;
         if (
             root is null
@@ -734,18 +757,23 @@ public sealed class WordFontTableGraphBuilder
     {
         try
         {
-            return LosslessXmlDocument.Parse(
-                part.Entry.Content,
-                new LosslessXmlOptions
-                {
-                    MaxSourceBytes = _options.MaxFontTablePartBytes,
-                    MaxXmlCharacters = _options.MaxFontTablePartBytes,
-                    MaxXmlElements = 524_288,
-                    MaxXmlDepth = 128,
-                    MaxTextCharacters = _options.MaxFontTablePartBytes,
-                },
-                cancellationToken
-            );
+            var options = new LosslessXmlOptions
+            {
+                MaxSourceBytes = _options.MaxFontTablePartBytes,
+                MaxXmlCharacters = _options.MaxFontTablePartBytes,
+                MaxXmlElements = 524_288,
+                MaxXmlDepth = 128,
+                MaxTextCharacters = _options.MaxFontTablePartBytes,
+            };
+            return _resourceLease is null
+                ? LosslessXmlDocument.Parse(part.Entry.Content, options, cancellationToken)
+                : LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    _resourceLease,
+                    WordOperationResourceStage.FontTable,
+                    cancellationToken
+                );
         }
         catch (LosslessXmlLimitException exception)
         {

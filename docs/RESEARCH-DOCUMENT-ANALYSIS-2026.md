@@ -52,8 +52,10 @@ result retains the package fingerprint so a later narrow inspect or plan can rej
 
 The operation deliberately reuses production builders rather than inventing a second
 "fast" parser. This keeps broad analysis aligned with the evidence that narrow actions
-will later inspect. It is not yet a shared immutable multi-action cache; repeated calls to
-other inspectors still reparse the package.
+will later inspect. Those builders now share byte-exact immutable lossless XML documents
+inside this one operation lease. The cache is weak-keyed by the lease, rechecks every
+caller's XML limits and exposes compact request/hit/avoided-charge statistics. It is not
+a multi-action cache; a later inspector still reopens and reparses the package.
 
 ## Signal semantics
 
@@ -97,9 +99,10 @@ The first release explicitly lists these unmodeled areas:
 - rendered DrawingML/VML geometry and font metrics;
 - the full target-application capability profile for markup compatibility.
 
-Theme, font, markup-compatibility and lint allocations are not all charged to the shared
-operation lease yet, so the operation reports incomplete budget coverage instead of a
-false resource guarantee.
+Theme, font, markup-compatibility, lint and list-sequence XML parsing plus bounded result
+collections now charge the shared operation lease. Selected transient list-sequence and
+lint allocations are not fully modeled, so the operation reports incomplete budget
+coverage instead of a false resource guarantee.
 
 ## Verification
 
@@ -110,11 +113,20 @@ schema conformance, absence of COM invocation and the compact-response ceiling. 
 equation-heavy DOCX with four lint errors remains structurally valid and now emits
 `LINT_ERROR_FINDINGS`, not the false critical structural signal.
 
+Cache regressions additionally prove separate-array byte-exact reuse, same-array fast
+reuse, rejection after source mutation, stricter-limit enforcement, lease isolation,
+deterministic statistics and shared list-sequence parsing. Fifteen alternating
+self-contained Release runs are recorded in
+`benchmarks/2026-07-26-operation-scoped-xml-cache.json`: the small fixture improved 2.81%
+in median latency and 22.83% in accounted budget; the mixed-domain fixture improved
+23.86% and 35.21%. These two fixtures are qualification evidence, not a universal
+performance claim.
+
 ## Remaining work
 
 This slice does not finish "document analysis" in the absolute sense. The next hard work
-is shared immutable parsed-story storage, complete operation-wide resource accounting,
-representative token/latency benchmarks across large mixed-domain documents, a qualified
-Word layout evidence join, signature/encryption/coauthoring adapters and a policy-aware
-planner that can turn reviewed signals into a dependency-ordered transaction without
-inventing evidence.
+is complete operation-wide temporary allocation accounting, an explicitly bounded and
+privacy-governed multi-action immutable store, a representative multi-size/multi-domain
+token/latency corpus, a qualified Word layout evidence join,
+signature/encryption/coauthoring adapters and a policy-aware planner that can turn
+reviewed signals into a dependency-ordered transaction without inventing evidence.

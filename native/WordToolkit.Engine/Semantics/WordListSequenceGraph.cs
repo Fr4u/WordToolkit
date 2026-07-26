@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
@@ -270,11 +271,16 @@ public sealed class WordListSequenceGraphBuilder
     );
 
     private readonly WordListSequenceGraphOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
 
-    public WordListSequenceGraphBuilder(WordListSequenceGraphOptions? options = null)
+    public WordListSequenceGraphBuilder(
+        WordListSequenceGraphOptions? options = null,
+        WordOperationResourceLease? resourceLease = null
+    )
     {
         _options = options ?? WordListSequenceGraphOptions.Default;
         _options.Validate();
+        _resourceLease = resourceLease;
     }
 
     public WordListSequenceGraph Build(
@@ -291,6 +297,10 @@ public sealed class WordListSequenceGraphBuilder
         ArgumentNullException.ThrowIfNull(numberingGraph);
         ValidateSnapshots(package, semanticDocument, styleGraph, numberingGraph);
         cancellationToken.ThrowIfCancellationRequested();
+        WordOperationResourceAccounting.ChargeProjectionBase(
+            _resourceLease,
+            WordOperationResourceStage.ListSequences
+        );
 
         var nodes = semanticDocument.Nodes.ToArray();
         var paragraphs = nodes
@@ -302,6 +312,12 @@ public sealed class WordListSequenceGraphBuilder
                 $"List-sequence analysis exceeds {_options.MaxParagraphs} paragraphs."
             );
         }
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.ListSequences,
+            nodes.Length + paragraphs.Length,
+            sizeof(long)
+        );
 
         var sources = new Dictionary<string, LosslessXmlDocument>(StringComparer.Ordinal);
         var states = new Dictionary<(string StoryId, int NumberId), SequenceState>();
@@ -535,6 +551,18 @@ public sealed class WordListSequenceGraphBuilder
             );
         }
 
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.ListSequences,
+            items.Count,
+            2_048
+        );
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.ListSequences,
+            issues.Count,
+            1_024
+        );
         return new WordListSequenceGraph(
             package.Fingerprint,
             items,
@@ -1145,18 +1173,27 @@ public sealed class WordListSequenceGraphBuilder
     {
         try
         {
-            return LosslessXmlDocument.Parse(
-                part.Entry.Content,
-                new LosslessXmlOptions
-                {
-                    MaxSourceBytes = _options.MaxXmlPartBytes,
-                    MaxXmlCharacters = _options.MaxXmlPartBytes,
-                    MaxXmlElements = 1_000_000,
-                    MaxXmlDepth = 256,
-                    MaxTextCharacters = _options.MaxXmlPartBytes,
-                },
-                cancellationToken
-            );
+            var options = new LosslessXmlOptions
+            {
+                MaxSourceBytes = _options.MaxXmlPartBytes,
+                MaxXmlCharacters = _options.MaxXmlPartBytes,
+                MaxXmlElements = 1_000_000,
+                MaxXmlDepth = 256,
+                MaxTextCharacters = _options.MaxXmlPartBytes,
+            };
+            return _resourceLease is null
+                ? LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    cancellationToken
+                )
+                : LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    _resourceLease,
+                    WordOperationResourceStage.ListSequences,
+                    cancellationToken
+                );
         }
         catch (LosslessXmlLimitException exception)
         {

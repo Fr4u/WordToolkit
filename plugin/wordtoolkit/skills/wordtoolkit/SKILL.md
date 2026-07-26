@@ -366,8 +366,9 @@ admission and metadata,
 content-control/table/bibliography/active-content/property/settings projections and the final graph. Treat `PACKAGE_LIMIT` as a hard
 stop; an operation-budget error reports only the bounded stage and attempted charge.
 Do not retry with broader output or call this an exact CLR heap, peak-live-memory or
-resident-set limit. Accounting is cumulative and conservative; repeated XML projection
-consumes the same lease because shared immutable parsed-story storage does not exist yet.
+resident-set limit. Accounting is cumulative and conservative. Migrated builders reuse
+byte-exact immutable lossless XML inside this operation lease and recheck each caller's
+limits; no cache crosses action boundaries, and typed projections remain independent.
 This action never opens Word, executes a field, follows an external target, repairs a
 document or authorizes deleting an apparently unused node.
 Use lazy `inspect_ooxml_figures` instead of reading `w:drawing`, `w:pict`, `w:object`,
@@ -602,7 +603,11 @@ not proof of complete document coverage, semantic completeness or complete opera
 budget accounting; read the three separate coverage flags and explicit omissions. A
 critical structural signal blocks mutation. A lint error is not automatically structural
 corruption, but its `blocks_automatic_mutation` value still requires narrow inspection
-before editing. On every subsequent call pass the retained fingerprint where that action
+before editing. Read `operation_budget.xml_parse_cache` as operation-local evidence:
+`requests = unique_parses + cache_hits`, while `avoided_accounted_bytes` is the
+conservative parse charge not repeated because byte-exact immutable source was reused.
+It is not a cross-call cache, a peak-memory measurement or proof of complete resource
+accounting. On every subsequent call pass the retained fingerprint where that action
 supports a package precondition so a stale analysis cannot drive a new mutation.
 Use lazy `lint_ooxml_document` for a bounded quality or safety audit of a saved package.
 Start with `view=summary` and one rule pack when the task is narrow; request paged

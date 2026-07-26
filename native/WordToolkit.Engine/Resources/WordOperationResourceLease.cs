@@ -21,6 +21,11 @@ public enum WordOperationResourceStage
     DocumentProperties,
     Diagrams,
     Outline,
+    Theme,
+    FontTable,
+    MarkupCompatibility,
+    Lint,
+    ListSequences,
     DependencyGraph,
 }
 
@@ -34,6 +39,14 @@ public sealed record WordOperationResourceUsage(
     long AccountedBytes,
     long MaximumAccountedBytes,
     IReadOnlyList<WordOperationResourceStageUsage> Stages
+);
+
+public sealed record WordOperationXmlParseCacheUsage(
+    string Model,
+    long Requests,
+    long UniqueParses,
+    long CacheHits,
+    long AvoidedAccountedBytes
 );
 
 public sealed class WordOperationResourceLimitException : IOException
@@ -74,6 +87,9 @@ public sealed class WordOperationResourceLease
     private readonly long[] _stageBytes =
         new long[Enum.GetValues<WordOperationResourceStage>().Length];
     private long _accountedBytes;
+    private long _xmlParseRequests;
+    private long _xmlParseCacheHits;
+    private long _xmlParseAvoidedAccountedBytes;
 
     public WordOperationResourceLease(
         long maximumAccountedBytes = DefaultMaximumAccountedBytes
@@ -143,6 +159,41 @@ public sealed class WordOperationResourceLease
                 _accountedBytes,
                 MaximumAccountedBytes,
                 new ReadOnlyCollection<WordOperationResourceStageUsage>(stages)
+            );
+        }
+    }
+
+    public WordOperationXmlParseCacheUsage SnapshotXmlParseCache()
+    {
+        lock (_gate)
+        {
+            return new WordOperationXmlParseCacheUsage(
+                "word_operation_xml_parse_cache_v1",
+                _xmlParseRequests,
+                _xmlParseRequests - _xmlParseCacheHits,
+                _xmlParseCacheHits,
+                _xmlParseAvoidedAccountedBytes
+            );
+        }
+    }
+
+    internal void RecordXmlParseCacheResult(bool cacheHit, int sourceBytes)
+    {
+        if (sourceBytes <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sourceBytes));
+        }
+        lock (_gate)
+        {
+            _xmlParseRequests++;
+            if (!cacheHit)
+            {
+                return;
+            }
+            _xmlParseCacheHits++;
+            _xmlParseAvoidedAccountedBytes = checked(
+                _xmlParseAvoidedAccountedBytes
+                    + WordOperationResourceAccounting.AccountedXmlParseBytes(sourceBytes)
             );
         }
     }
@@ -283,10 +334,19 @@ internal static class WordOperationResourceAccounting
         {
             return;
         }
+        lease.Charge(stage, AccountedXmlParseBytes(sourceBytes));
+    }
+
+    internal static long AccountedXmlParseBytes(int sourceBytes)
+    {
+        if (sourceBytes <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sourceBytes));
+        }
         var bytes = checked(
             XmlParseFixedBytes + checked((long)sourceBytes * XmlSourceExpansionFactor)
         );
-        lease.Charge(stage, Align(bytes));
+        return Align(bytes);
     }
 
     public static void ChargeSemanticNode(

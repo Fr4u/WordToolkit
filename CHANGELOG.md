@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+## 0.52.0 — 2026-07-26
+
+- Added an operation-scoped, byte-exact cache for immutable `LosslessXmlDocument`
+  instances. Cache ownership follows one `WordOperationResourceLease` through a weak
+  key, never crosses operation boundaries and never retains document content globally.
+  Exact backing-array identity is a fast path; SHA-256 plus full byte comparison safely
+  deduplicates separate arrays with identical content.
+- Every cache reuse rechecks the caller's current XML byte, character, element, depth
+  and text limits. A stricter second caller therefore cannot inherit a parse admitted by
+  a looser first caller. Mutable backing-array regression proof prevents identity reuse
+  after bytes change.
+- High-level analysis now shares parses across semantic, style, numbering, reference,
+  theme, font, MCE, lint, outline and list-sequence consumers. Theme, font, MCE, lint and
+  list-sequence parsing plus bounded result collections now participate in the common
+  operation lease. Remaining transient list/lint allocations stay explicitly omitted;
+  complete resource accounting is not claimed.
+- `analyze_ooxml_document` now returns compact
+  `operation_budget.xml_parse_cache` statistics: model, requests, unique parses, cache
+  hits and avoided conservative parse-accounting bytes. The closed MCP schema and
+  regressions prove `requests = unique_parses + cache_hits`, deterministic output and no
+  cache reuse across operation leases.
+- Fifteen alternating cold-process Release runs against installed 0.51.0 reduced median
+  analysis latency from 465.041 ms to 451.977 ms (-2.81%) for a 5,310-byte equation
+  fixture and from 928.300 ms to 706.852 ms (-23.86%) for a 52,292-byte mixed-domain
+  torture fixture. Accounted budget fell 22.83% and 35.21%; the candidate reported 48
+  and 272 cache hits. These are two local fixtures, not a universal performance claim.
+
 ## 0.50.0 — 2026-07-26
 
 - Added `wordtoolkit.render_ooxml_libreoffice_artifacts/1.0` and the matching

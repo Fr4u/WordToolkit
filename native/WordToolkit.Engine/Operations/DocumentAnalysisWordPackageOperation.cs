@@ -166,7 +166,7 @@ public sealed class DocumentAnalysisWordPackageOperation
             semantic,
             cancellationToken
         );
-        var theme = new WordThemeGraphBuilder().Build(
+        var theme = new WordThemeGraphBuilder(null, resourceLease).Build(
             package,
             semantic,
             cancellationToken
@@ -176,7 +176,7 @@ public sealed class DocumentAnalysisWordPackageOperation
             semantic,
             cancellationToken
         );
-        var fonts = new WordFontTableGraphBuilder().Build(
+        var fonts = new WordFontTableGraphBuilder(null, resourceLease).Build(
             package,
             semantic,
             cancellationToken
@@ -206,7 +206,7 @@ public sealed class DocumentAnalysisWordPackageOperation
             tables,
             cancellationToken
         );
-        var lint = new WordDocumentLinter().Analyze(
+        var lint = new WordDocumentLinter(null, resourceLease).Analyze(
             package,
             semantic,
             styles,
@@ -220,7 +220,10 @@ public sealed class DocumentAnalysisWordPackageOperation
             tables,
             cancellationToken
         );
-        var compatibility = new WordMarkupCompatibilityGraphBuilder().Build(
+        var compatibility = new WordMarkupCompatibilityGraphBuilder(
+            null,
+            resourceLease
+        ).Build(
             package,
             WordMceApplicationConfiguration.Empty,
             cancellationToken
@@ -299,7 +302,7 @@ public sealed class DocumentAnalysisWordPackageOperation
         var omissions = lint.Coverage.Omissions
             .Concat(
                 [
-                    "theme_font_markup_compatibility_and_lint_allocations_not_operation_accounted",
+                    "selected_list_sequence_and_lint_temporary_allocations_not_operation_accounted",
                 ]
             )
             .Distinct(StringComparer.Ordinal)
@@ -309,6 +312,7 @@ public sealed class DocumentAnalysisWordPackageOperation
             && !lint.FindingsTruncated
             && !compatibility.IssuesTruncated;
         var budget = resourceLease.Snapshot();
+        var xmlParseCache = resourceLease.SnapshotXmlParseCache();
 
         return new DocumentAnalysisResult(
             DocumentAnalysisWordPackageContract.Contract,
@@ -406,7 +410,14 @@ public sealed class DocumentAnalysisWordPackageOperation
             new DocumentAnalysisOperationBudget(
                 budget.AccountingModel,
                 budget.AccountedBytes,
-                budget.MaximumAccountedBytes
+                budget.MaximumAccountedBytes,
+                new DocumentAnalysisXmlParseCache(
+                    xmlParseCache.Model,
+                    xmlParseCache.Requests,
+                    xmlParseCache.UniqueParses,
+                    xmlParseCache.CacheHits,
+                    xmlParseCache.AvoidedAccountedBytes
+                )
             )
         );
     }

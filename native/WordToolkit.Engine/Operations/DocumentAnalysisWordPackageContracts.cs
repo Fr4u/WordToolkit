@@ -135,7 +135,16 @@ public sealed record DocumentAnalysisDisclosure(
 public sealed record DocumentAnalysisOperationBudget(
     string Model,
     long Used,
-    long Maximum
+    long Maximum,
+    DocumentAnalysisXmlParseCache XmlParseCache
+);
+
+public sealed record DocumentAnalysisXmlParseCache(
+    string Model,
+    long Requests,
+    long UniqueParses,
+    long CacheHits,
+    long AvoidedAccountedBytes
 );
 
 public sealed record DocumentAnalysisResult(

@@ -1,6 +1,6 @@
 {
   "name": "wordtoolkit",
-  "version": "0.51.0+codex.20260726154529",
+  "version": "0.52.0+codex.20260726170033",
   "description": "Token-lean native Microsoft Word automation with 15 core/gateway tools and lazy access to 146 native actions.",
   "author": {
     "name": "WordToolkit contributors"
@@ -56,6 +56,7 @@
       "Word Live",
       "64 Live Word Actions",
       "High-Level Content-Free Document Analysis",
+      "Operation-Scoped Shared Lossless XML Parse Cache",
       "Typed OOXML Style Graph",
       "Typed OOXML Numbering Graph",
       "Typed Word Heading Outline",

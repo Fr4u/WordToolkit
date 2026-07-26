@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Semantics;
 
 namespace WordToolkit.Engine.Tests;
@@ -256,6 +257,49 @@ public sealed class WordListSequenceGraphTests
                 snapshots.Styles,
                 snapshots.Numbering
             )
+        );
+    }
+
+    [Fact]
+    public void SharesStoryParsesAndAccountsItsProjectionWithinOneOperationLease()
+    {
+        using var bytes = BuildPackage(
+            NumberingXml(
+                """
+                <w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl></w:abstractNum>
+                <w:num w:numId="5"><w:abstractNumId w:val="1"/></w:num>
+                """
+            ),
+            documentBody: Paragraph(5, 0, "one")
+        );
+        var lease = new WordOperationResourceLease();
+        bytes.Position = 0;
+        var package = new OpcPackageReader(null, lease).Read(bytes);
+        var semantic = new WordSemanticProjector(null, lease).Project(package);
+        var styles = new WordStyleGraphBuilder(null, lease).Build(package, semantic);
+        var numbering = new WordNumberingGraphBuilder(null, lease).Build(
+            package,
+            semantic,
+            styles
+        );
+        var before = lease.SnapshotXmlParseCache();
+
+        var graph = new WordListSequenceGraphBuilder(null, lease).Build(
+            package,
+            semantic,
+            styles,
+            numbering
+        );
+        var after = lease.SnapshotXmlParseCache();
+
+        Assert.Single(graph.Items);
+        Assert.True(after.Requests > before.Requests);
+        Assert.True(after.CacheHits > before.CacheHits);
+        Assert.True(after.AvoidedAccountedBytes > before.AvoidedAccountedBytes);
+        Assert.Contains(
+            lease.Snapshot().Stages,
+            stage => stage.Stage == WordOperationResourceStage.ListSequences
+                && stage.AccountedBytes > 0
         );
     }
 

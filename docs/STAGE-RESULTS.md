@@ -1,5 +1,53 @@
 # Stage results
 
+# WordToolkit 0.52.0 operation-scoped lossless XML parse reuse - 2026-07-26
+
+- Added one byte-exact immutable lossless XML parse cache owned by a single
+  `WordOperationResourceLease`. A weak lease key prevents global or cross-operation
+  content retention. Array identity is only a fast lookup and still receives full byte
+  comparison; separate arrays use SHA-256 plus exact comparison.
+- Every cache hit rechecks the current caller's XML byte, character, element, depth and
+  text limits. When options differ, a lightweight caller-specific view shares the parsed
+  core but retains its own later patch limits. Regressions reject mutated backing arrays,
+  stricter parse limits and an attempted oversized patch after a looser first parse.
+- High-level analysis now passes the same lease through theme, font table, markup
+  compatibility, lint and list-sequence execution. XML parsing and conservative result
+  collection charges use distinct stages. Selected list/lint temporary allocations stay
+  explicit omissions, so `operation_budget_coverage_complete` remains false.
+- `operation_budget.xml_parse_cache` exposes the operation-local model, requests, unique
+  parses, hits and avoided conservative parse charges. The installed mixed-domain fixture
+  reports 312 requests, 40 unique parses, 272 hits and 15,893,280 avoided accounted bytes;
+  the contract invariant is `requests = unique_parses + cache_hits`.
+- Fifteen alternating cold self-contained Release processes compare installed 0.51.0
+  against the candidate. The 5,310-byte equation fixture moves from 465.041 to 451.977 ms
+  median (-2.81%) and from 2,065,992 to 1,594,336 accounted bytes (-22.83%). The
+  52,292-byte mixed-domain fixture moves from 928.300 to 706.852 ms (-23.86%) and from
+  23,765,680 to 15,397,168 bytes (-35.21%). Min/max, fingerprints, signals and the one
+  small-fixture 1,070.362 ms outlier remain in the checked-in raw record; no universal
+  speed, CLR-allocation or peak-working-set claim is made.
+- Pinned SDK 8.0.423 gates pass 750 Engine, 12 LibreOffice and 535 Native tests. Ruff is
+  clean; Python compatibility passes 1,318 with 16 intentional skips; three changed .NET
+  projects pass format verification; remote schema export has no drift; the local schema,
+  manifest and benchmark JSON parse cleanly; the standalone Open XML validator builds
+  with zero warnings.
+- Two independent self-contained win-x64 builds produced byte-identical 197-file,
+  89,714,018-byte trees and byte-identical 37,480,278-byte ZIPs at SHA-256
+  `6cd66308b51d3b40cc67db3bbb3266e633b096aebbb84b9068ccb29a94700b57`.
+  Executable, runtime assembly, Engine, LibreOffice and Open XML SDK hashes are
+  `8641f4d45653d96790c797d75aa5140f226dc429270dfe1766538f50f9886600`,
+  `8663c0053a69a0f76678dbdf3e43a44146708f9524ab1bdb2429c0cca0ef35c3`,
+  `3e191c84f845d257223ff145596c99928b07990b250cfb78d912f2f052785af1`,
+  `7f4f93cd26aa6366a458744b0b7eef87ded3478bcd08a8a3bc398e61d6666a9b`
+  and `dcac82c1f88adf669b2b09a0c3496e07da79fcdc99eae1e6928525f971a1ce08`.
+- Installed and enabled `0.52.0+codex.20260726170033`. Candidate, persistent personal
+  source and active Codex cache contain the same 197 paths, lengths and SHA-256 values.
+  Installed discovery reports 146 actions, 15 MCP tools and 57 complete explicit metadata
+  contracts. The previous source remains intact at
+  `C:\Users\Admin\plugins\wordtoolkit.backup-0.51.0-codex.20260726154529`.
+- Hosted CI is pending for this checkpoint. Cross-action immutable storage, complete
+  temporary allocation accounting and a representative multi-size/multi-domain corpus
+  remain unfinished.
+
 # WordToolkit 0.51.0 high-level content-free document analysis - 2026-07-26
 
 - Added `wordtoolkit.analyze_ooxml_document/1.0` once in the neutral Engine and exposed

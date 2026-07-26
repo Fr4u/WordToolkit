@@ -5,6 +5,7 @@ using System.Text;
 using System.Xml;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
@@ -272,12 +273,24 @@ public sealed class WordMarkupCompatibilityGraphBuilder
     private const string XmlNamespace = "http://www.w3.org/XML/1998/namespace";
     private const string XmlnsNamespace = "http://www.w3.org/2000/xmlns/";
     private readonly WordMarkupCompatibilityGraphOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
 
     public WordMarkupCompatibilityGraphBuilder(
         WordMarkupCompatibilityGraphOptions? options = null
     )
     {
         _options = options ?? WordMarkupCompatibilityGraphOptions.Default;
+        _options.Validate();
+    }
+
+    public WordMarkupCompatibilityGraphBuilder(
+        WordMarkupCompatibilityGraphOptions? options,
+        WordOperationResourceLease resourceLease
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        _options = options ?? WordMarkupCompatibilityGraphOptions.Default;
+        _resourceLease = resourceLease;
         _options.Validate();
     }
 
@@ -290,6 +303,10 @@ public sealed class WordMarkupCompatibilityGraphBuilder
         ArgumentNullException.ThrowIfNull(package);
         applicationConfiguration ??= WordMceApplicationConfiguration.Empty;
         cancellationToken.ThrowIfCancellationRequested();
+        WordOperationResourceAccounting.ChargeProjectionBase(
+            _resourceLease,
+            WordOperationResourceStage.MarkupCompatibility
+        );
 
         var understoodNamespaces = ValidateConfigurationNamespaces(
             applicationConfiguration.UnderstoodNamespaces
@@ -348,18 +365,27 @@ public sealed class WordMarkupCompatibilityGraphBuilder
             LosslessXmlDocument xml;
             try
             {
-                xml = LosslessXmlDocument.Parse(
-                    part.Entry.Content,
-                    new LosslessXmlOptions
-                    {
-                        MaxSourceBytes = _options.MaxXmlBytesPerPart,
-                        MaxXmlCharacters = _options.MaxXmlBytesPerPart,
-                        MaxXmlElements = _options.MaxElementsPerPart,
-                        MaxXmlDepth = 256,
-                        MaxTextCharacters = _options.MaxXmlBytesPerPart,
-                    },
-                    cancellationToken
-                );
+                var xmlOptions = new LosslessXmlOptions
+                {
+                    MaxSourceBytes = _options.MaxXmlBytesPerPart,
+                    MaxXmlCharacters = _options.MaxXmlBytesPerPart,
+                    MaxXmlElements = _options.MaxElementsPerPart,
+                    MaxXmlDepth = 256,
+                    MaxTextCharacters = _options.MaxXmlBytesPerPart,
+                };
+                xml = _resourceLease is null
+                    ? LosslessXmlDocument.Parse(
+                        part.Entry.Content,
+                        xmlOptions,
+                        cancellationToken
+                    )
+                    : LosslessXmlDocument.Parse(
+                        part.Entry.Content,
+                        xmlOptions,
+                        _resourceLease,
+                        WordOperationResourceStage.MarkupCompatibility,
+                        cancellationToken
+                    );
             }
             catch (LosslessXmlLimitException exception)
             {
@@ -437,6 +463,14 @@ public sealed class WordMarkupCompatibilityGraphBuilder
                 understoodNamespaces.Contains(pair.Key)
             ))
             .ToArray();
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.MarkupCompatibility,
+            namespaceDefinitions.Length + parts.Count + rules.Count
+                + alternateContent.Count + affectedElements.Count
+                + mustUnderstandMismatches.Count + issues.Items.Count,
+            1_024
+        );
         return new WordMarkupCompatibilityGraph(
             package.Fingerprint,
             configurationFingerprint,

@@ -53,6 +53,17 @@ public sealed class DocumentAnalysisWordPackageOperationTests
             Assert.False(result.Disclosure.MutationPerformed);
             Assert.False(result.Disclosure.WordOpened);
             Assert.True(result.Disclosure.DocumentContentIsUntrusted);
+            Assert.True(result.OperationBudget.XmlParseCache.Requests > 0);
+            Assert.True(result.OperationBudget.XmlParseCache.CacheHits > 0);
+            Assert.True(result.OperationBudget.XmlParseCache.UniqueParses > 0);
+            Assert.Equal(
+                result.OperationBudget.XmlParseCache.Requests,
+                result.OperationBudget.XmlParseCache.UniqueParses
+                    + result.OperationBudget.XmlParseCache.CacheHits
+            );
+            Assert.True(
+                result.OperationBudget.XmlParseCache.AvoidedAccountedBytes > 0
+            );
             Assert.DoesNotContain(
                 "Sensitive analysis body",
                 WordToolkitOperationJson.Serialize(result),

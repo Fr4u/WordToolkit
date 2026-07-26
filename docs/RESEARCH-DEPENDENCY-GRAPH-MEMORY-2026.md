@@ -95,10 +95,10 @@ process-level cost.
 
 ## What remains broken
 
-- The budget starts when the dependency `BuildState` is created. The semantic, style,
-  numbering, reference, section, chart, figure, content-control and table projections
-  are still built first under their own limits. There is no shared cross-graph allocator
-  or operation-wide byte lease yet.
+- The saved-package dependency pipeline now uses one operation-wide lease from ZIP
+  admission through every migrated graph and final dependency construction, plus
+  operation-scoped byte-exact lossless XML reuse. Selected temporary allocations and
+  typed projection duplication remain outside complete accounting.
 - The accounting constants are deliberately stable, not runtime-specific heap truth.
   Benchmark measurements must remain beside them.
 - Long relationship metadata is already present in the bounded OPC snapshot before the
@@ -108,7 +108,7 @@ process-level cost.
 - The node-ID map remains a hash dictionary. The keys are engine-generated fixed-length
   hashes, but a future compact intern table could reduce it further.
 
-The next memory step is a shared immutable parsed-story representation plus an
-operation-wide resource lease consumed by every typed graph. Until that exists, the new
-byte budget closes the dependency graph's own unbounded growth path; it does not make
-the entire pipeline cheap.
+The next memory step is explicit accounting for the remaining temporary allocations,
+then a bounded multi-action immutable store whose privacy, invalidation and lifetime
+rules are part of the public contract. The current lease and per-operation cache close
+the repeated lossless-parse path; they do not make every typed projection cheap.

@@ -29,6 +29,154 @@ public sealed class LosslessXmlDocumentTests
     }
 
     [Fact]
+    public void ReusesOneByteExactImmutableParseWithinOneOperationLease()
+    {
+        var firstBytes = Encoding.UTF8.GetBytes("<root><item>value</item></root>");
+        var secondBytes = firstBytes.ToArray();
+        var lease = new WordOperationResourceLease();
+
+        var first = LosslessXmlDocument.Parse(
+            firstBytes,
+            LosslessXmlOptions.Default,
+            lease,
+            WordOperationResourceStage.SemanticProjection
+        );
+        var afterFirst = lease.AccountedBytes;
+        var second = LosslessXmlDocument.Parse(
+            secondBytes,
+            LosslessXmlOptions.Default with { MaxXmlDepth = 64 },
+            lease,
+            WordOperationResourceStage.References
+        );
+        var usage = lease.SnapshotXmlParseCache();
+
+        Assert.NotSame(first, second);
+        Assert.Equal(first.SourceSha256, second.SourceSha256);
+        Assert.Equal(first.Statistics, second.Statistics);
+        Assert.Equal(afterFirst, lease.AccountedBytes);
+        Assert.Equal("word_operation_xml_parse_cache_v1", usage.Model);
+        Assert.Equal(2, usage.Requests);
+        Assert.Equal(1, usage.UniqueParses);
+        Assert.Equal(1, usage.CacheHits);
+        Assert.True(usage.AvoidedAccountedBytes > firstBytes.Length);
+        Assert.DoesNotContain(
+            lease.Snapshot().Stages,
+            stage => stage.Stage == WordOperationResourceStage.References
+        );
+    }
+
+    [Fact]
+    public void CachedParseStillEnforcesEveryCallersStricterLimits()
+    {
+        var bytes = Encoding.UTF8.GetBytes("<root><item>value</item></root>");
+        var lease = new WordOperationResourceLease();
+        _ = LosslessXmlDocument.Parse(
+            bytes,
+            LosslessXmlOptions.Default,
+            lease,
+            WordOperationResourceStage.SemanticProjection
+        );
+
+        var exception = Assert.Throws<LosslessXmlLimitException>(() =>
+            LosslessXmlDocument.Parse(
+                bytes,
+                LosslessXmlOptions.Default with { MaxXmlElements = 1 },
+                lease,
+                WordOperationResourceStage.References
+            )
+        );
+
+        Assert.Contains("more than 1 elements", exception.Message, StringComparison.Ordinal);
+        var usage = lease.SnapshotXmlParseCache();
+        Assert.Equal(1, usage.Requests);
+        Assert.Equal(1, usage.UniqueParses);
+        Assert.Equal(0, usage.CacheHits);
+    }
+
+    [Fact]
+    public void CachedParseRetainsTheCurrentCallersPatchLimits()
+    {
+        var bytes = Encoding.UTF8.GetBytes("<root><item>a</item></root>");
+        var lease = new WordOperationResourceLease();
+        _ = LosslessXmlDocument.Parse(
+            bytes,
+            LosslessXmlOptions.Default,
+            lease,
+            WordOperationResourceStage.SemanticProjection
+        );
+        var constrained = LosslessXmlDocument.Parse(
+            bytes,
+            LosslessXmlOptions.Default with { MaxSourceBytes = bytes.Length },
+            lease,
+            WordOperationResourceStage.References
+        );
+        var item = constrained.Elements.Single(element => element.LocalName == "item");
+
+        var exception = Assert.Throws<LosslessXmlLimitException>(() =>
+            constrained.ReplaceElementText(item.Ordinal, "this output is larger")
+        );
+
+        Assert.Contains("Patched XML exceeds", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(1, lease.SnapshotXmlParseCache().CacheHits);
+    }
+
+    [Fact]
+    public void ParseCacheNeverCrossesOperationLeaseBoundary()
+    {
+        var bytes = Encoding.UTF8.GetBytes("<root><item>value</item></root>");
+        var firstLease = new WordOperationResourceLease();
+        var secondLease = new WordOperationResourceLease();
+
+        var first = LosslessXmlDocument.Parse(
+            bytes,
+            LosslessXmlOptions.Default,
+            firstLease,
+            WordOperationResourceStage.SemanticProjection
+        );
+        var second = LosslessXmlDocument.Parse(
+            bytes,
+            LosslessXmlOptions.Default,
+            secondLease,
+            WordOperationResourceStage.SemanticProjection
+        );
+
+        Assert.NotSame(first, second);
+        Assert.Equal(0, firstLease.SnapshotXmlParseCache().CacheHits);
+        Assert.Equal(0, secondLease.SnapshotXmlParseCache().CacheHits);
+        Assert.Equal(1, firstLease.SnapshotXmlParseCache().UniqueParses);
+        Assert.Equal(1, secondLease.SnapshotXmlParseCache().UniqueParses);
+    }
+
+    [Fact]
+    public void ArrayIdentityFastPathStillRejectsMutatedSourceBytes()
+    {
+        var bytes = Encoding.UTF8.GetBytes("<root/>");
+        var lease = new WordOperationResourceLease();
+        var first = LosslessXmlDocument.Parse(
+            bytes,
+            LosslessXmlOptions.Default,
+            lease,
+            WordOperationResourceStage.SemanticProjection
+        );
+
+        Encoding.UTF8.GetBytes("<item/>").CopyTo(bytes, 0);
+        var second = LosslessXmlDocument.Parse(
+            bytes,
+            LosslessXmlOptions.Default,
+            lease,
+            WordOperationResourceStage.References
+        );
+
+        Assert.NotSame(first, second);
+        Assert.Equal("root", first.Root.LocalName);
+        Assert.Equal("item", second.Root.LocalName);
+        var usage = lease.SnapshotXmlParseCache();
+        Assert.Equal(2, usage.Requests);
+        Assert.Equal(2, usage.UniqueParses);
+        Assert.Equal(0, usage.CacheHits);
+    }
+
+    [Fact]
     public void ParsesSourceBackedElementsAttributesAndExactNoOp()
     {
         const string xml = """

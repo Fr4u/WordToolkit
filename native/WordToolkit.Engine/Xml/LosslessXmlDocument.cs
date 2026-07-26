@@ -25,7 +25,8 @@ public sealed class LosslessXmlDocument
         XDocument parsedDocument,
         IReadOnlyList<XElement> parsedElements,
         IReadOnlyList<XmlSourceElement> elements,
-        IReadOnlyDictionary<XElement, int> elementOrdinals
+        IReadOnlyDictionary<XElement, int> elementOrdinals,
+        LosslessXmlStatistics statistics
     )
     {
         _sourceBytes = sourceBytes;
@@ -37,6 +38,24 @@ public sealed class LosslessXmlDocument
         Elements = new ReadOnlyCollection<XmlSourceElement>(elements.ToArray());
         Root = Elements.Single(element => element.ParentOrdinal is null);
         SourceSha256 = Convert.ToHexString(SHA256.HashData(sourceBytes)).ToLowerInvariant();
+        Statistics = statistics;
+    }
+
+    private LosslessXmlDocument(
+        LosslessXmlDocument parsedSource,
+        LosslessXmlOptions options
+    )
+    {
+        _sourceBytes = parsedSource._sourceBytes;
+        _sourceEncoding = parsedSource._sourceEncoding;
+        _options = options;
+        _parsedDocument = parsedSource._parsedDocument;
+        _parsedElements = parsedSource._parsedElements;
+        _elementOrdinals = parsedSource._elementOrdinals;
+        Elements = parsedSource.Elements;
+        Root = parsedSource.Root;
+        SourceSha256 = parsedSource.SourceSha256;
+        Statistics = parsedSource.Statistics;
     }
 
     public ReadOnlyMemory<byte> SourceBytes => _sourceBytes;
@@ -50,6 +69,8 @@ public sealed class LosslessXmlDocument
     public XmlSourceElement Root { get; }
 
     public IReadOnlyList<XmlSourceElement> Elements { get; }
+
+    public LosslessXmlStatistics Statistics { get; }
 
     internal XDocument ParsedDocument => _parsedDocument;
 
@@ -69,8 +90,22 @@ public sealed class LosslessXmlDocument
     )
     {
         ArgumentNullException.ThrowIfNull(resourceLease);
-        return ParseCore(source, options, resourceLease, stage, cancellationToken);
+        return LosslessXmlOperationCache.GetOrParse(
+            source,
+            options,
+            resourceLease,
+            stage,
+            cancellationToken
+        );
     }
+
+    internal static LosslessXmlDocument ParseUncached(
+        ReadOnlyMemory<byte> source,
+        LosslessXmlOptions? options,
+        WordOperationResourceLease resourceLease,
+        WordOperationResourceStage stage,
+        CancellationToken cancellationToken
+    ) => ParseCore(source, options, resourceLease, stage, cancellationToken);
 
     private static LosslessXmlDocument ParseCore(
         ReadOnlyMemory<byte> source,
@@ -101,7 +136,7 @@ public sealed class LosslessXmlDocument
             source.Length
         );
         var bytes = source.ToArray();
-        AuditXml(bytes, options, cancellationToken);
+        var audit = AuditXml(bytes, options, cancellationToken);
         var sourceEncoding = DetectEncoding(bytes);
         string decoded;
         try
@@ -172,8 +207,56 @@ public sealed class LosslessXmlDocument
             parsedDocument,
             parsedElements,
             elements,
-            ordinals
+            ordinals,
+            new LosslessXmlStatistics(
+                bytes.Length,
+                decoded.Length,
+                audit.ElementCount,
+                audit.MaximumDepth,
+                audit.TextCharacters
+            )
         );
+    }
+
+    internal void EnsureWithinLimits(LosslessXmlOptions options)
+    {
+        options.Validate();
+        if (Statistics.SourceBytes > options.MaxSourceBytes)
+        {
+            throw new LosslessXmlLimitException(
+                $"XML source exceeds {options.MaxSourceBytes} bytes."
+            );
+        }
+        if (Statistics.XmlCharacters > options.MaxXmlCharacters)
+        {
+            throw new LosslessXmlLimitException(
+                $"Decoded XML exceeds {options.MaxXmlCharacters} characters."
+            );
+        }
+        if (Statistics.ElementCount > options.MaxXmlElements)
+        {
+            throw new LosslessXmlLimitException(
+                $"XML contains more than {options.MaxXmlElements} elements."
+            );
+        }
+        if (Statistics.MaximumDepth > options.MaxXmlDepth)
+        {
+            throw new LosslessXmlLimitException(
+                $"XML depth exceeds {options.MaxXmlDepth}."
+            );
+        }
+        if (Statistics.TextCharacters > options.MaxTextCharacters)
+        {
+            throw new LosslessXmlLimitException(
+                $"XML text exceeds {options.MaxTextCharacters} characters."
+            );
+        }
+    }
+
+    internal LosslessXmlDocument WithOptions(LosslessXmlOptions options)
+    {
+        options.Validate();
+        return _options == options ? this : new LosslessXmlDocument(this, options);
     }
 
     public XmlSourceElement GetElement(int ordinal)
@@ -925,7 +1008,7 @@ public sealed class LosslessXmlDocument
     private static bool IsXmlWhitespace(char value) =>
         value is ' ' or '\t' or '\r' or '\n';
 
-    private static void AuditXml(
+    private static XmlAuditStatistics AuditXml(
         byte[] source,
         LosslessXmlOptions options,
         CancellationToken cancellationToken
@@ -936,10 +1019,12 @@ public sealed class LosslessXmlDocument
             using var stream = new MemoryStream(source, writable: false);
             using var reader = XmlReader.Create(stream, CreateXmlSettings(options));
             var elementCount = 0;
+            var maximumDepth = 0;
             long textCharacters = 0;
             while (reader.Read())
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                maximumDepth = Math.Max(maximumDepth, reader.Depth);
                 if (reader.Depth > options.MaxXmlDepth)
                 {
                     throw new LosslessXmlLimitException(
@@ -976,6 +1061,7 @@ public sealed class LosslessXmlDocument
                     }
                 }
             }
+            return new XmlAuditStatistics(elementCount, maximumDepth, textCharacters);
         }
         catch (LosslessXmlLimitException)
         {
@@ -1406,6 +1492,12 @@ public sealed class LosslessXmlDocument
     }
 
     private sealed record SourceEncoding(Encoding Encoding, int ByteOrderMarkLength);
+
+    private sealed record XmlAuditStatistics(
+        int ElementCount,
+        int MaximumDepth,
+        long TextCharacters
+    );
 
     private sealed class MutableAttribute
     {

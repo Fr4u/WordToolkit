@@ -137,11 +137,16 @@ for dense charts, Custom XML, figures, fields or mixed hostile documents.
 
 ## Remaining fracture
 
-- XML stories are still reparsed by multiple typed graphs. A shared immutable parsed
-  representation is the next structural memory fix.
+- Migrated typed graphs now reuse byte-exact immutable lossless XML within one operation
+  lease. Typed projections are still separate, and no cache crosses action boundaries;
+  an explicitly bounded, privacy-governed multi-action store remains future work.
 - Cumulative accounting intentionally does not release prior stage charges and therefore
   is not a peak-live-memory estimator.
 - The twelve-times XML factor and fixed record constants need mixed-domain hostile-corpus
   calibration on Linux and Windows server GC as well as workstation GC.
-- The lease protects `inspect_ooxml_dependencies`; other saved-package inspections still
-  use their existing independent limits until explicitly migrated.
+- The lease protects `inspect_ooxml_dependencies` and high-level document analysis;
+  other saved-package inspections still use their existing independent limits until
+  explicitly migrated.
+
+The cache design, limit revalidation and paired measurements are recorded in
+`RESEARCH-OPERATION-SCOPED-XML-PARSE-CACHE-2026.md`.

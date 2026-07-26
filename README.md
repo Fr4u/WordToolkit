@@ -335,6 +335,11 @@ fingerprint can be supplied to reject stale input. `analysis_execution_complete`
 `operation_budget_coverage_complete` are deliberately separate: a successful run is
 not a lie that unmodeled document domains were proved clean. See
 [`docs/RESEARCH-DOCUMENT-ANALYSIS-2026.md`](docs/RESEARCH-DOCUMENT-ANALYSIS-2026.md).
+One operation-scoped, byte-exact cache now reuses immutable lossless XML parses across
+the analysis builders without retaining content between operations. The compact
+`operation_budget.xml_parse_cache` object reports requests, unique parses, hits and
+avoided accounted parse bytes; it is evidence about this operation, not a global cache
+or an exact CLR-allocation measurement.
 
 Encrypted OOXML uses an OLE Compound File Binary envelope instead of an OPC ZIP.
 Detect it without requesting a password, decrypting content or opening Word:
@@ -811,8 +816,9 @@ byte limits reject the next part before parsing it. The input schema is unchange
 clients cannot raise the server ceiling.
 
 This is a stable conservative cumulative accounting contract, not an exact CLR heap,
-peak-live-memory or resident-set guarantee. Repeated parsers deliberately consume the
-same shared lease; immutable shared parsed-story storage remains missing. Durable joins
+peak-live-memory or resident-set guarantee. High-level document analysis now reuses
+byte-exact immutable lossless XML documents inside one operation lease and reports that
+cache separately; other actions do not yet share parsed stories across calls. Durable joins
 from saved-package declarations to Word-executed drawing objects, complete off-screen page
 geometry, final text flow, general SmartArt structural/layout mutation, active-content binary internals/execution, cryptographic
 signature validation/resigning, encrypted packages and co-authoring remain openly
@@ -1271,7 +1277,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is 0.51.0. The latest immutable public release remains
+The development manifest/runtime is 0.52.0. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:

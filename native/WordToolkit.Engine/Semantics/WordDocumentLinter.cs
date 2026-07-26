@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
@@ -415,10 +416,22 @@ public sealed class WordDocumentLinter
         .ToHashSet(StringComparer.Ordinal);
 
     private readonly WordDocumentLinterOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
 
     public WordDocumentLinter(WordDocumentLinterOptions? options = null)
     {
         _options = options ?? WordDocumentLinterOptions.Default;
+        _options.Validate(KnownRuleIds);
+    }
+
+    public WordDocumentLinter(
+        WordDocumentLinterOptions? options,
+        WordOperationResourceLease resourceLease
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        _options = options ?? WordDocumentLinterOptions.Default;
+        _resourceLease = resourceLease;
         _options.Validate(KnownRuleIds);
     }
 
@@ -435,61 +448,88 @@ public sealed class WordDocumentLinter
         cancellationToken.ThrowIfCancellationRequested();
         EnsureFingerprint(package.Fingerprint, semanticDocument.PackageFingerprint);
 
-        var styles = new WordStyleGraphBuilder().Build(
+        var styles = (_resourceLease is null
+            ? new WordStyleGraphBuilder()
+            : new WordStyleGraphBuilder(null, _resourceLease)).Build(
             package,
             semanticDocument,
             cancellationToken
         );
-        var numbering = new WordNumberingGraphBuilder().Build(
+        var numbering = (_resourceLease is null
+            ? new WordNumberingGraphBuilder()
+            : new WordNumberingGraphBuilder(null, _resourceLease)).Build(
             package,
             semanticDocument,
             styles,
             cancellationToken
         );
-        var references = new WordReferenceGraphBuilder().Build(
+        var references = (_resourceLease is null
+            ? new WordReferenceGraphBuilder()
+            : new WordReferenceGraphBuilder(null, _resourceLease)).Build(
             package,
             semanticDocument,
             cancellationToken
         );
-        var sections = new WordSectionGraphBuilder().Build(
+        var sections = (_resourceLease is null
+            ? new WordSectionGraphBuilder()
+            : new WordSectionGraphBuilder(null, _resourceLease)).Build(
             package,
             semanticDocument,
             cancellationToken
         );
-        var theme = new WordThemeGraphBuilder().Build(
+        var theme = (_resourceLease is null
+            ? new WordThemeGraphBuilder()
+            : new WordThemeGraphBuilder(null, _resourceLease)).Build(
             package,
             semanticDocument,
             cancellationToken
         );
-        var settings = new WordSettingsGraphBuilder().Build(
+        var settings = (_resourceLease is null
+            ? new WordSettingsGraphBuilder()
+            : new WordSettingsGraphBuilder(null, _resourceLease)).Build(
             package,
             semanticDocument,
             cancellationToken
         );
-        var fonts = new WordFontTableGraphBuilder().Build(
+        var fonts = (_resourceLease is null
+            ? new WordFontTableGraphBuilder()
+            : new WordFontTableGraphBuilder(null, _resourceLease)).Build(
             package,
             semanticDocument,
             cancellationToken
         );
-        var charts = new WordChartGraphBuilder().Build(package, cancellationToken);
-        var contentControls = new WordContentControlBindingGraphBuilder().Build(
+        var charts = (_resourceLease is null
+            ? new WordChartGraphBuilder()
+            : new WordChartGraphBuilder(null, _resourceLease)).Build(
+            package,
+            cancellationToken
+        );
+        var contentControls = (_resourceLease is null
+            ? new WordContentControlBindingGraphBuilder()
+            : new WordContentControlBindingGraphBuilder(null, _resourceLease)).Build(
             package,
             semanticDocument,
             cancellationToken
         );
-        var tables = new WordTableGraphBuilder().Build(
+        var tables = (_resourceLease is null
+            ? new WordTableGraphBuilder()
+            : new WordTableGraphBuilder(null, _resourceLease)).Build(
             package,
             semanticDocument,
             cancellationToken
         );
-        var dependencies = new WordDependencyGraphBuilder(
-            new WordDependencyGraphOptions
-            {
-                MaxNodes = _options.MaxDependencyNodes,
-                MaxEdges = _options.MaxDependencyEdges,
-                MaxIssues = _options.MaxDependencyIssues,
-            }
-        ).Build(
+        var dependencyOptions = new WordDependencyGraphOptions
+        {
+            MaxNodes = _options.MaxDependencyNodes,
+            MaxEdges = _options.MaxDependencyEdges,
+            MaxIssues = _options.MaxDependencyIssues,
+        };
+        var dependencies = (_resourceLease is null
+            ? new WordDependencyGraphBuilder(dependencyOptions)
+            : new WordDependencyGraphBuilder(
+                dependencyOptions,
+                _resourceLease
+            )).Build(
             package,
             semanticDocument,
             styles,
@@ -579,6 +619,10 @@ public sealed class WordDocumentLinter
         ArgumentNullException.ThrowIfNull(dependencies);
         ArgumentNullException.ThrowIfNull(tables);
         cancellationToken.ThrowIfCancellationRequested();
+        WordOperationResourceAccounting.ChargeProjectionBase(
+            _resourceLease,
+            WordOperationResourceStage.Lint
+        );
         EnsureFingerprint(
             package.Fingerprint,
             semanticDocument.PackageFingerprint,
@@ -597,7 +641,12 @@ public sealed class WordDocumentLinter
                 ?? Enum.GetValues<WordLintRulePack>())
             .ToHashSet();
         var state = new LintState(_options, enabledPacks, package.Fingerprint);
-        var sources = new SourceIndex(package, _options, cancellationToken);
+        var sources = new SourceIndex(
+            package,
+            _options,
+            _resourceLease,
+            cancellationToken
+        );
         var scannedNodes = semanticDocument.Nodes
             .Take(_options.MaxSemanticNodes)
             .ToArray();
@@ -633,7 +682,8 @@ public sealed class WordDocumentLinter
                         MaxItems = _options.MaxSemanticNodes,
                         MaxIssues = _options.MaxFindings,
                         MaxXmlPartBytes = _options.MaxSourceXmlPartBytes,
-                    }
+                    },
+                    _resourceLease
                 ).Build(
                     package,
                     semanticDocument,
@@ -686,15 +736,21 @@ public sealed class WordDocumentLinter
         {
             try
             {
-                outline = new WordOutlineGraphBuilder(
-                    new WordOutlineGraphOptions
-                    {
-                        MaxParagraphs = _options.MaxSemanticNodes,
-                        MaxHeadings = _options.MaxSemanticNodes,
-                        MaxIssues = _options.MaxFindings,
-                        MaxXmlPartBytes = _options.MaxSourceXmlPartBytes,
-                    }
-                ).Build(package, semanticDocument, styles, cancellationToken);
+                var outlineOptions = new WordOutlineGraphOptions
+                {
+                    MaxParagraphs = _options.MaxSemanticNodes,
+                    MaxHeadings = _options.MaxSemanticNodes,
+                    MaxIssues = _options.MaxFindings,
+                    MaxXmlPartBytes = _options.MaxSourceXmlPartBytes,
+                };
+                outline = (_resourceLease is null
+                    ? new WordOutlineGraphBuilder(outlineOptions)
+                    : new WordOutlineGraphBuilder(outlineOptions, _resourceLease)).Build(
+                    package,
+                    semanticDocument,
+                    styles,
+                    cancellationToken
+                );
             }
             catch (WordOutlineLimitException)
             {
@@ -754,11 +810,31 @@ public sealed class WordDocumentLinter
             explicitlyUnmodeled.Order(StringComparer.Ordinal).ToArray(),
             sources.Omissions
         );
-        return state.Materialize(
+        var report = state.Materialize(
             package.Fingerprint,
             semanticDocument.MainPartUri,
             coverage
         );
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.Lint,
+            report.EvaluatedRules.Count,
+            512
+        );
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.Lint,
+            report.Findings.Count,
+            4_096
+        );
+        WordOperationResourceAccounting.ChargeItems(
+            _resourceLease,
+            WordOperationResourceStage.Lint,
+            report.Coverage.ExplicitlyUnmodeledDomains.Count
+                + report.Coverage.Omissions.Count,
+            1_024
+        );
+        return report;
     }
 
     private static void AddNumberingSequenceFindings(
@@ -2066,6 +2142,7 @@ public sealed class WordDocumentLinter
     {
         private readonly OpcPackageSnapshot _package;
         private readonly WordDocumentLinterOptions _options;
+        private readonly WordOperationResourceLease? _resourceLease;
         private readonly CancellationToken _cancellationToken;
         private readonly Dictionary<string, LosslessXmlDocument> _documents =
             new(StringComparer.Ordinal);
@@ -2075,11 +2152,13 @@ public sealed class WordDocumentLinter
         public SourceIndex(
             OpcPackageSnapshot package,
             WordDocumentLinterOptions options,
+            WordOperationResourceLease? resourceLease,
             CancellationToken cancellationToken
         )
         {
             _package = package;
             _options = options;
+            _resourceLease = resourceLease;
             _cancellationToken = cancellationToken;
         }
 
@@ -2253,18 +2332,27 @@ public sealed class WordDocumentLinter
             }
             try
             {
-                document = LosslessXmlDocument.Parse(
-                    content,
-                    new LosslessXmlOptions
-                    {
-                        MaxSourceBytes = _options.MaxSourceXmlPartBytes,
-                        MaxXmlCharacters = Math.Max(
-                            _options.MaxSourceXmlPartBytes,
-                            (long)_options.MaxSourceXmlPartBytes * 4
-                        ),
-                    },
-                    _cancellationToken
-                );
+                var xmlOptions = new LosslessXmlOptions
+                {
+                    MaxSourceBytes = _options.MaxSourceXmlPartBytes,
+                    MaxXmlCharacters = Math.Max(
+                        _options.MaxSourceXmlPartBytes,
+                        (long)_options.MaxSourceXmlPartBytes * 4
+                    ),
+                };
+                document = _resourceLease is null
+                    ? LosslessXmlDocument.Parse(
+                        content,
+                        xmlOptions,
+                        _cancellationToken
+                    )
+                    : LosslessXmlDocument.Parse(
+                        content,
+                        xmlOptions,
+                        _resourceLease,
+                        WordOperationResourceStage.Lint,
+                        _cancellationToken
+                    );
             }
             catch (LosslessXmlException)
             {

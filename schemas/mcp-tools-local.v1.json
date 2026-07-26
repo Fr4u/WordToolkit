@@ -11904,11 +11904,23 @@
               },
               "operation_budget": {
                 "type": "object",
-                "required": ["model", "used", "maximum"],
+                "required": ["model", "used", "maximum", "xml_parse_cache"],
                 "properties": {
                   "model": {"const": "word_operation_accounted_v1"},
                   "used": {"type": "integer", "minimum": 0},
-                  "maximum": {"const": 671088640}
+                  "maximum": {"const": 671088640},
+                  "xml_parse_cache": {
+                    "type": "object",
+                    "required": ["model", "requests", "unique_parses", "cache_hits", "avoided_accounted_bytes"],
+                    "properties": {
+                      "model": {"const": "word_operation_xml_parse_cache_v1"},
+                      "requests": {"type": "integer", "minimum": 0},
+                      "unique_parses": {"type": "integer", "minimum": 0},
+                      "cache_hits": {"type": "integer", "minimum": 0},
+                      "avoided_accounted_bytes": {"type": "integer", "minimum": 0}
+                    },
+                    "additionalProperties": false
+                  }
                 },
                 "additionalProperties": false
               }

@@ -1,0 +1,85 @@
+{
+  "benchmark": "wordtoolkit_document_analysis_operation_scoped_xml_cache_v1",
+  "date": "2026-07-26",
+  "platform": "windows-x64",
+  "sdk": "8.0.423",
+  "protocol": {
+    "command": "wordtoolkit-native analyze-package --request - --format json",
+    "max_signals": 32,
+    "runs_per_implementation": 15,
+    "schedule": "alternating cold processes",
+    "summary_statistic": "median wall-clock milliseconds"
+  },
+  "baseline": {
+    "version": "0.51.0+codex.20260726154529",
+    "build": "installed self-contained Release"
+  },
+  "candidate": {
+    "version": "0.52.0+codex.20260726170033",
+    "build": "self-contained Release candidate"
+  },
+  "documents": [
+    {
+      "name": "WordToolkit-equations.docx",
+      "bytes": 5310,
+      "sha256": "7d4ac5058879ca90237737264afa42ae64b9a156a66667abe9c652df8f665c5e",
+      "baseline": {
+        "median_ms": 465.041,
+        "min_ms": 458.147,
+        "max_ms": 488.945,
+        "operation_budget_used": 2065992,
+        "signals": 5
+      },
+      "candidate": {
+        "median_ms": 451.977,
+        "min_ms": 448.394,
+        "max_ms": 1070.362,
+        "operation_budget_used": 1594336,
+        "signals": 5,
+        "xml_parse_cache": {
+          "requests": 59,
+          "unique_parses": 11,
+          "cache_hits": 48,
+          "avoided_accounted_bytes": 1221480
+        }
+      },
+      "median_latency_change_percent": -2.81,
+      "operation_budget_change_percent": -22.83,
+      "fingerprint_count_per_implementation": 1
+    },
+    {
+      "name": "WordToolkit-advanced-torture-test.docx",
+      "bytes": 52292,
+      "sha256": "6d4255b55e89525bef314012eaf6324166e7d77c5559ef5a6b447f7dd13945e8",
+      "baseline": {
+        "median_ms": 928.300,
+        "min_ms": 910.060,
+        "max_ms": 943.177,
+        "operation_budget_used": 23765680,
+        "signals": 6
+      },
+      "candidate": {
+        "median_ms": 706.852,
+        "min_ms": 696.251,
+        "max_ms": 730.260,
+        "operation_budget_used": 15397168,
+        "signals": 6,
+        "xml_parse_cache": {
+          "requests": 312,
+          "unique_parses": 40,
+          "cache_hits": 272,
+          "avoided_accounted_bytes": 15893280
+        }
+      },
+      "median_latency_change_percent": -23.86,
+      "operation_budget_change_percent": -35.21,
+      "fingerprint_count_per_implementation": 1
+    }
+  ],
+  "claims": {
+    "universal_latency_improvement": false,
+    "exact_clr_allocation_measurement": false,
+    "peak_working_set_measurement": false,
+    "cross_operation_cache": false
+  }
+}
