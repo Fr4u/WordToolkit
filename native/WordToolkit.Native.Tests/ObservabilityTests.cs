@@ -191,7 +191,7 @@ public sealed class ObservabilityTests
     public void ActionContractIsLazyClosedVersionedAndContentFree()
     {
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(143, catalog.ActionCount);
+        Assert.Equal(144, catalog.ActionCount);
         using var document = JsonDocument.Parse(
             catalog.InspectAction("inspect_wordtoolkit_observability").ToJsonString()
         );

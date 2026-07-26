@@ -115,11 +115,18 @@ $tests = Join-Path `
 $engineTests = Join-Path `
     $root `
     "native\WordToolkit.Engine.Tests\WordToolkit.Engine.Tests.csproj"
+$libreOfficeTests = Join-Path `
+    $root `
+    "native\WordToolkit.LibreOffice.Tests\WordToolkit.LibreOffice.Tests.csproj"
 
 if (-not $SkipTests) {
     & dotnet test $engineTests -c Release
     if ($LASTEXITCODE -ne 0) {
         throw "Document engine tests failed"
+    }
+    & dotnet test $libreOfficeTests -c Release
+    if ($LASTEXITCODE -ne 0) {
+        throw "LibreOffice backend tests failed"
     }
     & dotnet test $tests -c Release
     if ($LASTEXITCODE -ne 0) {
@@ -201,6 +208,10 @@ $engineAssembly = Join-Path $runtime "WordToolkit.Engine.dll"
 if (-not (Test-Path -LiteralPath $engineAssembly -PathType Leaf)) {
     throw "Published engine assembly is missing"
 }
+$libreOfficeAssembly = Join-Path $runtime "WordToolkit.LibreOffice.dll"
+if (-not (Test-Path -LiteralPath $libreOfficeAssembly -PathType Leaf)) {
+    throw "Published LibreOffice adapter assembly is missing"
+}
 $openXmlSdkAssembly = Join-Path $runtime "WordToolkit.OpenXmlSdk.dll"
 if (-not (Test-Path -LiteralPath $openXmlSdkAssembly -PathType Leaf)) {
     throw "Published Open XML SDK adapter assembly is missing"
@@ -212,6 +223,7 @@ $rootWithForwardSlashes = $root.Replace('\', '/')
 foreach ($assemblyPath in @(
     $runtimeAssembly,
     $engineAssembly,
+    $libreOfficeAssembly,
     $openXmlSdkAssembly
 )) {
     $assemblyText = [Text.Encoding]::ASCII.GetString(

@@ -180,7 +180,7 @@ recognized. The converter emits U+2146 `ⅆ` and an invisible Word operand group
 or leaving it outside the integral body. A generic plain `d` is not silently
 reinterpreted as a differential.
 
-These 54 native desktop actions are absent from the remote HTTP MCP server.
+These 55 native desktop actions are absent from the remote HTTP MCP server.
 
 ## Native find and transactional replace
 

@@ -117,6 +117,32 @@ recorded versions, fonts, locale and page geometry. Measurements must separate:
 Word remains the authoritative Windows fixed-layout backend. LibreOffice is a named,
 versioned compatibility result. Agreement on one corpus is not general equivalence.
 
+## Implemented first slice
+
+Version `0.49.0` implements item 1 through one shared operation contract:
+
+- `WordToolkit.Engine` owns the strict request/result, capability matrix, fixed limits and
+  fail-closed provider boundary;
+- neutral `WordToolkit.LibreOffice` targets `net8.0` and owns local path admission,
+  pre/post hashing, fixed process execution, bounded output and version parsing;
+- `wordtoolkit-native libreoffice-backend --request ...` and lazy
+  `inspect_libreoffice_backend` execute that same Engine operation rather than translating
+  it into separate contracts;
+- deterministic fake-process tests cover hash mismatch before start, malformed banner,
+  non-zero exit, output overflow, timeout and reparse-point rejection; Engine tests cover
+  strict/duplicate JSON, closed capabilities and invalid provider evidence; Native tests
+  cover CLI/MCP convergence and prove Microsoft Word is never invoked;
+- a dedicated Ubuntu CI lane installs `libreoffice-writer`, resolves the exact executable
+  path and runs the real version probe through the neutral adapter.
+
+The result intentionally discloses two further limits. A recognizable banner is not a
+vendor-signature/authenticity proof, and equal hashes before and after execution do not
+atomically bind the bytes loaded by the operating system against an adversarial replacement
+between those observations. No render or active-content claim is derived from this slice.
+
+The one-shot UNO load/export adapter, transactional artifacts and shared visual corpus are
+still unimplemented.
+
 ## Implementation order
 
 1. public explicit-path version probe with deterministic tests;

@@ -15,6 +15,7 @@
       "transform_ooxml_package",
       "convert_ooxml_flat_opc",
       "inspect_wordtoolkit_extensions",
+      "inspect_libreoffice_backend",
       "inspect_wordtoolkit_observability",
       "inspect_ooxml_semantics",
       "query_ooxml_semantics",
@@ -4765,6 +4766,317 @@
         "destructiveHint": false,
         "idempotentHint": true,
         "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_libreoffice_backend",
+      "title": "Inspect an explicit LibreOffice backend executable",
+      "description": "Hash and execute one explicit local LibreOffice binary with only --version to verify a bounded reported product/version identity. The action never searches PATH, supplies a document argument, opens Microsoft Word, creates a profile, reads document content, or claims UNO, Writer, PDF, macro/update isolation, rendering, vendor authenticity, atomically bound executed bytes, or Word fidelity. It closes stdin, bounds stdout/stderr and timeout, attempts process-tree termination on timeout, and rehashes the executable after exit; the version process is not a sandbox and network isolation is not enforced.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_explicit_local_executable",
+        "process": "spawn_fixed_version_probe",
+        "network": "not_requested_not_isolated",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "probe_only_no_document_mutation"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "executable_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32767,
+            "description": "Exact absolute local LibreOffice executable path. PATH lookup, UNC, mapped-network, device-namespace and reparse-point paths are rejected."
+          },
+          "expected_executable_sha256": {
+            "type": "string",
+            "pattern": "^[0-9A-Fa-f]{64}$",
+            "description": "Optional expected SHA-256 of the exact executable. A mismatch prevents process start."
+          },
+          "timeout_milliseconds": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 30000,
+            "default": 10000
+          }
+        },
+        "required": [
+          "executable_path"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "data"
+        ],
+        "properties": {
+          "ok": {
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "operation_contract",
+              "available",
+              "identity",
+              "host",
+              "capabilities",
+              "security",
+              "limitations",
+              "runtime",
+              "python_used",
+              "performance"
+            ],
+            "properties": {
+              "operation_contract": {
+                "const": "wordtoolkit.inspect_libreoffice_backend/1.0"
+              },
+              "available": {
+                "const": true
+              },
+              "identity": {
+                "type": "object",
+                "required": [
+                  "product",
+                  "version",
+                  "version_banner",
+                  "executable_file_name",
+                  "executable_bytes",
+                  "executable_sha256",
+                  "executable_hash_stable",
+                  "expected_executable_hash_enforced"
+                ],
+                "properties": {
+                  "product": {
+                    "enum": [
+                      "LibreOffice",
+                      "LibreOfficeDev"
+                    ]
+                  },
+                  "version": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 64,
+                    "pattern": "^[0-9][0-9A-Za-z.+-]*$"
+                  },
+                  "version_banner": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "executable_file_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "executable_bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 536870912
+                  },
+                  "executable_sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "executable_hash_stable": {
+                    "const": true
+                  },
+                  "expected_executable_hash_enforced": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "host": {
+                "type": "object",
+                "required": [
+                  "operating_system",
+                  "operating_system_architecture",
+                  "process_architecture"
+                ],
+                "properties": {
+                  "operating_system": {
+                    "enum": [
+                      "windows",
+                      "linux",
+                      "macos",
+                      "other"
+                    ]
+                  },
+                  "operating_system_architecture": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  },
+                  "process_architecture": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32
+                  }
+                },
+                "additionalProperties": false
+              },
+              "capabilities": {
+                "type": "object",
+                "required": [
+                  "version_probe_verified",
+                  "uno_connection_verified",
+                  "writer_component_verified",
+                  "writer_pdf_export_verified",
+                  "document_load_policy_verified",
+                  "macro_execution_prevented",
+                  "external_updates_prevented",
+                  "rendering_verified",
+                  "word_fidelity_claimed"
+                ],
+                "properties": {
+                  "version_probe_verified": {
+                    "const": true
+                  },
+                  "uno_connection_verified": {
+                    "const": false
+                  },
+                  "writer_component_verified": {
+                    "const": false
+                  },
+                  "writer_pdf_export_verified": {
+                    "const": false
+                  },
+                  "document_load_policy_verified": {
+                    "const": false
+                  },
+                  "macro_execution_prevented": {
+                    "const": false
+                  },
+                  "external_updates_prevented": {
+                    "const": false
+                  },
+                  "rendering_verified": {
+                    "const": false
+                  },
+                  "word_fidelity_claimed": {
+                    "const": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "security": {
+                "type": "object",
+                "required": [
+                  "reads_document",
+                  "returns_document_content",
+                  "opens_microsoft_word",
+                  "document_arguments_supplied",
+                  "profile_created_by_word_toolkit",
+                  "path_search_used",
+                  "network_requested",
+                  "network_isolation_enforced",
+                  "stdin_closed",
+                  "process_tree_termination_on_timeout",
+                  "executable_path_returned",
+                  "environment_values_returned",
+                  "arguments_fixed"
+                ],
+                "properties": {
+                  "reads_document": {
+                    "const": false
+                  },
+                  "returns_document_content": {
+                    "const": false
+                  },
+                  "opens_microsoft_word": {
+                    "const": false
+                  },
+                  "document_arguments_supplied": {
+                    "const": false
+                  },
+                  "profile_created_by_word_toolkit": {
+                    "const": false
+                  },
+                  "path_search_used": {
+                    "const": false
+                  },
+                  "network_requested": {
+                    "const": false
+                  },
+                  "network_isolation_enforced": {
+                    "const": false
+                  },
+                  "stdin_closed": {
+                    "const": true
+                  },
+                  "process_tree_termination_on_timeout": {
+                    "const": true
+                  },
+                  "executable_path_returned": {
+                    "const": false
+                  },
+                  "environment_values_returned": {
+                    "const": false
+                  },
+                  "arguments_fixed": {
+                    "const": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "limitations": {
+                "type": "array",
+                "minItems": 11,
+                "maxItems": 11,
+                "uniqueItems": true,
+                "items": {
+                  "enum": [
+                    "version_probe_only",
+                    "not_a_process_sandbox",
+                    "no_uno_connection_proof",
+                    "no_writer_component_proof",
+                    "no_document_load_policy_proof",
+                    "no_macro_execution_policy_proof",
+                    "no_external_update_policy_proof",
+                    "no_rendering_proof",
+                    "no_word_fidelity_claim",
+                    "no_vendor_signature_or_authenticity_proof",
+                    "no_atomic_executable_handle_binding"
+                  ]
+                }
+              },
+              "runtime": {
+                "const": "dotnet-native"
+              },
+              "python_used": {
+                "const": false
+              },
+              "performance": {
+                "type": "object",
+                "required": [
+                  "total_milliseconds"
+                ],
+                "properties": {
+                  "total_milliseconds": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
       }
     },
     {

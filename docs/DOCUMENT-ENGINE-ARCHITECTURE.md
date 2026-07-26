@@ -1250,6 +1250,19 @@ Rendering is a capability interface:
 | Semantic HTML/SVG | Inspection, diff, accessibility, and previews; not pagination authority. |
 | Optional Aspose/GemBox/other adapter | Licensed independent renderer/converter with a recorded version and benchmark profile. |
 
+The first implemented LibreOffice slice deliberately stops before document loading.
+`WordToolkit.LibreOffice` targets neutral `net8.0`; Engine owns the strict public request
+and result, while the Windows CLI/MCP host consumes the same provider interface. The
+probe requires one explicit local executable, rejects path indirection and network-backed
+locations, hashes before and after, sends only `--version`, closes stdin, bounds process
+output and timeout, and returns a normalized reported product/version rather than raw
+diagnostic text. It does not prove vendor authenticity or atomically bind the bytes loaded
+by the OS, and its capability matrix keeps UNO, Writer, PDF export, load policy,
+macro/update prevention, rendering and Word fidelity false. A separate Linux CI lane
+qualifies the adapter against the exact installed LibreOffice binary. Document load/export
+will not enter this table as implemented until the isolated UNO media-descriptor policy
+and artifact transaction are proven.
+
 The first implemented provider-neutral backend is
 `wordtoolkit.render_ooxml_semantic_html/1.0`. It creates deterministic self-contained
 HTML for the main body, all projected text stories or one exact semantic subtree. A
@@ -1409,7 +1422,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 143 actions already have public SDK
+These are proved migration seams, not a claim that all 144 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.

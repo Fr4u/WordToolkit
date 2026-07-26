@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+## 0.49.0 — 2026-07-26
+
+- Added the first honest LibreOffice backend slice as a neutral `net8.0` adapter shared
+  by Engine, strict JSON CLI and lazy MCP. `inspect_libreoffice_backend` requires one
+  explicit absolute local executable, never searches `PATH`, rejects UNC, device,
+  mapped-network and reparse-point paths, optionally binds an expected SHA-256, runs only
+  bounded `--version` with closed stdin and process-tree timeout termination, and rehashes
+  the executable after exit.
+- The closed result proves only a recognizable LibreOffice product/version identity. It
+  returns no executable path or environment values and explicitly leaves UNO, Writer,
+  PDF export, document-load policy, macro/update prevention, rendering and Word fidelity
+  unverified. `network_requested=false` is not called network isolation; the child process
+  remains outside a sandbox. A recognizable banner is not treated as vendor-signature
+  proof, and stable pre/post hashes are not described as an atomic binding to the bytes
+  loaded by the operating system.
+- Added strict request parsing, deterministic fake-process regressions, path/hash/version/
+  timeout/output failure taxonomy, CLI/MCP convergence, no-Word proof, a cross-platform
+  adapter test project and a Linux CI lane that probes the exact installed LibreOffice
+  binary. The native Windows package now verifies that the neutral adapter assembly is
+  present and free of checkout-path leakage.
+- Capability discovery now exposes 144 actions and 55 complete explicit metadata
+  contracts. The isolated UNO document-load/export lane and shared Word-versus-
+  LibreOffice visual corpus remain deliberately unfinished and are not hidden behind the
+  successful version probe.
+
 ## 0.48.0 — 2026-07-26
 
 - Added a source-linked semantic-role evidence graph for theorem, lemma, proposition,

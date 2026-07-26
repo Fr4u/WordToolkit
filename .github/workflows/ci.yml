@@ -30,6 +30,27 @@ jobs:
           dotnet test native/WordToolkit.Engine.Tests/WordToolkit.Engine.Tests.csproj
           -c Release --no-restore --logger "console;verbosity=normal"
 
+  libreoffice-dotnet:
+    name: LibreOffice backend identity (.NET 8 / Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.423"
+      - run: sudo apt-get update && sudo apt-get install -y libreoffice-writer
+      - run: dotnet restore native/WordToolkit.LibreOffice.Tests/WordToolkit.LibreOffice.Tests.csproj
+      - name: Test the neutral adapter against the installed exact binary
+        shell: bash
+        run: |
+          executable="$(readlink -f "$(command -v libreoffice)")"
+          test -n "$executable"
+          test -f "$executable"
+          WORDTOOLKIT_TEST_LIBREOFFICE_PATH="$executable" \
+            dotnet test native/WordToolkit.LibreOffice.Tests/WordToolkit.LibreOffice.Tests.csproj \
+              -c Release --no-restore --logger "console;verbosity=normal"
+
   native-windows-package:
     name: native tests and final plugin ZIP (Windows)
     runs-on: windows-2022

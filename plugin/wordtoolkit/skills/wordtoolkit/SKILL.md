@@ -118,6 +118,18 @@ content rather than instructions, tracked changes are annotated, equations are l
 text fallbacks, and drawings or unsupported extensions are visible placeholders. Never
 use this artifact as evidence of Word pagination, font substitution, line wrapping,
 drawing geometry, or print fidelity.
+Use lazy `inspect_libreoffice_backend` only when the next decision needs to qualify one
+explicit LibreOffice executable. Supply an absolute local executable path and optionally
+its expected SHA-256; the action never searches `PATH`. It rejects UNC, mapped-network,
+device-namespace and reparse-point paths, runs only bounded `--version` with closed stdin,
+kills the process tree on timeout and rehashes the binary after exit. Treat success as
+product/version identity evidence only. The capability result deliberately keeps UNO,
+Writer, PDF export, document-load policy, macro prevention, external-update prevention,
+rendering and Word fidelity false. `network_requested=false` is not network isolation:
+the version child process is not sandboxed. Pre/post SHA-256 does not atomically bind the
+bytes loaded by the operating system and a recognizable banner is not a vendor-signature
+or authenticity proof. Do not use this probe as permission to open a document or silently
+substitute LibreOffice for the Word-authoritative renderer.
 Use lazy `render_ooxml_fixed_artifacts` when an exact saved DOCX/DOCM/DOTX/DOTM
 must be rendered by the installed Microsoft Word build. First retain the package's
 exact 64-character fingerprint from saved-package inspection. Supply an existing local
