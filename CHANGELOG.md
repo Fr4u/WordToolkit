@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- Added a source-linked equation-paragraph rewrite object that models only ordinary
+  `w:r`/`w:t` text slots before, between and after direct immutable `m:oMath` or
+  `m:oMathPara` anchors. Fields, revisions, hyperlinks, controls, range markers,
+  drawings, tabs, breaks and other rich structures fail closed instead of being
+  flattened.
+- Added shared Engine inspect/plan/apply contracts, strict
+  `equation-paragraph-rewrite-package` CLI and three lazy MCP actions. Candidate,
+  package and plan fingerprints bind the ordered slot intent; apply blocks signatures,
+  requires Microsoft Open XML validation, retains an atomic backup by default and
+  returns neither paragraph text nor OMML.
+- Candidate materialization preserves exact OfficeMath bytes, paragraph/run structure,
+  text-node ordinals and every unselected equation paragraph, then proves an exact
+  inverse that reconstructs all original uncompressed OPC entry bytes. Transitional and
+  Strict multi-equation/display-math tests plus a deterministic XML-escaping corpus
+  cover the public boundary.
+
 - Added a source-linked OCR candidate graph for embedded images actually referenced by
   Word figures. Repeated image parts deduplicate to one stable fingerprint-bound
   candidate; declared raster types are checked against payload signatures, external

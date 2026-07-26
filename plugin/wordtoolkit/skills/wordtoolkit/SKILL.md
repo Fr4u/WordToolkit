@@ -803,6 +803,36 @@ anchors, authors, threads, durable IDs, reactions, permissions, revisions, unsel
 comments and every unrelated part remain unchanged. Duplicate comment targets, unexpected
 match counts, signatures, plan drift and new schema errors fail closed.
 
+When the task is to rewrite only the prose of a saved-package paragraph containing an
+equation, do not fetch its `w:t`/`m:t` leaves and do not use generic text edits. Preserve
+the OfficeMath object through this separate token-lean workflow:
+
+1. Query one exact paragraph with an equation descendant and retain its semantic
+   `paragraph_node_id` plus the package fingerprint.
+2. Call `inspect_ooxml_equation_paragraph_rewrites` with that paragraph ID. Keep
+   `include_text=false` when counts and hashes are enough; set it true only when the
+   complete bounded current prose is needed to write the replacement.
+3. Review the returned `wepr_` candidate, fingerprint, ordered slot count and every fixed
+   block reason. A slot is the ordinary prose before, between or after direct OfficeMath
+   anchors. Do not invent a slot, candidate or equation placeholder.
+4. Call `plan_ooxml_equation_paragraph_rewrites` with one
+   `rewrite_equation_paragraph_text` command containing the exact candidate ID,
+   fingerprint and exactly one replacement string per ordered slot. A slot with no
+   existing text leaf must remain empty.
+5. Review `weprplan_`, changed counts, exact-equation-byte, paragraph-structure and exact-
+   inverse proof plus Microsoft schema validation. Then call
+   `apply_ooxml_equation_paragraph_rewrites` with identical commands, original package
+   fingerprint and exact plan ID. Keep the sibling recovery backup by default.
+
+This operation keeps every direct `m:oMath` or `m:oMathPara` byte-identical and never
+returns OMML, LaTeX or equation text. It preserves paragraph/run objects and their
+properties, placing each replacement in the first existing text leaf of its slot and
+emptying later leaves deterministically. Fields, hyperlinks, revisions, bookmarks/range
+markers, content controls, drawings, tabs, breaks and other rich inline structures block
+the candidate rather than being flattened. The operation does not rewrite the equation,
+insert a run into an empty gap, remap emphasis to new words, choose the paragraph
+linguistically, open Word or claim visual equivalence before rendering.
+
 For other saved-package text edits, use this strict lazy workflow:
 
 1. Query the narrowest possible `text` nodes and retain the package fingerprint.

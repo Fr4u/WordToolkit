@@ -80,6 +80,9 @@
       "apply_ooxml_semantic_edits",
       "plan_ooxml_comment_body_edits",
       "apply_ooxml_comment_body_edits",
+      "inspect_ooxml_equation_paragraph_rewrites",
+      "plan_ooxml_equation_paragraph_rewrites",
+      "apply_ooxml_equation_paragraph_rewrites",
       "plan_ooxml_review_decisions",
       "apply_ooxml_review_decisions",
       "inspect_live_word_document",
@@ -12062,6 +12065,258 @@
         "idempotentHint": false,
         "openWorldHint": false
       }
+    },
+    {
+      "name": "inspect_ooxml_equation_paragraph_rewrites",
+      "title": "Inspect rewritable Word equation paragraphs",
+      "description": "Find Word paragraphs whose direct inline content can be modeled as ordinary text slots separated by immutable OfficeMath anchors. The compact page returns stable paragraph candidates, counts and fixed block reasons without text. One exact paragraph_node_id may opt into bounded complete slot metadata and text. Fields, revisions, hyperlinks, content controls, range markers, drawings, tabs, breaks and other rich structures fail closed. The action returns no XML, changes nothing and never opens Word.",
+      "operationVersion": "1.0",
+      "permissions": {"filesystem": "read_input_package", "network": "none", "microsoft_word": "none"},
+      "reversibility": {"applicable": false, "reason": "read_only"},
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {"type": "string", "maxLength": 32767},
+          "expected_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "paragraph_node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$", "maxLength": 128},
+          "offset": {"type": "integer", "minimum": 0, "default": 0},
+          "max_items": {"type": "integer", "minimum": 1, "maximum": 100, "default": 25},
+          "include_text": {"type": "boolean", "default": false, "description": "Return complete bounded text slots for one exact paragraph_node_id only."}
+        },
+        "required": ["local_path", "expected_package_fingerprint"],
+        "allOf": [
+          {"if": {"properties": {"include_text": {"const": true}}, "required": ["include_text"]}, "then": {"required": ["paragraph_node_id"]}},
+          {"if": {"required": ["paragraph_node_id"]}, "then": {"properties": {"offset": {"const": 0}}}}
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "package_fingerprint", "total_candidate_count", "rewritable_candidate_count", "offset", "returned_count", "next_offset", "candidates", "text_included", "returned_text_characters", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.inspect_ooxml_equation_paragraph_rewrites/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "total_candidate_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "rewritable_candidate_count": {"type": "integer", "minimum": 0, "maximum": 100000},
+              "offset": {"type": "integer", "minimum": 0},
+              "returned_count": {"type": "integer", "minimum": 0, "maximum": 100},
+              "next_offset": {"type": ["integer", "null"], "minimum": 0},
+              "candidates": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "required": ["candidate_id", "candidate_fingerprint", "paragraph_node_id", "story_kind", "equation_anchor_count", "inline_equation_anchor_count", "display_equation_anchor_count", "text_slot_count", "editable_text_slot_count", "text_node_count", "text_character_count", "can_rewrite", "blocked_reasons"],
+                  "properties": {
+                    "candidate_id": {"type": "string", "pattern": "^wepr_[A-Za-z0-9_-]+$", "maxLength": 128},
+                    "candidate_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "paragraph_node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$", "maxLength": 128},
+                    "story_kind": {"enum": ["main", "header", "footer", "footnote", "endnote", "comment", "glossary_entry", "text_box", "other"]},
+                    "equation_anchor_count": {"type": "integer", "minimum": 1, "maximum": 128},
+                    "inline_equation_anchor_count": {"type": "integer", "minimum": 0, "maximum": 128},
+                    "display_equation_anchor_count": {"type": "integer", "minimum": 0, "maximum": 128},
+                    "text_slot_count": {"type": "integer", "minimum": 1, "maximum": 129},
+                    "editable_text_slot_count": {"type": "integer", "minimum": 0, "maximum": 129},
+                    "text_node_count": {"type": "integer", "minimum": 0, "maximum": 2000},
+                    "text_character_count": {"type": "integer", "minimum": 0, "maximum": 1000000},
+                    "can_rewrite": {"type": "boolean"},
+                    "blocked_reasons": {"type": "array", "maxItems": 8, "uniqueItems": true, "items": {"enum": ["invalid_paragraph_properties_position", "invalid_run_properties_position", "unsupported_inline_structure", "unsupported_run_content", "unbound_text_node", "no_direct_officemath_anchor", "no_editable_text_slots"]}},
+                    "text_slots": {
+                      "type": "array",
+                      "maxItems": 129,
+                      "items": {
+                        "type": "object",
+                        "required": ["slot_index", "character_count", "text_node_count", "text_sha256", "can_rewrite"],
+                        "properties": {
+                          "slot_index": {"type": "integer", "minimum": 0, "maximum": 128},
+                          "character_count": {"type": "integer", "minimum": 0, "maximum": 1000000},
+                          "text_node_count": {"type": "integer", "minimum": 0, "maximum": 2000},
+                          "text_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                          "can_rewrite": {"type": "boolean"},
+                          "text": {"type": "string", "maxLength": 65536}
+                        },
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "text_included": {"type": "boolean"},
+              "returned_text_characters": {"type": "integer", "minimum": 0, "maximum": 65536},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"const": false},
+              "word_opened": {"const": false},
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {"type": "object", "required": ["total_ms"], "properties": {"total_ms": {"type": "number", "minimum": 0}}, "additionalProperties": false}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
+    },
+    {
+      "name": "plan_ooxml_equation_paragraph_rewrites",
+      "title": "Plan text-slot rewrites around immutable OfficeMath",
+      "description": "Plan a bounded semantic rewrite of ordinary text slots around direct OfficeMath anchors in fingerprinted Word paragraphs. Each command uses one inspected candidate and supplies one replacement string per ordered slot. The exact candidate preserves OfficeMath bytes, paragraph/run structure and unselected paragraphs, proves an exact inverse, runs Microsoft Open XML validation, returns no paragraph text or XML, writes nothing and never opens Word.",
+      "operationVersion": "1.0",
+      "permissions": {"filesystem": "read_input_package", "network": "none", "microsoft_word": "none"},
+      "reversibility": {"applicable": false, "reason": "read_only"},
+      "inputSchema": {
+        "type": "object",
+        "$defs": {
+          "command": {
+            "type": "object",
+            "properties": {
+              "type": {"const": "rewrite_equation_paragraph_text"},
+              "candidate_id": {"type": "string", "pattern": "^wepr_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "expected_candidate_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+              "replacement_text_slots": {"type": "array", "maxItems": 129, "items": {"type": "string", "maxLength": 1000000}}
+            },
+            "required": ["type", "candidate_id", "expected_candidate_fingerprint", "replacement_text_slots"],
+            "additionalProperties": false
+          }
+        },
+        "properties": {
+          "local_path": {"type": "string", "maxLength": 32767},
+          "expected_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "commands": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/command"}},
+          "include_details": {"type": "boolean", "default": false}
+        },
+        "required": ["local_path", "expected_package_fingerprint", "commands"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "plan_id", "base_package_fingerprint", "result_package_fingerprint", "submitted_command_count", "paragraph_count", "equation_anchor_count", "text_slot_count", "changed_text_slot_count", "text_node_operation_count", "changed_text_node_operation_count", "changed_part_count", "total_xml_byte_delta", "has_changes", "exact_equation_bytes_preserved", "paragraph_structure_preserved", "exact_inverse_verified", "can_apply", "apply_blocked", "apply_blocked_reasons", "candidate_validation", "raw_text_returned", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.plan_ooxml_equation_paragraph_rewrites/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "plan_id": {"type": "string", "pattern": "^weprplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "base_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "result_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "submitted_command_count": {"type": "integer", "minimum": 1, "maximum": 64},
+              "paragraph_count": {"type": "integer", "minimum": 1, "maximum": 64},
+              "equation_anchor_count": {"type": "integer", "minimum": 1, "maximum": 8192},
+              "text_slot_count": {"type": "integer", "minimum": 1, "maximum": 8256},
+              "changed_text_slot_count": {"type": "integer", "minimum": 0, "maximum": 8256},
+              "text_node_operation_count": {"type": "integer", "minimum": 1, "maximum": 4096},
+              "changed_text_node_operation_count": {"type": "integer", "minimum": 0, "maximum": 4096},
+              "changed_part_count": {"type": "integer", "minimum": 0, "maximum": 16},
+              "total_xml_byte_delta": {"type": "integer"},
+              "has_changes": {"type": "boolean"},
+              "exact_equation_bytes_preserved": {"const": true},
+              "paragraph_structure_preserved": {"const": true},
+              "exact_inverse_verified": {"const": true},
+              "can_apply": {"type": "boolean"},
+              "apply_blocked": {"type": "boolean"},
+              "apply_blocked_reasons": {"type": "array", "maxItems": 6, "uniqueItems": true, "items": {"enum": ["digital_signature_present", "schema_validator_unavailable", "microsoft_schema_validation_failed", "equation_bytes_changed", "paragraph_structure_changed", "exact_inverse_unverified"]}},
+              "candidate_validation": {"type": "object", "required": ["performed", "valid", "no_new_errors", "error_count", "baseline_error_count", "candidate_error_count", "errors_truncated", "issues"], "properties": {"performed": {"type": "boolean"}, "valid": {"type": "boolean"}, "no_new_errors": {"type": "boolean"}, "error_count": {"type": "integer", "minimum": 0}, "baseline_error_count": {"type": "integer", "minimum": 0}, "candidate_error_count": {"type": "integer", "minimum": 0}, "errors_truncated": {"type": "boolean"}, "not_performed_reason": {"type": "string", "maxLength": 128}, "issues": {"type": "array", "maxItems": 200, "items": {"type": "object"}}}, "additionalProperties": false},
+              "paragraph_rewrites": {"type": "array", "maxItems": 64, "items": {"type": "object", "required": ["command_index", "candidate_id", "paragraph_node_id", "story_kind", "equation_anchor_count", "text_slot_count", "changed_text_slot_count", "text_node_operation_count", "before_characters", "after_characters", "before_text_slots_sha256", "after_text_slots_sha256"], "properties": {"command_index": {"type": "integer", "minimum": 0, "maximum": 63}, "candidate_id": {"type": "string", "pattern": "^wepr_[A-Za-z0-9_-]+$"}, "paragraph_node_id": {"type": "string", "pattern": "^wdn_[A-Za-z0-9_-]+$"}, "story_kind": {"enum": ["main", "header", "footer", "footnote", "endnote", "comment", "glossary_entry", "text_box", "other"]}, "equation_anchor_count": {"type": "integer", "minimum": 1}, "text_slot_count": {"type": "integer", "minimum": 1}, "changed_text_slot_count": {"type": "integer", "minimum": 0}, "text_node_operation_count": {"type": "integer", "minimum": 1}, "before_characters": {"type": "integer", "minimum": 0}, "after_characters": {"type": "integer", "minimum": 0}, "before_text_slots_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "after_text_slots_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}, "additionalProperties": false}},
+              "changed_parts": {"type": "array", "maxItems": 16, "items": {"type": "object", "required": ["part_uri", "before_bytes", "after_bytes", "byte_delta"], "properties": {"part_uri": {"type": "string", "maxLength": 512}, "before_bytes": {"type": "integer", "minimum": 0}, "after_bytes": {"type": "integer", "minimum": 0}, "byte_delta": {"type": "integer"}}, "additionalProperties": false}},
+              "raw_text_returned": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"const": false},
+              "word_opened": {"const": false},
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {"type": "object", "required": ["total_ms"], "properties": {"total_ms": {"type": "number", "minimum": 0}}, "additionalProperties": false}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false}
+    },
+    {
+      "name": "apply_ooxml_equation_paragraph_rewrites",
+      "title": "Apply reviewed text-slot rewrites around immutable OfficeMath",
+      "description": "Rebuild and atomically apply one reviewed equation-paragraph rewrite plan to the same fingerprinted Word package. The operation rejects candidate, plan and package drift, signatures, rich inline structures, equation-byte changes, paragraph-structure changes, unverified inverse state and new Microsoft Open XML errors. It keeps a sibling recovery backup by default, returns no paragraph text or XML, and never opens Word.",
+      "operationVersion": "1.0",
+      "permissions": {"filesystem": "read_write_input_package_and_optional_sibling_backup", "network": "none", "microsoft_word": "none"},
+      "reversibility": {"applicable": true, "mechanism": "atomic_sibling_backup_and_exact_inverse", "default": "retained"},
+      "inputSchema": {
+        "type": "object",
+        "$defs": {
+          "command": {
+            "type": "object",
+            "properties": {
+              "type": {"const": "rewrite_equation_paragraph_text"},
+              "candidate_id": {"type": "string", "pattern": "^wepr_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "expected_candidate_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+              "replacement_text_slots": {"type": "array", "maxItems": 129, "items": {"type": "string", "maxLength": 1000000}}
+            },
+            "required": ["type", "candidate_id", "expected_candidate_fingerprint", "replacement_text_slots"],
+            "additionalProperties": false
+          }
+        },
+        "properties": {
+          "local_path": {"type": "string", "maxLength": 32767},
+          "expected_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
+          "expected_plan_id": {"type": "string", "pattern": "^weprplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+          "commands": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/command"}},
+          "keep_backup": {"type": "boolean", "default": true}
+        },
+        "required": ["local_path", "expected_package_fingerprint", "expected_plan_id", "commands"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": ["operation_contract", "file_name", "plan_id", "applied", "no_op", "paragraph_count", "equation_anchor_count", "text_node_operation_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "backup_path", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "exact_equation_bytes_preserved", "paragraph_structure_preserved", "exact_inverse_verified", "raw_text_returned", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.apply_ooxml_equation_paragraph_rewrites/1.0"},
+              "file_name": {"type": "string", "maxLength": 512},
+              "plan_id": {"type": "string", "pattern": "^weprplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "applied": {"type": "boolean"},
+              "no_op": {"type": "boolean"},
+              "paragraph_count": {"type": "integer", "minimum": 1, "maximum": 64},
+              "equation_anchor_count": {"type": "integer", "minimum": 1, "maximum": 8192},
+              "text_node_operation_count": {"type": "integer", "minimum": 1, "maximum": 4096},
+              "previous_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "predicted_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "backup_path": {"type": ["string", "null"]},
+              "changed_entry_names": {"type": "array", "maxItems": 16, "uniqueItems": true, "items": {"type": "string", "maxLength": 1024}},
+              "diagnostic_count": {"type": "integer", "minimum": 0},
+              "microsoft_schema_valid": {"type": "boolean"},
+              "microsoft_schema_no_new_errors": {"type": "boolean"},
+              "exact_equation_bytes_preserved": {"const": true},
+              "paragraph_structure_preserved": {"const": true},
+              "exact_inverse_verified": {"const": true},
+              "raw_text_returned": {"const": false},
+              "raw_xml_returned": {"const": false},
+              "mutation_performed": {"type": "boolean"},
+              "word_opened": {"const": false},
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {"type": "object", "required": ["total_ms"], "properties": {"total_ms": {"type": "number", "minimum": 0}}, "additionalProperties": false}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false}
     },
     {
       "name": "plan_ooxml_comment_body_edits",

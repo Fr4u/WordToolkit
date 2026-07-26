@@ -1200,6 +1200,19 @@ reactions, revisions, permissions, unselected comments and unrelated parts are i
 Comment creation/deletion, resolution/reaction mutation, merge and rich structural review
 mutations remain live-Word operations or future typed package commands.
 
+Equation-containing paragraph text mutation is a separate semantic boundary. The
+`WordEquationParagraphRewriteCatalogBuilder` binds one source-linked `Paragraph` to an
+ordered sequence of ordinary `w:r`/`w:t` text slots separated by direct immutable
+`m:oMath` or `m:oMathPara` anchors. Optional `w:pPr` and `w:rPr` stay in place; every
+field, hyperlink, revision, range marker, content control, drawing, tab, break or other
+inline shape blocks the candidate. Compact inspection returns candidate/slot hashes and
+fixed reasons, not XML; complete text is opt-in for one exact paragraph and bounded.
+Plan/apply changes only existing text leaves, retains exact OfficeMath bytes and
+paragraph/run structure, proves unselected candidates unchanged and reconstructs every
+original OPC entry through the exact inverse before Microsoft schema validation and
+atomic publication. Empty slots cannot receive text because that would be a structural
+insertion outside the reviewed model.
+
 ## Rendering and fidelity backends
 
 Rendering is a capability interface:
@@ -1371,7 +1384,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 136 actions already have public SDK
+These are proved migration seams, not a claim that all 139 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.
@@ -1393,6 +1406,14 @@ MCP. The exact candidate is reprojected before persistence: selected body hashes
 match, unselected bodies and all review metadata must remain invariant, changed parts
 must be comment-definition parts, Microsoft schema comparison must introduce no errors,
 and neither response may return comment text or raw XML.
+
+The next seam is `EquationParagraphRewriteWordPackageOperation`. It owns compact
+candidate inspection, strict slot-command JSON, source-bound lowering to the shared
+lossless text transaction, candidate materialization, OfficeMath/paragraph/unselected-
+candidate invariants, exact inverse verification and atomic apply. Direct .NET,
+`equation-paragraph-rewrite-package` CLI and three lazy MCP actions use this one Engine
+path. Native supplies only Microsoft Open XML SDK validation and bounded runtime timing;
+neither the CLI nor MCP adapter may open Word or learn OMML/equation text.
 
 The sixth seam is `PatchRollbackWordPackageOperation`. It reads the reviewed original
 `.wtpatch`, derives its reverse internally, rebuilds the semantic/risk/type/schema proof,
@@ -1550,6 +1571,12 @@ The current native mapping is therefore:
 - typed existing-style `document.apply` -> lazy `apply_ooxml_semantic_edits`;
 - typed comment-body `document.plan` -> lazy `plan_ooxml_comment_body_edits`;
 - typed comment-body `document.apply` -> lazy `apply_ooxml_comment_body_edits`.
+- typed equation-paragraph candidate inspection -> lazy
+  `inspect_ooxml_equation_paragraph_rewrites`;
+- typed equation-paragraph `document.plan` -> lazy
+  `plan_ooxml_equation_paragraph_rewrites`;
+- typed equation-paragraph `document.apply` -> lazy
+  `apply_ooxml_equation_paragraph_rewrites`.
 
 These schemas stay outside the core catalog, so the default model context does not pay
 for them until search/inspection selects the action.

@@ -414,6 +414,21 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_ooxml_equation_paragraph_rewrites" =>
+                InspectPackageEquationParagraphRewritesAsync(
+                    arguments,
+                    cancellationToken
+                ),
+            "plan_ooxml_equation_paragraph_rewrites" =>
+                PlanPackageEquationParagraphRewritesAsync(
+                    arguments,
+                    cancellationToken
+                ),
+            "apply_ooxml_equation_paragraph_rewrites" =>
+                ApplyPackageEquationParagraphRewritesAsync(
+                    arguments,
+                    cancellationToken
+                ),
             "plan_ooxml_review_decisions" => PlanPackageReviewDecisionsAsync(
                 arguments,
                 cancellationToken

@@ -1,5 +1,56 @@
 # Stage results
 
+## WordToolkit 0.46.0 equation-paragraph text-slot rewrite - 2026-07-26
+
+- Added a deliberately narrow semantic operation for rewriting only ordinary paragraph
+  prose before, between and after direct native OfficeMath anchors. Paragraph/run objects
+  and properties are retained; every direct `m:oMath` or `m:oMathPara` byte must remain
+  identical. Fields, hyperlinks, revisions, bookmarks/range markers, content controls,
+  drawings, tabs, breaks and other rich inline structures fail closed instead of being
+  flattened.
+- Added exact package/candidate/plan fingerprints, deterministic `wepr_` and `weprplan_`
+  identities, selected-slot readback, unselected-candidate invariants, exact predicted
+  result fingerprints and an inverse that reconstructs every original uncompressed OPC
+  entry byte. Signed packages, missing SDK validation, plan drift, empty-gap insertion,
+  structural drift and any equation-byte change block apply.
+- One strict Engine JSON codec now drives direct .NET, the
+  `equation-paragraph-rewrite-package --mode inspect|plan|apply` CLI and lazy
+  `inspect_ooxml_equation_paragraph_rewrites`,
+  `plan_ooxml_equation_paragraph_rewrites` and
+  `apply_ooxml_equation_paragraph_rewrites` MCP actions. Ordinary plan/apply responses
+  return neither paragraph text nor OMML and never open Word. The native catalogue now
+  exposes 139 actions, 15 MCP tools and 50 complete explicit metadata contracts.
+- Full local gates pass **692 Engine**, **505 Native** and **1,318 Python tests**, with
+  16 intentional Python skips. Ruff and four .NET format gates are clean. Every .NET
+  invocation used pinned SDK `C:\Users\Admin\.dotnet8\dotnet.exe` 8.0.423.
+- Two independent and one canonical self-contained win-x64 builds produced identical
+  196-file, 89,069,292-byte trees and identical 37,290,276-byte ZIPs at SHA-256
+  `1277483e8682209dd3176739deb853816a87e7d5ec58b6644bfb36a1a744c672`.
+  Executable, runtime assembly, Engine assembly and Open XML SDK adapter hashes are
+  `4ed16c8da74a1f1fdbe8e11604b1ba11265757f31e9fa303d10e82c5a21f958f`,
+  `39d7f66102b215c72b4681c44da6f71d357fdfa6a745e746ce8ca321ca63a5e1`,
+  `a91b3f297d233c392f94932a5595739d400530e16426c08ad74f5f4e7d46b584` and
+  `3d51488db5c070a1d2d1f4307033b635b9bc97e6a5af6c52ef860b71854a72f4`.
+- Installed and enabled `0.46.0+codex.20260726083217`. Canonical build, persistent
+  personal source and enabled Codex cache contain the same 196 paths, lengths and hashes
+  with zero differences. Installed executable discovery reports the exact version and the
+  three new actions; the complete 1,049-line installed skill was reread after installation.
+- A real Word-created paragraph contained two prose slots around one editable inline
+  equation `x^2+y^2=1`. The packaged runtime changed only the two prose slots, retained a
+  sibling backup identical to the 13,492-byte original and produced the exact predicted
+  target package. The complete 916-byte native `m:oMath` outer XML remained byte-identical
+  at SHA-256 `0775ce309c40b1c20f6107985717f76eed6987019dce4b23809d5cd0dbdc992f`.
+  Baseline and candidate have zero Microsoft Open XML SDK errors.
+- Microsoft Word 16.0 build 16.0.20131 opened the result as a real read-only document with
+  one paragraph and one native equation, then independently rendered original and result
+  through its fixed-layout exporter. Both are one clean 1191x1684 PNG page at 144 DPI;
+  visual inspection shows only the requested prose change, with the equation intact and no
+  raw linear syntax, clipping or overlap. Word rechecked both source hashes after close.
+- The checked-in token point records compact inspect/inspect-with-text/plan/apply requests
+  of 310/355/546/617 characters and compact responses of 888/1,272/1,079/909 characters.
+  Apply returns exact equation-byte, paragraph-structure, inverse and zero-error SDK proof
+  without document prose or OMML.
+
 ## WordToolkit 0.45.0 deterministic template style alignment - 2026-07-26
 
 - Added `WordTemplateStyleAlignmentPlanner` as a two-package, stable-ID operation rather
