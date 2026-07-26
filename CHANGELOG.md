@@ -31,6 +31,10 @@
   source and active cache have zero path/length/hash differences. Installed discovery
   reports 148 actions, 15 tools and 59 explicit contracts. An installed full-response
   schema-plan smoke returned the no-Word/no-source/no-query/no-execution policy fields.
+- Hosted CI run `30213451513` passed all six jobs on implementation commit `f039b24`.
+  Its downloaded clean-Windows ZIP is byte-identical to both local archives: 37,544,483
+  bytes at SHA-256
+  `795f256c2757e3d2338c28485e29c1521527823b81cb01b934578d27754b56fa`.
 
 ## 0.54.0 — 2026-07-26
 
