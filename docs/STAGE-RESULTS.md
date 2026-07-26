@@ -64,6 +64,10 @@
   pre-alignment target. It reproduced the same candidate ID, plan ID and final fingerprint,
   retained an existing backup and passed the standalone Microsoft validator with zero
   errors. `codex plugin list --json` reports the personal plugin installed and enabled.
+- Mandatory hosted CI run `30189985502` passed all five jobs on implementation commit
+  `4f88eaf32d5fb860b99fbc02f22eadf89e85dcb1`: Linux Engine, Windows Native tests and
+  distributable ZIP, Python compatibility/rendering, standalone Open XML validator and
+  remote service container.
 
 ## WordToolkit 0.44.0 guarded saved-package OfficeMath duplicate repair — 2026-07-26
 
