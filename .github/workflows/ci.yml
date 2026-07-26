@@ -39,6 +39,10 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "8.0.423"
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17.0.16+8"
       - run: sudo apt-get update && sudo apt-get install -y libreoffice-writer
       - run: dotnet restore native/WordToolkit.LibreOffice.Tests/WordToolkit.LibreOffice.Tests.csproj
       - name: Test the neutral adapter against the installed exact binary
@@ -47,11 +51,54 @@ jobs:
           executable="$(readlink -f "$(command -v libreoffice)")"
           test -n "$executable"
           test -f "$executable"
+          program_directory="$(dirname "$executable")"
+          libreoffice_jar="$program_directory/classes/libreoffice.jar"
+          test -f "$libreoffice_jar"
+          java_executable="$(readlink -f "$(command -v java)")"
+          javac_executable="$(readlink -f "$(command -v javac)")"
+          jar_executable="$(readlink -f "$(command -v jar)")"
+          test -f "$java_executable"
+          test -f "$javac_executable"
+          test -f "$jar_executable"
+          helper_classes="$RUNNER_TEMP/wordtoolkit-uno-helper-classes"
+          helper_jar="$RUNNER_TEMP/wordtoolkit-uno-helper.jar"
+          mkdir -p "$helper_classes"
+          "$javac_executable" \
+            --release 17 \
+            -g:none \
+            -encoding UTF-8 \
+            -cp "$libreoffice_jar" \
+            -d "$helper_classes" \
+            native/WordToolkit.LibreOffice.Java/src/wordtoolkit/uno/LibreOfficeUnoRender.java
+          "$jar_executable" \
+            --create \
+            --file "$helper_jar" \
+            --date=2020-01-01T00:00:00Z \
+            -C "$helper_classes" .
+          test -s "$helper_jar"
           executable_sha256="$(sha256sum "$executable" | cut -d' ' -f1)"
+          java_sha256="$(sha256sum "$java_executable" | cut -d' ' -f1)"
+          libreoffice_jar_sha256="$(sha256sum "$libreoffice_jar" | cut -d' ' -f1)"
+          helper_sha256="$(sha256sum "$helper_jar" | cut -d' ' -f1)"
+          source_path="$(readlink -f examples/generated/WordToolkit-equations.docx)"
+          test -f "$source_path"
           printf 'qualified_libreoffice_version=%s\n' "$("$executable" --version | tr -d '\r')"
           printf 'qualified_libreoffice_executable_sha256=%s\n' "$executable_sha256"
+          printf 'qualified_java_version=%s\n' "$("$java_executable" -version 2>&1 | head -n 1)"
+          printf 'qualified_java_executable_sha256=%s\n' "$java_sha256"
+          printf 'qualified_libreoffice_jar_sha256=%s\n' "$libreoffice_jar_sha256"
+          printf 'qualified_wordtoolkit_uno_helper_sha256=%s\n' "$helper_sha256"
           WORDTOOLKIT_TEST_LIBREOFFICE_PATH="$executable" \
           WORDTOOLKIT_TEST_LIBREOFFICE_SHA256="$executable_sha256" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_PATH="$executable" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_SHA256="$executable_sha256" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAVA_PATH="$java_executable" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAVA_SHA256="$java_sha256" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAR_PATH="$libreoffice_jar" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAR_SHA256="$libreoffice_jar_sha256" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_HELPER_PATH="$helper_jar" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_HELPER_SHA256="$helper_sha256" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_SOURCE_PATH="$source_path" \
             dotnet test native/WordToolkit.LibreOffice.Tests/WordToolkit.LibreOffice.Tests.csproj \
               -c Release --no-restore --logger "console;verbosity=normal"
 
