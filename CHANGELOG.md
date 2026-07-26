@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+## 0.47.0 — 2026-07-26
+
+- Added semantic numbering reconstruction across direct Engine, strict
+  `numbering-rebuild-package` CLI and closed lazy MCP actions for candidate inspection,
+  planning and apply. A typed blueprint can create a missing numbering part or append
+  independent single-level, multilevel and hybrid definitions, then bind only exact
+  fingerprinted paragraphs without asking an AI to write XML.
+- Reconstruction supports decimal, zero-padded decimal, upper/lower Roman, upper/lower
+  Latin letter, bullet and none formats; explicit starts, level text, restart policy,
+  legal numbering, suffix, justification and typed twip geometry. It allocates collision-
+  free OPC relationships and numbering IDs, preserves every unselected definition and
+  paragraph, validates counters and labels, requires zero new Microsoft schema errors and
+  proves a byte-exact inverse before atomic publication with a recovery backup.
+- Transitional and Strict regressions cover missing/existing numbering infrastructure,
+  main/header story isolation, 205 targets across bounded inspection pages, style-inherited
+  numbering, every supported format, XML escaping, revision/MCE/tracked-property/signature
+  blocks, stale package/candidate/plan evidence, CLI/MCP convergence and strict JSON.
+- A guarded Word 16.0 build 16.0.20131 acceptance proof produced native labels `1.`,
+  `1.a)`, `1.b)`, `2.`, passed Microsoft Open XML SDK validation, left the source package
+  hash unchanged and exported a clean one-page PDF reviewed from a Poppler raster. Picture
+  bullets, locale/custom formats, revision-view choice, style-definition binding and list
+  merging remain explicit boundaries.
+- Verified 711 Engine, 509 Native and 1,318 Python passes with 16 intentional skips on
+  pinned SDK 8.0.423; Ruff, four .NET format gates, schema export and the standalone
+  validator are clean. Two independent 196-file, 89,248,326-byte plugin trees and their
+  37,341,668-byte ZIPs are byte-identical at SHA-256
+  `11bf921e29d9552d849b231d6a77b21d69666bfb58959fee674c4036c5a2016d`.
+- Installed and enabled `0.47.0+codex.20260726102718`. Canonical build, persistent source
+  and active cache have zero path/length/hash differences. Installed discovery reports
+  142 actions, 15 tools and 53 complete explicit metadata contracts.
+
 - Added a source-linked equation-paragraph rewrite object that models only ordinary
   `w:r`/`w:t` text slots before, between and after direct immutable `m:oMath` or
   `m:oMathPara` anchors. Fields, revisions, hyperlinks, controls, range markers,

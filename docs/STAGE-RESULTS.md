@@ -1,5 +1,52 @@
 # Stage results
 
+## WordToolkit 0.47.0 semantic numbering reconstruction - 2026-07-26
+
+- Added a separate reconstruction engine instead of widening the old list-tail restart.
+  Exact fingerprinted paragraphs receive typed single-level, multilevel or hybrid
+  blueprints; the engine allocates new abstract/instance IDs and can create the numbering
+  OPC part, content-type override and main-part relationship when they are absent. Existing
+  definitions and every unselected paragraph remain unchanged.
+- The public vocabulary covers decimal, zero-padded decimal, upper/lower Roman,
+  upper/lower Latin letter, bullet and none formats plus explicit starts, level text,
+  restart policy, legal numbering, suffix, justification and bounded twip geometry. Raw
+  XML, namespaces, relationship IDs and numbering IDs never cross the AI boundary.
+- Direct Engine, strict `numbering-rebuild-package --mode inspect|plan|apply` CLI and lazy
+  `inspect_ooxml_numbering_rebuild_candidates`, `plan_ooxml_numbering_rebuild` and
+  `apply_ooxml_numbering_rebuild` MCP share one strict JSON parser and planner. Planning
+  proves candidate freshness, exact counters/labels, unchanged unselected numbering and
+  semantic topology, zero new Microsoft errors, predicted fingerprint and byte-exact
+  inverse before apply. Apply recomputes the plan and retains a sibling backup by default.
+- Full local gates pass **711 Engine**, **509 Native** and **1,318 Python tests**, with 16
+  intentional Python skips. Ruff, four .NET format gates, deterministic schema export and
+  the standalone Open XML SDK validator are clean. Every .NET command used pinned SDK
+  `C:\Users\Admin\.dotnet8\dotnet.exe` 8.0.423.
+- Two independent self-contained win-x64 builds produced byte-identical 196-file,
+  89,248,326-byte trees and byte-identical 37,341,668-byte ZIPs at SHA-256
+  `11bf921e29d9552d849b231d6a77b21d69666bfb58959fee674c4036c5a2016d`.
+  Executable, runtime assembly, Engine assembly and Open XML SDK adapter hashes are
+  `821541df95ee9590a9fbd711e3608fe5292179044ca822639b50e423caee3a67`,
+  `9f74bac9f6e5a781fd5aa7063b61e164a20c4a99b7ac33765330ed1244e76334`,
+  `0184b95c88d8b3bf097277456991e2a735b605c5e1757ef34d537f2d7031277e` and
+  `9519100ec9b6c491306e50614017223a40425a607a649171b3ffc54ea4efe0a9`.
+- Installed and enabled `0.47.0+codex.20260726102718`. Canonical build, persistent
+  personal source and enabled cache contain the same 196 paths, lengths and hashes with
+  zero differences. Installed capability discovery reports 142 actions, 15 MCP tools and
+  53 complete explicit metadata contracts and returns exactly the three reconstruction
+  actions for a `numbering_rebuild` query.
+- The final guarded Word 16.0 build 16.0.20131 proof created a missing numbering part and
+  returned engine and Word labels `1.`, `1.a)`, `1.b)`, `2.` exactly. Microsoft Open XML
+  SDK validation is clean; Word opened read-only, exported PDF and left the source hash
+  unchanged. The retained DOCX/PDF hashes are
+  `d0cac3eb9b0d2a0ba07582394ea9ac00ae8ebbb3edf6a9254a7c79287167acec` and
+  `88b691133ee266879279fddd678011142a928fffbfb154f583776c15bc388ac9`.
+  A 160-DPI Poppler raster is one clean page with aligned native labels and no clipping,
+  overlap, raw XML or broken glyphs.
+- Picture bullets, locale/custom formats, bidirectional layout, revision-view selection,
+  style-definition binding, field refresh and list merging remain explicit missing
+  capabilities. This release closes one vertical slice of `rebuild numbering`; it does
+  not close the full document-engine objective.
+
 ## WordToolkit 0.46.0 equation-paragraph text-slot rewrite - 2026-07-26
 
 - Added a deliberately narrow semantic operation for rewriting only ordinary paragraph
@@ -19,7 +66,7 @@
   `plan_ooxml_equation_paragraph_rewrites` and
   `apply_ooxml_equation_paragraph_rewrites` MCP actions. Ordinary plan/apply responses
   return neither paragraph text nor OMML and never open Word. The native catalogue now
-  exposes 139 actions, 15 MCP tools and 50 complete explicit metadata contracts.
+  exposes 142 actions, 15 MCP tools and 53 complete explicit metadata contracts.
 - Full local gates pass **692 Engine**, **505 Native** and **1,318 Python tests**, with
   16 intentional Python skips. Ruff and four .NET format gates are clean. Every .NET
   invocation used pinned SDK `C:\Users\Admin\.dotnet8\dotnet.exe` 8.0.423.

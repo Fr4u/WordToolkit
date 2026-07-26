@@ -258,6 +258,19 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_ooxml_numbering_rebuild_candidates" =>
+                InspectPackageNumberingRebuildCandidatesAsync(
+                    arguments,
+                    cancellationToken
+                ),
+            "plan_ooxml_numbering_rebuild" => PlanPackageNumberingRebuildAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_numbering_rebuild" => ApplyPackageNumberingRebuildAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_ooxml_notes" => InspectPackageNotesAsync(
                 arguments,
                 cancellationToken

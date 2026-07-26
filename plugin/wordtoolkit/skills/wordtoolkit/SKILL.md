@@ -206,6 +206,41 @@ Signatures, stale IDs, ambiguity, missing SDK validation and new schema errors f
 closed. The compatibility rule that synchronizes replacement-level `start` with
 `startOverride` is qualified against the installed Word behavior; do not generalize it
 into a universal Office-version claim.
+
+When the task needs a new complete list definition, a missing numbering part or a reviewed
+replacement for damaged numbering, use the separate semantic reconstruction workflow.
+Do not misuse the tail-restart action and never ask the model to write `numbering.xml`:
+
+1. Query the exact target paragraphs and retain their semantic `paragraph_node_id` values
+   plus the package fingerprint. Do not infer targets from visible numbers, indentation or
+   localized style names.
+2. Call `inspect_ooxml_numbering_rebuild_candidates` with at most 100 exact paragraph IDs.
+   Retain every candidate fingerprint and stop on any revision, unresolved MCE, extension-
+   island, unsupported-story or stale-structure block.
+3. Call `plan_ooxml_numbering_rebuild` with at most 32 uniquely named commands and 10,000
+   targets in total. Each command supplies `single_level`, `multilevel` or
+   `hybrid_multilevel`, an explicit section-break restart policy, one to nine uniquely
+   indexed typed levels and exact fingerprinted targets. Use only the closed level fields:
+   start, format, `level_text`, restart mode/trigger, legal numbering, suffix,
+   justification and optional twip indentation/tab geometry. Never send XML, namespaces,
+   relationship IDs or numbering IDs.
+4. Review the deterministic plan ID, allocated abstract/instance IDs, whether the
+   numbering part must be created, changed-entry count, counter/label proof, engine and
+   Microsoft validation, exact-inverse proof, `can_apply` and every block reason. Leave
+   details off unless the changed-entry or target evidence is needed.
+5. Call `apply_ooxml_numbering_rebuild` with identical commands, the original package
+   fingerprint and exact plan ID. Keep the sibling recovery backup by default and
+   reinspect the resulting package fingerprint before any dependent operation.
+
+The deterministic public formats are `decimal`, `decimal_zero`, `upper_roman`,
+`lower_roman`, `upper_letter`, `lower_letter`, `bullet` and `none`. Reconstruction creates
+or appends independent `abstractNum`/`num` definitions and materializes direct numbering
+only on selected paragraphs; it does not rewrite styles or disturb existing definitions.
+Picture bullets, custom or locale/East-Asian formats, bidirectional layout, revision-view
+selection, style-definition binding, field refresh and list merging remain explicit hard
+boundaries. Planning and inspection open no Word instance, return neither paragraph text
+nor raw XML and write nothing; apply blocks signatures, stale evidence, changed intent,
+missing Microsoft validation, new errors and any failure of the exact inverse.
 Use lazy `inspect_ooxml_theme` instead of loading `theme1.xml`. Keep
 `view=colors` or `view=fonts` and `detail=metadata` for ordinary decisions;
 request declarations, transforms, unknown markup, or source ordinals only when

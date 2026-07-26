@@ -40,6 +40,15 @@ detail tests reject absolute paths and payload text.
   the published closed output schema. `WORDTOOLKIT_REAL_WORD_NUMBERING_REPAIR_TEST=1`
   additionally opens the repaired package read-only in licensed Word, compares
   `ListValue`/`ListString` with the engine and proves that the oracle did not resave it.
+- Numbering-rebuild parity: Engine and native tests drive typed candidate inspection,
+  plan and apply through direct .NET, strict JSON CLI and the published MCP schemas. They
+  cover creation of missing numbering infrastructure, append-only definitions, Strict and
+  Transitional packages, independent stories, style-inherited sources, all supported
+  deterministic formats, 205 targets across bounded inspection pages, stale evidence,
+  revisions/MCE/tracked properties, signatures, exact inverse and zero Word dispatch.
+  `WORDTOOLKIT_REAL_WORD_NUMBERING_REBUILD_TEST=1` additionally opens the reconstructed
+  package read-only in licensed Word, compares exact `ListString` labels with the engine,
+  validates with Microsoft Open XML SDK, exports PDF and proves the source hash unchanged.
 - AI capability contract: native tests verify the embedded schema/MCP/compatibility
   header, deterministic 64-hex digests, sorted paging, exact CLI/MCP data parity,
   JSON round-trip, fail-closed malformed/unknown input, sub-10,000-character default
