@@ -43,6 +43,9 @@
   active cache have zero differences across all 197 files. Installed catalog SHA-256 is
   `d62313d487baf4717f54cd334956fe82bbc6cc812e840300ddf6514a1b936afb`, and the exact
   active-cache executable passes signed AppContainer OCR with the release typed-result hash.
+- Hosted CI run `30225512026` passed all six jobs for commit `dc0ce44`. Windows artifact
+  `8638467900` contains the exact local 37,613,426-byte ZIP at the same SHA-256; after
+  removing its single `wordtoolkit/` wrapper, all 197 paths, lengths and file hashes match.
 
 ## 0.58.0 — 2026-07-26
 

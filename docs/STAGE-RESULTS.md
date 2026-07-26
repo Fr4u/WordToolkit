@@ -51,6 +51,12 @@
   typed OCR result hash. User-level environment variables point to the signed public
   manifest/trust store and explicit Tesseract/model roots; the private key is stored outside
   the plugin tree under a non-inheriting ACL and is never returned by MCP.
+- Hosted CI run [`30225512026`](https://github.com/Fr4u/WordToolkit/actions/runs/30225512026)
+  passed all six jobs for commit `dc0ce4420a3f22e013955651949f5b255bbaee9f`. Downloaded
+  Windows artifact `8638467900` contains the exact local 37,613,426-byte ZIP at SHA-256
+  `c6817fbadfbebd701e88aac078f0e4894e496d142c81e3f7b0782f4d47f426a5`. After normalizing
+  its single `wordtoolkit/` wrapper, the hosted 197-file / 90,166,894-byte tree has zero
+  path, length or SHA-256 differences from both local builds and the enabled installation.
 
 # WordToolkit 0.58.0 AppContainer OCR permission sandbox - 2026-07-26
 
