@@ -44,7 +44,11 @@
   Installed discovery reports 146 actions, 15 MCP tools and 57 complete explicit metadata
   contracts. The previous source remains intact at
   `C:\Users\Admin\plugins\wordtoolkit.backup-0.51.0-codex.20260726154529`.
-- Hosted CI is pending for this checkpoint. Cross-action immutable storage, complete
+- Hosted run <https://github.com/Fr4u/WordToolkit/actions/runs/30207437839> passed all six
+  jobs for implementation commit `d1973292aba34491d13af377dd4ca2b22b0d0ddd`:
+  Linux Engine, qualified LibreOffice/UNO rendering, Python compatibility plus regenerated
+  golden artifacts, Windows native tests and final plugin ZIP, standalone Open XML
+  validator and the remote-service container. Cross-action immutable storage, complete
   temporary allocation accounting and a representative multi-size/multi-domain corpus
   remain unfinished.
 

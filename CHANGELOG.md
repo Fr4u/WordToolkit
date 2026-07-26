@@ -28,6 +28,10 @@
   fixture and from 928.300 ms to 706.852 ms (-23.86%) for a 52,292-byte mixed-domain
   torture fixture. Accounted budget fell 22.83% and 35.21%; the candidate reported 48
   and 272 cache hits. These are two local fixtures, not a universal performance claim.
+- Hosted CI run 30207437839 passed all six jobs for implementation commit `d197329`,
+  including Linux Engine, qualified LibreOffice/UNO rendering, Python compatibility and
+  regenerated golden artifacts, Windows native tests and final ZIP, the standalone Open
+  XML validator and the remote-service container.
 
 ## 0.50.0 — 2026-07-26
 
