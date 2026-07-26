@@ -42,6 +42,14 @@
   discovery reports 147 actions, 15 MCP tools and 58 complete explicit metadata
   contracts. The previous source is preserved at
   `C:\Users\Admin\plugins\wordtoolkit.backup-0.52.0-codex.20260726180000`.
+- Hosted CI run
+  [`30210608401`](https://github.com/Fr4u/WordToolkit/actions/runs/30210608401) passed
+  all six jobs on commit `dc29e155a5ef326db464a582a905898d1dfdaa14`. Its clean
+  Windows package is byte-identical to the qualified local archive: 37,521,314 bytes,
+  SHA-256 `9647b0fd5eb49333e00eb85e271601940e850dc373566e3b67216171d5956243`.
+  The preceding run exposed a test-only tiered-JIT/OSR allocation-window defect; the
+  corrected regression compiles the measured struct-enumerator path before accounting
+  and passed 21 independent local processes plus the hosted Windows package lane.
 
 # WordToolkit 0.52.0 operation-scoped lossless XML parse reuse - 2026-07-26
 

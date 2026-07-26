@@ -37,6 +37,12 @@
 - Capability discovery now exposes 147 native actions and 58 complete explicit metadata
   contracts. Research, architecture, skill guidance and known limits document the hard
   separation between saved evidence and effectful data-source/merge execution.
+- Hosted CI run `30210608401` passed all six jobs on commit `dc29e15`. Its clean Windows
+  artifact is byte-identical to the locally qualified 37,521,314-byte ZIP at SHA-256
+  `9647b0fd5eb49333e00eb85e271601940e850dc373566e3b67216171d5956243`. The allocation-
+  free adjacency regression now compiles its measured path before opening the CLR
+  allocation window, excluding one-time tiered-JIT/OSR bookkeeping without adding a
+  tolerance or weakening the zero-allocation assertion.
 
 ## 0.52.0 — 2026-07-26
 
