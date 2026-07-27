@@ -30,6 +30,16 @@
   `faf3de578789a015755ba5882079055aa7a8b21f89cf5a3db4b9a1065ce07179`, and
   37,847,868-byte ZIPs at SHA-256
   `1ae44198b2bdf9324bf71576e821f1bfd5751f3abefd12aaead4136b6424756d`.
+- Installed and enabled `0.60.0+codex.20260727022849`. Candidate, persistent marketplace
+  source and active cache have identical 199-path length/hash maps. Full JSON-RPC execution
+  from the exact cache accepts the WindowsBase-signed package, rejects its tampered copy
+  and returns no source path, content, raw XML, certificate identity or network claim.
+- Hosted CI run `30229211071` passed all six jobs for fix commit `d956065`. Downloaded
+  Windows artifact `8639550433` contains the exact local 37,847,868-byte ZIP at SHA-256
+  `1ae44198b2bdf9324bf71576e821f1bfd5751f3abefd12aaead4136b6424756d`;
+  after removing its single `wordtoolkit/` wrapper, all 199 paths, lengths and hashes match.
+  The preceding run correctly exposed a stale generated-catalog count; the exporter now
+  derives the native action count from the local schema instead of hard-coding it.
 
 ## 0.59.0 — 2026-07-26
 

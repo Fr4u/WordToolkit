@@ -42,6 +42,23 @@
   `a7647bd820ee0bb2e5096b326d9906328db8bc421fd9e147bde1d94ff3163be5`
   and native-action-contract SHA-256
   `3c2e03025b2599d92a3a38d7a2ce5912f13a13403248b8a19c4d850a1d8e5c62`.
+- Installed and enabled `0.60.0+codex.20260727022849`. Candidate, persistent marketplace
+  source and active cache each contain 199 files / 90,801,955 bytes with zero path, length
+  or hash differences; the prior 0.59 source is preserved separately. Full JSON-RPC
+  execution from the exact active-cache executable returns `valid` for the WindowsBase
+  package and `invalid` for its tampered copy while keeping chain trust, revocation,
+  network, content/XML/certificate-identity/path disclosure false.
+- The first hosted run `30228393288` correctly failed generated-catalog drift: the Python
+  exporter still emitted a hard-coded 148-action count and omitted the new signature
+  paragraph. Commit `d956065` now derives the count from `native_runtime.actions` and owns
+  the paragraph in the generator; local regeneration is byte-clean.
+- Hosted CI run [`30229211071`](https://github.com/Fr4u/WordToolkit/actions/runs/30229211071)
+  passed all six jobs for commit `d956065a54a9ca17d7cfe270883d9d3ba9d14d71`.
+  Downloaded Windows artifact `8639550433` contains the exact local 37,847,868-byte ZIP at
+  SHA-256 `1ae44198b2bdf9324bf71576e821f1bfd5751f3abefd12aaead4136b6424756d`.
+  After normalizing its single `wordtoolkit/` wrapper, its 199-file / 90,801,955-byte tree
+  has zero path, length or SHA-256 differences from both local builds and the enabled
+  installation.
 
 # WordToolkit 0.59.0 signed OCR provider identity - 2026-07-27
 
