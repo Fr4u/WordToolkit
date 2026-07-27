@@ -118,6 +118,10 @@ async def main() -> None:
     (schema_dir / "draft-operations.v1.json").write_text(
         json.dumps(draft_contract, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
+    native_schema = json.loads(
+        (schema_dir / "mcp-tools-local.v1.json").read_text(encoding="utf-8")
+    )
+    native_action_count = len(native_schema["native_runtime"]["actions"])
     lines = [
         "# MCP tool catalog",
         "",
@@ -125,8 +129,8 @@ async def main() -> None:
         "",
     ]
     lines.extend(
-        """
-The native catalog currently contains 148 actions behind 15 core/gateway tools. Rare
+        f"""
+The native catalog currently contains {native_action_count} actions behind 15 core/gateway tools. Rare
 saved-package inspectors remain lazy so their schemas do not enter model context until
 needed. `inspect_wordtoolkit_extensions` exposes the bounded, content-free registry
 catalog, including process-memory limits for hard process-boundary capabilities, without
@@ -137,6 +141,11 @@ no response field, while correlation IDs and record hashes require separate opt-
 `inspect_ooxml_encryption` detects bounded Standard, Agile, Extensible or malformed
 encrypted OOXML compound envelopes. It accepts no password, decrypts nothing, opens no
 Word process and returns no path, stream name or document content.
+`inspect_ooxml_signatures` verifies bounded OPC signature topology, supported XMLDSIG
+signature values, package-part digests and Relationship Transform subsets. It performs no
+network access, chain building or revocation lookup and returns no content, raw XML,
+certificate bytes, signer identity or local path. Certificate hashes and OPC source URIs
+are independent opt-ins; an integrity-valid result is not a signer-trust decision.
 `inspect_ooxml_numbering` now exposes a versioned `view=sequences` in addition to its
 definition inventory and single-level resolver. It executes source-ordered paragraph
 counters per story and `numId`, separates exact counter and label evidence, and pages
