@@ -2,7 +2,7 @@
 
 The current remote Python service source of truth is `schemas/mcp-tools.v2.json`; `schemas/mcp-tools.v1.json` remains the immutable historical contract. The provider-neutral heterogeneous mutation contract, including executable input/success/error examples, is generated as `schemas/draft-operations.v1.json`. The native Windows plugin has a separate, deliberately hand-reviewed source in `schemas/mcp-tools-local.v1.json`; `WordToolkit.Native.Tests` validates that catalog and this exporter never overwrites it. Every exported remote tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.
 
-The native catalog currently contains 148 actions behind 15 core/gateway tools. Rare
+The native catalog currently contains 149 actions behind 15 core/gateway tools. Rare
 saved-package inspectors remain lazy so their schemas do not enter model context until
 needed. `inspect_wordtoolkit_extensions` exposes the bounded, content-free registry
 catalog, including process-memory limits for hard process-boundary capabilities, without
@@ -13,6 +13,11 @@ no response field, while correlation IDs and record hashes require separate opt-
 `inspect_ooxml_encryption` detects bounded Standard, Agile, Extensible or malformed
 encrypted OOXML compound envelopes. It accepts no password, decrypts nothing, opens no
 Word process and returns no path, stream name or document content.
+`inspect_ooxml_signatures` verifies bounded OPC signature topology, supported XMLDSIG
+signature values, package-part digests and Relationship Transform subsets. It performs no
+network access, chain building or revocation lookup and returns no content, raw XML,
+certificate bytes, signer identity or local path. Certificate hashes and OPC source URIs
+are independent opt-ins; an integrity-valid result is not a signer-trust decision.
 `inspect_ooxml_numbering` now exposes a versioned `view=sequences` in addition to its
 definition inventory and single-level resolver. It executes source-ordered paragraph
 counters per story and `numId`, separates exact counter and label evidence, and pages

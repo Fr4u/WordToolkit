@@ -12,6 +12,7 @@
       "connect_live_word_document",
       "inspect_ooxml_package",
       "inspect_ooxml_encryption",
+      "inspect_ooxml_signatures",
       "transform_ooxml_package",
       "convert_ooxml_flat_opc",
       "inspect_wordtoolkit_extensions",
@@ -4186,6 +4187,269 @@
                     "type": "number",
                     "minimum": 0
                   }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "inspect_ooxml_signatures",
+      "title": "Verify Word OPC digital signatures",
+      "description": "Verify bounded Word OPC signature topology, XMLDSIG signature values, signed package-part digests, and package relationship transforms without opening Word or using the network. Embedded certificates are treated only as verification keys: certificate-chain trust and revocation remain explicitly unverified. The action returns no document content, raw XML, certificate bytes, signer identity, or local path; certificate hashes and package part URIs are independent opt-ins.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_local_word_package",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "applicable": false,
+        "reason": "read_only"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "local_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32767,
+            "description": "Absolute or workspace-relative path to a local DOCX, DOCM, DOTX, or DOTM package."
+          },
+          "view": {
+            "type": "string",
+            "enum": ["summary", "signatures", "references", "issues"],
+            "default": "summary"
+          },
+          "signature_id": {
+            "type": "string",
+            "pattern": "^wdsig_[a-z0-9_]{2,90}$",
+            "maxLength": 96,
+            "description": "Optional stable signature identifier returned for this exact package fingerprint."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647,
+            "default": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          },
+          "include_source": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include bounded signature-part or signed-part OPC URIs; never includes a filesystem path."
+          },
+          "include_certificate_hash": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include the embedded verification certificate SHA-256 and public-key algorithm; never includes certificate bytes, subject, issuer, serial number, email, or organization."
+          }
+        },
+        "required": ["local_path"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["ok", "data"],
+        "properties": {
+          "ok": {"const": true},
+          "data": {
+            "type": "object",
+            "required": [
+              "operation_contract",
+              "file_name",
+              "package_fingerprint",
+              "view",
+              "signature_origin_declared",
+              "signature_origin_count",
+              "signature_count",
+              "valid_signature_count",
+              "invalid_signature_count",
+              "unsupported_signature_count",
+              "indeterminate_signature_count",
+              "all_discovered_signatures_valid",
+              "cryptographic_integrity_validation_performed",
+              "certificate_chain_trust_verified",
+              "revocation_checked",
+              "signatures",
+              "references",
+              "issues",
+              "paging",
+              "security",
+              "runtime",
+              "python_used",
+              "performance"
+            ],
+            "properties": {
+              "operation_contract": {"const": "wordtoolkit.inspect_ooxml_signatures/1.0"},
+              "file_name": {"type": "string", "minLength": 1, "maxLength": 512},
+              "package_fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+              "view": {"enum": ["summary", "signatures", "references", "issues"]},
+              "signature_origin_declared": {"type": "boolean"},
+              "signature_origin_count": {"type": "integer", "minimum": 0, "maximum": 64},
+              "signature_count": {"type": "integer", "minimum": 0, "maximum": 64},
+              "valid_signature_count": {"type": "integer", "minimum": 0, "maximum": 64},
+              "invalid_signature_count": {"type": "integer", "minimum": 0, "maximum": 64},
+              "unsupported_signature_count": {"type": "integer", "minimum": 0, "maximum": 64},
+              "indeterminate_signature_count": {"type": "integer", "minimum": 0, "maximum": 64},
+              "all_discovered_signatures_valid": {"type": "boolean"},
+              "cryptographic_integrity_validation_performed": {"type": "boolean"},
+              "certificate_chain_trust_verified": {"const": false},
+              "revocation_checked": {"const": false},
+              "signatures": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "signature_id",
+                    "status",
+                    "topology_valid",
+                    "signature_value_verified",
+                    "manifest_references_verified",
+                    "manifest_reference_count",
+                    "signed_part_count",
+                    "signed_relationship_part_count",
+                    "selected_relationship_count",
+                    "signature_algorithm",
+                    "canonicalization_algorithm",
+                    "weak_algorithm",
+                    "certificate_present",
+                    "certificate_time_valid_at_inspection",
+                    "issue_codes"
+                  ],
+                  "properties": {
+                    "signature_id": {"type": "string", "pattern": "^wdsig_[a-f0-9]{24}$"},
+                    "status": {"enum": ["valid", "invalid", "unsupported", "indeterminate"]},
+                    "topology_valid": {"type": "boolean"},
+                    "signature_value_verified": {"type": "boolean"},
+                    "manifest_references_verified": {"type": "boolean"},
+                    "manifest_reference_count": {"type": "integer", "minimum": 0, "maximum": 50000},
+                    "signed_part_count": {"type": "integer", "minimum": 0, "maximum": 50000},
+                    "signed_relationship_part_count": {"type": "integer", "minimum": 0, "maximum": 50000},
+                    "selected_relationship_count": {"type": "integer", "minimum": 0, "maximum": 1000000},
+                    "signature_algorithm": {"type": "string", "maxLength": 256},
+                    "canonicalization_algorithm": {"type": "string", "maxLength": 256},
+                    "weak_algorithm": {"type": "boolean"},
+                    "certificate_present": {"type": "boolean"},
+                    "certificate_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+                    "public_key_algorithm": {"type": ["string", "null"], "maxLength": 128},
+                    "certificate_time_valid_at_inspection": {"type": ["boolean", "null"]},
+                    "signature_part_uri": {"type": ["string", "null"], "maxLength": 512},
+                    "issue_codes": {
+                      "type": "array",
+                      "maxItems": 100,
+                      "uniqueItems": true,
+                      "items": {"type": "string", "pattern": "^[a-z0-9_]+$", "maxLength": 96}
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "references": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "signature_id",
+                    "reference_index",
+                    "kind",
+                    "target_id",
+                    "digest_algorithm",
+                    "transform_algorithms",
+                    "digest_verified",
+                    "weak_algorithm",
+                    "selected_relationship_count"
+                  ],
+                  "properties": {
+                    "signature_id": {"type": "string", "pattern": "^wdsig_[a-f0-9]{24}$"},
+                    "reference_index": {"type": "integer", "minimum": 0, "maximum": 49999},
+                    "kind": {"enum": ["part", "relationships", "internal_object"]},
+                    "target_id": {"type": "string", "pattern": "^wdsref_[a-f0-9]{24}$"},
+                    "part_uri": {"type": ["string", "null"], "maxLength": 512},
+                    "digest_algorithm": {"type": "string", "maxLength": 256},
+                    "transform_algorithms": {
+                      "type": "array",
+                      "maxItems": 8,
+                      "items": {"type": "string", "maxLength": 256}
+                    },
+                    "digest_verified": {"type": "boolean"},
+                    "weak_algorithm": {"type": "boolean"},
+                    "selected_relationship_count": {"type": "integer", "minimum": 0, "maximum": 1000000},
+                    "failure_code": {"type": ["string", "null"], "pattern": "^[a-z0-9_]+$", "maxLength": 96}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "issues": {
+                "type": "array",
+                "maxItems": 100,
+                "uniqueItems": true,
+                "items": {"type": "string", "pattern": "^[a-z0-9_]+$", "maxLength": 96}
+              },
+              "paging": {
+                "type": "object",
+                "required": ["offset", "limit", "returned", "total"],
+                "properties": {
+                  "offset": {"type": "integer", "minimum": 0},
+                  "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+                  "returned": {"type": "integer", "minimum": 0, "maximum": 100},
+                  "total": {"type": "integer", "minimum": 0, "maximum": 1000000},
+                  "next_offset": {"type": ["integer", "null"], "minimum": 0}
+                },
+                "additionalProperties": false
+              },
+              "security": {
+                "type": "object",
+                "required": [
+                  "returns_document_content",
+                  "returns_raw_xml",
+                  "returns_certificate_bytes",
+                  "returns_certificate_identity",
+                  "returns_paths",
+                  "opens_word",
+                  "uses_network",
+                  "certificate_chain_trust_verified",
+                  "revocation_checked",
+                  "external_references_resolved"
+                ],
+                "properties": {
+                  "returns_document_content": {"const": false},
+                  "returns_raw_xml": {"const": false},
+                  "returns_certificate_bytes": {"const": false},
+                  "returns_certificate_identity": {"const": false},
+                  "returns_paths": {"const": false},
+                  "opens_word": {"const": false},
+                  "uses_network": {"const": false},
+                  "certificate_chain_trust_verified": {"const": false},
+                  "revocation_checked": {"const": false},
+                  "external_references_resolved": {"const": false}
+                },
+                "additionalProperties": false
+              },
+              "runtime": {"const": "dotnet-native"},
+              "python_used": {"const": false},
+              "performance": {
+                "type": "object",
+                "required": ["total_ms"],
+                "properties": {
+                  "total_ms": {"type": "number", "minimum": 0}
                 },
                 "additionalProperties": false
               }

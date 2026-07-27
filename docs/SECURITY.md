@@ -101,6 +101,18 @@ response field. Names, declared targets, payload hashes and source locations req
 four independent opt-ins. This inventory is evidence for policy; it does not authorize
 extraction, execution, deletion, signature invalidation or mutation.
 
+Digital-signature integrity uses the separate local `inspect_ooxml_signatures` boundary.
+It validates bounded OPC signature topology, supported XMLDSIG signature values, signed
+part digests and OPC Relationship Transform subsets without opening Word or using the
+network. DTDs, external references, duplicate XML IDs, unsupported algorithms/transforms
+and malformed reference structures fail closed. It returns no document content, raw XML,
+certificate bytes, subject, issuer, serial number, email, organization or local path;
+certificate SHA-256/public-key algorithm and OPC source URIs require separate opt-ins.
+Embedded certificates are verification keys, not trusted identities. The action never
+builds a certificate chain, checks AIA/OCSP/CRL revocation, signs, removes or re-signs a
+package, and reports chain trust/revocation as false. An integrity-valid result must not be
+used as an authorship, organizational-trust or legal-signature decision.
+
 The local `inspect_ooxml_properties` path is a separate metadata boundary. It admits
 only exact core/extended/custom package relationships and content types, rejects DTDs
 and external XML resolution, validates custom identity and scalar lexical forms, and

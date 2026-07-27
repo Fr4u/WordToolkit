@@ -1,5 +1,48 @@
 # Stage results
 
+# WordToolkit 0.60.0 OPC digital-signature integrity - 2026-07-27
+
+- Added one cross-platform, read-only `wordtoolkit.inspect_ooxml_signatures/1.0`
+  operation shared by Engine, strict `inspect-signatures` CLI and lazy MCP. It verifies
+  signature-origin/signature/certificate topology, supported XMLDSIG `SignedInfo` values,
+  signed package-part digests and real OPC Relationship Transform subsets without opening
+  Word or using the network.
+- Security boundaries are explicit. Duplicate XML IDs, external or ambiguous references,
+  unsigned manifest objects, wrong OPC signature-part content types, malformed manifest
+  references, unsupported algorithms/transforms and resource-limit violations fail closed.
+  Valid UTF-8 and UTF-16 signature XML is accepted; SHA-1 is marked weak. Results contain no document content, raw
+  XML, certificate bytes, signer identity or local path; certificate hashes and OPC source
+  URIs are separate opt-ins. Chain trust and revocation are always reported false.
+- A real tracked DOCX was signed with WindowsBase using an ephemeral RSA-2048 certificate.
+  WindowsBase returned `Success`; WordToolkit independently verified the RSA-SHA256
+  signature value and all 11 manifest references. After one byte in signed
+  `word/document.xml` changed, WindowsBase returned `InvalidSignature`; WordToolkit
+  retained `signature_value_verified=true` but returned `invalid` because the manifest
+  digest mismatched. Content-free evidence is in
+  `docs/benchmarks/opc-signature-qualification-2026-07-27.json`.
+- Pinned SDK 8.0.423 passes 778 Engine, 12 LibreOffice and 570 Native tests. Python 3.13
+  passes 1,322 tests with 16 intentional skips. Ruff, all four `dotnet format` checks,
+  JSON parsing, `git diff --check` and the NuGet direct/transitive vulnerability audit are
+  clean.
+- Two independent self-contained builds contain identical 199-file / 90,801,955-byte
+  trees with zero path, length or SHA-256 differences. The expanded-manifest SHA-256 is
+  `faf3de578789a015755ba5882079055aa7a8b21f89cf5a3db4b9a1065ce07179`; both
+  37,847,868-byte ZIPs are byte-identical at SHA-256
+  `1ae44198b2bdf9324bf71576e821f1bfd5751f3abefd12aaead4136b6424756d`.
+  Executable/runtime/Engine/LibreOffice/OpenXmlSdk/System.Security.Cryptography.Xml
+  hashes are
+  `f49f27cf858f99e3a488e5006336835822eef348b125aefddcdf12948c120c78`,
+  `22f2958bd54a1889ba1d75334e034370c640fc4ccf363e98f65730409441c5be`,
+  `9b8cfec36d95e45c7be6cb1c74fd92cb00d1994368a00c6e0e648a04215c8bc3`,
+  `463d773fff2ed5d82e2c999b99fa62f89f06bd9a7df7ee849bbbae4ce983dec0`,
+  `d10a88e5205e6a5a6683287406211582691ebe213bf5e2c3a1f9a57ebb6c6c52`
+  and `b022f4a6ab061d80b94df072badfbabf00489181229ae5b74140aeb07d89513b`.
+- Exact candidate execution reports version `0.60.0+codex.20260727022849`, 149 actions,
+  15 MCP tools, 60 complete explicit metadata contracts, catalog schema SHA-256
+  `a7647bd820ee0bb2e5096b326d9906328db8bc421fd9e147bde1d94ff3163be5`
+  and native-action-contract SHA-256
+  `3c2e03025b2599d92a3a38d7a2ce5912f13a13403248b8a19c4d850a1d8e5c62`.
+
 # WordToolkit 0.59.0 signed OCR provider identity - 2026-07-27
 
 - Local OCR now requires a strict ECDSA P-256 manifest verified against a host-owned

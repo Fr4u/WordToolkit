@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+## 0.60.0 — 2026-07-27
+
+- Added the cross-platform `wordtoolkit.inspect_ooxml_signatures/1.0` Engine operation,
+  strict `inspect-signatures` CLI and lazy MCP action. They verify OPC signature topology,
+  supported XMLDSIG values, signed package-part digests and OPC Relationship Transform
+  subsets without opening Word or using the network.
+- Kept integrity, identity and trust separate. Responses contain no document content, raw
+  XML, certificate bytes, signer identity or local path; certificate hashes and OPC source
+  URIs are independent opt-ins. Certificate-chain trust and revocation remain explicitly
+  false, and signing/removal/re-signing are not implemented.
+- Added fail-closed defenses for duplicate XML IDs, external or ambiguous `SignedInfo`
+  references, unsigned manifest objects, wrong OPC signature-part content types,
+  malformed manifest references, unsupported algorithms/transforms, weak SHA-1 reporting,
+  bounded signature/certificate/reference/XML inputs and valid UTF-16 signature XML.
+- Independently signed a real DOCX through WindowsBase. Both WindowsBase and WordToolkit
+  accepted the untouched RSA-SHA256 package; both rejected a one-byte mutation in signed
+  `word/document.xml`. WordToolkit preserved the useful distinction between a valid
+  signature-object value and a failed signed-part digest.
+- Expanded the native catalog to 149 actions and 60 complete explicit metadata contracts,
+  with closed Draft 2020-12 schemas and a token-lean paged response.
+- Pinned SDK 8.0.423 gates pass 778 Engine, 12 LibreOffice, 570 Native and 1,322
+  Python tests with 16 intentional skips. Ruff, `dotnet format`, JSON parsing and the
+  NuGet direct/transitive vulnerability audit are clean.
+- Two independently named builds are byte-identical: 199 files / 90,801,955 expanded
+  bytes, expanded-manifest SHA-256
+  `faf3de578789a015755ba5882079055aa7a8b21f89cf5a3db4b9a1065ce07179`, and
+  37,847,868-byte ZIPs at SHA-256
+  `1ae44198b2bdf9324bf71576e821f1bfd5751f3abefd12aaead4136b6424756d`.
+
 ## 0.59.0 — 2026-07-26
 
 - Replaced path-only OCR trust with a strict ECDSA P-256 signed provider manifest and a

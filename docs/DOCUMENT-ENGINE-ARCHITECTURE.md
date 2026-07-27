@@ -1429,6 +1429,17 @@ password and classifies only the bounded four-byte `EncryptionInfo` version pref
 strict `inspect-encryption` CLI and lazy MCP adapter do not add parsing or secret handling.
 Full DataSpaces semantics and every decrypt/encrypt path remain outside this boundary.
 
+`wordtoolkit.inspect_ooxml_signatures/1.0` is the corresponding OPC integrity boundary.
+The Engine resolves signature-origin/signature/certificate relationships, validates a
+unique internal XMLDSIG reference graph, checks supported `SignedInfo` values with an
+embedded certificate as a verification key, then independently verifies every manifest
+part digest and OPC Relationship Transform selection. Duplicate XML IDs, external
+references, unsupported transforms and malformed reference structures fail closed. The
+strict `inspect-signatures` CLI and lazy MCP adapter share the same operation and paging.
+Neither layer opens Word, fetches a resource, returns identity/certificate bytes/content,
+builds a certificate chain nor checks revocation. Integrity, identity and trust remain
+separate states; signing, removal and re-signing remain outside this boundary.
+
 The second operation is `wordtoolkit.transform_ooxml_package/1.0`. It owns three bounded
 high-level intents: replace the first source-linked text occurrence, accept every
 supported tracked change and reject every supported tracked change. It never overwrites
@@ -1447,7 +1458,7 @@ Strict `w:document` root with exactly one direct `w:body`. A structurally valid 
 archive with a look-alike relationship URI, empty root or generic XML main part is not
 reported as a valid Word package.
 
-These are proved migration seams, not a claim that all 148 actions already have public SDK
+These are proved migration seams, not a claim that all 149 actions already have public SDK
 operations. The third seam, `QueryWordPackageOperation`, now owns saved-package and
 projected/indexed semantic query result construction for SDK, JSON CLI and MCP. A generic
 dispatcher and the remaining operation migrations are still open work.

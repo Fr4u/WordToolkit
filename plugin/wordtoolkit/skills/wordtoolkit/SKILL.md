@@ -65,6 +65,16 @@ Use lazy `inspect_ooxml_encryption` before treating a password-protected OOXML f
 corrupt ZIP. It parses bounded compound-file metadata without opening Word, classifies
 standard/agile/extensible headers, accepts no password and returns no path, stream name
 or decrypted content. Detection is not authorization to request a secret or decrypt.
+Use lazy `inspect_ooxml_signatures` before relying on, rejecting or planning a mutation
+of a package that declares digital signatures. Start with `view=summary`; page
+`signatures`, `references` or `issues` only when the next decision consumes them. Keep
+`include_source=false` and `include_certificate_hash=false` by default. The operation
+verifies supported XMLDSIG values plus signed part/relationship digests without Word or
+network access, but embedded certificates are verification keys only. A `valid` integrity
+status does not establish signer identity, certificate-chain trust, revocation status or
+legal validity; those two trust checks remain explicitly false. Never infer trust from a
+certificate hash or time-validity flag, and never treat an unsupported/indeterminate
+result as valid. The action does not remove, create or re-sign signatures.
 Use lazy `inspect_ooxml_ocr_candidates` before OCR. It discovers only embedded raster
 images referenced by the typed figure graph, deduplicates repeated image parts and
 verifies declared media types against payload signatures. Keep image hashes and source
@@ -593,7 +603,8 @@ opt-ins. Raw XML, field-code text, binary values, ActiveX licenses and ActiveX p
 values have no response field. The inspector is metadata-only: it never opens Word,
 decodes a binary, opens an embedded package, executes a macro, follows an external target
 or validates a cryptographic signature. Signature-part presence means only that the OPC
-topology declares signature material. Do not use this read graph as authorization to
+topology declares signature material; use the separate `inspect_ooxml_signatures` action
+for cryptographic integrity evidence. Do not use either read graph as authorization to
 extract, execute, delete, rewrite, invalidate or re-sign anything. Treat unresolved,
 duplicate and contradictory topology as damage evidence and stop rather than guessing.
 Use lazy `inspect_ooxml_tables` instead of reading `w:tbl`, `tblGrid`, `trPr` or `tcPr`
