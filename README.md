@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-> **Status:** development line `0.60`; public repository work is tracked in [draft PR #3](https://github.com/Fr4u/WordToolkit/pull/3). The project is not presented as a complete Word-compatibility layer or as pixel-equivalent across Word versions.
+> **Status:** release [`v0.60.1`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.60.1) is published from `main`; continuing hardening work is tracked in GitHub issues. The project is not presented as a complete Word-compatibility layer or as pixel-equivalent across Word versions.
 
 ## Repository navigation
 
@@ -142,7 +142,7 @@ uses that child as a hard process boundary rather than a startup shim:
 ./runtime/win-x64/wordtoolkit-native.exe
 ```
 
-The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.57 local plugin, does not participate in its startup, and is not required at runtime.
+The repository still retains the older Python/OOXML service as historical source and a possible remote-service reference. It is not copied into the 0.60.1 local plugin, does not participate in its startup, and is not required at runtime.
 
 ## Why the runtime was replaced
 
@@ -1369,20 +1369,19 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is the locally qualified24 0.60.1 candidate (`0.60.1+codex.20260821204944`). Read-only installation inspection passed: artifact/source/cache parity is 199 files and 91,106,085 expanded bytes; cache path `C:\Users\Admin\.codex\plugins\cache\personal\wordtoolkit\0.60.1+codex.20260821204944`, and runtime guidance 149/149. Q24 inherits q17 live-full evidence (59/59, 15/149, combined 5/5, Word 0); its delta is limited to non-following Windows reparse-point detection. The latest immutable public release remains
-0.34.0 until the strengthened CI, review and licensed Word release gate pass.
+Release `v0.60.1` contains the qualified24 runtime (`0.60.1+codex.20260821204944`). Artifact/source/cache parity passed for 199 files and 91,106,085 expanded bytes, and runtime guidance covers 149/149 actions. Q24 inherits q17 live-full evidence (59/59 exercised actions, 15 public MCP tools, 149 catalog actions, combined real-Word tests 5/5, final Word process count 0); its delta is limited to non-following Windows reparse-point detection.
 
 Version:
 
 ```text
-0.34.0+codex.20260722105842
+0.60.1+codex.20260821204944
 ```
 
 Windows x64 ZIP:
 
-[WordToolkit native plugin](https://github.com/Fr4u/WordToolkit/releases/download/v0.34.0/WordToolkit-0.34.0%2Bcodex.20260722105842-native-win-x64.zip)
+[WordToolkit 0.60.1 native plugin for Windows x64](https://github.com/Fr4u/WordToolkit/releases/download/v0.60.1/qualified24-a.zip)
 
-SHA-256: `f4625c2c15827e78c9b5c54eaa50adf6aeeb64644235cafc46aa8374812b3944`
+SHA-256: `6c2773874f1e2b6bccd6e4457de783a99d3f87d92c57c9b1a7212826d005c25a`
 
 Live demonstration document:
 
