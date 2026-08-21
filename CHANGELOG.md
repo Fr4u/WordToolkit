@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- Added the `0.60.3` supply-chain and test-quality baseline. Every third-party GitHub
+  Action is pinned to a full commit SHA with its reviewed release tag recorded inline;
+  Dependabot owns future GitHub Actions, Python and NuGet updates. Pull requests receive
+  high-severity dependency review and C#/Python CodeQL analysis, while a scheduled audit
+  checks the complete locked Python environment and all transitive native/validator NuGet
+  dependencies. The legacy Python suite now records branch coverage, rejects total
+  coverage below 73%, enforces separate measured floors for security, document parsing,
+  sessions/publication and rendering, and uploads its Cobertura evidence. A manual,
+  deliberately non-blocking mutation pilot targets `security.py`; it is groundwork, not
+  a fabricated mutation-score gate. The workflow toolchain itself pins uv 0.11.23.
+  Local validation passed Python 1346/1346 with 16 explicit environment skips and 73.42%
+  branch coverage, Engine 783/783, Native 620/620 and LibreOffice 12/12. Two independent
+  199-file, 91,113,765-byte package builds produced identical 37,875,429-byte ZIPs with
+  SHA-256 `E052E0A7...`; no new licensed-Word compatibility claim is made. The first
+  locked audit exposed advisories in `cryptography 49.0.0`, `pypdf 6.14.2` and
+  `starlette 0.52.1`; the safe floors are now 50.0.0, 6.15.0 and 1.3.1 respectively,
+  and the audit must be green before this candidate can merge. Renderer coverage is
+  platform-qualified: 69% on Linux CI and 83% on Windows, where the executable-discovery
+  branches are reachable.
+
 - Qualified local `0.60.2+codex.20260822001033` P0 hardening candidate: OCR trust publication now
   resolves the actual output filesystem and creates/renames immutable outputs relative
   to one verified Windows directory handle, rejecting ancestor swaps, reparse-point

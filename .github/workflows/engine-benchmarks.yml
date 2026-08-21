@@ -21,8 +21,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: "8.0.423"
       - name: Build benchmark harness
@@ -51,7 +53,7 @@ jobs:
           dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- mce --target-nodes 999000 --output artifacts/benchmarks/mce-999k.json
           dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- patch --payload-mib 128 --parts 128 --output artifacts/benchmarks/patch-128mib.json
           dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- patch --payload-mib 200 --parts 200 --output artifacts/benchmarks/patch-200mib.json
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wordtoolkit-engine-benchmarks-${{ github.sha }}
           path: artifacts/benchmarks/*.json

@@ -1,0 +1,56 @@
+name: dependency-audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "53 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python dependency audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: false
+          version: "0.11.23"
+          python-version: "3.12"
+      - run: uv sync --extra audit --locked
+      - name: Export and audit the exact locked dependency set
+        run: |
+          uv export --quiet --locked --no-dev --all-extras --no-emit-project \
+            --format requirements.txt \
+            --output-file "$RUNNER_TEMP/wordtoolkit-audit-requirements.txt"
+          uv run pip-audit --strict \
+            --requirement "$RUNNER_TEMP/wordtoolkit-audit-requirements.txt"
+
+  nuget:
+    name: NuGet dependency audit
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: "8.0.423"
+      - name: Audit all native transitive dependencies
+        shell: powershell
+        run: >-
+          dotnet restore native/WordToolkit.Native.Tests/WordToolkit.Native.Tests.csproj
+          -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=low
+          '-warnaserror:NU1901;NU1902;NU1903;NU1904'
+      - name: Audit validator transitive dependencies
+        shell: powershell
+        run: >-
+          dotnet restore tools/OpenXmlValidator/OpenXmlValidator.csproj
+          -p:NuGetAudit=true -p:NuGetAuditMode=all -p:NuGetAuditLevel=low
+          '-warnaserror:NU1901;NU1902;NU1903;NU1904'

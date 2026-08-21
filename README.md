@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-> **Status:** `main` contains the `0.60.2` P0 hardening line; [`v0.60.1`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.60.1) remains the latest published release. The project is not presented as a complete Word-compatibility layer or as pixel-equivalent across Word versions.
+> **Status:** `main` contains the `0.60.3` CI and dependency-security hardening line; [`v0.60.1`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.60.1) remains the latest published release. The project is not presented as a complete Word-compatibility layer or as pixel-equivalent across Word versions.
 
 ## Repository navigation
 
