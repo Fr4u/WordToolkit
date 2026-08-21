@@ -69,6 +69,16 @@ $nativeTools = @(
     "insert_live_word_equation",
     "insert_live_word_equations_batch",
     "preflight_live_word_equations",
+    "inspect_live_word_equations",
+    "update_live_word_equation",
+    "insert_live_word_caption",
+    "insert_live_word_table_of_figures",
+    "insert_live_word_table_of_contents",
+    "mark_live_word_authority_citation",
+    "insert_live_word_table_of_authorities",
+    "mark_live_word_index_entry",
+    "insert_live_word_index",
+    "update_live_word_reference_tables",
     "apply_live_word_operations",
     "validate_live_word_document",
     "export_live_word_pdf",
@@ -342,6 +352,8 @@ $compactPreflightCharacters = 0
 $safetyGuardPassCount = 0
 $actualWordQuitSkipped = $true
 $actualWordQuitSkipReason = ""
+$ownedWordQuitCompleted = $false
+$applicationOwnedByRuntime = $false
 $report = [ordered]@{
     runtime = $runtime
     transport = "real MCP STDIO"
@@ -420,7 +432,6 @@ try {
     $listedBefore = Invoke-TimedTool `
         -Name "list_live_word_documents" `
         -Arguments @{}
-    $wordWasRunning = [bool]$listedBefore.word_running
     $preexistingDocuments = @($listedBefore.documents)
     $unrelatedDirtyDocuments = @(
         $preexistingDocuments |
@@ -434,6 +445,7 @@ try {
     Assert-True `
         -Condition ($started.word_running -and $started.visible) `
         -Message "Word did not report a visible running state"
+    $applicationOwnedByRuntime = [bool]$started.application_owned_by_runtime
 
     $stage = "verify the quit confirmation safety gate"
     $quitGate = Invoke-TimedToolExpectedError `
@@ -1484,6 +1496,157 @@ try {
         ) `
         -Message "Native equation batch lost MathML, OMML or LaTeX equation styles"
 
+    $stage = "inspect and update a native equation with a fresh token"
+    $equationsBeforeUpdate = Invoke-TimedTool -Name "inspect_live_word_equations" -Arguments @{
+        live_document_id = $documentId
+        offset = 0
+        limit = 50
+        include_text_preview = $false
+    }
+    $equationCandidate = @($equationsBeforeUpdate.equations) | Select-Object -First 1
+    Assert-True ($null -ne $equationCandidate -and $equationCandidate.equation_token) `
+        "Equation inspection did not return a fresh equation token"
+    $equationUpdate = Invoke-TimedTool -Name "update_live_word_equation" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        equation_index = [int]$equationCandidate.equation_index
+        equation_token = $equationCandidate.equation_token
+        value = "\frac{\mathrm{d}y}{\mathrm{d}x}=4x^2"
+        input_format = "latex"
+        display = $true
+        verify_readback = $true
+    }
+    Assert-True ($equationUpdate.native_verified -and [long]$equationUpdate.live_version -eq $version + 1) `
+        "Native equation update was not verified"
+    $version = [long]$equationUpdate.live_version
+
+    $stage = "insert caption and generated reference tables"
+    $captionSelection = Invoke-TimedTool -Name "get_live_word_selection" -Arguments @{ live_document_id = $documentId }
+    $caption = Invoke-TimedTool -Name "insert_live_word_caption" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        selection_token = $captionSelection.selection.selection_token
+        title = "Acceptance figure"
+        caption_kind = "figure"
+    }
+    Assert-True ($caption.native_verified -and [long]$caption.live_version -eq $version + 1) "Caption insertion failed"
+    $version = [long]$caption.live_version
+    $tof = Invoke-TimedTool -Name "insert_live_word_table_of_figures" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        target = "document_end"
+        caption_kind = "figure"
+    }
+    Assert-True ($tof.native_verified -and $tof.table_of_figures_count_after -gt $tof.table_of_figures_count_before) "TOF insertion failed"
+    $version = [long]$tof.live_version
+
+    $headingOne = Invoke-TimedTool -Name "insert_live_word_text" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        text = "Acceptance Heading One"
+        target = "document_end"
+        as_new_paragraph = $true
+        style = "Heading 1"
+    }
+    $version = [long]$headingOne.live_version
+
+    $headingTwo = Invoke-TimedTool -Name "insert_live_word_text" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        text = "Acceptance Heading Two"
+        target = "document_end"
+        as_new_paragraph = $true
+        style = "Heading 1"
+    }
+    $version = [long]$headingTwo.live_version
+
+    $toc = Invoke-TimedTool -Name "insert_live_word_table_of_contents" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        target = "document_end"
+        upper_heading_level = 1
+        lower_heading_level = 2
+    }
+    Assert-True ($toc.native_verified -and $toc.table_of_contents_count_after -gt $toc.table_of_contents_count_before -and $toc.inserted_field_count -gt 0) "TOC insertion failed"
+    $version = [long]$toc.live_version
+
+    $authoritySource = Invoke-TimedTool -Name "insert_live_word_text" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        text = "Acceptance authority source $suffix"
+        target = "document_end"
+        as_new_paragraph = $true
+    }
+    $version = [long]$authoritySource.live_version
+    $authorityRange = Invoke-TimedTool -Name "find_live_word_text" -Arguments @{
+        live_document_id = $documentId
+        search_text = "Acceptance authority source $suffix"
+        match_case = $true
+        whole_word = $true
+        context_chars = 10
+        max_results = 1
+    }
+    Assert-True ($authorityRange.match_count -eq 1 -and $authorityRange.matches[0].range_token) "Authority source range was not found"
+    $authority = Invoke-TimedTool -Name "mark_live_word_authority_citation" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        range_token = $authorityRange.matches[0].range_token
+        category = 1
+        short_citation = "WordToolkit"
+        long_citation = "WordToolkit acceptance citation"
+    }
+    Assert-True ($authority.native_verified -and [long]$authority.live_version -eq $version + 1) "Authority citation marking failed"
+    $version = [long]$authority.live_version
+    $toa = Invoke-TimedTool -Name "insert_live_word_table_of_authorities" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        target = "document_end"
+        category = 1
+    }
+    Assert-True ($toa.native_verified -and $toa.table_of_authorities_count_after -gt $toa.table_of_authorities_count_before) "TOA insertion failed"
+    $version = [long]$toa.live_version
+
+    $indexSource = Invoke-TimedTool -Name "insert_live_word_text" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        text = "Acceptance index source $suffix"
+        target = "document_end"
+        as_new_paragraph = $true
+    }
+    $version = [long]$indexSource.live_version
+    $indexRange = Invoke-TimedTool -Name "find_live_word_text" -Arguments @{
+        live_document_id = $documentId
+        search_text = "Acceptance index source $suffix"
+        match_case = $true
+        whole_word = $true
+        context_chars = 10
+        max_results = 1
+    }
+    Assert-True ($indexRange.match_count -eq 1 -and $indexRange.matches[0].range_token) "Index source range was not found"
+
+    $index = Invoke-TimedTool -Name "mark_live_word_index_entry" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        range_token = $indexRange.matches[0].range_token
+        main_entry = "Acceptance"
+    }
+    Assert-True ($index.native_verified -and [long]$index.live_version -eq $version + 1) "Index entry marking failed"
+    $version = [long]$index.live_version
+    $indexTable = Invoke-TimedTool -Name "insert_live_word_index" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        target = "document_end"
+    }
+    Assert-True ($indexTable.native_verified -and $indexTable.index_count_after -gt $indexTable.index_count_before) "INDEX insertion failed"
+    $version = [long]$indexTable.live_version
+    $references = Invoke-TimedTool -Name "update_live_word_reference_tables" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        kind = "all"
+    }
+    Assert-True ($references.native_verified -and $references.ranges_and_fields_verified) "Reference table refresh failed"
+    $version = [long]$references.live_version
+
     $stage = "map every supported native Word structure collection"
     $structureMap = Invoke-TimedTool `
         -Name "map_live_word_structures" `
@@ -1744,7 +1907,7 @@ try {
         -Condition ($remainingAcceptanceDocuments.Count -eq 0) `
         -Message "The final acceptance DOCX remained open after explicit close"
 
-    if (-not $wordWasRunning -and @($listedAfterClose.documents).Count -eq 0) {
+    if ($applicationOwnedByRuntime -and @($listedAfterClose.documents).Count -eq 0) {
         $stage = "quit only the Word application started by this acceptance run"
         [void](Invoke-TimedTool `
             -Name "quit_word_application" `
@@ -1752,16 +1915,17 @@ try {
                 save_changes = "discard_all"
                 confirm = $true
             })
+        $ownedWordQuitCompleted = $true
         $actualWordQuitSkipped = $false
         $actualWordQuitSkipReason = ""
     }
     else {
         $actualWordQuitSkipped = $true
-        $actualWordQuitSkipReason = if ($wordWasRunning) {
-            "Word was already running before acceptance; the user-owned application was preserved"
+        if (-not $applicationOwnedByRuntime) {
+            $actualWordQuitSkipReason = "Word application ownership was not established by this runtime; user-owned application was preserved"
         }
         else {
-            "Other Word documents remained open; application quit was not authorized"
+            $actualWordQuitSkipReason = "Other Word documents remained open; application quit was not authorized"
         }
     }
 
@@ -1870,6 +2034,50 @@ finally {
             }
         }
     }
+
+    # Fail-safe for a Word instance started by this run.  Never close or quit
+    # user-owned documents; only quit when the live-document list proves that
+    # the application is empty.  Cleanup diagnostics must not replace the
+    # original acceptance failure.
+    $cleanupQuitStatus = "not_attempted"
+    try {
+        if ($applicationOwnedByRuntime) {
+            if ($ownedWordQuitCompleted) {
+                $cleanupQuitStatus = "already_quit"
+            }
+            else {
+                $cleanupList = Invoke-TimedTool `
+                    -Name "list_live_word_documents" `
+                    -Arguments @{}
+                $cleanupDocuments = @($cleanupList.documents)
+                if ($cleanupDocuments.Count -eq 0) {
+                    if (-not $cleanupList.word_running) {
+                        $cleanupQuitStatus = "already_stopped"
+                    }
+                    else {
+                        [void](Invoke-TimedTool `
+                            -Name "quit_word_application" `
+                            -Arguments @{
+                                save_changes = "discard_all"
+                                confirm = $true
+                            })
+                        $cleanupQuitStatus = "passed"
+                    }
+                }
+                else {
+                    $cleanupQuitStatus = "skipped_documents_remaining"
+                }
+            }
+        }
+        else {
+            $cleanupQuitStatus = "skipped_application_not_owned"
+        }
+    }
+    catch {
+        $cleanupQuitStatus = "failed"
+        $report.cleanup_error = $_.Exception.Message
+    }
+    $report.cleanup_quit_status = $cleanupQuitStatus
 
     $mcpInput.Close()
     if (-not $process.WaitForExit(5000)) {

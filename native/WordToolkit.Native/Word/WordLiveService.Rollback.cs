@@ -558,6 +558,7 @@ internal sealed partial class WordLiveService
                     MaxCharactersInDocument = Math.Max(1, value.Length + 1L),
                 }
             );
+            var systemNoteAncestors = new List<bool>();
             while (!reader.EOF)
             {
                 if (reader.NodeType == XmlNodeType.None)
@@ -573,7 +574,31 @@ internal sealed partial class WordLiveService
                     reader.Skip();
                     continue;
                 }
-                AppendCanonicalXmlNode(canonical, reader);
+                if (reader.NodeType == XmlNodeType.Element)
+                {
+                    var insideSystemNote = systemNoteAncestors.Count > 0 && systemNoteAncestors[^1];
+                    var isSystemNote = insideSystemNote || IsSystemNoteElement(reader);
+                    AppendCanonicalXmlNode(
+                        canonical,
+                        reader,
+                        skipSystemNoteParaId:
+                            isSystemNote
+                            && reader.NamespaceURI == "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                            && reader.LocalName == "p"
+                    );
+                    if (!reader.IsEmptyElement)
+                    {
+                        systemNoteAncestors.Add(isSystemNote);
+                    }
+                }
+                else
+                {
+                    AppendCanonicalXmlNode(canonical, reader);
+                    if (reader.NodeType == XmlNodeType.EndElement && systemNoteAncestors.Count > 0)
+                    {
+                        systemNoteAncestors.RemoveAt(systemNoteAncestors.Count - 1);
+                    }
+                }
                 reader.Read();
             }
             return RollbackSha256(canonical.ToString());
@@ -607,7 +632,11 @@ internal sealed partial class WordLiveService
         );
     }
 
-    private static void AppendCanonicalXmlNode(StringBuilder canonical, XmlReader reader)
+    private static void AppendCanonicalXmlNode(
+        StringBuilder canonical,
+        XmlReader reader,
+        bool skipSystemNoteParaId = false
+    )
     {
         switch (reader.NodeType)
         {
@@ -626,6 +655,11 @@ internal sealed partial class WordLiveService
                                 || IsVolatileWordSessionAttribute(
                                     reader.NamespaceURI,
                                     reader.LocalName
+                                )
+                                || (
+                                    skipSystemNoteParaId
+                                    && reader.NamespaceURI == "http://schemas.microsoft.com/office/word/2010/wordml"
+                                    && reader.LocalName == "paraId"
                                 )
                             )
                             {
@@ -688,6 +722,20 @@ internal sealed partial class WordLiveService
 
     private static bool IsVolatileWordSessionAttribute(string namespaceUri, string localName) =>
         IsVolatileWordSessionElement(namespaceUri, localName);
+
+    private static bool IsSystemNoteElement(XmlReader reader)
+    {
+        if (
+            reader.NamespaceURI != "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            || reader.LocalName is not ("footnote" or "endnote")
+        )
+        {
+            return false;
+        }
+
+        var id = reader.GetAttribute("id", "http://schemas.openxmlformats.org/wordprocessingml/2006/main");
+        return id is "-1" or "0";
+    }
 }
 
 internal sealed record LiveRollbackSnapshot(

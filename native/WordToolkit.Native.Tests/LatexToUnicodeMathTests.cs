@@ -9,7 +9,12 @@ public sealed class LatexToUnicodeMathTests
     [InlineData(@"\frac{x^2+1}{\sqrt[3]{y}}", "(x^(2)+1)/(√(3&y))")]
     [InlineData(@"\sum_{i=1}^{n} i^2", "∑_(i=1)^(n)▒i^(2)")]
     [InlineData(@"\sum\limits_{i=1}^{n} i^2", "∑_(i=1)^(n)▒i^(2)")]
+    [InlineData(@"\sum_{\int_0^1}^{n} x", "∑_(∫_(0)^(1))^(n)▒x")]
+    [InlineData(@"\prod_{\sum_{i=1}^{n}}^{m} a_i", "∏_(∑_(i=1)^(n))^(m)▒a_(i)")]
+    [InlineData(@"\left(\sum_{i=1}^{n}\right)", "(∑_(i=1)^(n))")]
+    [InlineData(@"\left(\sum_{i=1}^{n} i\right)", "(∑_(i=1)^(n)▒i)")]
     [InlineData(@"\int_0^1 e^{-x^2}\,d x", "∫_(0)^(1)▒〖e^(-x^(2)) ⅆx〗")]
+    [InlineData(@"\int_{\sum_{i=1}^{n}}^{m} f(x)\,d x", "∫_(∑_(i=1)^(n))^(m)▒〖f(x) ⅆx〗")]
     [InlineData(@"\int x\,d x", "∫▒〖x ⅆx〗")]
     [InlineData(@"\int f(x)\,\mathrm{d}x", "∫▒〖f(x) ⅆx〗")]
     [InlineData(@"\int f(x)\,\dd x", "∫▒〖f(x) ⅆx〗")]
@@ -86,6 +91,22 @@ public sealed class LatexToUnicodeMathTests
     )]
     [InlineData(@"(a+b)(c+d)", "(a+b) (c+d)")]
     public void ConvertsCommonWordMath(string latex, string expected)
+    {
+        Assert.Equal(expected, LatexToUnicodeMath.Convert(latex));
+    }
+
+    [Theory]
+    [InlineData(@"\sum_{i=1}^{n}▒i", "∑_(i=1)^(n)▒i")]
+    [InlineData(@"\sum_{i=1}^{n}", "∑_(i=1)^(n)")]
+    [InlineData(@"(\prod_{i=1}^{n})", "(∏_(i=1)^(n))")]
+    [InlineData(
+        @"\sum_{i=1}^{\prod_{j=1}^{m}} a_i",
+        "∑_(i=1)^(∏_(j=1)^(m))▒a_(i)"
+    )]
+    public void PlacesExactlyOneNarySeparatorOnlyBeforeARealBody(
+        string latex,
+        string expected
+    )
     {
         Assert.Equal(expected, LatexToUnicodeMath.Convert(latex));
     }

@@ -1,0 +1,20 @@
+{
+  "list_live_word_documents": {"recipe_ids":["live.lifecycle"],"acquisition_steps":["Use output documents[].live_document_id from list_live_word_documents"]},
+  "start_word_application": {"recipe_ids":["live.lifecycle"],"acquisition_steps":["Use returned application state before create/open/connect"]},
+  "create_live_word_document": {"recipe_ids":["live.lifecycle"],"acquisition_steps":["Bind live_document_id and live_version from create_live_word_document output"]},
+  "open_live_word_document": {"recipe_ids":["live.lifecycle"],"acquisition_steps":["Bind live_document_id and live_version from open_live_word_document output"]},
+  "connect_live_word_document": {"recipe_ids":["live.lifecycle"],"acquisition_steps":["Bind live_document_id and live_version from connect_live_word_document output"]},
+  "get_live_word_selection": {"recipe_ids":["live.selection"],"acquisition_steps":["Use selection_token, range_token and live_version from get_live_word_selection output"]},
+  "update_live_word_equation": {"recipe_ids":["live.equation"],"prerequisites":["equation_token must come from inspect_live_word_equations for the same equation_index and live_version"],"bindings":{"equation_token":{"source":"inspect_live_word_equations.equations[].equation_token"},"equation_index":{"source":"inspect_live_word_equations.equations[].equation_index"}}},
+  "run_ooxml_ocr": {"recipe_ids":["package.ocr"],"acquisition_steps":["Bind candidate IDs from inspect_ooxml_ocr_candidates.candidates[].candidate_id and fingerprint from inspect_ooxml_package.package_fingerprint"],"prerequisites":["Set privacy_mode=local_only unless the user explicitly confirms another mode"]},
+  "render_ooxml_fixed_artifacts": {"recipe_ids":["package.render.fixed"],"acquisition_steps":["Bind package_fingerprint from inspect_ooxml_package.package_fingerprint; provide new output_directory and artifact_stem"]},
+  "render_ooxml_libreoffice_artifacts": {"recipe_ids":["package.render.libreoffice"],"acquisition_steps":["Bind package_fingerprint from inspect_ooxml_package.package_fingerprint and explicit executable/JAR paths plus SHA-256 values"]},
+  "inspect_ooxml_signatures": {"recipe_ids":["package.security"],"acquisition_steps":["Use signatures[].integrity_status; do not infer signer trust"]},
+  "plan_ooxml_text_edits": {"recipe_ids":["package.plan_apply"],"acquisition_steps":["Bind package_fingerprint from inspect_ooxml_package and retain returned plan_id"]},
+  "apply_ooxml_text_edits": {"recipe_ids":["package.plan_apply"],"acquisition_steps":["Pass identical commands, original package_fingerprint and plan_id from plan_ooxml_text_edits"]},
+  "plan_ooxml_numbering_repair": {"recipe_ids":["package.numbering.plan_apply"],"acquisition_steps":["Bind paragraph_node_id, number_id and level_index from inspect_ooxml_numbering"]},
+  "apply_ooxml_numbering_repair": {"recipe_ids":["package.numbering.plan_apply"],"acquisition_steps":["Pass identical numbering evidence and plan_id from plan_ooxml_numbering_repair"]},
+  "plan_ooxml_patch": {"recipe_ids":["package.patch.plan_apply"],"acquisition_steps":["Retain returned patch_id and before/after fingerprints"]},
+  "apply_ooxml_patch": {"recipe_ids":["package.patch.plan_apply"],"acquisition_steps":["Pass exact patch_id and apply_plan_id from preceding plan actions"]},
+  "apply_live_word_operations": {"recipe_ids":["live.transactional"],"recovery":{"STAGING_TARGET_DRIFT":{"next_action":"inspect_live_word_document","bindings":{"live_document_id":"live_document_id"}},"ROLLBACK_FAILED":{"next_action":"disconnect_live_word_document","bindings":{"live_document_id":"live_document_id"}}}}
+}

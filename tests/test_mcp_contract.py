@@ -331,11 +331,20 @@ def test_generated_draft_operation_contract_examples_are_valid() -> None:
     for schema_name in ("input_schema", "success_data_schema", "error_schema"):
         Draft202012Validator.check_schema(contract[schema_name])
     examples = contract["examples"]
-    assert not list(Draft202012Validator(contract["input_schema"]).iter_errors(examples["input"]))
-    assert not list(
-        Draft202012Validator(contract["success_data_schema"]).iter_errors(examples["success_data"])
-    )
-    assert not list(Draft202012Validator(contract["error_schema"]).iter_errors(examples["error"]))
+    assert isinstance(examples, list)
+    assert examples
+    for example in examples:
+        assert not list(
+            Draft202012Validator(contract["input_schema"]).iter_errors(example["input"])
+        )
+        assert not list(
+            Draft202012Validator(contract["success_data_schema"]).iter_errors(
+                example["success_data"]
+            )
+        )
+        assert not list(
+            Draft202012Validator(contract["error_schema"]).iter_errors(example["error"])
+        )
 
 
 def test_streamable_http_requires_bearer_auth(tmp_path) -> None:

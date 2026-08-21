@@ -19,6 +19,22 @@ hashes to detect drift, then inspect only the selected action.
 If a client must validate the response shape, request
 `get_wordtoolkit_capabilities` with `view=schema`; do not infer a schema from the hash.
 
+## Mandatory first-call guidance
+
+For an action whose exact name is unknown, search with `search_wordtoolkit_actions`.
+Then call `inspect_wordtoolkit_action` for the exact selected action before executing it.
+Inspection returns that action's input schema and generated first-call guidance. Bind
+its `prerequisites`, `acquisition_steps`, `bindings`, and template `example` from
+actual earlier responses; never infer arguments or preconditions from a search result,
+schema hash, or guessed action name. After execution, use the returned `success`
+predicates as the acceptance check. On an error covered by `recovery`, follow its exact
+`next_action` and `bindings`, refreshing the affected version, package fingerprint,
+plan ID, or token before retrying. Treat `ROLLBACK_FAILED` as a quarantine boundary:
+do not reconnect or continue editing that live document.
+
+During development or release verification, run
+`python scripts/generate_action_guidance.py --check` and fail on guidance drift.
+
 When extension identity, validator provenance, interface compatibility or provider limits
 matter, execute lazy `inspect_wordtoolkit_extensions`. Filter by extension, capability,
 publisher, kind or interface and keep the page small. The result is a frozen, SHA-256-bound

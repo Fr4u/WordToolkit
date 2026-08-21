@@ -13,6 +13,7 @@ internal sealed class WordComHost : IWordComHost
     private readonly Action? _beforeCancellationObservation;
     private readonly Action? _afterWorkItemCompleted;
     private object? _application;
+    private bool _applicationOwnedByRuntime;
     private int _abandonedExecutionCount;
     private int _unknownOutcome;
     private bool _disposed;
@@ -339,6 +340,7 @@ internal sealed class WordComHost : IWordComHost
     {
         if (_applicationFactory is not null)
         {
+            _applicationOwnedByRuntime = false;
             _application = _applicationFactory(launchIfMissing);
             return _application;
         }
@@ -388,6 +390,11 @@ internal sealed class WordComHost : IWordComHost
                     "Microsoft Word could not be started",
                     retryable: true
                 );
+            _applicationOwnedByRuntime = true;
+        }
+        else
+        {
+            _applicationOwnedByRuntime = false;
         }
         _application = application;
         return application;
@@ -427,6 +434,7 @@ internal sealed class WordComHost : IWordComHost
     {
         if (_application is null)
         {
+            _applicationOwnedByRuntime = false;
             return;
         }
         try
@@ -441,7 +449,10 @@ internal sealed class WordComHost : IWordComHost
             // Word may already have destroyed the proxy.
         }
         _application = null;
+        _applicationOwnedByRuntime = false;
     }
+
+    public bool ApplicationOwnedByRuntime => Volatile.Read(ref _applicationOwnedByRuntime);
 
     private void FailPending(Exception exception)
     {

@@ -15,6 +15,7 @@ internal sealed partial class ToolCatalog
     private readonly IReadOnlyDictionary<string, JsonObject> _allTools;
     private readonly IReadOnlySet<string> _coreToolNames;
     private readonly string _capabilitySchemaJson;
+    private readonly ActionGuidanceCatalog _guidance;
 
     public JsonArray Tools { get; }
     public int ActionCount => _allTools.Count;
@@ -36,6 +37,7 @@ internal sealed partial class ToolCatalog
         string sourceSchemaSha256,
         string capabilitySchemaSha256,
         string capabilitySchemaJson
+        , ActionGuidanceCatalog guidance
     )
     {
         Tools = tools;
@@ -48,6 +50,7 @@ internal sealed partial class ToolCatalog
         SourceSchemaSha256 = sourceSchemaSha256;
         CapabilitySchemaSha256 = capabilitySchemaSha256;
         _capabilitySchemaJson = capabilitySchemaJson;
+        _guidance = guidance;
     }
 
     public static ToolCatalog LoadNativeWordTools()
@@ -131,6 +134,7 @@ internal sealed partial class ToolCatalog
         exposed.Add(InspectActionTool());
         exposed.Add(ExecuteActionTool());
         exposed.Add(CapabilitiesTool());
+        var guidance = ActionGuidanceCatalog.Load(nativeToolOrder);
         return new ToolCatalog(
             exposed,
             allTools,
@@ -141,7 +145,7 @@ internal sealed partial class ToolCatalog
             transport,
             Sha256Hex(schemaJson),
             Sha256Hex(capabilitySchemaJson),
-            capabilitySchemaJson
+            capabilitySchemaJson, guidance
         );
     }
 
@@ -189,6 +193,7 @@ internal sealed partial class ToolCatalog
         {
             ["action"] = name,
             ["tool"] = tool.DeepClone(),
+            ["guidance"] = _guidance.Get(name),
         };
     }
 
@@ -241,6 +246,9 @@ internal sealed partial class ToolCatalog
                     {
                         action = item.Key,
                         description = FirstSentence(item.Description),
+                        required_arguments = RequiredArguments(_allTools[item.Key]),
+                        first_step = FirstStep(_guidance.Get(item.Key)),
+                        guidance = "inspect_wordtoolkit_action before execute",
                     }
             )
             .ToArray();
@@ -251,6 +259,9 @@ internal sealed partial class ToolCatalog
             ["actions"] = JsonSerializer.SerializeToNode(matches, JsonDefaults.Compact),
         };
     }
+
+    private static JsonNode? FirstStep(JsonObject guidance) => guidance["acquisition_steps"]?.AsArray().FirstOrDefault()?.DeepClone();
+    private static string[] RequiredArguments(JsonObject tool) => tool["inputSchema"]?["required"]?.AsArray().Select(x => x!.GetValue<string>()).ToArray() ?? Array.Empty<string>();
 
     public static bool IsSearchGateway(string name) =>
         string.Equals(name, SearchActionsName, StringComparison.Ordinal);
@@ -322,7 +333,7 @@ internal sealed partial class ToolCatalog
         {
             ["name"] = InspectActionName,
             ["description"] =
-                "Return the input schema for one WordToolkit action. Use only when the small core catalog does not cover the task.",
+                "Return the input schema and first-call guidance for one WordToolkit action. Inspect before execute.",
             ["inputSchema"] = new JsonObject
             {
                 ["type"] = "object",
@@ -353,7 +364,7 @@ internal sealed partial class ToolCatalog
         {
             ["name"] = SearchActionsName,
             ["description"] =
-                "Find a rare WordToolkit action by a short capability query, then inspect only the chosen action.",
+                "Find a rare WordToolkit action by a short capability query; inspect the chosen action before executing it.",
             ["inputSchema"] = new JsonObject
             {
                 ["type"] = "object",
@@ -399,7 +410,7 @@ internal sealed partial class ToolCatalog
         {
             ["name"] = ExecuteActionName,
             ["description"] =
-                "Execute one inspected WordToolkit action. Compact responses omit echoed input and diagnostics; request full only when exact detail is required.",
+                "Execute one inspected WordToolkit action. Inspect first; compact responses omit echoed input and diagnostics; request full only when exact detail is required.",
             ["inputSchema"] = new JsonObject
             {
                 ["type"] = "object",

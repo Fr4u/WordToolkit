@@ -139,10 +139,7 @@ def test_structure_learning_adapts_property_probes_without_values(
         "content_controls",
         ("range", "title", "tag"),
     )
-    assert all(
-        item["probe_due_on_next_inspection"]
-        for item in first["properties"].values()
-    )
+    assert all(item["probe_due_on_next_inspection"] for item in first["properties"].values())
 
     store.record_inspection(
         "content_controls",

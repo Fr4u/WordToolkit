@@ -11,9 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _tool() -> dict[str, Any]:
     catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v1.json").read_text())
-    return next(
-        tool for tool in catalog["tools"] if tool["name"] == "render_ooxml_semantic_html"
-    )
+    return next(tool for tool in catalog["tools"] if tool["name"] == "render_ooxml_semantic_html")
 
 
 def _data() -> dict[str, Any]:

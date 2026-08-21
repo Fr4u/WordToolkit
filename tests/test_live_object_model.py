@@ -225,9 +225,7 @@ def test_scan_word_object_model_excludes_help_paths_and_base_dispatch_members() 
     assert "document text" not in serialized
 
     range_type = next(item for item in catalog["types"] if item["name"] == "Range")
-    insert_after = next(
-        item for item in range_type["members"] if item["name"] == "InsertAfter"
-    )
+    insert_after = next(item for item in range_type["members"] if item["name"] == "InsertAfter")
     assert insert_after["kind"] == "method"
     assert insert_after["parameters"] == [
         {

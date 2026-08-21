@@ -49,11 +49,12 @@ def test_inspect_requires_one_exact_paragraph_before_returning_text() -> None:
     assert list(validator.iter_errors(base)) == []
     assert list(validator.iter_errors({**base, "include_text": False})) == []
     assert list(validator.iter_errors({**base, "include_text": True}))
-    assert list(
-        validator.iter_errors(
-            {**base, "paragraph_node_id": "wdn_exact", "include_text": True}
+    assert (
+        list(
+            validator.iter_errors({**base, "paragraph_node_id": "wdn_exact", "include_text": True})
         )
-    ) == []
+        == []
+    )
 
 
 def test_semantic_command_accepts_slots_but_rejects_xml_and_equation_payloads() -> None:
@@ -197,7 +198,5 @@ def test_success_envelopes_expose_proof_without_echoing_text_or_xml() -> None:
 
 
 def test_plan_schema_stays_bounded_for_lazy_discovery() -> None:
-    compact = json.dumps(
-        _tools()[NAMES[1]], ensure_ascii=False, separators=(",", ":")
-    )
+    compact = json.dumps(_tools()[NAMES[1]], ensure_ascii=False, separators=(",", ":"))
     assert len(compact) < 12_000

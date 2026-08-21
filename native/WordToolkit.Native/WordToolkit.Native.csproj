@@ -27,5 +27,7 @@
                       Link="Schemas/mcp-tools-local.v1.json" />
     <EmbeddedResource Include="../../schemas/wordtoolkit-capabilities.v1.schema.json"
                       Link="Schemas/wordtoolkit-capabilities.v1.schema.json" />
+    <EmbeddedResource Include="../../schemas/action-guidance.v1.json"
+                      Link="Schemas/action-guidance.v1.json" />
   </ItemGroup>
 </Project>

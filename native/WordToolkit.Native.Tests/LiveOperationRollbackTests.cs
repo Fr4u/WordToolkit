@@ -104,6 +104,31 @@ public sealed class LiveOperationRollbackTests
         Assert.NotEqual(baseline, WordLiveService.RollbackSemanticSha256(contentChanged));
     }
 
+    [Fact]
+    public void SemanticRollbackHashIgnoresSystemNoteParaIdsOnly()
+    {
+        const string before =
+            "<w:pkg xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+            + "xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\"><w:part>"
+            + "<w:footnotes><w:footnote w:id=\"-1\"><w:p w14:paraId=\"A\"><w:r><w:t>sep</w:t>"
+            + "</w:r></w:p></w:footnote><w:footnote w:id=\"1\"><w:p w14:paraId=\"B\"><w:r>"
+            + "<w:t>regular</w:t></w:r></w:p></w:footnote></w:footnotes><w:endnotes>"
+            + "<w:endnote w:id=\"0\"><w:p w14:paraId=\"C\"><w:r><w:t>endsep</w:t></w:r>"
+            + "</w:p></w:endnote></w:endnotes><w:document><w:body><w:p w14:paraId=\"D\"><w:r>"
+            + "<w:t>main</w:t></w:r></w:p></w:body></w:document></w:part></w:pkg>";
+        var baseline = WordLiveService.RollbackSemanticSha256(before);
+        var systemChanged = before.Replace("paraId=\"A\"", "paraId=\"AA\"")
+            .Replace("paraId=\"C\"", "paraId=\"CC\"");
+
+        Assert.Equal(baseline, WordLiveService.RollbackSemanticSha256(systemChanged));
+        Assert.NotEqual(baseline, WordLiveService.RollbackSemanticSha256(
+            before.Replace("paraId=\"B\"", "paraId=\"BB\"")));
+        Assert.NotEqual(baseline, WordLiveService.RollbackSemanticSha256(
+            before.Replace("paraId=\"D\"", "paraId=\"DD\"")));
+        Assert.NotEqual(baseline, WordLiveService.RollbackSemanticSha256(
+            before.Replace("endsep", "changed")));
+    }
+
     [Theory]
     [InlineData(RollbackBehavior.LeaveContaminated, true, false)]
     [InlineData(RollbackBehavior.RestoreTextOnly, true, false)]

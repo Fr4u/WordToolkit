@@ -99,9 +99,7 @@ BASE_DISPATCH_MEMBERS = {
     "Invoke",
 }
 VALID_TYPE_KINDS = frozenset(TYPE_KINDS.values())
-VALID_MEMBER_KINDS = frozenset(
-    {*MEMBER_KINDS.values(), "enum_value", "variable"}
-)
+VALID_MEMBER_KINDS = frozenset({*MEMBER_KINDS.values(), "enum_value", "variable"})
 
 
 def _bounded_name(value: Any, fallback: str) -> str:
@@ -189,11 +187,7 @@ def _function_member(type_info: Any, descriptor: Any, index: int) -> dict[str, A
     parameter_count = len(raw_parameters)
     raw_optional_count = _integer(descriptor[6])
     variadic = raw_optional_count == -1
-    optional_count = (
-        -1
-        if variadic
-        else max(0, min(parameter_count, raw_optional_count))
-    )
+    optional_count = -1 if variadic else max(0, min(parameter_count, raw_optional_count))
     try:
         names = tuple(type_info.GetNames(member_id))
     except Exception:
@@ -208,19 +202,14 @@ def _function_member(type_info: Any, descriptor: Any, index: int) -> dict[str, A
     for parameter_index in range(parameter_count):
         element = raw_parameters[parameter_index]
         flags = (
-            _integer(element[1])
-            if isinstance(element, (tuple, list)) and len(element) > 1
-            else 0
+            _integer(element[1]) if isinstance(element, (tuple, list)) and len(element) > 1 else 0
         )
         optional_by_position = (
-            optional_count > 0
-            and parameter_index >= parameter_count - optional_count
+            optional_count > 0 and parameter_index >= parameter_count - optional_count
         )
         parameter = {
             "name": _bounded_name(
-                names[parameter_index + 1]
-                if parameter_index + 1 < len(names)
-                else "",
+                names[parameter_index + 1] if parameter_index + 1 < len(names) else "",
                 f"arg{parameter_index + 1}",
             ),
             "type": _element_type(type_info, element),
@@ -230,9 +219,7 @@ def _function_member(type_info: Any, descriptor: Any, index: int) -> dict[str, A
         }
         if flags & 32:
             raw_default = (
-                element[2]
-                if isinstance(element, (tuple, list)) and len(element) > 2
-                else None
+                element[2] if isinstance(element, (tuple, list)) and len(element) > 2 else None
             )
             parameter["default_value"] = _safe_default(raw_default)
         parameters.append(parameter)
@@ -278,9 +265,7 @@ def _variable_member(
     }
     if enum_type:
         value = descriptor[1]
-        member["value"] = (
-            value if isinstance(value, (bool, int, float, str)) else None
-        )
+        member["value"] = value if isinstance(value, (bool, int, float, str)) else None
     return member
 
 
@@ -323,9 +308,7 @@ def scan_word_object_model(
                     reference = type_info.GetRefTypeOfImplType(implemented_index)
                     implemented_info = type_info.GetRefTypeInfo(reference)
                     implemented_attributes = tuple(implemented_info.GetTypeAttr())
-                    implemented_flags = _integer(
-                        type_info.GetImplTypeFlags(implemented_index)
-                    )
+                    implemented_flags = _integer(type_info.GetImplTypeFlags(implemented_index))
                     implemented_types.append(
                         {
                             "name": _bounded_name(
@@ -485,8 +468,7 @@ class WordObjectModelStore:
         if not self._valid(payload):
             raise ValueError("Word object-model catalog is invalid or exceeds its limits")
         serialized = (
-            json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-            + "\n"
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True) + "\n"
         ).encode("utf-8")
         if len(serialized) > self.MAX_FILE_BYTES:
             raise ValueError("Word object-model catalog exceeds its storage limit")

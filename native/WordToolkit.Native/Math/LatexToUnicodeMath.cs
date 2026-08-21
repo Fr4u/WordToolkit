@@ -360,7 +360,7 @@ internal static class LatexToUnicodeMath
                     }
                     if (
                         IsNaryAtom(atom)
-                        && !NextNonWhitespaceIsNaryBodySeparator()
+                        && HasFollowingNaryBody(terminator)
                     )
                     {
                         atom += NaryBodySeparator;
@@ -500,7 +500,7 @@ internal static class LatexToUnicodeMath
             var argument = ParseScripts(basis);
             if (
                 IsNaryAtom(argument)
-                && !NextNonWhitespaceIsNaryBodySeparator()
+                && HasFollowingNaryBody(null)
             )
             {
                 argument += NaryBodySeparator;
@@ -993,14 +993,36 @@ internal static class LatexToUnicodeMath
             }
         }
 
-        private bool NextNonWhitespaceIsNaryBodySeparator()
+        private bool HasFollowingNaryBody(char? terminator)
         {
             var index = _index;
             while (index < _source.Length && char.IsWhiteSpace(_source[index]))
             {
                 index++;
             }
-            return index < _source.Length && _source[index] == NaryBodySeparator;
+            if (index >= _source.Length)
+            {
+                return false;
+            }
+            if (_source[index] == NaryBodySeparator)
+            {
+                return false;
+            }
+            if (
+                _source.AsSpan(index).StartsWith(@"\right", StringComparison.Ordinal)
+                && (
+                    index + 6 >= _source.Length
+                    || !char.IsLetter(_source[index + 6])
+                )
+            )
+            {
+                return false;
+            }
+            if (terminator is not null && _source[index] == terminator)
+            {
+                return false;
+            }
+            return _source[index] is not (')' or ']' or '}');
         }
 
         private bool NextSourceAtomIsPlainDifferential()

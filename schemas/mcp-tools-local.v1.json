@@ -3959,7 +3959,83 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": false,
+        "filesystem": "read",
+        "network": false
     },
+    "reversibility": {
+        "kind": "read_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "operation_contract",
+            "file_name",
+            "bytes",
+            "package_fingerprint",
+            "structurally_valid",
+            "word_document_detected",
+            "valid_word_package",
+            "entry_count",
+            "part_count",
+            "relationship_count",
+            "diagnostics",
+            "runtime",
+            "python_used",
+            "performance"
+        ],
+        "properties": {
+            "operation_contract": {
+                "const": "wordtoolkit.inspect_ooxml_package/1.0"
+            },
+            "file_name": {
+                "type": "string"
+            },
+            "bytes": {
+                "type": "integer"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "structurally_valid": {
+                "type": "boolean"
+            },
+            "word_document_detected": {
+                "type": "boolean"
+            },
+            "valid_word_package": {
+                "type": "boolean"
+            },
+            "entry_count": {
+                "type": "integer"
+            },
+            "part_count": {
+                "type": "integer"
+            },
+            "relationship_count": {
+                "type": "integer"
+            },
+            "diagnostics": {
+                "type": "object"
+            },
+            "runtime": {
+                "const": "dotnet-native"
+            },
+            "python_used": {
+                "const": false
+            },
+            "performance": {
+                "type": "object"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "inspect_ooxml_encryption",
       "title": "Inspect OOXML encryption container",
@@ -4535,7 +4611,80 @@
         "idempotentHint": false,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": false,
+        "filesystem": "read_write_new_output",
+        "network": false
     },
+    "reversibility": {
+        "kind": "new_file",
+        "writes": "output_path",
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "operation_contract",
+            "operation",
+            "input_file_name",
+            "output_file_name",
+            "base_package_fingerprint",
+            "result_package_fingerprint",
+            "changed",
+            "remaining_revision_count",
+            "structurally_valid",
+            "digital_signatures_present",
+            "raw_xml_returned",
+            "word_opened"
+        ],
+        "properties": {
+            "operation_contract": {
+                "const": "wordtoolkit.transform_ooxml_package/1.0"
+            },
+            "operation": {
+                "type": "string",
+                "enum": [
+                    "replace_first_text_occurrence",
+                    "accept_all_tracked_changes",
+                    "reject_all_tracked_changes"
+                ]
+            },
+            "input_file_name": {
+                "type": "string"
+            },
+            "output_file_name": {
+                "type": "string"
+            },
+            "base_package_fingerprint": {
+                "type": "string"
+            },
+            "result_package_fingerprint": {
+                "type": "string"
+            },
+            "changed": {
+                "type": "boolean"
+            },
+            "remaining_revision_count": {
+                "type": "integer"
+            },
+            "structurally_valid": {
+                "type": "boolean"
+            },
+            "digital_signatures_present": {
+                "type": "boolean"
+            },
+            "raw_xml_returned": {
+                "const": false
+            },
+            "word_opened": {
+                "const": false
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "convert_ooxml_flat_opc",
       "title": "Convert a Word package to or from Flat OPC",
@@ -5830,7 +5979,78 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": false,
+        "filesystem": "read",
+        "network": false
     },
+    "reversibility": {
+        "kind": "read_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "file_name",
+            "package_fingerprint",
+            "main_part_uri",
+            "projected_part_count",
+            "semantic_root_id",
+            "semantic_node_count",
+            "node_counts",
+            "outline",
+            "warnings",
+            "runtime",
+            "python_used",
+            "performance"
+        ],
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "main_part_uri": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "projected_part_count": {
+                "type": "integer"
+            },
+            "semantic_root_id": {
+                "type": "string"
+            },
+            "semantic_node_count": {
+                "type": "integer"
+            },
+            "node_counts": {
+                "type": "object"
+            },
+            "outline": {
+                "type": "array"
+            },
+            "warnings": {
+                "type": "array"
+            },
+            "runtime": {
+                "const": "dotnet-native"
+            },
+            "python_used": {
+                "const": false
+            },
+            "performance": {
+                "type": "object"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "query_ooxml_semantics",
       "title": "Query Word semantic nodes",
@@ -7074,7 +7294,37 @@
         "idempotentHint": false,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": false,
+        "filesystem": "read",
+        "network": false
     },
+    "reversibility": {
+        "kind": "cache_lifecycle",
+        "writes": "process_memory_only",
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "operation"
+        ],
+        "properties": {
+            "operation": {
+                "type": "string",
+                "enum": [
+                    "create",
+                    "inspect",
+                    "list",
+                    "release"
+                ]
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "compare_ooxml_semantics",
       "title": "Compare saved Word documents semantically",
@@ -7264,7 +7514,107 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "read-only package comparison",
+    "reversibility": "read-only",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "before_file_name": {
+                "type": "string"
+            },
+            "after_file_name": {
+                "type": "string"
+            },
+            "diff_id": {
+                "type": "string"
+            },
+            "before_package_fingerprint": {
+                "type": "string"
+            },
+            "after_package_fingerprint": {
+                "type": "string"
+            },
+            "package_equivalent": {
+                "type": "boolean"
+            },
+            "semantically_equivalent": {
+                "type": "boolean"
+            },
+            "matching_complete": {
+                "type": "boolean"
+            },
+            "package_entry_difference_count": {
+                "type": "integer"
+            },
+            "semantic_difference_count": {
+                "type": "integer"
+            },
+            "unclassified_projected_entry_count": {
+                "type": "integer"
+            },
+            "node_counts": {
+                "type": "object"
+            },
+            "match_counts": {
+                "type": "object"
+            },
+            "change_counts": {
+                "type": "object"
+            },
+            "view": {
+                "type": "string"
+            },
+            "filtered_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "sensitive_values_included": {
+                "type": "boolean"
+            },
+            "source_locations_included": {
+                "type": "boolean"
+            },
+            "package_hashes_included": {
+                "type": "boolean"
+            },
+            "raw_xml_returned": {
+                "type": "boolean"
+            },
+            "mutation_performed": {
+                "type": "boolean"
+            },
+            "word_opened": {
+                "type": "boolean"
+            },
+            "runtime": {
+                "type": "string"
+            },
+            "python_used": {
+                "type": "boolean"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "plan_ooxml_patch",
       "title": "Plan an exact reversible Word package patch",
@@ -7319,7 +7669,104 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "read-only patch planning",
+    "reversibility": "read-only plan",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "before_file_name": {
+                "type": "string"
+            },
+            "after_file_name": {
+                "type": "string"
+            },
+            "patch_id": {
+                "type": "string"
+            },
+            "base_package_fingerprint": {
+                "type": "string"
+            },
+            "result_package_fingerprint": {
+                "type": "string"
+            },
+            "operation_count": {
+                "type": "integer"
+            },
+            "operation_counts": {
+                "type": "object"
+            },
+            "payload_count": {
+                "type": "integer"
+            },
+            "payload_bytes": {
+                "type": "integer"
+            },
+            "no_op": {
+                "type": "boolean"
+            },
+            "semantic": {
+                "type": "object"
+            },
+            "risk": {
+                "type": "object"
+            },
+            "default_policy": {
+                "type": "object"
+            },
+            "required_authorizations": {
+                "type": "array"
+            },
+            "view": {
+                "type": "string"
+            },
+            "filtered_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "hashes_included": {
+                "type": "boolean"
+            },
+            "raw_payloads_returned": {
+                "type": "boolean"
+            },
+            "raw_xml_returned": {
+                "type": "boolean"
+            },
+            "mutation_performed": {
+                "type": "boolean"
+            },
+            "word_opened": {
+                "type": "boolean"
+            },
+            "runtime": {
+                "type": "string"
+            },
+            "python_used": {
+                "type": "boolean"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "create_ooxml_patch",
       "title": "Create a reviewed Word package patch artifact",
@@ -7366,7 +7813,83 @@
         "idempotentHint": false,
         "openWorldHint": false
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "creates patch artifact; source packages unchanged",
+    "reversibility": "reversible patch artifact",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "before_file_name": {
+                "type": "string"
+            },
+            "after_file_name": {
+                "type": "string"
+            },
+            "patch_file_name": {
+                "type": "string"
+            },
+            "patch_path": {
+                "type": "string"
+            },
+            "patch_id": {
+                "type": "string"
+            },
+            "base_package_fingerprint": {
+                "type": "string"
+            },
+            "result_package_fingerprint": {
+                "type": "string"
+            },
+            "operation_count": {
+                "type": "integer"
+            },
+            "payload_count": {
+                "type": "integer"
+            },
+            "payload_bytes": {
+                "type": "integer"
+            },
+            "artifact_bytes": {
+                "type": "integer"
+            },
+            "artifact_sha256": {
+                "type": "string"
+            },
+            "created": {
+                "type": "boolean"
+            },
+            "overwritten": {
+                "type": "boolean"
+            },
+            "reversible": {
+                "type": "boolean"
+            },
+            "entry_payload_exact": {
+                "type": "boolean"
+            },
+            "zip_container_byte_exact": {
+                "type": "boolean"
+            },
+            "raw_xml_returned": {
+                "type": "boolean"
+            },
+            "word_opened": {
+                "type": "boolean"
+            },
+            "runtime": {
+                "type": "string"
+            },
+            "python_used": {
+                "type": "boolean"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_ooxml_patch",
       "title": "Inspect a Word package patch artifact",
@@ -7411,7 +7934,110 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "read-only patch inspection",
+    "reversibility": "read-only",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "patch_file_name": {
+                "type": "string"
+            },
+            "patch_id": {
+                "type": "string"
+            },
+            "format": {
+                "type": "string"
+            },
+            "format_version": {
+                "type": "string"
+            },
+            "base_package_fingerprint": {
+                "type": "string"
+            },
+            "result_package_fingerprint": {
+                "type": "string"
+            },
+            "operation_count": {
+                "type": "integer"
+            },
+            "operation_counts": {
+                "type": "object"
+            },
+            "payload_count": {
+                "type": "integer"
+            },
+            "payload_bytes": {
+                "type": "integer"
+            },
+            "artifact_bytes": {
+                "type": "integer"
+            },
+            "artifact_sha256": {
+                "type": "string"
+            },
+            "no_op": {
+                "type": "boolean"
+            },
+            "reversible": {
+                "type": "boolean"
+            },
+            "entry_payload_exact": {
+                "type": "boolean"
+            },
+            "zip_container_byte_exact": {
+                "type": "boolean"
+            },
+            "view": {
+                "type": "string"
+            },
+            "filtered_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "hashes_included": {
+                "type": "boolean"
+            },
+            "raw_payloads_returned": {
+                "type": "boolean"
+            },
+            "raw_xml_returned": {
+                "type": "boolean"
+            },
+            "mutation_performed": {
+                "type": "boolean"
+            },
+            "word_opened": {
+                "type": "boolean"
+            },
+            "runtime": {
+                "type": "string"
+            },
+            "python_used": {
+                "type": "boolean"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "plan_ooxml_patch_apply",
       "title": "Plan safe application of a Word package patch",
@@ -7469,7 +8095,104 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "read-only apply planning",
+    "reversibility": "read-only plan",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "patch_file_name": {
+                "type": "string"
+            },
+            "patch_id": {
+                "type": "string"
+            },
+            "apply_plan_id": {
+                "type": "string"
+            },
+            "base_package_fingerprint": {
+                "type": "string"
+            },
+            "result_package_fingerprint": {
+                "type": "string"
+            },
+            "operation_count": {
+                "type": "integer"
+            },
+            "no_op": {
+                "type": "boolean"
+            },
+            "semantic": {
+                "type": "object"
+            },
+            "risk": {
+                "type": "object"
+            },
+            "openxml_schema_validation": {
+                "type": "object"
+            },
+            "default_policy": {
+                "type": "object"
+            },
+            "hard_block_codes": {
+                "type": "array"
+            },
+            "required_authorizations": {
+                "type": "array"
+            },
+            "view": {
+                "type": "string"
+            },
+            "filtered_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "hashes_included": {
+                "type": "boolean"
+            },
+            "raw_payloads_returned": {
+                "type": "boolean"
+            },
+            "raw_xml_returned": {
+                "type": "boolean"
+            },
+            "mutation_performed": {
+                "type": "boolean"
+            },
+            "word_opened": {
+                "type": "boolean"
+            },
+            "runtime": {
+                "type": "string"
+            },
+            "python_used": {
+                "type": "boolean"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "apply_ooxml_patch",
       "title": "Atomically apply a reviewed Word package patch",
@@ -7541,7 +8264,27 @@
         "idempotentHint": false,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "filesystem": "write"
     },
+    "reversibility": {
+        "kind": "reversible",
+        "notes": "exact inverse/backup policy is plan-bound"
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "plan_id"
+        ],
+        "properties": {
+            "plan_id": {
+                "type": "string"
+            }
+        }
+    }
+  },
     {
       "name": "plan_ooxml_patch_rollback",
       "title": "Plan safe rollback of an applied Word package patch",
@@ -8008,7 +8751,27 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "filesystem": "read"
     },
+    "reversibility": {
+        "kind": "reversible",
+        "notes": "planning is non-mutating"
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "merge_id"
+        ],
+        "properties": {
+            "merge_id": {
+                "type": "string"
+            }
+        }
+    }
+  },
     {
       "name": "apply_ooxml_merge",
       "title": "Create a reviewed three-way Word merge result",
@@ -8100,7 +8863,27 @@
         "idempotentHint": false,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "filesystem": "write"
     },
+    "reversibility": {
+        "kind": "reversible",
+        "notes": "merge retains recovery/rollback policy"
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "merge_id"
+        ],
+        "properties": {
+            "merge_id": {
+                "type": "string"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_ooxml_sections",
       "title": "Inspect Word sections and story bindings",
@@ -8149,7 +8932,26 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "filesystem": "read"
     },
+    "reversibility": {
+        "kind": "read_only"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "sections": {
+                "type": "array"
+            },
+            "coverage_complete": {
+                "type": "boolean"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_ooxml_styles",
       "title": "Inspect Word styles and inheritance",
@@ -8207,7 +9009,26 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "filesystem": "read"
     },
+    "reversibility": {
+        "kind": "read_only"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "styles": {
+                "type": "array"
+            },
+            "coverage_complete": {
+                "type": "boolean"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_ooxml_template_style_alignment",
       "title": "Inspect deterministic template style alignment",
@@ -10886,7 +11707,85 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": false,
+        "filesystem": "read",
+        "network": false
     },
+    "reversibility": {
+        "kind": "read_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "file_name",
+            "package_fingerprint",
+            "view",
+            "detail",
+            "matched_item_count",
+            "offset",
+            "returned_item_count",
+            "runtime",
+            "python_used"
+        ],
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "view": {
+                "enum": [
+                    "colors",
+                    "fonts",
+                    "format"
+                ]
+            },
+            "detail": {
+                "enum": [
+                    "metadata",
+                    "declared"
+                ]
+            },
+            "matched_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "issues": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "runtime": {
+                "const": "dotnet-native"
+            },
+            "python_used": {
+                "const": false
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "inspect_ooxml_settings",
       "title": "Inspect Word document settings",
@@ -10940,7 +11839,80 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": false,
+        "filesystem": "read",
+        "network": false
     },
+    "reversibility": {
+        "kind": "read_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "file_name",
+            "package_fingerprint",
+            "view",
+            "matched_item_count",
+            "offset",
+            "returned_item_count",
+            "runtime",
+            "python_used"
+        ],
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "view": {
+                "enum": [
+                    "summary",
+                    "compatibility",
+                    "variables",
+                    "mail_merge",
+                    "inventory"
+                ]
+            },
+            "matched_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "issues": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "runtime": {
+                "const": "dotnet-native"
+            },
+            "python_used": {
+                "const": false
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "inspect_ooxml_references",
       "title": "Inspect Word fields, bookmarks, and dependencies",
@@ -11023,7 +11995,88 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": false,
+        "filesystem": "read",
+        "network": false
     },
+    "reversibility": {
+        "kind": "read_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "file_name",
+            "package_fingerprint",
+            "view",
+            "detail",
+            "matched_item_count",
+            "offset",
+            "returned_item_count",
+            "runtime",
+            "python_used"
+        ],
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "view": {
+                "enum": [
+                    "summary",
+                    "stories",
+                    "bookmarks",
+                    "fields",
+                    "dependencies",
+                    "issues"
+                ]
+            },
+            "detail": {
+                "enum": [
+                    "metadata",
+                    "parsed"
+                ]
+            },
+            "matched_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "issues": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "runtime": {
+                "const": "dotnet-native"
+            },
+            "python_used": {
+                "const": false
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "inspect_ooxml_bibliography",
       "title": "Inspect Word bibliography sources and citation bindings",
@@ -11095,7 +12148,82 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": false,
+        "filesystem": "read",
+        "network": false
     },
+    "reversibility": {
+        "kind": "read_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "file_name",
+            "package_fingerprint",
+            "view",
+            "matched_item_count",
+            "offset",
+            "returned_item_count",
+            "runtime",
+            "python_used"
+        ],
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "view": {
+                "enum": [
+                    "summary",
+                    "collections",
+                    "sources",
+                    "fields",
+                    "contributors",
+                    "citations",
+                    "issues"
+                ]
+            },
+            "matched_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "issues": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "runtime": {
+                "const": "dotnet-native"
+            },
+            "python_used": {
+                "const": false
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "inspect_ooxml_mail_merge",
       "title": "Inspect Word mail merge configuration and bindings",
@@ -11636,7 +12764,81 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": false,
+        "filesystem": "read",
+        "network": false
     },
+    "reversibility": {
+        "kind": "read_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "file_name",
+            "package_fingerprint",
+            "view",
+            "matched_item_count",
+            "offset",
+            "returned_item_count",
+            "runtime",
+            "python_used"
+        ],
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "view": {
+                "enum": [
+                    "summary",
+                    "nodes",
+                    "edges",
+                    "unresolved",
+                    "impact",
+                    "issues"
+                ]
+            },
+            "matched_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "issues": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "runtime": {
+                "const": "dotnet-native"
+            },
+            "python_used": {
+                "const": false
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "inspect_ooxml_charts",
       "title": "Inspect native Word charts",
@@ -11724,7 +12926,134 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "read-only package inspection",
+    "reversibility": "read-only",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "chart_reference_count": {
+                "type": "integer"
+            },
+            "unresolved_reference_count": {
+                "type": "integer"
+            },
+            "chart_count": {
+                "type": "integer"
+            },
+            "plot_count": {
+                "type": "integer"
+            },
+            "series_count": {
+                "type": "integer"
+            },
+            "axis_count": {
+                "type": "integer"
+            },
+            "data_source_count": {
+                "type": "integer"
+            },
+            "cached_point_count": {
+                "type": "integer"
+            },
+            "embedded_package_count": {
+                "type": "integer"
+            },
+            "external_relationship_count": {
+                "type": "integer"
+            },
+            "extended_chart_part_count": {
+                "type": "integer"
+            },
+            "issue_count": {
+                "type": "integer"
+            },
+            "issues_truncated_at_source": {
+                "type": "boolean"
+            },
+            "execution_policy": {
+                "type": "string"
+            },
+            "word_opened": {
+                "type": "boolean"
+            },
+            "embedded_packages_opened": {
+                "type": "boolean"
+            },
+            "external_targets_followed": {
+                "type": "boolean"
+            },
+            "sensitive_values_included": {
+                "type": "boolean"
+            },
+            "source_included": {
+                "type": "boolean"
+            },
+            "view": {
+                "type": "string"
+            },
+            "detail": {
+                "type": "string"
+            },
+            "chart_id": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "chart_type": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "matched_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "issues": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "issues_truncated": {
+                "type": "boolean"
+            },
+            "runtime": {
+                "type": "string"
+            },
+            "python_used": {
+                "type": "boolean"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_ooxml_diagrams",
       "title": "Inspect native Word SmartArt diagrams",
@@ -11804,7 +13133,128 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "read-only package inspection",
+    "reversibility": "read-only",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "diagram_count": {
+                "type": "integer"
+            },
+            "point_count": {
+                "type": "integer"
+            },
+            "connection_count": {
+                "type": "integer"
+            },
+            "issue_count": {
+                "type": "integer"
+            },
+            "issues_truncated_at_source": {
+                "type": "boolean"
+            },
+            "execution_policy": {
+                "type": "string"
+            },
+            "word_opened": {
+                "type": "boolean"
+            },
+            "package_mutated": {
+                "type": "boolean"
+            },
+            "layout_executed": {
+                "type": "boolean"
+            },
+            "text_values_returned": {
+                "type": "boolean"
+            },
+            "raw_xml_included": {
+                "type": "boolean"
+            },
+            "keys_included": {
+                "type": "boolean"
+            },
+            "hashes_included": {
+                "type": "boolean"
+            },
+            "source_included": {
+                "type": "boolean"
+            },
+            "view": {
+                "type": "string"
+            },
+            "diagram_id": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "point_type": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "matched_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "response_truncated": {
+                "type": [
+                    "boolean",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "issues": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "issues_truncated": {
+                "type": [
+                    "boolean",
+                    "null"
+                ]
+            },
+            "operation_budget": {
+                "type": "object"
+            },
+            "runtime": {
+                "type": "string"
+            },
+            "python_used": {
+                "type": "boolean"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_ooxml_figures",
       "title": "Inspect Word figures and captions",
@@ -11896,7 +13346,149 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "read-only package inspection",
+    "reversibility": "read-only",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "figure_count": {
+                "type": "integer"
+            },
+            "representation_count": {
+                "type": "integer"
+            },
+            "caption_count": {
+                "type": "integer"
+            },
+            "association_count": {
+                "type": "integer"
+            },
+            "ambiguous_association_count": {
+                "type": "integer"
+            },
+            "resource_count": {
+                "type": "integer"
+            },
+            "external_resource_count": {
+                "type": "integer"
+            },
+            "unresolved_resource_count": {
+                "type": "integer"
+            },
+            "missing_alt_text_count": {
+                "type": "integer"
+            },
+            "issue_count": {
+                "type": "integer"
+            },
+            "issues_truncated_at_source": {
+                "type": "boolean"
+            },
+            "association_policy": {
+                "type": "string"
+            },
+            "execution_policy": {
+                "type": "string"
+            },
+            "word_opened": {
+                "type": "boolean"
+            },
+            "binary_resources_decoded": {
+                "type": "boolean"
+            },
+            "external_targets_followed": {
+                "type": "boolean"
+            },
+            "active_content_executed": {
+                "type": "boolean"
+            },
+            "text_included": {
+                "type": "boolean"
+            },
+            "source_included": {
+                "type": "boolean"
+            },
+            "relationship_targets_included": {
+                "type": "boolean"
+            },
+            "geometry_included": {
+                "type": "boolean"
+            },
+            "shape_details_included": {
+                "type": "boolean"
+            },
+            "view": {
+                "type": "string"
+            },
+            "detail": {
+                "type": "string"
+            },
+            "figure_id": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "caption_id": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "object_kind": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "matched_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "issues": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "issues_truncated": {
+                "type": "boolean"
+            },
+            "runtime": {
+                "type": "string"
+            },
+            "python_used": {
+                "type": "boolean"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_ooxml_content_controls",
       "title": "Inspect Word content controls and XML bindings",
@@ -11973,7 +13565,137 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "read-only package inspection",
+    "reversibility": "read-only",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "control_count": {
+                "type": "integer"
+            },
+            "store_count": {
+                "type": "integer"
+            },
+            "binding_count": {
+                "type": "integer"
+            },
+            "resolved_binding_count": {
+                "type": "integer"
+            },
+            "binding_target_count": {
+                "type": "integer"
+            },
+            "repeating_section_count": {
+                "type": "integer"
+            },
+            "repeating_cardinality_mismatch_count": {
+                "type": "integer"
+            },
+            "issue_count": {
+                "type": "integer"
+            },
+            "issues_truncated_at_source": {
+                "type": "boolean"
+            },
+            "parsed_xml_bytes": {
+                "type": "integer"
+            },
+            "parsed_xml_elements": {
+                "type": "integer"
+            },
+            "execution_policy": {
+                "type": "string"
+            },
+            "word_opened": {
+                "type": "boolean"
+            },
+            "package_mutated": {
+                "type": "boolean"
+            },
+            "custom_xml_values_included": {
+                "type": "boolean"
+            },
+            "raw_xml_included": {
+                "type": "boolean"
+            },
+            "names_included": {
+                "type": "boolean"
+            },
+            "binding_details_included": {
+                "type": "boolean"
+            },
+            "source_included": {
+                "type": "boolean"
+            },
+            "view": {
+                "type": "string"
+            },
+            "control_id": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "store_id": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "binding_id": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "matched_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "issues": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "issues_truncated": {
+                "type": "boolean"
+            },
+            "runtime": {
+                "type": "string"
+            },
+            "python_used": {
+                "type": "boolean"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_ooxml_active_content",
       "title": "Inspect Word active content safely",
@@ -12079,7 +13801,149 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "read-only package inspection",
+    "reversibility": "read-only",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "declaration_count": {
+                "type": "integer"
+            },
+            "control_count": {
+                "type": "integer"
+            },
+            "payload_count": {
+                "type": "integer"
+            },
+            "relationship_count": {
+                "type": "integer"
+            },
+            "issue_count": {
+                "type": "integer"
+            },
+            "issues_truncated_at_source": {
+                "type": "boolean"
+            },
+            "execution_policy": {
+                "type": "string"
+            },
+            "word_opened": {
+                "type": "boolean"
+            },
+            "package_mutated": {
+                "type": "boolean"
+            },
+            "active_content_executed": {
+                "type": "boolean"
+            },
+            "field_codes_included": {
+                "type": "boolean"
+            },
+            "activex_licenses_included": {
+                "type": "boolean"
+            },
+            "names_included": {
+                "type": "boolean"
+            },
+            "targets_included": {
+                "type": "boolean"
+            },
+            "hashes_included": {
+                "type": "boolean"
+            },
+            "source_included": {
+                "type": "boolean"
+            },
+            "view": {
+                "type": "string"
+            },
+            "declaration_id": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "control_id": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "payload_id": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "declaration_kind": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "payload_kind": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "relationship_role": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "matched_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "issues": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "issues_truncated": {
+                "type": "boolean"
+            },
+            "operation_budget": {
+                "type": "object"
+            },
+            "runtime": {
+                "type": "string"
+            },
+            "python_used": {
+                "type": "boolean"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_ooxml_properties",
       "title": "Inspect Word document properties",
@@ -12169,7 +14033,23 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "filesystem": "read"
     },
+    "reversibility": {
+        "kind": "read_only"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "properties": {
+                "type": "array"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_ooxml_tables",
       "title": "Inspect Word table topology",
@@ -12246,7 +14126,23 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "filesystem": "read"
     },
+    "reversibility": {
+        "kind": "read_only"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "tables": {
+                "type": "array"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_ooxml_markup_compatibility",
       "title": "Inspect OOXML markup compatibility",
@@ -12338,7 +14234,23 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "filesystem": "read"
     },
+    "reversibility": {
+        "kind": "read_only"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array"
+            }
+        }
+    }
+  },
     {
       "name": "analyze_ooxml_document",
       "title": "Analyze a Word document for AI planning",
@@ -12712,7 +14624,26 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "filesystem": "read"
     },
+    "reversibility": {
+        "kind": "read_only"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "diagnostics": {
+                "type": "array"
+            },
+            "fixes": {
+                "type": "array"
+            }
+        }
+    }
+  },
     {
       "name": "plan_ooxml_lint_repair",
       "title": "Plan a source-bound Word lint repair",
@@ -12771,7 +14702,30 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "filesystem": "read"
     },
+    "reversibility": {
+        "kind": "reversible",
+        "notes": "planning only"
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "plan_id"
+        ],
+        "properties": {
+            "plan_id": {
+                "type": "string"
+            },
+            "can_apply": {
+                "type": "boolean"
+            }
+        }
+    }
+  },
     {
       "name": "apply_ooxml_lint_repair",
       "title": "Apply a reviewed Word lint repair",
@@ -12833,7 +14787,48 @@
         "idempotentHint": false,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": false,
+        "filesystem": "read_write_new_output",
+        "network": false
     },
+    "reversibility": {
+        "kind": "new_file",
+        "writes": "output_path",
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "operation_contract",
+            "source_package_fingerprint",
+            "result_package_fingerprint"
+        ],
+        "properties": {
+            "operation_contract": {
+                "type": "string"
+            },
+            "source_package_fingerprint": {
+                "type": "string"
+            },
+            "result_package_fingerprint": {
+                "type": "string"
+            },
+            "output_path": {
+                "type": "string"
+            },
+            "changed": {
+                "type": "boolean"
+            },
+            "runtime": {
+                "const": "dotnet-native"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "plan_ooxml_format",
       "title": "Plan safe Word package formatting",
@@ -13177,7 +15172,70 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": false,
+        "filesystem": "read",
+        "network": false
     },
+    "reversibility": {
+        "kind": "read_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "file_name",
+            "package_fingerprint",
+            "matched_item_count",
+            "offset",
+            "returned_item_count",
+            "runtime",
+            "python_used"
+        ],
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "matched_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "issues": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "runtime": {
+                "const": "dotnet-native"
+            },
+            "python_used": {
+                "const": false
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "inspect_ooxml_review",
       "title": "Inspect saved Word review graph",
@@ -13272,7 +15330,74 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": false,
+        "filesystem": "read",
+        "network": false
     },
+    "reversibility": {
+        "kind": "read_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "file_name",
+            "package_fingerprint",
+            "view",
+            "matched_item_count",
+            "offset",
+            "returned_item_count",
+            "runtime",
+            "python_used"
+        ],
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "view": {
+                "type": "string"
+            },
+            "matched_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "issues": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "runtime": {
+                "const": "dotnet-native"
+            },
+            "python_used": {
+                "const": false
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "inspect_ooxml_fonts",
       "title": "Inspect the Word font table",
@@ -13338,7 +15463,70 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": false,
+        "filesystem": "read",
+        "network": false
     },
+    "reversibility": {
+        "kind": "read_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "file_name",
+            "package_fingerprint",
+            "matched_item_count",
+            "offset",
+            "returned_item_count",
+            "runtime",
+            "python_used"
+        ],
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "matched_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "issues": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "runtime": {
+                "const": "dotnet-native"
+            },
+            "python_used": {
+                "const": false
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "resolve_ooxml_formatting",
       "title": "Resolve modeled Word formatting",
@@ -13400,7 +15588,70 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": false,
+        "filesystem": "read",
+        "network": false
     },
+    "reversibility": {
+        "kind": "read_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "file_name",
+            "package_fingerprint",
+            "matched_item_count",
+            "offset",
+            "returned_item_count",
+            "runtime",
+            "python_used"
+        ],
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "matched_item_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "returned_item_count": {
+                "type": "integer"
+            },
+            "next_offset": {
+                "type": [
+                    "integer",
+                    "null"
+                ]
+            },
+            "items": {
+                "type": "array"
+            },
+            "issues": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "runtime": {
+                "const": "dotnet-native"
+            },
+            "python_used": {
+                "const": false
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "plan_ooxml_text_edits",
       "title": "Plan lossless Word text edits",
@@ -13457,7 +15708,74 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "read-only planning",
+    "reversibility": "read-only plan",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "plan_id": {
+                "type": "string"
+            },
+            "base_package_fingerprint": {
+                "type": "string"
+            },
+            "result_package_fingerprint": {
+                "type": "string"
+            },
+            "operation_count": {
+                "type": "integer"
+            },
+            "changed_operation_count": {
+                "type": "integer"
+            },
+            "changed_part_count": {
+                "type": "integer"
+            },
+            "total_xml_byte_delta": {
+                "type": "integer"
+            },
+            "has_changes": {
+                "type": "boolean"
+            },
+            "apply_blocked": {
+                "type": "boolean"
+            },
+            "apply_blocked_reason": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "operations": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "changed_parts": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "runtime": {
+                "type": "string"
+            },
+            "python_used": {
+                "type": "boolean"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "apply_ooxml_text_edits",
       "title": "Apply planned lossless Word text edits",
@@ -13522,7 +15840,59 @@
         "idempotentHint": false,
         "openWorldHint": false
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "writes saved OOXML package",
+    "reversibility": "recoverable when keep_backup=true",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "plan_id": {
+                "type": "string"
+            },
+            "applied": {
+                "type": "boolean"
+            },
+            "no_op": {
+                "type": "boolean"
+            },
+            "previous_package_fingerprint": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "predicted_package_fingerprint": {
+                "type": "string"
+            },
+            "backup_path": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "changed_entry_names": {
+                "type": "array"
+            },
+            "diagnostic_count": {
+                "type": "integer"
+            },
+            "runtime": {
+                "type": "string"
+            },
+            "python_used": {
+                "type": "boolean"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "plan_ooxml_semantic_edits",
       "title": "Plan semantic Word style edits",
@@ -14624,7 +16994,122 @@
         "idempotentHint": true,
         "openWorldHint": false
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "read-only planning",
+    "reversibility": "read-only plan",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "plan_id": {
+                "type": "string"
+            },
+            "decision": {
+                "type": "string"
+            },
+            "base_package_fingerprint": {
+                "type": "string"
+            },
+            "result_package_fingerprint": {
+                "type": "string"
+            },
+            "package_revision_count": {
+                "type": "integer"
+            },
+            "selected_revision_count": {
+                "type": "integer"
+            },
+            "explicit_revision_count": {
+                "type": "integer"
+            },
+            "cascaded_revision_count": {
+                "type": "integer"
+            },
+            "operation_count": {
+                "type": "integer"
+            },
+            "changed_operation_count": {
+                "type": "integer"
+            },
+            "changed_part_count": {
+                "type": "integer"
+            },
+            "removed_move_marker_count": {
+                "type": "integer"
+            },
+            "total_xml_byte_delta": {
+                "type": "integer"
+            },
+            "block_count": {
+                "type": "integer"
+            },
+            "block_codes": {
+                "type": "array"
+            },
+            "structural_plan_supported": {
+                "type": "boolean"
+            },
+            "can_apply": {
+                "type": "boolean"
+            },
+            "has_changes": {
+                "type": "boolean"
+            },
+            "apply_blocked": {
+                "type": "boolean"
+            },
+            "apply_blocked_reasons": {
+                "type": "array"
+            },
+            "candidate_validation": {
+                "type": "object"
+            },
+            "blocks": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "operations": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "changed_parts": {
+                "type": [
+                    "array",
+                    "null"
+                ]
+            },
+            "sensitive_values_included": {
+                "type": "boolean"
+            },
+            "raw_xml_returned": {
+                "type": "boolean"
+            },
+            "mutation_performed": {
+                "type": "boolean"
+            },
+            "word_opened": {
+                "type": "boolean"
+            },
+            "runtime": {
+                "type": "string"
+            },
+            "python_used": {
+                "type": "boolean"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "apply_ooxml_review_decisions",
       "title": "Apply planned saved-package review decisions",
@@ -14757,7 +17242,77 @@
         "idempotentHint": false,
         "openWorldHint": false
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "writes saved OOXML package",
+    "reversibility": "recoverable when keep_backup=true",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "file_name": {
+                "type": "string"
+            },
+            "plan_id": {
+                "type": "string"
+            },
+            "decision": {
+                "type": "string"
+            },
+            "applied": {
+                "type": "boolean"
+            },
+            "no_op": {
+                "type": "boolean"
+            },
+            "selected_revision_count": {
+                "type": "integer"
+            },
+            "cascaded_revision_count": {
+                "type": "integer"
+            },
+            "previous_package_fingerprint": {
+                "type": "string"
+            },
+            "package_fingerprint": {
+                "type": "string"
+            },
+            "predicted_package_fingerprint": {
+                "type": "string"
+            },
+            "backup_path": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "changed_entry_names": {
+                "type": "array"
+            },
+            "diagnostic_count": {
+                "type": "integer"
+            },
+            "microsoft_schema_valid": {
+                "type": "boolean"
+            },
+            "microsoft_schema_no_new_errors": {
+                "type": "boolean"
+            },
+            "runtime": {
+                "type": "string"
+            },
+            "python_used": {
+                "type": "boolean"
+            },
+            "word_opened": {
+                "type": "boolean"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "validate_ooxml",
       "title": "Validate OOXML package",
@@ -15123,7 +17678,36 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {},
+    "reversibility": {
+        "kind": "read_only"
     },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "word_running",
+            "visible",
+            "document_count",
+            "documents"
+        ],
+        "properties": {
+            "word_running": {
+                "type": "boolean"
+            },
+            "visible": {
+                "type": "boolean"
+            },
+            "document_count": {
+                "type": "integer"
+            },
+            "documents": {
+                "type": "array"
+            }
+        }
+    }
+  },
     {
       "name": "create_live_word_document",
       "title": "Create a new document in running Microsoft Word",
@@ -15151,7 +17735,36 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "documents": "write"
     },
+    "reversibility": {
+        "kind": "reversible",
+        "notes": "new document can be closed; optional new file is no-clobber"
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "live_document_id"
+        ],
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "name": {
+                "type": "string"
+            },
+            "full_name": {
+                "type": "string"
+            },
+            "saved": {
+                "type": "boolean"
+            }
+        }
+    }
+  },
     {
       "name": "connect_live_word_document",
       "title": "Connect to an open Microsoft Word document",
@@ -15190,7 +17803,55 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": "com_sta",
+        "filesystem": "read",
+        "network": false
     },
+    "reversibility": {
+        "kind": "handle_only",
+        "undo": false,
+        "writes": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "live_document_id",
+            "live_version",
+            "opened",
+            "already_open",
+            "file_path",
+            "document",
+            "performance"
+        ],
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "opened": {
+                "type": "boolean"
+            },
+            "already_open": {
+                "type": "boolean"
+            },
+            "file_path": {
+                "type": "string"
+            },
+            "document": {
+                "type": "object"
+            },
+            "performance": {
+                "type": "object"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "inspect_live_word_document",
       "title": "Inspect connected Word Live document",
@@ -15214,7 +17875,29 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "read-only live document inspection",
+    "reversibility": "read-only",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "document": {
+                "type": "object"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "map_live_word_structures",
       "title": "Map structures in connected Microsoft Word document",
@@ -15255,7 +17938,23 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "documents": "read"
     },
+    "reversibility": {
+        "kind": "read_only"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "structures": {
+                "type": "array"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_live_word_structure_items",
       "title": "Inspect native items in one Word structure collection",
@@ -15340,7 +18039,23 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "documents": "read"
     },
+    "reversibility": {
+        "kind": "read_only"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_live_word_drawing_layout",
       "title": "Inspect Word-executed drawing layout",
@@ -15873,7 +18588,54 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "documents": "read"
     },
+    "reversibility": {
+        "kind": "read_only"
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "observation_count",
+            "outcomes",
+            "content_stored",
+            "formula_text_stored",
+            "document_text_stored",
+            "path_exposed",
+            "runtime"
+        ],
+        "properties": {
+            "observation_count": {
+                "type": "integer"
+            },
+            "outcomes": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "integer"
+                }
+            },
+            "content_stored": {
+                "const": false
+            },
+            "formula_text_stored": {
+                "const": false
+            },
+            "document_text_stored": {
+                "const": false
+            },
+            "path_exposed": {
+                "const": false
+            },
+            "runtime": {
+                "const": "dotnet-native"
+            }
+        },
+        "additionalProperties": false
+    }
+  },
     {
       "name": "inspect_live_word_structure_learning",
       "title": "Inspect local Word structure learning",
@@ -15889,7 +18651,69 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "documents": "read"
     },
+    "reversibility": {
+        "kind": "read_only"
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "observation_count",
+            "inspection_observation_count",
+            "map_observations",
+            "inspection_observations",
+            "adaptive_rescan_policy",
+            "content_stored",
+            "document_counts_stored",
+            "property_values_stored",
+            "path_exposed",
+            "runtime"
+        ],
+        "properties": {
+            "observation_count": {
+                "type": "integer"
+            },
+            "inspection_observation_count": {
+                "type": "integer"
+            },
+            "map_observations": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "integer"
+                }
+            },
+            "inspection_observations": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "integer"
+                }
+            },
+            "adaptive_rescan_policy": {
+                "type": "string"
+            },
+            "content_stored": {
+                "const": false
+            },
+            "document_counts_stored": {
+                "const": false
+            },
+            "property_values_stored": {
+                "const": false
+            },
+            "path_exposed": {
+                "const": false
+            },
+            "runtime": {
+                "const": "dotnet-native"
+            }
+        },
+        "additionalProperties": false
+    }
+  },
     {
       "name": "inspect_live_word_object_model_types",
       "title": "Browse installed Microsoft Word object-model types",
@@ -15947,7 +18771,23 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "application": "word"
     },
+    "reversibility": {
+        "kind": "read_only"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "types": {
+                "type": "array"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_live_word_object_model_members",
       "title": "Browse members of one installed Microsoft Word object-model type",
@@ -16011,7 +18851,47 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": "com_read",
+        "filesystem": "none",
+        "network": false
     },
+    "reversibility": {
+        "kind": "read_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "privacy",
+            "library",
+            "stats",
+            "types",
+            "source"
+        ],
+        "properties": {
+            "privacy": {
+                "type": "string"
+            },
+            "library": {
+                "type": "object"
+            },
+            "stats": {
+                "type": "object"
+            },
+            "types": {
+                "type": "array"
+            },
+            "source": {
+                "type": "string"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "inspect_live_word_member_capabilities",
       "title": "Browse individual virtual tools for installed Microsoft Word members",
@@ -16104,7 +18984,47 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": "com_read",
+        "filesystem": "none",
+        "network": false
     },
+    "reversibility": {
+        "kind": "read_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "privacy",
+            "library",
+            "stats",
+            "capabilities",
+            "source"
+        ],
+        "properties": {
+            "privacy": {
+                "type": "string"
+            },
+            "library": {
+                "type": "object"
+            },
+            "stats": {
+                "type": "object"
+            },
+            "capabilities": {
+                "type": "array"
+            },
+            "source": {
+                "type": "string"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "preflight_live_word_member_operations",
       "title": "Preflight catalog-backed Microsoft Word member operations",
@@ -16132,7 +19052,38 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": "com_read_preflight",
+        "filesystem": "none",
+        "network": false
     },
+    "reversibility": {
+        "kind": "preflight_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "operations",
+            "source"
+        ],
+        "properties": {
+            "operations": {
+                "type": "array"
+            },
+            "source": {
+                "type": "string"
+            },
+            "catalog_fingerprint": {
+                "type": "string"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "execute_live_word_member_operations",
       "title": "Execute catalog-backed operations in an open Microsoft Word document",
@@ -16187,7 +19138,37 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": "com_execute",
+        "filesystem": "none",
+        "network": false
     },
+    "reversibility": {
+        "kind": "guarded_live_mutation",
+        "writes": "word_document",
+        "undo": true
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "operations"
+        ],
+        "properties": {
+            "operations": {
+                "type": "array"
+            },
+            "results": {
+                "type": "array"
+            },
+            "errors": {
+                "type": "array"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "get_live_word_selection",
       "title": "Read Word Live selection",
@@ -16211,7 +19192,29 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "read-only live selection inspection; issues selection token",
+    "reversibility": "read-only except token issuance",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "selection": {
+                "type": "object"
+            },
+            "document": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "find_live_word_text",
       "title": "Find text in the connected Microsoft Word document",
@@ -16270,7 +19273,49 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": "com_read",
+        "filesystem": "none",
+        "network": false
     },
+    "reversibility": {
+        "kind": "read_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "matches"
+        ],
+        "properties": {
+            "matches": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "range_token": {
+                            "type": "string"
+                        },
+                        "context": {
+                            "type": "string"
+                        },
+                        "start": {
+                            "type": "integer"
+                        },
+                        "end": {
+                            "type": "integer"
+                        }
+                    },
+                    "additionalProperties": true
+                }
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "replace_live_word_text",
       "title": "Replace text transactionally in the connected Microsoft Word document",
@@ -16360,7 +19405,41 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "mutates live Word document",
+    "reversibility": "single Undo/rollback guarded",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "replacements": {
+                "type": "integer"
+            },
+            "replace_all": {
+                "type": "boolean"
+            },
+            "track_changes": {
+                "type": "string"
+            },
+            "execution": {
+                "type": "object"
+            },
+            "document": {
+                "type": "object"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_live_word_review",
       "title": "Inspect comments or tracked revisions in Microsoft Word",
@@ -16419,7 +19498,56 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "read-only live review inspection",
+    "reversibility": "read-only",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "kind": {
+                "type": "string"
+            },
+            "track_changes": {
+                "type": "boolean"
+            },
+            "total_count": {
+                "type": "integer"
+            },
+            "offset": {
+                "type": "integer"
+            },
+            "limit": {
+                "type": "integer"
+            },
+            "returned_count": {
+                "type": "integer"
+            },
+            "truncated": {
+                "type": "boolean"
+            },
+            "items": {
+                "type": "array"
+            },
+            "token_policy": {
+                "type": "object"
+            },
+            "document": {
+                "type": "object"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "manage_live_word_review",
       "title": "Manage comments and tracked revisions in Microsoft Word",
@@ -16516,7 +19644,44 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "mutates live review state",
+    "reversibility": "single Undo/rollback guarded",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "action": {
+                "type": "string"
+            },
+            "item_index": {
+                "type": "integer"
+            },
+            "review_token": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "changed": {
+                "type": "boolean"
+            },
+            "document": {
+                "type": "object"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "diagnose_live_word_layout",
       "title": "Diagnose live Microsoft Word layout",
@@ -16575,7 +19740,47 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "read-only live layout diagnosis",
+    "reversibility": "read-only",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "paragraph_count": {
+                "type": "integer"
+            },
+            "scanned_paragraph_count": {
+                "type": "integer"
+            },
+            "issue_count": {
+                "type": "integer"
+            },
+            "issues_truncated": {
+                "type": "boolean"
+            },
+            "issues": {
+                "type": "array"
+            },
+            "thresholds": {
+                "type": "object"
+            },
+            "document": {
+                "type": "object"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_live_word_undo",
       "title": "Inspect guarded Microsoft Word Undo",
@@ -16606,7 +19811,23 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "documents": "read"
     },
+    "reversibility": {
+        "kind": "read_only"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "undo_available": {
+                "type": "boolean"
+            }
+        }
+    }
+  },
     {
       "name": "undo_live_word_operation",
       "title": "Undo exactly one verified WordToolkit operation",
@@ -16648,7 +19869,24 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "documents": "write"
     },
+    "reversibility": {
+        "kind": "reversible",
+        "notes": "performs guarded Word Undo"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "undone": {
+                "type": "boolean"
+            }
+        }
+    }
+  },
     {
       "name": "insert_live_word_text",
       "title": "Insert text directly in open Microsoft Word",
@@ -16740,7 +19978,24 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "documents": "write"
     },
+    "reversibility": {
+        "kind": "reversible",
+        "notes": "live mutation uses guarded rollback"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "live_version": {
+                "type": "integer"
+            }
+        }
+    }
+  },
     {
       "name": "format_live_word_selection",
       "title": "Format the current selection directly in Microsoft Word",
@@ -16806,7 +20061,24 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "documents": "write"
     },
+    "reversibility": {
+        "kind": "reversible",
+        "notes": "live mutation uses guarded rollback"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "live_version": {
+                "type": "integer"
+            }
+        }
+    }
+  },
     {
       "name": "insert_live_word_table",
       "title": "Insert a native table directly in Microsoft Word",
@@ -16915,7 +20187,24 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "documents": "write"
     },
+    "reversibility": {
+        "kind": "reversible",
+        "notes": "live mutation uses guarded rollback"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "live_version": {
+                "type": "integer"
+            }
+        }
+    }
+  },
     {
       "name": "preflight_live_word_table_formulas",
       "title": "Preflight native Word table formulas",
@@ -16943,7 +20232,37 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": "com_read_preflight",
+        "filesystem": "none",
+        "network": false
     },
+    "reversibility": {
+        "kind": "preflight_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "operations"
+        ],
+        "properties": {
+            "operations": {
+                "type": "array"
+            },
+            "warnings": {
+                "type": "array"
+            },
+            "errors": {
+                "type": "array"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "insert_live_word_table_formulas",
       "title": "Insert native formulas into an existing Word table",
@@ -17012,7 +20331,44 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": "com_write",
+        "filesystem": "none",
+        "network": false
     },
+    "reversibility": {
+        "kind": "guarded_live_mutation",
+        "writes": "word_document",
+        "undo": true
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "live_document_id",
+            "live_version"
+        ],
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "table": {
+                "type": "object"
+            },
+            "operations": {
+                "type": "array"
+            },
+            "verification": {
+                "type": "object"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "update_live_word_table_fields",
       "title": "Update all native fields in one existing Word table",
@@ -17065,7 +20421,41 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": "com_write",
+        "filesystem": "none",
+        "network": false
     },
+    "reversibility": {
+        "kind": "guarded_live_mutation",
+        "writes": "word_document",
+        "undo": true
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "live_document_id",
+            "live_version"
+        ],
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "updated_fields": {
+                "type": "array"
+            },
+            "verification": {
+                "type": "object"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "insert_live_word_list",
       "title": "Insert a native list directly in Microsoft Word",
@@ -17168,7 +20558,44 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": "com_write",
+        "filesystem": "none",
+        "network": false
     },
+    "reversibility": {
+        "kind": "guarded_live_mutation",
+        "writes": "word_document",
+        "undo": true
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "live_document_id",
+            "live_version"
+        ],
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "paragraphs": {
+                "type": "array"
+            },
+            "list_id": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "preflight_live_word_bookmarks",
       "title": "Preflight native Word bookmarks",
@@ -17196,7 +20623,37 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": "com_read_preflight",
+        "filesystem": "none",
+        "network": false
     },
+    "reversibility": {
+        "kind": "preflight_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "bookmarks"
+        ],
+        "properties": {
+            "bookmarks": {
+                "type": "array"
+            },
+            "warnings": {
+                "type": "array"
+            },
+            "errors": {
+                "type": "array"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "insert_live_word_bookmarks",
       "title": "Insert native bookmarks directly in Microsoft Word",
@@ -17272,7 +20729,32 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "mutates live Word document",
+    "reversibility": "single Undo/rollback guarded",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "bookmarks": {
+                "type": "array"
+            },
+            "document": {
+                "type": "object"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "preflight_live_word_fields",
       "title": "Preflight safe native Word fields",
@@ -17300,7 +20782,41 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "read-only validation",
+    "reversibility": "read-only",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "valid": {
+                "type": "boolean"
+            },
+            "field_count": {
+                "type": "integer"
+            },
+            "valid_count": {
+                "type": "integer"
+            },
+            "invalid_count": {
+                "type": "integer"
+            },
+            "fields": {
+                "type": "array"
+            },
+            "raw_field_codes_accepted": {
+                "type": "boolean"
+            },
+            "mutated_word": {
+                "type": "boolean"
+            },
+            "content_returned": {
+                "type": "boolean"
+            }
+        }
+    }
+  },
     {
       "name": "insert_live_word_fields",
       "title": "Insert safe native fields directly in Microsoft Word",
@@ -17376,7 +20892,32 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "mutates live Word document",
+    "reversibility": "single Undo/rollback guarded",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "fields_inserted": {
+                "type": "integer"
+            },
+            "document": {
+                "type": "object"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "insert_live_word_equation",
       "title": "Insert native equation directly in open Microsoft Word",
@@ -17465,7 +21006,24 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "documents": "write"
     },
+    "reversibility": {
+        "kind": "reversible",
+        "notes": "native OMath insertion with rollback"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "live_version": {
+                "type": "integer"
+            }
+        }
+    }
+  },
     {
       "name": "insert_live_word_equations_batch",
       "title": "Insert a batch of native equations directly in open Microsoft Word",
@@ -17546,7 +21104,24 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "documents": "write"
     },
+    "reversibility": {
+        "kind": "reversible",
+        "notes": "single guarded batch"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "live_version": {
+                "type": "integer"
+            }
+        }
+    }
+  },
     {
       "name": "preflight_live_word_equations",
       "title": "Preflight equations for Microsoft Word",
@@ -17615,7 +21190,23 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "documents": "read"
     },
+    "reversibility": {
+        "kind": "read_only"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "valid": {
+                "type": "boolean"
+            }
+        }
+    }
+  },
     {
       "name": "inspect_live_word_equations",
       "title": "Inspect native equations in open Microsoft Word",
@@ -17655,7 +21246,41 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": "com_read",
+        "filesystem": "none",
+        "network": false
     },
+    "reversibility": {
+        "kind": "read_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "live_document_id",
+            "equations"
+        ],
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "equations": {
+                "type": "array"
+            },
+            "warnings": {
+                "type": "array"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "update_live_word_equation",
       "title": "Safely replace one native equation in open Microsoft Word",
@@ -17729,7 +21354,41 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": "com_write",
+        "filesystem": "none",
+        "network": false
     },
+    "reversibility": {
+        "kind": "guarded_live_mutation",
+        "writes": "word_document",
+        "undo": true
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "live_document_id",
+            "live_version"
+        ],
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "equation": {
+                "type": "object"
+            },
+            "verification": {
+                "type": "object"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "apply_live_word_operations",
       "title": "Apply a fast mixed batch directly in open Microsoft Word",
@@ -17787,7 +21446,44 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": "com_write",
+        "filesystem": "none",
+        "network": false
     },
+    "reversibility": {
+        "kind": "guarded_transaction",
+        "writes": "word_document",
+        "undo": true
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "live_document_id",
+            "live_version"
+        ],
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "operations": {
+                "type": "array"
+            },
+            "verification": {
+                "type": "object"
+            },
+            "rollback": {
+                "type": "object"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "validate_live_word_document",
       "title": "Validate open Word document snapshot",
@@ -17811,7 +21507,44 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": "com_read",
+        "filesystem": "none",
+        "network": false
     },
+    "reversibility": {
+        "kind": "read_only",
+        "writes": false,
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "live_document_id",
+            "valid"
+        ],
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "valid": {
+                "type": "boolean"
+            },
+            "diagnostics": {
+                "type": "array"
+            },
+            "counts": {
+                "type": "object"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "save_live_word_document",
       "title": "Save the same open Microsoft Word document",
@@ -17847,7 +21580,29 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "writes the connected document to its existing path",
+    "reversibility": "not reversible as a file save; caller backup required",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "saved": {
+                "type": "boolean"
+            },
+            "document": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "start_word_application",
       "title": "Start or attach to Microsoft Word",
@@ -17870,7 +21625,48 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "application": "word"
     },
+    "reversibility": {
+        "kind": "reversible",
+        "notes": "starts or attaches Word; no document mutation"
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "word_running",
+            "visible",
+            "document_count",
+            "started_or_attached"
+        ],
+        "properties": {
+            "word_running": {
+                "type": "boolean"
+            },
+            "visible": {
+                "type": "boolean"
+            },
+            "document_count": {
+                "type": "integer"
+            },
+            "started_or_attached": {
+                "type": "boolean"
+            },
+            "application_owned_by_runtime": {
+                "type": "boolean"
+            },
+            "runtime": {
+                "type": "string"
+            },
+            "python_used": {
+                "type": "boolean"
+            }
+        }
+    }
+  },
     {
       "name": "open_live_word_document",
       "title": "Open an existing file in real Microsoft Word",
@@ -17927,7 +21723,27 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "documents": "write"
     },
+    "reversibility": {
+        "kind": "reversible",
+        "notes": "opens or attaches document; close/disconnect required"
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "live_document_id"
+        ],
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            }
+        }
+    }
+  },
     {
       "name": "publish_ooxml_package_to_live_word",
       "title": "Open a verified offline OOXML package as a new live Word document",
@@ -17985,7 +21801,28 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "filesystem": "read",
+        "documents": "write"
     },
+    "reversibility": {
+        "kind": "reversible",
+        "notes": "opens as a new live document; source package is read-only and unchanged"
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "live_document_id"
+        ],
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            }
+        }
+    }
+  },
     {
       "name": "insert_live_word_caption",
       "title": "Insert a native Word caption",
@@ -18816,7 +22653,35 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "mutates live Word document; reads specified local image",
+    "reversibility": "single Undo/rollback guarded",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "inline_shape_count": {
+                "type": "integer"
+            },
+            "image": {
+                "type": "object"
+            },
+            "document": {
+                "type": "object"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "insert_live_word_comment",
       "title": "Comment an exact live Word selection or found range",
@@ -18877,7 +22742,32 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "mutates live Word document",
+    "reversibility": "single Undo/rollback guarded",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "comment": {
+                "type": "object"
+            },
+            "document": {
+                "type": "object"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "insert_live_word_note",
       "title": "Insert a native footnote or endnote",
@@ -18962,7 +22852,24 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "documents": "write"
     },
+    "reversibility": {
+        "kind": "reversible",
+        "notes": "guarded live mutation"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "live_version": {
+                "type": "integer"
+            }
+        }
+    }
+  },
     {
       "name": "set_live_word_header_footer",
       "title": "Set or clear a native header or footer",
@@ -19065,7 +22972,24 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "documents": "write"
     },
+    "reversibility": {
+        "kind": "reversible",
+        "notes": "guarded live mutation"
+    },
+    "outputSchema": {
+        "type": "object",
+        "properties": {
+            "live_version": {
+                "type": "integer"
+            }
+        }
+    }
+  },
     {
       "name": "export_live_word_pdf",
       "title": "Export the current live Word document to PDF",
@@ -19131,7 +23055,44 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": {
+        "word": "com_export",
+        "filesystem": "read_write_new_output",
+        "network": false
     },
+    "reversibility": {
+        "kind": "new_file",
+        "writes": "output_path",
+        "undo": false
+    },
+    "outputSchema": {
+        "type": "object",
+        "required": [
+            "live_document_id",
+            "output_path"
+        ],
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "live_version": {
+                "type": "integer"
+            },
+            "output_path": {
+                "type": "string"
+            },
+            "pdf_bytes": {
+                "type": "integer"
+            },
+            "verified": {
+                "type": "boolean"
+            }
+        },
+        "additionalProperties": true
+    }
+  },
     {
       "name": "close_live_word_document",
       "title": "Close the connected Word document",
@@ -19176,7 +23137,35 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "closes connected Word document",
+    "reversibility": "not reversible after close; save/discard policy explicit",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "closed": {
+                "type": "boolean"
+            },
+            "save_changes": {
+                "type": "string"
+            },
+            "saved_to": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "previous_document": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "quit_word_application",
       "title": "Quit the real Microsoft Word application",
@@ -19211,7 +23200,38 @@
         "idempotentHint": false,
         "openWorldHint": true
       }
-    },
+    ,
+    "operationVersion": "1.0",
+    "permissions": "quits Word; requires confirm=true and explicit save_changes",
+    "reversibility": "not reversible; terminates Word process",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "quit": {
+                "type": "boolean"
+            },
+            "save_changes": {
+                "type": "string"
+            },
+            "document_count": {
+                "type": "integer"
+            },
+            "saved_document_count": {
+                "type": "integer"
+            },
+            "runtime": {
+                "type": "string"
+            },
+            "python_used": {
+                "type": "boolean"
+            },
+            "performance": {
+                "type": "object"
+            }
+        }
+    }
+  },
     {
       "name": "disconnect_live_word_document",
       "title": "Disconnect Word Live document",
@@ -19235,7 +23255,26 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
+    ,
+    "operationVersion": "1.0",
+    "permissions": "removes local live-document handle; does not close Word document",
+    "reversibility": "not reversible for the handle; reconnect required",
+    "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "live_document_id": {
+                "type": "string"
+            },
+            "disconnected": {
+                "type": "boolean"
+            },
+            "quarantine_cleared": {
+                "type": "boolean"
+            }
+        }
     }
+  }
   ],
   "transport": "local_stdio"
 }

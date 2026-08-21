@@ -1,5 +1,23 @@
 # WordToolkit Native
 
+> **Status:** development line `0.60`; public repository work is tracked in [draft PR #3](https://github.com/Fr4u/WordToolkit/pull/3). The project is not presented as a complete Word-compatibility layer or as pixel-equivalent across Word versions.
+
+## Repository navigation
+
+- [Contributing](CONTRIBUTING.md) — change scope, required evidence and review rules.
+- [Documentation index](docs/README.md) — contracts, architecture, testing, security and known limits.
+- [Testing guide](docs/TESTING.md) — local test commands and the distinction between package and live-Word validation.
+- [Architecture](docs/ARCHITECTURE.md) — system boundaries and data flow.
+- [Known limitations](docs/KNOWN-LIMITATIONS.md) — unsupported or intentionally bounded behavior.
+- [Security policy](docs/SECURITY.md) — active-content, external-link and trust boundaries.
+- [AI interoperability](docs/AI-INTEROPERABILITY.md) — bounded model-facing contracts.
+
+The native catalog has 149/149 first-call guidance records. Clients should search when
+the capability is unknown, inspect the exact action, bind prerequisites, execute, and
+verify success or follow the declared recovery mapping. This adds no public tools.
+
+The repository contains both a neutral saved-package engine and Windows integrations for Microsoft Word. A passing package or unit test does not prove that Microsoft Word will render or normalize a document identically. Claims about Word behavior require a real Word run on a stated build; claims without that evidence must remain explicitly limited.
+
 WordToolkit 0.60 (development line) is a local Windows MCP plugin plus a neutral .NET document-engine spine. It starts or attaches to the real Microsoft Word application through a persistent COM STA thread, while the cross-platform LibreOffice layer separates bounded exact-binary identity probing from a real one-shot Java UNO Writer renderer that uses a private profile, an embedded source-rebuilt helper, source-drift checks and transactional PDF/PNG/manifest publication without pretending to provide Microsoft Word layout fidelity or a process/network sandbox. The document-engine core can also inspect the package graph, semantic structure, conservative theorem/definition/proof role evidence, section bindings, typed table/grid/merge topology, style, numbering, theme, settings, font-table, field/bookmark/reference, classic DrawingML chart, source-linked figure/caption and declared DrawingML/VML placement, active-content metadata, canonical OfficeMath and review/revision graphs, rewrite ordinary text slots around exact-byte immutable OfficeMath anchors, repair only canonically identical duplicate OfficeMath property containers and properties, lint a saved package with deterministic source-linked rule packs, plan and apply source-bound title and numbering-sequence repairs, reconstruct reviewed single- or multilevel numbering definitions even when the numbering part is missing, create, clone, safely consolidate exact typed style definitions, delete proven-unused custom definitions, rename only a custom style's primary visible name, align complete stable-ID style dependency closures from a separate template without attaching or mutating it, and assign styles through one semantic transaction, compare two saved packages at separate OPC-entry and source-linked semantic layers, create deterministic reversible package patches, plan guarded three-way merges, and resolve modeled effective formatting without starting Word. Theme-backed fonts resolve through `themeFontLang` and supplemental script mappings, then cross-reference declared and embedded font metadata; colors resolve to concrete RGB values when the source is deterministic. Nested complex and simple fields are parsed per Word story into inert dependencies rather than evaluated or exposed as raw XML. Classic chart inspection covers all 16 plot families, series, axes, cache metadata and related parts without retaining point values or opening workbooks. Figure inspection types anchor reference frames, offsets, effect extents, relative sizes and bounded wrap polygons plus known VML placement declarations without claiming that declared coordinates are rendered page geometry. Active-content inspection inventories OLE declarations, embedded packages, ActiveX topology, VBA/customization and signature parts without decoding binaries, opening embedded packages, running macros, following external targets or claiming cryptographic validation. Native equations are classified into source-linked objects and argument roles without converting them or returning raw OMML. Comments are joined to story anchors, threaded replies, durable identifiers, people records and reaction inventory; revisions are classified with authorship, nesting, named moves and permission ranges. Every result retains its declaration and provenance. The lossless editing core binds text, style definitions, paragraph/run/table style references, tracked-review structures, numbering instances and one existing empty core-title element to exact XML byte spans, combines bounded commands into hash-preconditioned package mutations, predicts result fingerprints and retains exact guarded inverses without reserializing unrelated XML.
 
 The saved-package core also projects Word bibliography collections stored in Custom XML
@@ -961,6 +979,7 @@ existing, unambiguous, lexically safe empty `dc:title` reports `implemented=true
 unused-style finding names the separate `delete_unused_style` command but remains
 `implemented=false`; the semantic planner independently re-proves every deletion
 precondition instead of treating a lint finding as authorization.
+The 25 `ManualFix` rules detect and report findings but are not automatically repaired; the linter makes no broad auto-fix claim.
 Linting itself never mutates a package. The separate plan/apply repair path binds the
 exact finding and package fingerprint to a privacy-safe preview, validates the lossless
 candidate structurally and with the Open XML SDK, blocks signed packages, and creates a
@@ -1350,7 +1369,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is 0.60.0. The latest immutable public release remains
+The development manifest/runtime is the locally qualified9 0.60.1 candidate (`0.60.1+codex.20260821002028`). Installation passed: artifact/source/cache parity is 199 files with qualified9 map SHA `270e5b0...`, cache path `C:\Users\Admin\.codex\plugins\cache\personal\wordtoolkit\0.60.1+codex.20260821002028`, and runtime guidance 149/149. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:

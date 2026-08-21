@@ -203,9 +203,7 @@ _READ_METHOD_PREFIXES = (
     "item",
 )
 _REFERENCE_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]{0,63}")
-_INTEGER_TYPES = frozenset(
-    {"I1", "I2", "I4", "I8", "INT", "UI1", "UI2", "UI4", "UI8", "UINT"}
-)
+_INTEGER_TYPES = frozenset({"I1", "I2", "I4", "I8", "INT", "UI1", "UI2", "UI4", "UI8", "UINT"})
 _FLOAT_TYPES = frozenset({"CY", "DECIMAL", "R4", "R8"})
 _ANY_TYPES = frozenset({"DISPATCH", "EMPTY", "NULL", "UNKNOWN", "VARIANT"})
 
@@ -435,9 +433,7 @@ def _parameter_json_schema(
         )
     schema: dict[str, Any] = {
         "title": str(parameter["name"])[:128],
-        "description": (
-            f"Word COM parameter {parameter['name']} ({expected_type})"
-        ),
+        "description": (f"Word COM parameter {parameter['name']} ({expected_type})"),
         "oneOf": variants,
     }
     if "default_value" in parameter:
@@ -476,8 +472,7 @@ def _input_parameters(profile: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         parameter
         for parameter in profile["signature"]["parameters"]
-        if "out" not in parameter["flag_names"]
-        or "in" in parameter["flag_names"]
+        if "out" not in parameter["flag_names"] or "in" in parameter["flag_names"]
     ]
 
 
@@ -545,8 +540,7 @@ def _virtual_tool_definition(
     else:
         parameters = _input_parameters(profile)
         required_positions = [
-            index for index, parameter in enumerate(parameters)
-            if not bool(parameter["optional"])
+            index for index, parameter in enumerate(parameters) if not bool(parameter["optional"])
         ]
         minimum_arguments = max(required_positions, default=-1) + 1
         arguments_schema: dict[str, Any] = {
@@ -555,8 +549,7 @@ def _virtual_tool_definition(
         }
         if parameters:
             arguments_schema["prefixItems"] = [
-                _parameter_json_schema(parameter, enum_types)
-                for parameter in parameters
+                _parameter_json_schema(parameter, enum_types) for parameter in parameters
             ]
         if bool(profile["signature"]["variadic"]):
             arguments_schema["items"] = {
@@ -666,69 +659,59 @@ def build_member_capability_registry(catalog: dict[str, Any]) -> dict[str, Any]:
             )
             parameters = _normalized_input_parameters(
                 member_kind,
-                [
-                    _parameter_payload(parameter)
-                    for parameter in member.get("parameters", [])[:255]
-                ],
+                [_parameter_payload(parameter) for parameter in member.get("parameters", [])[:255]],
             )
             profile: dict[str, Any] = {
-                    "capability_id": _stable_id("wmc1", identity),
-                    "accessor_group_id": _stable_id(
-                        "wma1",
-                        [
-                            *type_identity,
-                            _integer(member.get("member_id")),
-                            member_name,
-                        ],
-                    ),
-                    "type": {
-                        "name": type_name,
-                        "kind": _text(type_item.get("kind"), 64),
-                        "type_index": _integer(type_item.get("type_index")),
-                        "guid": _text(type_item.get("guid"), 64),
-                    },
-                    "member": {
-                        "name": member_name,
-                        "kind": member_kind,
-                        "member_id": _integer(member.get("member_id")),
-                        "declaration_index": _integer(
-                            member.get("declaration_index")
-                        ),
-                        "flags": _integer(member.get("flags")),
-                        "invoke_kind": _integer(member.get("invoke_kind")),
-                        "function_kind": _integer(member.get("function_kind")),
-                        "call_convention": _integer(member.get("call_convention")),
-                        "flag_names": [
-                            _text(item, 32)
-                            for item in member.get("flag_names", [])[:16]
-                        ],
-                    },
-                    "signature": {
-                        "parameters": parameters,
-                        "parameter_count": _integer(member.get("parameter_count")),
-                        "optional_parameter_count": _integer(
-                            member.get("optional_parameter_count")
-                        ),
-                        "variadic": bool(member.get("variadic", False)),
-                        "return_type": _text(
-                            member.get("return_type", member.get("type", "UNKNOWN")),
-                            256,
-                        )
-                        or "UNKNOWN",
-                    },
-                    "target": {
-                        "required_type": type_name,
-                        "allowed_roots": _target_roots(type_name),
-                        "result_chaining_allowed": True,
-                    },
-                    "policy": {
-                        "effect": effect,
-                        "execution": execution,
-                        "reason": reason,
-                        "mutating": mutating,
-                        "undo_required": mutating,
-                    },
-                }
+                "capability_id": _stable_id("wmc1", identity),
+                "accessor_group_id": _stable_id(
+                    "wma1",
+                    [
+                        *type_identity,
+                        _integer(member.get("member_id")),
+                        member_name,
+                    ],
+                ),
+                "type": {
+                    "name": type_name,
+                    "kind": _text(type_item.get("kind"), 64),
+                    "type_index": _integer(type_item.get("type_index")),
+                    "guid": _text(type_item.get("guid"), 64),
+                },
+                "member": {
+                    "name": member_name,
+                    "kind": member_kind,
+                    "member_id": _integer(member.get("member_id")),
+                    "declaration_index": _integer(member.get("declaration_index")),
+                    "flags": _integer(member.get("flags")),
+                    "invoke_kind": _integer(member.get("invoke_kind")),
+                    "function_kind": _integer(member.get("function_kind")),
+                    "call_convention": _integer(member.get("call_convention")),
+                    "flag_names": [_text(item, 32) for item in member.get("flag_names", [])[:16]],
+                },
+                "signature": {
+                    "parameters": parameters,
+                    "parameter_count": _integer(member.get("parameter_count")),
+                    "optional_parameter_count": _integer(member.get("optional_parameter_count")),
+                    "variadic": bool(member.get("variadic", False)),
+                    "return_type": _text(
+                        member.get("return_type", member.get("type", "UNKNOWN")),
+                        256,
+                    )
+                    or "UNKNOWN",
+                },
+                "target": {
+                    "required_type": type_name,
+                    "allowed_roots": _target_roots(type_name),
+                    "result_chaining_allowed": True,
+                },
+                "policy": {
+                    "effect": effect,
+                    "execution": execution,
+                    "reason": reason,
+                    "mutating": mutating,
+                    "undo_required": mutating,
+                },
+            }
             if member_kind == "enum_value":
                 constant_value = member.get("value")
                 profile["constant"] = {
@@ -871,9 +854,7 @@ def _validate_primitive_argument(
             "A Word BOOL parameter requires true or false",
             {"expected_type": expected_type},
         )
-    if base_type in _INTEGER_TYPES and (
-        isinstance(value, bool) or not isinstance(value, int)
-    ):
+    if base_type in _INTEGER_TYPES and (isinstance(value, bool) or not isinstance(value, int)):
         raise WordToolkitError(
             ErrorCode.INVALID_INPUT,
             "An integer Word parameter requires an integer",
@@ -887,9 +868,7 @@ def _validate_primitive_argument(
             "A numeric Word parameter requires a number",
             {"expected_type": expected_type},
         )
-    if normalized in enum_types and (
-        isinstance(value, bool) or not isinstance(value, int)
-    ):
+    if normalized in enum_types and (isinstance(value, bool) or not isinstance(value, int)):
         raise WordToolkitError(
             ErrorCode.INVALID_INPUT,
             "A Word enum parameter requires an integer or a typed constant_id",
@@ -1005,9 +984,7 @@ def prepare_member_operations(
         )
     try:
         encoded_size = len(
-            json.dumps(operations, ensure_ascii=False, separators=(",", ":")).encode(
-                "utf-8"
-            )
+            json.dumps(operations, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         )
     except (TypeError, ValueError, OverflowError) as exc:
         raise WordToolkitError(
@@ -1027,8 +1004,7 @@ def prepare_member_operations(
         if profile.get("member", {}).get("kind") == "enum_value"
     }
     enum_types = frozenset(
-        _normalized_com_type(str(profile["type"]["name"]))
-        for profile in constants.values()
+        _normalized_com_type(str(profile["type"]["name"])) for profile in constants.values()
     )
     prepared: list[PreparedMemberOperation] = []
     operation_ids: set[str] = set()
@@ -1056,9 +1032,7 @@ def prepare_member_operations(
                 {"position": position, "fields": unknown_keys},
             )
         operation_id = operation.get("operation_id", f"op_{position}")
-        if not isinstance(operation_id, str) or not _REFERENCE_NAME.fullmatch(
-            operation_id
-        ):
+        if not isinstance(operation_id, str) or not _REFERENCE_NAME.fullmatch(operation_id):
             raise WordToolkitError(
                 ErrorCode.INVALID_INPUT,
                 "operation_id is invalid",
@@ -1173,9 +1147,7 @@ def prepare_member_operations(
             )
         input_parameters = _input_parameters(profile)
         required_positions = [
-            index
-            for index, parameter in enumerate(input_parameters)
-            if not parameter["optional"]
+            index for index, parameter in enumerate(input_parameters) if not parameter["optional"]
         ]
         required_count = max(required_positions, default=-1) + 1
         variadic = bool(profile["signature"]["variadic"])
@@ -1267,10 +1239,7 @@ def member_preflight_payload(
             {
                 "operation_id": item.operation_id,
                 "capability_id": item.capability_id,
-                "member": (
-                    f"{item.profile['type']['name']}."
-                    f"{item.profile['member']['name']}"
-                ),
+                "member": (f"{item.profile['type']['name']}.{item.profile['member']['name']}"),
                 "member_kind": item.profile["member"]["kind"],
                 "target_kind": item.target_kind,
                 "target_result_id": item.target_result_id,
@@ -1282,9 +1251,7 @@ def member_preflight_payload(
                 "mutating": item.profile["policy"]["mutating"],
             }
         )
-    mutating_count = sum(
-        1 for item in prepared if bool(item.profile["policy"]["mutating"])
-    )
+    mutating_count = sum(1 for item in prepared if bool(item.profile["policy"]["mutating"]))
     return {
         "valid": True,
         "registry_complete": bool(registry["stats"]["complete"]),

@@ -11,9 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _tool() -> dict[str, Any]:
     catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v1.json").read_text())
-    return next(
-        tool for tool in catalog["tools"] if tool["name"] == "inspect_ooxml_signatures"
-    )
+    return next(tool for tool in catalog["tools"] if tool["name"] == "inspect_ooxml_signatures")
 
 
 def _response() -> dict[str, Any]:
@@ -46,9 +44,7 @@ def _response() -> dict[str, Any]:
                     "signed_part_count": 1,
                     "signed_relationship_part_count": 0,
                     "selected_relationship_count": 0,
-                    "signature_algorithm": (
-                        "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"
-                    ),
+                    "signature_algorithm": ("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"),
                     "canonicalization_algorithm": (
                         "http://www.w3.org/TR/2001/REC-xml-c14n-20010315"
                     ),

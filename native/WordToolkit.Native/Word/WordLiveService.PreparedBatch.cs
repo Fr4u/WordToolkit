@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Runtime.InteropServices;
 using WordToolkit.Native.Equations;
 using WordToolkit.Native.Protocol;
 
@@ -91,6 +92,7 @@ internal sealed partial class WordLiveService
                 .Where(index => operations[index] is PreparedEquationOperation)
                 .ToArray();
             var stagedEquations = new Dictionary<int, BuiltEquationResult>();
+            var perOperationEquationCounts = new List<int>();
             var beforeEquations = (int)publicationRange.OMaths.Count;
             for (var reverse = equationIndexes.Length - 1; reverse >= 0; reverse--)
             {
@@ -102,7 +104,22 @@ internal sealed partial class WordLiveService
                     stagingStart + segment.End,
                     (PreparedEquationOperation)operations[index]
                 );
+                var perOperationEquationCount = (int)stagingDocument.OMaths.Count;
+                perOperationEquationCounts.Add(perOperationEquationCount);
+                var expectedPerOperationEquationCount = beforeEquations + (equationIndexes.Length - reverse);
+                if (perOperationEquationCount != expectedPerOperationEquationCount)
+                {
+                    throw new NativeToolException(
+                        "EQUATION_INVALID",
+                        "Microsoft Word changed the native equation count during isolated batch construction",
+                        new { operation_index = index, before = beforeEquations, after = perOperationEquationCount, expected = expectedPerOperationEquationCount }
+                    );
+                }
             }
+            // Reacquire after Word may expand the original range while building OMaths.
+            var refreshedContentEnd = Math.Max(stagingStart, (int)stagingDocument.Content.End - 1);
+            if (Marshal.IsComObject(publicationRange)) Marshal.FinalReleaseComObject(publicationRange);
+            publicationRange = stagingDocument.Range(stagingStart, refreshedContentEnd);
             var afterEquations = (int)publicationRange.OMaths.Count;
             if (afterEquations != beforeEquations + equationIndexes.Length)
             {
@@ -114,6 +131,7 @@ internal sealed partial class WordLiveService
                         before = beforeEquations,
                         after = afterEquations,
                         expected = equationIndexes.Length,
+                        per_operation_counts = perOperationEquationCounts,
                         target_document_mutated = false,
                     }
                 );

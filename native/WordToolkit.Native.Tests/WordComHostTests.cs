@@ -10,6 +10,14 @@ public sealed class WordComHostTests
     private const int RpcEDisconnected = unchecked((int)0x80010108);
 
     [Fact]
+    public async Task InjectedApplicationFactoryNeverClaimsRuntimeOwnership()
+    {
+        await using var host = new WordComHost(_ => new object());
+        _ = await host.InvokeAsync(application => application is not null, launchIfMissing: true);
+        Assert.False(host.ApplicationOwnedByRuntime);
+    }
+
+    [Fact]
     public async Task MutationIsNeverReplayedAfterComDisconnect()
     {
         await using var host = new WordComHost(_ => new object());

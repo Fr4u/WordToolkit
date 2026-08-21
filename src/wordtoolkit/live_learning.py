@@ -333,10 +333,7 @@ class StructureLearningStore:
         if (
             not name
             or len(name) > 96
-            or any(
-                character not in "abcdefghijklmnopqrstuvwxyz0123456789_."
-                for character in name
-            )
+            or any(character not in "abcdefghijklmnopqrstuvwxyz0123456789_." for character in name)
         ):
             raise ValueError("Invalid structure-learning property name")
         return name
@@ -415,9 +412,9 @@ class StructureLearningStore:
         """
 
         collection = self._collection_name(collection_name)
-        normalized = tuple(
-            sorted({self._property_name(name) for name in property_names})
-        )[: self.MAX_PROPERTIES]
+        normalized = tuple(sorted({self._property_name(name) for name in property_names}))[
+            : self.MAX_PROPERTIES
+        ]
         with self._lock:
             payload = self._load()
         category = payload["collections"].get(collection, {})
@@ -434,20 +431,12 @@ class StructureLearningStore:
             learned = learned_properties.get(name, {})
             if not isinstance(learned, dict):
                 learned = {}
-            probes = EquationLearningStore._nonnegative_int(
-                learned.get("probe_observations", 0)
-            )
-            successes = EquationLearningStore._nonnegative_int(
-                learned.get("successful_reads", 0)
-            )
-            failures = EquationLearningStore._nonnegative_int(
-                learned.get("failed_reads", 0)
-            )
+            probes = EquationLearningStore._nonnegative_int(learned.get("probe_observations", 0))
+            successes = EquationLearningStore._nonnegative_int(learned.get("successful_reads", 0))
+            failures = EquationLearningStore._nonnegative_int(learned.get("failed_reads", 0))
             next_probe = max(
                 1,
-                EquationLearningStore._nonnegative_int(
-                    learned.get("next_probe_inspection", 1)
-                ),
+                EquationLearningStore._nonnegative_int(learned.get("next_probe_inspection", 1)),
             )
             supported = successes > 0
             due = supported or inspection_observations + 1 >= next_probe
@@ -593,9 +582,7 @@ class StructureLearningStore:
                 category = {}
                 collections[collection] = category
             inspection_observations = (
-                EquationLearningStore._nonnegative_int(
-                    category.get("inspection_observations", 0)
-                )
+                EquationLearningStore._nonnegative_int(category.get("inspection_observations", 0))
                 + 1
             )
             category["inspection_observations"] = inspection_observations
@@ -620,23 +607,17 @@ class StructureLearningStore:
                     properties[name] = learned
                 if outcome["attempted"]:
                     learned["probe_observations"] = (
-                        EquationLearningStore._nonnegative_int(
-                            learned.get("probe_observations", 0)
-                        )
+                        EquationLearningStore._nonnegative_int(learned.get("probe_observations", 0))
                         + 1
                     )
                     successful_reads = outcome["successful_reads"]
                     failed_reads = outcome["failed_reads"]
                     learned["successful_reads"] = (
-                        EquationLearningStore._nonnegative_int(
-                            learned.get("successful_reads", 0)
-                        )
+                        EquationLearningStore._nonnegative_int(learned.get("successful_reads", 0))
                         + successful_reads
                     )
                     learned["failed_reads"] = (
-                        EquationLearningStore._nonnegative_int(
-                            learned.get("failed_reads", 0)
-                        )
+                        EquationLearningStore._nonnegative_int(learned.get("failed_reads", 0))
                         + failed_reads
                     )
                     clean = successful_reads > 0 and failed_reads == 0
@@ -702,9 +683,7 @@ class StructureLearningStore:
                 properties.append(
                     {
                         "property": property_name,
-                        "status": "supported"
-                        if successful_reads
-                        else "unavailable",
+                        "status": "supported" if successful_reads else "unavailable",
                         "probe_observations": EquationLearningStore._nonnegative_int(
                             learned.get("probe_observations", 0)
                         ),
@@ -718,9 +697,7 @@ class StructureLearningStore:
                                 learned.get("next_probe_inspection", 1)
                             ),
                         ),
-                        "last_probe_clean": bool(
-                            learned.get("last_probe_clean", True)
-                        ),
+                        "last_probe_clean": bool(learned.get("last_probe_clean", True)),
                         "last_observed_at": learned.get("last_observed_at", ""),
                     }
                 )

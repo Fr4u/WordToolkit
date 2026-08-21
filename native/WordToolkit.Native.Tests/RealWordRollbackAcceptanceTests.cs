@@ -1,3 +1,5 @@
+using System.Runtime.ExceptionServices;
+using System.Text.Json;
 using WordToolkit.Native.Protocol;
 using WordToolkit.Native.Word;
 
@@ -5,6 +7,160 @@ namespace WordToolkit.Native.Tests;
 
 public sealed class RealWordRollbackAcceptanceTests
 {
+    [Fact]
+    public async Task RealWordSystemNotesStabilizeRollbackSnapshot()
+    {
+        if (!string.Equals(
+            Environment.GetEnvironmentVariable("WORDTOOLKIT_REAL_WORD_ROLLBACK_TEST"),
+            "1",
+            StringComparison.Ordinal
+        ))
+        {
+            return;
+        }
+
+        object? ownedApplication = null;
+        object CreateApplication(bool launchIfMissing)
+        {
+            if (ownedApplication is not null)
+            {
+                return ownedApplication;
+            }
+            if (!launchIfMissing)
+            {
+                throw new InvalidOperationException(
+                    "The real-Word regression requires its dedicated application instance."
+                );
+            }
+            ownedApplication = CreateOwnedWordApplication();
+            return ownedApplication;
+        }
+
+        await using var host = new WordComHost(CreateApplication);
+        var service = new WordLiveService(host);
+        string? documentName = null;
+        ExceptionDispatchInfo? primary = null;
+        try
+        {
+            await host.InvokeAsync(
+                application =>
+                {
+                    dynamic document = application.Documents.Add(Visible: false);
+                    documentName = (string)document.Name;
+                    return true;
+                },
+                launchIfMissing: true
+            );
+
+            using var connectArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                document_name = documentName,
+                activate = false,
+            }));
+            using var connectedJson = JsonDocument.Parse(JsonSerializer.Serialize(
+                await service.CallAsync(
+                    "connect_live_word_document",
+                    connectArguments.RootElement,
+                    CancellationToken.None
+                ),
+                JsonDefaults.Compact
+            ));
+            var documentId = connectedJson.RootElement.GetProperty("live_document_id").GetString()!;
+            var version = connectedJson.RootElement.GetProperty("live_version").GetInt64();
+
+            async Task<JsonElement> InsertAsync(string kind, string mark, long expectedVersion)
+            {
+                using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+                {
+                    live_document_id = documentId,
+                    kind,
+                    text = kind == "footnote" ? "Footnote F" : "Endnote E",
+                    custom_mark = mark,
+                    target = "document_end",
+                    expected_version = expectedVersion,
+                    activate = false,
+                }));
+                using var result = JsonDocument.Parse(JsonSerializer.Serialize(
+                    await service.CallAsync("insert_live_word_note", arguments.RootElement, CancellationToken.None),
+                    JsonDefaults.Compact
+                ));
+                return result.RootElement.Clone();
+            }
+
+            var footnote = await InsertAsync("footnote", "F", version);
+            version = footnote.GetProperty("live_version").GetInt64();
+            var endnote = await InsertAsync("endnote", "E", version);
+            version = endnote.GetProperty("live_version").GetInt64();
+            Assert.Equal(2, version);
+            Assert.Equal(1, endnote.GetProperty("document").GetProperty("footnote_count").GetInt32());
+            Assert.Equal(1, endnote.GetProperty("document").GetProperty("endnote_count").GetInt32());
+        }
+        catch (Exception exception)
+        {
+            primary = ExceptionDispatchInfo.Capture(exception);
+        }
+        finally
+        {
+            Exception? cleanupFailure = null;
+            if (documentName is not null)
+            {
+                try
+                {
+                    await host.InvokeAsync(
+                        application =>
+                        {
+                            foreach (dynamic document in application.Documents)
+                            {
+                                if ((string)document.Name == documentName)
+                                {
+                                    document.Close(0);
+                                    break;
+                                }
+                            }
+                            return true;
+                        },
+                        launchIfMissing: false
+                    );
+                }
+                catch (Exception exception)
+                {
+                    cleanupFailure = exception;
+                }
+            }
+            try
+            {
+                await host.InvokeAsync(
+                    application =>
+                    {
+                        application.Quit(0);
+                        return true;
+                    },
+                    launchIfMissing: false
+                );
+            }
+            catch (Exception exception)
+            {
+                cleanupFailure ??= exception;
+            }
+            if (primary is not null)
+            {
+                primary.Throw();
+            }
+            if (cleanupFailure is not null)
+            {
+                ExceptionDispatchInfo.Capture(cleanupFailure).Throw();
+            }
+        }
+    }
+
+    private static object CreateOwnedWordApplication()
+    {
+        var wordType = Type.GetTypeFromProgID("Word.Application", throwOnError: true)
+            ?? throw new InvalidOperationException("Microsoft Word ProgID is unavailable.");
+        return Activator.CreateInstance(wordType)
+            ?? throw new InvalidOperationException("Microsoft Word application could not be created.");
+    }
+
     [Fact]
     public async Task WordUndoThatLeavesOoxmlDriftFailsClosed()
     {

@@ -17,7 +17,7 @@ public sealed class WordLifecycleServiceTests
         var service = new WordLiveService(host);
         using var startArguments = JsonDocument.Parse("""{"visible":true}""");
 
-        _ = await service.CallAsync(
+        var startResult = await service.CallAsync(
             "start_word_application",
             startArguments.RootElement,
             CancellationToken.None
@@ -25,6 +25,10 @@ public sealed class WordLifecycleServiceTests
 
         Assert.True(host.LaunchIfMissing);
         Assert.True(host.Application.Visible);
+        using (var startResponse = JsonDocument.Parse(JsonSerializer.Serialize(startResult, JsonDefaults.Compact)))
+        {
+            Assert.False(startResponse.RootElement.GetProperty("application_owned_by_runtime").GetBoolean());
+        }
 
         using var quitArguments = JsonDocument.Parse(
             """{"save_changes":"discard_all","confirm":true}"""

@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "8.0.423"
       - run: dotnet restore native/WordToolkit.Engine.Tests/WordToolkit.Engine.Tests.csproj
@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "8.0.423"
       - uses: actions/setup-java@v5
@@ -141,12 +141,25 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "8.0.423"
       - name: Test, publish, validate and archive the native plugin
         shell: powershell
         run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build_native_plugin.ps1
+      - name: Rebuild and compare deterministic native ZIP
+        shell: powershell
+        run: |
+          $archiveA = Get-ChildItem -LiteralPath dist -Filter 'WordToolkit-*-native-win-x64.zip' -File | Select-Object -First 1
+          if (-not $archiveA) { throw 'Primary native ZIP was not produced' }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build_native_plugin.ps1 `
+            -Output dist/ci-parity-b `
+            -Archive dist/ci-parity-b.zip `
+            -SkipTests
+          $hashA = (Get-FileHash -LiteralPath $archiveA.FullName -Algorithm SHA256).Hash
+          $hashB = (Get-FileHash -LiteralPath (Join-Path $PWD 'dist/ci-parity-b.zip') -Algorithm SHA256).Hash
+          if ($hashA -ne $hashB) { throw "Native ZIP is not deterministic: $hashA vs $hashB" }
+          Write-Host "deterministic_native_zip_sha256=$hashA"
       - name: Upload the exact distributable ZIP
         uses: actions/upload-artifact@v7
         with:
@@ -161,12 +174,22 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v8.3.2
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: "3.12"
       - run: sudo apt-get update && sudo apt-get install -y libreoffice-writer poppler-utils fonts-dejavu-core fonts-liberation2
       - run: uv sync --extra dev --locked
       - run: uv run ruff check src/wordtoolkit scripts tests/test_*.py
+      - run: uv run ruff format --check .
+      - run: uv run python scripts/apply_metadata_contracts.py --check
+      - run: uv run python scripts/generate_action_guidance.py --check
+      - name: Focused metadata, plugin and draft-contract tests
+        run: >-
+          uv run pytest -q tests/test_native_metadata_contracts.py
+          tests/test_native_action_dispatch_contract.py
+          tests/test_plugin_contract.py tests/test_mcp_contract.py
+          tests/test_action_guidance_contract.py
+      - run: git diff --check
       - run: uv run pytest -ra
       - run: uv run python scripts/export_tool_schemas.py
       - name: Reject changes to the immutable remote v1 schema
@@ -196,7 +219,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "8.0.423"
       - run: dotnet build tools/OpenXmlValidator/OpenXmlValidator.csproj -c Release

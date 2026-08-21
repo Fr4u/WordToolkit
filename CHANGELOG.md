@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+- Added generated first-call guidance for all 149/149 native actions (search, inspect,
+  bind/acquire, example, execute, success and recovery). No public tools were added.
+- Qualified local 0.60.1 candidate `0.60.1+codex.20260821002028` as qualified9: deterministic
+  A/B package parity (199 files, 91,092,261 expanded bytes, 37,867,598-byte ZIP),
+  149/149 guidance, Python 1341/16 skipped, Engine 778, Native 585 and LibreOffice 12.
+  Real qualified9 evidence covers 59/59 positive actions plus the documented 15/149 live
+  action boundary; installation remains pending read-only cache parity proof.
+
+## 0.60.1 — 2026-08-20
+
+- Fixed n-ary UnicodeMath normalization so grouped operators preserve their
+  operands and delimiters across the native conversion path.
+- Locked the public MCP contract at 15 tools: 11 core actions plus 4 capability
+  gateways (`11 + 4 = 15`), with the lazy native catalog remaining behind those
+  gateways.
+- Updated CI/repository policy, ownership and test-contract coverage to keep
+  generated schemas, native packaging and release metadata synchronized.
+- Added fail-closed rollback semantic stabilization for system note `w14:paraId`
+  and covered the real footnote-to-endnote regression path.
+- Added the atomic `application_owned_by_runtime` token and failure-path Word
+  cleanup so ownership and teardown cannot be reported optimistically.
+- Added fail-closed recovery for styled OMath after `InsertXML`, with a real
+  regression covering the rollback path and native formatting preservation.
+- Refreshed post-build publication evidence across a 10/10 real mixed batch and
+  released RCWs on every failure path to prevent stale COM ownership.
+- Completed explicit metadata coverage for all 149/149 native actions; the
+  expanded 59-action real gate remains separately reported as evidence.
+- Corrected Draft examples/encoding normalization and documented the honest
+  ManualFix, SmartArt and feature-behavior-probe boundaries.
+
 ## 0.60.0 — 2026-07-27
 
 - Added the cross-platform `wordtoolkit.inspect_ooxml_signatures/1.0` Engine operation,

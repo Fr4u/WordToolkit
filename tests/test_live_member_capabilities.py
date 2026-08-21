@@ -110,7 +110,7 @@ def _catalog() -> dict:
                                 "flags": 1,
                                 "flag_names": ["in"],
                                 "optional": False,
-                            }
+                            },
                         ],
                         "parameter_count": 2,
                         "return_type": "VOID",
@@ -217,12 +217,8 @@ def test_registry_classifies_execution_boundaries() -> None:
         for item in registry["profiles"]
     }
 
-    assert profiles[("Range", "Text", "property_get")]["policy"]["execution"] == (
-        "read_allowed"
-    )
-    assert profiles[("Range", "Text", "property_put")]["policy"]["execution"] == (
-        "write_allowed"
-    )
+    assert profiles[("Range", "Text", "property_get")]["policy"]["execution"] == ("read_allowed")
+    assert profiles[("Range", "Text", "property_put")]["policy"]["execution"] == ("write_allowed")
     assert profiles[("Range", "InsertAfter", "method")]["policy"]["effect"] == "content"
     assert profiles[("Range", "StyleBySlot", "property_put")]["policy"] == {
         "effect": "format",
@@ -231,21 +227,14 @@ def test_registry_classifies_execution_boundaries() -> None:
         "mutating": False,
         "undo_required": False,
     }
-    assert profiles[("_Application", "Quit", "method")]["policy"]["effect"] == (
-        "lifecycle"
+    assert profiles[("_Application", "Quit", "method")]["policy"]["effect"] == ("lifecycle")
+    assert profiles[("_Application", "Quit", "method")]["policy"]["execution"] == ("blocked")
+    assert profiles[("DocumentEvents2", "Close", "method")]["policy"]["effect"] == ("event")
+    assert (
+        profiles[("WdFieldType", "wdFieldPage", "enum_value")]["policy"]["execution"]
+        == "metadata_only"
     )
-    assert profiles[("_Application", "Quit", "method")]["policy"]["execution"] == (
-        "blocked"
-    )
-    assert profiles[("DocumentEvents2", "Close", "method")]["policy"]["effect"] == (
-        "event"
-    )
-    assert profiles[("WdFieldType", "wdFieldPage", "enum_value")]["policy"][
-        "execution"
-    ] == "metadata_only"
-    assert profiles[("_Document", "FullName", "property_get")]["policy"][
-        "execution"
-    ] == "blocked"
+    assert profiles[("_Document", "FullName", "property_get")]["policy"]["execution"] == "blocked"
 
 
 def test_preflight_validates_targets_arguments_and_blocked_members() -> None:
@@ -341,10 +330,7 @@ def test_virtual_tools_support_enum_constants_and_omitted_optional_indexes() -> 
     }
     assert constant["virtual_tool"]["kind"] == "constant"
     assert indexed_put["virtual_tool"]["kind"] == "unavailable"
-    assert (
-        method["virtual_tool"]["input_schema"]["properties"]["arguments"]["minItems"]
-        == 2
-    )
+    assert method["virtual_tool"]["input_schema"]["properties"]["arguments"]["minItems"] == 2
 
     with pytest.raises(WordToolkitError) as omitted_required_position:
         prepare_member_operations(

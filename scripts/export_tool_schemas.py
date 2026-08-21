@@ -17,6 +17,12 @@ from wordtoolkit.errors import ErrorCode
 from wordtoolkit.server.app import build_app
 
 ROOT = Path(__file__).resolve().parents[1]
+PUBLIC_GATEWAY_NAMES = (
+    "get_wordtoolkit_capabilities",
+    "search_wordtoolkit_actions",
+    "inspect_wordtoolkit_action",
+    "execute_wordtoolkit_action",
+)
 
 
 async def main() -> None:
@@ -30,9 +36,8 @@ async def main() -> None:
     }
     schema_dir = ROOT / "schemas"
     schema_dir.mkdir(exist_ok=True)
-    (schema_dir / "mcp-tools.v2.json").write_text(
-        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
+    with (schema_dir / "mcp-tools.v2.json").open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
     batch_tool = next(tool for tool in tools if tool.name == "apply_document_operations")
     draft_contract = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -115,13 +120,16 @@ async def main() -> None:
             },
         },
     }
-    (schema_dir / "draft-operations.v1.json").write_text(
-        json.dumps(draft_contract, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
-    native_schema = json.loads(
-        (schema_dir / "mcp-tools-local.v1.json").read_text(encoding="utf-8")
-    )
+    draft_contract["examples"] = [draft_contract["examples"]]
+    with (schema_dir / "draft-operations.v1.json").open(
+        "w", encoding="utf-8", newline="\n"
+    ) as handle:
+        handle.write(json.dumps(draft_contract, indent=2, ensure_ascii=False) + "\n")
+    native_schema = json.loads((schema_dir / "mcp-tools-local.v1.json").read_text(encoding="utf-8"))
     native_action_count = len(native_schema["native_runtime"]["actions"])
+    native_core_count = len(native_schema["native_runtime"]["core_actions"])
+    native_gateway_count = len(PUBLIC_GATEWAY_NAMES)
+    public_mcp_tool_count = native_core_count + native_gateway_count
     lines = [
         "# MCP tool catalog",
         "",
@@ -130,7 +138,20 @@ async def main() -> None:
     ]
     lines.extend(
         f"""
-The native catalog currently contains {native_action_count} actions behind 15 core/gateway tools. Rare
+The public MCP surface has {public_mcp_tool_count} tools: {native_core_count} core actions and {native_gateway_count} capability gateways.
+The capability, search, inspect and execute gateways negotiate the versioned contract
+and lazily expose {native_action_count} native actions. Rare
+
+## First-call guidance
+
+For an unknown capability, search first; inspect the exact action; bind every
+prerequisite and acquire missing IDs, versions or fingerprints; review the
+minimal template example; execute; then verify the documented success paths.
+On failure, follow the action's recovery mapping (refresh stale bindings,
+re-plan when required, and stop on rollback or quarantine boundaries). This
+guidance is generated for all {native_action_count} native actions and checked for
+parity by `scripts/generate_action_guidance.py --check`.
+
 saved-package inspectors remain lazy so their schemas do not enter model context until
 needed. `inspect_wordtoolkit_extensions` exposes the bounded, content-free registry
 catalog, including process-memory limits for hard process-boundary capabilities, without
@@ -252,7 +273,8 @@ formatting.
     )
     docs = ROOT / "docs"
     docs.mkdir(exist_ok=True)
-    (docs / "TOOL-CATALOG.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    with (docs / "TOOL-CATALOG.md").open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write("\n".join(lines) + "\n")
     print(
         f"exported {len(tools)} remote tools; "
         "native local schema is validated by WordToolkit.Native.Tests"

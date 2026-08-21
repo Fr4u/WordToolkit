@@ -8,6 +8,9 @@ internal enum WordComReplaySafety
 
 internal interface IWordComHost : IAsyncDisposable
 {
+    // Fakes and injected hosts do not claim process ownership unless they opt in.
+    bool ApplicationOwnedByRuntime => false;
+
     Task<T> InvokeAsync<T>(
         Func<dynamic, T> operation,
         CancellationToken cancellationToken = default,

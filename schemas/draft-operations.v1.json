@@ -2193,54 +2193,56 @@
     "document": "All operations commit together on one process-local copy-on-write draft or none commit.",
     "image_staging": "Partial downloads are removed on failure or cancellation; verified complete uploads may remain against session quota if a later operation fails."
   },
-  "examples": {
-    "input": {
-      "document_id": "doc_example",
-      "expected_version": 7,
-      "operations": [
-        {
-          "operation": "format_paragraph",
-          "arguments": {
-            "paragraph_id": "1A2B3C4D",
-            "alignment": "center"
+  "examples": [
+    {
+      "input": {
+        "document_id": "doc_example",
+        "expected_version": 7,
+        "operations": [
+          {
+            "operation": "format_paragraph",
+            "arguments": {
+              "paragraph_id": "1A2B3C4D",
+              "alignment": "center"
+            }
+          },
+          {
+            "operation": "insert_paragraph",
+            "arguments": {
+              "after_paragraph_id": "1A2B3C4D",
+              "text": "A bounded new paragraph."
+            }
           }
-        },
-        {
-          "operation": "insert_paragraph",
-          "arguments": {
-            "after_paragraph_id": "1A2B3C4D",
-            "text": "A bounded new paragraph."
+        ]
+      },
+      "success_data": {
+        "document_id": "doc_example",
+        "draft_version": 8,
+        "results": [
+          {
+            "index": 0,
+            "result": {}
+          },
+          {
+            "index": 1,
+            "result": {
+              "para_id": "5E6F7A8B"
+            }
           }
-        }
-      ]
-    },
-    "success_data": {
-      "document_id": "doc_example",
-      "draft_version": 8,
-      "results": [
-        {
-          "index": 0,
-          "result": {}
-        },
-        {
-          "index": 1,
-          "result": {
-            "para_id": "5E6F7A8B"
-          }
-        }
-      ]
-    },
-    "error": {
-      "ok": false,
+        ]
+      },
       "error": {
-        "code": "VERSION_CONFLICT",
-        "message": "Draft version changed before the mutation",
-        "details": {
-          "expected": 7,
-          "actual": 8
-        },
-        "retryable": true
+        "ok": false,
+        "error": {
+          "code": "VERSION_CONFLICT",
+          "message": "Draft version changed before the mutation",
+          "details": {
+            "expected": 7,
+            "actual": 8
+          },
+          "retryable": true
+        }
       }
     }
-  }
+  ]
 }

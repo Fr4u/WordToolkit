@@ -215,7 +215,7 @@ internal sealed partial class ToolCatalog
                 },
                 ["operation_count"] = ordered.Length,
                 ["exposed_mcp_tool_count"] = catalog.Tools.Count,
-                ["metadata_coverage"] = MetadataCoverage(ordered),
+                ["metadata_coverage"] = MetadataCoverage(catalog, ordered),
                 ["limits"] = new JsonObject
                 {
                     ["request_characters"] = McpServer.DefaultMaxMessageCharacters,
@@ -310,12 +310,14 @@ internal sealed partial class ToolCatalog
         }
 
         private static JsonObject MetadataCoverage(
+            ToolCatalog catalog,
             IReadOnlyCollection<KeyValuePair<string, JsonObject>> tools
         )
         {
             return new JsonObject
             {
                 ["total_operations"] = tools.Count,
+                ["guidance"] = catalog.ActionCount,
                 ["input_schema"] = tools.Count(pair => pair.Value["inputSchema"] is not null),
                 ["mcp_effect_annotations"] = tools.Count(pair =>
                     HasAllAnnotations(pair.Value["annotations"] as JsonObject)

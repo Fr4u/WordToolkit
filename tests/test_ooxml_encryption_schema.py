@@ -11,9 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _tool() -> dict[str, Any]:
     catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v1.json").read_text())
-    return next(
-        tool for tool in catalog["tools"] if tool["name"] == "inspect_ooxml_encryption"
-    )
+    return next(tool for tool in catalog["tools"] if tool["name"] == "inspect_ooxml_encryption")
 
 
 def _response() -> dict[str, Any]:
@@ -113,7 +111,5 @@ def test_encryption_request_rejects_password_fields() -> None:
     validator = Draft202012Validator(_tool()["inputSchema"])
     assert list(validator.iter_errors({"local_path": "protected.docx"})) == []
     assert list(
-        validator.iter_errors(
-            {"local_path": "protected.docx", "password": "must-not-be-accepted"}
-        )
+        validator.iter_errors({"local_path": "protected.docx", "password": "must-not-be-accepted"})
     )

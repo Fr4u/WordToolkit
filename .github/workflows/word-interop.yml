@@ -18,9 +18,14 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "8.0.423"
+      - name: Reject pre-existing Word processes
+        shell: powershell
+        run: |
+          $word = @(Get-Process WINWORD -ErrorAction SilentlyContinue)
+          if ($word.Count -ne 0) { throw "WINWORD.exe is already running; refusing the release gate." }
       - name: Build and test the exact native plugin package
         shell: powershell
         run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build_native_plugin.ps1
@@ -31,6 +36,36 @@ jobs:
           ./native/scripts/live-full-capabilities-timed.ps1 `
             -RuntimeExecutable $runtime |
             Tee-Object -FilePath "dist\word-live-acceptance.json"
+          $word = @(Get-Process WINWORD -ErrorAction SilentlyContinue)
+          if ($word.Count -ne 0) { throw "WINWORD.exe remained after expanded live gate." }
+      - name: Run the three real Word regression gates
+        shell: powershell
+        env:
+          WORDTOOLKIT_REAL_WORD_EQUATION_TEST: "1"
+          WORDTOOLKIT_REAL_WORD_ROLLBACK_TEST: "1"
+          WORDTOOLKIT_REAL_WORD_EQUATION_STYLE_BATCH_TEST: "1"
+        run: |
+          $project = "native\WordToolkit.Native.Tests\WordToolkit.Native.Tests.csproj"
+          $word = @(Get-Process WINWORD -ErrorAction SilentlyContinue)
+          if ($word.Count -ne 0) { throw "WINWORD.exe remained after equation gate." }
+          dotnet test $project --configuration Release --no-restore --filter FullyQualifiedName~RealWordIntegralReadbackAcceptanceTests
+          if ($LASTEXITCODE -ne 0) { throw "Equation FQN failed." }
+          dotnet test $project --configuration Release --no-restore --filter FullyQualifiedName~RealWordRollbackAcceptanceTests
+          if ($LASTEXITCODE -ne 0) { throw "Rollback FQN failed." }
+          dotnet test $project --configuration Release --no-restore --filter FullyQualifiedName~RealWordEquationStyleBatchAcceptanceTests
+          if ($LASTEXITCODE -ne 0) { throw "Equation style batch FQN failed." }
+          $word = @(Get-Process WINWORD -ErrorAction SilentlyContinue)
+          if ($word.Count -ne 0) { throw "WINWORD.exe remained after regression gates." }
+      - name: Validate live report contract
+        shell: powershell
+        run: |
+          $report = Get-Content "dist\word-live-acceptance.json" -Raw | ConvertFrom-Json
+          if (-not $report.passed) { throw "Live report did not pass." }
+          if ($report.exercised_live_action_count -ne 59) { throw "Expected 59 exercised actions." }
+          if ($report.exposed_tool_count -ne 15) { throw "Expected 15 exposed tools." }
+          if ($report.available_action_count -ne 149) { throw "Expected 149 available actions." }
+          if ($report.document.left_open_in_word) { throw "Document was left open in Word." }
+          if ($report.cleanup_quit_status -notin @("already_quit", "quit_confirmed")) { throw "Cleanup status was not accepted." }
       - name: Upload package and live acceptance evidence
         uses: actions/upload-artifact@v7
         with:
@@ -38,5 +73,8 @@ jobs:
           path: |
             dist/WordToolkit-*-native-win-x64.zip
             dist/word-live-acceptance.json
+            dist/*.log
+            dist/*.docx
+            dist/*.pdf
           if-no-files-found: error
           retention-days: 30

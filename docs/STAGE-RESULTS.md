@@ -1,5 +1,7 @@
 # Stage results
 
+> **Historical snapshots:** rows below describing qualified6, 0.60.0 or earlier releases are retained historical evidence. They are not the current qualified9 installation or release status.
+
 # WordToolkit 0.60.0 OPC digital-signature integrity - 2026-07-27
 
 - Added one cross-platform, read-only `wordtoolkit.inspect_ooxml_signatures/1.0`

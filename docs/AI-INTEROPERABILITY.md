@@ -1,5 +1,16 @@
 # AI interoperability contract
 
+The current native metadata contract covers all 149 actions; remaining 0 are still uncovered.
+
+## First-call guidance
+
+Every native action has a generated guidance record: search when the capability is
+unknown, inspect the exact action, bind prerequisites and acquire missing identifiers,
+versions or fingerprints, use the minimal template example, execute, then verify the
+declared success paths. Recovery mappings describe refresh/re-plan steps and explicit
+rollback or quarantine stops. The 149/149 parity is enforced by
+`scripts/generate_action_guidance.py --check` and `tests/test_action_guidance_contract.py`.
+
 ## Scope
 
 WordToolkit exposes one vendor-neutral capability payload through two adapters:
@@ -214,6 +225,11 @@ The manifest does not return full input schemas. After selecting one operation, 
 `inspect_wordtoolkit_action`; execute only after validating its schema and effect hints.
 This keeps discovery bounded instead of paying for all 149 schemas.
 
+`inspect_wordtoolkit_action` also returns the deterministic `guidance` record from
+`action-guidance.v1.json`: prerequisites, acquisition steps, a minimal gateway example,
+success predicates, recovery hints and recipe IDs. Treat placeholders as bindings, never
+invent fingerprints, versions, plans or tokens, and preserve exact plan/apply arguments.
+
 ## Metadata coverage is evidence, not decoration
 
 `metadata_coverage` counts canonical fields actually present in the embedded source.
@@ -230,11 +246,11 @@ insertion, native authority-citation marking/table-of-authorities insertion, nat
 index-entry/index insertion, guarded reference-table update and the saved-package
 patch rollback plan/apply pair, numbering-repair plan/apply pair, relationship inspection/repair trio, deterministic template-style alignment inspect/plan/apply trio and Flat OPC conversion have explicit
 output-schema, permission, reversibility and
-per-operation-version metadata;
-the remaining 89 are still uncovered. Missing metadata
-is not permission to infer behavior from action names. An AI planner must inspect the
-chosen operation and obtain explicit user approval for risky mutations until normalized
-metadata is added to each source contract.
+per-operation-version metadata; all 149 operations are covered and remaining 0 are
+uncovered. This metadata does not erase the boundary around ManualFix, SmartArt and
+feature-behavior probes: an AI planner must still inspect the chosen operation and
+obtain explicit user approval for risky mutations, and must not infer unsupported
+Word behavior from action names.
 
 ## OCR planning and disclosure
 
