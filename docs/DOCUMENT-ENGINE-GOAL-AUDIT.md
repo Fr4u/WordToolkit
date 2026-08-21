@@ -270,7 +270,7 @@ mutation/repair/render execution required by the goal.
 
 ### Qualified9 release checkpoint (2026-08-21)
 
-The current release checkpoint is qualified23: version `0.60.1+codex.20260821203509`; A/B trees are 199 files and 91,105,573 bytes; ZIP SHA `7E55CF1BD54746B7DDD14A2A02FA07CE32C00CB2632419F8DC803B2FF81F1A08`, executable `441BC6A3056C48D5980CDA8264F808BFD7270761F84B94C77364E5BA45236895`, DLL `8CDE6C59A06082706233109DE583D8FEB8CDFD80951D95D815B736E2C20B0583`. Native 613, Engine 780, Python 1343/16 and LibreOffice 12; q22 and older are historical. Q23 inherits q17 live-full evidence (59/59, 15/149, guidance 149/149, combined 5/5, Word 0); its native Windows reparse-point detection delta was not rerun through Word.
+The current release checkpoint is qualified24: version `0.60.1+codex.20260821204944`; A/B trees are 199 files and 91,106,085 bytes; ZIP SHA `6C2773874F1E2B6BCCD6E4457DE783A99D3F87D92C57C9B1A7212826D005C25A`, executable `2767087DDD4813163147D4D52721AFDC00B3967598380AF380498B3993AED235`, DLL `5961396B91A2A1280CF335A0815BF3A37D77CAA294BE8DE3973EC1ACFABD3B6C`. Native 613, Engine 780, Python 1343/16 and LibreOffice 12; q23 and older are historical. Q24 inherits q17 live-full evidence (59/59, 15/149, guidance 149/149, combined 5/5, Word 0); its native Windows reparse-handle detection delta was not rerun through Word.
 
 - `C:\Users\Admin\.dotnet8\dotnet.exe test native/WordToolkit.Engine.Tests -p:TreatWarningsAsErrors=true` — 675 passed on pinned SDK 8.0.423.
 - `C:\Users\Admin\.dotnet8\dotnet.exe test native/WordToolkit.Native.Tests -p:TreatWarningsAsErrors=true` — 498 passed on pinned SDK 8.0.423, including real Open XML SDK equation-repair CLI and closed MCP-contract coverage.

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Qualified q24 `0.60.1+codex.20260821204944`: 199-file/91,106,085-byte parity,
+  37,873,318-byte ZIP SHA `6C277387...`, executable `2767087D...`, DLL `5961396B...`.
+  Windows file links are inspected through a handle opened with
+  `FILE_FLAG_OPEN_REPARSE_POINT`, so hosted runners cannot substitute target attributes.
+  The exact symlink regression and Native 613/613 pass. Q23 and older are historical.
+
 - Qualified q23 `0.60.1+codex.20260821203509`: 199-file/91,105,573-byte parity,
   37,873,051-byte ZIP SHA `7E55CF1B...`, executable `441BC6A3...`, DLL `8CDE6C59...`.
   Windows trust paths now use native `GetFileAttributesW` to detect a file symlink before

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Microsoft.Win32.SafeHandles;
 using System.Security.Cryptography;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -9,13 +10,43 @@ namespace WordToolkit.Native.Ocr;
 
 internal static class OcrProviderTrustPairCoordinator
 {
-    private const uint InvalidFileAttributes = 0xFFFFFFFF;
     private const uint FileAttributeReparsePoint = 0x00000400;
     private const int ErrorFileNotFound = 2;
     private const int ErrorPathNotFound = 3;
+    private const uint FileShareRead = 0x00000001;
+    private const uint FileShareWrite = 0x00000002;
+    private const uint FileShareDelete = 0x00000004;
+    private const uint OpenExisting = 3;
+    private const uint FileFlagBackupSemantics = 0x02000000;
+    private const uint FileFlagOpenReparsePoint = 0x00200000;
+    private const int FileAttributeTagInfo = 9;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct FileAttributeTagInformation
+    {
+        internal uint FileAttributes;
+        internal uint ReparseTag;
+    }
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern uint GetFileAttributesW(string fileName);
+    private static extern SafeFileHandle CreateFileW(
+        string fileName,
+        uint desiredAccess,
+        uint shareMode,
+        IntPtr securityAttributes,
+        uint creationDisposition,
+        uint flagsAndAttributes,
+        IntPtr templateFile
+    );
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetFileInformationByHandleEx(
+        SafeFileHandle file,
+        int informationClass,
+        out FileAttributeTagInformation information,
+        uint bufferSize
+    );
 
     internal static string? LockRootOverride { get; set; }
     internal static void ValidateNoReparsePoints(string path)
@@ -37,14 +68,32 @@ internal static class OcrProviderTrustPairCoordinator
         {
             if (OperatingSystem.IsWindows())
             {
-                var attributes = GetFileAttributesW(path);
-                if (attributes != InvalidFileAttributes)
-                    return (attributes & FileAttributeReparsePoint) != 0;
-
-                var error = Marshal.GetLastWin32Error();
-                if (error is ErrorFileNotFound or ErrorPathNotFound)
-                    return false;
-                throw new Win32Exception(error);
+                using var handle = CreateFileW(
+                    path,
+                    0,
+                    FileShareRead | FileShareWrite | FileShareDelete,
+                    IntPtr.Zero,
+                    OpenExisting,
+                    FileFlagOpenReparsePoint | FileFlagBackupSemantics,
+                    IntPtr.Zero
+                );
+                if (handle.IsInvalid)
+                {
+                    var error = Marshal.GetLastWin32Error();
+                    if (error is ErrorFileNotFound or ErrorPathNotFound)
+                        return false;
+                    throw new Win32Exception(error);
+                }
+                if (!GetFileInformationByHandleEx(
+                    handle,
+                    FileAttributeTagInfo,
+                    out var information,
+                    (uint)Marshal.SizeOf<FileAttributeTagInformation>()
+                ))
+                {
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+                return (information.FileAttributes & FileAttributeReparsePoint) != 0;
             }
 
             if (File.Exists(path))
