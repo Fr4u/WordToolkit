@@ -18,7 +18,9 @@
   SHA-256 `E052E0A7...`; no new licensed-Word compatibility claim is made. The first
   locked audit exposed advisories in `cryptography 49.0.0`, `pypdf 6.14.2` and
   `starlette 0.52.1`; the safe floors are now 50.0.0, 6.15.0 and 1.3.1 respectively,
-  and the audit must be green before this candidate can merge.
+  and the audit must be green before this candidate can merge. Renderer coverage is
+  platform-qualified: 69% on Linux CI and 83% on Windows, where the executable-discovery
+  branches are reachable.
 
 - Qualified local `0.60.2+codex.20260822001033` P0 hardening candidate: OCR trust publication now
   resolves the actual output filesystem and creates/renames immutable outputs relative

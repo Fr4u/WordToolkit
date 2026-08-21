@@ -148,11 +148,13 @@ same coverage command used by CI with:
 uv run pytest -ra --cov=wordtoolkit --cov-report=term-missing:skip-covered
 ```
 
-The repository-wide floor is 73%. CI also enforces independent floors for the current
-critical legacy modules: `security.py` 65%, `engine/document.py` 56%, `sessions.py` 73%
-and `engine/renderer.py` 82%. These are regression floors taken from the 0.60.3 baseline,
-not claims that the missing branches are acceptable or that coverage proves correctness.
-Raise a floor when tests improve it; do not lower a floor merely to make CI green.
+The repository-wide floor is 73%. Linux CI also enforces independent floors for the
+current critical legacy modules: `security.py` 65%, `engine/document.py` 56%,
+`sessions.py` 73% and `engine/renderer.py` 69%. The same renderer suite reaches 83% on
+Windows because the platform-specific executable-discovery branches run there. These are
+platform-specific regression floors taken from the 0.60.3 baseline, not claims that the
+missing branches are acceptable or that coverage proves correctness. Raise a floor when
+tests improve it; do not lower a floor merely to make CI green.
 
 Mutation testing starts as a bounded manual pilot for `security.py` and its focused test
 module. It is intentionally not a required status until surviving mutants have been
