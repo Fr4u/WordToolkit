@@ -4,5 +4,6 @@ internal sealed record OcrProviderTrustPairHooks(
     Action? AfterSecondaryPublish = null,
     Action? BeforeSecondaryPublish = null,
     Action? BeforeJournalWrite = null,
-    Action? AfterLockAcquired = null
+    Action? AfterLockAcquired = null,
+    Action? AfterDirectoriesLeased = null
 );

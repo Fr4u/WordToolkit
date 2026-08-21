@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Qualified local `0.60.2+codex.20260822001033` P0 hardening candidate: OCR trust publication now
+  resolves the actual output filesystem and creates/renames immutable outputs relative
+  to one verified Windows directory handle, rejecting ancestor swaps, reparse-point
+  runtime/model inputs and invalid manifest windows. Recovery coordination lives outside
+  read-only trust directories and preserves unowned publisher paths. Validation workers
+  drain before snapshot cleanup; relationship SHA matching is case-insensitive; truncated
+  mail-merge analysis is incomplete and mail-merge limit/projection failures keep their
+  public error contracts. LibreOffice failure cleanup preserves a destination whose
+  ownership cannot be proved atomically. Regression coverage addresses issues #4-#8.
+  Python passed 1346 with 16 dependency/environment skips, Engine 783/783, Native
+  620/620 and LibreOffice 12/12. Two 199-file, 91,113,765-byte package builds produced
+  identical 37,875,434-byte ZIPs with SHA-256 `DF18FD36...`; the executable is
+  `D52DD5CE...` and the native runtime assembly is `1560D4E8...`. The P0 delta does not
+  claim a new real-Word qualification run.
+
 - Qualified q24 `0.60.1+codex.20260821204944`: 199-file/91,106,085-byte parity,
   37,873,318-byte ZIP SHA `6C277387...`, executable `2767087D...`, DLL `5961396B...`.
   Windows file links are inspected through a handle opened with

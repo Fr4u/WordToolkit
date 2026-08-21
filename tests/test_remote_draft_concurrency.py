@@ -268,6 +268,46 @@ async def test_quality_snapshot_reports_captured_version_during_later_mutation(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "tool_name",
+    ["validate_ooxml", "detect_corruption", "detect_orphaned_relationships"],
+)
+async def test_cancelled_quality_validation_drains_worker_before_snapshot_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tool_name: str
+) -> None:
+    server, runtime = _build_server(tmp_path, monkeypatch)
+    created = await _create_document(server)
+    record = runtime.store.documents[created["document_id"]]
+    original_validate = runtime.validator.validate
+    validation_started = threading.Event()
+    release_validation = threading.Event()
+
+    def blocked_validate(path: Path):
+        with path.open("rb"):
+            validation_started.set()
+            if not release_validation.wait(timeout=5):
+                raise TimeoutError("test did not release cancelled snapshot validation")
+            return original_validate(path)
+
+    monkeypatch.setattr(runtime.validator, "validate", blocked_validate)
+    validation = asyncio.create_task(
+        server.call_tool(tool_name, {"document_id": created["document_id"]})
+    )
+    assert await asyncio.to_thread(validation_started.wait, 2)
+
+    validation.cancel()
+    await asyncio.sleep(0.05)
+    assert not validation.done(), "cancellation escaped before the worker released the snapshot"
+    quality = runtime.store.sessions[record.session_id].root / "quality" / record.document_id
+    assert list(quality.glob("*.docx")), "snapshot disappeared while the worker still held it"
+
+    release_validation.set()
+    with pytest.raises(asyncio.CancelledError):
+        await validation
+    assert not list(quality.glob("*.docx"))
+
+
+@pytest.mark.asyncio
 async def test_sequential_mutations_and_publish_keep_one_live_workspace(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -13,10 +13,15 @@ public sealed class DocumentAnalysisWordPackageOperation
     );
 
     private readonly OpcPackageLimits _packageLimits;
+    private readonly WordMailMergeGraphOptions _mailMergeOptions;
 
-    public DocumentAnalysisWordPackageOperation(OpcPackageLimits? packageLimits = null)
+    public DocumentAnalysisWordPackageOperation(
+        OpcPackageLimits? packageLimits = null,
+        WordMailMergeGraphOptions? mailMergeOptions = null
+    )
     {
         _packageLimits = packageLimits ?? OpcPackageLimits.Default;
+        _mailMergeOptions = mailMergeOptions ?? WordMailMergeGraphOptions.Default;
     }
 
     public DocumentAnalysisResult Analyze(
@@ -176,7 +181,7 @@ public sealed class DocumentAnalysisWordPackageOperation
             semantic,
             cancellationToken
         );
-        var mailMerge = new WordMailMergeGraphBuilder(null, resourceLease).Build(
+        var mailMerge = new WordMailMergeGraphBuilder(_mailMergeOptions, resourceLease).Build(
             package,
             semantic,
             settings,
@@ -319,7 +324,8 @@ public sealed class DocumentAnalysisWordPackageOperation
             .ToArray();
         var executionComplete = lint.Coverage.ExecutionComplete
             && !lint.FindingsTruncated
-            && !compatibility.IssuesTruncated;
+            && !compatibility.IssuesTruncated
+            && !mailMerge.IssuesTruncated;
         var budget = resourceLease.Snapshot();
         var xmlParseCache = resourceLease.SnapshotXmlParseCache();
 
@@ -827,7 +833,8 @@ public sealed class DocumentAnalysisWordPackageOperation
         or WordBibliographyLimitException
         or WordActiveContentLimitException
         or WordDocumentPropertyLimitException
-        or WordDiagramLimitException;
+        or WordDiagramLimitException
+        or WordMailMergeLimitException;
 
     private static bool IsProjectionFailure(Exception exception) => exception is
         WordSemanticProjectionException
@@ -849,7 +856,8 @@ public sealed class DocumentAnalysisWordPackageOperation
         or WordActiveContentProjectionException
         or WordDocumentPropertyProjectionException
         or WordDiagramProjectionException
-        or WordLintProjectionException;
+        or WordLintProjectionException
+        or WordMailMergeProjectionException;
 
     private static bool IsSha256(string value) => value.Length == 64
         && value.All(character =>

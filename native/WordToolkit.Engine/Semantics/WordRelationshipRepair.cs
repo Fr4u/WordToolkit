@@ -320,7 +320,7 @@ public sealed class WordRelationshipRepairPlanner
         if (!string.Equals(
                 usage.Fingerprint,
                 command.ExpectedRelationshipFingerprint,
-                StringComparison.Ordinal
+                StringComparison.OrdinalIgnoreCase
             ))
         {
             throw new WordSemanticPreconditionException(

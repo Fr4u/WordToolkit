@@ -182,7 +182,7 @@ internal sealed partial class OcrProviderTrustPolicy : IOcrProviderTrustPolicy
         );
         var manifest = ParseManifest(manifestFile.Bytes);
         var trustStore = ParseTrustStore(trustStoreFile.Bytes);
-        ValidateManifestWindow(manifest);
+        ValidateManifestWindowForPublication(manifest, _utcNow());
         VerifyManifestSignature(manifest, trustStore);
 
         if (
@@ -516,9 +516,12 @@ internal sealed partial class OcrProviderTrustPolicy : IOcrProviderTrustPolicy
         return stream.ToArray();
     }
 
-    private void ValidateManifestWindow(OcrProviderManifest manifest)
+    internal static void ValidateManifestWindowForPublication(
+        OcrProviderManifest manifest,
+        DateTimeOffset utcNow
+    )
     {
-        var now = _utcNow().ToUniversalTime();
+        var now = utcNow.ToUniversalTime();
         if (
             manifest.IssuedAtUtc > now
             || manifest.ExpiresAtUtc <= now
@@ -915,7 +918,11 @@ internal sealed partial class OcrProviderTrustPolicy : IOcrProviderTrustPolicy
         foreach (var path in paths)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+            try
+            {
+                OcrProviderTrustPairCoordinator.ValidateNoReparsePoints(path);
+            }
+            catch (OcrProviderTrustPathValidationException)
             {
                 throw IdentityMismatch();
             }
@@ -1024,6 +1031,14 @@ internal sealed partial class OcrProviderTrustPolicy : IOcrProviderTrustPolicy
         CancellationToken cancellationToken
     )
     {
+        try
+        {
+            OcrProviderTrustPairCoordinator.ValidateNoReparsePoints(path);
+        }
+        catch (OcrProviderTrustPathValidationException)
+        {
+            throw IdentityMismatch();
+        }
         var info = new FileInfo(path);
         if (!info.Exists || info.Length is < 1 || info.Length > maximumBytes)
         {

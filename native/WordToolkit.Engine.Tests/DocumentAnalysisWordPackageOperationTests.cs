@@ -189,26 +189,106 @@ public sealed class DocumentAnalysisWordPackageOperationTests
         );
     }
 
+    [Fact]
+    public void MailMergeIssueTruncationMakesAnalysisExecutionIncomplete()
+    {
+        using var stream = new MemoryStream(BuildPackage(
+            includeActiveContent: false,
+            includeBrokenMailMerge: true
+        ));
+        var operation = new DocumentAnalysisWordPackageOperation(
+            mailMergeOptions: new WordToolkit.Engine.Semantics.WordMailMergeGraphOptions
+            {
+                MaxIssues = 1,
+            }
+        );
+
+        var result = operation.Analyze(
+            stream,
+            "mail-merge.docx",
+            new DocumentAnalysisRequest("mail-merge.docx")
+        );
+
+        Assert.True(result.MailMerge.IssuesTruncated);
+        Assert.False(result.Coverage.AnalysisExecutionComplete);
+    }
+
+    [Fact]
+    public void MailMergeLimitMapsToPackageLimit()
+    {
+        using var stream = new MemoryStream(BuildPackage(
+            includeActiveContent: false,
+            includeBrokenMailMerge: true
+        ));
+        var operation = new DocumentAnalysisWordPackageOperation(
+            mailMergeOptions: new WordToolkit.Engine.Semantics.WordMailMergeGraphOptions
+            {
+                MaxSettingsPartBytes = 1,
+            }
+        );
+
+        var error = Assert.Throws<WordToolkitOperationException>(() => operation.Analyze(
+            stream,
+            "mail-merge.docx",
+            new DocumentAnalysisRequest("mail-merge.docx")
+        ));
+
+        Assert.Equal("PACKAGE_LIMIT", error.Code);
+    }
+
+    [Fact]
+    public void MailMergeProjectionFailureMapsToInvalidWordPackage()
+    {
+        using var stream = new MemoryStream(BuildPackage(
+            includeActiveContent: false,
+            includeMalformedRecipient: true
+        ));
+
+        var error = Assert.Throws<WordToolkitOperationException>(() =>
+            new DocumentAnalysisWordPackageOperation().Analyze(
+                stream,
+                "mail-merge.docx",
+                new DocumentAnalysisRequest("mail-merge.docx")
+            )
+        );
+
+        Assert.Equal("INVALID_WORD_PACKAGE", error.Code);
+        Assert.IsType<WordToolkit.Engine.Semantics.WordMailMergeProjectionException>(
+            error.InnerException
+        );
+    }
+
     private static string TemporaryPath(string extension) => Path.Combine(
         Path.GetTempPath(),
         $"wordtoolkit-analysis-{Guid.NewGuid():N}.{extension}"
     );
 
-    private static byte[] BuildPackage(bool includeActiveContent)
+    private static byte[] BuildPackage(
+        bool includeActiveContent,
+        bool includeBrokenMailMerge = false,
+        bool includeMalformedRecipient = false
+    )
     {
         using var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
         {
+            var includeMailMerge = includeBrokenMailMerge || includeMalformedRecipient;
             var mainContentType = includeActiveContent
                 ? "application/vnd.ms-word.document.macroEnabled.main+xml"
                 : "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml";
             var activeContentTypes = includeActiveContent
                 ? "<Override PartName=\"/word/vbaProject.bin\" ContentType=\"application/vnd.ms-office.vbaProject\"/>"
                 : string.Empty;
+            var mailMergeContentType = includeMailMerge
+                ? "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>"
+                : string.Empty;
+            var recipientContentType = includeMalformedRecipient
+                ? "<Override PartName=\"/word/recipients.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.mailMergeRecipientData+xml\"/>"
+                : string.Empty;
             Add(
                 archive,
                 "[Content_Types].xml",
-                $"<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"{mainContentType}\"/><Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/><Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/>{activeContentTypes}</Types>"
+                $"<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"{mainContentType}\"/><Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/><Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/>{activeContentTypes}{mailMergeContentType}{recipientContentType}</Types>"
             );
             Add(
                 archive,
@@ -227,10 +307,13 @@ public sealed class DocumentAnalysisWordPackageOperationTests
             var activeRelationship = includeActiveContent
                 ? "<Relationship Id=\"rVba\" Type=\"http://schemas.microsoft.com/office/2006/relationships/vbaProject\" Target=\"vbaProject.bin\"/>"
                 : string.Empty;
+            var settingsRelationship = includeMailMerge
+                ? "<Relationship Id=\"rSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>"
+                : string.Empty;
             Add(
                 archive,
                 "word/_rels/document.xml.rels",
-                $"<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rStyles\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/><Relationship Id=\"rExternal\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink\" Target=\"https://example.invalid/secret\" TargetMode=\"External\"/>{activeRelationship}</Relationships>"
+                $"<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rStyles\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/><Relationship Id=\"rExternal\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink\" Target=\"https://example.invalid/secret\" TargetMode=\"External\"/>{activeRelationship}{settingsRelationship}</Relationships>"
             );
             Add(
                 archive,
@@ -246,6 +329,30 @@ public sealed class DocumentAnalysisWordPackageOperationTests
                 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title/></cp:coreProperties>
                 """
             );
+            if (includeMailMerge)
+            {
+                var settingsXml = includeMalformedRecipient
+                    ? "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:mailMerge><w:odso><w:recipientData r:id=\"rRecipients\"/></w:odso></w:mailMerge></w:settings>"
+                    : "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:mailMerge/></w:settings>";
+                Add(
+                    archive,
+                    "word/settings.xml",
+                    settingsXml
+                );
+                if (includeMalformedRecipient)
+                {
+                    Add(
+                        archive,
+                        "word/_rels/settings.xml.rels",
+                        "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rRecipients\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/recipientData\" Target=\"recipients.xml\"/></Relationships>"
+                    );
+                    Add(
+                        archive,
+                        "word/recipients.xml",
+                        "<w:recipients xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">"
+                    );
+                }
+            }
             if (includeActiveContent)
             {
                 AddBytes(archive, "word/vbaProject.bin", [0x01, 0x02, 0x03, 0x04]);
