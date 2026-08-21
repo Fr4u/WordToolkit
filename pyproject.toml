@@ -87,7 +87,7 @@ show_missing = true
 skip_covered = true
 
 [tool.mutmut]
-source_paths = ["src"]
+source_paths = ["src/wordtoolkit", "src/docx_mcp"]
 only_mutate = ["src/wordtoolkit/security.py"]
 pytest_add_cli_args_test_selection = ["tests/test_security.py"]
 
