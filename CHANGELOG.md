@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Qualified q22 `0.60.1+codex.20260821202555`: 199-file/91,105,061-byte parity,
+  37,872,932-byte ZIP SHA `9738480D...`, executable `4121E7A2...`, DLL `BDF97A13...`.
+  Existing file symlinks are inspected through `FileInfo.LinkTarget` before target attributes,
+  closing the Windows runner gap while retaining the dedicated exit-64 path contract.
+  Native 613/613 and the exact symlink regression pass. Q21 and older are historical.
+
 - Qualified q21 `0.60.1+codex.20260821200417`: 199-file/91,105,061-byte parity,
   37,872,962-byte ZIP SHA `FBCD5C3F...`, executable `DA82528D...`, DLL `069F19DB...`.
   Runtime-specific failures while inspecting OCR trust symlinks now fail closed through the

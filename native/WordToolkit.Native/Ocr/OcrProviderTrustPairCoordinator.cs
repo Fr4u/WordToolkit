@@ -25,8 +25,20 @@ internal static class OcrProviderTrustPairCoordinator
     {
         try
         {
-            if (File.Exists(path) || Directory.Exists(path))
+            if (File.Exists(path))
+            {
+                // On some Windows/.NET builds GetAttributes follows a file symlink and
+                // reports only target attributes. LinkTarget is the non-following check.
+                if (new FileInfo(path).LinkTarget is not null)
+                    return true;
                 return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+            }
+            if (Directory.Exists(path))
+            {
+                if (new DirectoryInfo(path).LinkTarget is not null)
+                    return true;
+                return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+            }
             // LinkTarget is available even for dangling links and does not follow the target.
             return new FileInfo(path).LinkTarget is not null || new DirectoryInfo(path).LinkTarget is not null;
         }
