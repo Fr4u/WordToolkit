@@ -119,7 +119,16 @@ public sealed class OcrProviderTrustCliTests
         var target = Path.Combine(external, "manifest.json");
         var o = new StringWriter(); var e = new StringWriter();
         var req = IssueRequest(f, Path.Combine(link, "manifest.json"), Path.Combine(link, "store.json"));
-        Assert.Equal(64, OcrProviderTrustCli.Run(["--mode", "issue", "--request", "-"], new StringReader(req), o, e));
+        var outputExitCode = OcrProviderTrustCli.Run(
+            ["--mode", "issue", "--request", "-"],
+            new StringReader(req),
+            o,
+            e
+        );
+        Assert.True(
+            outputExitCode == 64,
+            $"Expected unsafe output path to return 64, got {outputExitCode}. stderr: {e}"
+        );
         Assert.Equal("OCR_PROVIDER_TRUST_INVALID: OCR provider trust paths cannot contain reparse points.\r\n", e.ToString());
         Assert.False(File.Exists(target)); Assert.Empty(Directory.GetFiles(external));
         var inputLink = Path.Combine(f.Root, "input-link");
@@ -129,7 +138,16 @@ public sealed class OcrProviderTrustCliTests
         catch (IOException ex) when (ex.Message.Contains("uprawnie", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("permission", StringComparison.OrdinalIgnoreCase)) { return; }
         o.GetStringBuilder().Clear(); e.GetStringBuilder().Clear();
         var bad = IssueRequest(f, f.Manifest, f.Store).Replace(f.Executable, inputLink, StringComparison.Ordinal);
-        Assert.Equal(64, OcrProviderTrustCli.Run(["--mode", "issue", "--request", "-"], new StringReader(bad), o, e));
+        var inputExitCode = OcrProviderTrustCli.Run(
+            ["--mode", "issue", "--request", "-"],
+            new StringReader(bad),
+            o,
+            e
+        );
+        Assert.True(
+            inputExitCode == 64,
+            $"Expected unsafe input path to return 64, got {inputExitCode}. stderr: {e}"
+        );
         Assert.Equal("OCR_PROVIDER_TRUST_INVALID: OCR provider trust paths cannot contain reparse points.\r\n", e.ToString());
         Assert.False(File.Exists(f.Manifest)); Assert.False(File.Exists(f.Store));
     }
