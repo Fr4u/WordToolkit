@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using WordToolkit.Engine.Rendering;
 
 namespace WordToolkit.Engine.Packaging;
 
@@ -154,11 +155,17 @@ public sealed class OpcAtomicPackageWriter
             );
             if (options.RequireNewDestination)
             {
+                _beforeAtomicReplace?.Invoke(destination);
                 try
                 {
-                    File.Move(temporaryPath, destination, overwrite: false);
+                    SemanticRenderArtifactPublisher.PublishNoClobberHardLink(
+                        temporaryPath,
+                        destination
+                    );
                 }
-                catch (IOException) when (File.Exists(destination))
+                catch (IOException exception) when (
+                    SemanticRenderArtifactPublisher.IsAlreadyExistsError(exception)
+                )
                 {
                     throw new OpcPackageConcurrencyException(
                         "The destination was created while the package was being written."

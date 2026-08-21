@@ -742,6 +742,45 @@ public sealed class OpcPackageReaderTests
     }
 
     [Fact]
+    public void AtomicWriterRequireNewDestinationRejectsRaceWithoutClobberingCompetitor()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var destination = Path.Combine(directory, "merge.docx");
+            using var package = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                ("word/document.xml", DocumentXml())
+            );
+            var snapshot = new OpcPackageReader().Read(package);
+            var mutation = new OpcPackageMutationBuilder(snapshot);
+            var competitor = Encoding.UTF8.GetBytes("competitor");
+            var writer = new OpcAtomicPackageWriter(
+                reader: null,
+                serializer: null,
+                beforeAtomicReplace: path => File.WriteAllBytes(path, competitor)
+            );
+
+            var conflict = Assert.Throws<OpcPackageConcurrencyException>(() =>
+                writer.Write(
+                    destination,
+                    mutation,
+                    new OpcAtomicWriteOptions { RequireNewDestination = true }
+                )
+            );
+
+            Assert.Contains("created while", conflict.Message);
+            Assert.Equal(competitor, File.ReadAllBytes(destination));
+            Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void AtomicWriterRejectsUnexpectedCandidateFingerprintBeforeReplacement()
     {
         var directory = CreateTemporaryDirectory();

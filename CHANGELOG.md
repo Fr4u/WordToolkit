@@ -4,11 +4,14 @@
 
 - Added generated first-call guidance for all 149/149 native actions (search, inspect,
   bind/acquire, example, execute, success and recovery). No public tools were added.
-- Qualified local 0.60.1 candidate `0.60.1+codex.20260821002028` as qualified9: deterministic
-  A/B package parity (199 files, 91,092,261 expanded bytes, 37,867,598-byte ZIP),
-  149/149 guidance, Python 1341/16 skipped, Engine 778, Native 585 and LibreOffice 12.
+- Qualified local 0.60.1 candidate `0.60.1+codex.20260821114902` as qualified10: deterministic
+  A/B package parity (199 files, 91,092,261 expanded bytes, 37,867,659-byte ZIP),
+  149/149 guidance, Python 1341/16 skipped, Engine 779, Native 585 and LibreOffice 12.
   Real qualified9 evidence covers 59/59 positive actions plus the documented 15/149 live
-  action boundary; installation remains pending read-only cache parity proof.
+  action boundary. Read-only inspection proves artifact/source/cache parity; the exact
+  q10 real-Word gate was deferred by the pre-existing user-document safety stop, so q10
+  makes no live-Word PASS claim. The production delta is the package-writer atomic
+  hard-link no-clobber race fix.
 
 ## 0.60.1 — 2026-08-20
 

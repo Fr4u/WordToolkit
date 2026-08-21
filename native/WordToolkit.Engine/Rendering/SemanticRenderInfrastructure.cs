@@ -355,7 +355,7 @@ internal static class SemanticRenderArtifactPublisher
         throw new IOException("A private temporary output path could not be allocated.");
     }
 
-    private static void PublishNoClobberHardLink(
+    internal static void PublishNoClobberHardLink(
         string temporaryPath,
         string outputPath
     )
@@ -381,6 +381,12 @@ internal static class SemanticRenderArtifactPublisher
             "Atomic create-new artifact publication failed.",
             new Win32Exception(error)
         );
+    }
+
+    internal static bool IsAlreadyExistsError(IOException exception)
+    {
+        var code = (exception.InnerException as Win32Exception)?.NativeErrorCode;
+        return code is 17 or 80 or 183;
     }
 
     [DllImport(

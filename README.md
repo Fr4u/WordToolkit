@@ -1369,7 +1369,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is the locally qualified9 0.60.1 candidate (`0.60.1+codex.20260821002028`). Installation passed: artifact/source/cache parity is 199 files with qualified9 map SHA `270e5b0...`, cache path `C:\Users\Admin\.codex\plugins\cache\personal\wordtoolkit\0.60.1+codex.20260821002028`, and runtime guidance 149/149. The latest immutable public release remains
+The development manifest/runtime is the locally qualified10 0.60.1 candidate (`0.60.1+codex.20260821114902`). Read-only installation inspection passed: artifact/source/cache parity is 199 files with relative-map SHA `026B5FB44FD054EEC8F4A586AA0FDCCB96484271AAAE8E77884AC96EE0257175`, cache path `C:\Users\Admin\.codex\plugins\cache\personal\wordtoolkit\0.60.1+codex.20260821114902`, and runtime guidance 149/149. The exact q10 real-Word gate was deferred by a pre-existing user-document safety stop; q9 retains 59/59 live evidence and q10 makes no live-Word PASS claim. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:
