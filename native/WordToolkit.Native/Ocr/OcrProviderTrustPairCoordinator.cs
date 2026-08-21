@@ -32,7 +32,10 @@ internal static class OcrProviderTrustPairCoordinator
         }
         catch (FileNotFoundException) { return false; }
         catch (DirectoryNotFoundException) { return false; }
-        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or NotSupportedException or System.Security.SecurityException)
+        // Inspecting a link is a security boundary. Runtime/platform-specific failures from
+        // FileSystemInfo.LinkTarget must fail closed as an invalid trust path; publication,
+        // lock and journal I/O happens outside this helper and keeps its ordinary failure code.
+        catch (Exception exception)
         {
             throw new OcrProviderTrustPathValidationException(path, exception);
         }

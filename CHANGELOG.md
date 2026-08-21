@@ -2,10 +2,16 @@
 
 ## Unreleased
 
+- Qualified q21 `0.60.1+codex.20260821200417`: 199-file/91,105,061-byte parity,
+  37,872,962-byte ZIP SHA `FBCD5C3F...`, executable `DA82528D...`, DLL `069F19DB...`.
+  Runtime-specific failures while inspecting OCR trust symlinks now fail closed through the
+  dedicated path-validation contract (exit 64); journal and publisher failures remain exit 2.
+  Native 613/613 and the Windows symlink regression pass. Q20 and older are historical.
+
 - Qualified q20 `0.60.1+codex.20260821194458`: 199-file/91,105,061-byte parity,
   37,872,971-byte ZIP SHA `97AE85EE...`, executable `F331B345...`, DLL `96807477...`,
   Python 1343/16 skipped, Engine 780, Native 613 and LibreOffice 12. OCR trust locks
-  and journals now live outside read-only trust directories; recovery validates complete
+  now live outside read-only trust directories; recovery journals remain writer-owned and validate complete
   pairs cryptographically and never deletes partial public files. Reparse-path failures
   have a dedicated exit-64 contract, and remote validation snapshots are always cleaned.
   Q20 inherits the unchanged q17 Word gate; q19 and older are historical.
