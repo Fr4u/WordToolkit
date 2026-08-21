@@ -1,0 +1,64 @@
+{
+  "benchmark": "remote_draft_mutation_copy_on_write",
+  "date": "2026-07-23",
+  "host": "windows-x64-local",
+  "python": "3.13",
+  "samples": 15,
+  "warmups": 3,
+  "operation": "insert one paragraph into a newly created one-paragraph DOCX",
+  "scope": "engine creation, commit swap, replaced-workspace cleanup and MCP dispatch excluded",
+  "validation": {
+    "wordtoolkit_structural": true,
+    "microsoft_openxml_sdk_available": false
+  },
+  "direct_in_memory_mutation": {
+    "samples_ms": [
+      0.159,
+      0.17,
+      0.162,
+      0.162,
+      0.159,
+      0.159,
+      0.163,
+      0.16,
+      0.158,
+      0.166,
+      0.158,
+      0.163,
+      0.158,
+      0.157,
+      0.162
+    ],
+    "median_ms": 0.16,
+    "p95_ms": 0.17,
+    "min_ms": 0.157,
+    "max_ms": 0.17
+  },
+  "snapshot_clone_open_mutate_snapshot_validate": {
+    "samples_ms": [
+      54.945,
+      55.048,
+      56.319,
+      55.406,
+      56.796,
+      55.593,
+      59.063,
+      56.78,
+      58.542,
+      57.896,
+      71.593,
+      56.743,
+      56.14,
+      54.715,
+      54.901
+    ],
+    "median_ms": 56.319,
+    "p95_ms": 71.593,
+    "min_ms": 54.715,
+    "max_ms": 71.593
+  },
+  "delta": {
+    "median_ms": 56.159,
+    "median_multiplier": 351.99
+  }
+}

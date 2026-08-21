@@ -1,10 +1,181 @@
 using System.Text;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Tests;
 
 public sealed class LosslessXmlDocumentTests
 {
+    [Fact]
+    public void RejectsTheXmlReservationBeforeParsingWhenTheOperationLeaseIsFull()
+    {
+        var bytes = Encoding.UTF8.GetBytes("<root><item>value</item></root>");
+        var original = bytes.ToArray();
+        var lease = new WordOperationResourceLease(4_096);
+
+        var exception = Assert.Throws<WordOperationResourceLimitException>(() =>
+            LosslessXmlDocument.Parse(
+                bytes,
+                LosslessXmlOptions.Default,
+                lease,
+                WordOperationResourceStage.Styles
+            )
+        );
+
+        Assert.Equal(WordOperationResourceStage.Styles, exception.Stage);
+        Assert.Equal(4_096, exception.AccountedBytes);
+        Assert.True(exception.AttemptedBytes > bytes.Length);
+        Assert.Equal(original, bytes);
+    }
+
+    [Fact]
+    public void ReusesOneByteExactImmutableParseWithinOneOperationLease()
+    {
+        var firstBytes = Encoding.UTF8.GetBytes("<root><item>value</item></root>");
+        var secondBytes = firstBytes.ToArray();
+        var lease = new WordOperationResourceLease();
+
+        var first = LosslessXmlDocument.Parse(
+            firstBytes,
+            LosslessXmlOptions.Default,
+            lease,
+            WordOperationResourceStage.SemanticProjection
+        );
+        var afterFirst = lease.AccountedBytes;
+        var second = LosslessXmlDocument.Parse(
+            secondBytes,
+            LosslessXmlOptions.Default with { MaxXmlDepth = 64 },
+            lease,
+            WordOperationResourceStage.References
+        );
+        var usage = lease.SnapshotXmlParseCache();
+
+        Assert.NotSame(first, second);
+        Assert.Equal(first.SourceSha256, second.SourceSha256);
+        Assert.Equal(first.Statistics, second.Statistics);
+        Assert.Equal(afterFirst, lease.AccountedBytes);
+        Assert.Equal("word_operation_xml_parse_cache_v1", usage.Model);
+        Assert.Equal(2, usage.Requests);
+        Assert.Equal(1, usage.UniqueParses);
+        Assert.Equal(1, usage.CacheHits);
+        Assert.True(usage.AvoidedAccountedBytes > firstBytes.Length);
+        Assert.DoesNotContain(
+            lease.Snapshot().Stages,
+            stage => stage.Stage == WordOperationResourceStage.References
+        );
+    }
+
+    [Fact]
+    public void CachedParseStillEnforcesEveryCallersStricterLimits()
+    {
+        var bytes = Encoding.UTF8.GetBytes("<root><item>value</item></root>");
+        var lease = new WordOperationResourceLease();
+        _ = LosslessXmlDocument.Parse(
+            bytes,
+            LosslessXmlOptions.Default,
+            lease,
+            WordOperationResourceStage.SemanticProjection
+        );
+
+        var exception = Assert.Throws<LosslessXmlLimitException>(() =>
+            LosslessXmlDocument.Parse(
+                bytes,
+                LosslessXmlOptions.Default with { MaxXmlElements = 1 },
+                lease,
+                WordOperationResourceStage.References
+            )
+        );
+
+        Assert.Contains("more than 1 elements", exception.Message, StringComparison.Ordinal);
+        var usage = lease.SnapshotXmlParseCache();
+        Assert.Equal(1, usage.Requests);
+        Assert.Equal(1, usage.UniqueParses);
+        Assert.Equal(0, usage.CacheHits);
+    }
+
+    [Fact]
+    public void CachedParseRetainsTheCurrentCallersPatchLimits()
+    {
+        var bytes = Encoding.UTF8.GetBytes("<root><item>a</item></root>");
+        var lease = new WordOperationResourceLease();
+        _ = LosslessXmlDocument.Parse(
+            bytes,
+            LosslessXmlOptions.Default,
+            lease,
+            WordOperationResourceStage.SemanticProjection
+        );
+        var constrained = LosslessXmlDocument.Parse(
+            bytes,
+            LosslessXmlOptions.Default with { MaxSourceBytes = bytes.Length },
+            lease,
+            WordOperationResourceStage.References
+        );
+        var item = constrained.Elements.Single(element => element.LocalName == "item");
+
+        var exception = Assert.Throws<LosslessXmlLimitException>(() =>
+            constrained.ReplaceElementText(item.Ordinal, "this output is larger")
+        );
+
+        Assert.Contains("Patched XML exceeds", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(1, lease.SnapshotXmlParseCache().CacheHits);
+    }
+
+    [Fact]
+    public void ParseCacheNeverCrossesOperationLeaseBoundary()
+    {
+        var bytes = Encoding.UTF8.GetBytes("<root><item>value</item></root>");
+        var firstLease = new WordOperationResourceLease();
+        var secondLease = new WordOperationResourceLease();
+
+        var first = LosslessXmlDocument.Parse(
+            bytes,
+            LosslessXmlOptions.Default,
+            firstLease,
+            WordOperationResourceStage.SemanticProjection
+        );
+        var second = LosslessXmlDocument.Parse(
+            bytes,
+            LosslessXmlOptions.Default,
+            secondLease,
+            WordOperationResourceStage.SemanticProjection
+        );
+
+        Assert.NotSame(first, second);
+        Assert.Equal(0, firstLease.SnapshotXmlParseCache().CacheHits);
+        Assert.Equal(0, secondLease.SnapshotXmlParseCache().CacheHits);
+        Assert.Equal(1, firstLease.SnapshotXmlParseCache().UniqueParses);
+        Assert.Equal(1, secondLease.SnapshotXmlParseCache().UniqueParses);
+    }
+
+    [Fact]
+    public void ArrayIdentityFastPathStillRejectsMutatedSourceBytes()
+    {
+        var bytes = Encoding.UTF8.GetBytes("<root/>");
+        var lease = new WordOperationResourceLease();
+        var first = LosslessXmlDocument.Parse(
+            bytes,
+            LosslessXmlOptions.Default,
+            lease,
+            WordOperationResourceStage.SemanticProjection
+        );
+
+        Encoding.UTF8.GetBytes("<item/>").CopyTo(bytes, 0);
+        var second = LosslessXmlDocument.Parse(
+            bytes,
+            LosslessXmlOptions.Default,
+            lease,
+            WordOperationResourceStage.References
+        );
+
+        Assert.NotSame(first, second);
+        Assert.Equal("root", first.Root.LocalName);
+        Assert.Equal("item", second.Root.LocalName);
+        var usage = lease.SnapshotXmlParseCache();
+        Assert.Equal(2, usage.Requests);
+        Assert.Equal(2, usage.UniqueParses);
+        Assert.Equal(0, usage.CacheHits);
+    }
+
     [Fact]
     public void ParsesSourceBackedElementsAttributesAndExactNoOp()
     {
@@ -249,6 +420,184 @@ public sealed class LosslessXmlDocumentTests
     }
 
     [Fact]
+    public void RemovesUnwrapsAndRenamesElementsWithoutReserializingUntouchedMarkup()
+    {
+        const string xml = "<w:r xmlns:w='urn:w' a='keep'><!--opaque--><w:del><w:delText xml:space='preserve'> old </w:delText></w:del><w:tail z=\"1\"/></w:r>";
+        var source = LosslessXmlDocument.Parse(Encoding.UTF8.GetBytes(xml));
+        var deletion = source.Elements.Single(element => element.LocalName == "del");
+        var deletedText = source.Elements.Single(element => element.LocalName == "delText");
+
+        var rejected = source.ApplyPatches(
+            source.CreateElementUnwrapPatches(deletion.Ordinal)
+                .Concat(source.CreateElementLocalNameRenamePatches(deletedText.Ordinal, "t"))
+        );
+        var accepted = source.ApplyPatches(
+            [source.CreateElementRemovalPatch(deletion.Ordinal)]
+        );
+
+        Assert.Equal(
+            "<w:r xmlns:w='urn:w' a='keep'><!--opaque--><w:t xml:space='preserve'> old </w:t><w:tail z=\"1\"/></w:r>",
+            Encoding.UTF8.GetString(rejected)
+        );
+        Assert.Equal(
+            "<w:r xmlns:w='urn:w' a='keep'><!--opaque--><w:tail z=\"1\"/></w:r>",
+            Encoding.UTF8.GetString(accepted)
+        );
+    }
+
+    [Fact]
+    public void SetsExistingAndMissingNamespacedAttributesWithoutReserializingElement()
+    {
+        const string xml = "<w:root xmlns:w='urn:w'><w:a w:val='old' keep=\"1\"/><w:b keep='2'/></w:root>";
+        var source = LosslessXmlDocument.Parse(Encoding.UTF8.GetBytes(xml));
+        var first = source.Elements.Single(element => element.LocalName == "a");
+        var second = source.Elements.Single(element => element.LocalName == "b");
+
+        var result = source.ApplyPatches(
+            source.CreateElementAttributeValuePatches(
+                first.Ordinal,
+                "urn:w",
+                "val",
+                "new & 'value'",
+                expectedValue: "old",
+                preferredPrefix: "w"
+            ).Concat(
+                source.CreateElementAttributeValuePatches(
+                    second.Ordinal,
+                    "urn:new",
+                    "flag",
+                    "yes",
+                    preferredPrefix: "wtk"
+                )
+            )
+        );
+
+        Assert.Equal(
+            "<w:root xmlns:w='urn:w'><w:a w:val='new &amp; &apos;value&apos;' keep=\"1\"/><w:b keep='2' xmlns:wtk=\"urn:new\" wtk:flag=\"yes\"/></w:root>",
+            Encoding.UTF8.GetString(result)
+        );
+        var reparsed = LosslessXmlDocument.Parse(result);
+        Assert.Equal(
+            "new & 'value'",
+            reparsed.Elements.Single(element => element.LocalName == "a")
+                .Attributes.Single(attribute => attribute.LocalName == "val")
+                .Value
+        );
+    }
+
+    [Fact]
+    public void InsertsSelfContainedContentIntoNormalAndSelfClosingElements()
+    {
+        const string xml = "<w:root xmlns:w='urn:w'><w:a>tail</w:a><w:b keep='1'/></w:root>";
+        var source = LosslessXmlDocument.Parse(Encoding.UTF8.GetBytes(xml));
+        var first = source.Elements.Single(element => element.LocalName == "a");
+        var second = source.Elements.Single(element => element.LocalName == "b");
+        const string child = "<wtk:style xmlns:wtk=\"urn:w\" wtk:val=\"Definition\"/>";
+
+        var result = source.ApplyPatches(
+            new[]
+            {
+                source.CreateElementContentInsertionPatch(
+                    first.Ordinal,
+                    child,
+                    XmlContentInsertionPosition.Prepend
+                ),
+                source.CreateElementContentInsertionPatch(second.Ordinal, child),
+            }
+        );
+
+        Assert.Equal(
+            "<w:root xmlns:w='urn:w'><w:a><wtk:style xmlns:wtk=\"urn:w\" wtk:val=\"Definition\"/>tail</w:a><w:b keep='1'><wtk:style xmlns:wtk=\"urn:w\" wtk:val=\"Definition\"/></w:b></w:root>",
+            Encoding.UTF8.GetString(result)
+        );
+        Assert.Equal(2, LosslessXmlDocument.Parse(result).Elements.Count(element =>
+            element.LocalName == "style"
+        ));
+    }
+
+    [Fact]
+    public void MissingAttributeNeverRebindsAnExistingNamespacePrefix()
+    {
+        const string xml = "<w:root xmlns:w='urn:w' xmlns:wtk='urn:other'><w:item wtk:keep='yes'/></w:root>";
+        var source = LosslessXmlDocument.Parse(Encoding.UTF8.GetBytes(xml));
+        var item = source.Elements.Single(element => element.LocalName == "item");
+
+        var result = source.ApplyPatches(
+            source.CreateElementAttributeValuePatches(
+                item.Ordinal,
+                "urn:new",
+                "flag",
+                "on",
+                preferredPrefix: "wtk"
+            )
+        );
+
+        Assert.Equal(
+            "<w:root xmlns:w='urn:w' xmlns:wtk='urn:other'><w:item wtk:keep='yes' xmlns:wtk1=\"urn:new\" wtk1:flag=\"on\"/></w:root>",
+            Encoding.UTF8.GetString(result)
+        );
+        var reparsed = LosslessXmlDocument.Parse(result);
+        var attributes = reparsed.Elements.Single(element => element.LocalName == "item")
+            .Attributes;
+        Assert.Contains(attributes, attribute =>
+            attribute.NamespaceUri == "urn:other"
+            && attribute.LocalName == "keep"
+            && attribute.Value == "yes"
+        );
+        Assert.Contains(attributes, attribute =>
+            attribute.NamespaceUri == "urn:new"
+            && attribute.LocalName == "flag"
+            && attribute.Value == "on"
+        );
+    }
+
+    [Fact]
+    public void RejectsUnsafeFragmentsAndStaleAttributeValues()
+    {
+        var source = LosslessXmlDocument.Parse(
+            Encoding.UTF8.GetBytes("<w:r xmlns:w='urn:w' w:val='old'/>")
+        );
+
+        Assert.Throws<LosslessXmlPreconditionException>(() =>
+            source.CreateElementAttributeValuePatches(
+                source.Root.Ordinal,
+                "urn:w",
+                "val",
+                "new",
+                expectedValue: "other"
+            )
+        );
+        Assert.Throws<LosslessXmlEditException>(() =>
+            source.CreateElementContentInsertionPatch(
+                source.Root.Ordinal,
+                "<x:broken/>"
+            )
+        );
+    }
+
+    [Fact]
+    public void StructuralPatchesRespectUtf16ByteOffsetsAndSelfClosingUnwrap()
+    {
+        const string xml = "<?xml version='1.0' encoding='utf-16'?><r xmlns='urn:r'><empty/><old>żółć</old></r>";
+        var encoding = new UnicodeEncoding(false, true, true);
+        var bytes = encoding.GetPreamble().Concat(encoding.GetBytes(xml)).ToArray();
+        var source = LosslessXmlDocument.Parse(bytes);
+        var empty = source.Elements.Single(element => element.LocalName == "empty");
+        var old = source.Elements.Single(element => element.LocalName == "old");
+
+        var result = source.ApplyPatches(
+            source.CreateElementUnwrapPatches(empty.Ordinal)
+                .Concat(source.CreateElementLocalNameRenamePatches(old.Ordinal, "new"))
+        );
+
+        Assert.True(result.AsSpan().StartsWith(encoding.GetPreamble()));
+        Assert.Equal(
+            "<?xml version='1.0' encoding='utf-16'?><r xmlns='urn:r'><new>żółć</new></r>",
+            encoding.GetString(result.AsSpan(2))
+        );
+    }
+
+    [Fact]
     public void CancellationStopsParsingBeforeMaterialization()
     {
         using var cancellation = new CancellationTokenSource();
@@ -347,6 +696,54 @@ public sealed class LosslessXmlDocumentTests
             "nowe 🧮",
             LosslessXmlDocument.Parse(result)
                 .Elements.Single(element => element.LocalName == "t").Value
+        );
+    }
+
+    [Fact]
+    public void InsertsSiblingWithoutRewritingEitherNeighbor()
+    {
+        var bytes = Encoding.UTF8.GetBytes(
+            "<w:numbering xmlns:w='urn:w'><w:num w:numId='4'/><w:numIdMacAtCleanup w:val='4'/></w:numbering>"
+        );
+        var source = LosslessXmlDocument.Parse(bytes);
+        var cleanup = source.Elements.Single(element =>
+            element.LocalName == "numIdMacAtCleanup"
+        );
+
+        var result = source.ApplyPatches(
+            [source.CreateElementSiblingInsertionPatch(
+                cleanup.Ordinal,
+                "<w:num xmlns:w='urn:w' w:numId='5'/>",
+                XmlSiblingInsertionPosition.Before
+            )]
+        );
+
+        Assert.Equal(
+            "<w:numbering xmlns:w='urn:w'><w:num w:numId='4'/><w:num xmlns:w='urn:w' w:numId='5'/><w:numIdMacAtCleanup w:val='4'/></w:numbering>",
+            Encoding.UTF8.GetString(result)
+        );
+    }
+
+    [Fact]
+    public void StringReplacementUsesSourceEncodingAndRejectsUnsafeXml()
+    {
+        const string xml = "<?xml version='1.0' encoding='utf-16'?><r><a>stare</a><b/></r>";
+        var encoding = new UnicodeEncoding(false, true, true);
+        var source = LosslessXmlDocument.Parse(
+            encoding.GetPreamble().Concat(encoding.GetBytes(xml)).ToArray()
+        );
+        var a = source.Elements.Single(element => element.LocalName == "a");
+
+        var result = source.ApplyPatches(
+            [source.CreateElementReplacementPatch(a.Ordinal, "<a>nowe ∑</a>")]
+        );
+
+        Assert.Equal(
+            "<?xml version='1.0' encoding='utf-16'?><r><a>nowe ∑</a><b/></r>",
+            encoding.GetString(result.AsSpan(encoding.GetPreamble().Length))
+        );
+        Assert.Throws<LosslessXmlEditException>(() =>
+            source.CreateElementReplacementPatch(a.Ordinal, "<x:broken/>")
         );
     }
 

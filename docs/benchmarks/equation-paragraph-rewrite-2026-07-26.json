@@ -1,0 +1,32 @@
+{
+  "measured_utc": "2026-07-26T06:55:38.4405995Z",
+  "sdk": "8.0.423",
+  "runtime_version": "0.46.0",
+  "fixture": "one paragraph, two text slots, one native inline OMath",
+  "request_characters": {
+    "inspect_catalog": 310,
+    "inspect_exact_text": 355,
+    "plan": 546,
+    "apply": 617
+  },
+  "compact_response_characters": {
+    "inspect_catalog": 888,
+    "inspect_exact_text": 1272,
+    "plan": 1079,
+    "apply": 909
+  },
+  "proof": {
+    "plan_can_apply": true,
+    "apply_applied": true,
+    "word_opened": false,
+    "raw_text_returned": false,
+    "raw_xml_returned": false,
+    "exact_equation_bytes_preserved": true,
+    "paragraph_structure_preserved": true,
+    "exact_inverse_verified": true,
+    "microsoft_schema_valid": true,
+    "microsoft_schema_no_new_errors": true,
+    "baseline_sdk_error_count": 0,
+    "candidate_sdk_error_count": 0
+  }
+}

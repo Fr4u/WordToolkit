@@ -1,0 +1,61 @@
+{
+  "schema": "wordtoolkit-engine-benchmark-v1",
+  "scenario": "semantic_svg_subtree",
+  "utc": "2026-07-23T08:30:09.7918702+00:00",
+  "runtime": ".NET 8.0.26",
+  "operating_system": "Microsoft Windows 10.0.19045",
+  "architecture": "X64",
+  "engine_version": "0.36.0",
+  "processor_count": 12,
+  "server_gc": false,
+  "measurements": {
+    "requested_semantic_nodes": 10000,
+    "paragraphs": 3329,
+    "projected_nodes": 9996,
+    "package_bytes": 10233,
+    "target_kind": "Table",
+    "target_subtree_nodes": 6,
+    "artifact_bytes": 1305,
+    "viewport_width_px": 1024,
+    "viewport_height_px": 98,
+    "rendered_nodes": 6,
+    "warning_count": 5,
+    "paginated": false,
+    "exact_text_metrics": false,
+    "pixel_equivalence_claimed": false,
+    "external_resources_loaded": false,
+    "active_content_executed": false,
+    "source_mutated": false,
+    "source_bytes_equal": true,
+    "word_opened": false,
+    "repeat_count": 7,
+    "deterministic_sha256": "a1c854f359ad28b50c2661576b0a348cdc0f4e0a1e7ac21c155c2ba414fe2ad3",
+    "artifact_hashes_equal": true,
+    "artifact_bytes_equal": true,
+    "timings_ms": {
+      "generate": 15.724,
+      "samples": [
+        844.8739,
+        669.7524,
+        529.0316,
+        445.5846,
+        342.1064,
+        449.1046,
+        308.6912
+      ],
+      "median": 449.1046,
+      "p95": 844.8739,
+      "minimum": 308.6912,
+      "maximum": 844.8739
+    },
+    "memory": {
+      "baseline_managed_bytes": 9969664,
+      "final_managed_bytes": 32114640,
+      "retained_managed_delta_bytes": 22144976,
+      "allocated_delta_bytes": 724472184,
+      "baseline_working_set_bytes": 60518400,
+      "final_working_set_bytes": 100823040,
+      "process_peak_working_set_bytes": 110637056
+    }
+  }
+}

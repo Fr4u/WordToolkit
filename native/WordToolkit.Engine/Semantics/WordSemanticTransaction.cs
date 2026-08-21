@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Security.Cryptography;
 using System.Text;
+using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Xml;
 
@@ -14,6 +15,10 @@ public sealed record WordSemanticTransactionOptions
 
     public long MaxTotalReplacementCharacters { get; init; } = 16L * 1024 * 1024;
 
+    public long MaxTotalStyleIdCharacters { get; init; } = 1_000_000;
+
+    public int MaxStyleReferenceUpdates { get; init; } = 250_000;
+
     internal void Validate()
     {
         if (MaxCommands <= 0)
@@ -25,6 +30,16 @@ public sealed record WordSemanticTransactionOptions
         {
             throw new ArgumentOutOfRangeException(nameof(MaxTotalReplacementCharacters));
         }
+
+        if (MaxTotalStyleIdCharacters <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxTotalStyleIdCharacters));
+        }
+
+        if (MaxStyleReferenceUpdates <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxStyleReferenceUpdates));
+        }
     }
 }
 
@@ -32,6 +47,13 @@ public sealed record WordTextReplacementCommand(
     SemanticNodeId NodeId,
     string NewValue,
     string? ExpectedText = null
+);
+
+public sealed record WordStyleAssignmentCommand(
+    SemanticNodeId NodeId,
+    string StyleId,
+    string? ExpectedStyleId = null,
+    bool RequireNoExplicitStyle = false
 );
 
 public sealed record WordSemanticOperationPlan(
@@ -43,7 +65,23 @@ public sealed record WordSemanticOperationPlan(
     int BeforeCharacters,
     int AfterCharacters,
     int XmlByteDelta,
-    bool HasChange
+    bool HasChange,
+    string? PropertyName = null,
+    string? BeforeValue = null,
+    string? AfterValue = null
+);
+
+public sealed record WordStyleDefinitionOperationPlan(
+    int Index,
+    string Kind,
+    string StyleId,
+    string? SourceStyleId,
+    WordStyleType StyleType,
+    string SourcePartUri,
+    int SourceElementOrdinal,
+    int XmlByteDelta,
+    bool HasChange,
+    int ReferenceUpdateCount = 0
 );
 
 public sealed record WordSemanticPartChange(
@@ -57,25 +95,31 @@ public sealed record WordSemanticPartChange(
 
 public sealed class WordSemanticTransactionPlan
 {
-    private readonly IReadOnlyDictionary<string, PartPayload> _parts;
+    private readonly WordPackageTransactionCore _transaction;
 
     internal WordSemanticTransactionPlan(
         string planId,
         string basePackageFingerprint,
         string resultPackageFingerprint,
         IReadOnlyList<WordSemanticOperationPlan> operations,
-        IReadOnlyDictionary<string, PartPayload> parts
+        IReadOnlyDictionary<string, WordPackagePartPayload> parts,
+        IReadOnlyList<WordStyleDefinitionOperationPlan>? definitionOperations = null
     )
     {
         PlanId = planId;
         BasePackageFingerprint = basePackageFingerprint;
         ResultPackageFingerprint = resultPackageFingerprint;
         Operations = new ReadOnlyCollection<WordSemanticOperationPlan>(operations.ToArray());
-        _parts = new ReadOnlyDictionary<string, PartPayload>(
-            new Dictionary<string, PartPayload>(parts, StringComparer.Ordinal)
+        DefinitionOperations = new ReadOnlyCollection<WordStyleDefinitionOperationPlan>(
+            (definitionOperations ?? Array.Empty<WordStyleDefinitionOperationPlan>()).ToArray()
+        );
+        _transaction = new WordPackageTransactionCore(
+            basePackageFingerprint,
+            resultPackageFingerprint,
+            parts
         );
         ChangedParts = new ReadOnlyCollection<WordSemanticPartChange>(
-            _parts.Values
+            _transaction.Parts
                 .OrderBy(part => part.PartUri, StringComparer.Ordinal)
                 .Select(part => new WordSemanticPartChange(
                     part.PartUri,
@@ -97,126 +141,36 @@ public sealed class WordSemanticTransactionPlan
 
     public IReadOnlyList<WordSemanticOperationPlan> Operations { get; }
 
+    public IReadOnlyList<WordStyleDefinitionOperationPlan> DefinitionOperations { get; }
+
     public IReadOnlyList<WordSemanticPartChange> ChangedParts { get; }
 
-    public bool HasChanges => _parts.Count != 0;
+    public bool HasChanges => _transaction.HasChanges;
 
-    public int OperationCount => Operations.Count;
+    public int OperationCount => Operations.Count + DefinitionOperations.Count;
 
     public int ChangedPartCount => ChangedParts.Count;
 
-    public int ChangedOperationCount => Operations.Count(operation => operation.HasChange);
+    public int ChangedOperationCount =>
+        Operations.Count(operation => operation.HasChange)
+        + DefinitionOperations.Count(operation => operation.HasChange);
 
     public long TotalXmlByteDelta => ChangedParts.Sum(part =>
         (long)part.AfterBytes - part.BeforeBytes
     );
 
-    public OpcPackageMutationBuilder CreateMutation(OpcPackageSnapshot currentSnapshot)
-    {
-        ArgumentNullException.ThrowIfNull(currentSnapshot);
-        VerifyFingerprint(
-            currentSnapshot,
-            BasePackageFingerprint,
-            "Package changed after the semantic transaction was planned."
-        );
-        var mutation = new OpcPackageMutationBuilder(currentSnapshot);
-        foreach (var part in _parts.Values.OrderBy(part => part.PartUri, StringComparer.Ordinal))
-        {
-            VerifyPartHash(currentSnapshot, part.PartUri, part.BeforeSha256);
-            mutation.ReplacePart(part.PartUri, part.AfterContent, part.BeforeSha256);
-        }
+    internal IEnumerable<WordPackagePartPayload> PartPayloads => _transaction.Parts;
 
-        return mutation;
-    }
+    public OpcPackageMutationBuilder CreateMutation(OpcPackageSnapshot currentSnapshot)
+        => _transaction.CreateMutation(currentSnapshot);
 
     public OpcPackageMutationBuilder CreateInverseMutation(
         OpcPackageSnapshot appliedSnapshot
     )
-    {
-        ArgumentNullException.ThrowIfNull(appliedSnapshot);
-        VerifyFingerprint(
-            appliedSnapshot,
-            ResultPackageFingerprint,
-            "Applied package changed before the inverse transaction was created."
-        );
-        var mutation = new OpcPackageMutationBuilder(appliedSnapshot);
-        foreach (var part in _parts.Values.OrderBy(part => part.PartUri, StringComparer.Ordinal))
-        {
-            VerifyPartHash(appliedSnapshot, part.PartUri, part.AfterSha256);
-            mutation.ReplacePart(part.PartUri, part.BeforeContent, part.AfterSha256);
-        }
-
-        return mutation;
-    }
-
-    private static void VerifyFingerprint(
-        OpcPackageSnapshot snapshot,
-        string expected,
-        string message
-    )
-    {
-        if (!string.Equals(snapshot.Fingerprint, expected, StringComparison.Ordinal))
-        {
-            throw new WordSemanticPreconditionException(message);
-        }
-    }
-
-    private static void VerifyPartHash(
-        OpcPackageSnapshot snapshot,
-        string partUri,
-        string expectedSha256
-    )
-    {
-        if (
-            !snapshot.Parts.TryGetValue(partUri, out var part)
-            || !string.Equals(
-                part.Entry.Sha256,
-                expectedSha256,
-                StringComparison.OrdinalIgnoreCase
-            )
-        )
-        {
-            throw new WordSemanticPreconditionException(
-                $"Source part '{partUri}' changed before the transaction could be applied."
-            );
-        }
-    }
-
-    internal sealed class PartPayload
-    {
-        public PartPayload(
-            string partUri,
-            string entryName,
-            byte[] beforeContent,
-            byte[] afterContent
-        )
-        {
-            PartUri = partUri;
-            EntryName = entryName;
-            BeforeContent = beforeContent.ToArray();
-            AfterContent = afterContent.ToArray();
-            BeforeSha256 = HashBytes(BeforeContent);
-            AfterSha256 = HashBytes(AfterContent);
-        }
-
-        public string PartUri { get; }
-
-        public string EntryName { get; }
-
-        public byte[] BeforeContent { get; }
-
-        public byte[] AfterContent { get; }
-
-        public string BeforeSha256 { get; }
-
-        public string AfterSha256 { get; }
-    }
-
-    private static string HashBytes(ReadOnlySpan<byte> content) =>
-        Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+        => _transaction.CreateInverseMutation(appliedSnapshot);
 }
 
-public sealed class WordSemanticTransactionPlanner
+public sealed partial class WordSemanticTransactionPlanner
 {
     private readonly WordSemanticTransactionOptions _options;
     private readonly LosslessXmlOptions _xmlOptions;
@@ -415,10 +369,7 @@ public sealed class WordSemanticTransactionPlanner
             );
         }
 
-        var payloads = new Dictionary<
-            string,
-            WordSemanticTransactionPlan.PartPayload
-        >(StringComparer.Ordinal);
+        var payloads = new Dictionary<string, WordPackagePartPayload>(StringComparer.Ordinal);
         var projectedEntries = new Dictionary<string, ReadOnlyMemory<byte>>(
             StringComparer.Ordinal
         );
@@ -457,7 +408,7 @@ public sealed class WordSemanticTransactionPlanner
                 continue;
             }
 
-            var payload = new WordSemanticTransactionPlan.PartPayload(
+            var payload = new WordPackagePartPayload(
                 part.Uri,
                 part.Entry.Name,
                 part.Entry.Content.ToArray(),
@@ -479,6 +430,522 @@ public sealed class WordSemanticTransactionPlanner
             payloads
         );
     }
+
+    public WordSemanticTransactionPlan PlanStyleAssignments(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        IEnumerable<WordStyleAssignmentCommand> commands,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        ArgumentNullException.ThrowIfNull(semanticDocument);
+        ArgumentNullException.ThrowIfNull(commands);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!string.Equals(
+            package.Fingerprint,
+            semanticDocument.PackageFingerprint,
+            StringComparison.Ordinal
+        ))
+        {
+            throw new WordSemanticPreconditionException(
+                "Semantic projection and package snapshot have different fingerprints."
+            );
+        }
+
+        var materialized = commands.ToArray();
+        if (materialized.Length == 0)
+        {
+            throw new ArgumentException(
+                "A semantic style transaction requires at least one command.",
+                nameof(commands)
+            );
+        }
+        if (materialized.Length > _options.MaxCommands)
+        {
+            throw new WordSemanticTransactionLimitException(
+                $"Semantic transaction exceeds {_options.MaxCommands} commands."
+            );
+        }
+
+        long styleIdCharacters = 0;
+        foreach (var command in materialized)
+        {
+            ArgumentNullException.ThrowIfNull(command);
+            ArgumentException.ThrowIfNullOrWhiteSpace(command.StyleId);
+            if (command.StyleId.Length > 253 || command.ExpectedStyleId?.Length > 253)
+            {
+                throw new ArgumentException(
+                    "Style IDs cannot exceed 253 characters.",
+                    nameof(commands)
+                );
+            }
+            if (command.RequireNoExplicitStyle && command.ExpectedStyleId is not null)
+            {
+                throw new ArgumentException(
+                    "A style command cannot require both an expected style and no explicit style.",
+                    nameof(commands)
+                );
+            }
+            checked
+            {
+                styleIdCharacters += command.StyleId.Length;
+                styleIdCharacters += command.ExpectedStyleId?.Length ?? 0;
+            }
+            if (styleIdCharacters > _options.MaxTotalStyleIdCharacters)
+            {
+                throw new WordSemanticTransactionLimitException(
+                    "Semantic transaction style IDs exceed the configured limit."
+                );
+            }
+        }
+
+        var styleGraph = new WordStyleGraphBuilder().Build(
+            package,
+            semanticDocument,
+            cancellationToken
+        );
+        if (!styleGraph.HasStylesPart)
+        {
+            throw new WordSemanticEditException(
+                "A named style cannot be assigned because the package has no styles part."
+            );
+        }
+
+        var seenNodes = new HashSet<SemanticNodeId>();
+        var seenSourceElements = new HashSet<(string PartUri, int Ordinal)>();
+        var sources = new Dictionary<string, LosslessXmlDocument>(StringComparer.Ordinal);
+        var sourceParts = new Dictionary<string, OpcPart>(StringComparer.Ordinal);
+        var patches = new Dictionary<string, List<XmlSourcePatch>>(StringComparer.Ordinal);
+        var operations = new List<WordSemanticOperationPlan>(materialized.Length);
+        for (var index = 0; index < materialized.Length; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var command = materialized[index];
+            if (!seenNodes.Add(command.NodeId))
+            {
+                throw new WordSemanticEditException(
+                    $"Semantic node '{command.NodeId}' is targeted more than once."
+                );
+            }
+
+            var target = ResolveStyleTarget(semanticDocument, command);
+            var definition = ResolveStyleDefinition(styleGraph, target, command.StyleId);
+            if (!package.Parts.TryGetValue(target.Node.SourcePartUri, out var part))
+            {
+                throw new WordSemanticPreconditionException(
+                    $"Source part '{target.Node.SourcePartUri}' no longer exists."
+                );
+            }
+            if (!sources.TryGetValue(part.Uri, out var source))
+            {
+                try
+                {
+                    source = LosslessXmlDocument.Parse(
+                        part.Entry.Content,
+                        _xmlOptions,
+                        cancellationToken
+                    );
+                }
+                catch (LosslessXmlException exception)
+                {
+                    throw new WordSemanticEditException(
+                        $"Source part '{part.Uri}' cannot be edited losslessly.",
+                        exception
+                    );
+                }
+                sources.Add(part.Uri, source);
+                sourceParts.Add(part.Uri, part);
+                patches.Add(part.Uri, []);
+            }
+
+            XmlSourceElement element;
+            try
+            {
+                element = source.GetElement(target.Node.SourceElementOrdinal);
+            }
+            catch (ArgumentOutOfRangeException exception)
+            {
+                throw new WordSemanticPreconditionException(
+                    $"Source element {target.Node.SourceElementOrdinal} no longer exists.",
+                    exception
+                );
+            }
+            ValidateStyleSourceElement(element, target);
+            if (!seenSourceElements.Add((part.Uri, element.Ordinal)))
+            {
+                throw new WordSemanticEditException(
+                    $"Source element {element.Ordinal} in '{part.Uri}' is targeted more than once."
+                );
+            }
+
+            var commandPatches = CreateStylePatches(
+                source,
+                element,
+                target,
+                command,
+                cancellationToken
+            );
+            patches[part.Uri].AddRange(commandPatches);
+            var byteDelta = commandPatches.Sum(patch =>
+                patch.Replacement.Length - patch.ByteLength
+            );
+            operations.Add(
+                new WordSemanticOperationPlan(
+                    index,
+                    "set_style",
+                    target.Node.Id,
+                    part.Uri,
+                    element.Ordinal,
+                    target.CurrentStyleId?.Length ?? 0,
+                    definition.StyleId.Length,
+                    byteDelta,
+                    commandPatches.Count != 0,
+                    "style_id",
+                    target.CurrentStyleId,
+                    definition.StyleId
+                )
+            );
+        }
+
+        var payloads = BuildPartPayloads(
+            sources,
+            sourceParts,
+            patches,
+            cancellationToken
+        );
+        var projectedEntries = payloads.Values.ToDictionary(
+            payload => payload.EntryName,
+            payload => (ReadOnlyMemory<byte>)payload.AfterContent,
+            StringComparer.Ordinal
+        );
+        var resultFingerprint = payloads.Count == 0
+            ? package.Fingerprint
+            : OpcPackageFingerprint.ComputeProjected(package, projectedEntries);
+        return new WordSemanticTransactionPlan(
+            CreateStylePlanId(package.Fingerprint, operations, materialized),
+            package.Fingerprint,
+            resultFingerprint,
+            operations,
+            payloads
+        );
+    }
+
+    private static IReadOnlyDictionary<string, WordPackagePartPayload> BuildPartPayloads(
+        IReadOnlyDictionary<string, LosslessXmlDocument> sources,
+        IReadOnlyDictionary<string, OpcPart> sourceParts,
+        IReadOnlyDictionary<string, List<XmlSourcePatch>> patches,
+        CancellationToken cancellationToken
+    )
+    {
+        var payloads = new Dictionary<string, WordPackagePartPayload>(StringComparer.Ordinal);
+        foreach (var (partUri, source) in sources)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (patches[partUri].Count == 0)
+            {
+                continue;
+            }
+            var part = sourceParts[partUri];
+            byte[] changed;
+            try
+            {
+                changed = source.ApplyPatches(
+                    patches[partUri],
+                    part.Entry.Sha256,
+                    cancellationToken
+                );
+            }
+            catch (LosslessXmlPreconditionException exception)
+            {
+                throw new WordSemanticPreconditionException(exception.Message, exception);
+            }
+            catch (LosslessXmlException exception)
+            {
+                throw new WordSemanticEditException(
+                    $"Planned edits for '{partUri}' do not form safe XML.",
+                    exception
+                );
+            }
+            if (!changed.AsSpan().SequenceEqual(part.Entry.Content.Span))
+            {
+                payloads.Add(
+                    part.Uri,
+                    new WordPackagePartPayload(
+                        part.Uri,
+                        part.Entry.Name,
+                        part.Entry.Content.ToArray(),
+                        changed
+                    )
+                );
+            }
+        }
+        return payloads;
+    }
+
+    private static StyleTarget ResolveStyleTarget(
+        WordSemanticDocument document,
+        WordStyleAssignmentCommand command
+    )
+    {
+        if (!document.TryGetNode(command.NodeId, out var node) || node is null)
+        {
+            throw new WordSemanticEditException(
+                $"Semantic node '{command.NodeId}' does not exist."
+            );
+        }
+        var shape = node.Kind switch
+        {
+            WordSemanticNodeKind.Paragraph => new StyleShape(
+                WordStyleType.Paragraph,
+                "p",
+                "pPr",
+                "pStyle"
+            ),
+            WordSemanticNodeKind.Run => new StyleShape(
+                WordStyleType.Character,
+                "r",
+                "rPr",
+                "rStyle"
+            ),
+            WordSemanticNodeKind.Table => new StyleShape(
+                WordStyleType.Table,
+                "tbl",
+                "tblPr",
+                "tblStyle"
+            ),
+            _ => throw new WordSemanticEditException(
+                $"Semantic node '{command.NodeId}' is {node.Kind}; only paragraph, run, and table styles are assignable."
+            ),
+        };
+        node.Properties.TryGetValue("style_id", out var currentStyleId);
+        if (
+            command.ExpectedStyleId is not null
+            && !string.Equals(
+                currentStyleId,
+                command.ExpectedStyleId,
+                StringComparison.Ordinal
+            )
+        )
+        {
+            throw new WordSemanticPreconditionException(
+                $"Semantic node '{command.NodeId}' no longer has expected style '{command.ExpectedStyleId}'."
+            );
+        }
+        if (command.RequireNoExplicitStyle && currentStyleId is not null)
+        {
+            throw new WordSemanticPreconditionException(
+                $"Semantic node '{command.NodeId}' now has explicit style '{currentStyleId}'."
+            );
+        }
+        return new StyleTarget(node, shape, currentStyleId);
+    }
+
+    private static WordStyleDefinition ResolveStyleDefinition(
+        WordStyleGraph graph,
+        StyleTarget target,
+        string styleId
+    )
+    {
+        if (!graph.TryGetStyle(styleId, out var definition) || definition is null)
+        {
+            throw new WordSemanticEditException(
+                $"Style '{styleId}' does not exist in the package style graph."
+            );
+        }
+        if (definition.Type != target.Shape.StyleType)
+        {
+            throw new WordSemanticEditException(
+                $"Style '{styleId}' is {definition.Type}, not {target.Shape.StyleType}."
+            );
+        }
+        if (!definition.InheritanceResolvable)
+        {
+            throw new WordSemanticEditException(
+                $"Style '{styleId}' has an unresolved inheritance chain."
+            );
+        }
+        return definition;
+    }
+
+    private static void ValidateStyleSourceElement(
+        XmlSourceElement element,
+        StyleTarget target
+    )
+    {
+        if (
+            element.NamespaceUri is not WordSemanticTextTarget.WordTransitionalNamespace
+                and not WordSemanticTextTarget.WordStrictNamespace
+            || !string.Equals(
+                element.LocalName,
+                target.Shape.TargetElement,
+                StringComparison.Ordinal
+            )
+        )
+        {
+            throw new WordSemanticPreconditionException(
+                $"Source element {element.Ordinal} is no longer the projected {target.Node.Kind} element."
+            );
+        }
+    }
+
+    private static IReadOnlyList<XmlSourcePatch> CreateStylePatches(
+        LosslessXmlDocument source,
+        XmlSourceElement targetElement,
+        StyleTarget target,
+        WordStyleAssignmentCommand command,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var properties = targetElement.Children.Where(child =>
+            string.Equals(child.NamespaceUri, targetElement.NamespaceUri, StringComparison.Ordinal)
+            && string.Equals(
+                child.LocalName,
+                target.Shape.PropertiesElement,
+                StringComparison.Ordinal
+            )
+        ).ToArray();
+        if (properties.Length > 1)
+        {
+            throw new WordSemanticEditException(
+                $"Semantic node '{target.Node.Id}' contains duplicate {target.Shape.PropertiesElement} elements."
+            );
+        }
+        if (properties.Length == 0)
+        {
+            var fragment = StyleMarkup(
+                targetElement.NamespaceUri,
+                target.Shape.PropertiesElement,
+                target.Shape.StyleElement,
+                command.StyleId
+            );
+            return
+            [
+                source.CreateElementContentInsertionPatch(
+                    targetElement.Ordinal,
+                    fragment,
+                    XmlContentInsertionPosition.Prepend
+                ),
+            ];
+        }
+
+        var propertyElement = properties[0];
+        var styles = propertyElement.Children.Where(child =>
+            string.Equals(child.NamespaceUri, targetElement.NamespaceUri, StringComparison.Ordinal)
+            && string.Equals(child.LocalName, target.Shape.StyleElement, StringComparison.Ordinal)
+        ).ToArray();
+        if (styles.Length > 1)
+        {
+            throw new WordSemanticEditException(
+                $"Semantic node '{target.Node.Id}' contains duplicate {target.Shape.StyleElement} elements."
+            );
+        }
+        if (styles.Length == 0)
+        {
+            return
+            [
+                source.CreateElementContentInsertionPatch(
+                    propertyElement.Ordinal,
+                    StyleMarkup(
+                        targetElement.NamespaceUri,
+                        null,
+                        target.Shape.StyleElement,
+                        command.StyleId
+                    ),
+                    XmlContentInsertionPosition.Prepend
+                ),
+            ];
+        }
+
+        var styleElement = styles[0];
+        var values = styleElement.Attributes.Where(attribute =>
+            string.Equals(attribute.NamespaceUri, targetElement.NamespaceUri, StringComparison.Ordinal)
+            && string.Equals(attribute.LocalName, "val", StringComparison.Ordinal)
+        ).ToArray();
+        if (values.Length > 1)
+        {
+            throw new WordSemanticEditException(
+                $"Semantic node '{target.Node.Id}' contains duplicate style values."
+            );
+        }
+        var lexicalStyleId = values.SingleOrDefault()?.Value;
+        if (!string.Equals(lexicalStyleId, target.CurrentStyleId, StringComparison.Ordinal))
+        {
+            throw new WordSemanticPreconditionException(
+                $"Source style for semantic node '{target.Node.Id}' changed after projection."
+            );
+        }
+        return source.CreateElementAttributeValuePatches(
+            styleElement.Ordinal,
+            targetElement.NamespaceUri,
+            "val",
+            command.StyleId,
+            expectedValue: lexicalStyleId,
+            preferredPrefix: string.IsNullOrEmpty(targetElement.Prefix)
+                ? "wtk"
+                : targetElement.Prefix
+        );
+    }
+
+    private static string StyleMarkup(
+        string namespaceUri,
+        string? containerName,
+        string styleElementName,
+        string styleId
+    )
+    {
+        XNamespace word = namespaceUri;
+        var style = new XElement(
+            word + styleElementName,
+            new XAttribute(word + "val", styleId)
+        );
+        var root = containerName is null
+            ? style
+            : new XElement(word + containerName, style);
+        root.Add(new XAttribute(XNamespace.Xmlns + "wtk", namespaceUri));
+        return root.ToString(SaveOptions.DisableFormatting);
+    }
+
+    private static string CreateStylePlanId(
+        string packageFingerprint,
+        IReadOnlyList<WordSemanticOperationPlan> operations,
+        IReadOnlyList<WordStyleAssignmentCommand> commands
+    )
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        AppendHashField(hash, "word-semantic-style-plan-v1");
+        AppendHashField(hash, packageFingerprint);
+        foreach (var operation in operations)
+        {
+            var command = commands[operation.Index];
+            AppendHashField(hash, operation.Index.ToString(
+                System.Globalization.CultureInfo.InvariantCulture
+            ));
+            AppendHashField(hash, operation.NodeId.Value);
+            AppendHashField(hash, command.StyleId);
+            AppendHashField(hash, command.ExpectedStyleId ?? "\u0000");
+            AppendHashField(hash, command.RequireNoExplicitStyle ? "1" : "0");
+        }
+        var digest = hash.GetHashAndReset();
+        return "wseplan_" + Convert.ToBase64String(digest.AsSpan(0, 15))
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+    }
+
+    private sealed record StyleShape(
+        WordStyleType StyleType,
+        string TargetElement,
+        string PropertiesElement,
+        string StyleElement
+    );
+
+    private sealed record StyleTarget(
+        WordSemanticNode Node,
+        StyleShape Shape,
+        string? CurrentStyleId
+    );
 
     private static WordSemanticNode ResolveTextNode(
         WordSemanticDocument semanticDocument,
@@ -557,9 +1024,9 @@ public sealed class WordSemanticTransactionPlanner
 
 internal static class WordSemanticTextTarget
 {
-    private const string WordTransitionalNamespace =
+    internal const string WordTransitionalNamespace =
         "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-    private const string WordStrictNamespace =
+    internal const string WordStrictNamespace =
         "http://purl.oclc.org/ooxml/wordprocessingml/main";
     private const string MathTransitionalNamespace =
         "http://schemas.openxmlformats.org/officeDocument/2006/math";

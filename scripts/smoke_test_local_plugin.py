@@ -51,6 +51,7 @@ async def smoke_test(plugin: Path) -> dict[str, object]:
         tools = await session.list_tools()
         created = _payload(await session.call_tool("create_document", {}))
         document_id = created["data"]["document_id"]
+        draft_version = created["data"]["draft_version"]
         validated = _payload(
             await session.call_tool("validate_ooxml", {"document_id": document_id})
         )
@@ -60,15 +61,23 @@ async def smoke_test(plugin: Path) -> dict[str, object]:
                 {
                     "document_id": document_id,
                     "file_name": "WordToolkit-local-smoke.docx",
+                    "expected_version": draft_version,
                 },
             )
         )
+        draft_version = exported["data"]["draft_version"]
         preview = _payload(
             await session.call_tool(
                 "generate_preview",
-                {"document_id": document_id, "max_pages": 2, "dpi": 96},
+                {
+                    "document_id": document_id,
+                    "max_pages": 2,
+                    "dpi": 96,
+                    "expected_version": draft_version,
+                },
             )
         )
+        draft_version = preview["data"]["draft_version"]
 
     validation = validated["data"]["validation"]
     official = validation["validators"]["microsoft_openxml_sdk"]
@@ -82,6 +91,7 @@ async def smoke_test(plugin: Path) -> dict[str, object]:
         "preview_uris": [artifact["download_url"] for artifact in preview["data"]["artifacts"]],
         "preview_pages": preview["data"]["page_count"],
         "visual_audit": preview["data"]["visual_audit"]["passed"],
+        "draft_version": draft_version,
     }
     if result["tools"] != 103:
         raise RuntimeError(f"Expected 103 tools, received {result['tools']}")

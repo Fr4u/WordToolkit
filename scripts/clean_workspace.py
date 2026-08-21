@@ -36,6 +36,16 @@ def _assert_inside(root: Path, target: Path) -> Path:
     return resolved_target
 
 
+def _keep_paths(keeps: tuple[str, ...]) -> tuple[Path, ...]:
+    normalized: list[Path] = []
+    for value in keeps:
+        target = _assert_inside(ROOT, ROOT / value)
+        if target.is_symlink() and not target.resolve(strict=False).is_relative_to(ROOT.resolve()):
+            raise RuntimeError(f"Cleanup keep path escapes repository root: {value}")
+        normalized.append(target)
+    return tuple(normalized)
+
+
 def _measure(path: Path) -> Candidate:
     if path.is_symlink():
         return Candidate(str(path), 1, path.lstat().st_size, "symlink")
@@ -55,7 +65,8 @@ def _measure(path: Path) -> Candidate:
     return Candidate(str(path), files, size, "directory")
 
 
-def _candidates(*, include_venv: bool) -> list[Path]:
+def _candidates(*, include_venv: bool, keeps: tuple[str, ...] = ()) -> list[Path]:
+    keep_paths = _keep_paths(keeps)
     version = _project_version()
     keep_dist = {
         ".gitignore",
@@ -65,9 +76,7 @@ def _candidates(*, include_venv: bool) -> list[Path]:
     candidates: list[Path] = []
     dist = ROOT / "dist"
     if dist.is_dir():
-        candidates.extend(
-            child for child in dist.iterdir() if child.name not in keep_dist
-        )
+        candidates.extend(child for child in dist.iterdir() if child.name not in keep_dist)
     candidates.extend(
         ROOT / relative
         for relative in (
@@ -87,6 +96,8 @@ def _candidates(*, include_venv: bool) -> list[Path]:
             ".tmp-live-012-replace",
             ".tmp-live-fidelity",
             ".tmp-tool-count",
+            ".tmp-introspect",
+            ".tmp-schema-inspect",
             "examples/generated/.work",
             "src/docx_mcp/skill",
             "tools/OpenXmlValidator/bin",
@@ -105,6 +116,9 @@ def _candidates(*, include_venv: bool) -> list[Path]:
         candidates.append(ROOT / ".venv")
     unique: dict[str, Path] = {}
     for candidate in candidates:
+        # Never turn a reparse point into its target and delete the target.
+        if candidate.is_symlink():
+            continue
         safe = _assert_inside(ROOT, candidate)
         if safe.exists() or safe.is_symlink():
             unique[str(safe).casefold()] = safe
@@ -113,10 +127,28 @@ def _candidates(*, include_venv: bool) -> list[Path]:
         unique.values(),
         key=lambda item: (len(item.parts), str(item).casefold()),
     )
+
+    def expand(candidate: Path) -> list[Path]:
+        """Descend through a generated directory when only part is kept."""
+        if any(candidate == keep or candidate.is_relative_to(keep) for keep in keep_paths):
+            return []
+        descendants = [keep for keep in keep_paths if keep.is_relative_to(candidate)]
+        if not descendants or not candidate.is_dir() or candidate.is_symlink():
+            return [candidate]
+        result: list[Path] = []
+        for child in candidate.iterdir():
+            safe_child = _assert_inside(ROOT, child)
+            result.extend(expand(safe_child))
+        return result
+
     for candidate in ordered:
-        if any(candidate.is_relative_to(parent) for parent in selected):
+        expanded = expand(candidate)
+        if not expanded:
             continue
-        selected.append(candidate)
+        for item in expanded:
+            if any(item.is_relative_to(parent) for parent in selected):
+                continue
+            selected.append(item)
     return selected
 
 
@@ -133,8 +165,8 @@ def _remove(path: Path) -> None:
     shutil.rmtree(path, onexc=remove_readonly)
 
 
-def clean(*, apply: bool, include_venv: bool) -> dict[str, object]:
-    candidates = [_measure(path) for path in _candidates(include_venv=include_venv)]
+def clean(*, apply: bool, include_venv: bool, keeps: tuple[str, ...] = ()) -> dict[str, object]:
+    candidates = [_measure(path) for path in _candidates(include_venv=include_venv, keeps=keeps)]
     if apply:
         for candidate in candidates:
             path = _assert_inside(ROOT, Path(candidate.path))
@@ -164,10 +196,21 @@ def main() -> None:
         action="store_true",
         help="Also remove the repository-local virtual environment.",
     )
+    parser.add_argument(
+        "--keep",
+        action="append",
+        default=[],
+        metavar="REPO_RELATIVE_PATH",
+        help="Preserve a repository-relative file or directory; repeatable.",
+    )
     args = parser.parse_args()
     print(
         json.dumps(
-            clean(apply=args.apply, include_venv=args.include_venv),
+            clean(
+                apply=args.apply,
+                include_venv=args.include_venv,
+                keeps=tuple(args.keep),
+            ),
             indent=2,
         )
     )

@@ -1,97 +1,217 @@
+using System.Collections.Concurrent;
+using System.Reflection;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using WordToolkit.Engine.Observability;
 
 namespace WordToolkit.Native.Protocol;
 
 internal sealed class McpServer
 {
-    private const string ProtocolVersion = "2025-06-18";
+    private static readonly string ServerVersion =
+        typeof(McpServer).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion
+        ?? "0.0.0";
+    internal const int DefaultMaxMessageCharacters = 8 * 1024 * 1024;
+    internal const int MaxConcurrentRequests = 64;
     private readonly TextReader _input;
     private readonly TextWriter _output;
     private readonly ToolCatalog _catalog;
     private readonly IToolHandler _handler;
+    private readonly WordOperationObservability _observability;
+    private readonly int _maxMessageCharacters;
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _activeRequests =
+        new(StringComparer.Ordinal);
+    private readonly SemaphoreSlim _requestGate = new(1, 1);
+    private readonly SemaphoreSlim _outputGate = new(1, 1);
 
     public McpServer(
         TextReader input,
         TextWriter output,
         ToolCatalog catalog,
-        IToolHandler handler
+        IToolHandler handler,
+        int maxMessageCharacters = DefaultMaxMessageCharacters,
+        WordOperationObservability? observability = null
     )
     {
+        if (maxMessageCharacters < 128)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxMessageCharacters));
+        }
         _input = input;
         _output = output;
         _catalog = catalog;
         _handler = handler;
+        _observability = observability ?? WordOperationObservability.Disabled;
+        _maxMessageCharacters = maxMessageCharacters;
     }
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        while (!cancellationToken.IsCancellationRequested)
+        var reader = new BoundedLineReader(_input, _maxMessageCharacters);
+        var pending = new List<Task>();
+        try
         {
-            var line = await _input.ReadLineAsync(cancellationToken);
-            if (line is null)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                break;
+                var read = await reader.ReadAsync(cancellationToken);
+                if (read is null)
+                {
+                    break;
+                }
+                if (read.LimitExceeded)
+                {
+                    await WriteResponseAsync(
+                        RpcError(null, -32600, "JSON-RPC message exceeds the size limit")
+                    );
+                    continue;
+                }
+                if (string.IsNullOrWhiteSpace(read.Line))
+                {
+                    continue;
+                }
+
+                JsonObject request;
+                try
+                {
+                    request = JsonNode.Parse(read.Line) as JsonObject
+                        ?? throw new JsonException("Request is not an object");
+                }
+                catch (JsonException)
+                {
+                    await WriteResponseAsync(RpcError(null, -32700, "Parse error"));
+                    continue;
+                }
+
+                var method = StringValue(request["method"]);
+                var id = request["id"]?.DeepClone();
+                if (id is null)
+                {
+                    HandleNotification(method, request["params"]);
+                    continue;
+                }
+                if (string.IsNullOrWhiteSpace(method) || !TryRequestKey(id, out var key))
+                {
+                    await WriteResponseAsync(RpcError(id, -32600, "Invalid Request"));
+                    continue;
+                }
+                if (_activeRequests.Count >= MaxConcurrentRequests)
+                {
+                    await WriteResponseAsync(
+                        RpcError(id, -32000, "Too many active requests")
+                    );
+                    continue;
+                }
+
+                var requestCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken
+                );
+                if (!_activeRequests.TryAdd(key, requestCancellation))
+                {
+                    requestCancellation.Dispose();
+                    await WriteResponseAsync(
+                        RpcError(id, -32600, "A request with this id is already active")
+                    );
+                    continue;
+                }
+
+                pending.Add(
+                    ProcessRequestAsync(request, id, key, requestCancellation)
+                );
+                if (pending.Count >= 256)
+                {
+                    pending.RemoveAll(task => task.IsCompleted);
+                }
             }
-            if (string.IsNullOrWhiteSpace(line))
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Normal server shutdown.
+        }
+        finally
+        {
+            if (cancellationToken.IsCancellationRequested)
             {
-                continue;
+                foreach (var request in _activeRequests.Values)
+                {
+                    request.Cancel();
+                }
             }
-            JsonObject? response;
             try
             {
-                response = await HandleMessageAsync(line, cancellationToken);
+                await Task.WhenAll(pending);
             }
-            catch (Exception exception)
+            catch (OperationCanceledException)
             {
-                Console.Error.WriteLine(
-                    $"WordToolkit.Native protocol failure: {exception.GetType().Name}"
-                );
-                response = RpcError(null, -32603, "Internal JSON-RPC error");
+                // Individual cancellation responses are emitted by ProcessRequestAsync.
             }
-            if (response is null)
-            {
-                continue;
-            }
-            await _output.WriteLineAsync(response.ToJsonString(JsonDefaults.Compact));
-            await _output.FlushAsync(cancellationToken);
         }
     }
 
-    private async Task<JsonObject?> HandleMessageAsync(
-        string line,
+    private async Task ProcessRequestAsync(
+        JsonObject request,
+        JsonNode id,
+        string key,
+        CancellationTokenSource requestCancellation
+    )
+    {
+        JsonObject response;
+        var enteredRequestGate = false;
+        try
+        {
+            await _requestGate.WaitAsync(requestCancellation.Token);
+            enteredRequestGate = true;
+            response = await HandleRequestAsync(
+                request,
+                id,
+                requestCancellation.Token
+            );
+        }
+        catch (OperationCanceledException) when (requestCancellation.IsCancellationRequested)
+        {
+            response = RpcError(id, -32800, "Request cancelled");
+        }
+        catch (Exception exception)
+        {
+            Console.Error.WriteLine(
+                $"WordToolkit.Native protocol failure: {exception.GetType().Name}"
+            );
+            response = RpcError(id, -32603, "Internal JSON-RPC error");
+        }
+        finally
+        {
+            if (enteredRequestGate)
+            {
+                _requestGate.Release();
+            }
+        }
+        try
+        {
+            await WriteResponseAsync(response);
+        }
+        finally
+        {
+            _activeRequests.TryRemove(key, out _);
+            requestCancellation.Dispose();
+        }
+    }
+
+    private async Task<JsonObject> HandleRequestAsync(
+        JsonObject request,
+        JsonNode id,
         CancellationToken cancellationToken
     )
     {
-        JsonObject request;
-        try
-        {
-            request = JsonNode.Parse(line)?.AsObject()
-                ?? throw new JsonException("Request is not an object");
-        }
-        catch (JsonException)
-        {
-            return RpcError(null, -32700, "Parse error");
-        }
-
-        var id = request["id"]?.DeepClone();
-        var method = request["method"]?.GetValue<string>();
-        if (string.IsNullOrWhiteSpace(method))
-        {
-            return id is null ? null : RpcError(id, -32600, "Invalid Request");
-        }
-        if (id is null)
-        {
-            return null;
-        }
-
+        var method = StringValue(request["method"]);
         return method switch
         {
             "initialize" => RpcResult(
                 id,
                 new JsonObject
                 {
-                    ["protocolVersion"] = ProtocolVersion,
+                    ["protocolVersion"] = _catalog.McpProtocolVersion,
                     ["capabilities"] = new JsonObject
                     {
                         ["tools"] = new JsonObject { ["listChanged"] = false },
@@ -99,7 +219,7 @@ internal sealed class McpServer
                     ["serverInfo"] = new JsonObject
                     {
                         ["name"] = "WordToolkit Native",
-                        ["version"] = "0.19.0",
+                        ["version"] = ServerVersion,
                     },
                     ["instructions"] =
                         "Token-lean native Word bridge. Use core tools directly; inspect and "
@@ -116,12 +236,44 @@ internal sealed class McpServer
         };
     }
 
+    private void HandleNotification(string? method, JsonNode? parameters)
+    {
+        if (method is not ("notifications/cancelled" or "$/cancelRequest"))
+        {
+            return;
+        }
+        var requestId = (parameters as JsonObject)?["requestId"];
+        if (requestId is null || !TryRequestKey(requestId, out var key))
+        {
+            return;
+        }
+        if (_activeRequests.TryGetValue(key, out var requestCancellation))
+        {
+            requestCancellation.Cancel();
+        }
+    }
+
+    private async Task WriteResponseAsync(JsonObject response)
+    {
+        await _outputGate.WaitAsync();
+        try
+        {
+            await _output.WriteLineAsync(response.ToJsonString(JsonDefaults.Compact));
+            await _output.FlushAsync(CancellationToken.None);
+        }
+        finally
+        {
+            _outputGate.Release();
+        }
+    }
+
     private async Task<JsonObject> HandleToolCallAsync(
         JsonNode id,
         JsonNode? parameters,
         CancellationToken cancellationToken
     )
     {
+        WordOperationAuditScope? observation = null;
         var parameterObject = parameters as JsonObject;
         var name = parameterObject?["name"]?.GetValue<string>();
         if (string.IsNullOrWhiteSpace(name))
@@ -135,9 +287,35 @@ internal sealed class McpServer
         );
         try
         {
+            if (ToolCatalog.IsCapabilitiesGateway(name))
+            {
+                observation = BeginObservation(name);
+                var response = RpcResult(
+                    id,
+                    ToolResult(
+                        ok: true,
+                        _catalog.GetCapabilities(argumentsDocument.RootElement),
+                        error: null
+                    )
+                );
+                observation.CompleteSucceeded();
+                return response;
+            }
             if (ToolCatalog.IsSearchGateway(name))
             {
+                observation = BeginObservation(name);
                 var root = argumentsDocument.RootElement;
+                foreach (var property in root.EnumerateObject())
+                {
+                    if (property.Name is not ("query" or "max_results"))
+                    {
+                        throw new NativeToolException(
+                            "INVALID_INPUT",
+                            "Unknown search argument",
+                            new { argument = property.Name }
+                        );
+                    }
+                }
                 var query = root.TryGetProperty("query", out var queryNode)
                     ? queryNode.GetString() ?? ""
                     : "";
@@ -146,7 +324,7 @@ internal sealed class McpServer
                     && maxNode.TryGetInt32(out var requestedMaximum)
                         ? requestedMaximum
                         : 8;
-                return RpcResult(
+                var response = RpcResult(
                     id,
                     ToolResult(
                         ok: true,
@@ -154,11 +332,14 @@ internal sealed class McpServer
                         error: null
                     )
                 );
+                observation.CompleteSucceeded();
+                return response;
             }
             if (ToolCatalog.IsInspectGateway(name))
             {
+                observation = BeginObservation(name);
                 var action = RequiredString(argumentsDocument.RootElement, "action");
-                return RpcResult(
+                var response = RpcResult(
                     id,
                     ToolResult(
                         ok: true,
@@ -166,6 +347,8 @@ internal sealed class McpServer
                         error: null
                     )
                 );
+                observation.CompleteSucceeded();
+                return response;
             }
 
             var actionName = name;
@@ -174,6 +357,7 @@ internal sealed class McpServer
             if (ToolCatalog.IsExecuteGateway(name))
             {
                 actionName = RequiredString(argumentsDocument.RootElement, "action");
+                observation = BeginObservation(actionName);
                 if (!_catalog.IsAction(actionName))
                 {
                     throw new NativeToolException(
@@ -215,6 +399,15 @@ internal sealed class McpServer
                 }
             }
 
+            observation ??= BeginObservation(actionName);
+            if (!_catalog.IsAction(actionName))
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "Unknown WordToolkit action"
+                );
+            }
+
             var data = await _handler.CallAsync(
                 actionName,
                 actionArguments,
@@ -223,10 +416,14 @@ internal sealed class McpServer
             var responseData = fullResponse
                 ? JsonSerializer.SerializeToNode(data, JsonDefaults.Compact)
                 : ToolResponseCompactor.Compact(actionName, data);
-            return RpcResult(id, ToolResult(ok: true, responseData, error: null));
+            var success = RpcResult(id, ToolResult(ok: true, responseData, error: null));
+            observation.CompleteSucceeded();
+            return success;
         }
         catch (NativeToolException exception)
         {
+            observation ??= BeginObservation(name);
+            observation.CompleteRejected(exception.ErrorCode);
             var error = new
             {
                 code = exception.ErrorCode,
@@ -236,8 +433,16 @@ internal sealed class McpServer
             };
             return RpcResult(id, ToolResult(ok: false, data: null, error));
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            observation ??= BeginObservation(name);
+            observation.CompleteCancelled();
+            throw;
+        }
         catch (Exception exception)
         {
+            observation ??= BeginObservation(name);
+            observation.CompleteFailed();
             Console.Error.WriteLine(
                 $"WordToolkit.Native tool failure ({name}): {exception.GetType().Name}"
             );
@@ -250,6 +455,42 @@ internal sealed class McpServer
             };
             return RpcResult(id, ToolResult(ok: false, data: null, error));
         }
+        finally
+        {
+            observation?.Dispose();
+        }
+    }
+
+    private WordOperationAuditScope BeginObservation(string? name)
+    {
+        WordOperationDescriptor descriptor;
+        if (
+            name is not null
+            && (
+                _catalog.IsAction(name)
+                || ToolCatalog.IsCapabilitiesGateway(name)
+                || ToolCatalog.IsSearchGateway(name)
+                || ToolCatalog.IsInspectGateway(name)
+                || ToolCatalog.IsExecuteGateway(name)
+            )
+        )
+        {
+            descriptor = _catalog.GetObservationDescriptor(name);
+        }
+        else
+        {
+            descriptor = new WordOperationDescriptor(
+                "wordtoolkit_unknown_action",
+                "1.0",
+                new WordOperationEffects(
+                    ReadOnly: false,
+                    Destructive: false,
+                    Idempotent: false,
+                    OpenWorld: false
+                )
+            );
+        }
+        return _observability.Begin(descriptor);
     }
 
     private static JsonObject ToolResult(bool ok, object? data, object? error)
@@ -312,5 +553,102 @@ internal sealed class McpServer
             );
         }
         return value.GetString()!;
+    }
+
+    private static string? StringValue(JsonNode? node)
+    {
+        return node is JsonValue value && value.TryGetValue<string>(out var text)
+            ? text
+            : null;
+    }
+
+    private static bool TryRequestKey(JsonNode id, out string key)
+    {
+        if (
+            id is JsonValue
+            && id.GetValueKind() is JsonValueKind.String or JsonValueKind.Number
+        )
+        {
+            key = id.ToJsonString(JsonDefaults.Compact);
+            return true;
+        }
+        key = "";
+        return false;
+    }
+
+    private sealed record BoundedLine(string? Line, bool LimitExceeded);
+
+    private sealed class BoundedLineReader
+    {
+        private readonly TextReader _reader;
+        private readonly int _maximumCharacters;
+        private readonly char[] _buffer = new char[8 * 1024];
+        private int _offset;
+        private int _count;
+
+        public BoundedLineReader(TextReader reader, int maximumCharacters)
+        {
+            _reader = reader;
+            _maximumCharacters = maximumCharacters;
+        }
+
+        public async Task<BoundedLine?> ReadAsync(CancellationToken cancellationToken)
+        {
+            var builder = new StringBuilder(Math.Min(_maximumCharacters, 16 * 1024));
+            var limitExceeded = false;
+            while (true)
+            {
+                if (_offset >= _count)
+                {
+                    _count = await _reader.ReadAsync(
+                        _buffer.AsMemory(),
+                        cancellationToken
+                    );
+                    _offset = 0;
+                    if (_count == 0)
+                    {
+                        if (builder.Length == 0 && !limitExceeded)
+                        {
+                            return null;
+                        }
+                        return Finish(builder, limitExceeded);
+                    }
+                }
+
+                var newline = Array.IndexOf(_buffer, '\n', _offset, _count - _offset);
+                var end = newline >= 0 ? newline : _count;
+                var length = end - _offset;
+                if (!limitExceeded)
+                {
+                    if (builder.Length + length > _maximumCharacters)
+                    {
+                        limitExceeded = true;
+                        builder.Clear();
+                    }
+                    else
+                    {
+                        builder.Append(_buffer, _offset, length);
+                    }
+                }
+                _offset = newline >= 0 ? newline + 1 : _count;
+                if (newline >= 0)
+                {
+                    return Finish(builder, limitExceeded);
+                }
+            }
+        }
+
+        private static BoundedLine Finish(StringBuilder builder, bool limitExceeded)
+        {
+            if (limitExceeded)
+            {
+                return new BoundedLine(null, true);
+            }
+            if (builder.Length > 0 && builder[^1] == '\r')
+            {
+                builder.Length--;
+            }
+            return new BoundedLine(builder.ToString(), false);
+        }
     }
 }

@@ -20,6 +20,27 @@ internal interface IOleMessageFilter
 internal sealed class OleMessageFilter : IOleMessageFilter
 {
     private const int ServerCallRetryLater = 2;
+    internal const int DefaultRetryDelayMilliseconds = 100;
+    internal const uint DefaultRetryBudgetMilliseconds = 30_000;
+    private readonly uint _retryBudgetMilliseconds;
+    private readonly int _retryDelayMilliseconds;
+
+    public OleMessageFilter(
+        uint retryBudgetMilliseconds = DefaultRetryBudgetMilliseconds,
+        int retryDelayMilliseconds = DefaultRetryDelayMilliseconds
+    )
+    {
+        if (retryBudgetMilliseconds == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(retryBudgetMilliseconds));
+        }
+        if (retryDelayMilliseconds < 100)
+        {
+            throw new ArgumentOutOfRangeException(nameof(retryDelayMilliseconds));
+        }
+        _retryBudgetMilliseconds = retryBudgetMilliseconds;
+        _retryDelayMilliseconds = retryDelayMilliseconds;
+    }
 
     public static void Register()
     {
@@ -40,7 +61,19 @@ internal sealed class OleMessageFilter : IOleMessageFilter
 
     public int RetryRejectedCall(IntPtr taskCallee, int tickCount, int rejectType)
     {
-        return rejectType == ServerCallRetryLater ? 100 : -1;
+        if (rejectType != ServerCallRetryLater)
+        {
+            return -1;
+        }
+        var elapsedMilliseconds = unchecked((uint)tickCount);
+        if (elapsedMilliseconds >= _retryBudgetMilliseconds)
+        {
+            return -1;
+        }
+        var remainingMilliseconds = _retryBudgetMilliseconds - elapsedMilliseconds;
+        return remainingMilliseconds < (uint)_retryDelayMilliseconds
+            ? -1
+            : _retryDelayMilliseconds;
     }
 
     public int MessagePending(IntPtr taskCallee, int tickCount, int pendingType) => 2;

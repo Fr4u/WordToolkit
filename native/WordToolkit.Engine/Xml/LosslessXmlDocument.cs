@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
+using WordToolkit.Engine.Resources;
 
 namespace WordToolkit.Engine.Xml;
 
@@ -14,6 +15,7 @@ public sealed class LosslessXmlDocument
     private readonly SourceEncoding _sourceEncoding;
     private readonly LosslessXmlOptions _options;
     private readonly XDocument _parsedDocument;
+    private readonly IReadOnlyList<XElement> _parsedElements;
     private readonly IReadOnlyDictionary<XElement, int> _elementOrdinals;
 
     private LosslessXmlDocument(
@@ -21,18 +23,39 @@ public sealed class LosslessXmlDocument
         SourceEncoding sourceEncoding,
         LosslessXmlOptions options,
         XDocument parsedDocument,
+        IReadOnlyList<XElement> parsedElements,
         IReadOnlyList<XmlSourceElement> elements,
-        IReadOnlyDictionary<XElement, int> elementOrdinals
+        IReadOnlyDictionary<XElement, int> elementOrdinals,
+        LosslessXmlStatistics statistics
     )
     {
         _sourceBytes = sourceBytes;
         _sourceEncoding = sourceEncoding;
         _options = options;
         _parsedDocument = parsedDocument;
+        _parsedElements = parsedElements;
         _elementOrdinals = elementOrdinals;
         Elements = new ReadOnlyCollection<XmlSourceElement>(elements.ToArray());
         Root = Elements.Single(element => element.ParentOrdinal is null);
         SourceSha256 = Convert.ToHexString(SHA256.HashData(sourceBytes)).ToLowerInvariant();
+        Statistics = statistics;
+    }
+
+    private LosslessXmlDocument(
+        LosslessXmlDocument parsedSource,
+        LosslessXmlOptions options
+    )
+    {
+        _sourceBytes = parsedSource._sourceBytes;
+        _sourceEncoding = parsedSource._sourceEncoding;
+        _options = options;
+        _parsedDocument = parsedSource._parsedDocument;
+        _parsedElements = parsedSource._parsedElements;
+        _elementOrdinals = parsedSource._elementOrdinals;
+        Elements = parsedSource.Elements;
+        Root = parsedSource.Root;
+        SourceSha256 = parsedSource.SourceSha256;
+        Statistics = parsedSource.Statistics;
     }
 
     public ReadOnlyMemory<byte> SourceBytes => _sourceBytes;
@@ -47,12 +70,49 @@ public sealed class LosslessXmlDocument
 
     public IReadOnlyList<XmlSourceElement> Elements { get; }
 
+    public LosslessXmlStatistics Statistics { get; }
+
     internal XDocument ParsedDocument => _parsedDocument;
 
     public static LosslessXmlDocument Parse(
         ReadOnlyMemory<byte> source,
         LosslessXmlOptions? options = null,
         CancellationToken cancellationToken = default
+    )
+        => ParseCore(source, options, null, default, cancellationToken);
+
+    public static LosslessXmlDocument Parse(
+        ReadOnlyMemory<byte> source,
+        LosslessXmlOptions? options,
+        WordOperationResourceLease resourceLease,
+        WordOperationResourceStage stage,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        return LosslessXmlOperationCache.GetOrParse(
+            source,
+            options,
+            resourceLease,
+            stage,
+            cancellationToken
+        );
+    }
+
+    internal static LosslessXmlDocument ParseUncached(
+        ReadOnlyMemory<byte> source,
+        LosslessXmlOptions? options,
+        WordOperationResourceLease resourceLease,
+        WordOperationResourceStage stage,
+        CancellationToken cancellationToken
+    ) => ParseCore(source, options, resourceLease, stage, cancellationToken);
+
+    private static LosslessXmlDocument ParseCore(
+        ReadOnlyMemory<byte> source,
+        LosslessXmlOptions? options,
+        WordOperationResourceLease? resourceLease,
+        WordOperationResourceStage stage,
+        CancellationToken cancellationToken
     )
     {
         options ??= LosslessXmlOptions.Default;
@@ -70,8 +130,13 @@ public sealed class LosslessXmlDocument
             );
         }
 
+        WordOperationResourceAccounting.ChargeXmlParse(
+            resourceLease,
+            stage,
+            source.Length
+        );
         var bytes = source.ToArray();
-        AuditXml(bytes, options, cancellationToken);
+        var audit = AuditXml(bytes, options, cancellationToken);
         var sourceEncoding = DetectEncoding(bytes);
         string decoded;
         try
@@ -100,12 +165,16 @@ public sealed class LosslessXmlDocument
         XDocument parsedDocument;
         try
         {
-            using var stream = new MemoryStream(bytes, writable: false);
+            using var stream = new CancellationCheckingReadStream(
+                new MemoryStream(bytes, writable: false),
+                cancellationToken
+            );
             using var reader = XmlReader.Create(stream, CreateXmlSettings(options));
             parsedDocument = XDocument.Load(
                 reader,
                 LoadOptions.PreserveWhitespace | LoadOptions.SetLineInfo
             );
+            cancellationToken.ThrowIfCancellationRequested();
         }
         catch (XmlException exception)
         {
@@ -136,9 +205,58 @@ public sealed class LosslessXmlDocument
             sourceEncoding,
             options,
             parsedDocument,
+            parsedElements,
             elements,
-            ordinals
+            ordinals,
+            new LosslessXmlStatistics(
+                bytes.Length,
+                decoded.Length,
+                audit.ElementCount,
+                audit.MaximumDepth,
+                audit.TextCharacters
+            )
         );
+    }
+
+    internal void EnsureWithinLimits(LosslessXmlOptions options)
+    {
+        options.Validate();
+        if (Statistics.SourceBytes > options.MaxSourceBytes)
+        {
+            throw new LosslessXmlLimitException(
+                $"XML source exceeds {options.MaxSourceBytes} bytes."
+            );
+        }
+        if (Statistics.XmlCharacters > options.MaxXmlCharacters)
+        {
+            throw new LosslessXmlLimitException(
+                $"Decoded XML exceeds {options.MaxXmlCharacters} characters."
+            );
+        }
+        if (Statistics.ElementCount > options.MaxXmlElements)
+        {
+            throw new LosslessXmlLimitException(
+                $"XML contains more than {options.MaxXmlElements} elements."
+            );
+        }
+        if (Statistics.MaximumDepth > options.MaxXmlDepth)
+        {
+            throw new LosslessXmlLimitException(
+                $"XML depth exceeds {options.MaxXmlDepth}."
+            );
+        }
+        if (Statistics.TextCharacters > options.MaxTextCharacters)
+        {
+            throw new LosslessXmlLimitException(
+                $"XML text exceeds {options.MaxTextCharacters} characters."
+            );
+        }
+    }
+
+    internal LosslessXmlDocument WithOptions(LosslessXmlOptions options)
+    {
+        options.Validate();
+        return _options == options ? this : new LosslessXmlDocument(this, options);
     }
 
     public XmlSourceElement GetElement(int ordinal)
@@ -295,6 +413,266 @@ public sealed class LosslessXmlDocument
         return patches;
     }
 
+    public XmlSourcePatch CreateElementRemovalPatch(int elementOrdinal)
+    {
+        var element = GetElement(elementOrdinal);
+        return new XmlSourcePatch(
+            element.FullSpan.ByteOffset,
+            element.FullSpan.ByteLength,
+            ReadOnlyMemory<byte>.Empty
+        );
+    }
+
+    public IReadOnlyList<XmlSourcePatch> CreateElementUnwrapPatches(
+        int elementOrdinal
+    )
+    {
+        var element = GetElement(elementOrdinal);
+        if (element.IsSelfClosing)
+        {
+            return [CreateElementRemovalPatch(elementOrdinal)];
+        }
+
+        var endTag = element.EndTagSpan
+            ?? throw new LosslessXmlEditException(
+                $"Element {element.Ordinal} has no lexical end tag and cannot be unwrapped."
+            );
+        return
+        [
+            new XmlSourcePatch(
+                element.StartTagSpan.ByteOffset,
+                element.StartTagSpan.ByteLength,
+                ReadOnlyMemory<byte>.Empty
+            ),
+            new XmlSourcePatch(
+                endTag.ByteOffset,
+                endTag.ByteLength,
+                ReadOnlyMemory<byte>.Empty
+            ),
+        ];
+    }
+
+    public IReadOnlyList<XmlSourcePatch> CreateElementLocalNameRenamePatches(
+        int elementOrdinal,
+        string newLocalName
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(newLocalName);
+        try
+        {
+            XmlConvert.VerifyNCName(newLocalName);
+        }
+        catch (XmlException exception)
+        {
+            throw new LosslessXmlEditException(
+                $"'{newLocalName}' is not a valid XML local name.",
+                exception
+            );
+        }
+
+        var element = GetElement(elementOrdinal);
+        if (string.Equals(element.LocalName, newLocalName, StringComparison.Ordinal))
+        {
+            return Array.Empty<XmlSourcePatch>();
+        }
+
+        var newQualifiedName = element.Prefix.Length == 0
+            ? newLocalName
+            : element.Prefix + ":" + newLocalName;
+        var oldNameBytes = EncodeMarkup(element.QualifiedName).Length;
+        var startNameOffset = checked(
+            element.StartTagSpan.ByteOffset + EncodeMarkup("<").Length
+        );
+        var patches = new List<XmlSourcePatch>
+        {
+            new(startNameOffset, oldNameBytes, EncodeMarkup(newQualifiedName)),
+        };
+        if (!element.IsSelfClosing)
+        {
+            var endTag = element.EndTagSpan
+                ?? throw new LosslessXmlEditException(
+                    $"Element {element.Ordinal} has no lexical end tag and cannot be renamed."
+                );
+            var endNameOffset = checked(
+                endTag.ByteOffset + EncodeMarkup("</").Length
+            );
+            patches.Add(
+                new XmlSourcePatch(
+                    endNameOffset,
+                    oldNameBytes,
+                    EncodeMarkup(newQualifiedName)
+                )
+            );
+        }
+
+        return patches;
+    }
+
+    public XmlSourcePatch CreateElementReplacementPatch(
+        int elementOrdinal,
+        ReadOnlyMemory<byte> replacement
+    )
+    {
+        var element = GetElement(elementOrdinal);
+        return new XmlSourcePatch(
+            element.FullSpan.ByteOffset,
+            element.FullSpan.ByteLength,
+            replacement
+        );
+    }
+
+    public XmlSourcePatch CreateElementReplacementPatch(
+        int elementOrdinal,
+        string replacementXml
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(replacementXml);
+        VerifyXmlFragment(replacementXml);
+        return CreateElementReplacementPatch(
+            elementOrdinal,
+            EncodeMarkup(replacementXml)
+        );
+    }
+
+    public XmlSourcePatch CreateElementSiblingInsertionPatch(
+        int elementOrdinal,
+        string xmlFragment,
+        XmlSiblingInsertionPosition position
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(xmlFragment);
+        VerifyXmlFragment(xmlFragment);
+        var element = GetElement(elementOrdinal);
+        var offset = position switch
+        {
+            XmlSiblingInsertionPosition.Before => element.FullSpan.ByteOffset,
+            XmlSiblingInsertionPosition.After => element.FullSpan.EndByteOffset,
+            _ => throw new ArgumentOutOfRangeException(nameof(position)),
+        };
+        return new XmlSourcePatch(offset, 0, EncodeMarkup(xmlFragment));
+    }
+
+    public IReadOnlyList<XmlSourcePatch> CreateElementAttributeValuePatches(
+        int elementOrdinal,
+        string namespaceUri,
+        string localName,
+        string newValue,
+        string? expectedValue = null,
+        string? preferredPrefix = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(namespaceUri);
+        ArgumentException.ThrowIfNullOrWhiteSpace(localName);
+        ArgumentNullException.ThrowIfNull(newValue);
+        VerifyXmlName(localName, nameof(localName));
+        VerifyXmlValue(newValue, "Attribute value contains a character forbidden by XML 1.0.");
+
+        var element = GetElement(elementOrdinal);
+        var matches = element.Attributes.Where(attribute =>
+            string.Equals(attribute.NamespaceUri, namespaceUri, StringComparison.Ordinal)
+            && string.Equals(attribute.LocalName, localName, StringComparison.Ordinal)
+        ).ToArray();
+        if (matches.Length > 1)
+        {
+            throw new LosslessXmlEditException(
+                $"Element {element.Ordinal} contains duplicate attribute '{{{namespaceUri}}}{localName}'."
+            );
+        }
+
+        if (matches.Length == 1)
+        {
+            var attribute = matches[0];
+            if (
+                expectedValue is not null
+                && !string.Equals(attribute.Value, expectedValue, StringComparison.Ordinal)
+            )
+            {
+                throw new LosslessXmlPreconditionException(
+                    $"Attribute '{attribute.QualifiedName}' changed before the edit was applied."
+                );
+            }
+            if (string.Equals(attribute.Value, newValue, StringComparison.Ordinal))
+            {
+                return Array.Empty<XmlSourcePatch>();
+            }
+
+            return
+            [
+                new XmlSourcePatch(
+                    attribute.ValueSpan.ByteOffset,
+                    attribute.ValueSpan.ByteLength,
+                    EncodeMarkup(EscapeAttributeValue(newValue, attribute.Quote))
+                ),
+            ];
+        }
+
+        if (expectedValue is not null)
+        {
+            throw new LosslessXmlPreconditionException(
+                $"Attribute '{{{namespaceUri}}}{localName}' no longer exists."
+            );
+        }
+
+        var (qualifiedName, namespaceDeclaration) = ResolveAttributeName(
+            elementOrdinal,
+            namespaceUri,
+            localName,
+            preferredPrefix
+        );
+        var insertion = namespaceDeclaration
+            + " "
+            + qualifiedName
+            + "=\""
+            + EscapeAttributeValue(newValue, '"')
+            + "\"";
+        var insertionOffset = element.IsSelfClosing
+            ? element.SelfClosingSlashByteOffset
+                ?? throw new LosslessXmlEditException(
+                    $"Self-closing element {element.Ordinal} has no lexical slash position."
+                )
+            : element.StartTagCloseByteOffset;
+        return
+        [
+            new XmlSourcePatch(
+                insertionOffset,
+                0,
+                EncodeMarkup(insertion)
+            ),
+        ];
+    }
+
+    public XmlSourcePatch CreateElementContentInsertionPatch(
+        int elementOrdinal,
+        string xmlFragment,
+        XmlContentInsertionPosition position = XmlContentInsertionPosition.Append
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(xmlFragment);
+        VerifyXmlFragment(xmlFragment);
+        var element = GetElement(elementOrdinal);
+        if (element.IsSelfClosing)
+        {
+            var slashOffset = element.SelfClosingSlashByteOffset
+                ?? throw new LosslessXmlEditException(
+                    $"Self-closing element {element.Ordinal} has no lexical slash position."
+                );
+            var expanded = ">" + xmlFragment + "</" + element.QualifiedName;
+            return new XmlSourcePatch(
+                slashOffset,
+                EncodeMarkup("/").Length,
+                EncodeMarkup(expanded)
+            );
+        }
+
+        var offset = position switch
+        {
+            XmlContentInsertionPosition.Prepend => element.ContentSpan.ByteOffset,
+            XmlContentInsertionPosition.Append => element.ContentSpan.EndByteOffset,
+            _ => throw new ArgumentOutOfRangeException(nameof(position)),
+        };
+        return new XmlSourcePatch(offset, 0, EncodeMarkup(xmlFragment));
+    }
+
     public byte[] ApplyPatches(
         IEnumerable<XmlSourcePatch> patches,
         string? expectedSourceSha256 = null,
@@ -396,6 +774,16 @@ public sealed class LosslessXmlDocument
             );
     }
 
+    internal XElement GetParsedElement(int ordinal)
+    {
+        if ((uint)ordinal >= (uint)_parsedElements.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(ordinal));
+        }
+
+        return _parsedElements[ordinal];
+    }
+
     private void VerifySourcePrecondition(string? expectedSourceSha256)
     {
         if (expectedSourceSha256 is null)
@@ -447,6 +835,152 @@ public sealed class LosslessXmlDocument
         }
     }
 
+    private (string QualifiedName, string NamespaceDeclaration) ResolveAttributeName(
+        int elementOrdinal,
+        string namespaceUri,
+        string localName,
+        string? preferredPrefix
+    )
+    {
+        if (namespaceUri.Length == 0)
+        {
+            if (preferredPrefix is not null)
+            {
+                throw new LosslessXmlEditException(
+                    "An unqualified attribute cannot use a namespace prefix."
+                );
+            }
+            return (localName, string.Empty);
+        }
+
+        if (string.Equals(namespaceUri, XmlNamespace, StringComparison.Ordinal))
+        {
+            return ($"xml:{localName}", string.Empty);
+        }
+
+        var parsedElement = GetParsedElement(elementOrdinal);
+        var prefix = preferredPrefix;
+        if (prefix is not null)
+        {
+            VerifyXmlName(prefix, nameof(preferredPrefix));
+            if (prefix is "xml" or "xmlns")
+            {
+                throw new LosslessXmlEditException(
+                    $"Namespace prefix '{prefix}' is reserved."
+                );
+            }
+        }
+        else
+        {
+            prefix = parsedElement.GetPrefixOfNamespace(XNamespace.Get(namespaceUri));
+            if (string.IsNullOrEmpty(prefix))
+            {
+                prefix = "wtk";
+            }
+        }
+
+        var prefixStem = prefix;
+        for (var suffix = 0; suffix <= 1_000; suffix++)
+        {
+            var candidate = suffix == 0 ? prefixStem : prefixStem + suffix;
+            var boundNamespace = parsedElement.GetNamespaceOfPrefix(candidate);
+            if (
+                boundNamespace is not null
+                && string.Equals(
+                    boundNamespace.NamespaceName,
+                    namespaceUri,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return ($"{candidate}:{localName}", string.Empty);
+            }
+            if (boundNamespace is not null)
+            {
+                continue;
+            }
+
+            var declaration = $" xmlns:{candidate}=\"{EscapeAttributeValue(namespaceUri, '"')}\"";
+            return ($"{candidate}:{localName}", declaration);
+        }
+
+        throw new LosslessXmlEditException(
+            $"No collision-free namespace prefix is available for '{{{namespaceUri}}}{localName}'."
+        );
+    }
+
+    private void VerifyXmlFragment(string xmlFragment)
+    {
+        try
+        {
+            var wrapper = "<wordtoolkit-fragment-root>"
+                + xmlFragment
+                + "</wordtoolkit-fragment-root>";
+            using var reader = XmlReader.Create(
+                new StringReader(wrapper),
+                CreateXmlSettings(_options)
+            );
+            _ = XDocument.Load(reader, LoadOptions.PreserveWhitespace);
+        }
+        catch (XmlException exception)
+        {
+            throw new LosslessXmlEditException(
+                "Inserted XML fragment is not safe, self-contained, well-formed XML.",
+                exception
+            );
+        }
+    }
+
+    private static void VerifyXmlName(string value, string parameterName)
+    {
+        try
+        {
+            XmlConvert.VerifyNCName(value);
+        }
+        catch (XmlException exception)
+        {
+            throw new ArgumentException(
+                $"'{value}' is not a valid XML local name.",
+                parameterName,
+                exception
+            );
+        }
+    }
+
+    private static void VerifyXmlValue(string value, string message)
+    {
+        try
+        {
+            XmlConvert.VerifyXmlChars(value);
+        }
+        catch (XmlException exception)
+        {
+            throw new LosslessXmlEditException(message, exception);
+        }
+    }
+
+    private static string EscapeAttributeValue(string value, char quote)
+    {
+        var result = new StringBuilder(value.Length);
+        foreach (var character in value)
+        {
+            result.Append(
+                character switch
+                {
+                    '&' => "&amp;",
+                    '<' => "&lt;",
+                    '"' when quote == '"' => "&quot;",
+                    '\'' when quote == '\'' => "&apos;",
+                    '\t' => "&#x9;",
+                    '\n' => "&#xA;",
+                    '\r' => "&#xD;",
+                    _ => character.ToString(),
+                }
+            );
+        }
+        return result.ToString();
+    }
+
     private static string EscapeElementText(string value)
     {
         var result = new StringBuilder(value.Length);
@@ -474,7 +1008,7 @@ public sealed class LosslessXmlDocument
     private static bool IsXmlWhitespace(char value) =>
         value is ' ' or '\t' or '\r' or '\n';
 
-    private static void AuditXml(
+    private static XmlAuditStatistics AuditXml(
         byte[] source,
         LosslessXmlOptions options,
         CancellationToken cancellationToken
@@ -485,10 +1019,12 @@ public sealed class LosslessXmlDocument
             using var stream = new MemoryStream(source, writable: false);
             using var reader = XmlReader.Create(stream, CreateXmlSettings(options));
             var elementCount = 0;
+            var maximumDepth = 0;
             long textCharacters = 0;
             while (reader.Read())
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                maximumDepth = Math.Max(maximumDepth, reader.Depth);
                 if (reader.Depth > options.MaxXmlDepth)
                 {
                     throw new LosslessXmlLimitException(
@@ -525,6 +1061,7 @@ public sealed class LosslessXmlDocument
                     }
                 }
             }
+            return new XmlAuditStatistics(elementCount, maximumDepth, textCharacters);
         }
         catch (LosslessXmlLimitException)
         {
@@ -556,6 +1093,76 @@ public sealed class LosslessXmlDocument
         IgnoreWhitespace = false,
         CheckCharacters = true,
     };
+
+    private sealed class CancellationCheckingReadStream : Stream
+    {
+        private readonly Stream _inner;
+        private readonly CancellationToken _cancellationToken;
+
+        public CancellationCheckingReadStream(
+            Stream inner,
+            CancellationToken cancellationToken
+        )
+        {
+            _inner = inner;
+            _cancellationToken = cancellationToken;
+        }
+
+        public override bool CanRead => _inner.CanRead;
+
+        public override bool CanSeek => _inner.CanSeek;
+
+        public override bool CanWrite => false;
+
+        public override long Length => _inner.Length;
+
+        public override long Position
+        {
+            get => _inner.Position;
+            set => _inner.Position = value;
+        }
+
+        public override void Flush() => _inner.Flush();
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+            return _inner.Read(buffer, offset, count);
+        }
+
+        public override int Read(Span<byte> buffer)
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+            return _inner.Read(buffer);
+        }
+
+        public override int ReadByte()
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+            return _inner.ReadByte();
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+            return _inner.Seek(offset, origin);
+        }
+
+        public override void SetLength(long value) =>
+            throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _inner.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+    }
 
     private static SourceEncoding DetectEncoding(byte[] source)
     {
@@ -885,6 +1492,12 @@ public sealed class LosslessXmlDocument
     }
 
     private sealed record SourceEncoding(Encoding Encoding, int ByteOrderMarkLength);
+
+    private sealed record XmlAuditStatistics(
+        int ElementCount,
+        int MaximumDepth,
+        long TextCharacters
+    );
 
     private sealed class MutableAttribute
     {

@@ -262,7 +262,8 @@ async def run(plugin: Path, source: Path, output: Path) -> dict[str, Any]:
         )
         document_id = opened["data"]["document_id"]
         session_id = opened["data"]["session_id"]
-        if opened["data"]["draft_version"] != 0:
+        draft_version = opened["data"]["draft_version"]
+        if draft_version != 0:
             raise AssertionError("Freshly opened draft did not start at version 0")
 
         inspected = await call_ok(session, "inspect_document", {"document_id": document_id})
@@ -284,11 +285,12 @@ async def run(plugin: Path, source: Path, output: Path) -> dict[str, Any]:
                 "after_paragraph_id": anchor,
                 "text": INSERTED_TEXT,
                 "style": "ToolkitBody",
-                "expected_version": 0,
+                "expected_version": draft_version,
             },
         )
-        if inserted["data"]["draft_version"] != 1:
+        if inserted["data"]["draft_version"] != draft_version + 1:
             raise AssertionError("Paragraph insertion did not advance the draft to version 1")
+        draft_version = inserted["data"]["draft_version"]
         inserted_id = inserted["data"]["result"]["para_id"]
 
         conflict = await call_error(
@@ -301,11 +303,14 @@ async def run(plugin: Path, source: Path, output: Path) -> dict[str, Any]:
                 "input_format": "latex",
                 "display": True,
                 "position": "after",
-                "expected_version": 0,
+                "expected_version": draft_version - 1,
             },
             "VERSION_CONFLICT",
         )
-        if conflict["error"]["details"] != {"expected": 0, "actual": 1}:
+        if conflict["error"]["details"] != {
+            "expected": draft_version - 1,
+            "actual": draft_version,
+        }:
             raise AssertionError(f"Version conflict returned bad details: {conflict}")
 
         equation = await call_ok(
@@ -318,11 +323,12 @@ async def run(plugin: Path, source: Path, output: Path) -> dict[str, Any]:
                 "input_format": "latex",
                 "display": True,
                 "position": "after",
-                "expected_version": 1,
+                "expected_version": draft_version,
             },
         )
-        if equation["data"]["draft_version"] != 2:
+        if equation["data"]["draft_version"] != draft_version + 1:
             raise AssertionError("Equation insertion did not advance the draft to version 2")
+        draft_version = equation["data"]["draft_version"]
 
         equations = await call_ok(session, "list_equations", {"document_id": document_id})
         equation_list = equations["data"]["result"]
@@ -351,9 +357,17 @@ async def run(plugin: Path, source: Path, output: Path) -> dict[str, Any]:
         preview = await call_ok(
             session,
             "generate_preview",
-            {"document_id": document_id, "max_pages": 20, "dpi": 120},
+            {
+                "document_id": document_id,
+                "max_pages": 20,
+                "dpi": 120,
+                "expected_version": draft_version,
+            },
         )
         preview_data = preview["data"]
+        if preview_data["draft_version"] != draft_version + 1:
+            raise AssertionError("Preview did not advance the draft version exactly once")
+        draft_version = preview_data["draft_version"]
         if not preview_data["visual_audit"]["passed"]:
             raise AssertionError(f"Visual audit failed: {preview_data['visual_audit']}")
         preview_files: list[Path] = []
@@ -382,9 +396,13 @@ async def run(plugin: Path, source: Path, output: Path) -> dict[str, Any]:
                 "document_id": document_id,
                 "output_format": "docx",
                 "file_name": "WordToolkit-real-roundtrip.docx",
+                "expected_version": draft_version,
             },
         )
         export_data = exported["data"]
+        if export_data["draft_version"] != draft_version + 1:
+            raise AssertionError("DOCX export did not advance the draft version exactly once")
+        draft_version = export_data["draft_version"]
         exported_path = copy_artifact(
             export_data["artifact"]["download_url"],
             output / "WordToolkit-real-roundtrip.docx",
@@ -479,8 +497,16 @@ async def run(plugin: Path, source: Path, output: Path) -> dict[str, Any]:
             "DOCUMENT_NOT_FOUND",
         )
 
-        for active_id in (comparison_id, reopened_id, document_id):
-            await call_ok(session, "close_document", {"document_id": active_id})
+        for active_id, active_version in (
+            (comparison_id, 0),
+            (reopened_id, 0),
+            (document_id, draft_version),
+        ):
+            await call_ok(
+                session,
+                "close_document",
+                {"document_id": active_id, "expected_version": active_version},
+            )
 
     source_hash_after = digest_file(source)
     if source_hash_after != source_hash_before:

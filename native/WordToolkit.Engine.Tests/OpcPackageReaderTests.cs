@@ -1,11 +1,215 @@
+using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Text;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 
 namespace WordToolkit.Engine.Tests;
 
 public sealed class OpcPackageReaderTests
 {
+    [Fact]
+    public void RejectsAnEntryReservationBeforeRetainingPackageBytes()
+    {
+        using var package = BuildPackage(
+            ("[Content_Types].xml", ContentTypes(includePng: false)),
+            ("_rels/.rels", RootRelationships()),
+            ("word/document.xml", DocumentXml())
+        );
+        var original = package.ToArray();
+        var lease = new WordOperationResourceLease(8_192);
+
+        var exception = Assert.Throws<WordOperationResourceLimitException>(() =>
+            new OpcPackageReader(OpcPackageLimits.Default, lease).Read(package)
+        );
+
+        Assert.Equal(WordOperationResourceStage.OpcPackage, exception.Stage);
+        Assert.Equal(8_192, exception.AccountedBytes);
+        Assert.True(exception.AttemptedBytes > 0);
+        Assert.Equal(original, package.ToArray());
+    }
+
+    [Fact]
+    public void RejectsTheCentralDirectoryEntryCountBeforeReadingEntryPayloads()
+    {
+        using var package = BuildPackage(
+            ("[Content_Types].xml", ContentTypes(includePng: false)),
+            ("_rels/.rels", RootRelationships()),
+            ("word/document.xml", DocumentXml())
+        );
+        var original = package.ToArray();
+        var limits = OpcPackageLimits.Default with { MaxEntries = 2 };
+
+        var exception = Assert.Throws<OpcPackageLimitException>(() =>
+            new OpcPackageReader(limits).Read(package)
+        );
+
+        Assert.Contains("3 entries", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(original, package.ToArray());
+    }
+
+    [Fact]
+    public void RejectsOverflowingZip64DirectoryBoundsAsInvalidData()
+    {
+        var bytes = new byte[98];
+        var zip64 = bytes.AsSpan(0, 56);
+        BinaryPrimitives.WriteUInt32LittleEndian(zip64[0..4], 0x06054b50 + 0x10000);
+        BinaryPrimitives.WriteUInt64LittleEndian(zip64[4..12], 44);
+        BinaryPrimitives.WriteUInt64LittleEndian(zip64[40..48], 1);
+        BinaryPrimitives.WriteUInt64LittleEndian(
+            zip64[48..56],
+            checked((ulong)long.MaxValue)
+        );
+        var locator = bytes.AsSpan(56, 20);
+        BinaryPrimitives.WriteUInt32LittleEndian(locator[0..4], 0x07064b50);
+        BinaryPrimitives.WriteUInt64LittleEndian(locator[8..16], 0);
+        BinaryPrimitives.WriteUInt32LittleEndian(locator[16..20], 1);
+        var end = bytes.AsSpan(76, 22);
+        BinaryPrimitives.WriteUInt32LittleEndian(end[0..4], 0x06054b50);
+        BinaryPrimitives.WriteUInt16LittleEndian(end[8..10], ushort.MaxValue);
+        BinaryPrimitives.WriteUInt16LittleEndian(end[10..12], ushort.MaxValue);
+        BinaryPrimitives.WriteUInt32LittleEndian(end[12..16], uint.MaxValue);
+        BinaryPrimitives.WriteUInt32LittleEndian(end[16..20], uint.MaxValue);
+        using var package = new MemoryStream(bytes, writable: false);
+
+        var exception = Assert.Throws<InvalidDataException>(() =>
+            new OpcPackageReader().Read(package)
+        );
+
+        Assert.Contains(
+            "central-directory bounds",
+            exception.Message,
+            StringComparison.Ordinal
+        );
+        Assert.Equal(bytes, package.ToArray());
+    }
+
+    [Fact]
+    public void SpoolsNonSeekableInputUnderArchiveAndOperationBudgets()
+    {
+        using var package = BuildPackage(
+            ("[Content_Types].xml", ContentTypes(includePng: false)),
+            ("_rels/.rels", RootRelationships()),
+            ("word/document.xml", DocumentXml())
+        );
+        var bytes = package.ToArray();
+        using var source = new NonSeekableReadStream(bytes);
+        var lease = new WordOperationResourceLease();
+
+        var snapshot = new OpcPackageReader(
+            OpcPackageLimits.Default,
+            lease
+        ).Read(source);
+
+        Assert.True(snapshot.IsStructurallyValid);
+        Assert.True(lease.AccountedBytes > 4_096 + bytes.Length);
+
+        using var rejectedSource = new NonSeekableReadStream(bytes);
+        var limits = OpcPackageLimits.Default with
+        {
+            MaxArchiveBytes = bytes.Length - 1,
+        };
+        Assert.Throws<OpcPackageLimitException>(() =>
+            new OpcPackageReader(limits).Read(rejectedSource)
+        );
+    }
+
+    [Fact]
+    public void CaseCollisionDiagnosticDoesNotJoinAttackerControlledNames()
+    {
+        using var package = BuildPackage(
+            ("[Content_Types].xml", ContentTypes(includePng: false)),
+            ("_rels/.rels", RootRelationships()),
+            ("word/document.xml", DocumentXml()),
+            ("word/custom.xml", "<root/>"),
+            ("WORD/CUSTOM.XML", "<root/>")
+        );
+
+        var snapshot = new OpcPackageReader().Read(package);
+
+        var diagnostic = Assert.Single(
+            snapshot.Diagnostics,
+            item => item.Code == "OPC011"
+        );
+        Assert.Contains("2 spellings", diagnostic.Message, StringComparison.Ordinal);
+        Assert.True(diagnostic.Message.Length < 128);
+        Assert.DoesNotContain(",", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RejectsMetadataXmlThroughTheSharedLeaseBeforeRelationshipRetention()
+    {
+        var relationships = RelationshipsXml(
+            Enumerable.Range(0, 300)
+                .Select(index => Relationship(
+                    $"rId{index + 1}",
+                    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml",
+                    $"customXml/item{index + 1}.xml"
+                ))
+                .ToArray()
+        );
+        using var package = BuildPackage(
+            ("[Content_Types].xml", ContentTypes(includePng: false)),
+            ("_rels/.rels", relationships),
+            ("word/document.xml", DocumentXml())
+        );
+        var original = package.ToArray();
+        var lease = new WordOperationResourceLease(128 * 1024);
+
+        var exception = Assert.Throws<WordOperationResourceLimitException>(() =>
+            new OpcPackageReader(OpcPackageLimits.Default, lease).Read(package)
+        );
+
+        Assert.Equal(WordOperationResourceStage.OpcPackage, exception.Stage);
+        Assert.True(exception.AccountedBytes > 32 * 1024);
+        Assert.True(exception.AttemptedBytes > relationships.Length);
+        Assert.Equal(original, package.ToArray());
+    }
+
+    [Fact]
+    public void RejectsExplicitOpcMetadataCountLimits()
+    {
+        using var contentTypesPackage = BuildPackage(
+            ("[Content_Types].xml", ContentTypes(includePng: false)),
+            ("_rels/.rels", RootRelationships()),
+            ("word/document.xml", DocumentXml())
+        );
+        var contentTypesLimit = OpcPackageLimits.Default with
+        {
+            MaxContentTypeDeclarations = 1,
+        };
+        Assert.Throws<OpcPackageLimitException>(() =>
+            new OpcPackageReader(contentTypesLimit).Read(contentTypesPackage)
+        );
+
+        using var relationshipsPackage = BuildPackage(
+            ("[Content_Types].xml", ContentTypes(includePng: false)),
+            (
+                "_rels/.rels",
+                RelationshipsXml(
+                    Relationship("rId1", "type-a", "word/document.xml"),
+                    Relationship("rId2", "type-b", "word/other.xml")
+                )
+            ),
+            ("word/document.xml", DocumentXml())
+        );
+        var relationshipLimit = OpcPackageLimits.Default with
+        {
+            MaxRelationships = 1,
+        };
+        Assert.Throws<OpcPackageLimitException>(() =>
+            new OpcPackageReader(relationshipLimit).Read(relationshipsPackage)
+        );
+
+        using var diagnosticsPackage = BuildPackage(
+            ("word/document.xml", DocumentXml())
+        );
+        var diagnosticLimit = OpcPackageLimits.Default with { MaxDiagnostics = 1 };
+        Assert.Throws<OpcPackageLimitException>(() =>
+            new OpcPackageReader(diagnosticLimit).Read(diagnosticsPackage)
+        );
+    }
+
     [Fact]
     public void ReadsPackageGraphAndPreservesOpaqueParts()
     {
@@ -506,6 +710,77 @@ public sealed class OpcPackageReaderTests
     }
 
     [Fact]
+    public void AtomicWriterRequireNewDestinationNeverOverwritesExistingFile()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var destination = Path.Combine(directory, "merge.docx");
+            File.WriteAllText(destination, "do not replace");
+            using var package = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                ("word/document.xml", DocumentXml())
+            );
+            var snapshot = new OpcPackageReader().Read(package);
+            var mutation = new OpcPackageMutationBuilder(snapshot);
+
+            Assert.Throws<OpcPackageConcurrencyException>(() =>
+                new OpcAtomicPackageWriter().Write(
+                    destination,
+                    mutation,
+                    new OpcAtomicWriteOptions { RequireNewDestination = true }
+                )
+            );
+
+            Assert.Equal("do not replace", File.ReadAllText(destination));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AtomicWriterRequireNewDestinationRejectsRaceWithoutClobberingCompetitor()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var destination = Path.Combine(directory, "merge.docx");
+            using var package = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                ("word/document.xml", DocumentXml())
+            );
+            var snapshot = new OpcPackageReader().Read(package);
+            var mutation = new OpcPackageMutationBuilder(snapshot);
+            var competitor = Encoding.UTF8.GetBytes("competitor");
+            var writer = new OpcAtomicPackageWriter(
+                reader: null,
+                serializer: null,
+                beforeAtomicReplace: path => File.WriteAllBytes(path, competitor)
+            );
+
+            var conflict = Assert.Throws<OpcPackageConcurrencyException>(() =>
+                writer.Write(
+                    destination,
+                    mutation,
+                    new OpcAtomicWriteOptions { RequireNewDestination = true }
+                )
+            );
+
+            Assert.Contains("created while", conflict.Message);
+            Assert.Equal(competitor, File.ReadAllBytes(destination));
+            Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void AtomicWriterRejectsUnexpectedCandidateFingerprintBeforeReplacement()
     {
         var directory = CreateTemporaryDirectory();
@@ -599,6 +874,252 @@ public sealed class OpcPackageReaderTests
         }
     }
 
+    [Fact]
+    public void AtomicWriterRestoresNonCooperativeChangeAtCommitBoundary()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var destination = Path.Combine(directory, "document.docx");
+            using var originalPackage = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                ("word/document.xml", DocumentXml())
+            );
+            File.WriteAllBytes(destination, originalPackage.ToArray());
+            var reader = new OpcPackageReader();
+            var original = reader.Read(destination);
+            var mutation = new OpcPackageMutationBuilder(original).ReplacePart(
+                "/word/document.xml",
+                Encoding.UTF8.GetBytes(
+                    DocumentXml().Replace("<w:p />", "<w:p><w:r /></w:p>")
+                )
+            );
+            using var externalPackage = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                (
+                    "word/document.xml",
+                    DocumentXml().Replace(
+                        "<w:p />",
+                        "<w:p><w:r><w:t>external</w:t></w:r></w:p>"
+                    )
+                )
+            );
+            var externalBytes = externalPackage.ToArray();
+            var writer = new OpcAtomicPackageWriter(
+                reader,
+                new OpcPackageSerializer(),
+                path => File.WriteAllBytes(path, externalBytes)
+            );
+
+            var conflict = Assert.Throws<OpcPackageConcurrencyException>(() =>
+                writer.Write(
+                    destination,
+                    mutation,
+                    new OpcAtomicWriteOptions
+                    {
+                        ExpectedDestinationFingerprint = original.Fingerprint,
+                        KeepBackup = true,
+                    }
+                )
+            );
+
+            Assert.Contains("external version was restored", conflict.Message);
+            Assert.Equal(externalBytes, File.ReadAllBytes(destination));
+            Assert.Contains(
+                "external",
+                Encoding.UTF8.GetString(
+                    reader.Read(destination).Parts["/word/document.xml"].Entry.Content.Span
+                )
+            );
+            Assert.Empty(Directory.GetFiles(directory, "*.bak"));
+            Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
+            Assert.Empty(Directory.GetFiles(directory, "*.conflict"));
+
+            File.WriteAllBytes(destination, originalPackage.ToArray());
+            var deleteWriter = new OpcAtomicPackageWriter(
+                reader,
+                new OpcPackageSerializer(),
+                File.Delete
+            );
+            var deleted = Assert.Throws<OpcPackageConcurrencyException>(() =>
+                deleteWriter.Write(
+                    destination,
+                    mutation,
+                    new OpcAtomicWriteOptions
+                    {
+                        ExpectedDestinationFingerprint = original.Fingerprint,
+                    }
+                )
+            );
+            Assert.Contains("removed", deleted.Message);
+            Assert.False(File.Exists(destination));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AtomicWriterRetainsNewerChangeCreatedDuringCompensation()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var destination = Path.Combine(directory, "document.docx");
+            using var originalPackage = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                ("word/document.xml", DocumentXml())
+            );
+            File.WriteAllBytes(destination, originalPackage.ToArray());
+
+            var reader = new OpcPackageReader();
+            var original = reader.Read(destination);
+            var mutation = new OpcPackageMutationBuilder(original).ReplacePart(
+                "/word/document.xml",
+                Encoding.UTF8.GetBytes(
+                    DocumentXml().Replace(
+                        "<w:p />",
+                        "<w:p><w:r><w:t>candidate</w:t></w:r></w:p>"
+                    )
+                )
+            );
+            using var firstExternalPackage = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                (
+                    "word/document.xml",
+                    DocumentXml().Replace(
+                        "<w:p />",
+                        "<w:p><w:r><w:t>first external</w:t></w:r></w:p>"
+                    )
+                )
+            );
+            using var secondExternalPackage = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                (
+                    "word/document.xml",
+                    DocumentXml().Replace(
+                        "<w:p />",
+                        "<w:p><w:r><w:t>second external</w:t></w:r></w:p>"
+                    )
+                )
+            );
+            var firstExternalBytes = firstExternalPackage.ToArray();
+            var secondExternalBytes = secondExternalPackage.ToArray();
+            var writer = new OpcAtomicPackageWriter(
+                reader,
+                new OpcPackageSerializer(),
+                path => File.WriteAllBytes(path, firstExternalBytes),
+                path => File.WriteAllBytes(path, secondExternalBytes)
+            );
+
+            var recovery = Assert.Throws<OpcPackageRecoveryException>(() =>
+                writer.Write(
+                    destination,
+                    mutation,
+                    new OpcAtomicWriteOptions
+                    {
+                        ExpectedDestinationFingerprint = original.Fingerprint,
+                        KeepBackup = false,
+                    }
+                )
+            );
+
+            Assert.Equal(firstExternalBytes, File.ReadAllBytes(destination));
+            var recoveryPath = Assert.Single(recovery.RecoveryPaths);
+            Assert.EndsWith(".conflict", recoveryPath, StringComparison.Ordinal);
+            Assert.Equal(
+                Path.GetDirectoryName(destination),
+                Path.GetDirectoryName(recoveryPath)
+            );
+            Assert.Equal(secondExternalBytes, File.ReadAllBytes(recoveryPath));
+            Assert.DoesNotContain("candidate", Encoding.UTF8.GetString(
+                reader.Read(recoveryPath).Parts["/word/document.xml"].Entry.Content.Span
+            ));
+            Assert.Empty(Directory.GetFiles(directory, "*.bak"));
+            Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AtomicWriterDoesNotClaimMissingRecoveryArtifact()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var destination = Path.Combine(directory, "document.docx");
+            using var originalPackage = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                ("word/document.xml", DocumentXml())
+            );
+            File.WriteAllBytes(destination, originalPackage.ToArray());
+
+            var reader = new OpcPackageReader();
+            var original = reader.Read(destination);
+            var mutation = new OpcPackageMutationBuilder(original).ReplacePart(
+                "/word/document.xml",
+                Encoding.UTF8.GetBytes(
+                    DocumentXml().Replace("<w:p />", "<w:p><w:r /></w:p>")
+                )
+            );
+            using var externalPackage = BuildPackage(
+                ("[Content_Types].xml", ContentTypes()),
+                ("_rels/.rels", RootRelationships()),
+                (
+                    "word/document.xml",
+                    DocumentXml().Replace(
+                        "<w:p />",
+                        "<w:p><w:r><w:t>external</w:t></w:r></w:p>"
+                    )
+                )
+            );
+            var externalBytes = externalPackage.ToArray();
+            var writer = new OpcAtomicPackageWriter(
+                reader,
+                new OpcPackageSerializer(),
+                path => File.WriteAllBytes(path, externalBytes),
+                _ =>
+                {
+                    foreach (var path in Directory.GetFiles(directory, "*.bak"))
+                    {
+                        File.Delete(path);
+                    }
+                }
+            );
+
+            var recovery = Assert.Throws<OpcPackageRecoveryException>(() =>
+                writer.Write(
+                    destination,
+                    mutation,
+                    new OpcAtomicWriteOptions
+                    {
+                        ExpectedDestinationFingerprint = original.Fingerprint,
+                        KeepBackup = false,
+                    }
+                )
+            );
+
+            Assert.Empty(recovery.RecoveryPaths);
+            Assert.Contains("no recovery artifact", recovery.Message);
+            Assert.Empty(Directory.GetFiles(directory, "*.bak"));
+            Assert.Empty(Directory.GetFiles(directory, "*.conflict"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static MemoryStream BuildPackage(
         params (string Name, object Content)[] entries
     )
@@ -622,6 +1143,54 @@ public sealed class OpcPackageReaderTests
 
         stream.Position = 0;
         return stream;
+    }
+
+    private sealed class NonSeekableReadStream : Stream
+    {
+        private readonly MemoryStream _inner;
+
+        public NonSeekableReadStream(byte[] bytes)
+        {
+            _inner = new MemoryStream(bytes, writable: false);
+        }
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush() { }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            _inner.Read(buffer, offset, count);
+
+        public override int Read(Span<byte> buffer) => _inner.Read(buffer);
+
+        public override long Seek(long offset, SeekOrigin origin) =>
+            throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) =>
+            throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _inner.Dispose();
+            }
+            base.Dispose(disposing);
+        }
     }
 
     private static string CreateTemporaryDirectory()

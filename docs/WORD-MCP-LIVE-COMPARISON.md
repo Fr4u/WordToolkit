@@ -41,7 +41,7 @@ is broken.
 | Undo | Only one current top `WordToolkit:` entry; HMAC token and version required; manual actions block | Arbitrary `times`; calls `Document.Undo(times)` |
 | Undo failure rollback | Custom record ends, then one document Undo on exception | Custom record ends on exception without rollback |
 | Layout diagnosis | Eight bounded checks; issue/result caps; no paragraph text returned | Five checks; scans all paragraphs |
-| Native equations | Typed LaTeX/UnicodeMath/MathML/OMML input, editable OMath creation, count verification and rollback | Dedicated linear equation insertion |
+| Native equations | Typed LaTeX/UnicodeMath/MathML/OMML input, editable OMath creation, automatic bounded OMML contract/placement readback for sensitive structures and rollback | Dedicated linear equation insertion |
 | Installed Word API | 12,167 deterministic member profiles with typed schemas, policy and preflight on the release machine | Dedicated hand-written tools |
 | DOCX round trip | Direct OPC/OOXML copy-on-write, opaque-part preservation audit, structural and Open XML SDK validation | Broad `python-docx`-based file tools |
 | Native package evidence | 25 .NET tests; 48/48 live tools in 71 MCP requests; valid DOCX; native PDF; close/open/reconnect | Two discovered tests; one passed and one failed after lock repair |

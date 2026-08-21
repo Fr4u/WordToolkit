@@ -1,0 +1,71 @@
+{
+  "schema": "wordtoolkit.flat_opc_corruption_corpus/1.0",
+  "namespace": "http://schemas.microsoft.com/office/2006/xmlPackage",
+  "cases": [
+    {
+      "id": "dtd-entity",
+      "category": "xml_security",
+      "xml": "<!DOCTYPE pkg:package [<!ENTITY x 'poison'>]><pkg:package xmlns:pkg='http://schemas.microsoft.com/office/2006/xmlPackage'>&x;</pkg:package>"
+    },
+    {
+      "id": "wrong-root-namespace",
+      "category": "closed_schema",
+      "xml": "<pkg:package xmlns:pkg='urn:not-flat-opc'/>"
+    },
+    {
+      "id": "unknown-package-child",
+      "category": "closed_schema",
+      "xml": "<pkg:package xmlns:pkg='http://schemas.microsoft.com/office/2006/xmlPackage'><pkg:unknown/></pkg:package>"
+    },
+    {
+      "id": "missing-payload",
+      "category": "part_integrity",
+      "xml": "<pkg:package xmlns:pkg='http://schemas.microsoft.com/office/2006/xmlPackage'><pkg:part pkg:name='/word/document.xml' pkg:contentType='application/xml'/></pkg:package>"
+    },
+    {
+      "id": "two-payloads",
+      "category": "part_integrity",
+      "xml": "<pkg:package xmlns:pkg='http://schemas.microsoft.com/office/2006/xmlPackage'><pkg:part pkg:name='/word/document.xml' pkg:contentType='application/xml'><pkg:xmlData><a/></pkg:xmlData><pkg:binaryData/></pkg:part></pkg:package>"
+    },
+    {
+      "id": "two-xml-roots",
+      "category": "part_integrity",
+      "xml": "<pkg:package xmlns:pkg='http://schemas.microsoft.com/office/2006/xmlPackage'><pkg:part pkg:name='/word/document.xml' pkg:contentType='application/xml'><pkg:xmlData><a/><b/></pkg:xmlData></pkg:part></pkg:package>"
+    },
+    {
+      "id": "invalid-base64",
+      "category": "binary_integrity",
+      "xml": "<pkg:package xmlns:pkg='http://schemas.microsoft.com/office/2006/xmlPackage'><pkg:part pkg:name='/word/media/image.png' pkg:contentType='image/png'><pkg:binaryData>%%%not-base64%%%</pkg:binaryData></pkg:part></pkg:package>"
+    },
+    {
+      "id": "duplicate-part",
+      "category": "uri_integrity",
+      "xml": "<pkg:package xmlns:pkg='http://schemas.microsoft.com/office/2006/xmlPackage'><pkg:part pkg:name='/a.bin' pkg:contentType='application/octet-stream'><pkg:binaryData/></pkg:part><pkg:part pkg:name='/a.bin' pkg:contentType='application/octet-stream'><pkg:binaryData/></pkg:part></pkg:package>"
+    },
+    {
+      "id": "case-colliding-parts",
+      "category": "uri_integrity",
+      "xml": "<pkg:package xmlns:pkg='http://schemas.microsoft.com/office/2006/xmlPackage'><pkg:part pkg:name='/word/A.xml' pkg:contentType='application/xml'><pkg:xmlData><a/></pkg:xmlData></pkg:part><pkg:part pkg:name='/word/a.xml' pkg:contentType='application/xml'><pkg:xmlData><a/></pkg:xmlData></pkg:part></pkg:package>"
+    },
+    {
+      "id": "traversal-part",
+      "category": "uri_integrity",
+      "xml": "<pkg:package xmlns:pkg='http://schemas.microsoft.com/office/2006/xmlPackage'><pkg:part pkg:name='/word/../escape.xml' pkg:contentType='application/xml'><pkg:xmlData><a/></pkg:xmlData></pkg:part></pkg:package>"
+    },
+    {
+      "id": "embedded-content-types",
+      "category": "manifest_integrity",
+      "xml": "<pkg:package xmlns:pkg='http://schemas.microsoft.com/office/2006/xmlPackage'><pkg:part pkg:name='/[Content_Types].xml' pkg:contentType='application/xml'><pkg:xmlData><a/></pkg:xmlData></pkg:part></pkg:package>"
+    },
+    {
+      "id": "unknown-compression",
+      "category": "closed_schema",
+      "xml": "<pkg:package xmlns:pkg='http://schemas.microsoft.com/office/2006/xmlPackage'><pkg:part pkg:name='/a.bin' pkg:contentType='application/octet-stream' pkg:compression='quantum'><pkg:binaryData/></pkg:part></pkg:package>"
+    },
+    {
+      "id": "nested-binary-xml",
+      "category": "binary_integrity",
+      "xml": "<pkg:package xmlns:pkg='http://schemas.microsoft.com/office/2006/xmlPackage'><pkg:part pkg:name='/a.bin' pkg:contentType='application/octet-stream'><pkg:binaryData><a/></pkg:binaryData></pkg:part></pkg:package>"
+    }
+  ]
+}

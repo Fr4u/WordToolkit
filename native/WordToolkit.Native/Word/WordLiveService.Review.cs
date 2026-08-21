@@ -169,6 +169,7 @@ internal sealed partial class WordLiveService
                     performance = Performance(started),
                 };
             },
+            WordComReplaySafety.ReplaySafe,
             cancellationToken
         );
     }
@@ -251,10 +252,15 @@ internal sealed partial class WordLiveService
                 CheckVersion(record, expectedVersion);
                 dynamic document = ResolveDocument(application, record);
                 RequireEditable(document);
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 var originalScreenUpdating = (bool?)null;
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 var undoable = false;
+                var mutationAttempted = false;
+                string? supplementalBaseline = null;
+                Func<string>? supplementalStateReader = null;
+                var supplementalDifferenceName = "review_state_sha256";
                 var mutated = true;
                 object result;
                 try
@@ -280,8 +286,12 @@ internal sealed partial class WordLiveService
                         }
                         else
                         {
+                            supplementalBaseline = previous ? "enabled" : "disabled";
+                            supplementalStateReader = () =>
+                                (bool)document.TrackRevisions ? "enabled" : "disabled";
                             try
                             {
+                                mutationAttempted = true;
                                 document.TrackRevisions = desired;
                                 if ((bool)document.TrackRevisions != desired)
                                 {
@@ -325,6 +335,7 @@ internal sealed partial class WordLiveService
                         undoRecord = application.UndoRecord;
                         undoRecord.StartCustomRecord("WordToolkit: add live comment");
                         undoStarted = true;
+                        mutationAttempted = true;
                         dynamic comment = document.Comments.Add(range, text);
                         if ((int)document.Comments.Count != before + 1)
                         {
@@ -374,6 +385,7 @@ internal sealed partial class WordLiveService
                                 "WordToolkit: reply to live comment"
                             );
                             undoStarted = true;
+                            mutationAttempted = true;
                             dynamic reply = comment.Replies.Add(comment.Scope, text);
                             if ((int)comment.Replies.Count != before + 1)
                             {
@@ -413,8 +425,12 @@ internal sealed partial class WordLiveService
                             }
                             else
                             {
+                                supplementalBaseline = previous ? "resolved" : "open";
+                                supplementalStateReader = () =>
+                                    (bool)comment.Done ? "resolved" : "open";
                                 try
                                 {
+                                    mutationAttempted = true;
                                     comment.Done = resolved;
                                     if ((bool)comment.Done != resolved)
                                     {
@@ -453,6 +469,7 @@ internal sealed partial class WordLiveService
                                 "WordToolkit: delete live comment"
                             );
                             undoStarted = true;
+                            mutationAttempted = true;
                             comment.Delete();
                             if ((int)document.Comments.Count != before - 1)
                             {
@@ -488,6 +505,7 @@ internal sealed partial class WordLiveService
                             $"WordToolkit: {verb} live revision"
                         );
                         undoStarted = true;
+                        mutationAttempted = true;
                         if (action == "accept_revision")
                         {
                             revision.Accept();
@@ -543,9 +561,20 @@ internal sealed partial class WordLiveService
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        (object)document,
+                        undoRecord,
+                        ref undoStarted,
+                        mutationAttempted || undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception,
+                        supplementalBaseline,
+                        supplementalStateReader,
+                        supplementalDifferenceName
+                    );
                     throw;
                 }
                 finally

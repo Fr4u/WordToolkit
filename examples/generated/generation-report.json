@@ -8,7 +8,7 @@
       "issues": [],
       "package": {
         "entries": 11,
-        "compressed_bytes": 4068,
+        "compressed_bytes": 4070,
         "uncompressed_bytes": 16038,
         "max_ratio_seen": 7.61,
         "external_relationships": [],
@@ -44,7 +44,7 @@
       "issues": [],
       "package": {
         "entries": 16,
-        "compressed_bytes": 8651,
+        "compressed_bytes": 8662,
         "uncompressed_bytes": 26677,
         "max_ratio_seen": 7.61,
         "external_relationships": [],

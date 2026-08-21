@@ -1,0 +1,184 @@
+{
+  "schema_version": 1,
+  "oracle_policy": "hand_reviewed_semantic_facts_cross_checked_against_source_opc_parts",
+  "documents": [
+    {
+      "path": "tests/upstream/fixtures/poi_styles.docx",
+      "producer_family": "apache_poi",
+      "file_sha256": "63f3fe4c3b4fbdc211eca8fa7fd31a799ff4438afbf4ca6e771b3aef107c732e",
+      "package_fingerprint": "cb6727ad7bac969fbf06871ad89d82aa108279b21f39f7fbd4072708443ba1f9",
+      "required_part_uris": ["/word/styles.xml"],
+      "semantic": {
+        "node_count": 17,
+        "projected_part_count": 1,
+        "warning_count": 0,
+        "kind_counts": {"body": 1, "document": 1, "paragraph": 6, "run": 4, "section": 1, "text": 4}
+      },
+      "styles": {
+        "count": 12,
+        "issue_count": 0,
+        "defaults": {"character": "Absatz-Standardschriftart", "numbering": "KeineListe", "paragraph": "Standard", "table": "NormaleTabelle"},
+        "facts": [
+          {
+            "style_id": "berschrift1",
+            "type": "paragraph",
+            "name": "heading 1",
+            "based_on_style_id": "Standard",
+            "next_style_id": "Standard",
+            "linked_style_id": "berschrift1Zchn",
+            "default_style": false,
+            "custom_style": false,
+            "inheritance_resolvable": true
+          }
+        ]
+      },
+      "numbering": {"has_part": false, "abstract_count": 0, "instance_count": 0, "picture_bullet_count": 0, "issue_count": 0, "instance_facts": [], "level_facts": []},
+      "references": {"story_count": 1, "bookmark_count": 0, "complete_bookmark_count": 0, "duplicate_bookmark_name_count": 0, "field_count": 0, "complex_field_count": 0, "simple_field_count": 0, "incomplete_field_count": 0, "external_field_count": 0, "application_invoking_field_count": 0, "dependency_count": 0, "unresolved_dependency_count": 0, "external_dependency_count": 0, "issue_count": 0, "field_facts": []},
+      "review": {"comment_count": 0, "anchored_comment_count": 0, "reply_count": 0, "thread_count": 0, "resolved_comment_count": 0, "reaction_comment_count": 0, "comment_anchor_count": 0, "incomplete_comment_anchor_count": 0, "person_count": 0, "revision_count": 0, "insertion_count": 0, "deletion_count": 0, "property_revision_count": 0, "tracked_text_character_count": 0, "move_range_count": 0, "move_count": 0, "incomplete_move_count": 0, "permission_range_count": 0, "incomplete_permission_range_count": 0, "track_revisions_enabled": false, "issue_count": 0},
+      "sections": {"count": 1, "even_and_odd_headers": false, "referenced_story_part_count": 0, "unbound_story_part_count": 0, "binding_count": 6},
+      "dependency": {"node_count": 67, "edge_count": 98, "resolved_edge_count": 98, "unresolved_edge_count": 0, "external_edge_count": 0, "package_unreachable_part_count": 0, "issue_count": 0, "edge_kind_counts": {"default_style": 4, "defines_custom_xml_store": 2, "defines_document_property": 25, "defines_section": 1, "defines_story": 1, "defines_style": 12, "outline_level_derived_from_style": 3, "outline_parent": 2, "package_relationship": 8, "part_contains_semantic_root": 1, "semantic_containment": 16, "style_based_on": 8, "style_linked": 8, "style_next": 4, "uses_style": 3}},
+      "formatting_facts": [
+        {
+          "source_part_uri": "/word/document.xml",
+          "source_element_ordinal": 2,
+          "node_kind": "paragraph",
+          "paragraph_style_id": "berschrift1",
+          "fully_resolved": false,
+          "paragraph_properties": {"keep_together": "true", "keep_with_next": "true", "outline_level": "0", "spacing_after_twips": "0", "spacing_before_twips": "480", "spacing_line": "276", "spacing_line_rule": "auto"},
+          "run_properties": {"bold": "true", "bold_complex_script": "true", "color_resolved_rgb": "366091", "color_theme": "accent1", "color_theme_shade": "BF", "color_value": "365F91", "font_ascii_resolved": "Cambria", "font_ascii_theme": "majorHAnsi", "font_high_ansi_resolved": "Cambria", "language_value": "de-DE", "size_half_points": "28"},
+          "unmodeled_elements": [],
+          "coverage_omissions": ["application_defaults_for_unspecified_properties", "theme_color_transform_word_quantization", "theme_language_font_resolution"],
+          "compatibility_warning_count": 3
+        }
+      ]
+    },
+    {
+      "path": "tests/upstream/fixtures/poi_complex_lists.docx",
+      "producer_family": "apache_poi",
+      "file_sha256": "297a085a7d433af2eeee7661e8db21539452cb585096484774a1e9f5f258b0b6",
+      "package_fingerprint": "49cbabe3621786c56a0524adca95913e3b65a6d6d20ef2f8a537f76e175ea156",
+      "required_part_uris": ["/word/numbering.xml"],
+      "semantic": {"node_count": 62, "projected_part_count": 1, "warning_count": 0, "kind_counts": {"body": 1, "bookmark": 1, "bookmark_end": 1, "document": 1, "paragraph": 17, "run": 20, "section": 1, "text": 20}},
+      "styles": {"count": 5, "issue_count": 0, "defaults": {"character": "DefaultParagraphFont", "numbering": "NoList", "paragraph": "Normal", "table": "TableNormal"}, "facts": [{"style_id": "ListParagraph", "type": "paragraph", "name": "List Paragraph", "based_on_style_id": "Normal", "default_style": false, "custom_style": false, "inheritance_resolvable": true}]},
+      "numbering": {
+        "has_part": true,
+        "abstract_count": 6,
+        "instance_count": 6,
+        "picture_bullet_count": 0,
+        "issue_count": 0,
+        "instance_facts": [{"number_id": 1, "abstract_number_id": 4}, {"number_id": 2, "abstract_number_id": 5}, {"number_id": 3, "abstract_number_id": 3}, {"number_id": 4, "abstract_number_id": 0}, {"number_id": 5, "abstract_number_id": 2}, {"number_id": 6, "abstract_number_id": 1}],
+        "level_facts": [{"abstract_number_id": 1, "level_index": 0, "multi_level_type": "hybridMultilevel", "start": 10, "number_format": "decimal", "level_text": "%1."}]
+      },
+      "references": {"story_count": 1, "bookmark_count": 1, "complete_bookmark_count": 1, "duplicate_bookmark_name_count": 0, "field_count": 0, "complex_field_count": 0, "simple_field_count": 0, "incomplete_field_count": 0, "external_field_count": 0, "application_invoking_field_count": 0, "dependency_count": 0, "unresolved_dependency_count": 0, "external_dependency_count": 0, "issue_count": 0, "field_facts": []},
+      "review": {"comment_count": 0, "anchored_comment_count": 0, "reply_count": 0, "thread_count": 0, "resolved_comment_count": 0, "reaction_comment_count": 0, "comment_anchor_count": 0, "incomplete_comment_anchor_count": 0, "person_count": 0, "revision_count": 0, "insertion_count": 0, "deletion_count": 0, "property_revision_count": 0, "tracked_text_character_count": 0, "move_range_count": 0, "move_count": 0, "incomplete_move_count": 0, "permission_range_count": 0, "incomplete_permission_range_count": 0, "track_revisions_enabled": false, "issue_count": 0},
+      "sections": {"count": 1, "even_and_odd_headers": false, "referenced_story_part_count": 0, "unbound_story_part_count": 0, "binding_count": 6},
+      "dependency": {"node_count": 118, "edge_count": 156, "resolved_edge_count": 156, "unresolved_edge_count": 0, "external_edge_count": 0, "package_unreachable_part_count": 0, "issue_count": 0, "edge_kind_counts": {"default_style": 4, "defines_abstract_numbering": 6, "defines_custom_xml_store": 2, "defines_document_property": 23, "defines_numbering_instance": 6, "defines_section": 1, "defines_story": 1, "defines_style": 5, "numbering_instance_uses_abstract": 6, "package_relationship": 10, "part_contains_semantic_root": 1, "semantic_containment": 61, "story_contains_bookmark": 1, "style_based_on": 1, "uses_numbering": 14, "uses_style": 14}},
+      "formatting_facts": []
+    },
+    {
+      "path": "tests/upstream/fixtures/poi_field_codes.docx",
+      "producer_family": "apache_poi",
+      "file_sha256": "9247f85ab90b15f11d0cf14d0070fdcb5cdf47c65d6bc77cc32cb7ee682aad24",
+      "package_fingerprint": "a5b698212262d7e0476eb8644d313327aa8d752e4a28f9d76cc716bb9a722d81",
+      "required_part_uris": ["/word/document.xml", "/word/numbering.xml"],
+      "semantic": {"node_count": 29, "projected_part_count": 1, "warning_count": 0, "kind_counts": {"body": 1, "bookmark": 1, "bookmark_end": 1, "document": 1, "field": 8, "paragraph": 4, "run": 10, "section": 1, "text": 2}},
+      "styles": {"count": 14, "issue_count": 0, "defaults": {"character": "DefaultParagraphFont", "numbering": "NoList", "paragraph": "Normal", "table": "TableNormal"}, "facts": [{"style_id": "Heading1", "type": "paragraph", "name": "heading 1", "based_on_style_id": "Normal", "next_style_id": "Normal", "linked_style_id": "Heading1Char", "default_style": false, "custom_style": false, "inheritance_resolvable": true}]},
+      "numbering": {"has_part": true, "abstract_count": 2, "instance_count": 2, "picture_bullet_count": 0, "issue_count": 0, "instance_facts": [{"number_id": 1, "abstract_number_id": 1}, {"number_id": 2, "abstract_number_id": 0}], "level_facts": []},
+      "references": {"story_count": 1, "bookmark_count": 1, "complete_bookmark_count": 1, "duplicate_bookmark_name_count": 0, "field_count": 2, "complex_field_count": 2, "simple_field_count": 0, "incomplete_field_count": 0, "external_field_count": 0, "application_invoking_field_count": 0, "dependency_count": 0, "unresolved_dependency_count": 0, "external_dependency_count": 0, "issue_count": 0, "field_facts": [{"field_type": "AUTHOR", "classification": "document_metadata", "count": 1, "incomplete_count": 0, "external_count": 0, "application_invoking_count": 0}, {"field_type": "CREATEDATE", "classification": "date_time", "count": 1, "incomplete_count": 0, "external_count": 0, "application_invoking_count": 0}]},
+      "review": {"comment_count": 0, "anchored_comment_count": 0, "reply_count": 0, "thread_count": 0, "resolved_comment_count": 0, "reaction_comment_count": 0, "comment_anchor_count": 0, "incomplete_comment_anchor_count": 0, "person_count": 0, "revision_count": 0, "insertion_count": 0, "deletion_count": 0, "property_revision_count": 0, "tracked_text_character_count": 0, "move_range_count": 0, "move_count": 0, "incomplete_move_count": 0, "permission_range_count": 0, "incomplete_permission_range_count": 0, "track_revisions_enabled": false, "issue_count": 0},
+      "sections": {"count": 1, "even_and_odd_headers": false, "referenced_story_part_count": 0, "unbound_story_part_count": 0, "binding_count": 6},
+      "dependency": {"node_count": 96, "edge_count": 126, "resolved_edge_count": 126, "unresolved_edge_count": 0, "external_edge_count": 0, "package_unreachable_part_count": 0, "issue_count": 0, "edge_kind_counts": {"default_style": 4, "defines_abstract_numbering": 2, "defines_bibliography_collection": 1, "defines_custom_xml_store": 3, "defines_document_property": 27, "defines_numbering_instance": 2, "defines_section": 1, "defines_story": 1, "defines_style": 14, "numbering_instance_uses_abstract": 2, "numbering_level_uses_style": 2, "package_relationship": 12, "part_contains_semantic_root": 1, "semantic_containment": 28, "story_contains_bookmark": 1, "story_contains_field": 2, "style_based_on": 10, "style_linked": 6, "style_next": 5, "style_uses_numbering": 2}},
+      "formatting_facts": []
+    },
+    {
+      "path": "tests/upstream/fixtures/real_hyperlinks_footnotes.docx",
+      "producer_family": "microsoft_word_real_world",
+      "file_sha256": "19581575df58985c66914f6c4ad8b1ccfe0899f94ccb03c1b9aa4798d6185c24",
+      "package_fingerprint": "9d4b89437b672e5f8df793972abe4748e2db8b2b5af224f15a6534a25526f0b4",
+      "required_part_uris": ["/word/comments.xml", "/word/endnotes.xml", "/word/footnotes.xml"],
+      "semantic": {"node_count": 912, "projected_part_count": 4, "warning_count": 0, "kind_counts": {"body": 1, "comment": 2, "comment_anchor": 6, "comments": 1, "document": 1, "drawing": 44, "endnote": 2, "endnotes": 1, "extension_island": 1, "field": 4, "footnote": 8, "footnote_reference": 6, "footnotes": 1, "hyperlink": 3, "paragraph": 85, "run": 371, "section": 1, "table": 1, "table_cell": 18, "table_row": 5, "text": 350}},
+      "styles": {"count": 70, "issue_count": 0, "defaults": {"character": "DefaultParagraphFont", "numbering": "NoList", "paragraph": "Normal", "table": "TableNormal"}, "facts": [{"style_id": "Normal", "type": "paragraph", "name": "Normal", "default_style": true, "custom_style": false, "inheritance_resolvable": true}]},
+      "numbering": {"has_part": true, "abstract_count": 17, "instance_count": 17, "picture_bullet_count": 0, "issue_count": 0, "instance_facts": [], "level_facts": []},
+      "references": {"story_count": 13, "bookmark_count": 0, "complete_bookmark_count": 0, "duplicate_bookmark_name_count": 0, "field_count": 1, "complex_field_count": 1, "simple_field_count": 0, "incomplete_field_count": 0, "external_field_count": 0, "application_invoking_field_count": 0, "dependency_count": 1, "unresolved_dependency_count": 1, "external_dependency_count": 0, "issue_count": 1, "field_facts": [{"field_type": "REF", "classification": "document_reference", "count": 1, "incomplete_count": 0, "external_count": 0, "application_invoking_count": 0}]},
+      "review": {"comment_count": 2, "anchored_comment_count": 2, "reply_count": 0, "thread_count": 2, "resolved_comment_count": 0, "reaction_comment_count": 0, "comment_anchor_count": 2, "incomplete_comment_anchor_count": 0, "person_count": 1, "revision_count": 0, "insertion_count": 0, "deletion_count": 0, "property_revision_count": 0, "tracked_text_character_count": 0, "move_range_count": 0, "move_count": 0, "incomplete_move_count": 0, "permission_range_count": 0, "incomplete_permission_range_count": 0, "track_revisions_enabled": false, "issue_count": 0},
+      "sections": {"count": 1, "even_and_odd_headers": false, "referenced_story_part_count": 0, "unbound_story_part_count": 0, "binding_count": 6},
+      "dependency": {"node_count": 1090, "edge_count": 1371, "resolved_edge_count": 1368, "unresolved_edge_count": 3, "external_edge_count": 2, "package_unreachable_part_count": 0, "issue_count": 2, "edge_kind_counts": {"default_style": 4, "defines_abstract_numbering": 17, "defines_bibliography_collection": 1, "defines_custom_xml_store": 3, "defines_document_property": 30, "defines_figure": 1, "defines_numbering_instance": 17, "defines_section": 1, "defines_story": 13, "defines_style": 70, "field_reference": 1, "figure_has_representation": 1, "figure_resource_targets_part": 1, "figure_uses_resource": 1, "numbering_instance_uses_abstract": 17, "outline_level_derived_from_style": 8, "outline_parent": 5, "package_relationship": 20, "part_contains_semantic_root": 4, "semantic_containment": 911, "story_contains_field": 1, "style_based_on": 56, "style_linked": 36, "style_next": 16, "uses_numbering": 14, "uses_style": 122}},
+      "formatting_facts": []
+    },
+    {
+      "path": "tests/upstream/fixtures/pandoc_comments.docx",
+      "producer_family": "pandoc",
+      "file_sha256": "b6df01371955a599f38ec1192d130ecd750a5d83363b7c3755adb0f15679a507",
+      "package_fingerprint": "709bb62b5fa0bf06c739e065ea77124bdad4b22e5c8d662f6b6dfe703c41631a",
+      "required_part_uris": ["/word/comments.xml", "/word/endnotes.xml", "/word/footnotes.xml"],
+      "semantic": {"node_count": 99, "projected_part_count": 4, "warning_count": 0, "kind_counts": {"body": 1, "bookmark": 1, "bookmark_end": 1, "comment": 5, "comment_anchor": 15, "comments": 1, "document": 1, "endnote": 2, "endnotes": 1, "footnote": 2, "footnotes": 1, "paragraph": 15, "run": 33, "section": 1, "text": 19}},
+      "styles": {"count": 20, "issue_count": 0, "defaults": {"character": "DefaultParagraphFont", "numbering": "NoList", "paragraph": "Normal", "table": "TableNormal"}, "facts": [{"style_id": "CommentText", "type": "paragraph", "name": "annotation text", "based_on_style_id": "Normal", "linked_style_id": "CommentTextChar", "default_style": false, "custom_style": false, "inheritance_resolvable": true}]},
+      "numbering": {"has_part": false, "abstract_count": 0, "instance_count": 0, "picture_bullet_count": 0, "issue_count": 0, "instance_facts": [], "level_facts": []},
+      "references": {"story_count": 10, "bookmark_count": 1, "complete_bookmark_count": 1, "duplicate_bookmark_name_count": 0, "field_count": 0, "complex_field_count": 0, "simple_field_count": 0, "incomplete_field_count": 0, "external_field_count": 0, "application_invoking_field_count": 0, "dependency_count": 0, "unresolved_dependency_count": 0, "external_dependency_count": 0, "issue_count": 0, "field_facts": []},
+      "review": {"comment_count": 5, "anchored_comment_count": 5, "reply_count": 1, "thread_count": 4, "resolved_comment_count": 0, "reaction_comment_count": 0, "comment_anchor_count": 5, "incomplete_comment_anchor_count": 0, "person_count": 1, "revision_count": 0, "insertion_count": 0, "deletion_count": 0, "property_revision_count": 0, "tracked_text_character_count": 0, "move_range_count": 0, "move_count": 0, "incomplete_move_count": 0, "permission_range_count": 0, "incomplete_permission_range_count": 0, "track_revisions_enabled": false, "issue_count": 0},
+      "sections": {"count": 1, "even_and_odd_headers": false, "referenced_story_part_count": 0, "unbound_story_part_count": 0, "binding_count": 6},
+      "dependency": {"node_count": 178, "edge_count": 229, "resolved_edge_count": 229, "unresolved_edge_count": 0, "external_edge_count": 0, "package_unreachable_part_count": 0, "issue_count": 0, "edge_kind_counts": {"default_style": 4, "defines_bibliography_collection": 1, "defines_custom_xml_store": 3, "defines_document_property": 27, "defines_section": 1, "defines_story": 10, "defines_style": 20, "package_relationship": 15, "part_contains_semantic_root": 4, "semantic_containment": 98, "story_contains_bookmark": 1, "style_based_on": 15, "style_linked": 12, "style_next": 1, "uses_style": 17}},
+      "formatting_facts": []
+    },
+    {
+      "path": "tests/upstream/fixtures/pandoc_track_move.docx",
+      "producer_family": "pandoc",
+      "file_sha256": "9ea28f56f9fe00146a845497e226b19ec901685dd22798a2817b470abb0d1e5d",
+      "package_fingerprint": "53323b699023fa1c502cf9a617ddb3183af31afdb0d62a95cb2791e26095a680",
+      "required_part_uris": ["/word/settings.xml"],
+      "semantic": {"node_count": 24, "projected_part_count": 1, "warning_count": 0, "kind_counts": {"body": 1, "bookmark": 1, "bookmark_end": 1, "document": 1, "paragraph": 9, "revision": 2, "run": 4, "section": 1, "text": 4}},
+      "styles": {"count": 7, "issue_count": 0, "defaults": {"character": "DefaultParagraphFont", "numbering": "NoList", "paragraph": "Normal", "table": "TableNormal"}, "facts": [{"style_id": "Revision", "type": "paragraph", "name": "Revision", "default_style": false, "custom_style": false, "inheritance_resolvable": true}]},
+      "numbering": {"has_part": false, "abstract_count": 0, "instance_count": 0, "picture_bullet_count": 0, "issue_count": 0, "instance_facts": [], "level_facts": []},
+      "references": {"story_count": 1, "bookmark_count": 1, "complete_bookmark_count": 1, "duplicate_bookmark_name_count": 0, "field_count": 0, "complex_field_count": 0, "simple_field_count": 0, "incomplete_field_count": 0, "external_field_count": 0, "application_invoking_field_count": 0, "dependency_count": 0, "unresolved_dependency_count": 0, "external_dependency_count": 0, "issue_count": 0, "field_facts": []},
+      "review": {"comment_count": 0, "anchored_comment_count": 0, "reply_count": 0, "thread_count": 0, "resolved_comment_count": 0, "reaction_comment_count": 0, "comment_anchor_count": 0, "incomplete_comment_anchor_count": 0, "person_count": 0, "revision_count": 2, "insertion_count": 0, "deletion_count": 0, "property_revision_count": 0, "tracked_text_character_count": 58, "move_range_count": 2, "move_count": 1, "incomplete_move_count": 0, "permission_range_count": 0, "incomplete_permission_range_count": 0, "track_revisions_enabled": true, "issue_count": 0},
+      "sections": {"count": 1, "even_and_odd_headers": false, "referenced_story_part_count": 0, "unbound_story_part_count": 0, "binding_count": 6},
+      "dependency": {"node_count": 72, "edge_count": 79, "resolved_edge_count": 79, "unresolved_edge_count": 0, "external_edge_count": 0, "package_unreachable_part_count": 0, "issue_count": 0, "edge_kind_counts": {"default_style": 4, "defines_custom_xml_store": 2, "defines_document_property": 25, "defines_section": 1, "defines_story": 1, "defines_style": 7, "package_relationship": 10, "part_contains_semantic_root": 1, "semantic_containment": 23, "story_contains_bookmark": 1, "style_based_on": 2, "style_linked": 2}},
+      "formatting_facts": []
+    },
+    {
+      "path": "tests/upstream/fixtures/mammoth_textbox.docx",
+      "producer_family": "mammoth",
+      "file_sha256": "a94f4c516bec29b7c2e2e219ad1799700f0eecd0ebf25ef7f8fc59c14db8fdc9",
+      "package_fingerprint": "15005d77bf9a074272873d84dbdb994d7df28f8bdf856370235cb596d2c86614",
+      "required_part_uris": ["/word/document.xml"],
+      "semantic": {"node_count": 65, "projected_part_count": 1, "warning_count": 0, "kind_counts": {"alternate_content": 1, "body": 1, "bookmark": 2, "bookmark_end": 2, "document": 1, "drawing": 35, "extension_island": 12, "paragraph": 3, "run": 3, "section": 1, "text": 2, "text_box": 2}},
+      "styles": {"count": 6, "issue_count": 0, "defaults": {"character": "DefaultParagraphFont", "numbering": "NoList", "paragraph": "Normal", "table": "TableNormal"}, "facts": [{"style_id": "BalloonTextChar", "type": "character", "name": "Balloon Text Char", "based_on_style_id": "DefaultParagraphFont", "linked_style_id": "BalloonText", "default_style": false, "custom_style": true, "inheritance_resolvable": true}]},
+      "numbering": {"has_part": false, "abstract_count": 0, "instance_count": 0, "picture_bullet_count": 0, "issue_count": 0, "instance_facts": [], "level_facts": []},
+      "references": {"story_count": 3, "bookmark_count": 2, "complete_bookmark_count": 2, "duplicate_bookmark_name_count": 1, "field_count": 0, "complex_field_count": 0, "simple_field_count": 0, "incomplete_field_count": 0, "external_field_count": 0, "application_invoking_field_count": 0, "dependency_count": 0, "unresolved_dependency_count": 0, "external_dependency_count": 0, "issue_count": 2, "field_facts": []},
+      "review": {"comment_count": 0, "anchored_comment_count": 0, "reply_count": 0, "thread_count": 0, "resolved_comment_count": 0, "reaction_comment_count": 0, "comment_anchor_count": 0, "incomplete_comment_anchor_count": 0, "person_count": 0, "revision_count": 0, "insertion_count": 0, "deletion_count": 0, "property_revision_count": 0, "tracked_text_character_count": 0, "move_range_count": 0, "move_count": 0, "incomplete_move_count": 0, "permission_range_count": 0, "incomplete_permission_range_count": 0, "track_revisions_enabled": false, "issue_count": 0},
+      "sections": {"count": 1, "even_and_odd_headers": false, "referenced_story_part_count": 0, "unbound_story_part_count": 0, "binding_count": 6},
+      "dependency": {"node_count": 119, "edge_count": 127, "resolved_edge_count": 127, "unresolved_edge_count": 0, "external_edge_count": 0, "package_unreachable_part_count": 0, "issue_count": 3, "edge_kind_counts": {"default_style": 4, "defines_custom_xml_store": 2, "defines_document_property": 25, "defines_figure": 2, "defines_section": 1, "defines_story": 3, "defines_style": 6, "figure_has_representation": 2, "figure_representation_contains_shape": 2, "package_relationship": 9, "part_contains_semantic_root": 1, "semantic_containment": 64, "story_contains_bookmark": 2, "style_based_on": 2, "style_linked": 2}},
+      "formatting_facts": []
+    },
+    {
+      "path": "tests/upstream/fixtures/poi_header_footer.docx",
+      "producer_family": "apache_poi",
+      "file_sha256": "0ad90c6ee8ec8b9fab1ae8219387eca8d934b739580918d76a1b6c911bc41913",
+      "package_fingerprint": "2d2621fdc9afb108d5aab7a8dddaa298612e4007bb2be4bf8271d6786a1b7653",
+      "required_part_uris": ["/word/footer1.xml", "/word/footer2.xml", "/word/footer3.xml", "/word/header1.xml", "/word/header2.xml", "/word/header3.xml"],
+      "semantic": {"node_count": 32, "projected_part_count": 7, "warning_count": 0, "kind_counts": {"body": 1, "document": 1, "footer": 3, "footer_reference": 3, "header": 3, "header_reference": 3, "paragraph": 7, "run": 5, "section": 1, "text": 5}},
+      "styles": {"count": 8, "issue_count": 0, "defaults": {"character": "DefaultParagraphFont", "numbering": "NoList", "paragraph": "Normal", "table": "TableNormal"}, "facts": [{"style_id": "Header", "type": "paragraph", "name": "header", "based_on_style_id": "Normal", "linked_style_id": "HeaderChar", "default_style": false, "custom_style": false, "inheritance_resolvable": true}]},
+      "numbering": {"has_part": false, "abstract_count": 0, "instance_count": 0, "picture_bullet_count": 0, "issue_count": 0, "instance_facts": [], "level_facts": []},
+      "references": {"story_count": 7, "bookmark_count": 0, "complete_bookmark_count": 0, "duplicate_bookmark_name_count": 0, "field_count": 0, "complex_field_count": 0, "simple_field_count": 0, "incomplete_field_count": 0, "external_field_count": 0, "application_invoking_field_count": 0, "dependency_count": 0, "unresolved_dependency_count": 0, "external_dependency_count": 0, "issue_count": 0, "field_facts": []},
+      "review": {"comment_count": 0, "anchored_comment_count": 0, "reply_count": 0, "thread_count": 0, "resolved_comment_count": 0, "reaction_comment_count": 0, "comment_anchor_count": 0, "incomplete_comment_anchor_count": 0, "person_count": 0, "revision_count": 0, "insertion_count": 0, "deletion_count": 0, "property_revision_count": 0, "tracked_text_character_count": 0, "move_range_count": 0, "move_count": 0, "incomplete_move_count": 0, "permission_range_count": 0, "incomplete_permission_range_count": 0, "track_revisions_enabled": false, "issue_count": 0},
+      "sections": {"count": 1, "even_and_odd_headers": false, "referenced_story_part_count": 6, "unbound_story_part_count": 0, "binding_count": 6},
+      "dependency": {"node_count": 90, "edge_count": 119, "resolved_edge_count": 119, "unresolved_edge_count": 0, "external_edge_count": 0, "package_unreachable_part_count": 0, "issue_count": 0, "edge_kind_counts": {"default_style": 4, "defines_custom_xml_store": 2, "defines_document_property": 24, "defines_section": 1, "defines_story": 7, "defines_style": 8, "package_relationship": 15, "part_contains_semantic_root": 7, "section_binds_story": 6, "semantic_containment": 31, "style_based_on": 4, "style_linked": 4, "uses_style": 6}},
+      "formatting_facts": []
+    },
+    {
+      "path": "tests/upstream/fixtures/lo_chart.docx",
+      "producer_family": "libreoffice",
+      "file_sha256": "222628bcdb587c232e968d6aa1ba0a70dfd80845a4a2b8050316ec9d142ad33f",
+      "package_fingerprint": "a44f0635418c216d50dc8b80011a1d9d8b18d9c6b4773e4de17c4123f459e28f",
+      "required_part_uris": ["/word/charts/chart1.xml"],
+      "semantic": {"node_count": 16, "projected_part_count": 1, "warning_count": 0, "kind_counts": {"body": 1, "bookmark": 1, "bookmark_end": 1, "document": 1, "drawing": 9, "paragraph": 1, "run": 1, "section": 1}},
+      "styles": {"count": 4, "issue_count": 0, "defaults": {"character": "Absatz-Standardschriftart", "numbering": "KeineListe", "paragraph": "Standard", "table": "NormaleTabelle"}, "facts": [{"style_id": "Standard", "type": "paragraph", "name": "Normal", "default_style": true, "custom_style": false, "inheritance_resolvable": true}]},
+      "numbering": {"has_part": false, "abstract_count": 0, "instance_count": 0, "picture_bullet_count": 0, "issue_count": 0, "instance_facts": [], "level_facts": []},
+      "references": {"story_count": 1, "bookmark_count": 1, "complete_bookmark_count": 1, "duplicate_bookmark_name_count": 0, "field_count": 0, "complex_field_count": 0, "simple_field_count": 0, "incomplete_field_count": 0, "external_field_count": 0, "application_invoking_field_count": 0, "dependency_count": 0, "unresolved_dependency_count": 0, "external_dependency_count": 0, "issue_count": 0, "field_facts": []},
+      "review": {"comment_count": 0, "anchored_comment_count": 0, "reply_count": 0, "thread_count": 0, "resolved_comment_count": 0, "reaction_comment_count": 0, "comment_anchor_count": 0, "incomplete_comment_anchor_count": 0, "person_count": 0, "revision_count": 0, "insertion_count": 0, "deletion_count": 0, "property_revision_count": 0, "tracked_text_character_count": 0, "move_range_count": 0, "move_count": 0, "incomplete_move_count": 0, "permission_range_count": 0, "incomplete_permission_range_count": 0, "track_revisions_enabled": false, "issue_count": 0},
+      "sections": {"count": 1, "even_and_odd_headers": false, "referenced_story_part_count": 0, "unbound_story_part_count": 0, "binding_count": 6},
+      "dependency": {"node_count": 75, "edge_count": 83, "resolved_edge_count": 83, "unresolved_edge_count": 0, "external_edge_count": 0, "package_unreachable_part_count": 0, "issue_count": 1, "edge_kind_counts": {"active_content_relationship_targets_payload": 1, "chart_contains_axis": 2, "chart_contains_series": 3, "chart_uses_part": 3, "default_style": 4, "defines_active_content_payload": 1, "defines_chart": 1, "defines_custom_xml_store": 2, "defines_document_property": 27, "defines_figure": 1, "defines_section": 1, "defines_story": 1, "defines_style": 4, "figure_has_representation": 1, "figure_resource_targets_part": 1, "figure_uses_resource": 1, "package_relationship": 12, "part_contains_semantic_root": 1, "semantic_containment": 15, "story_contains_bookmark": 1}},
+      "formatting_facts": []
+    }
+  ]
+}

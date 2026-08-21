@@ -1,0 +1,81 @@
+{
+  "schema": "wordtoolkit.comment-body-operation-proof/1.0",
+  "date": "2026-07-23",
+  "platform": "windows-x64",
+  "toolkit_version": "0.35.0+codex.20260723012505",
+  "contracts": {
+    "plan": "wordtoolkit.plan_ooxml_comment_body_edits/1.0",
+    "apply": "wordtoolkit.apply_ooxml_comment_body_edits/1.0"
+  },
+  "tests": {
+    "engine_passed": 388,
+    "native_passed": 263,
+    "python_passed": 1273,
+    "python_skipped": 16,
+    "ruff_clean": true,
+    "mypy_source_files": 28,
+    "mypy_clean": true
+  },
+  "reproducible_package": {
+    "build_count": 2,
+    "files": 196,
+    "expanded_bytes": 85366594,
+    "archive_bytes": 36263241,
+    "archive_sha256": "267ace7127d82c8f54c32f56682830770d6209f1880b4f00d38a31dc45aa5503",
+    "tree_manifest_sha256": "25fd2c4afcfef292c95c5925d849cee55b5de1297dbbf0b05734e9edd9231373",
+    "tree_difference_count": 0,
+    "executable_sha256": "59fb8419dbe664d1b1ae7f0b5df35b7738cfd1c43b69719049d8e06dd64cd138",
+    "runtime_assembly_sha256": "3733ed78baa4647c505ca82d018712502182ad83442388d6895d8d5355c00b95",
+    "native_action_count": 87,
+    "comment_body_actions_discoverable_by_phrase": true
+  },
+  "cold_plan_benchmark": {
+    "fixture": "tests/upstream/fixtures/mammoth_comments.docx",
+    "runs": 15,
+    "new_process_per_run": true,
+    "min_ms": 653.76,
+    "median_ms": 669.53,
+    "p95_ms": 688.29,
+    "max_ms": 688.29,
+    "response_characters_min": 1027,
+    "response_characters_max": 1027,
+    "all_contracts_valid": true,
+    "source_unchanged": true,
+    "word_process_set_unchanged": true
+  },
+  "packaged_plan_apply_proof": {
+    "fixture_sha256": "adc9f524d176f562db830c346c1e9e21c6a6aa6768d9c09892a423f1257fe17c",
+    "plan_response_characters": 1685,
+    "apply_response_characters": 993,
+    "plan_left_copy_unchanged": true,
+    "source_fixture_unchanged": true,
+    "plan_id_reproduced": true,
+    "predicted_fingerprint_reproduced": true,
+    "microsoft_schema_no_new_errors": true,
+    "backup_matches_original": true,
+    "changed_entries": [
+      "word/comments.xml"
+    ],
+    "reported_changed_entries": [
+      "word/comments.xml"
+    ],
+    "selected_comment_rewritten": true,
+    "author_anchor_and_thread_metadata_preserved": true,
+    "raw_text_returned": false,
+    "raw_xml_returned": false,
+    "responses_contained_comment_text": false,
+    "word_process_set_unchanged": true
+  },
+  "hosted_ci": {
+    "run_id": 29980881560,
+    "head_sha": "3e9f6989cf6e7ff1218bcb37848c1a383207b76f",
+    "all_five_jobs_passed": true,
+    "artifact_name": "wordtoolkit-native-win-x64",
+    "archive_bytes": 36263241,
+    "archive_sha256": "267ace7127d82c8f54c32f56682830770d6209f1880b4f00d38a31dc45aa5503",
+    "byte_identical_to_both_local_archives": true,
+    "expanded_files": 196,
+    "expanded_bytes": 85366594,
+    "expanded_tree_difference_count": 0
+  }
+}

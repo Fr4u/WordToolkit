@@ -106,7 +106,8 @@ public sealed class OpcPackageSnapshot
         OpcContentTypes contentTypes,
         IReadOnlyList<OpcRelationship> relationships,
         IReadOnlyList<OpcDiagnostic> diagnostics,
-        string fingerprint
+        string fingerprint,
+        CancellationToken cancellationToken = default
     )
     {
         Entries = entries;
@@ -115,13 +116,29 @@ public sealed class OpcPackageSnapshot
         Relationships = relationships;
         Diagnostics = diagnostics;
         Fingerprint = fingerprint;
-        _relationshipsBySource = relationships
-            .GroupBy(relationship => relationship.SourcePartUri, StringComparer.Ordinal)
-            .ToDictionary(
-                group => group.Key,
-                group => (IReadOnlyList<OpcRelationship>)group.ToArray(),
-                StringComparer.Ordinal
-            );
+        var grouped = new Dictionary<string, List<OpcRelationship>>(
+            StringComparer.Ordinal
+        );
+        foreach (var relationship in relationships)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!grouped.TryGetValue(relationship.SourcePartUri, out var items))
+            {
+                items = [];
+                grouped.Add(relationship.SourcePartUri, items);
+            }
+            items.Add(relationship);
+        }
+        var frozen = new Dictionary<string, IReadOnlyList<OpcRelationship>>(
+            grouped.Count,
+            StringComparer.Ordinal
+        );
+        foreach (var pair in grouped)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            frozen.Add(pair.Key, pair.Value.ToArray());
+        }
+        _relationshipsBySource = frozen;
     }
 
     public IReadOnlyList<OpcPackageEntry> Entries { get; }

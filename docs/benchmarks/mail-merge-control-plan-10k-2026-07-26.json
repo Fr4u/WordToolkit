@@ -1,0 +1,121 @@
+{
+  "schema": "wordtoolkit-engine-benchmark-v1",
+  "scenario": "mail_merge_graph",
+  "utc": "2026-07-26T18:11:10.5639748+00:00",
+  "runtime": ".NET 8.0.29",
+  "operating_system": "Microsoft Windows 10.0.19045",
+  "architecture": "X64",
+  "engine_version": "0.56.0",
+  "processor_count": 12,
+  "server_gc": false,
+  "measurements": {
+    "requested_recipients": 10000,
+    "repetitions": 7,
+    "fixture": "synthetic_saved_odso_with_30_merge_fields_5_record_controls_and_unique_recipient_tags",
+    "recipient_projection": "bounded_streaming_xml_reader_with_source_ordinals_and_constant_space_stable_ids",
+    "package_bytes": 60665,
+    "package_parts": 7,
+    "semantic_nodes": 343,
+    "mappings": 30,
+    "recipients": 10000,
+    "included_recipients": 10000,
+    "fields": 35,
+    "resolved_fields": 30,
+    "record_control_fields": 5,
+    "complete_record_control_fields": 5,
+    "issues": 0,
+    "schema_plan": {
+      "source_columns": 30,
+      "bindings": 35,
+      "issues": 0,
+      "can_bind_schema": true,
+      "execution_supported": false,
+      "contains_record_values": false,
+      "unused_source_columns": 0,
+      "plan_id_stable": true
+    },
+    "package_fingerprint_preserved": true,
+    "execution_policy": "parse_saved_package_only_never_open_word_execute_mail_merge_open_data_source_run_query_or_follow_external_targets",
+    "operation_resource_usage": {
+      "scope": "mail_merge_graph_only_package_semantic_settings_reference_setup_excluded",
+      "accounting_model": "word_operation_accounted_v1",
+      "accounted_bytes": 24950424,
+      "maximum_accounted_bytes": 671088640,
+      "stages": [
+        {
+          "stage": "Operation",
+          "accounted_bytes": 4096
+        },
+        {
+          "stage": "MailMerge",
+          "accounted_bytes": 24946328
+        }
+      ]
+    },
+    "timings_ms": {
+      "generate": 18.2971,
+      "package_read": 66.9348,
+      "semantic_projection": 24.629,
+      "settings_build": 6.7744,
+      "reference_build": 17.0674,
+      "mail_merge_build_samples": [
+        66.1539,
+        37.5221,
+        31.2519,
+        38.4043,
+        39.6582,
+        39.0008,
+        44.037
+      ],
+      "mail_merge_build_median": 39.0008,
+      "mail_merge_build_p95": 66.1539,
+      "schema_plan_samples": [
+        6.3424,
+        0.221,
+        0.1609,
+        0.1596,
+        0.1536,
+        0.1415,
+        0.1416
+      ],
+      "schema_plan_median": 0.1596,
+      "schema_plan_p95": 6.3424,
+      "measured_setup_total": 115.40559999999999
+    },
+    "mail_merge_build_allocated_bytes": {
+      "samples": [
+        4626008,
+        4621144,
+        4620824,
+        4620656,
+        4621144,
+        4620824,
+        4621144
+      ],
+      "median": 4621144,
+      "p95": 4626008
+    },
+    "schema_plan_allocated_bytes": {
+      "samples": [
+        36720,
+        32624,
+        32624,
+        32624,
+        32624,
+        32624,
+        32624
+      ],
+      "median": 32624,
+      "p95": 36720
+    },
+    "memory": {
+      "baseline_managed_bytes": 154280,
+      "final_managed_bytes": 4274696,
+      "retained_managed_delta_bytes": 4120416,
+      "allocated_delta_bytes": 37993792,
+      "baseline_working_set_bytes": 26931200,
+      "final_working_set_bytes": 54063104,
+      "process_peak_working_set_bytes": 55889920
+    }
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "evidence_contract": "wordtoolkit.benchmark.ocr_signed_provider/1.0",
+  "release_version": "0.59.0+codex.20260727004624",
+  "release_archive_sha256": "c6817fbadfbebd701e88aac078f0e4894e496d142c81e3f7b0782f4d47f426a5",
+  "release_executable_sha256": "0fba84b135dac2470376cb45c656ef386f044cccd541006c94ebeaaca692bed6",
+  "provider_trust": {
+    "signature_algorithm": "ecdsa-p256-sha256-p1363",
+    "manifest_sha256": "21ad22caf61aa1b6cbd26b039d19102affafcbe48caa86f6373339c1a0cfb33f",
+    "trust_store_sha256": "fa7b9a227c863925b407f9eed051bd18a21de972039f5c12f55ad986a52bbe6f",
+    "provider_binary_sha256": "ccd044d6cf16eaaad151260e1fcc5e3e1504cd1b8644e940b4f7ae3e315dd0d3",
+    "runtime_set_sha256": "f262d6dc898b2aa2eac4aaca0988c356b1ad6fb1431e21f1259fd5024c1165ff",
+    "runtime_file_count": 92,
+    "model_set_sha256": "64d8bbfce719d63c0fda3dc0dfb58da6a99b0752ca85aadd06d5ff0f1e7ca3f3",
+    "language_count": 1,
+    "paths_recorded": false,
+    "private_key_recorded": false
+  },
+  "operation_contract": "wordtoolkit.benchmark.ocr_process_boundary/1.0",
+  "runtime": {
+    "os": "Microsoft Windows NT 10.0.19045.0",
+    "framework": ".NET 8.0.29",
+    "architecture": "x64"
+  },
+  "samples": 7,
+  "alternating_order": true,
+  "image": {
+    "bytes": 15283,
+    "sha256": "a8ff46458b7d6b4ec59557213d9280fd7e1f93de5c54f2834b0cbe854a4fb32c",
+    "content_type": "image/png"
+  },
+  "provider": {
+    "name": "tesseract-cli",
+    "version": "v5.5.0.20241111",
+    "binary_sha256": "ccd044d6cf16eaaad151260e1fcc5e3e1504cd1b8644e940b4f7ae3e315dd0d3",
+    "model_set_sha256": "64d8bbfce719d63c0fda3dc0dfb58da6a99b0752ca85aadd06d5ff0f1e7ca3f3",
+    "language": "eng"
+  },
+  "direct_in_process": {
+    "minimum_milliseconds": 275.7659,
+    "median_milliseconds": 300.4712,
+    "p95_milliseconds": 376.588,
+    "maximum_milliseconds": 380.4239,
+    "samples_milliseconds": [
+      275.7659,
+      276.787,
+      296.7981,
+      300.4712,
+      345.9886,
+      367.6375,
+      380.4239
+    ]
+  },
+  "isolated_process": {
+    "minimum_milliseconds": 534.9491,
+    "median_milliseconds": 585.0561,
+    "p95_milliseconds": 1040.9293,
+    "maximum_milliseconds": 1198.4783,
+    "samples_milliseconds": [
+      534.9491,
+      583.5271,
+      584.5463,
+      585.0561,
+      615.6695,
+      673.315,
+      1198.4783
+    ]
+  },
+  "median_overhead_milliseconds": 284.5849,
+  "median_overhead_percent": 94.71,
+  "result_sha256": "c674335b9fc441e56fd04a24fc7f92acbe865ddc2883ab2898297d569affa0cc",
+  "stable_typed_results": true,
+  "recognized_text_returned": false,
+  "recognized_text_characters": 23,
+  "process_boundary": {
+    "closed_json_ipc": true,
+    "request_identity_bound": true,
+    "host_executable_identity_bound": true,
+    "hard_timeout": true,
+    "process_tree_kill": true,
+    "windows_job_object": true,
+    "maximum_process_memory_bytes": 1073741824,
+    "maximum_active_processes": 3,
+    "minimized_environment": true,
+    "restricted_windows_token": false,
+    "app_container_enforced": true,
+    "network_isolation_enforced": true,
+    "filesystem_brokered": true,
+    "writes_confined_to_private_profile": true,
+    "signed_provider_manifest_required": true,
+    "complete_top_level_runtime_bound": true,
+    "provider_resources_session_pinned": true,
+    "ai_request_trust_material_required": false,
+    "sandbox_profile": "windows_app_container_no_network_brokered_filesystem",
+    "sandbox_claimed": true
+  }
+}

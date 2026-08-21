@@ -1,0 +1,46 @@
+{
+  "schema_version": "wordtoolkit.opc_signature_qualification/1.0",
+  "measured_on": "2026-07-27",
+  "source_fixture": "tests/upstream/fixtures/mammoth_tables.docx",
+  "signer_fixture": {
+    "producer": "System.IO.Packaging.PackageDigitalSignatureManager",
+    "certificate_kind": "ephemeral_self_signed_rsa_2048",
+    "certificate_private_key_persisted": false,
+    "signature_algorithm": "rsa_sha256",
+    "canonicalization_algorithm": "xml_c14n_1_0",
+    "certificate_chain_trust_verified": false,
+    "revocation_checked": false
+  },
+  "signed_package": {
+    "bytes": 22318,
+    "sha256": "0f3a9937e07f8e06ec38c7eac27c0420d94402c7353ddef5a5b2854381cead8e",
+    "wordtoolkit_package_fingerprint": "082a6b2ba1b0248ffc1454cde1543a3ee55790fdeb6244004fff378acd4459c2",
+    "windowsbase_verify": "Success",
+    "wordtoolkit_status": "valid",
+    "signature_value_verified": true,
+    "manifest_references_verified": true,
+    "manifest_reference_count": 11,
+    "weak_algorithm": false
+  },
+  "tampered_package": {
+    "mutation": "one_byte_changed_in_signed_word_document_xml",
+    "bytes": 22318,
+    "sha256": "98001e05bcb1cac0bb986af10dc6efbbb2c91b5d888e925d15addd051a2035e3",
+    "wordtoolkit_package_fingerprint": "0843d4bce8bfca95f627ac45cbb26aff89536449266ef9f9fd1e5dbef7571474",
+    "windowsbase_verify": "InvalidSignature",
+    "wordtoolkit_status": "invalid",
+    "signature_value_verified": true,
+    "manifest_references_verified": false,
+    "issue_codes": [
+      "signature_manifest_digest_mismatch",
+      "signature_reference_digest_mismatch"
+    ]
+  },
+  "privacy": {
+    "document_content_recorded": false,
+    "raw_xml_recorded": false,
+    "certificate_bytes_recorded": false,
+    "certificate_identity_recorded": false,
+    "local_path_recorded": false
+  }
+}

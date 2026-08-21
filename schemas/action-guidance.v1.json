@@ -1,0 +1,6405 @@
+{
+  "schema_version": "1.0.0",
+  "actions": [
+    {
+      "name": "list_live_word_documents",
+      "prerequisites": [],
+      "acquisition_steps": [
+        "Use output documents[].live_document_id from list_live_word_documents"
+      ],
+      "bindings": {},
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "list_live_word_documents",
+        "template_only": true,
+        "arguments": {}
+      },
+      "success": {
+        "required_paths": [
+          "word_running",
+          "visible",
+          "document_count",
+          "documents"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "live.lifecycle"
+      ]
+    },
+    {
+      "name": "start_word_application",
+      "prerequisites": [],
+      "acquisition_steps": [
+        "Use returned application state before create/open/connect"
+      ],
+      "bindings": {},
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "start_word_application",
+        "template_only": true,
+        "arguments": {}
+      },
+      "success": {
+        "required_paths": [
+          "word_running",
+          "visible",
+          "document_count",
+          "started_or_attached"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "live.lifecycle"
+      ]
+    },
+    {
+      "name": "create_live_word_document",
+      "prerequisites": [],
+      "acquisition_steps": [
+        "Bind live_document_id and live_version from create_live_word_document output"
+      ],
+      "bindings": {},
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "create_live_word_document",
+        "template_only": true,
+        "arguments": {}
+      },
+      "success": {
+        "required_paths": [
+          "live_document_id"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "live.lifecycle"
+      ]
+    },
+    {
+      "name": "open_live_word_document",
+      "prerequisites": [],
+      "acquisition_steps": [
+        "Bind live_document_id and live_version from open_live_word_document output"
+      ],
+      "bindings": {
+        "file_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "open_live_word_document",
+        "template_only": true,
+        "arguments": {
+          "file_path": "<bind:file_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "live_document_id"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "live.lifecycle"
+      ]
+    },
+    {
+      "name": "publish_ooxml_package_to_live_word",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "publish_ooxml_package_to_live_word",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "live_document_id"
+        ],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "connect_live_word_document",
+      "prerequisites": [],
+      "acquisition_steps": [
+        "Bind live_document_id and live_version from connect_live_word_document output"
+      ],
+      "bindings": {},
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "connect_live_word_document",
+        "template_only": true,
+        "arguments": {}
+      },
+      "success": {
+        "required_paths": [
+          "live_document_id",
+          "live_version",
+          "opened",
+          "already_open",
+          "file_path",
+          "document",
+          "performance"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "live.lifecycle"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_package",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_package",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "operation_contract",
+          "file_name",
+          "bytes",
+          "package_fingerprint",
+          "structurally_valid",
+          "word_document_detected",
+          "valid_word_package",
+          "entry_count",
+          "part_count",
+          "relationship_count",
+          "diagnostics",
+          "runtime",
+          "python_used",
+          "performance"
+        ],
+        "predicates": [
+          "package_fingerprint is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_encryption",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_encryption",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_signatures",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [
+        "Use signatures[].integrity_status; do not infer signer trust"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_signatures",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "package.security"
+      ]
+    },
+    {
+      "name": "transform_ooxml_package",
+      "prerequisites": [
+        "explicit existing local_path",
+        "explicit new output path; never overwrite"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "output_path": {
+          "source": "external_input"
+        },
+        "operation": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "transform_ooxml_package",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "output_path": "<bind:output_path>",
+          "operation": "<provide:operation>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "operation_contract",
+          "operation",
+          "input_file_name",
+          "output_file_name",
+          "base_package_fingerprint",
+          "result_package_fingerprint",
+          "changed",
+          "remaining_revision_count",
+          "structurally_valid",
+          "digital_signatures_present",
+          "raw_xml_returned",
+          "word_opened"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "convert_ooxml_flat_opc",
+      "prerequisites": [
+        "explicit existing local_path",
+        "explicit new output path; never overwrite"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "output_path": {
+          "source": "external_input"
+        },
+        "direction": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "convert_ooxml_flat_opc",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "output_path": "<bind:output_path>",
+          "direction": "<provide:direction>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_wordtoolkit_extensions",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {},
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_wordtoolkit_extensions",
+        "template_only": true,
+        "arguments": {}
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_libreoffice_backend",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "executable_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_libreoffice_backend",
+        "template_only": true,
+        "arguments": {
+          "executable_path": "<bind:executable_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_wordtoolkit_observability",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {},
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_wordtoolkit_observability",
+        "template_only": true,
+        "arguments": {}
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_semantics",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_semantics",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "file_name",
+          "package_fingerprint",
+          "main_part_uri",
+          "projected_part_count",
+          "semantic_root_id",
+          "semantic_node_count",
+          "node_counts",
+          "outline",
+          "warnings",
+          "runtime",
+          "python_used",
+          "performance"
+        ],
+        "predicates": [
+          "package_fingerprint is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "query_ooxml_semantics",
+      "prerequisites": [
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "query_ooxml_semantics",
+        "template_only": true,
+        "arguments": {
+          "expected_package_fingerprint": {
+            "type": "string",
+            "source": "inspect_response.package_fingerprint"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "render_ooxml_semantic_html",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "explicit new output path; never overwrite"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "output_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "render_ooxml_semantic_html",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "output_path": "<bind:output_path>",
+          "expected_package_fingerprint": {
+            "type": "string",
+            "source": "inspect_response.package_fingerprint"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "render_ooxml_semantic_svg",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "explicit new output path; never overwrite"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "output_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "target_node_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "render_ooxml_semantic_svg",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "output_path": "<bind:output_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "target_node_id": "<bind:target_node_id>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "render_ooxml_fixed_artifacts",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "explicit new output path; never overwrite"
+      ],
+      "acquisition_steps": [
+        "Bind package_fingerprint from inspect_ooxml_package.package_fingerprint; provide new output_directory and artifact_stem"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "output_directory": {
+          "source": "external_input"
+        },
+        "artifact_stem": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "render_ooxml_fixed_artifacts",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "output_directory": "<provide:output_directory>",
+          "artifact_stem": "<provide:artifact_stem>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "package.render.fixed"
+      ]
+    },
+    {
+      "name": "render_ooxml_libreoffice_artifacts",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "explicit new output path; never overwrite",
+        "explicit executable/JAR paths and expected SHA-256"
+      ],
+      "acquisition_steps": [
+        "Bind package_fingerprint from inspect_ooxml_package.package_fingerprint and explicit executable/JAR paths plus SHA-256 values"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "output_directory": {
+          "source": "external_input"
+        },
+        "artifact_stem": {
+          "source": "external_input"
+        },
+        "libreoffice_executable_path": {
+          "source": "external_input"
+        },
+        "expected_libreoffice_executable_sha256": {
+          "source": "external_input"
+        },
+        "java_executable_path": {
+          "source": "external_input"
+        },
+        "expected_java_executable_sha256": {
+          "source": "external_input"
+        },
+        "libreoffice_jar_path": {
+          "source": "external_input"
+        },
+        "expected_libreoffice_jar_sha256": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "render_ooxml_libreoffice_artifacts",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "output_directory": "<provide:output_directory>",
+          "artifact_stem": "<provide:artifact_stem>",
+          "libreoffice_executable_path": "<bind:libreoffice_executable_path>",
+          "expected_libreoffice_executable_sha256": "<bind:expected_libreoffice_executable_sha256>",
+          "java_executable_path": "<bind:java_executable_path>",
+          "expected_java_executable_sha256": "<bind:expected_java_executable_sha256>",
+          "libreoffice_jar_path": "<bind:libreoffice_jar_path>",
+          "expected_libreoffice_jar_sha256": "<bind:expected_libreoffice_jar_sha256>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "package.render.libreoffice"
+      ]
+    },
+    {
+      "name": "manage_ooxml_semantic_index",
+      "prerequisites": [
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "operation": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "manage_ooxml_semantic_index",
+        "template_only": true,
+        "arguments": {
+          "operation": "<provide:operation>",
+          "expected_package_fingerprint": {
+            "type": "string",
+            "source": "inspect_response.package_fingerprint"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "operation"
+        ],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "compare_ooxml_semantics",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "before_path": {
+          "source": "external_input"
+        },
+        "after_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "compare_ooxml_semantics",
+        "template_only": true,
+        "arguments": {
+          "before_path": "<bind:before_path>",
+          "after_path": "<bind:after_path>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "plan_ooxml_patch",
+      "prerequisites": [],
+      "acquisition_steps": [
+        "review plan and block reasons before apply",
+        "Retain returned patch_id and before/after fingerprints"
+      ],
+      "bindings": {
+        "before_path": {
+          "source": "external_input"
+        },
+        "after_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_patch",
+        "template_only": true,
+        "arguments": {
+          "before_path": "<bind:before_path>",
+          "after_path": "<bind:after_path>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "package.patch.plan_apply"
+      ]
+    },
+    {
+      "name": "create_ooxml_patch",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "before_path": {
+          "source": "external_input"
+        },
+        "after_path": {
+          "source": "external_input"
+        },
+        "expected_before_fingerprint": {
+          "source": "external_input"
+        },
+        "expected_after_fingerprint": {
+          "source": "external_input"
+        },
+        "expected_patch_id": {
+          "source": "external_input"
+        },
+        "patch_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "create_ooxml_patch",
+        "template_only": true,
+        "arguments": {
+          "before_path": "<bind:before_path>",
+          "after_path": "<bind:after_path>",
+          "expected_before_fingerprint": "<bind:expected_before_fingerprint>",
+          "expected_after_fingerprint": "<bind:expected_after_fingerprint>",
+          "expected_patch_id": "<bind:expected_patch_id>",
+          "patch_path": "<bind:patch_path>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_patch",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "patch_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_patch",
+        "template_only": true,
+        "arguments": {
+          "patch_path": "<bind:patch_path>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "plan_ooxml_patch_apply",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "patch_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "expected_patch_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_patch_apply",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "patch_path": "<bind:patch_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "expected_patch_id": "<bind:expected_patch_id>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "apply_ooxml_patch",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "exact plan ID and identical commands from preceding plan"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply",
+        "Pass exact patch_id and apply_plan_id from preceding plan actions"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "patch_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "expected_patch_id": {
+          "source": "external_input"
+        },
+        "expected_apply_plan_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_ooxml_patch",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "patch_path": "<bind:patch_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "expected_patch_id": "<bind:expected_patch_id>",
+          "expected_apply_plan_id": "<bind:expected_apply_plan_id>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "plan_id"
+        ],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        },
+        "PLAN_MISMATCH": {
+          "next_action": "plan_ooxml_patch",
+          "bindings": {
+            "expected_plan_id": "plan_id"
+          }
+        }
+      },
+      "recipe_ids": [
+        "package.patch.plan_apply"
+      ]
+    },
+    {
+      "name": "plan_ooxml_patch_rollback",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "patch_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "expected_patch_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_patch_rollback",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "patch_path": "<bind:patch_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "expected_patch_id": "<bind:expected_patch_id>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "apply_ooxml_patch_rollback",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "patch_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "expected_patch_id": {
+          "source": "external_input"
+        },
+        "expected_rollback_plan_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_ooxml_patch_rollback",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "patch_path": "<bind:patch_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "expected_patch_id": "<bind:expected_patch_id>",
+          "expected_rollback_plan_id": "<bind:expected_rollback_plan_id>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "plan_ooxml_merge",
+      "prerequisites": [
+        "explicit new output path; never overwrite"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "ancestor_path": {
+          "source": "external_input"
+        },
+        "left_path": {
+          "source": "external_input"
+        },
+        "right_path": {
+          "source": "external_input"
+        },
+        "output_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_merge",
+        "template_only": true,
+        "arguments": {
+          "ancestor_path": "<bind:ancestor_path>",
+          "left_path": "<bind:left_path>",
+          "right_path": "<bind:right_path>",
+          "output_path": "<bind:output_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "merge_id"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "apply_ooxml_merge",
+      "prerequisites": [
+        "explicit new output path; never overwrite"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "ancestor_path": {
+          "source": "external_input"
+        },
+        "left_path": {
+          "source": "external_input"
+        },
+        "right_path": {
+          "source": "external_input"
+        },
+        "output_path": {
+          "source": "external_input"
+        },
+        "expected_ancestor_fingerprint": {
+          "source": "external_input"
+        },
+        "expected_left_fingerprint": {
+          "source": "external_input"
+        },
+        "expected_right_fingerprint": {
+          "source": "external_input"
+        },
+        "expected_merge_apply_plan_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_ooxml_merge",
+        "template_only": true,
+        "arguments": {
+          "ancestor_path": "<bind:ancestor_path>",
+          "left_path": "<bind:left_path>",
+          "right_path": "<bind:right_path>",
+          "output_path": "<bind:output_path>",
+          "expected_ancestor_fingerprint": "<bind:expected_ancestor_fingerprint>",
+          "expected_left_fingerprint": "<bind:expected_left_fingerprint>",
+          "expected_right_fingerprint": "<bind:expected_right_fingerprint>",
+          "expected_merge_apply_plan_id": "<bind:expected_merge_apply_plan_id>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "merge_id"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_sections",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_sections",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_styles",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_styles",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_template_style_alignment",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "target_path": {
+          "source": "external_input"
+        },
+        "template_path": {
+          "source": "external_input"
+        },
+        "expected_target_package_fingerprint": {
+          "source": "external_input"
+        },
+        "expected_template_package_fingerprint": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_template_style_alignment",
+        "template_only": true,
+        "arguments": {
+          "target_path": "<bind:target_path>",
+          "template_path": "<bind:template_path>",
+          "expected_target_package_fingerprint": "<bind:expected_target_package_fingerprint>",
+          "expected_template_package_fingerprint": "<bind:expected_template_package_fingerprint>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "plan_ooxml_template_style_alignment",
+      "prerequisites": [],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "target_path": {
+          "source": "external_input"
+        },
+        "template_path": {
+          "source": "external_input"
+        },
+        "expected_target_package_fingerprint": {
+          "source": "external_input"
+        },
+        "expected_template_package_fingerprint": {
+          "source": "external_input"
+        },
+        "commands": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_template_style_alignment",
+        "template_only": true,
+        "arguments": {
+          "target_path": "<bind:target_path>",
+          "template_path": "<bind:template_path>",
+          "expected_target_package_fingerprint": "<bind:expected_target_package_fingerprint>",
+          "expected_template_package_fingerprint": "<bind:expected_template_package_fingerprint>",
+          "commands": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "apply_ooxml_template_style_alignment",
+      "prerequisites": [
+        "exact plan ID and identical commands from preceding plan"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "target_path": {
+          "source": "external_input"
+        },
+        "template_path": {
+          "source": "external_input"
+        },
+        "expected_target_package_fingerprint": {
+          "source": "external_input"
+        },
+        "expected_template_package_fingerprint": {
+          "source": "external_input"
+        },
+        "expected_plan_id": {
+          "source": "external_input"
+        },
+        "commands": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_ooxml_template_style_alignment",
+        "template_only": true,
+        "arguments": {
+          "target_path": "<bind:target_path>",
+          "template_path": "<bind:template_path>",
+          "expected_target_package_fingerprint": "<bind:expected_target_package_fingerprint>",
+          "expected_template_package_fingerprint": "<bind:expected_template_package_fingerprint>",
+          "expected_plan_id": "<bind:expected_plan_id>",
+          "commands": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "PLAN_MISMATCH": {
+          "next_action": "plan_ooxml_template_style_alignment",
+          "bindings": {
+            "expected_plan_id": "plan_id"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_numbering",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_numbering",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_heading_outline",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_heading_outline",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": {
+            "type": "string",
+            "source": "inspect_response.package_fingerprint"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_semantic_roles",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_semantic_roles",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": {
+            "type": "string",
+            "source": "inspect_response.package_fingerprint"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_ocr_candidates",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_ocr_candidates",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": {
+            "type": "string",
+            "source": "inspect_response.package_fingerprint"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "run_ooxml_ocr",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "inspect OCR candidates first; local_only privacy",
+        "Set privacy_mode=local_only unless the user explicitly confirms another mode"
+      ],
+      "acquisition_steps": [
+        "Bind candidate IDs from inspect_ooxml_ocr_candidates.candidates[].candidate_id and fingerprint from inspect_ooxml_package.package_fingerprint"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "run_ooxml_ocr",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "package.ocr"
+      ]
+    },
+    {
+      "name": "plan_ooxml_numbering_repair",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply",
+        "Bind paragraph_node_id, number_id and level_index from inspect_ooxml_numbering"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "target_paragraph_node_id": {
+          "source": "external_input"
+        },
+        "expected_number_id": {
+          "source": "external_input"
+        },
+        "expected_level_index": {
+          "source": "external_input"
+        },
+        "start_value": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_numbering_repair",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "target_paragraph_node_id": "<bind:target_paragraph_node_id>",
+          "expected_number_id": "<bind:expected_number_id>",
+          "expected_level_index": "<provide:expected_level_index>",
+          "start_value": "<provide:start_value>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "package.numbering.plan_apply"
+      ]
+    },
+    {
+      "name": "apply_ooxml_numbering_repair",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "exact plan ID and identical commands from preceding plan"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply",
+        "Pass identical numbering evidence and plan_id from plan_ooxml_numbering_repair"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "expected_plan_id": {
+          "source": "external_input"
+        },
+        "target_paragraph_node_id": {
+          "source": "external_input"
+        },
+        "expected_number_id": {
+          "source": "external_input"
+        },
+        "expected_level_index": {
+          "source": "external_input"
+        },
+        "start_value": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_ooxml_numbering_repair",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "expected_plan_id": "<bind:expected_plan_id>",
+          "target_paragraph_node_id": "<bind:target_paragraph_node_id>",
+          "expected_number_id": "<bind:expected_number_id>",
+          "expected_level_index": "<provide:expected_level_index>",
+          "start_value": "<provide:start_value>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        },
+        "PLAN_MISMATCH": {
+          "next_action": "plan_ooxml_numbering_repair",
+          "bindings": {
+            "expected_plan_id": "plan_id"
+          }
+        }
+      },
+      "recipe_ids": [
+        "package.numbering.plan_apply"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_numbering_rebuild_candidates",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "paragraph_node_ids": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_numbering_rebuild_candidates",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "paragraph_node_ids": "<bind:paragraph_node_ids>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "plan_ooxml_numbering_rebuild",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "commands": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_numbering_rebuild",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "commands": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "apply_ooxml_numbering_rebuild",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "exact plan ID and identical commands from preceding plan"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "expected_plan_id": {
+          "source": "external_input"
+        },
+        "commands": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_ooxml_numbering_rebuild",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "expected_plan_id": "<bind:expected_plan_id>",
+          "commands": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        },
+        "PLAN_MISMATCH": {
+          "next_action": "plan_ooxml_numbering_rebuild",
+          "bindings": {
+            "expected_plan_id": "plan_id"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_notes",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_notes",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "plan_ooxml_note_repair",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "repair_kind": {
+          "source": "external_input"
+        },
+        "definition_id": {
+          "source": "external_input"
+        },
+        "expected_definition_fingerprint": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_note_repair",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "repair_kind": "<provide:repair_kind>",
+          "definition_id": "<bind:definition_id>",
+          "expected_definition_fingerprint": "<bind:expected_definition_fingerprint>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "apply_ooxml_note_repair",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "exact plan ID and identical commands from preceding plan"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "expected_plan_id": {
+          "source": "external_input"
+        },
+        "repair_kind": {
+          "source": "external_input"
+        },
+        "definition_id": {
+          "source": "external_input"
+        },
+        "expected_definition_fingerprint": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_ooxml_note_repair",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "expected_plan_id": "<bind:expected_plan_id>",
+          "repair_kind": "<provide:repair_kind>",
+          "definition_id": "<bind:definition_id>",
+          "expected_definition_fingerprint": "<bind:expected_definition_fingerprint>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        },
+        "PLAN_MISMATCH": {
+          "next_action": "plan_ooxml_note_repair",
+          "bindings": {
+            "expected_plan_id": "plan_id"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_equation_repairs",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_equation_repairs",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "plan_ooxml_equation_repair",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "commands": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_equation_repair",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "commands": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "apply_ooxml_equation_repair",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "exact plan ID and identical commands from preceding plan"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "expected_plan_id": {
+          "source": "external_input"
+        },
+        "commands": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_ooxml_equation_repair",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "expected_plan_id": "<bind:expected_plan_id>",
+          "commands": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        },
+        "PLAN_MISMATCH": {
+          "next_action": "plan_ooxml_equation_repair",
+          "bindings": {
+            "expected_plan_id": "plan_id"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_relationships",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_relationships",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "plan_ooxml_relationship_repair",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "commands": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_relationship_repair",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "commands": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "apply_ooxml_relationship_repair",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "exact plan ID and identical commands from preceding plan"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "expected_plan_id": {
+          "source": "external_input"
+        },
+        "commands": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_ooxml_relationship_repair",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "expected_plan_id": "<bind:expected_plan_id>",
+          "commands": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        },
+        "PLAN_MISMATCH": {
+          "next_action": "plan_ooxml_relationship_repair",
+          "bindings": {
+            "expected_plan_id": "plan_id"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_theme",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_theme",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "file_name",
+          "package_fingerprint",
+          "view",
+          "detail",
+          "matched_item_count",
+          "offset",
+          "returned_item_count",
+          "runtime",
+          "python_used"
+        ],
+        "predicates": [
+          "package_fingerprint is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_settings",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_settings",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "file_name",
+          "package_fingerprint",
+          "view",
+          "matched_item_count",
+          "offset",
+          "returned_item_count",
+          "runtime",
+          "python_used"
+        ],
+        "predicates": [
+          "package_fingerprint is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_references",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_references",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "file_name",
+          "package_fingerprint",
+          "view",
+          "detail",
+          "matched_item_count",
+          "offset",
+          "returned_item_count",
+          "runtime",
+          "python_used"
+        ],
+        "predicates": [
+          "package_fingerprint is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_bibliography",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_bibliography",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "file_name",
+          "package_fingerprint",
+          "view",
+          "matched_item_count",
+          "offset",
+          "returned_item_count",
+          "runtime",
+          "python_used"
+        ],
+        "predicates": [
+          "package_fingerprint is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_mail_merge",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_mail_merge",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "plan_ooxml_mail_merge_schema_binding",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "source_columns": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_mail_merge_schema_binding",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "source_columns": "<provide:source_columns>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_dependencies",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_dependencies",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "file_name",
+          "package_fingerprint",
+          "view",
+          "matched_item_count",
+          "offset",
+          "returned_item_count",
+          "runtime",
+          "python_used"
+        ],
+        "predicates": [
+          "package_fingerprint is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_charts",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_charts",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_diagrams",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_diagrams",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_figures",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_figures",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_content_controls",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_content_controls",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_active_content",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_active_content",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_properties",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_properties",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_tables",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_tables",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_markup_compatibility",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_markup_compatibility",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "analyze_ooxml_document",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "analyze_ooxml_document",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": {
+            "type": "string",
+            "source": "inspect_response.package_fingerprint"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "lint_ooxml_document",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "lint_ooxml_document",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "plan_ooxml_lint_repair",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "explicit new output path; never overwrite"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "output_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "finding_id": {
+          "source": "external_input"
+        },
+        "repair_kind": {
+          "source": "external_input"
+        },
+        "new_document_title": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_lint_repair",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "output_path": "<bind:output_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "finding_id": "<bind:finding_id>",
+          "repair_kind": "<provide:repair_kind>",
+          "new_document_title": "<provide:new_document_title>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "plan_id"
+        ],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "apply_ooxml_lint_repair",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "explicit new output path; never overwrite"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "output_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "finding_id": {
+          "source": "external_input"
+        },
+        "repair_kind": {
+          "source": "external_input"
+        },
+        "new_document_title": {
+          "source": "external_input"
+        },
+        "expected_lint_repair_apply_plan_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_ooxml_lint_repair",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "output_path": "<bind:output_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "finding_id": "<bind:finding_id>",
+          "repair_kind": "<provide:repair_kind>",
+          "new_document_title": "<provide:new_document_title>",
+          "expected_lint_repair_apply_plan_id": "<bind:expected_lint_repair_apply_plan_id>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "operation_contract",
+          "source_package_fingerprint",
+          "result_package_fingerprint"
+        ],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "plan_ooxml_format",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "explicit new output path; never overwrite"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "output_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "policies": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_format",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "output_path": "<bind:output_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "policies": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "apply_ooxml_format",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "explicit new output path; never overwrite"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "output_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "policies": {
+          "source": "external_input"
+        },
+        "expected_formatter_apply_plan_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_ooxml_format",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "output_path": "<bind:output_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "policies": [],
+          "expected_formatter_apply_plan_id": "<bind:expected_formatter_apply_plan_id>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_equations",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_equations",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "file_name",
+          "package_fingerprint",
+          "matched_item_count",
+          "offset",
+          "returned_item_count",
+          "runtime",
+          "python_used"
+        ],
+        "predicates": [
+          "package_fingerprint is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_review",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_review",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "file_name",
+          "package_fingerprint",
+          "view",
+          "matched_item_count",
+          "offset",
+          "returned_item_count",
+          "runtime",
+          "python_used"
+        ],
+        "predicates": [
+          "package_fingerprint is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_fonts",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_fonts",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "file_name",
+          "package_fingerprint",
+          "matched_item_count",
+          "offset",
+          "returned_item_count",
+          "runtime",
+          "python_used"
+        ],
+        "predicates": [
+          "package_fingerprint is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "resolve_ooxml_formatting",
+      "prerequisites": [
+        "explicit existing local_path"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "node_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "resolve_ooxml_formatting",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "node_id": "<bind:node_id>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "file_name",
+          "package_fingerprint",
+          "matched_item_count",
+          "offset",
+          "returned_item_count",
+          "runtime",
+          "python_used"
+        ],
+        "predicates": [
+          "package_fingerprint is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "plan_ooxml_text_edits",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply",
+        "Bind package_fingerprint from inspect_ooxml_package and retain returned plan_id"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "commands": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_text_edits",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "commands": []
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "package.plan_apply"
+      ]
+    },
+    {
+      "name": "apply_ooxml_text_edits",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "exact plan ID and identical commands from preceding plan"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply",
+        "Pass identical commands, original package_fingerprint and plan_id from plan_ooxml_text_edits"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "expected_plan_id": {
+          "source": "external_input"
+        },
+        "commands": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_ooxml_text_edits",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "expected_plan_id": "<bind:expected_plan_id>",
+          "commands": []
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        },
+        "PLAN_MISMATCH": {
+          "next_action": "plan_ooxml_text_edits",
+          "bindings": {
+            "expected_plan_id": "plan_id"
+          }
+        }
+      },
+      "recipe_ids": [
+        "package.plan_apply"
+      ]
+    },
+    {
+      "name": "plan_ooxml_semantic_edits",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "commands": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_semantic_edits",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "commands": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "apply_ooxml_semantic_edits",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "exact plan ID and identical commands from preceding plan"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "expected_plan_id": {
+          "source": "external_input"
+        },
+        "commands": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_ooxml_semantic_edits",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "expected_plan_id": "<bind:expected_plan_id>",
+          "commands": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        },
+        "PLAN_MISMATCH": {
+          "next_action": "plan_ooxml_semantic_edits",
+          "bindings": {
+            "expected_plan_id": "plan_id"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "plan_ooxml_comment_body_edits",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "commands": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_comment_body_edits",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "commands": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "apply_ooxml_comment_body_edits",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "exact plan ID and identical commands from preceding plan"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "expected_plan_id": {
+          "source": "external_input"
+        },
+        "commands": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_ooxml_comment_body_edits",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "expected_plan_id": "<bind:expected_plan_id>",
+          "commands": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        },
+        "PLAN_MISMATCH": {
+          "next_action": "plan_ooxml_comment_body_edits",
+          "bindings": {
+            "expected_plan_id": "plan_id"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_ooxml_equation_paragraph_rewrites",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_ooxml_equation_paragraph_rewrites",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "plan_ooxml_equation_paragraph_rewrites",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "commands": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_equation_paragraph_rewrites",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "commands": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "apply_ooxml_equation_paragraph_rewrites",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "exact plan ID and identical commands from preceding plan"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "expected_plan_id": {
+          "source": "external_input"
+        },
+        "commands": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_ooxml_equation_paragraph_rewrites",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "expected_plan_id": "<bind:expected_plan_id>",
+          "commands": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        },
+        "PLAN_MISMATCH": {
+          "next_action": "plan_ooxml_equation_paragraph_rewrites",
+          "bindings": {
+            "expected_plan_id": "plan_id"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "plan_ooxml_review_decisions",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "decision": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "plan_ooxml_review_decisions",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "decision": "<provide:decision>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "apply_ooxml_review_decisions",
+      "prerequisites": [
+        "explicit existing local_path",
+        "exact package fingerprint from inspect action",
+        "exact plan ID and identical commands from preceding plan"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "local_path": {
+          "source": "external_input"
+        },
+        "expected_package_fingerprint": {
+          "source": "inspect_response.package_fingerprint"
+        },
+        "expected_plan_id": {
+          "source": "external_input"
+        },
+        "decision": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_ooxml_review_decisions",
+        "template_only": true,
+        "arguments": {
+          "local_path": "<bind:local_path>",
+          "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
+          "expected_plan_id": "<bind:expected_plan_id>",
+          "decision": "<provide:decision>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
+        },
+        "PLAN_MISMATCH": {
+          "next_action": "plan_ooxml_review_decisions",
+          "bindings": {
+            "expected_plan_id": "plan_id"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_live_word_document",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_live_word_document",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "map_live_word_structures",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "map_live_word_structures",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_live_word_structure_items",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "structure": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_live_word_structure_items",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "structure": "<provide:structure>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_live_word_drawing_layout",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_live_word_drawing_layout",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_live_word_version_profile",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_live_word_version_profile",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "probe_live_word_feature_behaviors",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "confirm_scratch_documents": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "probe_live_word_feature_behaviors",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "confirm_scratch_documents": "<provide:confirm_scratch_documents>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "prepare_live_word_smartart_text_edits",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "story_type": {
+          "source": "external_input"
+        },
+        "collection_kind": {
+          "source": "external_input"
+        },
+        "source_index": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "prepare_live_word_smartart_text_edits",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "story_type": "<provide:story_type>",
+          "collection_kind": "<provide:collection_kind>",
+          "source_index": "<provide:source_index>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "apply_live_word_smartart_text_edits",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        },
+        "edits": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_live_word_smartart_text_edits",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          },
+          "edits": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        },
+        "STAGING_TARGET_DRIFT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "live_document_id": "live_document_id"
+          }
+        },
+        "ROLLBACK_FAILED": {
+          "next_action": "disconnect_live_word_document",
+          "bindings": {
+            "live_document_id": "live_document_id"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_live_word_equation_learning",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {},
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_live_word_equation_learning",
+        "template_only": true,
+        "arguments": {}
+      },
+      "success": {
+        "required_paths": [
+          "observation_count",
+          "outcomes",
+          "content_stored",
+          "formula_text_stored",
+          "document_text_stored",
+          "path_exposed",
+          "runtime"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_live_word_structure_learning",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {},
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_live_word_structure_learning",
+        "template_only": true,
+        "arguments": {}
+      },
+      "success": {
+        "required_paths": [
+          "observation_count",
+          "inspection_observation_count",
+          "map_observations",
+          "inspection_observations",
+          "adaptive_rescan_policy",
+          "content_stored",
+          "document_counts_stored",
+          "property_values_stored",
+          "path_exposed",
+          "runtime"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_live_word_object_model_types",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {},
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_live_word_object_model_types",
+        "template_only": true,
+        "arguments": {}
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_live_word_object_model_members",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "type_name": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_live_word_object_model_members",
+        "template_only": true,
+        "arguments": {
+          "type_name": "<provide:type_name>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "privacy",
+          "library",
+          "stats",
+          "types",
+          "source"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_live_word_member_capabilities",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {},
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_live_word_member_capabilities",
+        "template_only": true,
+        "arguments": {}
+      },
+      "success": {
+        "required_paths": [
+          "privacy",
+          "library",
+          "stats",
+          "capabilities",
+          "source"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "preflight_live_word_member_operations",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "operations": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "preflight_live_word_member_operations",
+        "template_only": true,
+        "arguments": {
+          "operations": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "operations",
+          "source"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "execute_live_word_member_operations",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "operations": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "execute_live_word_member_operations",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "operations": [],
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "operations"
+        ],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "find_live_word_text",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "search_text": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "find_live_word_text",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "search_text": "<provide:search_text>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "matches"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "replace_live_word_text",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "search_text": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "replace_live_word_text",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "search_text": "<provide:search_text>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_live_word_review",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "kind": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_live_word_review",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "kind": "<provide:kind>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "manage_live_word_review",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "action": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "manage_live_word_review",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "action": "<provide:action>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "diagnose_live_word_layout",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "diagnose_live_word_layout",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "get_live_word_selection",
+      "prerequisites": [],
+      "acquisition_steps": [
+        "Use selection_token, range_token and live_version from get_live_word_selection output"
+      ],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "get_live_word_selection",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "live.selection"
+      ]
+    },
+    {
+      "name": "inspect_live_word_undo",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_live_word_undo",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "undo_live_word_operation",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "undo_token": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "undo_live_word_operation",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "undo_token": "<bind:undo_token>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "insert_live_word_text",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "text": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_text",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "text": "<provide:text>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "format_live_word_selection",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "selection_token": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "format_live_word_selection",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "selection_token": "<bind:selection_token>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "insert_live_word_table",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "rows": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_table",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "rows": [],
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "preflight_live_word_table_formulas",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "formulas": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "preflight_live_word_table_formulas",
+        "template_only": true,
+        "arguments": {
+          "formulas": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "operations"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "insert_live_word_table_formulas",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "table_index": {
+          "source": "external_input"
+        },
+        "formulas": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_table_formulas",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "table_index": "<provide:table_index>",
+          "formulas": [],
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "live_document_id",
+          "live_version"
+        ],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "update_live_word_table_fields",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "table_index": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "update_live_word_table_fields",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "table_index": "<provide:table_index>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "live_document_id",
+          "live_version"
+        ],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "insert_live_word_list",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "items": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_list",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "items": [],
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "live_document_id",
+          "live_version"
+        ],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "preflight_live_word_bookmarks",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "bookmarks": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "preflight_live_word_bookmarks",
+        "template_only": true,
+        "arguments": {
+          "bookmarks": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "bookmarks"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "insert_live_word_bookmarks",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "bookmarks": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_bookmarks",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "bookmarks": [],
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "preflight_live_word_fields",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "fields": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "preflight_live_word_fields",
+        "template_only": true,
+        "arguments": {
+          "fields": []
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "insert_live_word_fields",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "fields": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_fields",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "fields": [],
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "insert_live_word_caption",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        },
+        "selection_token": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_caption",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          },
+          "selection_token": "<bind:selection_token>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "insert_live_word_table_of_figures",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_table_of_figures",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "insert_live_word_table_of_contents",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_table_of_contents",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "mark_live_word_authority_citation",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "mark_live_word_authority_citation",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "insert_live_word_table_of_authorities",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_table_of_authorities",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "mark_live_word_index_entry",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "mark_live_word_index_entry",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "insert_live_word_index",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_index",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "update_live_word_reference_tables",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "update_live_word_reference_tables",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "insert_live_word_image",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "file_path": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_image",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "file_path": "<bind:file_path>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "insert_live_word_comment",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "text": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_comment",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "text": "<provide:text>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "insert_live_word_note",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "text": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_note",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "text": "<provide:text>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "set_live_word_header_footer",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "kind": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "set_live_word_header_footer",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "kind": "<provide:kind>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "insert_live_word_equation",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "value": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_equation",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "value": "<provide:value>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "insert_live_word_equations_batch",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "equations": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_equations_batch",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "equations": [],
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "preflight_live_word_equations",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "equations": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "preflight_live_word_equations",
+        "template_only": true,
+        "arguments": {
+          "equations": []
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "inspect_live_word_equations",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_live_word_equations",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "live_document_id",
+          "equations"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "update_live_word_equation",
+      "prerequisites": [
+        "fresh expected_version from live response",
+        "equation_token must come from inspect_live_word_equations for the same equation_index and live_version"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        },
+        "equation_index": {
+          "source": "inspect_live_word_equations.equations[].equation_index"
+        },
+        "equation_token": {
+          "source": "inspect_live_word_equations.equations[].equation_token"
+        },
+        "value": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "update_live_word_equation",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          },
+          "equation_index": "<provide:equation_index>",
+          "equation_token": "<bind:equation_token>",
+          "value": "<provide:value>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "live_document_id",
+          "live_version"
+        ],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "live.equation"
+      ]
+    },
+    {
+      "name": "apply_live_word_operations",
+      "prerequisites": [
+        "live_document_id acquired from a lifecycle action",
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [
+        "review plan and block reasons before apply"
+      ],
+      "bindings": {
+        "live_document_id": {
+          "source": "lifecycle_action"
+        },
+        "operations": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "apply_live_word_operations",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "operations": [],
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [
+          "live_document_id",
+          "live_version"
+        ],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        },
+        "STAGING_TARGET_DRIFT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "live_document_id": "live_document_id"
+          }
+        },
+        "ROLLBACK_FAILED": {
+          "next_action": "disconnect_live_word_document",
+          "bindings": {
+            "live_document_id": "live_document_id"
+          }
+        }
+      },
+      "recipe_ids": [
+        "live.transactional"
+      ]
+    },
+    {
+      "name": "validate_live_word_document",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "validate_live_word_document",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "live_document_id",
+          "valid"
+        ],
+        "predicates": [
+          "valid is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "export_live_word_pdf",
+      "prerequisites": [
+        "explicit new output path; never overwrite"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "output_path": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "export_live_word_pdf",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "output_path": "<bind:output_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "live_document_id",
+          "output_path"
+        ],
+        "predicates": [
+          "output_path is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "save_live_word_document",
+      "prerequisites": [
+        "live_document_id acquired from a lifecycle action",
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "lifecycle_action"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "save_live_word_document",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "close_live_word_document",
+      "prerequisites": [
+        "fresh expected_version from live response"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "save_changes": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "close_live_word_document",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "save_changes": "<provide:save_changes>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          }
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "quit_word_application",
+      "prerequisites": [],
+      "acquisition_steps": [],
+      "bindings": {
+        "save_changes": {
+          "source": "external_input"
+        },
+        "confirm": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "quit_word_application",
+        "template_only": true,
+        "arguments": {
+          "save_changes": "<provide:save_changes>",
+          "confirm": "<provide:confirm>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    },
+    {
+      "name": "disconnect_live_word_document",
+      "prerequisites": [
+        "live_document_id acquired from a lifecycle action"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "lifecycle_action"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "disconnect_live_word_document",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>"
+        }
+      },
+      "success": {
+        "required_paths": [],
+        "predicates": []
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "native.default"
+      ]
+    }
+  ]
+}

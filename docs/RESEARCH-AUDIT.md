@@ -45,6 +45,15 @@ Python 3.12 was selected for the service and document engine. `python-docx` is n
 
 - Microsoft, Open XML package/SDK overview: <https://learn.microsoft.com/en-us/office/open-xml/about-the-open-xml-sdk>
 - Microsoft, `OfficeMath` (`m:oMath`) class and parent semantics: <https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.math.officemath?view=openxml-3.0.1>
+- Microsoft, Word bibliography automation, source XML, document `customXml` storage,
+  LCID behavior and CITATION tag linkage:
+  <https://learn.microsoft.com/en-us/office/vba/word/concepts/working-with-word/working-with-bibliographies>
+- Microsoft Open XML SDK, `Bibliography.Sources` root and `Source` children:
+  <https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.bibliography.sources?view=openxml-3.0.1>
+- Microsoft Open XML SDK, canonical bibliography data-source values:
+  <https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.bibliography.datasourcevalues?view=openxml-3.0.1>
+- Microsoft Open XML SDK, bibliography-classified `CustomXmlPartType`:
+  <https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.packaging.customxmlparttype?view=openxml-3.0.1>
 - Microsoft Office Math DrawingML extension specification: <https://learn.microsoft.com/en-us/openspecs/office_standards/ms-odrawxml/853b19c7-68a9-4f9a-a2ae-5e6cb0d02e62>
 - MCP Streamable HTTP transport: <https://modelcontextprotocol.io/specification/2025-11-25/basic/transports>
 - MCP authorization: <https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization>
@@ -53,4 +62,3 @@ Python 3.12 was selected for the service and document engine. `python-docx` is n
 - OpenAI deployment guide: <https://developers.openai.com/apps-sdk/deploy>
 
 The Microsoft Open XML SDK validator is authoritative for schema-level checks it implements. WordToolkit also performs security and package-integrity checks that a schema validator is not designed to provide.
-

@@ -300,6 +300,7 @@ internal sealed partial class WordLiveService
                 var created = new List<(dynamic Field, dynamic Result, bool Updated)>();
                 var clearAssignments = 0;
                 var originalScreenUpdating = (bool?)null;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 try
@@ -471,9 +472,17 @@ internal sealed partial class WordLiveService
                         document = DocumentInfo(application, document),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -563,6 +572,7 @@ internal sealed partial class WordLiveService
                 }
 
                 var originalScreenUpdating = (bool?)null;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 try
@@ -629,9 +639,17 @@ internal sealed partial class WordLiveService
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -771,6 +789,7 @@ internal sealed partial class WordLiveService
                 var before = (int)document.Bookmarks.Count;
                 var created = new Dictionary<int, dynamic>();
                 var originalScreenUpdating = (bool?)null;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 try
@@ -891,9 +910,17 @@ internal sealed partial class WordLiveService
                         document = DocumentInfo(application, document),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -1025,6 +1052,7 @@ internal sealed partial class WordLiveService
                 var before = (int)document.Fields.Count;
                 var created = new Dictionary<int, (dynamic Field, bool Updated)>();
                 var originalScreenUpdating = (bool?)null;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 try
@@ -1142,9 +1170,17 @@ internal sealed partial class WordLiveService
                         document = DocumentInfo(application, document),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally

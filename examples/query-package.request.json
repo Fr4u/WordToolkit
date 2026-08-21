@@ -1,0 +1,11 @@
+{
+  "local_path": "examples/generated/WordToolkit-equations.docx",
+  "kinds": ["paragraph"],
+  "descendant": {
+    "kinds": ["equation"]
+  },
+  "offset": 0,
+  "max_results": 20,
+  "text_preview_chars": 120,
+  "include_source": true
+}

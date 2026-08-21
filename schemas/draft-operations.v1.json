@@ -1,0 +1,2248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "contract": "wordtoolkit.apply_document_operations/1.0",
+  "description": "Provider-neutral ordered mutation contract implemented by the remote Python draft adapter.",
+  "input_schema": {
+    "properties": {
+      "document_id": {
+        "title": "Document Id",
+        "type": "string"
+      },
+      "operations": {
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operation",
+            "arguments"
+          ],
+          "properties": {
+            "operation": {
+              "type": "string"
+            },
+            "arguments": {
+              "type": "object"
+            }
+          },
+          "oneOf": [
+            {
+              "properties": {
+                "operation": {
+                  "const": "insert_paragraph"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "after_paragraph_id": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "maxLength": 200000,
+                      "type": "string"
+                    },
+                    "style": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    }
+                  },
+                  "required": [
+                    "after_paragraph_id",
+                    "text"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "replace_paragraph"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "paragraph_id": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "anyOf": [
+                        {
+                          "maxLength": 200000,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "style": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    }
+                  },
+                  "required": [
+                    "paragraph_id"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "delete_paragraph"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "paragraph_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "paragraph_id"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "move_block"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "block_ref": {
+                      "type": "string"
+                    },
+                    "target_ref": {
+                      "type": "string"
+                    },
+                    "position": {
+                      "default": "after",
+                      "enum": [
+                        "before",
+                        "after"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "block_ref",
+                    "target_ref"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "create_style"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "style_type": {
+                      "default": "paragraph",
+                      "enum": [
+                        "paragraph",
+                        "character"
+                      ],
+                      "type": "string"
+                    },
+                    "based_on": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "next_style": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "font_name": {
+                      "anyOf": [
+                        {
+                          "maxLength": 128,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "font_size_pt": {
+                      "anyOf": [
+                        {
+                          "maximum": 200,
+                          "minimum": 1,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "font_color": {
+                      "anyOf": [
+                        {
+                          "pattern": "^[0-9A-Fa-f]{6}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "bold": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "italic": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "space_before_pt": {
+                      "anyOf": [
+                        {
+                          "maximum": 1000,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "space_after_pt": {
+                      "anyOf": [
+                        {
+                          "maximum": 1000,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "line_spacing": {
+                      "anyOf": [
+                        {
+                          "maximum": 10,
+                          "minimum": 0.5,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "update_style"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "based_on": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "next_style": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "font_name": {
+                      "anyOf": [
+                        {
+                          "maxLength": 128,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "font_size_pt": {
+                      "anyOf": [
+                        {
+                          "maximum": 200,
+                          "minimum": 1,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "font_color": {
+                      "anyOf": [
+                        {
+                          "pattern": "^[0-9A-Fa-f]{6}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "bold": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "italic": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "space_before_pt": {
+                      "anyOf": [
+                        {
+                          "maximum": 1000,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "space_after_pt": {
+                      "anyOf": [
+                        {
+                          "maximum": 1000,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "line_spacing": {
+                      "anyOf": [
+                        {
+                          "maximum": 10,
+                          "minimum": 0.5,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "apply_style"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "paragraph_ids": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "maxItems": 500,
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "style": {
+                      "maxLength": 128,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "paragraph_ids",
+                    "style"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "normalize_formatting"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "paragraph_ids": {
+                      "anyOf": [
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "maxItems": 500,
+                          "type": "array"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "format_paragraph"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "paragraph_id": {
+                      "type": "string"
+                    },
+                    "alignment": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "left",
+                            "center",
+                            "right",
+                            "both",
+                            "distribute"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "space_before_pt": {
+                      "anyOf": [
+                        {
+                          "maximum": 1000,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "space_after_pt": {
+                      "anyOf": [
+                        {
+                          "maximum": 1000,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "line_spacing": {
+                      "anyOf": [
+                        {
+                          "maximum": 10,
+                          "minimum": 0.5,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "left_indent_mm": {
+                      "anyOf": [
+                        {
+                          "maximum": 500,
+                          "minimum": -500,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "right_indent_mm": {
+                      "anyOf": [
+                        {
+                          "maximum": 500,
+                          "minimum": -500,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "first_line_mm": {
+                      "anyOf": [
+                        {
+                          "maximum": 500,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "hanging_mm": {
+                      "anyOf": [
+                        {
+                          "maximum": 500,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "keep_with_next": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "keep_lines_together": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "widow_control": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "page_break_before": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "tab_stops": {
+                      "anyOf": [
+                        {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "position_mm": {
+                                "maximum": 500,
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              "alignment": {
+                                "default": "left",
+                                "enum": [
+                                  "left",
+                                  "center",
+                                  "right",
+                                  "decimal",
+                                  "bar"
+                                ],
+                                "type": "string"
+                              },
+                              "leader": {
+                                "default": "none",
+                                "enum": [
+                                  "none",
+                                  "dot",
+                                  "hyphen",
+                                  "underscore",
+                                  "heavy",
+                                  "middleDot"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "position_mm"
+                            ],
+                            "type": "object"
+                          },
+                          "maxItems": 32,
+                          "type": "array"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    }
+                  },
+                  "required": [
+                    "paragraph_id"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "format_run"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "paragraph_id": {
+                      "type": "string"
+                    },
+                    "run_index": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "font_name": {
+                      "anyOf": [
+                        {
+                          "maxLength": 128,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "font_size_pt": {
+                      "anyOf": [
+                        {
+                          "maximum": 200,
+                          "minimum": 1,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "color": {
+                      "anyOf": [
+                        {
+                          "pattern": "^[0-9A-Fa-f]{6}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "highlight": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "yellow",
+                            "green",
+                            "cyan",
+                            "magenta",
+                            "blue",
+                            "red",
+                            "darkBlue",
+                            "darkCyan",
+                            "darkGreen",
+                            "darkMagenta",
+                            "darkRed",
+                            "darkYellow",
+                            "darkGray",
+                            "lightGray",
+                            "black",
+                            "white"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "bold": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "italic": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "underline": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "none",
+                            "single",
+                            "double",
+                            "dotted",
+                            "dash",
+                            "wave"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "strike": {
+                      "anyOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "vertical": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "baseline",
+                            "superscript",
+                            "subscript"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    }
+                  },
+                  "required": [
+                    "paragraph_id",
+                    "run_index"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "manage_lists"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "apply",
+                        "create_multilevel",
+                        "demote",
+                        "promote",
+                        "restart",
+                        "suppress"
+                      ],
+                      "type": "string"
+                    },
+                    "paragraph_ids": {
+                      "anyOf": [
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "maxItems": 500,
+                          "type": "array"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "paragraph_id": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "list_style": {
+                      "default": "bullet",
+                      "enum": [
+                        "bullet",
+                        "numbered"
+                      ],
+                      "type": "string"
+                    },
+                    "name": {
+                      "default": "WordToolkitList",
+                      "maxLength": 128,
+                      "type": "string"
+                    },
+                    "levels": {
+                      "anyOf": [
+                        {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "num_fmt": {
+                                "enum": [
+                                  "decimal",
+                                  "lowerLetter",
+                                  "upperLetter",
+                                  "lowerRoman",
+                                  "upperRoman",
+                                  "bullet"
+                                ],
+                                "type": "string"
+                              },
+                              "lvl_text": {
+                                "maxLength": 64,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "indent": {
+                                "default": 720,
+                                "maximum": 20000,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "hanging": {
+                                "default": 360,
+                                "maximum": 10000,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              "style": {
+                                "anyOf": [
+                                  {
+                                    "maxLength": 128,
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "default": null
+                              }
+                            },
+                            "required": [
+                              "num_fmt",
+                              "lvl_text"
+                            ],
+                            "type": "object"
+                          },
+                          "maxItems": 9,
+                          "type": "array"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "level": {
+                      "default": 0,
+                      "maximum": 8,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "start": {
+                      "default": 1,
+                      "maximum": 1000000,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "insert_caption"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "after_paragraph_id": {
+                      "type": "string"
+                    },
+                    "text": {
+                      "maxLength": 20000,
+                      "type": "string"
+                    },
+                    "label": {
+                      "default": "Figure",
+                      "enum": [
+                        "Figure",
+                        "Table",
+                        "Equation"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "after_paragraph_id",
+                    "text"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "insert_table"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "after_paragraph_id": {
+                      "type": "string"
+                    },
+                    "rows": {
+                      "maximum": 200,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "columns": {
+                      "maximum": 50,
+                      "minimum": 1,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "after_paragraph_id",
+                    "rows",
+                    "columns"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "modify_table"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "table_index": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "action": {
+                      "default": "add_row",
+                      "enum": [
+                        "add_row",
+                        "delete_row",
+                        "delete_table",
+                        "sort",
+                        "apply_style",
+                        "duplicate_row"
+                      ],
+                      "type": "string"
+                    },
+                    "row_index": {
+                      "default": -1,
+                      "type": "integer"
+                    },
+                    "cells": {
+                      "anyOf": [
+                        {
+                          "items": {
+                            "type": "string"
+                          },
+                          "maxItems": 50,
+                          "type": "array"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "column_index": {
+                      "default": 0,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "ascending": {
+                      "default": true,
+                      "type": "boolean"
+                    },
+                    "style": {
+                      "default": "",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "table_index"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "merge_cells"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "table_index": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "start_row": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "start_column": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "end_row": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "end_column": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "table_index",
+                    "start_row",
+                    "start_column",
+                    "end_row",
+                    "end_column"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "split_cells"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "table_index": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "row": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "column": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "table_index",
+                    "row",
+                    "column"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "set_cell_properties"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "table_index": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "row": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "column": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "width_mm": {
+                      "anyOf": [
+                        {
+                          "maximum": 500,
+                          "minimum": 1,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "vertical_alignment": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "top",
+                            "center",
+                            "bottom"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "fill_color": {
+                      "anyOf": [
+                        {
+                          "pattern": "^[0-9A-Fa-f]{6}$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "row_height_mm": {
+                      "anyOf": [
+                        {
+                          "maximum": 500,
+                          "minimum": 1,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    }
+                  },
+                  "required": [
+                    "table_index",
+                    "row",
+                    "column"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "insert_equation"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "anchor_paragraph_id": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "additionalProperties": true,
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "input_format": {
+                      "default": "latex",
+                      "enum": [
+                        "latex",
+                        "unicodemath",
+                        "mathml",
+                        "omml",
+                        "ast"
+                      ],
+                      "type": "string"
+                    },
+                    "display": {
+                      "default": true,
+                      "type": "boolean"
+                    },
+                    "position": {
+                      "default": "after",
+                      "enum": [
+                        "after",
+                        "before",
+                        "append"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "anchor_paragraph_id",
+                    "value"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "replace_equation"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "equation_id": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "additionalProperties": true,
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "input_format": {
+                      "default": "latex",
+                      "enum": [
+                        "latex",
+                        "unicodemath",
+                        "mathml",
+                        "omml",
+                        "ast"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "equation_id",
+                    "value"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "number_equations"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "start": {
+                      "default": 1,
+                      "maximum": 1000000,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "bookmark_prefix": {
+                      "default": "Eq_",
+                      "pattern": "^[A-Za-z][A-Za-z0-9_]{0,30}$",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "add_equation_reference"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "paragraph_id": {
+                      "type": "string"
+                    },
+                    "bookmark": {
+                      "type": "string"
+                    },
+                    "prefix_text": {
+                      "default": "",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "paragraph_id",
+                    "bookmark"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "manage_headers_footers"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "delete",
+                        "replace_text",
+                        "set_text"
+                      ],
+                      "type": "string"
+                    },
+                    "story_kind": {
+                      "default": "header",
+                      "enum": [
+                        "header",
+                        "footer"
+                      ],
+                      "type": "string"
+                    },
+                    "variant": {
+                      "default": "default",
+                      "enum": [
+                        "default",
+                        "first",
+                        "even"
+                      ],
+                      "type": "string"
+                    },
+                    "section_index": {
+                      "default": 0,
+                      "maximum": 1000,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "text": {
+                      "default": "",
+                      "maxLength": 200000,
+                      "type": "string"
+                    },
+                    "old_text": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "new_text": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "author": {
+                      "default": "WordToolkit",
+                      "type": "string"
+                    },
+                    "tracked": {
+                      "default": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "manage_footnotes_endnotes"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "note_kind": {
+                      "default": "footnote",
+                      "enum": [
+                        "footnote",
+                        "endnote"
+                      ],
+                      "type": "string"
+                    },
+                    "action": {
+                      "enum": [
+                        "add",
+                        "delete",
+                        "update"
+                      ],
+                      "type": "string"
+                    },
+                    "paragraph_id": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "note_id": {
+                      "anyOf": [
+                        {
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "text": {
+                      "default": "",
+                      "maxLength": 200000,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "manage_comments"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "add",
+                        "delete",
+                        "reply",
+                        "resolve",
+                        "update"
+                      ],
+                      "type": "string"
+                    },
+                    "paragraph_id": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "comment_id": {
+                      "anyOf": [
+                        {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "text": {
+                      "default": "",
+                      "maxLength": 200000,
+                      "type": "string"
+                    },
+                    "author": {
+                      "default": "WordToolkit",
+                      "maxLength": 128,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "manage_bookmarks"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "add",
+                        "remove"
+                      ],
+                      "type": "string"
+                    },
+                    "paragraph_id": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "name": {
+                      "default": "",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,39}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "manage_cross_references"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "add"
+                      ],
+                      "type": "string"
+                    },
+                    "source_paragraph_id": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "target_paragraph_id": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "text": {
+                      "default": "",
+                      "maxLength": 10000,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "manage_fields"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "add",
+                        "delete",
+                        "generate_figures",
+                        "generate_tables",
+                        "generate_toc",
+                        "update_on_open"
+                      ],
+                      "type": "string"
+                    },
+                    "paragraph_id": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "field_id": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "field_code": {
+                      "default": "",
+                      "maxLength": 4096,
+                      "type": "string"
+                    },
+                    "cached_value": {
+                      "default": "",
+                      "maxLength": 10000,
+                      "type": "string"
+                    },
+                    "max_heading_level": {
+                      "default": 3,
+                      "maximum": 9,
+                      "minimum": 1,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "insert_image"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "paragraph_id": {
+                      "type": "string"
+                    },
+                    "width_mm": {
+                      "default": 60,
+                      "maximum": 500,
+                      "minimum": 1,
+                      "type": "number"
+                    },
+                    "height_mm": {
+                      "default": 40,
+                      "maximum": 500,
+                      "minimum": 1,
+                      "type": "number"
+                    },
+                    "alt_text": {
+                      "default": "",
+                      "maxLength": 1000,
+                      "type": "string"
+                    },
+                    "file_index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 15
+                    }
+                  },
+                  "required": [
+                    "paragraph_id",
+                    "file_index"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "manage_sections"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "add_break",
+                        "delete_break",
+                        "different_first_page",
+                        "odd_even_headers",
+                        "page_break",
+                        "set_columns",
+                        "set_page"
+                      ],
+                      "type": "string"
+                    },
+                    "paragraph_id": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "section_index": {
+                      "default": 0,
+                      "maximum": 1000,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "break_type": {
+                      "default": "nextPage",
+                      "enum": [
+                        "nextPage",
+                        "continuous",
+                        "evenPage",
+                        "oddPage"
+                      ],
+                      "type": "string"
+                    },
+                    "width_mm": {
+                      "anyOf": [
+                        {
+                          "maximum": 1000,
+                          "minimum": 50,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "height_mm": {
+                      "anyOf": [
+                        {
+                          "maximum": 1000,
+                          "minimum": 50,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "orientation": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "portrait",
+                            "landscape"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "margin_mm": {
+                      "anyOf": [
+                        {
+                          "maximum": 200,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    },
+                    "columns": {
+                      "default": 1,
+                      "maximum": 12,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "enabled": {
+                      "default": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "enable_track_changes"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "enabled": {
+                      "default": true,
+                      "type": "boolean"
+                    },
+                    "author": {
+                      "default": "WordToolkit",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "insert_tracked_change"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "paragraph_id": {
+                      "type": "string"
+                    },
+                    "change_type": {
+                      "enum": [
+                        "insert",
+                        "delete",
+                        "replace"
+                      ],
+                      "type": "string"
+                    },
+                    "text": {
+                      "maxLength": 200000,
+                      "type": "string"
+                    },
+                    "replacement": {
+                      "default": "",
+                      "maxLength": 200000,
+                      "type": "string"
+                    },
+                    "author": {
+                      "default": "WordToolkit",
+                      "maxLength": 128,
+                      "type": "string"
+                    },
+                    "position": {
+                      "default": "end",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "paragraph_id",
+                    "change_type",
+                    "text"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "accept_changes"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "change_id": {
+                      "anyOf": [
+                        {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "properties": {
+                "operation": {
+                  "const": "reject_changes"
+                },
+                "arguments": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "change_id": {
+                      "anyOf": [
+                        {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "default": null
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "maxItems": 16,
+        "minItems": 1,
+        "title": "Operations",
+        "type": "array"
+      },
+      "files": {
+        "items": {
+          "additionalProperties": false,
+          "description": "Top-level file reference compatible with MCP Apps file parameters.",
+          "properties": {
+            "download_url": {
+              "maxLength": 4096,
+              "minLength": 1,
+              "type": "string"
+            },
+            "file_id": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "mime_type": {
+              "default": "",
+              "maxLength": 255,
+              "type": "string"
+            },
+            "file_name": {
+              "default": "",
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          "required": [
+            "download_url",
+            "file_id"
+          ],
+          "type": "object"
+        },
+        "maxItems": 16,
+        "title": "Files",
+        "type": "array"
+      },
+      "expected_version": {
+        "type": "integer",
+        "minimum": 0,
+        "title": "Expected Version"
+      }
+    },
+    "required": [
+      "document_id",
+      "operations",
+      "expected_version"
+    ],
+    "title": "apply_document_operationsArguments",
+    "type": "object"
+  },
+  "success_data_schema": {
+    "$defs": {
+      "DraftBatchStepResult": {
+        "additionalProperties": false,
+        "properties": {
+          "index": {
+            "exclusiveMaximum": 16,
+            "minimum": 0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "result": {
+            "additionalProperties": true,
+            "title": "Result",
+            "type": "object"
+          }
+        },
+        "required": [
+          "index",
+          "result"
+        ],
+        "title": "DraftBatchStepResult",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "description": "Stable compact result shared by current and future protocol adapters.",
+    "properties": {
+      "document_id": {
+        "title": "Document Id",
+        "type": "string"
+      },
+      "draft_version": {
+        "minimum": 0,
+        "title": "Draft Version",
+        "type": "integer"
+      },
+      "results": {
+        "items": {
+          "$ref": "#/$defs/DraftBatchStepResult"
+        },
+        "maxItems": 16,
+        "minItems": 1,
+        "title": "Results",
+        "type": "array"
+      }
+    },
+    "required": [
+      "document_id",
+      "draft_version",
+      "results"
+    ],
+    "title": "DraftBatchOutcome",
+    "type": "object"
+  },
+  "error_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "ok",
+      "error"
+    ],
+    "properties": {
+      "ok": {
+        "const": false
+      },
+      "error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "message",
+          "details",
+          "retryable"
+        ],
+        "properties": {
+          "code": {
+            "enum": [
+              "AUTH_REQUIRED",
+              "AUTH_FORBIDDEN",
+              "INVALID_INPUT",
+              "UNSAFE_PATH",
+              "UNSAFE_ARCHIVE",
+              "UNSAFE_XML",
+              "UNSAFE_RELATIONSHIP",
+              "UNSUPPORTED_FORMAT",
+              "DOCUMENT_NOT_FOUND",
+              "SESSION_NOT_FOUND",
+              "VERSION_CONFLICT",
+              "EQUATION_INVALID",
+              "OOXML_INVALID",
+              "RENDERER_UNAVAILABLE",
+              "RENDER_TIMEOUT",
+              "EXTERNAL_TOOL_FAILED",
+              "LIVE_WORD_UNAVAILABLE",
+              "LIMIT_EXCEEDED",
+              "INTERNAL_ERROR"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "details": {
+            "type": "object"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  },
+  "permissions": [
+    "documents:write"
+  ],
+  "file_binding": {
+    "top_level_field": "files",
+    "operation_reference": "insert_image.arguments.file_index",
+    "mcp_apps_meta": {
+      "openai/fileParams": [
+        "files"
+      ]
+    }
+  },
+  "limits": {
+    "operations_min": 1,
+    "operations_max": 16,
+    "files_max": 16,
+    "aggregate_argument_bytes_max": 1048576
+  },
+  "side_effects": {
+    "document": "All operations commit together on one process-local copy-on-write draft or none commit.",
+    "image_staging": "Partial downloads are removed on failure or cancellation; verified complete uploads may remain against session quota if a later operation fails."
+  },
+  "examples": [
+    {
+      "input": {
+        "document_id": "doc_example",
+        "expected_version": 7,
+        "operations": [
+          {
+            "operation": "format_paragraph",
+            "arguments": {
+              "paragraph_id": "1A2B3C4D",
+              "alignment": "center"
+            }
+          },
+          {
+            "operation": "insert_paragraph",
+            "arguments": {
+              "after_paragraph_id": "1A2B3C4D",
+              "text": "A bounded new paragraph."
+            }
+          }
+        ]
+      },
+      "success_data": {
+        "document_id": "doc_example",
+        "draft_version": 8,
+        "results": [
+          {
+            "index": 0,
+            "result": {}
+          },
+          {
+            "index": 1,
+            "result": {
+              "para_id": "5E6F7A8B"
+            }
+          }
+        ]
+      },
+      "error": {
+        "ok": false,
+        "error": {
+          "code": "VERSION_CONFLICT",
+          "message": "Draft version changed before the mutation",
+          "details": {
+            "expected": 7,
+            "actual": 8
+          },
+          "retryable": true
+        }
+      }
+    }
+  ]
+}

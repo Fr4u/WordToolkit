@@ -5,15 +5,48 @@
 The local plugin is the default path for one machine. It uses MCP STDIO and
 does not expose a listening port.
 
-1. Install `uv`.
-2. Run `uv run python scripts/build_local_plugin.py --build-validator`.
+1. Install the pinned .NET SDK from `global.json` for a source build.
+2. Run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build_native_plugin.ps1`.
 3. Install `dist/wordtoolkit` through a local Codex marketplace.
 4. Start a new Codex task so the new skill and MCP server are discovered.
 
-On first launch, `uv` creates the pinned runtime environment under the plugin's
-`runtime/` directory. Document sessions and exported artifacts live beneath
-the user's local application-data directory. Local input accepts an absolute
-path or `file://` URI. Local output is returned as an MCP resource link.
+The built plugin contains a self-contained `runtime/win-x64/wordtoolkit-native.exe`.
+It does not contain or launch Python, `uv`, a virtual environment or an interpreter
+helper. Explicit OCR recognition launches one bounded copy of the native runtime as its
+AppContainer/Job Object process boundary; ordinary startup and non-provider actions do
+not. The first OCR call creates or opens the per-user
+`WordToolkit.OcrProviderHost.v1` AppContainer profile and adds its package SID as a
+read/execute principal on the exact runtime, provider and model directories. The child has
+no network capability; its writes are confined to the private AppContainer profile.
+OCR also requires a signed provider identity. Set these host variables before starting
+Codex/WordToolkit:
+
+- `WORDTOOLKIT_TESSERACT_PATH` and `WORDTOOLKIT_TESSDATA_DIR`;
+- `WORDTOOLKIT_OCR_PROVIDER_MANIFEST_PATH`;
+- `WORDTOOLKIT_OCR_TRUST_STORE_PATH`.
+
+Provisioning stays outside MCP. Use
+`wordtoolkit-native ocr-provider-trust --mode keygen --request <json>` once to create an
+ECDSA P-256 publisher key and trust store, then `--mode issue` to sign the exact executable,
+top-level runtime set and allowed language models. Use `--mode verify` before configuring
+the two public paths. Every output path must be new; the manifest/trust store and private
+key must remain outside the provider runtime directory. The CLI returns no path or private
+key material. Protect or move the private key offline after issuance. A manifest is valid
+for at most 366 days. The first OCR use pins the signed files open for the native-host
+session, so provider updates or renewed manifests require restarting the host.
+
+Document sessions are owned by the native process and the attached Word application.
+Saved-package actions accept explicit local paths according to their individual schemas.
+
+The executable is also a non-interactive automation CLI. Saved-package inspection uses
+the cross-platform engine directly and exits before constructing the Word COM host:
+
+```powershell
+runtime\win-x64\wordtoolkit-native.exe inspect-package C:\docs\input.docx --format json
+```
+
+Success is JSON on stdout. Operation and parser failures are JSON on stderr with stable
+nonzero exit classes; `inspect-package --help` and top-level `--help` return zero.
 
 `local_stdio` is deliberately rejected by the HTTP application. It is a
 single-user trust boundary for the local Codex host, not an authentication
@@ -81,9 +114,9 @@ No mobile step depends on `C:\...`, a local STDIO server or server filesystem pa
 ## Codex plugin installation
 
 The checked-in `plugin/wordtoolkit/.mcp.json` is the local STDIO configuration.
-Build the self-contained plugin directory with `scripts/build_local_plugin.py`
-before installing it. The included skill instructs Codex to use
-open/inspect/small-edit/validate/render/export sequencing.
+Build the self-contained plugin directory with `scripts/build_native_plugin.ps1`
+before installing it. The included skill instructs Codex to discover capabilities, then
+use open/inspect/small-edit/validate/render/export sequencing.
 
 For a remote deployment, configure the deployed HTTPS MCP endpoint separately
 in Codex or publish a remote plugin variant. Never put OAuth secrets in the
@@ -92,4 +125,4 @@ and remote MCP endpoint.
 
 ## Upgrade and rollback
 
-Pin an image digest in production. Before deployment, compare `schemas/mcp-tools.v1.json` and review `migrations/`. Roll forward only when the tool schema change is additive or a matching major migration exists. Rollback changes the container image; exported DOCX artifacts are self-contained and do not depend on a server database.
+Pin an image digest in production. Before deployment, compare the current `schemas/mcp-tools.v2.json` and review `migrations/`. Remote package 0.40.0 requires the v1-to-v2 client migration in `0014-required-draft-version.md`; do not deploy it behind a client that still omits draft versions. Roll forward only when the tool schema change is additive or a matching major migration exists. Rollback changes the container image; exported DOCX artifacts are self-contained and do not depend on a server database.

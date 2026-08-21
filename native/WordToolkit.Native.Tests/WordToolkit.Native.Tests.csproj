@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../WordToolkit.LibreOffice/WordToolkit.LibreOffice.csproj" />
     <ProjectReference Include="../WordToolkit.Native/WordToolkit.Native.csproj" />
   </ItemGroup>
 </Project>

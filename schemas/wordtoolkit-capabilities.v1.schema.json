@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wordtoolkit:capabilities:1",
+  "title": "WordToolkit vendor-neutral capability manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_schema",
+    "contract_schema_version",
+    "toolkit_version",
+    "protocols",
+    "compatibility_policy",
+    "source",
+    "operation_count",
+    "exposed_mcp_tool_count",
+    "metadata_coverage",
+    "limits",
+    "format_support",
+    "security",
+    "paging",
+    "operations"
+  ],
+  "properties": {
+    "contract_schema": { "const": "wordtoolkit.capabilities/1.0" },
+    "contract_schema_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "toolkit_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "protocols": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mcp"],
+      "properties": { "mcp": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" } }
+    },
+    "compatibility_policy": { "type": "string", "minLength": 1 },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transport", "schema_sha256", "capability_schema_sha256", "native_action_contract_sha256"],
+      "properties": {
+        "transport": { "type": "string", "minLength": 1 },
+        "schema_sha256": { "$ref": "#/$defs/sha256" },
+        "capability_schema_sha256": { "$ref": "#/$defs/sha256" },
+        "native_action_contract_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "operation_count": { "type": "integer", "minimum": 0 },
+    "exposed_mcp_tool_count": { "type": "integer", "minimum": 1 },
+    "metadata_coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_operations",
+        "input_schema",
+        "mcp_effect_annotations",
+        "explicit_output_schema",
+        "explicit_permissions",
+        "explicit_reversibility",
+        "explicit_operation_version"
+      ],
+      "properties": {
+        "total_operations": { "type": "integer", "minimum": 0 },
+        "input_schema": { "type": "integer", "minimum": 0 },
+        "mcp_effect_annotations": { "type": "integer", "minimum": 0 },
+        "explicit_output_schema": { "type": "integer", "minimum": 0 },
+        "explicit_permissions": { "type": "integer", "minimum": 0 },
+        "explicit_reversibility": { "type": "integer", "minimum": 0 },
+        "explicit_operation_version": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_characters",
+        "active_request_limit",
+        "capability_query_characters",
+        "capability_page_size",
+        "action_search_results"
+      ],
+      "properties": {
+        "request_characters": { "type": "integer", "minimum": 128 },
+        "active_request_limit": { "type": "integer", "minimum": 1 },
+        "capability_query_characters": { "type": "integer", "minimum": 1 },
+        "capability_page_size": { "type": "integer", "minimum": 1 },
+        "action_search_results": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "format_support": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "saved_openxml_package_extensions", "live_word_formats"],
+      "properties": {
+        "scope": { "const": "operation-specific" },
+        "saved_openxml_package_extensions": {
+          "type": "array",
+          "items": { "enum": [".docx", ".docm", ".dotx", ".dotm"] },
+          "uniqueItems": true
+        },
+        "live_word_formats": { "const": "delegated-to-installed-word" }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["opens_word", "reads_document", "returns_document_content", "external_network"],
+      "properties": {
+        "opens_word": { "const": false },
+        "reads_document": { "const": false },
+        "returns_document_content": { "const": false },
+        "external_network": { "const": false }
+      }
+    },
+    "paging": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["offset", "limit", "matched_operation_count", "returned_operation_count", "next_offset"],
+      "properties": {
+        "query": { "type": ["string", "null"], "maxLength": 128 },
+        "offset": { "type": "integer", "minimum": 0 },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 32 },
+        "matched_operation_count": { "type": "integer", "minimum": 0 },
+        "returned_operation_count": { "type": "integer", "minimum": 0, "maximum": 32 },
+        "next_offset": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "operations": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/operation" }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "exposure", "description", "input_schema_sha256", "effects"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]+$" },
+        "exposure": { "enum": ["core", "lazy"] },
+        "description": { "type": "string" },
+        "input_schema_sha256": { "$ref": "#/$defs/sha256" },
+        "effects": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["read_only", "destructive", "idempotent", "open_world"],
+          "properties": {
+            "read_only": { "type": "boolean" },
+            "destructive": { "type": "boolean" },
+            "idempotent": { "type": "boolean" },
+            "open_world": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

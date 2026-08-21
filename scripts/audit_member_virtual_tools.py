@@ -13,6 +13,28 @@ from jsonschema import Draft202012Validator
 from wordtoolkit.live_member_capabilities import build_member_capability_registry
 
 
+def _schema_validation_key(schema: Any) -> str:
+    """Canonicalize instance-dependent const values before schema validation.
+
+    ``check_schema`` validates the schema grammar, not whether a const happens to
+    equal a particular capability ID.  Replacing const payloads preserves every
+    structural validation check and lets identical generated templates share one
+    validation pass.
+    """
+
+    def normalize(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                key: ("__const__" if key == "const" else normalize(item))
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [normalize(item) for item in value]
+        return value
+
+    return json.dumps(normalize(schema), ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+
+
 def _default_catalog() -> Path:
     configured = os.environ.get("WORDTOOLKIT_STORAGE_ROOT", "").strip()
     if configured:
@@ -35,6 +57,10 @@ def audit(catalog_path: Path) -> dict[str, Any]:
     failures: list[dict[str, Any]] = []
     tool_names: set[str] = set()
     coverage_rows = []
+    # The registry intentionally emits many structurally identical schemas.  Schema
+    # checking is expensive (jsonschema walks every nested keyword), so validate each
+    # canonical schema only once while preserving the exact failure classification.
+    schema_check_cache: dict[str, str | None] = {}
 
     for position, profile in enumerate(profiles):
         capability_id = str(profile["capability_id"])
@@ -58,9 +84,24 @@ def audit(catalog_path: Path) -> dict[str, Any]:
             )
         tool_names.add(tool_name)
         for schema_name in ("input_schema", "output_schema"):
+            schema = tool.get(schema_name)
+            cache_key = _schema_validation_key(schema)
+            cached_failure = schema_check_cache.get(cache_key, "__missing__")
+            if cached_failure != "__missing__":
+                if cached_failure is not None:
+                    failures.append(
+                        {
+                            "position": position,
+                            "capability_id": capability_id,
+                            "failure": f"invalid_{schema_name}",
+                            "exception": cached_failure,
+                        }
+                    )
+                continue
             try:
-                Draft202012Validator.check_schema(tool.get(schema_name))
+                Draft202012Validator.check_schema(schema)
             except Exception as exc:
+                schema_check_cache[cache_key] = type(exc).__name__
                 failures.append(
                     {
                         "position": position,
@@ -69,6 +110,8 @@ def audit(catalog_path: Path) -> dict[str, Any]:
                         "exception": type(exc).__name__,
                     }
                 )
+            else:
+                schema_check_cache[cache_key] = None
         coverage_rows.append(
             [
                 capability_id,
@@ -108,9 +151,7 @@ def audit(catalog_path: Path) -> dict[str, Any]:
             sorted(Counter(item["policy"]["execution"] for item in profiles).items())
         ),
         "virtual_tool_kind_counts": dict(
-            sorted(
-                Counter(item["virtual_tool"]["kind"] for item in profiles).items()
-            )
+            sorted(Counter(item["virtual_tool"]["kind"] for item in profiles).items())
         ),
         "coverage_sha256": digest,
         "failure_count": len(failures),

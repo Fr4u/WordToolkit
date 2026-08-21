@@ -19,5 +19,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../WordToolkit.Engine/WordToolkit.Engine.csproj" />
+    <ProjectReference Include="../WordToolkit.OpenXmlSdk/WordToolkit.OpenXmlSdk.csproj" />
   </ItemGroup>
 </Project>

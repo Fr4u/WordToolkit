@@ -35,6 +35,7 @@ $nativeTools = @(
     "inspect_live_word_document",
     "map_live_word_structures",
     "inspect_live_word_structure_items",
+    "inspect_live_word_drawing_layout",
     "inspect_live_word_equation_learning",
     "inspect_live_word_structure_learning",
     "inspect_live_word_object_model_types",
@@ -68,6 +69,16 @@ $nativeTools = @(
     "insert_live_word_equation",
     "insert_live_word_equations_batch",
     "preflight_live_word_equations",
+    "inspect_live_word_equations",
+    "update_live_word_equation",
+    "insert_live_word_caption",
+    "insert_live_word_table_of_figures",
+    "insert_live_word_table_of_contents",
+    "mark_live_word_authority_citation",
+    "insert_live_word_table_of_authorities",
+    "mark_live_word_index_entry",
+    "insert_live_word_index",
+    "update_live_word_reference_tables",
     "apply_live_word_operations",
     "validate_live_word_document",
     "export_live_word_pdf",
@@ -76,6 +87,26 @@ $nativeTools = @(
     "quit_word_application",
     "disconnect_live_word_document"
 )
+
+$exposedTools = @(
+    "list_live_word_documents",
+    "start_word_application",
+    "create_live_word_document",
+    "open_live_word_document",
+    "connect_live_word_document",
+    "inspect_ooxml_package",
+    "inspect_live_word_document",
+    "get_live_word_selection",
+    "apply_live_word_operations",
+    "save_live_word_document",
+    "disconnect_live_word_document",
+    "search_wordtoolkit_actions",
+    "inspect_wordtoolkit_action",
+    "execute_wordtoolkit_action",
+    "get_wordtoolkit_capabilities"
+)
+$catalogNames = @()
+$availableActionCount = 0
 
 $toolStats = [ordered]@{}
 foreach ($name in $nativeTools) {
@@ -94,9 +125,20 @@ $startInfo.RedirectStandardInput = $true
 $startInfo.RedirectStandardOutput = $true
 $startInfo.RedirectStandardError = $true
 $startInfo.CreateNoWindow = $true
+$utf8NoBom = New-Object Text.UTF8Encoding($false)
+$startInfo.StandardOutputEncoding = $utf8NoBom
+$startInfo.StandardErrorEncoding = $utf8NoBom
 $process = [Diagnostics.Process]::new()
 $process.StartInfo = $startInfo
-[void]$process.Start()
+$previousInputEncoding = [Console]::InputEncoding
+[Console]::InputEncoding = [Text.Encoding]::ASCII
+try {
+    [void]$process.Start()
+    $mcpInput = $process.StandardInput
+}
+finally {
+    [Console]::InputEncoding = $previousInputEncoding
+}
 
 $requestId = 0
 function Invoke-Mcp {
@@ -114,13 +156,20 @@ function Invoke-Mcp {
         method = $Method
         params = $Params
     } | ConvertTo-Json -Depth 60 -Compress
-    $process.StandardInput.WriteLine($request)
-    $process.StandardInput.Flush()
+    # Windows PowerShell 5.1 does not expose ProcessStartInfo.StandardInputEncoding.
+    # Escape non-ASCII code units so MCP input stays valid under every console code page.
+    $request = [regex]::Replace(
+        $request,
+        '[^\u0000-\u007F]',
+        { param($match) '\u{0:x4}' -f [int][char]$match.Value }
+    )
+    $mcpInput.WriteLine($request)
+    $mcpInput.Flush()
     $line = $process.StandardOutput.ReadLine()
     if (-not $line) {
         throw "Native MCP exited: $($process.StandardError.ReadToEnd())"
     }
-    $response = $line | ConvertFrom-Json -Depth 60
+    $response = $line | ConvertFrom-Json
     if ($response.error) {
         throw ($response.error | ConvertTo-Json -Depth 30 -Compress)
     }
@@ -163,9 +212,15 @@ function Invoke-TimedTool {
 
     $watch = [Diagnostics.Stopwatch]::StartNew()
     try {
+        $callName = "execute_wordtoolkit_action"
+        $callArguments = @{
+            action = $Name
+            arguments = $Arguments
+            response_mode = "full"
+        }
         $response = Invoke-Mcp `
             -Method "tools/call" `
-            -Params @{ name = $Name; arguments = $Arguments }
+            -Params @{ name = $callName; arguments = $callArguments }
         if ($response.result.isError) {
             throw (
                 $response.result.structuredContent.error |
@@ -201,9 +256,15 @@ function Invoke-TimedToolExpectedError {
 
     $watch = [Diagnostics.Stopwatch]::StartNew()
     try {
+        $callName = "execute_wordtoolkit_action"
+        $callArguments = @{
+            action = $Name
+            arguments = $Arguments
+            response_mode = "full"
+        }
         $response = Invoke-Mcp `
             -Method "tools/call" `
-            -Params @{ name = $Name; arguments = $Arguments }
+            -Params @{ name = $callName; arguments = $callArguments }
         $watch.Stop()
         if (-not $response.result.isError) {
             Add-ToolTiming `
@@ -227,6 +288,7 @@ function Invoke-TimedToolExpectedError {
             -Milliseconds $watch.Elapsed.TotalMilliseconds `
             -Status "guard_passed" `
             -Note $Note
+        $script:safetyGuardPassCount++
         return $errorData
     }
     catch {
@@ -286,6 +348,12 @@ $documentOpen = $false
 $stage = "initialize"
 $failure = $null
 $selectionSetupMs = 0.0
+$compactPreflightCharacters = 0
+$safetyGuardPassCount = 0
+$actualWordQuitSkipped = $true
+$actualWordQuitSkipReason = ""
+$ownedWordQuitCompleted = $false
+$applicationOwnedByRuntime = $false
 $report = [ordered]@{
     runtime = $runtime
     transport = "real MCP STDIO"
@@ -306,27 +374,67 @@ try {
             }
         })
 
-    $stage = "verify the installed 48-tool catalog"
+    $stage = "verify the token-lean 15-tool catalog and lazy live actions"
     $catalog = Invoke-Mcp -Method "tools/list" -Params @{}
-    $catalogNames = @($catalog.result.tools | ForEach-Object { $_.name })
+    $script:catalogNames = @($catalog.result.tools | ForEach-Object { $_.name })
     Assert-True `
-        -Condition ($catalogNames.Count -eq 48) `
-        -Message "Expected 48 tools, got $($catalogNames.Count)"
-    foreach ($name in $nativeTools) {
+        -Condition ($script:catalogNames.Count -eq 15) `
+        -Message "Expected 15 exposed tools, got $($script:catalogNames.Count)"
+    foreach ($name in $exposedTools) {
         Assert-True `
-            -Condition ($catalogNames -contains $name) `
+            -Condition ($script:catalogNames -contains $name) `
             -Message "Installed runtime is missing $name"
+    }
+
+    $search = Invoke-Mcp `
+        -Method "tools/call" `
+        -Params @{
+            name = "search_wordtoolkit_actions"
+            arguments = @{ query = "equation"; max_results = 12 }
+        }
+    Assert-True `
+        -Condition (
+            -not $search.result.isError -and
+            $search.result.structuredContent.data.match_count -gt 0
+        ) `
+        -Message "The lazy action search gateway returned no equation actions"
+    $capabilityManifest = Invoke-Mcp `
+        -Method "tools/call" `
+        -Params @{
+            name = "get_wordtoolkit_capabilities"
+            arguments = @{ limit = 1 }
+        }
+    Assert-True `
+        -Condition (
+            -not $capabilityManifest.result.isError -and
+            [int]$capabilityManifest.result.structuredContent.data.operation_count -ge $nativeTools.Count
+        ) `
+        -Message "Capability discovery did not report the complete native action set"
+    $script:availableActionCount = [int](
+        $capabilityManifest.result.structuredContent.data.operation_count
+    )
+    foreach ($name in $nativeTools) {
+        $inspection = Invoke-Mcp `
+            -Method "tools/call" `
+            -Params @{
+                name = "inspect_wordtoolkit_action"
+                arguments = @{ action = $name }
+            }
+        Assert-True `
+            -Condition (
+                -not $inspection.result.isError -and
+                $inspection.result.structuredContent.data.action -eq $name
+            ) `
+            -Message "Lazy action catalog is missing $name"
     }
 
     $stage = "list real Word documents"
     $listedBefore = Invoke-TimedTool `
         -Name "list_live_word_documents" `
         -Arguments @{}
-    Assert-True `
-        -Condition $listedBefore.word_running `
-        -Message "Microsoft Word is not running"
+    $preexistingDocuments = @($listedBefore.documents)
     $unrelatedDirtyDocuments = @(
-        $listedBefore.documents |
+        $preexistingDocuments |
             Where-Object { -not $_.saved -and $_.full_name -ne $documentPath }
     )
 
@@ -337,6 +445,7 @@ try {
     Assert-True `
         -Condition ($started.word_running -and $started.visible) `
         -Message "Word did not report a visible running state"
+    $applicationOwnedByRuntime = [bool]$started.application_owned_by_runtime
 
     $stage = "verify the quit confirmation safety gate"
     $quitGate = Invoke-TimedToolExpectedError `
@@ -346,7 +455,7 @@ try {
             confirm = $false
         } `
         -ExpectedCode "AUTH_FORBIDDEN" `
-        -Note "Confirmation gate passed; actual quit intentionally skipped because unrelated Word documents are open"
+        -Note "Confirmation gate passed; no unconfirmed application quit was allowed"
 
     $stage = "create a new saved live DOCX"
     $created = Invoke-TimedTool `
@@ -391,7 +500,7 @@ try {
                 },
                 @{
                     type = "text"
-                    text = "Pełny test natywnej ścieżki model → MCP → .NET → COM → uruchomiony Microsoft Word."
+                    text = "Full native path test: model -> MCP -> .NET -> COM -> Microsoft Word."
                     as_new_paragraph = $true
                     formatting = @{
                         font_name = "Aptos"
@@ -424,7 +533,7 @@ try {
                 },
                 @{
                     type = "text"
-                    text = "Równanie utworzone wewnątrz mieszanego batcha:"
+                    text = "Equation created inside a mixed operation batch:"
                     as_new_paragraph = $true
                     formatting = @{
                         font_name = "Aptos Display"
@@ -747,7 +856,7 @@ try {
         -Arguments @{
             live_document_id = $documentId
             range_token = $foundComment.matches[0].range_token
-            text = "Pełny test: komentarz przypięty do zakresu zwróconego przez natywne Word Find."
+            text = "Full test: comment attached to the range returned by native Word Find."
             expected_version = $version
         }
     $version = [long]$comment.live_version
@@ -848,11 +957,11 @@ try {
         -Arguments @{
             live_document_id = $documentId
             rows = @(
-                @("Moduł", "Wynik", "Uwagi"),
+                @("Module", "Result", "Notes"),
                 @("Tekst", "1", "OK"),
-                @("Równania", "1", "OK"),
+                @("Equations", "1", "OK"),
                 @("DOCX/PDF", "2", "OK"),
-                @("Łącznie", "", "")
+                @("Total", "", "")
             )
             target = "document_end"
             header_row = $true
@@ -933,7 +1042,7 @@ try {
             items = @(
                 "Natywny tekst i formatowanie",
                 "Natywne obiekty dokumentu",
-                "Natywne równania OMath"
+                "Native OMath equations"
             )
             list_kind = "bullet"
             target = "document_end"
@@ -1015,7 +1124,7 @@ try {
             kind = "reference"
             bookmark = $bookmarkName
             hyperlink = $false
-            prefix_text = "Odwołanie wewnętrzne: "
+            prefix_text = "Internal reference: "
             suffix_text = " "
             as_new_paragraph = $true
         },
@@ -1076,13 +1185,38 @@ try {
         -Condition $image.image.native_verified `
         -Message "Word did not verify the inline image"
 
+    $stage = "inspect Word-executed drawing layout"
+    $drawingLayout = Invoke-TimedTool `
+        -Name "inspect_live_word_drawing_layout" `
+        -Arguments @{
+            live_document_id = $documentId
+            object_kind = "inline"
+            story_type = "all"
+            limit = 10
+            repaginate = $true
+            include_group_items = $false
+            include_smartart_nodes = $false
+            include_text = $false
+            include_screen_pixels = $false
+        }
+    Assert-True `
+        -Condition (
+            $drawingLayout.layout_source -eq "microsoft_word_object_model" -and
+            $drawingLayout.repagination.performed -and
+            $drawingLayout.scan.returned_count -ge 1 -and
+            $drawingLayout.counts.by_collection_kind.inline -ge 1 -and
+            -not $drawingLayout.disclosure.raw_xml_returned -and
+            -not $drawingLayout.disclosure.raw_com_objects_returned
+        ) `
+        -Message "Word-executed inline drawing layout was not projected safely"
+
     $stage = "insert a native footnote"
     $footnote = Invoke-TimedTool `
         -Name "insert_live_word_note" `
         -Arguments @{
             live_document_id = $documentId
             kind = "footnote"
-            text = "Natywny przypis dolny utworzony przez kolekcję Footnotes Worda."
+            text = "Native footnote created through the Word Footnotes collection."
             target = "document_end"
             expected_version = $version
         }
@@ -1097,7 +1231,7 @@ try {
         -Arguments @{
             live_document_id = $documentId
             kind = "endnote"
-            text = "Natywny przypis końcowy utworzony przez kolekcję Endnotes Worda."
+            text = "Native endnote created through the Word Endnotes collection."
             target = "document_end"
             custom_mark = "E"
             expected_version = $version
@@ -1111,31 +1245,31 @@ try {
         @{
             kind = "header"
             variant = "primary"
-            text = "WORDTOOLKIT · FULL LIVE TEST"
+            text = "WORDTOOLKIT - FULL LIVE TEST"
             alignment = "center"
         },
         @{
             kind = "header"
             variant = "first_page"
-            text = "PIERWSZA STRONA · NATYWNY WORD"
+            text = "FIRST PAGE - NATIVE WORD"
             alignment = "left"
         },
         @{
             kind = "header"
             variant = "even_pages"
-            text = "STRONA PARZYSTA · TEST"
+            text = "EVEN PAGE - TEST"
             alignment = "right"
         },
         @{
             kind = "footer"
             variant = "primary"
-            text = "Model → MCP → .NET → COM → Word"
+            text = "Model -> MCP -> .NET -> COM -> Word"
             alignment = "center"
         },
         @{
             kind = "footer"
             variant = "first_page"
-            text = "Pełna automatyzacja bez Pythona"
+            text = "Full automation without Python"
             alignment = "left"
         },
         @{
@@ -1172,11 +1306,44 @@ try {
     }
 
     $mathMl = @'
-<math xmlns="http://www.w3.org/1998/Math/MathML"><mfrac><mn>1</mn><mrow><mi>x</mi><mo>+</mo><mn>1</mn></mrow></mfrac></math>
+<math xmlns="http://www.w3.org/1998/Math/MathML"><mi mathvariant="normal">a</mi><mo>+</mo><mi mathvariant="bold">b</mi><mo>+</mo><mi mathvariant="italic">c</mi><mo>+</mo><mi mathvariant="bold-italic">d</mi><mo>+</mo><mi mathvariant="double-struck">R</mi><mo>+</mo><mi mathvariant="script">A</mi><mo>+</mo><mi mathvariant="bold-script">B</mi><mo>+</mo><mi mathvariant="fraktur">C</mi><mo>+</mo><mi mathvariant="bold-fraktur">D</mi><mo>+</mo><mi mathvariant="sans-serif">E</mi><mo>+</mo><mi mathvariant="bold-sans-serif">F</mi><mo>+</mo><mi mathvariant="sans-serif-italic">G</mi><mo>+</mo><mi mathvariant="sans-serif-bold-italic">H</mi><mo>+</mo><mi mathvariant="monospace">I</mi></math>
 '@
     $omml = @'
-<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:deg/><m:e><m:r><m:t>x+1</m:t></m:r></m:e></m:rad></m:oMath>
+<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><m:f><m:fPr><m:ctrlPr><w:rPr><w:i/></w:rPr></m:ctrlPr></m:fPr><m:num><m:r><m:rPr><m:sty m:val="p"/></m:rPr><m:t>x</m:t></m:r><m:r><m:rPr><m:sty m:val="b"/></m:rPr><m:t>u</m:t></m:r></m:num><m:den><m:r><m:rPr><m:sty m:val="i"/></m:rPr><m:t>y</m:t></m:r><m:r><m:rPr><m:sty m:val="bi"/></m:rPr><m:t>v</m:t></m:r></m:den></m:f></m:oMath>
 '@
+
+    $stage = "verify compact lazy equation preflight"
+    $compactPreflightResponse = Invoke-Mcp `
+        -Method "tools/call" `
+        -Params @{
+            name = "execute_wordtoolkit_action"
+            arguments = @{
+                action = "preflight_live_word_equations"
+                arguments = @{
+                    equations = @(
+                        @{
+                            value = "\frac{\mathrm{d}y}{\mathrm{d}x}=3x^2"
+                            input_format = "latex"
+                            display = $true
+                        }
+                    )
+                }
+            }
+        }
+    Assert-True `
+        -Condition (-not $compactPreflightResponse.result.isError) `
+        -Message "Compact equation preflight failed"
+    $compactPreflight = $compactPreflightResponse.result.structuredContent.data
+    $compactPreflightCharacters = (
+        $compactPreflight | ConvertTo-Json -Depth 30 -Compress
+    ).Length
+    Assert-True `
+        -Condition (
+            -not $compactPreflight.word_linear_returned -and
+            $compactPreflightCharacters -lt 600 -and
+            $compactPreflight.equations[0].PSObject.Properties.Name -notcontains "word_linear"
+        ) `
+        -Message "Compact equation preflight leaked linear math or exceeded 599 characters"
 
     $stage = "preflight all four equation input formats"
     $preflight = Invoke-TimedTool `
@@ -1206,17 +1373,28 @@ try {
             )
         }
     Assert-True `
-        -Condition ($preflight.valid -and $preflight.equation_count -eq 4) `
-        -Message "Equation preflight failed for one of the four formats"
+        -Condition (
+            $preflight.valid -and
+            $preflight.equation_count -eq 4 -and
+            $preflight.equations[2].formatting_region_count -eq 14 -and
+            $preflight.equations[2].formatting_regions.plain -eq 6 -and
+            $preflight.equations[2].formatting_regions.bold -eq 4 -and
+            $preflight.equations[2].formatting_regions.italic -eq 2 -and
+            $preflight.equations[2].formatting_regions.bold_italic -eq 2 -and
+            $preflight.equations[3].formatting_region_count -eq 5 -and
+            $preflight.equations[3].formatting_regions.first_control -eq 1
+        ) `
+        -Message "Equation preflight lost MathML or OMML native style scopes"
 
     $stage = "insert one native LaTeX equation"
     $singleEquation = Invoke-TimedTool `
         -Name "insert_live_word_equation" `
         -Arguments @{
             live_document_id = $documentId
-            value = "\frac{d}{d x}\left(x^3\right)=3x^2"
+            value = "\frac{\mathrm{d}y}{\mathrm{d}x}=3x^2"
             input_format = "latex"
             display = $true
+            verify_readback = $true
             target = "document_end"
             expected_version = $version
         }
@@ -1232,7 +1410,12 @@ try {
             live_document_id = $documentId
             equations = @(
                 @{
-                    value = "sum_(i=1)^n i^2=(n(n+1)(2n+1))/6"
+                    value = (
+                        ([char]0x2211).ToString() +
+                        "_(i=1)^(n)" +
+                        ([char]0x2592).ToString() +
+                        "i^(2)=(n(n+1)(2n+1))/(6)"
+                    )
                     input_format = "unicodemath"
                     display = $true
                 },
@@ -1245,14 +1428,224 @@ try {
                     value = $omml
                     input_format = "omml"
                     display = $true
+                },
+                @{
+                    value = "\lim_{x\to0}\frac{\sin x}{x}=1"
+                    input_format = "latex"
+                    display = $true
+                    verify_readback = $true
+                },
+                @{
+                    value = "\min_{x\in S}f(x)+\max_{x\in S}g(x)"
+                    input_format = "latex"
+                    display = $true
+                    verify_readback = $true
+                },
+                @{
+                    value = "\frac{u\cdot v}{\left\|u\right\|\left\|v\right\|}"
+                    input_format = "latex"
+                    display = $true
+                    verify_readback = $true
+                },
+                @{
+                    value = "f(x)=\begin{cases}x^2&\text{gdy }x\ge0\\-x&\text{gdy }x<0\end{cases}"
+                    input_format = "latex"
+                    display = $true
+                    verify_readback = $true
+                },
+                @{
+                    value = "\mathbb{R}+\mathcal{F}+\mathfrak{R}+\mathsf{A}+\mathtt{x}"
+                    input_format = "latex"
+                    display = $true
+                    verify_readback = $true
+                },
+                @{
+                    value = "\mathbf{x+\boldsymbol{y}}"
+                    input_format = "latex"
+                    display = $true
+                },
+                @{
+                    value = "\boldsymbol{\frac{\alpha+\beta}{\gamma}}"
+                    input_format = "latex"
+                    display = $true
                 }
             )
             expected_version = $version
         }
     $version = [long]$equationBatch.live_version
     Assert-True `
-        -Condition ($equationBatch.equation_operation_count -eq 3) `
-        -Message "Native equation batch did not create all three equations"
+        -Condition (
+            $equationBatch.equation_operation_count -eq 10 -and
+            $equationBatch.operations[1].equation.native_style_verified -and
+            $equationBatch.operations[1].equation.formatting.region_count -eq 14 -and
+            $equationBatch.operations[1].equation.formatting.plain_run_count -ge 6 -and
+            $equationBatch.operations[1].equation.formatting.bold_run_count -ge 4 -and
+            $equationBatch.operations[1].equation.formatting.italic_run_count -ge 2 -and
+            $equationBatch.operations[1].equation.formatting.bold_italic_run_count -ge 2 -and
+            $equationBatch.operations[2].equation.native_style_verified -and
+            $equationBatch.operations[2].equation.formatting.plain_run_count -ge 1 -and
+            $equationBatch.operations[2].equation.formatting.bold_run_count -ge 1 -and
+            $equationBatch.operations[2].equation.formatting.italic_run_count -ge 1 -and
+            $equationBatch.operations[2].equation.formatting.bold_italic_run_count -ge 1 -and
+            $equationBatch.operations[2].equation.formatting.italic_control_count -ge 1 -and
+            $equationBatch.operations[8].equation.native_style_verified -and
+            $equationBatch.operations[8].equation.formatting.region_count -eq 2 -and
+            $equationBatch.operations[9].equation.native_style_verified -and
+            $equationBatch.operations[9].equation.formatting.bold_italic_run_count -ge 2 -and
+            $equationBatch.operations[9].equation.formatting.bold_italic_control_count -ge 1
+        ) `
+        -Message "Native equation batch lost MathML, OMML or LaTeX equation styles"
+
+    $stage = "inspect and update a native equation with a fresh token"
+    $equationsBeforeUpdate = Invoke-TimedTool -Name "inspect_live_word_equations" -Arguments @{
+        live_document_id = $documentId
+        offset = 0
+        limit = 50
+        include_text_preview = $false
+    }
+    $equationCandidate = @($equationsBeforeUpdate.equations) | Select-Object -First 1
+    Assert-True ($null -ne $equationCandidate -and $equationCandidate.equation_token) `
+        "Equation inspection did not return a fresh equation token"
+    $equationUpdate = Invoke-TimedTool -Name "update_live_word_equation" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        equation_index = [int]$equationCandidate.equation_index
+        equation_token = $equationCandidate.equation_token
+        value = "\frac{\mathrm{d}y}{\mathrm{d}x}=4x^2"
+        input_format = "latex"
+        display = $true
+        verify_readback = $true
+    }
+    Assert-True ($equationUpdate.native_verified -and [long]$equationUpdate.live_version -eq $version + 1) `
+        "Native equation update was not verified"
+    $version = [long]$equationUpdate.live_version
+
+    $stage = "insert caption and generated reference tables"
+    $captionSelection = Invoke-TimedTool -Name "get_live_word_selection" -Arguments @{ live_document_id = $documentId }
+    $caption = Invoke-TimedTool -Name "insert_live_word_caption" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        selection_token = $captionSelection.selection.selection_token
+        title = "Acceptance figure"
+        caption_kind = "figure"
+    }
+    Assert-True ($caption.native_verified -and [long]$caption.live_version -eq $version + 1) "Caption insertion failed"
+    $version = [long]$caption.live_version
+    $tof = Invoke-TimedTool -Name "insert_live_word_table_of_figures" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        target = "document_end"
+        caption_kind = "figure"
+    }
+    Assert-True ($tof.native_verified -and $tof.table_of_figures_count_after -gt $tof.table_of_figures_count_before) "TOF insertion failed"
+    $version = [long]$tof.live_version
+
+    $headingOne = Invoke-TimedTool -Name "insert_live_word_text" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        text = "Acceptance Heading One"
+        target = "document_end"
+        as_new_paragraph = $true
+        style = "Heading 1"
+    }
+    $version = [long]$headingOne.live_version
+
+    $headingTwo = Invoke-TimedTool -Name "insert_live_word_text" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        text = "Acceptance Heading Two"
+        target = "document_end"
+        as_new_paragraph = $true
+        style = "Heading 1"
+    }
+    $version = [long]$headingTwo.live_version
+
+    $toc = Invoke-TimedTool -Name "insert_live_word_table_of_contents" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        target = "document_end"
+        upper_heading_level = 1
+        lower_heading_level = 2
+    }
+    Assert-True ($toc.native_verified -and $toc.table_of_contents_count_after -gt $toc.table_of_contents_count_before -and $toc.inserted_field_count -gt 0) "TOC insertion failed"
+    $version = [long]$toc.live_version
+
+    $authoritySource = Invoke-TimedTool -Name "insert_live_word_text" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        text = "Acceptance authority source $suffix"
+        target = "document_end"
+        as_new_paragraph = $true
+    }
+    $version = [long]$authoritySource.live_version
+    $authorityRange = Invoke-TimedTool -Name "find_live_word_text" -Arguments @{
+        live_document_id = $documentId
+        search_text = "Acceptance authority source $suffix"
+        match_case = $true
+        whole_word = $true
+        context_chars = 10
+        max_results = 1
+    }
+    Assert-True ($authorityRange.match_count -eq 1 -and $authorityRange.matches[0].range_token) "Authority source range was not found"
+    $authority = Invoke-TimedTool -Name "mark_live_word_authority_citation" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        range_token = $authorityRange.matches[0].range_token
+        category = 1
+        short_citation = "WordToolkit"
+        long_citation = "WordToolkit acceptance citation"
+    }
+    Assert-True ($authority.native_verified -and [long]$authority.live_version -eq $version + 1) "Authority citation marking failed"
+    $version = [long]$authority.live_version
+    $toa = Invoke-TimedTool -Name "insert_live_word_table_of_authorities" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        target = "document_end"
+        category = 1
+    }
+    Assert-True ($toa.native_verified -and $toa.table_of_authorities_count_after -gt $toa.table_of_authorities_count_before) "TOA insertion failed"
+    $version = [long]$toa.live_version
+
+    $indexSource = Invoke-TimedTool -Name "insert_live_word_text" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        text = "Acceptance index source $suffix"
+        target = "document_end"
+        as_new_paragraph = $true
+    }
+    $version = [long]$indexSource.live_version
+    $indexRange = Invoke-TimedTool -Name "find_live_word_text" -Arguments @{
+        live_document_id = $documentId
+        search_text = "Acceptance index source $suffix"
+        match_case = $true
+        whole_word = $true
+        context_chars = 10
+        max_results = 1
+    }
+    Assert-True ($indexRange.match_count -eq 1 -and $indexRange.matches[0].range_token) "Index source range was not found"
+
+    $index = Invoke-TimedTool -Name "mark_live_word_index_entry" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        range_token = $indexRange.matches[0].range_token
+        main_entry = "Acceptance"
+    }
+    Assert-True ($index.native_verified -and [long]$index.live_version -eq $version + 1) "Index entry marking failed"
+    $version = [long]$index.live_version
+    $indexTable = Invoke-TimedTool -Name "insert_live_word_index" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        target = "document_end"
+    }
+    Assert-True ($indexTable.native_verified -and $indexTable.index_count_after -gt $indexTable.index_count_before) "INDEX insertion failed"
+    $version = [long]$indexTable.live_version
+    $references = Invoke-TimedTool -Name "update_live_word_reference_tables" -Arguments @{
+        live_document_id = $documentId
+        expected_version = $version
+        kind = "all"
+    }
+    Assert-True ($references.native_verified -and $references.ranges_and_fields_verified) "Reference table refresh failed"
+    $version = [long]$references.live_version
 
     $stage = "map every supported native Word structure collection"
     $structureMap = Invoke-TimedTool `
@@ -1378,7 +1771,15 @@ try {
             $beforeClose.document.table_count -ge 1 -and
             $beforeClose.document.equation_count -ge 5
         ) `
-        -Message "One or more native Word structures are missing before close"
+        -Message (
+            "One or more native Word structures are missing before close: " +
+            "comments=$($beforeClose.document.comment_count), " +
+            "footnotes=$($beforeClose.document.footnote_count), " +
+            "endnotes=$($beforeClose.document.endnote_count), " +
+            "images=$($beforeClose.document.inline_image_count), " +
+            "tables=$($beforeClose.document.table_count), " +
+            "equations=$($beforeClose.document.equation_count)"
+        )
 
     $stage = "close only the saved acceptance document"
     [void](Invoke-TimedTool `
@@ -1455,7 +1856,7 @@ try {
     $documentId = ""
     $documentOpen = $false
 
-    $stage = "open the final result and leave it visible"
+    $stage = "open the final result for last live verification"
     $finalOpen = Invoke-TimedTool `
         -Name "open_live_word_document" `
         -Arguments @{
@@ -1483,12 +1884,50 @@ try {
         -Condition ($finalMatch.Count -eq 1) `
         -Message "The final acceptance DOCX is not active in Word"
 
-    $stage = "release the toolkit handle and leave Word open"
+    $stage = "close the final verified acceptance document"
     [void](Invoke-TimedTool `
-        -Name "disconnect_live_word_document" `
-        -Arguments @{ live_document_id = $documentId })
+        -Name "close_live_word_document" `
+        -Arguments @{
+            live_document_id = $documentId
+            save_changes = "save"
+            expected_version = $version
+        })
     $documentId = ""
     $documentOpen = $false
+
+    $stage = "verify acceptance document cleanup"
+    $listedAfterClose = Invoke-TimedTool `
+        -Name "list_live_word_documents" `
+        -Arguments @{}
+    $remainingAcceptanceDocuments = @(
+        $listedAfterClose.documents |
+            Where-Object { $_.full_name -eq $documentPath }
+    )
+    Assert-True `
+        -Condition ($remainingAcceptanceDocuments.Count -eq 0) `
+        -Message "The final acceptance DOCX remained open after explicit close"
+
+    if ($applicationOwnedByRuntime -and @($listedAfterClose.documents).Count -eq 0) {
+        $stage = "quit only the Word application started by this acceptance run"
+        [void](Invoke-TimedTool `
+            -Name "quit_word_application" `
+            -Arguments @{
+                save_changes = "discard_all"
+                confirm = $true
+            })
+        $ownedWordQuitCompleted = $true
+        $actualWordQuitSkipped = $false
+        $actualWordQuitSkipReason = ""
+    }
+    else {
+        $actualWordQuitSkipped = $true
+        if (-not $applicationOwnedByRuntime) {
+            $actualWordQuitSkipReason = "Word application ownership was not established by this runtime; user-owned application was preserved"
+        }
+        else {
+            $actualWordQuitSkipReason = "Other Word documents remained open; application quit was not authorized"
+        }
+    }
 
     $totalWatch.Stop()
     $toolResultRows = foreach ($name in $nativeTools) {
@@ -1512,10 +1951,6 @@ try {
         $toolResultRows |
             Where-Object { $_.status -eq "passed" }
     ).Count
-    $guardPassed = @(
-        $toolResultRows |
-            Where-Object { $_.status -eq "guard_passed" }
-    ).Count
     $notPassed = @(
         $toolResultRows |
             Where-Object { $_.status -notin @("passed", "guard_passed") }
@@ -1526,13 +1961,17 @@ try {
 
     $report.total_seconds = [Math]::Round($totalWatch.Elapsed.TotalSeconds, 3)
     $report.total_mcp_requests = $requestId
-    $report.installed_tool_count = 48
+    $report.exposed_tool_count = $script:catalogNames.Count
+    $report.available_action_count = $availableActionCount
+    $report.exercised_live_action_count = $nativeTools.Count
     $report.positive_tools_passed = $positivePassed
-    $report.safety_guard_tools_passed = $guardPassed
+    $report.safety_guard_tools_passed = $safetyGuardPassCount
     $report.selection_setup_ms = [Math]::Round($selectionSetupMs, 3)
+    $report.compact_equation_preflight_characters = $compactPreflightCharacters
+    $report.preexisting_document_count = $preexistingDocuments.Count
     $report.unrelated_dirty_documents_protected = $unrelatedDirtyDocuments.Count
-    $report.actual_word_quit_skipped = $true
-    $report.actual_word_quit_skip_reason = "Unrelated Word documents were open; destructive application quit was not authorized"
+    $report.actual_word_quit_skipped = $actualWordQuitSkipped
+    $report.actual_word_quit_skip_reason = $actualWordQuitSkipReason
     $report.document = [ordered]@{
         paragraphs = $finalOpen.document.paragraph_count
         tables = $finalOpen.document.table_count
@@ -1543,8 +1982,8 @@ try {
         inline_images = $finalOpen.document.inline_image_count
         sections = $finalOpen.document.section_count
         saved = $finalOpen.document.saved
-        active = $true
-        left_open_in_word = $true
+        active = $false
+        left_open_in_word = $false
     }
     $report.pdf_bytes = [long]$pdf.bytes
     $report.openxml_valid = $validated.validation.valid
@@ -1596,9 +2035,53 @@ finally {
         }
     }
 
-    $process.StandardInput.Close()
+    # Fail-safe for a Word instance started by this run.  Never close or quit
+    # user-owned documents; only quit when the live-document list proves that
+    # the application is empty.  Cleanup diagnostics must not replace the
+    # original acceptance failure.
+    $cleanupQuitStatus = "not_attempted"
+    try {
+        if ($applicationOwnedByRuntime) {
+            if ($ownedWordQuitCompleted) {
+                $cleanupQuitStatus = "already_quit"
+            }
+            else {
+                $cleanupList = Invoke-TimedTool `
+                    -Name "list_live_word_documents" `
+                    -Arguments @{}
+                $cleanupDocuments = @($cleanupList.documents)
+                if ($cleanupDocuments.Count -eq 0) {
+                    if (-not $cleanupList.word_running) {
+                        $cleanupQuitStatus = "already_stopped"
+                    }
+                    else {
+                        [void](Invoke-TimedTool `
+                            -Name "quit_word_application" `
+                            -Arguments @{
+                                save_changes = "discard_all"
+                                confirm = $true
+                            })
+                        $cleanupQuitStatus = "passed"
+                    }
+                }
+                else {
+                    $cleanupQuitStatus = "skipped_documents_remaining"
+                }
+            }
+        }
+        else {
+            $cleanupQuitStatus = "skipped_application_not_owned"
+        }
+    }
+    catch {
+        $cleanupQuitStatus = "failed"
+        $report.cleanup_error = $_.Exception.Message
+    }
+    $report.cleanup_quit_status = $cleanupQuitStatus
+
+    $mcpInput.Close()
     if (-not $process.WaitForExit(5000)) {
-        $process.Kill($true)
+        $process.Kill()
     }
 }
 

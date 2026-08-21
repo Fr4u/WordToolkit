@@ -217,6 +217,80 @@ public sealed class WordSemanticQueryTests
     }
 
     [Fact]
+    public void SelectsParagraphContainingEquationAndEquationInsideStyledTable()
+    {
+        var document = Project(RelationDocumentXml());
+        var engine = new WordSemanticQueryEngine();
+        var paragraphContainingEquation = new WordSemanticQuery
+        {
+            Kinds = [WordSemanticNodeKind.Paragraph],
+            Ancestor = new WordSemanticRelatedNodePredicate
+            {
+                Kinds = [WordSemanticNodeKind.Table],
+                PropertyEquals = new Dictionary<string, string>
+                {
+                    ["style_id"] = "EquationGrid",
+                },
+            },
+            Descendant = new WordSemanticRelatedNodePredicate
+            {
+                Kinds = [WordSemanticNodeKind.Equation],
+            },
+        };
+        var equationInsideTable = new WordSemanticQuery
+        {
+            Kinds = [WordSemanticNodeKind.Equation],
+            Ancestor = new WordSemanticRelatedNodePredicate
+            {
+                Kinds = [WordSemanticNodeKind.Table],
+                PropertyEquals = new Dictionary<string, string>
+                {
+                    ["style_id"] = "EquationGrid",
+                },
+            },
+        };
+
+        var paragraph = Assert.Single(
+            engine.Query(document, paragraphContainingEquation).Matches
+        );
+        var equation = Assert.Single(engine.Query(document, equationInsideTable).Matches);
+
+        Assert.Equal(WordSemanticNodeKind.Paragraph, paragraph.Kind);
+        Assert.Contains("inside equation", paragraph.TextPreview, StringComparison.Ordinal);
+        Assert.Equal(WordSemanticNodeKind.Equation, equation.Kind);
+    }
+
+    [Fact]
+    public void IndexedStructuralJoinMatchesLinearResultAndNarrowsCandidates()
+    {
+        var document = Project(RelationDocumentXml());
+        var index = WordSemanticIndex.Build(document);
+        var query = new WordSemanticQuery
+        {
+            Descendant = new WordSemanticRelatedNodePredicate
+            {
+                Kinds = [WordSemanticNodeKind.Equation],
+            },
+            TextPreviewCharacters = 0,
+        };
+        var engine = new WordSemanticQueryEngine();
+
+        var linear = engine.Query(document, query);
+        var indexed = engine.Query(index, query);
+
+        Assert.Equal(
+            linear.Matches.Select(match => match.NodeId),
+            indexed.Matches.Select(match => match.NodeId)
+        );
+        Assert.Equal("descendant_relation", indexed.CandidateSeed);
+        Assert.True(indexed.ScannedNodeCount < indexed.TotalNodeCount);
+        Assert.DoesNotContain(
+            indexed.Matches,
+            match => match.Kind == WordSemanticNodeKind.Equation
+        );
+    }
+
+    [Fact]
     public void RejectsInvalidQueriesAndUnknownScopeNode()
     {
         var document = Project(TestDocumentXml());
@@ -230,6 +304,15 @@ public sealed class WordSemanticQueryTests
         );
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             engine.Query(document, new WordSemanticQuery { Limit = 201 })
+        );
+        Assert.Throws<ArgumentException>(() =>
+            engine.Query(
+                document,
+                new WordSemanticQuery
+                {
+                    Ancestor = new WordSemanticRelatedNodePredicate(),
+                }
+            )
         );
         Assert.Throws<KeyNotFoundException>(() =>
             engine.Query(
@@ -269,6 +352,25 @@ public sealed class WordSemanticQueryTests
           <w:body>
             <w:p><w:pPr><w:pStyle w:val="Definition"/></w:pPr><w:r><w:t>alpha </w:t></w:r><w:r><w:t>beta</w:t><w:tab/><w:t>gamma</w:t></w:r></w:p>
             <w:p><w:r><w:t>delta</w:t></w:r></w:p>
+          </w:body>
+        </w:document>
+        """;
+
+    private static string RelationDocumentXml() => $"""
+        <w:document xmlns:w="{WordNamespace}" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+          <w:body>
+            <w:p><w:r><w:t>outside paragraph</w:t></w:r></w:p>
+            <w:tbl>
+              <w:tblPr><w:tblStyle w:val="EquationGrid"/></w:tblPr>
+              <w:tr>
+                <w:tc>
+                  <w:p>
+                    <w:r><w:t>inside equation </w:t></w:r>
+                    <m:oMath><m:r><m:t>x</m:t></m:r></m:oMath>
+                  </w:p>
+                </w:tc>
+              </w:tr>
+            </w:tbl>
           </w:body>
         </w:document>
         """;

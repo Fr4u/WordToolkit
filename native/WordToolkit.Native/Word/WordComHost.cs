@@ -7,12 +7,36 @@ namespace WordToolkit.Native.Word;
 internal sealed class WordComHost : IWordComHost
 {
     private readonly BlockingCollection<WorkItem> _queue = new();
+    private readonly object _submissionGate = new();
     private readonly Thread _thread;
+    private readonly Func<bool, object>? _applicationFactory;
+    private readonly Action? _beforeCancellationObservation;
+    private readonly Action? _afterWorkItemCompleted;
+    private readonly Action? _beforeClientObservationCompleted;
+    private readonly TimeSpan _shutdownTimeout;
+    private readonly ManualResetEventSlim _shutdownRequested = new(false);
     private object? _application;
-    private bool _disposed;
+    private bool _applicationOwnedByRuntime;
+    private int _abandonedExecutionCount;
+    private int _unknownOutcome;
+    private int _disposed;
+    private int _stage;
 
-    public WordComHost()
+    public WordComHost() : this(applicationFactory: null) { }
+
+    internal WordComHost(
+        Func<bool, object>? applicationFactory = null,
+        Action? beforeCancellationObservation = null,
+        Action? afterWorkItemCompleted = null,
+        Action? beforeClientObservationCompleted = null,
+        TimeSpan? shutdownTimeout = null
+    )
     {
+        _shutdownTimeout = ValidateShutdownTimeout(shutdownTimeout ?? TimeSpan.FromSeconds(5));
+        _applicationFactory = applicationFactory;
+        _beforeCancellationObservation = beforeCancellationObservation;
+        _afterWorkItemCompleted = afterWorkItemCompleted;
+        _beforeClientObservationCompleted = beforeClientObservationCompleted;
         _thread = new Thread(Run)
         {
             IsBackground = true,
@@ -22,13 +46,38 @@ internal sealed class WordComHost : IWordComHost
         _thread.Start();
     }
 
+    internal TimeSpan ShutdownTimeout => _shutdownTimeout;
+    internal string CurrentWorkerStage => ((WorkerStage)Volatile.Read(ref _stage)).ToString();
+
+    private static TimeSpan ValidateShutdownTimeout(TimeSpan timeout)
+    {
+        if (timeout <= TimeSpan.Zero || timeout > TimeSpan.FromMinutes(5))
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout), "Shutdown timeout must be greater than zero and no more than five minutes");
+        }
+        return timeout;
+    }
+
+    public Task<T> InvokeAsync<T>(
+        Func<dynamic, T> operation,
+        CancellationToken cancellationToken = default,
+        bool launchIfMissing = false
+    ) =>
+        InvokeAsync(
+            operation,
+            WordComReplaySafety.NonReplayable,
+            cancellationToken,
+            launchIfMissing
+        );
+
     public async Task<T> InvokeAsync<T>(
         Func<dynamic, T> operation,
+        WordComReplaySafety replaySafety,
         CancellationToken cancellationToken = default,
         bool launchIfMissing = false
     )
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         cancellationToken.ThrowIfCancellationRequested();
         var completion = new TaskCompletionSource<object?>(
             TaskCreationOptions.RunContinuationsAsynchronously
@@ -37,15 +86,85 @@ internal sealed class WordComHost : IWordComHost
             application => operation(application),
             completion,
             cancellationToken,
-            launchIfMissing
+            launchIfMissing,
+            replaySafety
         );
-        _queue.Add(item, cancellationToken);
-        var result = await completion.Task.WaitAsync(cancellationToken);
-        return (T)result!;
+        using var cancellationRegistration = cancellationToken.Register(
+            () => ObserveCancellation(item)
+        );
+        lock (_submissionGate)
+        {
+            if (Volatile.Read(ref _abandonedExecutionCount) != 0)
+            {
+                throw RecoveryRequired();
+            }
+            if (
+                replaySafety == WordComReplaySafety.NonReplayable
+                && Volatile.Read(ref _unknownOutcome) != 0
+            )
+            {
+                throw UnknownOutcomeRecoveryRequired();
+            }
+            _queue.Add(item, cancellationToken);
+        }
+        try
+        {
+            var result = await completion
+                .Task.WaitAsync(cancellationToken)
+                .ConfigureAwait(false);
+            return (T)result!;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _beforeCancellationObservation?.Invoke();
+            var observation = ObserveCancellation(item);
+            if (observation == CancellationObservation.AbandonedExecution)
+            {
+                Console.Error.WriteLine(
+                    "WordToolkit.Native cancelled an active COM request; "
+                        + "restart only the WordToolkit runtime if Word does not return."
+                );
+            }
+            if (
+                observation != CancellationObservation.BeforeStart
+                && item.ReplaySafety == WordComReplaySafety.NonReplayable
+            )
+            {
+                throw OutcomeUnknown(
+                    "The client stopped waiting after the Microsoft Word operation began",
+                    reason: "cancellation_requested_after_start"
+                );
+            }
+            throw;
+        }
+        finally
+        {
+            _beforeClientObservationCompleted?.Invoke();
+            item.MarkClientObservationCompleted();
+        }
+    }
+
+    private CancellationObservation ObserveCancellation(WorkItem item)
+    {
+        lock (_submissionGate)
+        {
+            var observation = item.ObserveCancellation(
+                () => Interlocked.Increment(ref _abandonedExecutionCount)
+            );
+            if (
+                observation != CancellationObservation.BeforeStart
+                && item.ReplaySafety == WordComReplaySafety.NonReplayable
+            )
+            {
+                Volatile.Write(ref _unknownOutcome, 1);
+            }
+            return observation;
+        }
     }
 
     private void Run()
     {
+        SetStage(WorkerStage.Starting);
         var initialized = NativeMethods.CoInitializeEx(
             IntPtr.Zero,
             NativeMethods.COINIT_APARTMENTTHREADED
@@ -58,55 +177,201 @@ internal sealed class WordComHost : IWordComHost
         OleMessageFilter.Register();
         try
         {
+            SetStage(WorkerStage.Idle);
             foreach (var item in _queue.GetConsumingEnumerable())
             {
-                if (item.CancellationToken.IsCancellationRequested)
+                try
                 {
-                    item.Completion.TrySetCanceled(item.CancellationToken);
-                    continue;
+                    if (item.CancellationToken.IsCancellationRequested)
+                    {
+                        item.Completion.TrySetCanceled(item.CancellationToken);
+                        continue;
+                    }
+                    if (
+                        item.ReplaySafety == WordComReplaySafety.NonReplayable
+                        && Volatile.Read(ref _unknownOutcome) != 0
+                    )
+                    {
+                        item.Completion.TrySetException(UnknownOutcomeRecoveryRequired());
+                        continue;
+                    }
+                    Execute(item);
                 }
-                Execute(item);
+                finally
+                {
+                    SetStage(WorkerStage.WaitingForClientObservation);
+                    item.WaitForClientObservation(_shutdownRequested);
+                    SetStage(WorkerStage.Idle);
+                }
             }
         }
         finally
         {
+            SetStage(WorkerStage.ResettingApplication);
             ResetApplication();
             OleMessageFilter.Revoke();
             if (initialized >= 0)
             {
                 NativeMethods.CoUninitialize();
             }
+            SetStage(WorkerStage.Stopped);
         }
     }
 
     private void Execute(WorkItem item)
     {
+        SetStage(WorkerStage.Executing);
+        item.MarkStarted();
         try
         {
+            if (item.CancellationToken.IsCancellationRequested)
+            {
+                item.Completion.TrySetCanceled(item.CancellationToken);
+                return;
+            }
             var application = GetApplication(item.LaunchIfMissing);
-            item.Completion.TrySetResult(item.Operation(application));
+            CompleteSuccessfulOperation(item, item.Operation(application));
         }
         catch (COMException exception) when (IsDisconnected(exception))
         {
             ResetApplication();
-            try
+            if (
+                item.ReplaySafety == WordComReplaySafety.ReplaySafe
+                && item.CanReplayAfterDisconnect()
+            )
             {
-                var application = GetApplication(item.LaunchIfMissing);
-                item.Completion.TrySetResult(item.Operation(application));
+                try
+                {
+                    var application = GetApplication(item.LaunchIfMissing);
+                    CompleteSuccessfulOperation(item, item.Operation(application));
+                }
+                catch (Exception retryException)
+                {
+                    item.Completion.TrySetException(MapException(retryException));
+                }
             }
-            catch (Exception retryException)
+            else if (item.ReplaySafety == WordComReplaySafety.NonReplayable)
             {
-                item.Completion.TrySetException(MapException(retryException));
+                MarkUnknownOutcome();
+                item.Completion.TrySetException(
+                    OutcomeUnknown(
+                        "Microsoft Word disconnected before confirming a non-replayable operation",
+                        reason: "com_disconnected_during_non_replayable_operation",
+                        exception: exception
+                    )
+                );
+            }
+            else
+            {
+                item.Completion.TrySetCanceled(item.CancellationToken);
             }
         }
         catch (Exception exception)
         {
             item.Completion.TrySetException(MapException(exception));
         }
+        finally
+        {
+            var abandoned = item.MarkCompletedAndWasAbandoned();
+            _afterWorkItemCompleted?.Invoke();
+            if (abandoned)
+            {
+                ResetApplication();
+                Interlocked.Decrement(ref _abandonedExecutionCount);
+            }
+        }
+    }
+
+    private void CompleteSuccessfulOperation(WorkItem item, object? result)
+    {
+        if (!item.CancellationToken.IsCancellationRequested)
+        {
+            item.Completion.TrySetResult(result);
+            return;
+        }
+        if (item.ReplaySafety == WordComReplaySafety.NonReplayable)
+        {
+            MarkUnknownOutcome();
+            item.Completion.TrySetException(
+                OutcomeUnknown(
+                    "The client cancelled before Microsoft Word confirmed the operation result",
+                    reason: "cancellation_requested_before_completion"
+                )
+            );
+            return;
+        }
+        item.Completion.TrySetCanceled(item.CancellationToken);
+    }
+
+    private static NativeToolException RecoveryRequired()
+    {
+        return new NativeToolException(
+            "WORD_HOST_RECOVERY_REQUIRED",
+            "A cancelled Microsoft Word COM call has not returned",
+            new
+            {
+                recovery = "restart_wordtoolkit_runtime",
+                terminate_word_process = false,
+                reconnect_and_reinspect = true,
+            },
+            retryable: true
+        );
+    }
+
+    private static NativeToolException UnknownOutcomeRecoveryRequired()
+    {
+        return new NativeToolException(
+            "WORD_HOST_RECOVERY_REQUIRED",
+            "A previous Microsoft Word operation has an unknown outcome",
+            new
+            {
+                outcome_unknown = true,
+                recovery = "restart_wordtoolkit_runtime_then_reconnect_and_reinspect",
+                terminate_word_process = false,
+                reconnect_and_reinspect = true,
+            },
+            retryable: false
+        );
+    }
+
+    private static NativeToolException OutcomeUnknown(
+        string message,
+        string reason,
+        COMException? exception = null
+    )
+    {
+        return new NativeToolException(
+            "WORD_OPERATION_OUTCOME_UNKNOWN",
+            message,
+            new
+            {
+                outcome_unknown = true,
+                reason,
+                hresult = exception is null ? null : $"0x{exception.HResult:X8}",
+                automatic_replay = false,
+                recovery = "restart_wordtoolkit_runtime_then_reconnect_and_reinspect",
+                terminate_word_process = false,
+            },
+            retryable: false
+        );
+    }
+
+    private void MarkUnknownOutcome()
+    {
+        lock (_submissionGate)
+        {
+            Volatile.Write(ref _unknownOutcome, 1);
+        }
     }
 
     private dynamic GetApplication(bool launchIfMissing)
     {
+        if (_applicationFactory is not null)
+        {
+            _applicationOwnedByRuntime = false;
+            _application = _applicationFactory(launchIfMissing);
+            return _application;
+        }
         if (_application is not null)
         {
             try
@@ -153,6 +418,11 @@ internal sealed class WordComHost : IWordComHost
                     "Microsoft Word could not be started",
                     retryable: true
                 );
+            _applicationOwnedByRuntime = true;
+        }
+        else
+        {
+            _applicationOwnedByRuntime = false;
         }
         _application = application;
         return application;
@@ -192,6 +462,7 @@ internal sealed class WordComHost : IWordComHost
     {
         if (_application is null)
         {
+            _applicationOwnedByRuntime = false;
             return;
         }
         try
@@ -206,7 +477,10 @@ internal sealed class WordComHost : IWordComHost
             // Word may already have destroyed the proxy.
         }
         _application = null;
+        _applicationOwnedByRuntime = false;
     }
+
+    public bool ApplicationOwnedByRuntime => Volatile.Read(ref _applicationOwnedByRuntime);
 
     private void FailPending(Exception exception)
     {
@@ -218,26 +492,142 @@ internal sealed class WordComHost : IWordComHost
 
     public ValueTask DisposeAsync()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
             return ValueTask.CompletedTask;
         }
-        _disposed = true;
+        _shutdownRequested.Set();
         _queue.CompleteAdding();
-        if (!_thread.Join(TimeSpan.FromSeconds(5)))
+        if (!_thread.Join(_shutdownTimeout))
         {
-            throw new TimeoutException("The native Word COM thread did not stop");
+            throw new TimeoutException($"The native Word COM thread did not stop (stage={CurrentWorkerStage})");
         }
         _queue.Dispose();
+        _shutdownRequested.Dispose();
         return ValueTask.CompletedTask;
     }
 
-    private sealed record WorkItem(
-        Func<dynamic, object?> Operation,
-        TaskCompletionSource<object?> Completion,
-        CancellationToken CancellationToken,
-        bool LaunchIfMissing
-    );
+    private void SetStage(WorkerStage stage) => Volatile.Write(ref _stage, (int)stage);
+
+    private sealed class WorkItem
+    {
+        private readonly object _stateGate = new();
+        private readonly TaskCompletionSource<bool> _clientObservation = new(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+        private readonly ManualResetEventSlim _clientObservationSignal = new(false);
+        private WorkState _state;
+        private bool _abandoned;
+
+        public WorkItem(
+            Func<dynamic, object?> operation,
+            TaskCompletionSource<object?> completion,
+            CancellationToken cancellationToken,
+            bool launchIfMissing,
+            WordComReplaySafety replaySafety
+        )
+        {
+            Operation = operation;
+            Completion = completion;
+            CancellationToken = cancellationToken;
+            LaunchIfMissing = launchIfMissing;
+            ReplaySafety = replaySafety;
+        }
+
+        public Func<dynamic, object?> Operation { get; }
+
+        public TaskCompletionSource<object?> Completion { get; }
+
+        public CancellationToken CancellationToken { get; }
+
+        public bool LaunchIfMissing { get; }
+
+        public WordComReplaySafety ReplaySafety { get; }
+
+        public void MarkStarted()
+        {
+            lock (_stateGate)
+            {
+                _state = WorkState.Executing;
+            }
+        }
+
+        public CancellationObservation ObserveCancellation(Action acquireRecovery)
+        {
+            lock (_stateGate)
+            {
+                if (_state == WorkState.Queued)
+                {
+                    return CancellationObservation.BeforeStart;
+                }
+                if (_state == WorkState.Completed)
+                {
+                    return CancellationObservation.CompletedAfterStart;
+                }
+                if (!_abandoned)
+                {
+                    acquireRecovery();
+                    _abandoned = true;
+                }
+                return CancellationObservation.AbandonedExecution;
+            }
+        }
+
+        public bool CanReplayAfterDisconnect()
+        {
+            lock (_stateGate)
+            {
+                return _state == WorkState.Executing
+                    && !_abandoned
+                    && !CancellationToken.IsCancellationRequested;
+            }
+        }
+
+        public bool MarkCompletedAndWasAbandoned()
+        {
+            lock (_stateGate)
+            {
+                _state = WorkState.Completed;
+                return _abandoned;
+            }
+        }
+
+        public void MarkClientObservationCompleted()
+        {
+            _clientObservation.TrySetResult(true);
+            _clientObservationSignal.Set();
+        }
+
+        public void WaitForClientObservation(ManualResetEventSlim shutdown)
+        {
+            var handles = new WaitHandle[] { _clientObservationSignal.WaitHandle, shutdown.WaitHandle };
+            WaitHandle.WaitAny(handles);
+        }
+
+        private enum WorkState
+        {
+            Queued,
+            Executing,
+            Completed,
+        }
+    }
+
+    internal enum WorkerStage
+    {
+        Starting = 1,
+        Idle,
+        Executing,
+        WaitingForClientObservation,
+        ResettingApplication,
+        Stopped,
+    }
+
+    private enum CancellationObservation
+    {
+        BeforeStart,
+        AbandonedExecution,
+        CompletedAfterStart,
+    }
 
     private static class NativeMethods
     {

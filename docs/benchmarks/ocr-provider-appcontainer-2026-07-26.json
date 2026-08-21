@@ -1,0 +1,76 @@
+{
+  "operation_contract": "wordtoolkit.benchmark.ocr_process_boundary/1.0",
+  "runtime": {
+    "os": "Microsoft Windows NT 10.0.19045.0",
+    "framework": ".NET 8.0.29",
+    "architecture": "x64"
+  },
+  "samples": 7,
+  "alternating_order": true,
+  "image": {
+    "bytes": 15283,
+    "sha256": "a8ff46458b7d6b4ec59557213d9280fd7e1f93de5c54f2834b0cbe854a4fb32c",
+    "content_type": "image/png"
+  },
+  "provider": {
+    "name": "tesseract-cli",
+    "version": "v5.5.0.20241111",
+    "binary_sha256": "ccd044d6cf16eaaad151260e1fcc5e3e1504cd1b8644e940b4f7ae3e315dd0d3",
+    "model_set_sha256": "64d8bbfce719d63c0fda3dc0dfb58da6a99b0752ca85aadd06d5ff0f1e7ca3f3",
+    "language": "eng"
+  },
+  "direct_in_process": {
+    "minimum_milliseconds": 299.0605,
+    "median_milliseconds": 324.6673,
+    "p95_milliseconds": 426.2254,
+    "maximum_milliseconds": 449.7508,
+    "samples_milliseconds": [
+      299.0605,
+      322.1331,
+      322.9937,
+      324.6673,
+      338.7417,
+      371.3328,
+      449.7508
+    ]
+  },
+  "isolated_process": {
+    "minimum_milliseconds": 680.3307,
+    "median_milliseconds": 743.9256,
+    "p95_milliseconds": 866.5597,
+    "maximum_milliseconds": 912.7157,
+    "samples_milliseconds": [
+      680.3307,
+      704.6104,
+      730.1051,
+      743.9256,
+      756.1602,
+      758.8623,
+      912.7157
+    ]
+  },
+  "median_overhead_milliseconds": 419.2583,
+  "median_overhead_percent": 129.13,
+  "result_sha256": "c674335b9fc441e56fd04a24fc7f92acbe865ddc2883ab2898297d569affa0cc",
+  "stable_typed_results": true,
+  "recognized_text_returned": false,
+  "recognized_text_characters": 23,
+  "process_boundary": {
+    "closed_json_ipc": true,
+    "request_identity_bound": true,
+    "host_executable_identity_bound": true,
+    "hard_timeout": true,
+    "process_tree_kill": true,
+    "windows_job_object": true,
+    "maximum_process_memory_bytes": 1073741824,
+    "maximum_active_processes": 3,
+    "minimized_environment": true,
+    "restricted_windows_token": false,
+    "app_container_enforced": true,
+    "network_isolation_enforced": true,
+    "filesystem_brokered": true,
+    "writes_confined_to_private_profile": true,
+    "sandbox_profile": "windows_app_container_no_network_brokered_filesystem",
+    "sandbox_claimed": true
+  }
+}

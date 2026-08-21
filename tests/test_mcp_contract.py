@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 from starlette.testclient import TestClient
 
+from wordtoolkit import __version__
 from wordtoolkit.config import Settings
 from wordtoolkit.server.app import build_app
 
@@ -19,6 +22,7 @@ REQUIRED_TOOLS = {
     "get_sections",
     "get_paragraph",
     "insert_paragraph",
+    "apply_document_operations",
     "replace_paragraph",
     "delete_paragraph",
     "move_block",
@@ -71,6 +75,50 @@ REQUIRED_TOOLS = {
     "generate_preview",
 }
 
+DRAFT_MUTATION_TOOLS = {
+    "apply_document_operations",
+    "insert_paragraph",
+    "replace_paragraph",
+    "delete_paragraph",
+    "move_block",
+    "create_style",
+    "update_style",
+    "apply_style",
+    "normalize_formatting",
+    "format_paragraph",
+    "format_run",
+    "manage_lists",
+    "insert_caption",
+    "insert_table",
+    "modify_table",
+    "merge_cells",
+    "split_cells",
+    "set_cell_properties",
+    "insert_equation",
+    "replace_equation",
+    "number_equations",
+    "add_equation_reference",
+    "manage_headers_footers",
+    "manage_footnotes_endnotes",
+    "manage_comments",
+    "manage_bookmarks",
+    "manage_cross_references",
+    "manage_fields",
+    "insert_image",
+    "manage_sections",
+    "enable_track_changes",
+    "insert_tracked_change",
+    "accept_changes",
+    "reject_changes",
+    "save_document",
+    "close_document",
+    "repair_document",
+    "render_document",
+    "render_pages",
+    "convert_to_pdf",
+    "generate_preview",
+}
+
 
 @pytest.mark.asyncio
 async def test_all_required_tools_have_object_schemas_and_annotations(tmp_path) -> None:
@@ -88,6 +136,215 @@ async def test_all_required_tools_have_object_schemas_and_annotations(tmp_path) 
         assert tool.annotations is not None, name
     assert mapping["open_document"].meta["openai/fileParams"] == ["file"]
     assert mapping["compare_documents"].meta["openai/fileParams"] == ["base_file", "revised_file"]
+    assert mapping["apply_document_operations"].meta["openai/fileParams"] == ["files"]
+    for name in DRAFT_MUTATION_TOOLS:
+        schema = mapping[name].inputSchema
+        assert "expected_version" in schema["required"], name
+        assert schema["properties"]["expected_version"]["minimum"] == 0, name
+        assert "DRAFT_VERSION" not in schema.get("$defs", {}), name
+    batch_tool = mapping["apply_document_operations"]
+    assert batch_tool.annotations.destructiveHint is True
+    batch_schema = batch_tool.inputSchema
+    Draft202012Validator.check_schema(batch_schema)
+    assert len(json.dumps(batch_schema, separators=(",", ":"))) < 20_000
+    operation_items = batch_schema["properties"]["operations"]
+    assert operation_items["minItems"] == 1
+    assert operation_items["maxItems"] == 16
+    files_schema = batch_schema["properties"]["files"]
+    assert files_schema["maxItems"] == 16
+    file_schema = files_schema["items"]
+    assert file_schema["additionalProperties"] is False
+    assert set(file_schema["properties"]) == {
+        "download_url",
+        "file_id",
+        "mime_type",
+        "file_name",
+    }
+    assert file_schema["required"] == ["download_url", "file_id"]
+    item_schema = operation_items["items"]
+    assert item_schema["additionalProperties"] is False
+    assert item_schema["required"] == ["operation", "arguments"]
+    variants = item_schema["oneOf"]
+    assert len(variants) == 33
+    by_operation = {variant["properties"]["operation"]["const"]: variant for variant in variants}
+    assert len(by_operation) == len(variants)
+    assert set(by_operation) == DRAFT_MUTATION_TOOLS - {
+        "apply_document_operations",
+        "save_document",
+        "close_document",
+        "repair_document",
+        "render_document",
+        "render_pages",
+        "convert_to_pdf",
+        "generate_preview",
+    }
+    for operation, variant in by_operation.items():
+        arguments = variant["properties"]["arguments"]
+        assert arguments["additionalProperties"] is False, operation
+        assert "document_id" not in arguments["properties"], operation
+        assert "expected_version" not in arguments["properties"], operation
+        assert "title" not in json.dumps(variant), operation
+    assert by_operation["manage_lists"]["properties"]["arguments"]["properties"]["action"][
+        "enum"
+    ] == ["apply", "create_multilevel", "demote", "promote", "restart", "suppress"]
+    assert "action" in by_operation["manage_lists"]["properties"]["arguments"]["required"]
+    image_arguments = by_operation["insert_image"]["properties"]["arguments"]
+    assert "file" not in image_arguments["properties"]
+    assert image_arguments["properties"]["file_index"] == {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 15,
+    }
+    assert "file_index" in image_arguments["required"]
+    assert "$defs" not in batch_schema
+    batch_validator = Draft202012Validator(batch_schema)
+    valid_batch = {
+        "document_id": "doc",
+        "expected_version": 0,
+        "operations": [
+            {
+                "operation": "enable_track_changes",
+                "arguments": {"enabled": True},
+            }
+        ],
+    }
+    assert not list(batch_validator.iter_errors(valid_batch))
+    valid_image_batch = {
+        "document_id": "doc",
+        "expected_version": 0,
+        "files": [
+            {
+                "download_url": "https://files.example.test/pixel.png",
+                "file_id": "file_pixel",
+                "mime_type": "image/png",
+                "file_name": "pixel.png",
+            }
+        ],
+        "operations": [
+            {
+                "operation": "insert_image",
+                "arguments": {"paragraph_id": "ABCD1234", "file_index": 0},
+            }
+        ],
+    }
+    assert not list(batch_validator.iter_errors(valid_image_batch))
+    invalid_batches = [
+        {**valid_batch, "operations": []},
+        {**valid_batch, "operations": valid_batch["operations"] * 17},
+        {
+            **valid_batch,
+            "operations": [
+                {
+                    "operation": "enable_track_changes",
+                    "arguments": {"enabled": True, "document_id": "nested"},
+                }
+            ],
+        },
+        {
+            **valid_batch,
+            "operations": [
+                {
+                    "operation": "manage_lists",
+                    "arguments": {"action": "list"},
+                }
+            ],
+        },
+        {
+            **valid_batch,
+            "operations": [
+                {
+                    "operation": "enable_track_changes",
+                    "arguments": {"enabled": True, "unknown": 1},
+                }
+            ],
+        },
+        {
+            **valid_batch,
+            "operations": [{"operation": "unknown", "arguments": {}}],
+        },
+        {
+            **valid_batch,
+            "operations": [
+                {
+                    "operation": "insert_image",
+                    "arguments": {
+                        "paragraph_id": "ABCD1234",
+                        "file": {
+                            "download_url": "https://files.example.test/pixel.png",
+                            "file_id": "file_pixel",
+                        },
+                    },
+                }
+            ],
+        },
+        {**valid_image_batch, "files": [{"download_url": "https://files.example.test/x"}]},
+        {**valid_batch, "expected_version": False},
+    ]
+    for invalid_batch in invalid_batches:
+        assert list(batch_validator.iter_errors(invalid_batch)), invalid_batch
+    export_version = mapping["export_document"].inputSchema["properties"]["expected_version"]
+    export_schema = mapping["export_document"].inputSchema
+    assert "DRAFT_VERSION" not in export_schema.get("$defs", {})
+    assert "expected_version" not in export_schema.get("required", [])
+    assert export_version == {
+        "type": "integer",
+        "minimum": 0,
+        "title": "Expected Version",
+    }
+    Draft202012Validator.check_schema(export_schema)
+    validator = Draft202012Validator(export_schema)
+    assert list(validator.iter_errors({"document_id": "doc"}))
+    assert list(validator.iter_errors({"document_id": "doc", "output_format": "docx"}))
+    assert not list(
+        validator.iter_errors(
+            {"document_id": "doc", "output_format": "docx", "expected_version": 0}
+        )
+    )
+    assert not list(validator.iter_errors({"document_id": "doc", "output_format": "markdown"}))
+    assert list(
+        validator.iter_errors(
+            {
+                "document_id": "doc",
+                "output_format": "markdown",
+                "expected_version": False,
+            }
+        )
+    )
+
+
+def test_generated_draft_operation_contract_examples_are_valid() -> None:
+    contract_path = Path(__file__).resolve().parents[1] / "schemas" / "draft-operations.v1.json"
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    assert contract["contract"] == "wordtoolkit.apply_document_operations/1.0"
+    assert contract["permissions"] == ["documents:write"]
+    assert contract["file_binding"] == {
+        "top_level_field": "files",
+        "operation_reference": "insert_image.arguments.file_index",
+        "mcp_apps_meta": {"openai/fileParams": ["files"]},
+    }
+    assert contract["limits"] == {
+        "operations_min": 1,
+        "operations_max": 16,
+        "files_max": 16,
+        "aggregate_argument_bytes_max": 1_048_576,
+    }
+    for schema_name in ("input_schema", "success_data_schema", "error_schema"):
+        Draft202012Validator.check_schema(contract[schema_name])
+    examples = contract["examples"]
+    assert isinstance(examples, list)
+    assert examples
+    for example in examples:
+        assert not list(
+            Draft202012Validator(contract["input_schema"]).iter_errors(example["input"])
+        )
+        assert not list(
+            Draft202012Validator(contract["success_data_schema"]).iter_errors(
+                example["success_data"]
+            )
+        )
+        assert not list(
+            Draft202012Validator(contract["error_schema"]).iter_errors(example["error"])
+        )
 
 
 def test_streamable_http_requires_bearer_auth(tmp_path) -> None:
@@ -115,6 +372,7 @@ def test_streamable_http_requires_bearer_auth(tmp_path) -> None:
         allowed = client.post("/mcp", content=json.dumps(request), headers=headers)
         assert allowed.status_code == 200, allowed.text
         assert allowed.json()["result"]["serverInfo"]["name"] == "WordToolkit"
+        assert allowed.json()["result"]["serverInfo"]["version"] == __version__
 
         tool_request = {
             "jsonrpc": "2.0",

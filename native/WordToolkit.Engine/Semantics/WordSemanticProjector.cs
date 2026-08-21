@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
@@ -27,9 +28,22 @@ public sealed class WordSemanticProjector
         "http://schemas.microsoft.com/office/word/2010/wordml";
 
     private readonly WordSemanticProjectionOptions _options;
+    private readonly WordOperationResourceLease? _resourceLease;
+
     public WordSemanticProjector(WordSemanticProjectionOptions? options = null)
     {
         _options = options ?? WordSemanticProjectionOptions.Default;
+        _options.Validate();
+    }
+
+    public WordSemanticProjector(
+        WordSemanticProjectionOptions? options,
+        WordOperationResourceLease resourceLease
+    )
+    {
+        ArgumentNullException.ThrowIfNull(resourceLease);
+        _options = options ?? WordSemanticProjectionOptions.Default;
+        _resourceLease = resourceLease;
         _options.Validate();
     }
 
@@ -40,15 +54,18 @@ public sealed class WordSemanticProjector
     {
         ArgumentNullException.ThrowIfNull(package);
         cancellationToken.ThrowIfCancellationRequested();
+        WordOperationResourceAccounting.ChargeProjectionBase(
+            _resourceLease,
+            WordOperationResourceStage.SemanticProjection
+        );
         var state = new ProjectionState();
 
         var officeRelationships = package.Relationships
             .Where(relationship =>
                 relationship.SourcePartUri == "/"
                 && relationship.TargetMode == OpcRelationshipTargetMode.Internal
-                && relationship.Type.EndsWith(
-                    "/officeDocument",
-                    StringComparison.Ordinal
+                && WordPackageConformance.IsOfficeDocumentRelationshipType(
+                    relationship.Type
                 )
             )
             .ToArray();
@@ -74,7 +91,7 @@ public sealed class WordSemanticProjector
             );
         }
 
-        if (!IsWordMainContentType(mainPart.ContentType))
+        if (!WordPackageConformance.IsWordMainContentType(mainPart.ContentType))
         {
             throw new WordSemanticProjectionException(
                 $"Main part content type '{mainPart.ContentType ?? "(missing)"}' is not a Word main-document type."
@@ -87,8 +104,7 @@ public sealed class WordSemanticProjector
         var documentElement = xml.Root;
         if (
             documentElement is null
-            || !IsWordNamespace(documentElement.Name.NamespaceName)
-            || documentElement.Name.LocalName != "document"
+            || !WordPackageConformance.HasWordDocumentRoot(sourceDocument)
         )
         {
             throw new WordSemanticProjectionException(
@@ -147,20 +163,29 @@ public sealed class WordSemanticProjector
     {
         try
         {
-            return LosslessXmlDocument.Parse(
-                part.Entry.Content,
-                new LosslessXmlOptions
-                {
-                    MaxSourceBytes = _options.MaxXmlCharacters >= int.MaxValue / 4
-                        ? int.MaxValue
-                        : checked((int)(_options.MaxXmlCharacters * 4)),
-                    MaxXmlCharacters = _options.MaxXmlCharacters,
-                    MaxXmlElements = _options.MaxXmlElements,
-                    MaxXmlDepth = _options.MaxXmlDepth,
-                    MaxTextCharacters = _options.MaxTextCharacters,
-                },
-                cancellationToken
-            );
+            var options = new LosslessXmlOptions
+            {
+                MaxSourceBytes = _options.MaxXmlCharacters >= int.MaxValue / 4
+                    ? int.MaxValue
+                    : checked((int)(_options.MaxXmlCharacters * 4)),
+                MaxXmlCharacters = _options.MaxXmlCharacters,
+                MaxXmlElements = _options.MaxXmlElements,
+                MaxXmlDepth = _options.MaxXmlDepth,
+                MaxTextCharacters = _options.MaxTextCharacters,
+            };
+            return _resourceLease is null
+                ? LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    cancellationToken
+                )
+                : LosslessXmlDocument.Parse(
+                    part.Entry.Content,
+                    options,
+                    _resourceLease,
+                    WordOperationResourceStage.SemanticProjection,
+                    cancellationToken
+                );
         }
         catch (LosslessXmlLimitException exception)
         {
@@ -357,7 +382,12 @@ public sealed class WordSemanticProjector
             }
 
             var anchor = DurableAnchor(element, kind.Value);
-            var fingerprint = Fingerprint(element, state);
+            var fingerprint = Fingerprint(element, state, cancellationToken);
+            var structuralFingerprint = StructuralFingerprint(
+                element,
+                state,
+                cancellationToken
+            );
             var signature = anchor ?? $"fp:{fingerprint}";
             var occurrenceKey = $"{kind}:{signature}";
             var occurrence = context.occurrences.TryGetValue(occurrenceKey, out var count)
@@ -371,6 +401,21 @@ public sealed class WordSemanticProjector
                 signature,
                 occurrence
             );
+            var text = NodeText(element, kind.Value);
+            var properties = NodeProperties(element, kind.Value);
+            var identityFingerprint = FingerprintIdentity(kind.Value, signature);
+            WordOperationResourceAccounting.ChargeSemanticNode(
+                _resourceLease,
+                id.Value,
+                context.parent?.Id.Value,
+                sourcePartUri,
+                sourcePath,
+                text,
+                properties,
+                identityFingerprint,
+                fingerprint,
+                structuralFingerprint
+            );
             var mutable = new MutableSemanticNode(
                 id,
                 kind.Value,
@@ -379,8 +424,14 @@ public sealed class WordSemanticProjector
                 sourceDocument.GetElementOrdinal(element),
                 sourcePartUri,
                 sourcePath,
-                NodeText(element, kind.Value),
-                NodeProperties(element, kind.Value)
+                text,
+                properties,
+                anchor is null
+                    ? WordSemanticIdentityKind.ContentFingerprint
+                    : WordSemanticIdentityKind.DurableAnchor,
+                identityFingerprint,
+                fingerprint,
+                structuralFingerprint
             );
             if (context.parent is null)
             {
@@ -460,6 +511,7 @@ public sealed class WordSemanticProjector
                 "fldSimple" or "fldChar" or "instrText" => WordSemanticNodeKind.Field,
                 "sdt" => WordSemanticNodeKind.ContentControl,
                 "bookmarkStart" => WordSemanticNodeKind.Bookmark,
+                "bookmarkEnd" => WordSemanticNodeKind.BookmarkEnd,
                 "commentRangeStart" or "commentRangeEnd" or "commentReference" =>
                     WordSemanticNodeKind.CommentAnchor,
                 "ins" or "del" or "moveFrom" or "moveTo" =>
@@ -497,8 +549,13 @@ public sealed class WordSemanticProjector
             : WordSemanticNodeKind.ExtensionIsland;
     }
 
-    private static string Fingerprint(XElement element, ProjectionState state)
+    private string Fingerprint(
+        XElement element,
+        ProjectionState state,
+        CancellationToken cancellationToken
+    )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (state.Fingerprints.TryGetValue(element, out var cached))
         {
             return cached;
@@ -511,9 +568,12 @@ public sealed class WordSemanticProjector
             var attribute in element.Attributes()
                 .Where(attribute =>
                     !attribute.IsNamespaceDeclaration
-                    && !attribute.Name.LocalName.StartsWith(
-                        "rsid",
-                        StringComparison.OrdinalIgnoreCase
+                    && !(
+                        IsWordNamespace(attribute.Name.NamespaceName)
+                        && attribute.Name.LocalName.StartsWith(
+                            "rsid",
+                            StringComparison.OrdinalIgnoreCase
+                        )
                     )
                 )
                 .OrderBy(attribute => attribute.Name.NamespaceName, StringComparer.Ordinal)
@@ -530,7 +590,7 @@ public sealed class WordSemanticProjector
             switch (node)
             {
                 case XElement child:
-                    Append(hash, Fingerprint(child, state));
+                    Append(hash, Fingerprint(child, state, cancellationToken));
                     break;
                 case XText text when !string.IsNullOrWhiteSpace(text.Value):
                     Append(hash, text.Value);
@@ -540,7 +600,62 @@ public sealed class WordSemanticProjector
 
         var fingerprint = Convert.ToHexString(hash.GetHashAndReset())
             .ToLowerInvariant();
+        WordOperationResourceAccounting.ChargeSemanticFingerprint(
+            _resourceLease,
+            fingerprint
+        );
         state.Fingerprints[element] = fingerprint;
+        return fingerprint;
+    }
+
+    private string StructuralFingerprint(
+        XElement element,
+        ProjectionState state,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (state.StructuralFingerprints.TryGetValue(element, out var cached))
+        {
+            return cached;
+        }
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Append(hash, element.Name.NamespaceName);
+        Append(hash, element.Name.LocalName);
+        foreach (
+            var attribute in element.Attributes()
+                .Where(attribute =>
+                    !attribute.IsNamespaceDeclaration
+                    && !(
+                        IsWordNamespace(attribute.Name.NamespaceName)
+                        && attribute.Name.LocalName.StartsWith(
+                            "rsid",
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    )
+                )
+                .OrderBy(attribute => attribute.Name.NamespaceName, StringComparer.Ordinal)
+                .ThenBy(attribute => attribute.Name.LocalName, StringComparer.Ordinal)
+        )
+        {
+            Append(hash, attribute.Name.NamespaceName);
+            Append(hash, attribute.Name.LocalName);
+            Append(hash, attribute.Value);
+        }
+        foreach (var child in element.Elements())
+        {
+            Append(
+                hash,
+                StructuralFingerprint(child, state, cancellationToken)
+            );
+        }
+        var fingerprint = Convert.ToHexString(hash.GetHashAndReset())
+            .ToLowerInvariant();
+        WordOperationResourceAccounting.ChargeSemanticFingerprint(
+            _resourceLease,
+            fingerprint
+        );
+        state.StructuralFingerprints[element] = fingerprint;
         return fingerprint;
     }
 
@@ -583,6 +698,7 @@ public sealed class WordSemanticProjector
         if (
             !string.IsNullOrWhiteSpace(id)
             && kind is WordSemanticNodeKind.Bookmark
+                or WordSemanticNodeKind.BookmarkEnd
                 or WordSemanticNodeKind.CommentAnchor
                 or WordSemanticNodeKind.Revision
                 or WordSemanticNodeKind.Footnote
@@ -664,17 +780,47 @@ public sealed class WordSemanticProjector
         );
         if (kind == WordSemanticNodeKind.Paragraph)
         {
-            var style = element.Elements(wordNamespace + "pPr")
+            var paragraphProperties = element.Elements(wordNamespace + "pPr")
+                .FirstOrDefault();
+            var style = paragraphProperties?
                 .Elements(wordNamespace + "pStyle")
                 .Attributes(wordNamespace + "val")
                 .Select(attribute => attribute.Value)
                 .FirstOrDefault();
             AddIfPresent(result, "style_id", style);
+            var numberingProperties = paragraphProperties?
+                .Elements(wordNamespace + "numPr")
+                .FirstOrDefault();
+            AddIfPresent(
+                result,
+                "numbering_id",
+                numberingProperties?.Elements(wordNamespace + "numId")
+                    .Attributes(wordNamespace + "val")
+                    .Select(attribute => attribute.Value)
+                    .FirstOrDefault()
+            );
+            AddIfPresent(
+                result,
+                "numbering_level",
+                numberingProperties?.Elements(wordNamespace + "ilvl")
+                    .Attributes(wordNamespace + "val")
+                    .Select(attribute => attribute.Value)
+                    .FirstOrDefault()
+            );
         }
         else if (kind == WordSemanticNodeKind.Run)
         {
             var style = element.Elements(wordNamespace + "rPr")
                 .Elements(wordNamespace + "rStyle")
+                .Attributes(wordNamespace + "val")
+                .Select(attribute => attribute.Value)
+                .FirstOrDefault();
+            AddIfPresent(result, "style_id", style);
+        }
+        else if (kind == WordSemanticNodeKind.Table)
+        {
+            var style = element.Elements(wordNamespace + "tblPr")
+                .Elements(wordNamespace + "tblStyle")
                 .Attributes(wordNamespace + "val")
                 .Select(attribute => attribute.Value)
                 .FirstOrDefault();
@@ -704,6 +850,30 @@ public sealed class WordSemanticProjector
                 result,
                 "field_character_type",
                 element.Attribute(wordNamespace + "fldCharType")?.Value
+            );
+        }
+        else if (
+            kind is WordSemanticNodeKind.Bookmark or WordSemanticNodeKind.BookmarkEnd
+        )
+        {
+            AddIfPresent(result, "id", element.Attribute(wordNamespace + "id")?.Value);
+            AddIfPresent(
+                result,
+                "name",
+                element.Attribute(wordNamespace + "name")?.Value
+            );
+            result["marker_type"] = kind == WordSemanticNodeKind.Bookmark
+                ? "start"
+                : "end";
+            AddIfPresent(
+                result,
+                "column_first",
+                element.Attribute(wordNamespace + "colFirst")?.Value
+            );
+            AddIfPresent(
+                result,
+                "column_last",
+                element.Attribute(wordNamespace + "colLast")?.Value
             );
         }
         else if (
@@ -888,6 +1058,17 @@ public sealed class WordSemanticProjector
         return new SemanticNodeId("wdn_" + encoded);
     }
 
+    private static string FingerprintIdentity(
+        WordSemanticNodeKind kind,
+        string signature
+    )
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Append(hash, kind.ToString());
+        Append(hash, signature);
+        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+    }
+
     private static string QualifiedName(XName name)
     {
         var prefix = name.NamespaceName switch
@@ -913,14 +1094,6 @@ public sealed class WordSemanticProjector
     private static bool IsDrawingNamespace(string namespaceName) =>
         namespaceName.Contains("/drawingml/", StringComparison.Ordinal)
         || namespaceName.EndsWith("/wordprocessingDrawing", StringComparison.Ordinal);
-
-    private static bool IsWordMainContentType(string? contentType) =>
-        contentType is not null
-        && contentType.EndsWith(".main+xml", StringComparison.OrdinalIgnoreCase)
-        && (
-            contentType.Contains("wordprocessingml", StringComparison.OrdinalIgnoreCase)
-            || contentType.Contains("ms-word", StringComparison.OrdinalIgnoreCase)
-        );
 
     private static string? RelationshipId(XElement element) =>
         element.Attribute(XName.Get("id", RelationshipsTransitionalNamespace))?.Value
@@ -1077,6 +1250,8 @@ public sealed class WordSemanticProjector
     {
         public Dictionary<XElement, string> Fingerprints { get; } = [];
 
+        public Dictionary<XElement, string> StructuralFingerprints { get; } = [];
+
         public int SemanticNodeCount { get; set; }
     }
 
@@ -1091,7 +1266,11 @@ public sealed class WordSemanticProjector
             string sourcePartUri,
             string sourcePath,
             string? text,
-            IDictionary<string, string> properties
+            IDictionary<string, string> properties,
+            WordSemanticIdentityKind identityKind,
+            string identityFingerprint,
+            string subtreeFingerprint,
+            string structuralFingerprint
         )
         {
             Id = id;
@@ -1103,6 +1282,10 @@ public sealed class WordSemanticProjector
             SourcePath = sourcePath;
             Text = text;
             Properties = properties;
+            IdentityKind = identityKind;
+            IdentityFingerprint = identityFingerprint;
+            SubtreeFingerprint = subtreeFingerprint;
+            StructuralFingerprint = structuralFingerprint;
         }
 
         public SemanticNodeId Id { get; }
@@ -1123,6 +1306,14 @@ public sealed class WordSemanticProjector
 
         public IDictionary<string, string> Properties { get; }
 
+        public WordSemanticIdentityKind IdentityKind { get; }
+
+        public string IdentityFingerprint { get; }
+
+        public string SubtreeFingerprint { get; }
+
+        public string StructuralFingerprint { get; }
+
         public List<MutableSemanticNode> Children { get; } = [];
 
         public WordSemanticNode Freeze() => new(
@@ -1135,6 +1326,10 @@ public sealed class WordSemanticProjector
             SourcePath,
             Text,
             Properties,
+            IdentityKind,
+            IdentityFingerprint,
+            SubtreeFingerprint,
+            StructuralFingerprint,
             Children.Select(child => child.Freeze()).ToArray()
         );
     }

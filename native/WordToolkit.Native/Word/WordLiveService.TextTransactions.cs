@@ -285,21 +285,7 @@ internal sealed partial class WordLiveService
     }
 
     private static bool HasDigitalSignatures(OpcPackageSnapshot package) =>
-        package.Entries.Any(entry =>
-            entry.Name.StartsWith("_xmlsignatures/", StringComparison.OrdinalIgnoreCase)
-        )
-        || package.Parts.Values.Any(part =>
-            part.ContentType?.Contains(
-                "digital-signature",
-                StringComparison.OrdinalIgnoreCase
-            ) == true
-        )
-        || package.Relationships.Any(relationship =>
-            relationship.Type.Contains(
-                "digital-signature",
-                StringComparison.OrdinalIgnoreCase
-            )
-        );
+        WordPackagePatchRiskAnalyzer.HasDigitalSignatures(package);
 
     private static Task<object> ExecutePackageTextAction(Func<object> action)
     {
@@ -316,6 +302,13 @@ internal sealed partial class WordLiveService
             throw new NativeToolException(
                 "TRANSACTION_LIMIT",
                 BoundForResponse(exception.Message, 512) ?? "Transaction limit exceeded"
+            );
+        }
+        catch (WordReviewTransactionLimitException exception)
+        {
+            throw new NativeToolException(
+                "TRANSACTION_LIMIT",
+                BoundForResponse(exception.Message, 512) ?? "Review transaction limit exceeded"
             );
         }
         catch (WordSemanticPreconditionException exception)
@@ -345,6 +338,22 @@ internal sealed partial class WordLiveService
             throw new NativeToolException(
                 "INVALID_WORD_PACKAGE",
                 "The package cannot be projected as a Word semantic document",
+                new { reason = BoundForResponse(exception.Message, 512) }
+            );
+        }
+        catch (WordStyleLimitException exception)
+        {
+            throw new NativeToolException(
+                "PACKAGE_LIMIT",
+                "Style projection exceeds a bounded safety limit",
+                new { reason = BoundForResponse(exception.Message, 512) }
+            );
+        }
+        catch (WordStyleProjectionException exception)
+        {
+            throw new NativeToolException(
+                "INVALID_WORD_PACKAGE",
+                "The package style graph is invalid",
                 new { reason = BoundForResponse(exception.Message, 512) }
             );
         }

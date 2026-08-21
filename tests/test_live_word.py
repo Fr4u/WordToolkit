@@ -155,21 +155,15 @@ class FakeFind:
                 .replace("^m", "\x0c")
                 .replace("^s", "\u00a0")
             )
-        haystack = self.target_range.document.text[
-            self.target_range.Start : self.target_range.End
-        ]
+        haystack = self.target_range.document.text[self.target_range.Start : self.target_range.End]
         if MatchCase:
             match = re.search(
-                rf"(?<!\w){re.escape(needle)}(?!\w)"
-                if MatchWholeWord
-                else re.escape(needle),
+                rf"(?<!\w){re.escape(needle)}(?!\w)" if MatchWholeWord else re.escape(needle),
                 haystack,
             )
         else:
             match = re.search(
-                rf"(?<!\w){re.escape(needle)}(?!\w)"
-                if MatchWholeWord
-                else re.escape(needle),
+                rf"(?<!\w){re.escape(needle)}(?!\w)" if MatchWholeWord else re.escape(needle),
                 haystack,
                 flags=re.IGNORECASE,
             )
@@ -2892,8 +2886,7 @@ def test_catalog_member_operations_execute_in_one_undo_record(live_bridge) -> No
     bridge.object_model.write(catalog)
     registry = build_member_capability_registry(catalog)
     profiles = {
-        (item["member"]["name"], item["member"]["kind"]): item
-        for item in registry["profiles"]
+        (item["member"]["name"], item["member"]["kind"]): item for item in registry["profiles"]
     }
     connected = bridge.connect("owner", use_active=True)
     operations = [
@@ -2936,8 +2929,7 @@ def test_indexed_property_adapter_uses_catalog_dispid(live_bridge) -> None:
     compatibility = next(
         item
         for item in registry["profiles"]
-        if item["type"]["name"] == "_Document"
-        and item["member"]["name"] == "Compatibility"
+        if item["type"]["name"] == "_Document" and item["member"]["name"] == "Compatibility"
     )
     prepared = PreparedMemberOperation(
         operation_id="indexed_put",
@@ -2960,9 +2952,7 @@ def test_catalog_member_operation_rolls_back_and_preserves_version(live_bridge) 
     bridge.object_model.write(catalog)
     registry = build_member_capability_registry(catalog)
     insert_after = next(
-        item
-        for item in registry["profiles"]
-        if item["member"]["name"] == "InsertAfter"
+        item for item in registry["profiles"] if item["member"]["name"] == "InsertAfter"
     )
     connected = bridge.connect("owner", use_active=True)
 

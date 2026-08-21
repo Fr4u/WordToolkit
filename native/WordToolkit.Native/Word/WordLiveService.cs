@@ -8,6 +8,11 @@ using System.Text.Json;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Validation;
+using WordToolkit.Engine.Operations;
+using WordToolkit.Engine.Observability;
+using WordToolkit.Engine.Resources;
+using WordToolkit.Engine.Publishing;
+using WordToolkit.LibreOffice;
 using WordToolkit.Native.Equations;
 using WordToolkit.Native.Protocol;
 
@@ -23,6 +28,9 @@ internal sealed partial class WordLiveService : IToolHandler
     private const int WordFormatDocumentDefault = 16;
     private const int WordExportFormatPdf = 17;
     private const int OfficeAutomationSecurityForceDisable = 3;
+    private const int MaxSemanticIndexEntries = 4;
+    private const int MaxSemanticIndexNodesPerEntry = 100_000;
+    private const int MaxSemanticIndexCachedNodes = 250_000;
     private static readonly HashSet<string> OpenableDocumentExtensions = new(
         [
             ".doc",
@@ -59,14 +67,95 @@ internal sealed partial class WordLiveService : IToolHandler
         StringComparer.OrdinalIgnoreCase
     );
     private readonly IWordComHost _host;
+    private readonly Func<WordOperationResourceLease> _operationResourceLeaseFactory;
+    private readonly WordOperationObservability _observability;
+    private readonly ILibreOfficeBackendProbeProvider _libreOfficeBackendProbeProvider;
+    private readonly ILibreOfficeUnoRenderProvider _libreOfficeUnoRenderProvider;
     private readonly ConcurrentDictionary<string, LiveDocumentRecord> _records = new();
+    private readonly ConcurrentDictionary<string, QuarantinedLiveDocumentRecord> _quarantinedRecords =
+        new();
     private readonly ConcurrentDictionary<string, SelectionGrant> _selectionGrants = new();
     private readonly ConcurrentDictionary<string, UndoGrant> _undoGrants = new();
     private readonly ConcurrentDictionary<string, RangeGrant> _rangeGrants = new();
+    private readonly ConcurrentDictionary<string, EquationGrant> _equationGrants = new();
+    private readonly ConcurrentDictionary<string, SmartArtTextEditGrant> _smartArtTextEditGrants =
+        new();
+    private readonly byte[] _smartArtFingerprintKey = RandomNumberGenerator.GetBytes(32);
+    private readonly ConcurrentDictionary<string, CachedSemanticIndex> _semanticIndexes = new();
+    private readonly object _semanticIndexGate = new();
+
+    internal Action<string, string>? BeforeCreateNewPublication { get; set; }
 
     public WordLiveService(IWordComHost host)
+        : this(
+            host,
+            () => new WordOperationResourceLease(),
+            WordOperationObservability.Disabled,
+            new LibreOfficeBackendProbeProvider(),
+            new LibreOfficeUnoRenderProvider()
+        )
+    { }
+
+    internal WordLiveService(
+        IWordComHost host,
+        Func<WordOperationResourceLease> operationResourceLeaseFactory
+    )
+        : this(
+            host,
+            operationResourceLeaseFactory,
+            WordOperationObservability.Disabled,
+            new LibreOfficeBackendProbeProvider(),
+            new LibreOfficeUnoRenderProvider()
+        )
+    { }
+
+    internal WordLiveService(
+        IWordComHost host,
+        Func<WordOperationResourceLease> operationResourceLeaseFactory,
+        WordOperationObservability observability
+    )
+        : this(
+            host,
+            operationResourceLeaseFactory,
+            observability,
+            new LibreOfficeBackendProbeProvider(),
+            new LibreOfficeUnoRenderProvider()
+        )
+    { }
+
+    internal WordLiveService(
+        IWordComHost host,
+        Func<WordOperationResourceLease> operationResourceLeaseFactory,
+        WordOperationObservability observability,
+        ILibreOfficeBackendProbeProvider libreOfficeBackendProbeProvider
+    )
+        : this(
+            host,
+            operationResourceLeaseFactory,
+            observability,
+            libreOfficeBackendProbeProvider,
+            new LibreOfficeUnoRenderProvider()
+        )
+    { }
+
+    internal WordLiveService(
+        IWordComHost host,
+        Func<WordOperationResourceLease> operationResourceLeaseFactory,
+        WordOperationObservability observability,
+        ILibreOfficeBackendProbeProvider libreOfficeBackendProbeProvider,
+        ILibreOfficeUnoRenderProvider libreOfficeUnoRenderProvider
+    )
     {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(operationResourceLeaseFactory);
+        ArgumentNullException.ThrowIfNull(observability);
+        ArgumentNullException.ThrowIfNull(libreOfficeBackendProbeProvider);
+        ArgumentNullException.ThrowIfNull(libreOfficeUnoRenderProvider);
         _host = host;
+        _operationResourceLeaseFactory = operationResourceLeaseFactory;
+        _observability = observability;
+        _libreOfficeBackendProbeProvider = libreOfficeBackendProbeProvider;
+        _libreOfficeUnoRenderProvider = libreOfficeUnoRenderProvider;
     }
 
     public Task<object> CallAsync(
@@ -87,8 +176,40 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "publish_ooxml_package_to_live_word" => PublishOoxmlPackageToLiveWordAsync(
+                arguments,
+                cancellationToken
+            ),
             "connect_live_word_document" => ConnectAsync(arguments, cancellationToken),
             "inspect_ooxml_package" => InspectPackageAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_encryption" => InspectEncryptionAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_signatures" => InspectSignaturesAsync(
+                arguments,
+                cancellationToken
+            ),
+            "transform_ooxml_package" => TransformPackageAsync(
+                arguments,
+                cancellationToken
+            ),
+            "convert_ooxml_flat_opc" => ConvertFlatOpcPackageAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_wordtoolkit_extensions" => InspectExtensionsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_libreoffice_backend" => InspectLibreOfficeBackendAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_wordtoolkit_observability" => InspectObservabilityAsync(
                 arguments,
                 cancellationToken
             ),
@@ -100,7 +221,259 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "render_ooxml_semantic_html" => RenderPackageSemanticHtmlAsync(
+                arguments,
+                cancellationToken
+            ),
+            "render_ooxml_semantic_svg" => RenderPackageSemanticSvgAsync(
+                arguments,
+                cancellationToken
+            ),
+            "render_ooxml_fixed_artifacts" => RenderPackageFixedArtifactsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "render_ooxml_libreoffice_artifacts" =>
+                RenderPackageLibreOfficeArtifactsAsync(arguments, cancellationToken),
+            "manage_ooxml_semantic_index" => ManagePackageSemanticIndexAsync(
+                arguments,
+                cancellationToken
+            ),
+            "compare_ooxml_semantics" => ComparePackageSemanticsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "plan_ooxml_patch" => PlanPackagePatchAsync(
+                arguments,
+                cancellationToken
+            ),
+            "create_ooxml_patch" => CreatePackagePatchAsync(
+                arguments,
+                cancellationToken,
+                BeforeCreateNewPublication
+            ),
+            "inspect_ooxml_patch" => InspectPackagePatchAsync(
+                arguments,
+                cancellationToken
+            ),
+            "plan_ooxml_patch_apply" => PlanPackagePatchApplyAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_patch" => ApplyPackagePatchAsync(
+                arguments,
+                cancellationToken
+            ),
+            "plan_ooxml_patch_rollback" => PlanPackagePatchRollbackAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_patch_rollback" => ApplyPackagePatchRollbackAsync(
+                arguments,
+                cancellationToken
+            ),
+            "plan_ooxml_merge" => PlanPackageMergeAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_merge" => ApplyPackageMergeAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_ooxml_sections" => InspectPackageSectionsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_styles" => InspectPackageStylesAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_template_style_alignment" =>
+                InspectPackageTemplateStyleAlignmentAsync(
+                    arguments,
+                    cancellationToken
+                ),
+            "plan_ooxml_template_style_alignment" =>
+                PlanPackageTemplateStyleAlignmentAsync(
+                    arguments,
+                    cancellationToken
+                ),
+            "apply_ooxml_template_style_alignment" =>
+                ApplyPackageTemplateStyleAlignmentAsync(
+                    arguments,
+                    cancellationToken
+                ),
+            "inspect_ooxml_numbering" => InspectPackageNumberingAsync(
+                arguments,
+                cancellationToken
+            ),
+            "plan_ooxml_numbering_repair" => PlanPackageNumberingRepairAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_numbering_repair" => ApplyPackageNumberingRepairAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_numbering_rebuild_candidates" =>
+                InspectPackageNumberingRebuildCandidatesAsync(
+                    arguments,
+                    cancellationToken
+                ),
+            "plan_ooxml_numbering_rebuild" => PlanPackageNumberingRebuildAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_numbering_rebuild" => ApplyPackageNumberingRebuildAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_notes" => InspectPackageNotesAsync(
+                arguments,
+                cancellationToken
+            ),
+            "plan_ooxml_note_repair" => PlanPackageNoteRepairAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_note_repair" => ApplyPackageNoteRepairAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_equation_repairs" => InspectPackageEquationRepairsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "plan_ooxml_equation_repair" => PlanPackageEquationRepairAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_equation_repair" => ApplyPackageEquationRepairAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_relationships" => InspectPackageRelationshipsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_heading_outline" => InspectPackageHeadingOutlineAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_semantic_roles" => InspectPackageSemanticRolesAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_ocr_candidates" => InspectPackageOcrCandidatesAsync(
+                arguments,
+                cancellationToken
+            ),
+            "run_ooxml_ocr" => RunPackageOcrAsync(
+                arguments,
+                cancellationToken
+            ),
+            "plan_ooxml_relationship_repair" => PlanPackageRelationshipRepairAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_relationship_repair" => ApplyPackageRelationshipRepairAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_theme" => InspectPackageThemeAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_settings" => InspectPackageSettingsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_references" => InspectPackageReferencesAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_bibliography" => InspectPackageBibliographyAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_mail_merge" => InspectPackageMailMergeAsync(
+                arguments,
+                cancellationToken
+            ),
+            "plan_ooxml_mail_merge_schema_binding" =>
+                PlanPackageMailMergeSchemaBindingAsync(
+                    arguments,
+                    cancellationToken
+                ),
+            "inspect_ooxml_dependencies" => InspectPackageDependenciesAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_charts" => InspectPackageChartsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_diagrams" => InspectPackageDiagramsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_figures" => InspectPackageFiguresAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_content_controls" =>
+                InspectPackageContentControlsAsync(arguments, cancellationToken),
+            "inspect_ooxml_active_content" => InspectPackageActiveContentAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_properties" => InspectPackageDocumentPropertiesAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_tables" => InspectPackageTablesAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_markup_compatibility" =>
+                InspectPackageMarkupCompatibilityAsync(arguments, cancellationToken),
+            "analyze_ooxml_document" => AnalyzePackageDocumentAsync(
+                arguments,
+                cancellationToken
+            ),
+            "lint_ooxml_document" => LintPackageAsync(
+                arguments,
+                cancellationToken
+            ),
+            "plan_ooxml_lint_repair" => PlanPackageLintRepairAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_lint_repair" => ApplyPackageLintRepairAsync(
+                arguments,
+                cancellationToken
+            ),
+            "plan_ooxml_format" => PlanPackageFormatAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_format" => ApplyPackageFormatAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_equations" => InspectPackageEquationsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_review" => InspectPackageReviewAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_fonts" => InspectPackageFontsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "resolve_ooxml_formatting" => ResolvePackageFormattingAsync(
                 arguments,
                 cancellationToken
             ),
@@ -112,12 +485,71 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "plan_ooxml_semantic_edits" => PlanPackageSemanticEditsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_semantic_edits" => ApplyPackageSemanticEditsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "plan_ooxml_comment_body_edits" => PlanPackageCommentBodyEditsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_comment_body_edits" => ApplyPackageCommentBodyEditsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_ooxml_equation_paragraph_rewrites" =>
+                InspectPackageEquationParagraphRewritesAsync(
+                    arguments,
+                    cancellationToken
+                ),
+            "plan_ooxml_equation_paragraph_rewrites" =>
+                PlanPackageEquationParagraphRewritesAsync(
+                    arguments,
+                    cancellationToken
+                ),
+            "apply_ooxml_equation_paragraph_rewrites" =>
+                ApplyPackageEquationParagraphRewritesAsync(
+                    arguments,
+                    cancellationToken
+                ),
+            "plan_ooxml_review_decisions" => PlanPackageReviewDecisionsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_ooxml_review_decisions" => ApplyPackageReviewDecisionsAsync(
+                arguments,
+                cancellationToken
+            ),
             "inspect_live_word_document" => InspectAsync(arguments, cancellationToken),
             "map_live_word_structures" => MapStructuresAsync(
                 arguments,
                 cancellationToken
             ),
             "inspect_live_word_structure_items" => InspectStructureItemsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_live_word_drawing_layout" => InspectDrawingLayoutAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_live_word_version_profile" => InspectVersionProfileAsync(
+                arguments,
+                cancellationToken
+            ),
+            "probe_live_word_feature_behaviors" => ProbeFeatureBehaviorsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "prepare_live_word_smartart_text_edits" => PrepareSmartArtTextEditsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "apply_live_word_smartart_text_edits" => ApplySmartArtTextEditsAsync(
                 arguments,
                 cancellationToken
             ),
@@ -192,6 +624,35 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "insert_live_word_caption" => InsertCaptionAsync(
+                arguments,
+                cancellationToken
+            ),
+            "insert_live_word_table_of_figures" => InsertTableOfFiguresAsync(
+                arguments,
+                cancellationToken
+            ),
+            "insert_live_word_table_of_contents" => InsertTableOfContentsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "mark_live_word_authority_citation" => MarkAuthorityCitationAsync(
+                arguments,
+                cancellationToken
+            ),
+            "insert_live_word_table_of_authorities" => InsertTableOfAuthoritiesAsync(
+                arguments,
+                cancellationToken
+            ),
+            "mark_live_word_index_entry" => MarkIndexEntryAsync(
+                arguments,
+                cancellationToken
+            ),
+            "insert_live_word_index" => InsertIndexAsync(arguments, cancellationToken),
+            "update_live_word_reference_tables" => UpdateReferenceTablesAsync(
+                arguments,
+                cancellationToken
+            ),
             "insert_live_word_image" => InsertImageAsync(arguments, cancellationToken),
             "insert_live_word_comment" => InsertCommentAsync(
                 arguments,
@@ -207,7 +668,18 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
-            "preflight_live_word_equations" => PreflightEquationsAsync(arguments),
+            "preflight_live_word_equations" => PreflightEquationsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "inspect_live_word_equations" => InspectLiveEquationsAsync(
+                arguments,
+                cancellationToken
+            ),
+            "update_live_word_equation" => UpdateLiveEquationAsync(
+                arguments,
+                cancellationToken
+            ),
             "apply_live_word_operations" => ApplyOperationsAsync(
                 arguments,
                 cancellationToken
@@ -255,6 +727,7 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 },
+                WordComReplaySafety.ReplaySafe,
                 cancellationToken
             );
         }
@@ -290,6 +763,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     visible = (bool)application.Visible,
                     document_count = (int)application.Documents.Count,
                     started_or_attached = true,
+                    application_owned_by_runtime = _host.ApplicationOwnedByRuntime,
                     runtime = "dotnet-native",
                     python_used = false,
                     performance = Performance(started),
@@ -374,6 +848,7 @@ internal sealed partial class WordLiveService : IToolHandler
                 var name = DocumentName(document);
                 var fullName = DocumentFullName(document);
                 var identity = NormalizeIdentity(fullName, name);
+                ThrowIfDocumentIdentityQuarantined(identity);
                 var record = _records.Values.SingleOrDefault(
                     item => NormalizeIdentity(item.FullName, item.Name) == identity
                 );
@@ -452,6 +927,7 @@ internal sealed partial class WordLiveService : IToolHandler
                 var resolvedFullName = DocumentFullName(document);
                 var hwnd = ActiveWindowHwnd(application);
                 var identity = NormalizeIdentity(resolvedFullName, name);
+                ThrowIfDocumentIdentityQuarantined(identity);
                 var record = _records.Values.SingleOrDefault(
                     item => NormalizeIdentity(item.FullName, item.Name) == identity
                 );
@@ -600,6 +1076,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     performance = Performance(started),
                 };
             },
+            WordComReplaySafety.ReplaySafe,
             cancellationToken
         );
     }
@@ -654,6 +1131,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     document = DocumentInfo(application, document),
                 };
             },
+            WordComReplaySafety.ReplaySafe,
             cancellationToken
         );
     }
@@ -742,6 +1220,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     },
                 };
             },
+            WordComReplaySafety.ReplaySafe,
             cancellationToken
         );
     }
@@ -810,6 +1289,7 @@ internal sealed partial class WordLiveService : IToolHandler
                 var normalizedReplacement = NormalizeWordText(replacementText);
                 bool? originalScreenUpdating = null;
                 var originalTrackChanges = (bool)document.TrackRevisions;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 try
@@ -862,9 +1342,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -932,6 +1420,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     );
                 }
                 bool? originalScreenUpdating = null;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 try
@@ -973,9 +1462,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -1046,6 +1543,7 @@ internal sealed partial class WordLiveService : IToolHandler
                 );
                 var prefixLength = payload.Prefix.Length;
                 var originalScreenUpdating = (bool?)null;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 try
@@ -1088,9 +1586,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -1148,8 +1654,8 @@ internal sealed partial class WordLiveService : IToolHandler
                             );
                         }
                         return value
-                            .Replace("\r\n", "\n", StringComparison.Ordinal)
-                            .Replace('\r', '\n')
+                            .Replace("\n", "\n", StringComparison.Ordinal)
+                            .Replace('\n', '\n')
                             .Replace('\n', '\v');
                     }
                 )
@@ -1210,7 +1716,7 @@ internal sealed partial class WordLiveService : IToolHandler
             ),
         };
         CheckVersion(record, expectedVersion);
-        var tsv = string.Join("\r", rows.Select(row => string.Join("\t", row)));
+        var tsv = string.Join("\n", rows.Select(row => string.Join("\t", row)));
         var started = Stopwatch.GetTimestamp();
         return await _host.InvokeAsync<object>(
             application =>
@@ -1238,6 +1744,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     asNewParagraph: true
                 );
                 var before = DocumentTableCount(document);
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 bool? originalScreenUpdating = null;
                 dynamic? undoRecord = null;
                 var undoStarted = false;
@@ -1312,9 +1819,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -1363,8 +1878,8 @@ internal sealed partial class WordLiveService : IToolHandler
                 );
             }
             var normalized = item
-                .Replace("\r\n", "\n", StringComparison.Ordinal)
-                .Replace('\r', '\n')
+                .Replace("\n", "\n", StringComparison.Ordinal)
+                .Replace('\n', '\n')
                 .Replace('\n', '\v');
             if (normalized.Length > 50_000)
             {
@@ -1405,7 +1920,7 @@ internal sealed partial class WordLiveService : IToolHandler
             ? formatNode.Clone()
             : (JsonElement?)null;
         CheckVersion(record, expectedVersion);
-        var listText = string.Join("\r", items);
+        var listText = string.Join("\n", items);
         var started = Stopwatch.GetTimestamp();
         return await _host.InvokeAsync<object>(
             application =>
@@ -1432,6 +1947,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     listText,
                     asNewParagraph: true
                 );
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 bool? originalScreenUpdating = null;
                 dynamic? undoRecord = null;
                 var undoStarted = false;
@@ -1504,9 +2020,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -1569,6 +2093,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     replaceSelection
                 );
                 var before = (int)document.InlineShapes.Count;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 bool? originalScreenUpdating = null;
@@ -1642,9 +2167,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -1707,6 +2240,7 @@ internal sealed partial class WordLiveService : IToolHandler
                         requireNonEmpty: true
                     );
                 var before = (int)document.Comments.Count;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 bool? originalScreenUpdating = null;
@@ -1756,9 +2290,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -1851,6 +2393,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     ? document.Footnotes
                     : document.Endnotes;
                 var before = (int)notes.Count;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 bool? originalScreenUpdating = null;
@@ -1906,9 +2449,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -2006,6 +2557,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     ? section.Headers
                     : section.Footers;
                 dynamic headerFooter = collection.Item(headerFooterIndex);
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(document, record.Version);
                 dynamic? undoRecord = null;
                 var undoStarted = false;
                 bool? originalScreenUpdating = null;
@@ -2082,9 +2634,17 @@ internal sealed partial class WordLiveService : IToolHandler
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
-                    Rollback(document, undoRecord, ref undoStarted);
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        undoRecord is not null,
+                        rollbackSnapshot,
+                        record,
+                        exception
+                    );
                     throw;
                 }
                 finally
@@ -2096,59 +2656,6 @@ internal sealed partial class WordLiveService : IToolHandler
                 }
             },
             cancellationToken
-        );
-    }
-
-    private Task<object> PreflightEquationsAsync(JsonElement arguments)
-    {
-        var equations = arguments.RequiredArray("equations");
-        if (equations.GetArrayLength() is < 1 or > 200)
-        {
-            throw new NativeToolException(
-                "LIMIT_EXCEEDED",
-                "equations must contain between 1 and 200 items"
-            );
-        }
-        var results = equations
-            .EnumerateArray()
-            .Select(
-                (equation, index) =>
-                {
-                    var prepared = EquationOperationFromArguments(equation);
-                    return new
-                    {
-                        index,
-                        valid = true,
-                        input_format = prepared.InputFormat,
-                        word_linear = prepared.Value,
-                        display = prepared.Display,
-                        native_readback_required = false,
-                        rules = new[]
-                        {
-                            prepared.InputFormat switch
-                            {
-                                "latex" => "native_latex_to_unicodemath",
-                                "mathml" => "secure_mathml_to_unicodemath",
-                                "omml" => "secure_omml_to_unicodemath",
-                                _ => "native_unicodemath",
-                            },
-                            "single_com_omath_build_up",
-                        },
-                        warnings = Array.Empty<string>(),
-                    };
-                }
-            )
-            .ToArray();
-        return Task.FromResult<object>(
-            new
-            {
-                valid = true,
-                equation_count = results.Length,
-                equations = results,
-                mutated_word = false,
-                runtime = "dotnet-native",
-                python_used = false,
-            }
         );
     }
 
@@ -2184,6 +2691,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     Info = DocumentInfo(application, document),
                 };
             },
+            WordComReplaySafety.ReplaySafe,
             cancellationToken
         );
         var temporary = Path.Combine(
@@ -2306,6 +2814,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     document = DocumentInfo(application, document),
                 };
             },
+            WordComReplaySafety.ReplaySafe,
             cancellationToken
         );
     }
@@ -2408,6 +2917,9 @@ internal sealed partial class WordLiveService : IToolHandler
             arguments.Boolean("activate", true),
             arguments.NullableInt64("expected_version"),
             optimizeScreenUpdates: true,
+            arguments.String("target", "cursor"),
+            arguments.String("selection_token"),
+            arguments.Boolean("replace_selection", false),
             cancellationToken
         );
     }
@@ -2435,6 +2947,9 @@ internal sealed partial class WordLiveService : IToolHandler
             arguments.Boolean("activate", true),
             arguments.NullableInt64("expected_version"),
             optimizeScreenUpdates: true,
+            target: "document_end",
+            selectionToken: "",
+            replaceSelection: false,
             cancellationToken
         );
     }
@@ -2522,6 +3037,9 @@ internal sealed partial class WordLiveService : IToolHandler
             arguments.Boolean("activate", true),
             arguments.NullableInt64("expected_version"),
             arguments.Boolean("optimize_screen_updates", true),
+            target: "document_end",
+            selectionToken: "",
+            replaceSelection: false,
             cancellationToken
         );
     }
@@ -2532,6 +3050,9 @@ internal sealed partial class WordLiveService : IToolHandler
         bool activate,
         long? expectedVersion,
         bool optimizeScreenUpdates,
+        string target,
+        string selectionToken,
+        bool replaceSelection,
         CancellationToken cancellationToken
     )
     {
@@ -2547,7 +3068,22 @@ internal sealed partial class WordLiveService : IToolHandler
                 {
                     document.Activate();
                 }
-                var insertionStart = Math.Max(0, (int)document.Content.End - 1);
+                dynamic targetRange = ResolveInsertionRange(
+                    (object)application,
+                    (object)document,
+                    record,
+                    target,
+                    selectionToken,
+                    replaceSelection
+                );
+                var insertionStart = (int)targetRange.Start;
+                var insertionEnd = (int)targetRange.End;
+                var rollbackSnapshot = CaptureLiveRollbackSnapshot(
+                    document,
+                    insertionStart,
+                    insertionEnd,
+                    record.Version
+                );
                 var pieces = new List<string>(operations.Count);
                 var segments = new List<(int Start, int End)>(operations.Count);
                 var offset = 0;
@@ -2560,10 +3096,10 @@ internal sealed partial class WordLiveService : IToolHandler
                     var newParagraph = operation.AsNewParagraph;
                     var prefix = newParagraph
                         && insertionStart + offset > 0
-                        && previous != "\r"
-                            ? "\r"
+                        && previous != "\n"
+                            ? "\n"
                             : "";
-                    var suffix = newParagraph ? "\r" : "";
+                    var suffix = newParagraph ? "\n" : "";
                     var piece = prefix + raw + suffix;
                     segments.Add((offset + prefix.Length, offset + prefix.Length + raw.Length));
                     pieces.Add(piece);
@@ -2574,11 +3110,71 @@ internal sealed partial class WordLiveService : IToolHandler
                     }
                 }
                 var payload = string.Concat(pieces);
+                StagedPreparedBatch? staged = null;
+                var stagingOpen = false;
+                try
+                {
+                    staged = StagePreparedBatch(
+                        application,
+                        document,
+                        operations,
+                        payload,
+                        segments
+                    );
+                    stagingOpen = true;
+                    EnsureTargetUnchangedBeforePublication(
+                        document,
+                        rollbackSnapshot,
+                        record
+                    );
+                }
+                catch (Exception stagingException)
+                {
+                    Exception effectiveException = stagingException;
+                    if (staged is not null && stagingOpen)
+                    {
+                        try
+                        {
+                            CloseStagedPreparedBatch(
+                                staged,
+                                targetMutationAttempted: false
+                            );
+                        }
+                        catch (Exception cleanupException)
+                        {
+                            effectiveException = cleanupException;
+                        }
+                        stagingOpen = false;
+                    }
+                    if (
+                        effectiveException is NativeToolException
+                        {
+                            ErrorCode: "ROLLBACK_FAILED"
+                        }
+                    )
+                    {
+                        throw effectiveException;
+                    }
+                    EnsureTargetUnchangedBeforePublication(
+                        document,
+                        rollbackSnapshot,
+                        record,
+                        effectiveException
+                    );
+                    throw effectiveException;
+                }
+
+                var beforeContentEnd = (int)document.Content.End;
                 var beforeEquations = (int)document.OMaths.Count;
+                var replacedEquations = (int)targetRange.OMaths.Count;
+                var replacedLength = insertionEnd - insertionStart;
                 dynamic? undoRecord = null;
                 var undoStarted = false;
+                var mutationAttempted = false;
                 bool? originalScreenUpdating = null;
                 var results = new object?[operations.Count];
+                var textRanges = new Dictionary<int, object>();
+                var builtEquations = new Dictionary<int, BuiltEquationResult>();
                 try
                 {
                     if (optimizeScreenUpdates)
@@ -2589,8 +3185,71 @@ internal sealed partial class WordLiveService : IToolHandler
                     undoRecord = application.UndoRecord;
                     undoRecord.StartCustomRecord("WordToolkit: native mixed live batch");
                     undoStarted = true;
-                    dynamic targetRange = document.Range(insertionStart, insertionStart);
-                    targetRange.Text = payload;
+                    mutationAttempted = true;
+                    dynamic stagedRange = staged!.PublicationRange;
+                    targetRange.FormattedText = stagedRange.FormattedText;
+
+                    CloseStagedPreparedBatch(staged, targetMutationAttempted: true);
+                    stagingOpen = false;
+                    document.Activate();
+
+                    var afterContentEnd = (int)document.Content.End;
+                    var publishedLength = afterContentEnd - beforeContentEnd + replacedLength;
+                    if (publishedLength != staged.PublicationLength)
+                    {
+                        throw new NativeToolException(
+                            "PUBLICATION_INVALID",
+                            "Microsoft Word published a different range length than the verified isolated batch",
+                            new
+                            {
+                                expected_length = staged.PublicationLength,
+                                actual_length = publishedLength,
+                                raw_document_content_returned = false,
+                            }
+                        );
+                    }
+                    dynamic publishedRange = document.Range(
+                        insertionStart,
+                        insertionStart + publishedLength
+                    );
+                    if (
+                        !string.Equals(
+                            staged.TextSha256,
+                            RollbackSha256((string?)publishedRange.Text ?? ""),
+                            StringComparison.Ordinal
+                        )
+                    )
+                    {
+                        throw new NativeToolException(
+                            "PUBLICATION_INVALID",
+                            "Microsoft Word changed staged text during live publication",
+                            new { raw_document_content_returned = false }
+                        );
+                    }
+
+                    var expectedEquationCount =
+                        beforeEquations - replacedEquations + staged.EquationIndexes.Count;
+                    var afterEquations = (int)document.OMaths.Count;
+                    var publishedEquations = (int)publishedRange.OMaths.Count;
+                    if (
+                        afterEquations != expectedEquationCount
+                        || publishedEquations != staged.EquationIndexes.Count
+                    )
+                    {
+                        throw new NativeToolException(
+                            "EQUATION_INVALID",
+                            "Microsoft Word did not preserve the staged native equation set during publication",
+                            new
+                            {
+                                before = beforeEquations,
+                                replaced = replacedEquations,
+                                after = afterEquations,
+                                expected = expectedEquationCount,
+                                published = publishedEquations,
+                                expected_published = staged.EquationIndexes.Count,
+                            }
+                        );
+                    }
 
                     for (var index = 0; index < operations.Count; index++)
                     {
@@ -2598,47 +3257,72 @@ internal sealed partial class WordLiveService : IToolHandler
                         {
                             continue;
                         }
-                        var segment = segments[index];
+                        var expectedRange = staged.OperationRanges[index];
                         dynamic inserted = document.Range(
-                            insertionStart + segment.Start,
-                            insertionStart + segment.End
+                            insertionStart + expectedRange.Start,
+                            insertionStart + expectedRange.End
                         );
-                        if (textOperation.Style.Length > 0)
-                        {
-                            inserted.Style = textOperation.Style;
-                        }
-                        if (textOperation.Formatting is not null)
-                        {
-                            ApplyFormatting(inserted, textOperation.Formatting.Value);
-                        }
-                        results[index] = new
-                        {
-                            type = "text",
-                            range = new
-                            {
-                                start = (int)inserted.Start,
-                                end = (int)inserted.End,
-                            },
-                            style = textOperation.Style,
-                        };
+                        VerifyPublishedTextOperation(
+                            inserted,
+                            textOperation,
+                            expectedRange,
+                            index
+                        );
+                        textRanges[index] = (object)inserted;
                     }
-
-                    var equationIndexes = Enumerable.Range(0, operations.Count)
-                        .Where(index => operations[index] is PreparedEquationOperation)
-                        .ToArray();
-                    for (var reverse = equationIndexes.Length - 1; reverse >= 0; reverse--)
+                    for (var ordinal = 0; ordinal < staged.EquationIndexes.Count; ordinal++)
                     {
-                        var index = equationIndexes[reverse];
-                        var equationOperation = (PreparedEquationOperation)operations[index];
-                        var segment = segments[index];
-                        dynamic equationRange = document.Range(
-                            insertionStart + segment.Start,
-                            insertionStart + segment.End
+                        var index = staged.EquationIndexes[ordinal];
+                        dynamic equation = publishedRange.OMaths.Item(ordinal + 1);
+                        var expectedRange = staged.OperationRanges[index];
+                        var actualStart = (int)equation.Range.Start;
+                        var actualEnd = (int)equation.Range.End;
+                        if (
+                            actualStart != insertionStart + expectedRange.Start
+                            || actualEnd != insertionStart + expectedRange.End
+                        )
+                        {
+                            throw new NativeToolException(
+                                "EQUATION_INVALID",
+                                "Microsoft Word moved or resized a staged equation during publication",
+                                new
+                                {
+                                    operation_index = index,
+                                    expected_start = insertionStart + expectedRange.Start,
+                                    expected_end = insertionStart + expectedRange.End,
+                                    actual_start = actualStart,
+                                    actual_end = actualEnd,
+                                }
+                            );
+                        }
+                        builtEquations[index] = VerifyPublishedEquation(
+                            equation,
+                            staged.Equations[index]
                         );
-                        dynamic added = document.OMaths.Add(equationRange);
-                        dynamic equation = added.OMaths.Item(1);
-                        equation.BuildUp();
-                        equation.Type = equationOperation.Display ? 0 : 1;
+                    }
+                    for (var index = 0; index < operations.Count; index++)
+                    {
+                        if (operations[index] is PreparedTextOperation textOperation)
+                        {
+                            dynamic inserted = textRanges[index];
+                            results[index] = new
+                            {
+                                type = "text",
+                                range = new
+                                {
+                                    start = (int)inserted.Start,
+                                    end = (int)inserted.End,
+                                },
+                                style = textOperation.Style,
+                            };
+                            continue;
+                        }
+                        var built = builtEquations[index];
+                        dynamic finalEquation = built.Equation;
+                        var equationOperation = built.Operation;
+                        var readback = built.Readback;
+                        var styleRewrite = built.StyleRewrite;
+                        var styleVerification = built.StyleVerification;
                         results[index] = new
                         {
                             type = "equation",
@@ -2646,34 +3330,57 @@ internal sealed partial class WordLiveService : IToolHandler
                             {
                                 input_format = equationOperation.InputFormat,
                                 display = equationOperation.Display,
-                                linear_input = equationOperation.Value,
+                                linear_input = equationOperation.Linear,
                                 native_verified = true,
-                                readback_verified = false,
+                                readback_verified = readback is not null,
+                                readback_required = equationOperation.ReadbackRequired,
+                                native_style_verified = styleVerification is not null,
+                                formatting = styleVerification is null
+                                    ? null
+                                    : new
+                                    {
+                                        region_count = styleRewrite!.RegionCount,
+                                        plain_region_count = equationOperation.StyleCounts.Plain,
+                                        bold_region_count = equationOperation.StyleCounts.Bold,
+                                        italic_region_count = equationOperation.StyleCounts.Italic,
+                                        bold_italic_region_count = equationOperation.StyleCounts.BoldItalic,
+                                        styled_run_count = styleVerification.StyledRunCount,
+                                        plain_run_count = styleVerification.PlainRunCount,
+                                        bold_run_count = styleVerification.BoldRunCount,
+                                        italic_run_count = styleVerification.ItalicRunCount,
+                                        bold_italic_run_count = styleVerification.BoldItalicRunCount,
+                                        plain_control_count = styleVerification.PlainControlCount,
+                                        bold_control_count = styleVerification.BoldControlCount,
+                                        italic_control_count = styleVerification.ItalicControlCount,
+                                        bold_italic_control_count = styleVerification.BoldItalicControlCount,
+                                        expected_contract_sha256 = styleVerification.ExpectedContractSha256,
+                                        actual_contract_sha256 = styleVerification.ActualContractSha256,
+                                        internal_markers_returned = false,
+                                        raw_omml_returned = false,
+                                    },
+                                readback = readback is null
+                                    ? null
+                                    : new
+                                    {
+                                        expected_contract_sha256 = readback.ExpectedContractSha256,
+                                        actual_contract_sha256 = readback.ActualContractSha256,
+                                        math_element_count = readback.MathElementCount,
+                                        nary_count = readback.NaryCount,
+                                        differential_count = readback.DifferentialCount,
+                                        differential_placement_verified = readback.DifferentialPlacementVerified,
+                                        raw_omml_returned = false,
+                                    },
                                 range = new
                                 {
-                                    start = (int)equation.Range.Start,
-                                    end = (int)equation.Range.End,
+                                    start = (int)finalEquation.Range.Start,
+                                    end = (int)finalEquation.Range.End,
                                 },
                             },
                         };
                     }
-                    var afterEquations = (int)document.OMaths.Count;
-                    if (afterEquations != beforeEquations + equationIndexes.Length)
-                    {
-                        throw new NativeToolException(
-                            "EQUATION_INVALID",
-                            "Microsoft Word did not create the expected number of native equations",
-                            new
-                            {
-                                before = beforeEquations,
-                                after = afterEquations,
-                                expected = equationIndexes.Length,
-                            }
-                        );
-                    }
                     undoRecord.EndCustomRecord();
                     undoStarted = false;
-                    foreach (var equationIndex in equationIndexes)
+                    foreach (var equationIndex in staged.EquationIndexes)
                     {
                         var equationOperation =
                             (PreparedEquationOperation)operations[equationIndex];
@@ -2691,15 +3398,40 @@ internal sealed partial class WordLiveService : IToolHandler
                         live_document_id = record.Id,
                         live_version = record.Version,
                         operation_count = operations.Count,
-                        text_operation_count = operations.Count - equationIndexes.Length,
-                        equation_operation_count = equationIndexes.Length,
+                        text_operation_count = operations.Count
+                            - staged.EquationIndexes.Count,
+                        equation_operation_count = staged.EquationIndexes.Count,
                         operations = results,
                         document = DocumentInfo(application, document),
                         performance = Performance(started),
                     };
                 }
-                catch
+                catch (Exception exception)
                 {
+                    Exception effectiveException = exception;
+                    if (stagingOpen)
+                    {
+                        try
+                        {
+                            CloseStagedPreparedBatch(
+                                staged!,
+                                targetMutationAttempted: mutationAttempted
+                            );
+                        }
+                        catch (Exception cleanupException)
+                        {
+                            effectiveException = cleanupException;
+                        }
+                        stagingOpen = false;
+                    }
+                    try
+                    {
+                        document.Activate();
+                    }
+                    catch
+                    {
+                        // Rollback verification below is authoritative.
+                    }
                     foreach (
                         var equationOperation in operations.OfType<PreparedEquationOperation>()
                     )
@@ -2710,8 +3442,22 @@ internal sealed partial class WordLiveService : IToolHandler
                             static (_, current) => current + 1
                         );
                     }
-                    Rollback(document, undoRecord, ref undoStarted);
-                    throw;
+                    RollbackPreparedOperationsOrThrow(
+                        document,
+                        undoRecord,
+                        ref undoStarted,
+                        mutationAttempted,
+                        rollbackSnapshot,
+                        record,
+                        effectiveException,
+                        independentRestore: (Action)(() =>
+                            RestoreLiveMainStoryFromFlatOpc(
+                                application,
+                                document,
+                                staged!.BaselineFlatOpc
+                            ))
+                    );
+                    throw effectiveException;
                 }
                 finally
                 {
@@ -2722,6 +3468,149 @@ internal sealed partial class WordLiveService : IToolHandler
                 }
             },
             cancellationToken
+        );
+    }
+
+    private static BuiltEquationResult BuildVerifiedNativeEquation(
+        dynamic document,
+        int start,
+        int end,
+        PreparedEquationOperation equationOperation
+    )
+    {
+        dynamic equationRange = document.Range(start, end);
+        dynamic added = document.OMaths.Add(equationRange);
+        dynamic equation = added.OMaths.Item(1);
+        equation.BuildUp();
+        EquationStyleRewriteResult? styleRewrite = null;
+        EquationStyleVerification? styleVerification = null;
+        string readbackXml = "";
+        if (equationOperation.HasFormatting)
+        {
+            var equationStart = (int)equation.Range.Start;
+            var equationsBeforeRewrite = (int)document.OMaths.Count;
+            styleRewrite = EquationStyleRewriter.Rewrite(
+                (string?)equation.Range.WordOpenXML ?? "",
+                equationOperation.StyleCounts
+            );
+            dynamic rewriteRange = equation.Range.Duplicate;
+            try { rewriteRange.InsertXML(styleRewrite.WordOpenXml); }
+            finally { if (Marshal.IsComObject(rewriteRange)) Marshal.FinalReleaseComObject(rewriteRange); }
+            // InsertXML replaces the OMath and Word may expand the duplicate range
+            // to include adjacent tail content.  Binding through that range is
+            // therefore unsafe: it can return two equations or a range that escapes
+            // the publication segment.  Re-bind the replacement by its stable story
+            // position instead, then keep the existing semantic verification below.
+            dynamic? rewrittenEquation = null;
+            dynamic allEquations = document.OMaths;
+            int allEquationCount;
+            try { allEquationCount = (int)allEquations.Count; }
+            catch
+            {
+                if (Marshal.IsComObject(allEquations)) Marshal.FinalReleaseComObject(allEquations);
+                throw;
+            }
+            if (allEquationCount != equationsBeforeRewrite)
+            {
+                if (Marshal.IsComObject(allEquations))
+                {
+                    Marshal.FinalReleaseComObject(allEquations);
+                }
+                throw new NativeToolException(
+                    "EQUATION_INVALID",
+                    "Microsoft Word changed the native equation collection while rewriting one equation",
+                    new { before = equationsBeforeRewrite, after = allEquationCount, equation_start = equationStart }
+                );
+            }
+            try
+            {
+                for (var equationIndex = 1; equationIndex <= allEquationCount; equationIndex++)
+                {
+                    dynamic candidate = allEquations.Item(equationIndex);
+                    var keepCandidate = false;
+                    try
+                    {
+                        var candidateStart = (int)candidate.Range.Start;
+                        var candidateEnd = (int)candidate.Range.End;
+                        if (candidateStart == equationStart && candidateEnd > candidateStart)
+                        {
+                            if (rewrittenEquation is not null)
+                            {
+                                if (Marshal.IsComObject(rewrittenEquation)) Marshal.FinalReleaseComObject(rewrittenEquation);
+                                rewrittenEquation = null;
+                                throw new NativeToolException(
+                                    "EQUATION_INVALID",
+                                    "Microsoft Word produced multiple styled native equations at one position",
+                                    new { equation_start = equationStart }
+                                );
+                            }
+                            rewrittenEquation = candidate;
+                            keepCandidate = true;
+                        }
+                    }
+                    finally
+                    {
+                        if (!keepCandidate && Marshal.IsComObject(candidate))
+                        {
+                            Marshal.FinalReleaseComObject(candidate);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                if (rewrittenEquation is not null && Marshal.IsComObject(rewrittenEquation))
+                {
+                    Marshal.FinalReleaseComObject(rewrittenEquation);
+                    rewrittenEquation = null;
+                }
+                throw;
+            }
+            finally
+            {
+                if (Marshal.IsComObject(allEquations))
+                {
+                    Marshal.FinalReleaseComObject(allEquations);
+                }
+            }
+            if (rewrittenEquation is null)
+            {
+                throw new NativeToolException(
+                    "EQUATION_INVALID",
+                    "Microsoft Word did not preserve exactly one styled native equation",
+                    new
+                    {
+                        equation_count = 0,
+                        equation_start = equationStart,
+                    }
+                );
+            }
+            equation = rewrittenEquation;
+        }
+        equation.Type = equationOperation.Display ? 0 : 1;
+        if (styleRewrite is not null)
+        {
+            readbackXml = (string?)equation.Range.WordOpenXML ?? "";
+            styleVerification = EquationStyleRewriter.Verify(readbackXml, styleRewrite);
+        }
+        EquationReadbackVerification? readback = null;
+        if (equationOperation.VerifyReadback)
+        {
+            if (readbackXml.Length == 0)
+            {
+                readbackXml = (string?)equation.Range.WordOpenXML ?? "";
+            }
+            readback = EquationReadbackVerifier.Verify(
+                readbackXml,
+                equationOperation.Linear
+            );
+        }
+        return new BuiltEquationResult(
+            (object)equation,
+            equationOperation,
+            readback,
+            styleRewrite,
+            styleVerification
         );
     }
 
@@ -2842,19 +3731,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     "Word did not create a non-empty PDF"
                 );
             }
-            if (overwrite && File.Exists(outputPath))
-            {
-                File.Replace(
-                    temporaryPath,
-                    outputPath,
-                    destinationBackupFileName: null,
-                    ignoreMetadataErrors: true
-                );
-            }
-            else
-            {
-                File.Move(temporaryPath, outputPath, overwrite: false);
-            }
+            PublishStagedPdf(temporaryPath, outputPath, overwrite, BeforeCreateNewPublication);
         }
         finally
         {
@@ -2875,6 +3752,24 @@ internal sealed partial class WordLiveService : IToolHandler
             document = snapshot,
             performance = Performance(started),
         };
+    }
+
+    internal static void PublishStagedPdf(string stagedPath, string outputPath, bool overwrite, Action<string, string>? beforeCreateNewPublication = null)
+    {
+        if (overwrite && File.Exists(outputPath))
+        {
+            File.Replace(stagedPath, outputPath, null, true);
+            return;
+        }
+        try
+        {
+            beforeCreateNewPublication?.Invoke(stagedPath, outputPath);
+            AtomicFilePublisher.PublishCreateNew(stagedPath, outputPath);
+        }
+        catch (IOException exception) when (AtomicFilePublisher.IsAlreadyExists(exception))
+        {
+            throw new NativeToolException("VERSION_CONFLICT", "The PDF output file was created concurrently; it was not overwritten");
+        }
     }
 
     private async Task<object> CloseDocumentAsync(
@@ -3036,9 +3931,11 @@ internal sealed partial class WordLiveService : IToolHandler
             cancellationToken
         );
         _records.Clear();
+        _quarantinedRecords.Clear();
         _selectionGrants.Clear();
         _undoGrants.Clear();
         _rangeGrants.Clear();
+        _smartArtTextEditGrants.Clear();
         _reviewGrants.Clear();
         return result;
     }
@@ -3046,12 +3943,26 @@ internal sealed partial class WordLiveService : IToolHandler
     private Task<object> DisconnectAsync(JsonElement arguments)
     {
         var id = arguments.String("live_document_id");
-        _ = Record(id);
-        _records.TryRemove(id, out _);
+        var disconnected = _records.TryRemove(id, out _);
+        var quarantineCleared = _quarantinedRecords.TryRemove(id, out _);
+        if (!disconnected && !quarantineCleared)
+        {
+            throw new NativeToolException(
+                "DOCUMENT_NOT_FOUND",
+                "The Word Live document handle was not found"
+            );
+        }
         InvalidateSelectionGrants(id);
         InvalidateRangeGrants(id);
         InvalidateUndoGrants(id);
-        return Task.FromResult<object>(new { live_document_id = id, disconnected = true });
+        return Task.FromResult<object>(
+            new
+            {
+                live_document_id = id,
+                disconnected = true,
+                quarantine_cleared = quarantineCleared,
+            }
+        );
     }
 
     internal async Task<bool> UndoBenchmarkTransactionAsync(
@@ -3091,6 +4002,26 @@ internal sealed partial class WordLiveService : IToolHandler
         JsonElement arguments
     )
     {
+        foreach (var unsupportedAlias in new[]
+        {
+            "source_format",
+            "equation_source_format",
+            "format",
+        })
+        {
+            if (arguments.TryGetProperty(unsupportedAlias, out _))
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    $"Unknown equation field '{unsupportedAlias}'; use 'input_format'",
+                    new
+                    {
+                        unsupported_field = unsupportedAlias,
+                        accepted_field = "input_format",
+                    }
+                );
+            }
+        }
         var valueNode = arguments.Required("value");
         if (valueNode.ValueKind != JsonValueKind.String)
         {
@@ -3120,16 +4051,22 @@ internal sealed partial class WordLiveService : IToolHandler
                 "Equation length must be between 1 and 100,000 characters"
             );
         }
-        var linear = inputFormat switch
+        var conversion = inputFormat switch
         {
-            "latex" => LatexToUnicodeMath.Convert(value),
-            "mathml" or "omml" => MathMarkupToUnicodeMath.Convert(value, inputFormat),
-            _ => value.Trim(),
+            "latex" => LatexToUnicodeMath.ConvertPlan(value),
+            "mathml" or "omml" => MathMarkupToUnicodeMath.ConvertPlan(
+                value,
+                inputFormat
+            ),
+            _ => EquationFormattingMarkers.Unstyled(
+                WordLinearMathNormalizer.NormalizeForWord(value.Trim()),
+                inputFormat
+            ),
         };
         if (
-            linear.Any(
+            conversion.BuildLinear.Any(
                 character =>
-                    (character < 32 && character is not ('\t' or '\n' or '\r'))
+                    (character < 32 && character is not ('\t' or '\n' or '\n'))
                     || character == 127
             )
         )
@@ -3139,10 +4076,17 @@ internal sealed partial class WordLiveService : IToolHandler
                 "Equation input contains unsafe control characters"
             );
         }
+        var readbackRequired =
+            conversion.HasFormatting
+            || EquationReadbackVerifier.RequiresReadback(conversion.Linear);
         return new PreparedEquationOperation(
-            linear,
+            conversion.Linear,
+            conversion.BuildLinear,
             arguments.Boolean("display", true),
-            inputFormat
+            inputFormat,
+            arguments.Boolean("verify_readback", false) || readbackRequired,
+            readbackRequired,
+            conversion.StyleCounts
         );
     }
 
@@ -3419,14 +4363,55 @@ internal sealed partial class WordLiveService : IToolHandler
 
     private LiveDocumentRecord Record(string id)
     {
-        if (id.Length == 0 || !_records.TryGetValue(id, out var record))
+        if (id.Length == 0)
         {
             throw new NativeToolException(
                 "DOCUMENT_NOT_FOUND",
                 "The Word Live document handle was not found"
             );
         }
-        return record;
+        if (_records.TryGetValue(id, out var record))
+        {
+            return record;
+        }
+        if (_quarantinedRecords.TryGetValue(id, out var quarantine))
+        {
+            throw new NativeToolException(
+                "LIVE_DOCUMENT_QUARANTINED",
+                "The Word Live document handle was invalidated after rollback could not be proven",
+                new
+                {
+                    live_document_id = id,
+                    reason_code = quarantine.ReasonCode,
+                    requires_explicit_disconnect = true,
+                }
+            );
+        }
+        throw new NativeToolException(
+            "DOCUMENT_NOT_FOUND",
+            "The Word Live document handle was not found"
+        );
+    }
+
+    private void ThrowIfDocumentIdentityQuarantined(string identity)
+    {
+        var quarantine = _quarantinedRecords.Values.FirstOrDefault(
+            item => NormalizeIdentity(item.FullName, item.Name) == identity
+        );
+        if (quarantine is null)
+        {
+            return;
+        }
+        throw new NativeToolException(
+            "LIVE_DOCUMENT_QUARANTINED",
+            "This open Word document is quarantined because rollback could not be proven",
+            new
+            {
+                live_document_id = quarantine.Id,
+                reason_code = quarantine.ReasonCode,
+                requires_explicit_disconnect = true,
+            }
+        );
     }
 
     private static void CheckVersion(LiveDocumentRecord record, long? expectedVersion)
@@ -3470,7 +4455,7 @@ internal sealed partial class WordLiveService : IToolHandler
         var unsafeCharacters = searchText
             .Where(
                 character =>
-                    (character < 32 && character is not ('\t' or '\n' or '\r' or '\f'))
+                    (character < 32 && character is not ('\t' or '\n' or '\n' or '\f'))
                     || character == 127
             )
             .Select(character => $"U+{(int)character:X4}")
@@ -3594,7 +4579,7 @@ internal sealed partial class WordLiveService : IToolHandler
     )
     {
         var cleaned = value
-            .Replace('\r', '\n')
+            .Replace('\n', '\n')
             .Replace("\x07", "", StringComparison.Ordinal)
             .Replace("\0", "", StringComparison.Ordinal);
         return (
@@ -3707,17 +4692,17 @@ internal sealed partial class WordLiveService : IToolHandler
         var previous = start > 0
             ? (string?)document.Range(start - 1, start).Text ?? ""
             : "";
-        var prefix = asNewParagraph && start > 0 && previous != "\r" ? "\r" : "";
-        var suffix = asNewParagraph ? "\r" : "";
+        var prefix = asNewParagraph && start > 0 && previous != "\n" ? "\n" : "";
+        var suffix = asNewParagraph ? "\n" : "";
         return (prefix + normalized + suffix, prefix, suffix);
     }
 
     private static string NormalizeWordText(string value)
     {
         return value
-            .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace('\r', '\n')
-            .Replace('\n', '\r');
+            .Replace("\n", "\n", StringComparison.Ordinal)
+            .Replace('\n', '\n')
+            .Replace('\n', '\n');
     }
 
     private static void ApplyFormatting(dynamic range, JsonElement formatting)
@@ -3894,31 +4879,6 @@ internal sealed partial class WordLiveService : IToolHandler
         return red | (green << 8) | (blue << 16);
     }
 
-    private static void Rollback(dynamic document, dynamic? undoRecord, ref bool undoStarted)
-    {
-        if (!undoStarted)
-        {
-            return;
-        }
-        try
-        {
-            undoRecord?.EndCustomRecord();
-        }
-        catch
-        {
-            // The rollback still attempts one bounded document Undo.
-        }
-        undoStarted = false;
-        try
-        {
-            _ = (bool)document.Undo(1);
-        }
-        catch
-        {
-            // The original error remains authoritative.
-        }
-    }
-
     private static object Performance(long startedTimestamp)
     {
         return new
@@ -3981,6 +4941,18 @@ internal sealed partial class WordLiveService : IToolHandler
         }
     }
 
+    private void TrimEquationGrants()
+    {
+        if (_equationGrants.Count <= 2_048)
+        {
+            return;
+        }
+        foreach (var key in _equationGrants.Keys.Take(_equationGrants.Count - 1_024))
+        {
+            _equationGrants.TryRemove(key, out _);
+        }
+    }
+
     private void InvalidateSelectionGrants(string documentId)
     {
         foreach (
@@ -3990,6 +4962,19 @@ internal sealed partial class WordLiveService : IToolHandler
         )
         {
             _selectionGrants.TryRemove(pair.Key, out _);
+        }
+        InvalidateSmartArtTextEditGrants(documentId);
+    }
+
+    private void InvalidateSmartArtTextEditGrants(string documentId)
+    {
+        foreach (
+            var pair in _smartArtTextEditGrants.Where(
+                item => item.Value.DocumentId == documentId
+            )
+        )
+        {
+            _smartArtTextEditGrants.TryRemove(pair.Key, out _);
         }
     }
 
@@ -4007,7 +4992,18 @@ internal sealed partial class WordLiveService : IToolHandler
         {
             _rangeGrants.TryRemove(pair.Key, out _);
         }
+        InvalidateEquationGrants(documentId);
         InvalidateReviewGrants(documentId);
+    }
+
+    private void InvalidateEquationGrants(string documentId)
+    {
+        foreach (
+            var pair in _equationGrants.Where(item => item.Value.DocumentId == documentId)
+        )
+        {
+            _equationGrants.TryRemove(pair.Key, out _);
+        }
     }
 
     private static (List<string> Entries, bool Available) UndoEntries(
@@ -4458,10 +5454,25 @@ internal sealed partial class WordLiveService : IToolHandler
 
     private sealed record PreparedEquationOperation(
         string Linear,
+        string BuildLinear,
         bool Display,
-        string InputFormat
+        string InputFormat,
+        bool VerifyReadback,
+        bool ReadbackRequired,
+        EquationStyleCounts StyleCounts
     )
-        : PreparedOperation(Linear, Display);
+        : PreparedOperation(BuildLinear, Display)
+    {
+        internal bool HasFormatting => StyleCounts.Total > 0;
+    }
+
+    private sealed record BuiltEquationResult(
+        object Equation,
+        PreparedEquationOperation Operation,
+        EquationReadbackVerification? Readback,
+        EquationStyleRewriteResult? StyleRewrite,
+        EquationStyleVerification? StyleVerification
+    );
 
     private sealed record LiveMatch(
         int Start,

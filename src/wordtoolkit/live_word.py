@@ -1271,9 +1271,7 @@ class LiveWordBridge:
                 ErrorCode.INVALID_INPUT,
                 "max_text_chars must be an integer between 1 and 2,000",
             )
-        if not isinstance(include_text, bool) or not isinstance(
-            adaptive_property_probing, bool
-        ):
+        if not isinstance(include_text, bool) or not isinstance(adaptive_property_probing, bool):
             raise WordToolkitError(
                 ErrorCode.INVALID_INPUT,
                 "inspection flags must be true or false",
@@ -1418,8 +1416,7 @@ class LiveWordBridge:
         duration_ms = (time.perf_counter() - started) * 1000
         outcomes = cast(dict[str, dict[str, Any]], result.pop("property_outcomes", {}))
         property_read_attempts = sum(
-            int(outcome.get("successful_reads", 0))
-            + int(outcome.get("failed_reads", 0))
+            int(outcome.get("successful_reads", 0)) + int(outcome.get("failed_reads", 0))
             for outcome in outcomes.values()
         )
         observation_recorded = False
@@ -1489,11 +1486,7 @@ class LiveWordBridge:
                 "kind is not supported by the Word object-model catalog",
                 {"kind": kind, "allowed": sorted(valid_kinds)},
             )
-        if (
-            isinstance(offset, bool)
-            or not isinstance(offset, int)
-            or not 0 <= offset <= 1_000_000
-        ):
+        if isinstance(offset, bool) or not isinstance(offset, int) or not 0 <= offset <= 1_000_000:
             raise WordToolkitError(
                 ErrorCode.INVALID_INPUT,
                 "offset must be an integer from 0 to 1,000,000",
@@ -1588,9 +1581,7 @@ class LiveWordBridge:
                     "minor_version": int(library.get("minor_version", 0)),
                     "flags": int(library.get("flags", 0)),
                     "declared_type_count": int(library.get("declared_type_count", 0)),
-                    "application_type_index": int(
-                        library.get("application_type_index", 0)
-                    ),
+                    "application_type_index": int(library.get("application_type_index", 0)),
                 },
                 "stats": {
                     "type_count": int(stats.get("type_count", 0)),
@@ -1646,15 +1637,9 @@ class LiveWordBridge:
                     "type_index": int(item.get("type_index", 0)),
                     "guid": str(item.get("guid", ""))[:64],
                     "flags": int(item.get("flags", 0)),
-                    "declared_function_count": int(
-                        item.get("declared_function_count", 0)
-                    ),
-                    "declared_variable_count": int(
-                        item.get("declared_variable_count", 0)
-                    ),
-                    "implemented_type_count": int(
-                        item.get("implemented_type_count", 0)
-                    ),
+                    "declared_function_count": int(item.get("declared_function_count", 0)),
+                    "declared_variable_count": int(item.get("declared_variable_count", 0)),
+                    "implemented_type_count": int(item.get("implemented_type_count", 0)),
                     "member_count": int(item.get("member_count", 0)),
                 }
             )
@@ -1704,8 +1689,7 @@ class LiveWordBridge:
             (
                 item
                 for item in catalog.get("types", [])
-                if isinstance(item, dict)
-                and str(item.get("name", "")).casefold() == wanted
+                if isinstance(item, dict) and str(item.get("name", "")).casefold() == wanted
             ),
             None,
         )
@@ -1732,9 +1716,7 @@ class LiveWordBridge:
                 "member_id": int(member.get("member_id", 0)),
                 "declaration_index": int(member.get("declaration_index", 0)),
                 "flags": int(member.get("flags", 0)),
-                "flag_names": [
-                    str(value)[:32] for value in member.get("flag_names", [])[:16]
-                ],
+                "flag_names": [str(value)[:32] for value in member.get("flag_names", [])[:16]],
             }
             if member_kind in {"method", "property_get", "property_put", "property_put_ref"}:
                 parameters = []
@@ -1747,8 +1729,7 @@ class LiveWordBridge:
                             "type": str(parameter.get("type", "UNKNOWN"))[:256],
                             "flags": int(parameter.get("flags", 0)),
                             "flag_names": [
-                                str(value)[:32]
-                                for value in parameter.get("flag_names", [])[:16]
+                                str(value)[:32] for value in parameter.get("flag_names", [])[:16]
                             ],
                             "optional": bool(parameter.get("optional", False)),
                             **(
@@ -1762,9 +1743,7 @@ class LiveWordBridge:
                     {
                         "parameters": parameters,
                         "parameter_count": int(member.get("parameter_count", 0)),
-                        "optional_parameter_count": int(
-                            member.get("optional_parameter_count", 0)
-                        ),
+                        "optional_parameter_count": int(member.get("optional_parameter_count", 0)),
                         "function_kind": int(member.get("function_kind", 0)),
                         "invoke_kind": int(member.get("invoke_kind", 0)),
                         "call_convention": int(member.get("call_convention", 0)),
@@ -1777,9 +1756,7 @@ class LiveWordBridge:
                 payload["type"] = str(member.get("type", "UNKNOWN"))[:256]
                 if member_kind == "enum_value":
                     value = member.get("value")
-                    payload["value"] = (
-                        value if isinstance(value, (bool, int, float, str)) else None
-                    )
+                    payload["value"] = value if isinstance(value, (bool, int, float, str)) else None
             matches.append(payload)
 
         page = matches[offset : offset + limit]
@@ -1799,8 +1776,7 @@ class LiveWordBridge:
                             "guid": str(item.get("guid", ""))[:64],
                             "flags": int(item.get("flags", 0)),
                             "flag_names": [
-                                str(value)[:32]
-                                for value in item.get("flag_names", [])[:16]
+                                str(value)[:32] for value in item.get("flag_names", [])[:16]
                             ],
                         }
                         for item in selected.get("implemented_types", [])[:32]
@@ -1854,10 +1830,7 @@ class LiveWordBridge:
                 "effect is not supported by the Word capability registry",
                 {"effect": effect, "allowed": sorted(VALID_CAPABILITY_EFFECTS)},
             )
-        if (
-            normalized_execution
-            and normalized_execution not in VALID_CAPABILITY_EXECUTIONS
-        ):
+        if normalized_execution and normalized_execution not in VALID_CAPABILITY_EXECUTIONS:
             raise WordToolkitError(
                 ErrorCode.INVALID_INPUT,
                 "execution is not supported by the Word capability registry",
@@ -1875,8 +1848,7 @@ class LiveWordBridge:
             policy = cast(dict[str, Any], profile["policy"])
             virtual_tool = cast(dict[str, Any], profile["virtual_tool"])
             searchable = (
-                f"{profile_type} {member['name']} {profile['capability_id']} "
-                f"{virtual_tool['name']}"
+                f"{profile_type} {member['name']} {profile['capability_id']} {virtual_tool['name']}"
             ).casefold()
             if normalized_query and normalized_query not in searchable:
                 continue
@@ -1886,10 +1858,7 @@ class LiveWordBridge:
                 continue
             if normalized_effect and str(policy["effect"]) != normalized_effect:
                 continue
-            if (
-                normalized_execution
-                and str(policy["execution"]) != normalized_execution
-            ):
+            if normalized_execution and str(policy["execution"]) != normalized_execution:
                 continue
             matches.append(profile)
         page = matches[offset : offset + limit]
@@ -1987,10 +1956,7 @@ class LiveWordBridge:
             return {
                 "kind": "array",
                 "declared_type": declared_type,
-                "value": [
-                    item[:1_000] if isinstance(item, str) else item
-                    for item in safe_values
-                ],
+                "value": [item[:1_000] if isinstance(item, str) else item for item in safe_values],
                 "truncated": len(value) > 100 or len(safe_values) != len(value[:100]),
             }
         return {
@@ -2011,10 +1977,7 @@ class LiveWordBridge:
         member = cast(dict[str, Any], prepared.profile["member"])
         member_name = str(member["name"])
         member_kind = str(member["kind"])
-        arguments = [
-            cls._resolve_member_argument(value, results)
-            for value in prepared.arguments
-        ]
+        arguments = [cls._resolve_member_argument(value, results) for value in prepared.arguments]
         try:
             if member_kind == "property_get":
                 value = getattr(target, member_name)
@@ -2029,9 +1992,7 @@ class LiveWordBridge:
                     return None
                 dispatch = getattr(target, "_oleobj_", None)
                 if dispatch is None or not callable(getattr(dispatch, "Invoke", None)):
-                    raise TypeError(
-                        "indexed property assignment requires an IDispatch target"
-                    )
+                    raise TypeError("indexed property assignment requires an IDispatch target")
                 invoke_kind = int(member.get("invoke_kind", 0))
                 if invoke_kind not in {4, 8}:
                     invoke_kind = 8 if member_kind == "property_put_ref" else 4
@@ -2056,8 +2017,7 @@ class LiveWordBridge:
                     "operation_id": prepared.operation_id,
                     "capability_id": prepared.capability_id,
                     "member": (
-                        f"{prepared.profile['type']['name']}."
-                        f"{prepared.profile['member']['name']}"
+                        f"{prepared.profile['type']['name']}.{prepared.profile['member']['name']}"
                     ),
                     "exception": type(exc).__name__,
                 },
@@ -2082,9 +2042,7 @@ class LiveWordBridge:
         expected_version: int | None = None,
         optimize_screen_updates: bool = True,
     ) -> dict[str, Any]:
-        if not isinstance(activate, bool) or not isinstance(
-            optimize_screen_updates, bool
-        ):
+        if not isinstance(activate, bool) or not isinstance(optimize_screen_updates, bool):
             raise WordToolkitError(
                 ErrorCode.INVALID_INPUT,
                 "member-operation execution flags must be true or false",
@@ -2142,13 +2100,16 @@ class LiveWordBridge:
                         )
 
             if mutating:
-                with self._screen_updates_suspended(
-                    application,
-                    enabled=optimize_screen_updates,
-                ), self._undoable(
-                    application,
-                    document,
-                    "WordToolkit: catalog member operations",
+                with (
+                    self._screen_updates_suspended(
+                        application,
+                        enabled=optimize_screen_updates,
+                    ),
+                    self._undoable(
+                        application,
+                        document,
+                        "WordToolkit: catalog member operations",
+                    ),
                 ):
                     apply_all()
                 record.version += 1
@@ -2169,9 +2130,7 @@ class LiveWordBridge:
                     "single_com_attachment": True,
                     "single_undo_record": mutating,
                     "rollback_on_error": mutating,
-                    "screen_updates_suspended": (
-                        mutating and optimize_screen_updates
-                    ),
+                    "screen_updates_suspended": (mutating and optimize_screen_updates),
                 },
             }
 
@@ -2690,11 +2649,7 @@ class LiveWordBridge:
                 ErrorCode.INVALID_INPUT,
                 "kind must be comments or revisions",
             )
-        if (
-            isinstance(offset, bool)
-            or not isinstance(offset, int)
-            or not 0 <= offset <= 1_000_000
-        ):
+        if isinstance(offset, bool) or not isinstance(offset, int) or not 0 <= offset <= 1_000_000:
             raise WordToolkitError(
                 ErrorCode.INVALID_INPUT,
                 "offset must be between 0 and 1,000,000",
@@ -2823,9 +2778,7 @@ class LiveWordBridge:
                 "review flags must be true or false",
             )
         text_actions = {"add_comment", "reply_comment"}
-        if action in text_actions and (
-            not isinstance(text, str) or not text or len(text) > 20_000
-        ):
+        if action in text_actions and (not isinstance(text, str) or not text or len(text) > 20_000):
             raise WordToolkitError(
                 ErrorCode.INVALID_INPUT,
                 "Comment text must contain between 1 and 20,000 characters",
@@ -2836,9 +2789,7 @@ class LiveWordBridge:
                 "tracking_enabled must be true or false for set_track_changes",
             )
         if action not in {"add_comment", "set_track_changes"} and (
-            isinstance(item_index, bool)
-            or not isinstance(item_index, int)
-            or item_index < 1
+            isinstance(item_index, bool) or not isinstance(item_index, int) or item_index < 1
         ):
             raise WordToolkitError(
                 ErrorCode.INVALID_INPUT,
@@ -3201,9 +3152,8 @@ class LiveWordBridge:
                     except Exception:
                         outline_level = int(getattr(paragraph_format, "OutlineLevel", 10))
                     style_key = style_name.casefold()
-                    is_heading = (
-                        1 <= outline_level <= 9
-                        or style_key.startswith(("heading", "nagłówek", "başlık"))
+                    is_heading = 1 <= outline_level <= 9 or style_key.startswith(
+                        ("heading", "nagłówek", "başlık")
                     )
                     if is_heading:
                         heading_count += 1
@@ -3383,11 +3333,7 @@ class LiveWordBridge:
             entries, available = self._undo_entries(application, max_entries=max_entries)
             top_entry = entries[0] if entries else ""
             barrier_active = record.undo_barrier_version == record.version
-            eligible = (
-                available
-                and not barrier_active
-                and top_entry.startswith("WordToolkit:")
-            )
+            eligible = available and not barrier_active and top_entry.startswith("WordToolkit:")
             return {
                 "live_document_id": record.document_id,
                 "live_version": record.version,
@@ -4571,10 +4517,7 @@ class LiveWordBridge:
         range_start: tuple[int, int] | None = None
         range_end: tuple[int, int] | None = None
         if directions_value is not None:
-            if (
-                not isinstance(directions_value, list)
-                or not 1 <= len(directions_value) <= 2
-            ):
+            if not isinstance(directions_value, list) or not 1 <= len(directions_value) <= 2:
                 raise WordToolkitError(
                     ErrorCode.INVALID_INPUT,
                     "directions must contain one or two positional directions",
@@ -4639,10 +4582,7 @@ class LiveWordBridge:
                     "cell_range start must not follow its end",
                     {"formula": index},
                 )
-            if (
-                range_start[0] <= row <= range_end[0]
-                and range_start[1] <= column <= range_end[1]
-            ):
+            if range_start[0] <= row <= range_end[0] and range_start[1] <= column <= range_end[1]:
                 raise WordToolkitError(
                     ErrorCode.INVALID_INPUT,
                     "cell_range cannot contain the destination formula cell",
@@ -4708,8 +4648,7 @@ class LiveWordBridge:
                 "At most 200 live table formulas may be processed in one batch",
             )
         prepared = [
-            cls._prepare_table_formula_item(item, index)
-            for index, item in enumerate(formulas)
+            cls._prepare_table_formula_item(item, index) for index, item in enumerate(formulas)
         ]
         targets = [(item.row, item.column) for item in prepared]
         if len(set(targets)) != len(targets):
@@ -4978,10 +4917,7 @@ class LiveWordBridge:
                 if (
                     item.range_start is not None
                     and item.range_end is not None
-                    and (
-                        item.range_end[0] > row_count
-                        or item.range_end[1] > column_count
-                    )
+                    and (item.range_end[0] > row_count or item.range_end[1] > column_count)
                 ):
                     raise WordToolkitError(
                         ErrorCode.INVALID_INPUT,
@@ -5035,7 +4971,9 @@ class LiveWordBridge:
                     cell, _existing_fields, needs_clear = cells[index]
                     if needs_clear:
                         content_range = cell.Range.Duplicate
-                        content_range.End = max(int(content_range.Start), int(content_range.End) - 1)
+                        content_range.End = max(
+                            int(content_range.Start), int(content_range.End) - 1
+                        )
                         content_range.Text = ""
                         clear_assignments += 1
                     expression = self._localize_formula_expression(

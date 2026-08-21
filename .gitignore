@@ -23,3 +23,4 @@ tools/OpenXmlValidator/obj/
 native/**/bin/
 native/**/obj/
 *.bak
+/output/

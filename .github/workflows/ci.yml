@@ -1,25 +1,210 @@
 name: ci
 on:
+  workflow_dispatch:
   push:
+    branches:
+      - main
+    tags:
+      - "v*"
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  engine-dotnet:
+    name: document engine (.NET 8 / Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "8.0.423"
+      - run: dotnet restore native/WordToolkit.Engine.Tests/WordToolkit.Engine.Tests.csproj
+      - run: >-
+          dotnet test native/WordToolkit.Engine.Tests/WordToolkit.Engine.Tests.csproj
+          -c Release --no-restore --logger "console;verbosity=normal"
+
+  libreoffice-dotnet:
+    name: LibreOffice UNO render (.NET 8 / Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "8.0.423"
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17.0.16+8"
+      - run: >-
+          sudo apt-get update && sudo apt-get install -y
+          libreoffice-writer libreoffice-java-common poppler-utils
+      - run: dotnet restore native/WordToolkit.LibreOffice.Tests/WordToolkit.LibreOffice.Tests.csproj
+      - run: dotnet restore native/WordToolkit.Native.Tests/WordToolkit.Native.Tests.csproj
+      - name: Test the neutral adapter against the installed exact binary
+        shell: bash
+        run: |
+          executable="$(readlink -f "$(command -v libreoffice)")"
+          test -n "$executable"
+          test -f "$executable"
+          program_directory="$(dirname "$executable")"
+          libreoffice_jar="$(readlink -f "$program_directory/classes/libreoffice.jar")"
+          test -n "$libreoffice_jar"
+          test -f "$libreoffice_jar"
+          java_executable="$(readlink -f "$(command -v java)")"
+          javac_executable="$(readlink -f "$(command -v javac)")"
+          jar_executable="$(readlink -f "$(command -v jar)")"
+          pdfinfo_executable="$(readlink -f "$(command -v pdfinfo)")"
+          rasterizer_executable="$(readlink -f "$(command -v pdftoppm)")"
+          test -f "$java_executable"
+          test -f "$javac_executable"
+          test -f "$jar_executable"
+          test -f "$pdfinfo_executable"
+          test -f "$rasterizer_executable"
+          helper_classes="$RUNNER_TEMP/wordtoolkit-uno-helper-classes"
+          helper_jar="$RUNNER_TEMP/wordtoolkit-uno-helper.jar"
+          mkdir -p "$helper_classes"
+          "$javac_executable" \
+            --release 17 \
+            -g:none \
+            -encoding UTF-8 \
+            -cp "$libreoffice_jar" \
+            -d "$helper_classes" \
+            native/WordToolkit.LibreOffice.Java/src/wordtoolkit/uno/LibreOfficeUnoRender.java
+          "$jar_executable" \
+            --create \
+            --file "$helper_jar" \
+            --date=2020-01-01T00:00:00Z \
+            -C "$helper_classes" .
+          test -s "$helper_jar"
+          committed_helper="native/WordToolkit.LibreOffice.Java/generated/wordtoolkit-uno-helper.jar"
+          test -f "$committed_helper"
+          cmp --silent "$helper_jar" "$committed_helper"
+          executable_sha256="$(sha256sum "$executable" | cut -d' ' -f1)"
+          java_sha256="$(sha256sum "$java_executable" | cut -d' ' -f1)"
+          libreoffice_jar_sha256="$(sha256sum "$libreoffice_jar" | cut -d' ' -f1)"
+          helper_sha256="$(sha256sum "$helper_jar" | cut -d' ' -f1)"
+          source_path="$(readlink -f examples/generated/WordToolkit-equations.docx)"
+          test -f "$source_path"
+          printf 'qualified_libreoffice_version=%s\n' "$("$executable" --version | tr -d '\r')"
+          printf 'qualified_libreoffice_executable_sha256=%s\n' "$executable_sha256"
+          printf 'qualified_java_version=%s\n' "$("$java_executable" -version 2>&1 | head -n 1)"
+          printf 'qualified_java_executable_sha256=%s\n' "$java_sha256"
+          printf 'qualified_libreoffice_jar_sha256=%s\n' "$libreoffice_jar_sha256"
+          printf 'qualified_wordtoolkit_uno_helper_sha256=%s\n' "$helper_sha256"
+          printf 'qualified_pdfinfo_version=%s\n' "$("$pdfinfo_executable" -v 2>&1 | head -n 1)"
+          printf 'qualified_pdfinfo_executable_sha256=%s\n' "$(sha256sum "$pdfinfo_executable" | cut -d' ' -f1)"
+          printf 'qualified_rasterizer_version=%s\n' "$("$rasterizer_executable" -v 2>&1 | head -n 1)"
+          printf 'qualified_rasterizer_executable_sha256=%s\n' "$(sha256sum "$rasterizer_executable" | cut -d' ' -f1)"
+          WORDTOOLKIT_TEST_LIBREOFFICE_PATH="$executable" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_SHA256="$executable_sha256" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_PATH="$executable" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_SHA256="$executable_sha256" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAVA_PATH="$java_executable" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAVA_SHA256="$java_sha256" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAR_PATH="$libreoffice_jar" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAR_SHA256="$libreoffice_jar_sha256" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_SOURCE_PATH="$source_path" \
+            dotnet test native/WordToolkit.LibreOffice.Tests/WordToolkit.LibreOffice.Tests.csproj \
+              -c Release --no-restore --logger "console;verbosity=normal"
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_PATH="$executable" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_SHA256="$executable_sha256" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAVA_PATH="$java_executable" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAVA_SHA256="$java_sha256" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAR_PATH="$libreoffice_jar" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_JAR_SHA256="$libreoffice_jar_sha256" \
+          WORDTOOLKIT_TEST_LIBREOFFICE_UNO_SOURCE_PATH="$source_path" \
+          WORDTOOLKIT_TEST_PDFINFO_PATH="$pdfinfo_executable" \
+          WORDTOOLKIT_TEST_PDF_RASTERIZER_PATH="$rasterizer_executable" \
+            dotnet test native/WordToolkit.Native.Tests/WordToolkit.Native.Tests.csproj \
+              -c Release --no-restore \
+              --filter FullyQualifiedName~LibreOfficeRenderServiceTests \
+              --logger "console;verbosity=normal"
+      - name: Upload the exact qualified UNO helper JAR
+        uses: actions/upload-artifact@v7
+        with:
+          name: wordtoolkit-libreoffice-uno-helper-jdk17
+          path: ${{ runner.temp }}/wordtoolkit-uno-helper.jar
+          if-no-files-found: error
+          retention-days: 14
+
+  native-windows-package:
+    name: native tests and final plugin ZIP (Windows)
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "8.0.423"
+      - name: Test, publish, validate and archive the native plugin
+        shell: powershell
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build_native_plugin.ps1
+      - name: Rebuild and compare deterministic native ZIP
+        shell: powershell
+        run: |
+          $archiveA = Get-ChildItem -LiteralPath dist -Filter 'WordToolkit-*-native-win-x64.zip' -File | Select-Object -First 1
+          if (-not $archiveA) { throw 'Primary native ZIP was not produced' }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build_native_plugin.ps1 `
+            -Output dist/ci-parity-b `
+            -Archive dist/ci-parity-b.zip `
+            -SkipTests
+          $hashA = (Get-FileHash -LiteralPath $archiveA.FullName -Algorithm SHA256).Hash
+          $hashB = (Get-FileHash -LiteralPath (Join-Path $PWD 'dist/ci-parity-b.zip') -Algorithm SHA256).Hash
+          if ($hashA -ne $hashB) { throw "Native ZIP is not deterministic: $hashA vs $hashB" }
+          Write-Host "deterministic_native_zip_sha256=$hashA"
+      - name: Upload the exact distributable ZIP
+        uses: actions/upload-artifact@v7
+        with:
+          name: wordtoolkit-native-win-x64
+          path: dist/WordToolkit-*-native-win-x64.zip
+          if-no-files-found: error
+          retention-days: 14
+
   test:
+    name: legacy Python compatibility and rendering
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: "3.12"
       - run: sudo apt-get update && sudo apt-get install -y libreoffice-writer poppler-utils fonts-dejavu-core fonts-liberation2
       - run: uv sync --extra dev --locked
       - run: uv run ruff check src/wordtoolkit scripts tests/test_*.py
+      - run: uv run ruff format --check .
+      - run: uv run python scripts/apply_metadata_contracts.py --check
+      - run: uv run python scripts/generate_action_guidance.py --check
+      - name: Focused metadata, plugin and draft-contract tests
+        run: >-
+          uv run pytest -q tests/test_native_metadata_contracts.py
+          tests/test_native_action_dispatch_contract.py
+          tests/test_plugin_contract.py tests/test_mcp_contract.py
+          tests/test_action_guidance_contract.py
+      - run: git diff --check
       - run: uv run pytest -ra
       - run: uv run python scripts/export_tool_schemas.py
+      - name: Reject changes to the immutable remote v1 schema
+        run: |
+          expected="1a47c741aaad320b2b98e7b4a3f0d4d4c79c7f73e55065f1f2e7972dbfed6f27"
+          actual="$(git cat-file blob HEAD:schemas/mcp-tools.v1.json | sha256sum | cut -d' ' -f1)"
+          if [ "$actual" != "$expected" ]; then
+            echo "immutable remote v1 schema hash mismatch: $actual" >&2
+            exit 1
+          fi
+      - name: Reject generated remote-schema drift
+        run: git diff --exit-code -- schemas/mcp-tools.v2.json schemas/draft-operations.v1.json docs/TOOL-CATALOG.md
       - run: uv run python scripts/generate_samples.py
       - run: uv run python scripts/advanced_torture_test.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wordtoolkit-golden-files
           path: |
@@ -29,20 +214,24 @@ jobs:
             examples/advanced/advanced-test-report.json
 
   validator:
+    name: Open XML validator build
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: "8.0.423"
       - run: dotnet build tools/OpenXmlValidator/OpenXmlValidator.csproj -c Release
 
   container:
+    name: remote service container
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
         with:
           context: .
           push: false

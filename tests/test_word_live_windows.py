@@ -114,9 +114,7 @@ async def test_word_live_edits_and_saves_the_same_open_document(
         },
     )
     text_capability = next(
-        item
-        for item in member_capabilities["capabilities"]
-        if item["member"]["name"] == "Text"
+        item for item in member_capabilities["capabilities"] if item["member"]["name"] == "Text"
     )
     member_operations = [
         {
@@ -521,12 +519,8 @@ async def test_word_live_edits_and_saves_the_same_open_document(
     assert inserted_table_formulas["performance"]["com_attachments"] == 1
     assert inserted_table_formulas["performance"]["field_add_calls"] == 2
     assert inserted_table_formulas["performance"]["field_update_calls"] == 0
-    assert all(
-        formula["calculated_on_insert"] for formula in inserted_table_formulas["formulas"]
-    )
-    assert all(
-        formula["native_verified"] for formula in inserted_table_formulas["formulas"]
-    )
+    assert all(formula["calculated_on_insert"] for formula in inserted_table_formulas["formulas"])
+    assert all(formula["native_verified"] for formula in inserted_table_formulas["formulas"])
     assert updated_table_fields["live_version"] == 10
     assert updated_table_fields["updated"] is True
     assert updated_table_fields["table"]["field_count"] == 2

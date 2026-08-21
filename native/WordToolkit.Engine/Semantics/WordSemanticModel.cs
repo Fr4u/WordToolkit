@@ -5,7 +5,23 @@ namespace WordToolkit.Engine.Semantics;
 
 public readonly record struct SemanticNodeId(string Value)
 {
+    public const int MaximumCharacters = 128;
+
+    public static bool HasValidSyntax(string? value) =>
+        value is not null
+        && value.Length is > 4 and <= MaximumCharacters
+        && value.StartsWith("wdn_", StringComparison.Ordinal)
+        && value.Skip(4).All(character =>
+            char.IsAsciiLetterOrDigit(character) || character is '_' or '-'
+        );
+
     public override string ToString() => Value;
+}
+
+public enum WordSemanticIdentityKind
+{
+    DurableAnchor,
+    ContentFingerprint,
 }
 
 public enum WordSemanticNodeKind
@@ -26,6 +42,7 @@ public enum WordSemanticNodeKind
     EquationComponent,
     ContentControl,
     Bookmark,
+    BookmarkEnd,
     CommentAnchor,
     Revision,
     Drawing,
@@ -61,6 +78,10 @@ public sealed class WordSemanticNode
         string sourcePath,
         string? text,
         IDictionary<string, string> properties,
+        WordSemanticIdentityKind identityKind,
+        string identityFingerprint,
+        string subtreeFingerprint,
+        string structuralFingerprint,
         IReadOnlyList<WordSemanticNode> children
     )
     {
@@ -75,6 +96,10 @@ public sealed class WordSemanticNode
         Properties = new ReadOnlyDictionary<string, string>(
             new Dictionary<string, string>(properties, StringComparer.Ordinal)
         );
+        IdentityKind = identityKind;
+        IdentityFingerprint = identityFingerprint;
+        SubtreeFingerprint = subtreeFingerprint;
+        StructuralFingerprint = structuralFingerprint;
         Children = children;
     }
 
@@ -95,6 +120,14 @@ public sealed class WordSemanticNode
     public string? Text { get; }
 
     public IReadOnlyDictionary<string, string> Properties { get; }
+
+    public WordSemanticIdentityKind IdentityKind { get; }
+
+    public string IdentityFingerprint { get; }
+
+    public string SubtreeFingerprint { get; }
+
+    public string StructuralFingerprint { get; }
 
     public IReadOnlyList<WordSemanticNode> Children { get; }
 

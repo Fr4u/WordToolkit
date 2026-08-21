@@ -9,6 +9,13 @@ internal sealed class LiveDocumentRecord
     public long Version { get; set; }
 }
 
+internal sealed record QuarantinedLiveDocumentRecord(
+    string Id,
+    string Name,
+    string FullName,
+    string ReasonCode
+);
+
 internal sealed record SelectionGrant(
     string Token,
     string DocumentId,
@@ -34,4 +41,30 @@ internal sealed record RangeGrant(
     int Start,
     int End,
     string ContextHash
+);
+
+internal sealed record EquationGrant(
+    string Token,
+    string DocumentId,
+    long Version,
+    int EquationIndex,
+    int Start,
+    int End,
+    string EquationSemanticHash,
+    string ContextHash
+);
+
+internal sealed record SmartArtTextEditGrant(
+    string Token,
+    string DocumentId,
+    long Version,
+    string StoryType,
+    int StoryLinkIndex,
+    string CollectionKind,
+    int SourceIndex,
+    int NodeIndex,
+    string RootStructureFingerprint,
+    string RootContextFingerprint,
+    string NodeTextHash,
+    IReadOnlyList<string> BaselineNodeTextHashes
 );

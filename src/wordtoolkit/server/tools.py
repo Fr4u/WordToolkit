@@ -1,22 +1,39 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import copy
 import functools
 import json
 import shutil
+import sys
 from collections.abc import Callable
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, WithJsonSchema, model_validator
 
 from docx_mcp.document import DocxDocument
 from docx_mcp.document.errors import DocxMcpError, ErrCode
 from docx_mcp.markdown import MarkdownConverter
 
 from ..auth import current_subject, require_scope
+from ..draft_operations import (
+    DRAFT_BATCH_ACTIONS,
+    DRAFT_BATCH_MAX_ARGUMENT_BYTES,
+    DRAFT_BATCH_MAX_FILES,
+    DRAFT_BATCH_MAX_OPERATIONS,
+    ORDINARY_DRAFT_MUTATION_TOOLS,
+    DraftBatchFile,
+    DraftBatchOperation,
+    DraftBatchOutcome,
+    DraftBatchStepResult,
+    compact_batch_result,
+)
 from ..engine import WordDocumentEngine
 from ..errors import ErrorCode, WordToolkitError, ok
 from ..ids import opaque_id
@@ -70,6 +87,37 @@ EXPORT = ToolAnnotations(
     readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False
 )
 FILE_META = {"openai/fileParams": ["file"]}
+BATCH_FILE_META = {"openai/fileParams": ["files"]}
+type DRAFT_VERSION = Annotated[
+    Any,
+    WithJsonSchema({"type": "integer", "minimum": 0, "title": "Expected Version"}),
+]
+DRAFT_VERSION_REQUIRED_TOOLS = {
+    *ORDINARY_DRAFT_MUTATION_TOOLS,
+    "apply_document_operations",
+    "save_document",
+    "close_document",
+    "repair_document",
+    "render_document",
+    "render_pages",
+    "convert_to_pdf",
+    "generate_preview",
+}
+
+
+@dataclass(slots=True)
+class _DraftBatchContext:
+    runtime: ToolRuntime
+    document_id: str
+    expected_version: int
+    engine: WordDocumentEngine
+    prepared_image_paths: dict[int, Path] = field(default_factory=dict)
+    operation_index: int = -1
+
+
+_DRAFT_BATCH_CONTEXT: ContextVar[_DraftBatchContext | None] = ContextVar(
+    "wordtoolkit_draft_batch_context", default=None
+)
 
 
 def _safe(function):
@@ -129,6 +177,107 @@ def _public(value: Any) -> Any:
     return value
 
 
+async def _drain_worker(worker: asyncio.Task[Any]) -> Any:
+    while True:
+        try:
+            return await asyncio.shield(worker)
+        except asyncio.CancelledError:
+            if worker.done():
+                return worker.result()
+
+
+async def _run_locked_worker(function: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    """Keep a document lock owned until its background engine call has actually stopped."""
+    worker = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
+    try:
+        return await asyncio.shield(worker)
+    except asyncio.CancelledError as cancellation:
+        with contextlib.suppress(BaseException):
+            await _drain_worker(worker)
+        raise cancellation
+
+
+def _prepare_mutation_candidate(
+    source: WordDocumentEngine,
+    operation: Callable[[Any], Any],
+    checkpoint: Path,
+    candidate_path: Path,
+) -> tuple[WordDocumentEngine, Any]:
+    """Build and validate one mutation without exposing partial engine state."""
+    clone: WordDocumentEngine | None = None
+    try:
+        clone = source.fork(checkpoint)
+        result = operation(clone)
+        _validate_mutation_candidate(clone, candidate_path)
+        return clone, result
+    except BaseException:
+        if clone is not None:
+            with contextlib.suppress(Exception):
+                clone.close()
+        raise
+
+
+def _validate_mutation_candidate(clone: WordDocumentEngine, candidate_path: Path) -> None:
+    clone.snapshot(candidate_path)
+    validation = clone.validator.validate(candidate_path)
+    if not validation["valid"]:
+        issue_codes = sorted(
+            {
+                str(issue.get("code", "VALIDATION_ERROR"))[:80]
+                for issue in validation.get("issues", [])
+                if isinstance(issue, dict)
+            }
+        )[:20]
+        raise WordToolkitError(
+            ErrorCode.OOXML_INVALID,
+            "Mutation candidate failed structural validation",
+            {
+                "phase": "candidate_validation",
+                "errors": int(validation.get("errors", 0)),
+                "warnings": int(validation.get("warnings", 0)),
+                "issue_codes": issue_codes,
+            },
+        )
+    package = validation.get("package")
+    if isinstance(package, dict):
+        clone.inspection = package
+
+
+def _close_engine_safely(engine: WordDocumentEngine) -> None:
+    with contextlib.suppress(Exception):
+        engine.close()
+
+
+def _commit_mutation_candidate(
+    record: Any, clone: WordDocumentEngine
+) -> tuple[int, WordDocumentEngine]:
+    previous = record.engine
+    clone.path = record.current_path.resolve()
+    record.engine = clone
+    record.version += 1
+    return record.version, previous
+
+
+def _verify_image_file(path: Path) -> None:
+    from PIL import Image
+
+    try:
+        with Image.open(path) as image:
+            image.verify()
+    except Exception as exc:
+        raise WordToolkitError(
+            ErrorCode.INVALID_INPUT, "Uploaded file is not a valid supported image"
+        ) from exc
+
+
+async def _download_verified_image(runtime: ToolRuntime, session: Any, file: OpenAIFile) -> Path:
+    path = await runtime.download_file(
+        file, session, extensions={".png", ".jpg", ".jpeg", ".gif", ".tif", ".tiff"}
+    )
+    await _run_locked_worker(_verify_image_file, path)
+    return path
+
+
 async def _mutate(
     runtime: ToolRuntime,
     document_id: str,
@@ -137,16 +286,90 @@ async def _mutate(
 ) -> dict:
     subject = current_subject()
     require_scope("documents:write")
-    async with runtime.store.locked_document(subject, document_id) as record:
-        if expected_version is not None and expected_version != record.version:
+    batch = _DRAFT_BATCH_CONTEXT.get()
+    if batch is not None:
+        if runtime is not batch.runtime or document_id != batch.document_id:
             raise WordToolkitError(
-                ErrorCode.VERSION_CONFLICT,
-                "Draft version changed before the mutation",
-                {"expected": expected_version, "actual": record.version},
-                retryable=True,
+                ErrorCode.INVALID_INPUT,
+                "A batch operation cannot target another runtime or document",
             )
-        result = await asyncio.to_thread(operation, record.engine)
-        record.version += 1
+        if expected_version != batch.expected_version:
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "A batch operation cannot override the transaction version",
+            )
+        result = await _run_locked_worker(operation, batch.engine)
+        return ok(
+            {
+                "document_id": document_id,
+                "draft_version": batch.expected_version,
+                "result": _public(result),
+            }
+        )
+    async with runtime.store.locked_document(subject, document_id) as record:
+        runtime.store.require_version(record, expected_version)
+        session = runtime.store.sessions.get(record.session_id)
+        if session is None or session.closed:
+            raise WordToolkitError(ErrorCode.SESSION_NOT_FOUND, "Session was not found")
+        transaction_dir = session.root / ".transactions" / record.document_id / opaque_id("txn")
+        cleanup_required = True
+        checkpoint = transaction_dir / "before.docx"
+        candidate_path = transaction_dir / "candidate.docx"
+        worker = asyncio.create_task(
+            asyncio.to_thread(
+                _prepare_mutation_candidate,
+                record.engine,
+                operation,
+                checkpoint,
+                candidate_path,
+            )
+        )
+        cancellation: asyncio.CancelledError | None = None
+        clone: WordDocumentEngine | None = None
+        try:
+            try:
+                clone, result = await asyncio.shield(worker)
+            except asyncio.CancelledError as exc:
+                cancellation = exc
+                try:
+                    clone, result = await _drain_worker(worker)
+                except BaseException:
+                    raise cancellation from None
+
+            assert clone is not None
+            version, previous = _commit_mutation_candidate(record, clone)
+            clone = None
+            cleanup_required = False
+            try:
+                await _run_locked_worker(_close_engine_safely, previous)
+            except asyncio.CancelledError as exc:
+                cancellation = cancellation or exc
+            if cancellation is not None:
+                raise cancellation
+            return ok(
+                {
+                    "document_id": document_id,
+                    "draft_version": version,
+                    "result": _public(result),
+                }
+            )
+        finally:
+            if clone is not None:
+                with contextlib.suppress(Exception):
+                    clone.close()
+            if cleanup_required:
+                cleanup = asyncio.create_task(
+                    asyncio.to_thread(shutil.rmtree, transaction_dir, True)
+                )
+                with contextlib.suppress(BaseException):
+                    await _drain_worker(cleanup)
+
+
+async def _read(runtime: ToolRuntime, document_id: str, operation: Callable[[Any], Any]) -> dict:
+    subject = current_subject()
+    require_scope("documents:read")
+    async with runtime.store.locked_document(subject, document_id) as record:
+        result = await _run_locked_worker(operation, record.engine)
         return ok(
             {
                 "document_id": document_id,
@@ -156,11 +379,17 @@ async def _mutate(
         )
 
 
-async def _read(runtime: ToolRuntime, document_id: str, operation: Callable[[Any], Any]) -> dict:
+async def _read_at_version(
+    runtime: ToolRuntime,
+    document_id: str,
+    expected_version: int | None,
+    operation: Callable[[Any], Any],
+) -> dict:
     subject = current_subject()
     require_scope("documents:read")
     async with runtime.store.locked_document(subject, document_id) as record:
-        result = await asyncio.to_thread(operation, record.engine)
+        runtime.store.require_version(record, expected_version)
+        result = await _run_locked_worker(operation, record.engine)
         return ok(
             {
                 "document_id": document_id,
@@ -190,6 +419,140 @@ def _register_document(
 
 
 def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
+    async def _run_publish_worker(
+        function: Callable[..., Any],
+        *args: Any,
+        cancel_result_cleanup: Callable[[Any], Any] | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        worker = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
+        try:
+            return await asyncio.shield(worker)
+        except asyncio.CancelledError as cancellation:
+            result: Any = None
+            completed = False
+            try:
+                result = await _drain_worker(worker)
+                completed = True
+            except BaseException:
+                completed = False
+            if completed and cancel_result_cleanup is not None:
+                cleanup = asyncio.create_task(asyncio.to_thread(cancel_result_cleanup, result))
+                with contextlib.suppress(BaseException):
+                    await _drain_worker(cleanup)
+            raise cancellation
+
+    async def _fork_draft(record) -> tuple[Path, WordDocumentEngine]:
+        session = runtime.store.sessions.get(record.session_id)
+        if session is None or session.closed:
+            raise WordToolkitError(ErrorCode.SESSION_NOT_FOUND, "Session was not found")
+        transaction_dir = session.root / ".transactions" / record.document_id / opaque_id("txn")
+        checkpoint = transaction_dir / "draft.docx"
+        try:
+            clone = await _run_publish_worker(
+                record.engine.fork,
+                checkpoint,
+                cancel_result_cleanup=lambda abandoned: abandoned.close(),
+            )
+        except BaseException:
+            await _run_publish_worker(shutil.rmtree, transaction_dir, True)
+            raise
+        return transaction_dir, clone
+
+    async def _cleanup_publish_attempt(
+        transaction_dir: Path | None,
+        clone: WordDocumentEngine | None,
+        outputs: list[Path],
+        *,
+        committed: bool,
+    ) -> None:
+        cancellation: asyncio.CancelledError | None = None
+
+        async def cleanup_worker(function: Callable[..., Any], *args: Any) -> None:
+            nonlocal cancellation
+            try:
+                await _run_publish_worker(function, *args)
+            except asyncio.CancelledError as exc:
+                cancellation = cancellation or exc
+            except Exception:
+                return
+
+        if not committed:
+            if clone is not None:
+                await cleanup_worker(clone.close)
+            for output in outputs:
+                with contextlib.suppress(OSError):
+                    if output.is_dir():
+                        await cleanup_worker(shutil.rmtree, output, True)
+                    else:
+                        output.unlink()
+        if transaction_dir is not None and not committed:
+            await cleanup_worker(shutil.rmtree, transaction_dir, True)
+        if cancellation is not None:
+            raise cancellation
+
+    def _commit_published_engine(
+        record,
+        clone: WordDocumentEngine,
+        version: int,
+        current_path: Path,
+    ) -> WordDocumentEngine:
+        previous = record.engine
+        clone.path = current_path.resolve()
+        record.engine = clone
+        record.current_path = current_path
+        record.version = version
+        return previous
+
+    async def _publish_docx(
+        document_id: str,
+        expected_version: int | None,
+        file_name: str,
+        label: str,
+    ) -> CallToolResult:
+        subject = current_subject()
+        require_scope("documents:write")
+        async with runtime.store.locked_document(subject, document_id) as record:
+            runtime.store.require_version(record, expected_version)
+            version = record.version + 1
+            root = runtime.store.sessions[record.session_id].root
+            output = (
+                root
+                / "versions"
+                / record.document_id
+                / f"v{version}-{clean_filename(file_name, 'document.docx')}"
+            )
+            if output.suffix.lower() != ".docx":
+                output = output.with_suffix(".docx")
+            transaction_dir: Path | None = None
+            clone: WordDocumentEngine | None = None
+            committed = False
+            try:
+                transaction_dir, clone = await _fork_draft(record)
+                result = await _run_publish_worker(clone.save_version, output)
+                inspection = await _run_publish_worker(clone.package_inspector.inspect, output)
+                clone.inspection = inspection.to_dict()
+                response = await runtime.artifact_result(
+                    subject,
+                    output,
+                    mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    filename=output.name,
+                    data={
+                        "document_id": document_id,
+                        "draft_version": version,
+                        "save": _public(result),
+                    },
+                    label=label,
+                )
+                previous = _commit_published_engine(record, clone, version, output)
+                committed = True
+                await _run_publish_worker(_close_engine_safely, previous)
+                return response
+            finally:
+                await _cleanup_publish_attempt(
+                    transaction_dir, clone, [output], committed=committed
+                )
+
     # ── Lifecycle ──────────────────────────────────────────────────────────
 
     @mcp.tool(
@@ -345,32 +708,16 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         annotations=EXPORT,
     )
     @_safe
-    async def save_document(document_id: str, file_name: str = "document.docx") -> CallToolResult:
-        subject = current_subject()
-        require_scope("documents:write")
-        async with runtime.store.locked_document(subject, document_id) as record:
-            record.version += 1
-            output = (
-                runtime.store.sessions[record.session_id].root
-                / "versions"
-                / record.document_id
-                / f"v{record.version}-{clean_filename(file_name, 'document.docx')}"
-            )
-            if output.suffix.lower() != ".docx":
-                output = output.with_suffix(".docx")
-            result = await asyncio.to_thread(record.engine.save_version, output)
-            record.current_path = output
-        return await runtime.artifact_result(
-            subject,
-            output,
-            mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            filename=output.name,
-            data={
-                "document_id": document_id,
-                "draft_version": record.version,
-                "save": _public(result),
-            },
-            label="Validated DOCX version ready",
+    async def save_document(
+        document_id: str,
+        file_name: str = "document.docx",
+        expected_version: DRAFT_VERSION = None,
+    ) -> CallToolResult:
+        return await _publish_docx(
+            document_id,
+            expected_version,
+            file_name,
+            "Validated DOCX version ready",
         )
 
     @mcp.tool(
@@ -379,10 +726,10 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         annotations=DELETE,
     )
     @_safe
-    async def close_document(document_id: str) -> dict:
+    async def close_document(document_id: str, expected_version: DRAFT_VERSION = None) -> dict:
         subject = current_subject()
         require_scope("documents:write")
-        await runtime.store.close_document(subject, document_id)
+        await runtime.store.close_document(subject, document_id, expected_version)
         return ok({"document_id": document_id, "closed": True})
 
     # ── Structure ──────────────────────────────────────────────────────────
@@ -429,7 +776,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         after_paragraph_id: str,
         text: str = Field(max_length=200_000),
         style: str | None = None,
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         return await _mutate(
             runtime,
@@ -449,7 +796,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         paragraph_id: str,
         text: str | None = Field(default=None, max_length=200_000),
         style: str | None = None,
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         return await _mutate(
             runtime,
@@ -465,7 +812,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
     )
     @_safe
     async def delete_paragraph(
-        document_id: str, paragraph_id: str, expected_version: int | None = None
+        document_id: str, paragraph_id: str, expected_version: DRAFT_VERSION = None
     ) -> dict:
         return await _mutate(
             runtime,
@@ -485,7 +832,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         block_ref: str,
         target_ref: str,
         position: Literal["before", "after"] = "after",
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         return await _mutate(
             runtime,
@@ -525,7 +872,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         space_before_pt: float | None = Field(default=None, ge=0, le=1000),
         space_after_pt: float | None = Field(default=None, ge=0, le=1000),
         line_spacing: float | None = Field(default=None, ge=0.5, le=10),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         def operation(engine):
             created = engine.call("create_style", name, style_type, based_on, next_style)
@@ -568,7 +915,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         space_before_pt: float | None = Field(default=None, ge=0, le=1000),
         space_after_pt: float | None = Field(default=None, ge=0, le=1000),
         line_spacing: float | None = Field(default=None, ge=0.5, le=10),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         def operation(engine):
             metadata = engine.call("update_style", name, based_on, next_style)
@@ -602,7 +949,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         document_id: str,
         paragraph_ids: list[str] = Field(min_length=1, max_length=500),
         style: str = Field(min_length=1, max_length=128),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         return await _mutate(
             runtime,
@@ -631,7 +978,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
     async def normalize_formatting(
         document_id: str,
         paragraph_ids: list[str] | None = Field(default=None, max_length=500),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         return await _mutate(
             runtime,
@@ -662,7 +1009,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         widow_control: bool | None = None,
         page_break_before: bool | None = None,
         tab_stops: list[TabStop] | None = Field(default=None, max_length=32),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         tabs = [item.model_dump() for item in tab_stops] if tab_stops is not None else None
         return await _mutate(
@@ -724,7 +1071,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         underline: Literal["none", "single", "double", "dotted", "dash", "wave"] | None = None,
         strike: bool | None = None,
         vertical: Literal["baseline", "superscript", "subscript"] | None = None,
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         return await _mutate(
             runtime,
@@ -763,10 +1110,15 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         levels: list[ListLevel] | None = Field(default=None, max_length=9),
         level: int = Field(default=0, ge=0, le=8),
         start: int = Field(default=1, ge=0, le=1_000_000),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         if action == "list":
-            return await _read(runtime, document_id, lambda engine: engine.call("get_lists"))
+            return await _read_at_version(
+                runtime,
+                document_id,
+                expected_version,
+                lambda engine: engine.call("get_lists"),
+            )
         if action == "apply":
             if not paragraph_ids:
                 raise WordToolkitError(ErrorCode.INVALID_INPUT, "apply requires paragraph_ids")
@@ -810,7 +1162,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         after_paragraph_id: str,
         text: str = Field(max_length=20_000),
         label: Literal["Figure", "Table", "Equation"] = "Figure",
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         return await _mutate(
             runtime,
@@ -852,7 +1204,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         after_paragraph_id: str,
         rows: int = Field(ge=1, le=200),
         columns: int = Field(ge=1, le=50),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         return await _mutate(
             runtime,
@@ -878,7 +1230,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         column_index: int = Field(default=0, ge=0),
         ascending: bool = True,
         style: str = "",
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         def operation(engine):
             if action == "add_row":
@@ -908,7 +1260,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         start_column: int = Field(ge=0),
         end_row: int = Field(ge=0),
         end_column: int = Field(ge=0),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         return await _mutate(
             runtime,
@@ -930,7 +1282,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         table_index: int = Field(ge=0),
         row: int = Field(ge=0),
         column: int = Field(ge=0),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         return await _mutate(
             runtime,
@@ -954,7 +1306,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         vertical_alignment: Literal["top", "center", "bottom"] | None = None,
         fill_color: str | None = Field(default=None, pattern=r"^[0-9A-Fa-f]{6}$"),
         row_height_mm: float | None = Field(default=None, ge=1, le=500),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         def operation(engine):
             results = []
@@ -993,7 +1345,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         input_format: Literal["latex", "unicodemath", "mathml", "omml", "ast"] = "latex",
         display: bool = True,
         position: Literal["after", "before", "append"] = "after",
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         return await _mutate(
             runtime,
@@ -1015,7 +1367,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         equation_id: str,
         value: str | dict,
         input_format: Literal["latex", "unicodemath", "mathml", "omml", "ast"] = "latex",
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         return await _mutate(
             runtime,
@@ -1079,7 +1431,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         document_id: str,
         start: int = Field(default=1, ge=1, le=1_000_000),
         bookmark_prefix: str = Field(default="Eq_", pattern=r"^[A-Za-z][A-Za-z0-9_]{0,30}$"),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         return await _mutate(
             runtime,
@@ -1099,7 +1451,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         paragraph_id: str,
         bookmark: str,
         prefix_text: str = "",
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         return await _mutate(
             runtime,
@@ -1127,11 +1479,14 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         new_text: str = "",
         author: str = "WordToolkit",
         tracked: bool = True,
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         if action == "list":
-            return await _read(
-                runtime, document_id, lambda engine: engine.call("get_headers_footers")
+            return await _read_at_version(
+                runtime,
+                document_id,
+                expected_version,
+                lambda engine: engine.call("get_headers_footers"),
             )
         if action == "set_text":
 
@@ -1173,12 +1528,17 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         paragraph_id: str = "",
         note_id: int | None = Field(default=None, ge=1),
         text: str = Field(default="", max_length=200_000),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         plural = f"{note_kind}s"
         if action in {"list", "validate"}:
             method = f"get_{plural}" if action == "list" else f"validate_{plural}"
-            return await _read(runtime, document_id, lambda engine: engine.call(method))
+            return await _read_at_version(
+                runtime,
+                document_id,
+                expected_version,
+                lambda engine: engine.call(method),
+            )
         if action == "add":
             if not paragraph_id or not text:
                 raise WordToolkitError(
@@ -1215,11 +1575,16 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         comment_id: int | None = Field(default=None, ge=0),
         text: str = Field(default="", max_length=200_000),
         author: str = Field(default="WordToolkit", max_length=128),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         if action in {"list", "threads"}:
             method = "get_comments" if action == "list" else "list_comment_threads"
-            return await _read(runtime, document_id, lambda engine: engine.call(method))
+            return await _read_at_version(
+                runtime,
+                document_id,
+                expected_version,
+                lambda engine: engine.call(method),
+            )
         if action == "add":
             if not paragraph_id or not text:
                 raise WordToolkitError(
@@ -1268,13 +1633,21 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         action: Literal["list", "add", "get_text", "remove"] = "list",
         paragraph_id: str = "",
         name: str = Field(default="", pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,39}$"),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         if action == "list":
-            return await _read(runtime, document_id, lambda engine: engine.call("list_bookmarks"))
+            return await _read_at_version(
+                runtime,
+                document_id,
+                expected_version,
+                lambda engine: engine.call("list_bookmarks"),
+            )
         if action == "get_text":
-            return await _read(
-                runtime, document_id, lambda engine: engine.call("get_bookmarked_text", name)
+            return await _read_at_version(
+                runtime,
+                document_id,
+                expected_version,
+                lambda engine: engine.call("get_bookmarked_text", name),
             )
         if action == "add":
             if not paragraph_id or not name:
@@ -1303,10 +1676,15 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         source_paragraph_id: str = "",
         target_paragraph_id: str = "",
         text: str = Field(default="", max_length=10_000),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         if action == "list":
-            return await _read(runtime, document_id, lambda engine: engine.call("list_hyperlinks"))
+            return await _read_at_version(
+                runtime,
+                document_id,
+                expected_version,
+                lambda engine: engine.call("list_hyperlinks"),
+            )
         if not source_paragraph_id or not target_paragraph_id or not text:
             raise WordToolkitError(ErrorCode.INVALID_INPUT, "add requires source, target and text")
         return await _mutate(
@@ -1340,10 +1718,15 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         field_code: str = Field(default="", max_length=4096),
         cached_value: str = Field(default="", max_length=10_000),
         max_heading_level: int = Field(default=3, ge=1, le=9),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         if action == "list":
-            return await _read(runtime, document_id, lambda engine: engine.call("list_fields"))
+            return await _read_at_version(
+                runtime,
+                document_id,
+                expected_version,
+                lambda engine: engine.call("list_fields"),
+            )
         if action == "add":
             if not paragraph_id or not field_code:
                 raise WordToolkitError(
@@ -1389,24 +1772,17 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         width_mm: float = Field(default=60, ge=1, le=500),
         height_mm: float = Field(default=40, ge=1, le=500),
         alt_text: str = Field(default="", max_length=1000),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         subject = current_subject()
         require_scope("documents:write")
-        record = await runtime.store.get_document(subject, document_id)
-        session = await runtime.store.get_session(subject, record.session_id)
-        image_path = await runtime.download_file(
-            file, session, extensions={".png", ".jpg", ".jpeg", ".gif", ".tif", ".tiff"}
-        )
-        from PIL import Image
-
-        try:
-            with Image.open(image_path) as image:
-                image.verify()
-        except Exception as exc:
-            raise WordToolkitError(
-                ErrorCode.INVALID_INPUT, "Uploaded file is not a valid supported image"
-            ) from exc
+        batch = _DRAFT_BATCH_CONTEXT.get()
+        if batch is not None and batch.operation_index in batch.prepared_image_paths:
+            image_path = batch.prepared_image_paths[batch.operation_index]
+        else:
+            record = await runtime.store.get_document(subject, document_id)
+            session = await runtime.store.get_session(subject, record.session_id)
+            image_path = await _download_verified_image(runtime, session, file)
         width_emu, height_emu = int(width_mm * 36000), int(height_mm * 36000)
 
         def operation(engine):
@@ -1450,10 +1826,15 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         margin_mm: float | None = Field(default=None, ge=0, le=200),
         columns: int = Field(default=1, ge=1, le=12),
         enabled: bool = True,
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         if action == "list":
-            return await _read(runtime, document_id, lambda engine: engine.call("get_sections"))
+            return await _read_at_version(
+                runtime,
+                document_id,
+                expected_version,
+                lambda engine: engine.call("get_sections"),
+            )
         if action == "add_break":
 
             def operation(engine):
@@ -1507,7 +1888,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         document_id: str,
         enabled: bool = True,
         author: str = "WordToolkit",
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         return await _mutate(
             runtime,
@@ -1539,7 +1920,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         replacement: str = Field(default="", max_length=200_000),
         author: str = Field(default="WordToolkit", max_length=128),
         position: str = "end",
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         if change_type == "insert":
 
@@ -1579,7 +1960,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
     async def accept_changes(
         document_id: str,
         change_id: int | None = Field(default=None, ge=0),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         method = "accept_change" if change_id is not None else "accept_all_changes"
         return await _mutate(
@@ -1598,7 +1979,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
     async def reject_changes(
         document_id: str,
         change_id: int | None = Field(default=None, ge=0),
-        expected_version: int | None = None,
+        expected_version: DRAFT_VERSION = None,
     ) -> dict:
         method = "reject_change" if change_id is not None else "reject_all_changes"
         return await _mutate(
@@ -1607,6 +1988,346 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
             expected_version,
             lambda engine: engine.call(method, *([change_id] if change_id is not None else [])),
         )
+
+    def validate_batch_operations(
+        document_id: str,
+        expected_version: int,
+        operations: list[DraftBatchOperation],
+        files: list[DraftBatchFile],
+    ) -> list[tuple[str, dict[str, Any], Callable[..., Any]]]:
+        try:
+            encoded = json.dumps(
+                {
+                    "operations": [item.model_dump(mode="json") for item in operations],
+                    "files": [item.model_dump(mode="json") for item in files],
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        except (TypeError, ValueError) as exc:
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "Batch operations must contain JSON-compatible values",
+            ) from exc
+        if len(encoded) > DRAFT_BATCH_MAX_ARGUMENT_BYTES:
+            raise WordToolkitError(
+                ErrorCode.LIMIT_EXCEEDED,
+                "Batch operation arguments exceed the aggregate byte limit",
+                {
+                    "actual_bytes": len(encoded),
+                    "max_bytes": DRAFT_BATCH_MAX_ARGUMENT_BYTES,
+                },
+            )
+
+        prepared: list[tuple[str, dict[str, Any], Callable[..., Any]]] = []
+        referenced_file_indexes: set[int] = set()
+        supported = frozenset(ORDINARY_DRAFT_MUTATION_TOOLS)
+        for index, item in enumerate(operations):
+            operation_name = item.operation
+            if operation_name not in supported:
+                raise WordToolkitError(
+                    ErrorCode.INVALID_INPUT,
+                    "Batch operation is not a supported ordinary draft mutation",
+                    {"operation_index": index, "operation": operation_name[:64]},
+                )
+            registered = mcp._tool_manager.get_tool(operation_name)
+            if registered is None:
+                raise WordToolkitError(
+                    ErrorCode.INTERNAL_ERROR,
+                    "The batch operation registry is inconsistent",
+                    {"operation_index": index, "operation": operation_name},
+                )
+            allowed_arguments = set(registered.parameters.get("properties", {})) - {
+                "document_id",
+                "expected_version",
+            }
+            arguments = dict(item.arguments)
+            if operation_name == "insert_image":
+                allowed_arguments.discard("file")
+                allowed_arguments.add("file_index")
+            unknown_arguments = sorted(set(arguments) - allowed_arguments)
+            if unknown_arguments:
+                raise WordToolkitError(
+                    ErrorCode.INVALID_INPUT,
+                    "Batch operation contains unknown or transaction-owned arguments",
+                    {
+                        "operation_index": index,
+                        "operation": operation_name,
+                        "unknown_field_count": len(unknown_arguments),
+                        "unknown_fields": [name[:64] for name in unknown_arguments[:20]],
+                    },
+                )
+            if operation_name == "insert_image":
+                file_index = arguments.pop("file_index", None)
+                if (
+                    not isinstance(file_index, int)
+                    or isinstance(file_index, bool)
+                    or file_index < 0
+                    or file_index >= len(files)
+                ):
+                    raise WordToolkitError(
+                        ErrorCode.INVALID_INPUT,
+                        "Batch image operation references a missing top-level file",
+                        {
+                            "operation_index": index,
+                            "operation": operation_name,
+                            "file_count": len(files),
+                        },
+                    )
+                referenced_file_indexes.add(file_index)
+                arguments["file"] = OpenAIFile.model_validate(
+                    files[file_index].model_dump(mode="python")
+                )
+            payload = {
+                "document_id": document_id,
+                "expected_version": expected_version,
+                **arguments,
+            }
+            try:
+                validated = registered.fn_metadata.arg_model.model_validate(payload)
+            except ValidationError as exc:
+                issues = [
+                    {
+                        "field": ".".join(str(part)[:64] for part in error["loc"]),
+                        "type": str(error["type"])[:80],
+                    }
+                    for error in exc.errors(
+                        include_url=False,
+                        include_context=False,
+                        include_input=False,
+                    )[:20]
+                ]
+                raise WordToolkitError(
+                    ErrorCode.INVALID_INPUT,
+                    "Batch operation arguments failed validation",
+                    {
+                        "operation_index": index,
+                        "operation": operation_name,
+                        "issue_count": exc.error_count(),
+                        "issues": issues,
+                    },
+                ) from None
+            action_allowlist = DRAFT_BATCH_ACTIONS.get(operation_name)
+            if action_allowlist is not None:
+                action = getattr(validated, "action", None)
+                if action not in action_allowlist:
+                    raise WordToolkitError(
+                        ErrorCode.INVALID_INPUT,
+                        "Read-only action is not allowed inside a mutation batch",
+                        {
+                            "operation_index": index,
+                            "operation": operation_name,
+                            "allowed_actions": sorted(action_allowlist),
+                        },
+                    )
+            kwargs = {
+                field_name: getattr(validated, field_name)
+                for field_name in type(validated).model_fields
+            }
+            prepared.append((operation_name, kwargs, registered.fn))
+        unused_file_count = len(set(range(len(files))) - referenced_file_indexes)
+        if unused_file_count:
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "Batch contains top-level files that no image operation references",
+                {"unused_file_count": unused_file_count, "file_count": len(files)},
+            )
+        return prepared
+
+    def batch_operation_failure(
+        response: CallToolResult, index: int, operation_name: str
+    ) -> WordToolkitError:
+        structured = response.structuredContent
+        payload = structured if isinstance(structured, dict) else {}
+        error_value = payload.get("error")
+        source: dict[str, Any] = error_value if isinstance(error_value, dict) else {}
+        source_code = str(source.get("code", ErrorCode.INTERNAL_ERROR.value))
+        try:
+            code = ErrorCode(source_code)
+        except ValueError:
+            code = ErrorCode.INTERNAL_ERROR
+        retryable = bool(source.get("retryable", False))
+        source_details = source.get("details")
+        details = source_details if isinstance(source_details, dict) else {}
+        safe_details: dict[str, Any] = {}
+        for key in ("actual", "actual_bytes", "expected", "issue_count", "max_bytes"):
+            item = details.get(key)
+            if isinstance(item, int) and not isinstance(item, bool):
+                safe_details[key] = item
+        for key in ("unknown_field_count",):
+            item = details.get(key)
+            if isinstance(item, int) and not isinstance(item, bool):
+                safe_details[key] = item
+        for key in ("document_error", "exception", "field"):
+            item = details.get(key)
+            if isinstance(item, str):
+                safe_details[key] = item[:80]
+        cause: dict[str, Any] = {
+            "code": code.value,
+            "message": "The nested document operation failed",
+            "details": safe_details,
+            "retryable": retryable,
+        }
+        return WordToolkitError(
+            code,
+            "Document operation batch failed",
+            {
+                "phase": "operation",
+                "operation_index": index,
+                "operation": operation_name,
+                "cause": cause,
+            },
+            retryable=retryable,
+        )
+
+    async def execute_batch_transaction(
+        document_id: str,
+        expected_version: int,
+        prepared: list[tuple[str, dict[str, Any], Callable[..., Any]]],
+        prepared_image_paths: dict[int, Path],
+    ) -> dict:
+        subject = current_subject()
+        async with runtime.store.locked_document(subject, document_id) as record:
+            runtime.store.require_version(record, expected_version)
+            session = runtime.store.sessions.get(record.session_id)
+            if session is None or session.closed:
+                raise WordToolkitError(ErrorCode.SESSION_NOT_FOUND, "Session was not found")
+            transaction_dir = session.root / ".transactions" / record.document_id / opaque_id("txn")
+            checkpoint = transaction_dir / "before.docx"
+            candidate_path = transaction_dir / "candidate.docx"
+            clone: WordDocumentEngine | None = None
+            cleanup_required = True
+            try:
+                clone = await _run_locked_worker(record.engine.fork, checkpoint)
+                batch_context = _DraftBatchContext(
+                    runtime=runtime,
+                    document_id=document_id,
+                    expected_version=expected_version,
+                    engine=clone,
+                    prepared_image_paths=prepared_image_paths,
+                )
+                token = _DRAFT_BATCH_CONTEXT.set(batch_context)
+                results: list[DraftBatchStepResult] = []
+                try:
+                    for index, (operation_name, kwargs, handler) in enumerate(prepared):
+                        batch_context.operation_index = index
+                        response = await handler(**kwargs)
+                        if isinstance(response, CallToolResult):
+                            if response.isError:
+                                raise batch_operation_failure(response, index, operation_name)
+                            payload = response.structuredContent
+                        else:
+                            payload = response
+                        if not isinstance(payload, dict) or not payload.get("ok"):
+                            raise WordToolkitError(
+                                ErrorCode.INTERNAL_ERROR,
+                                "Batch operation returned an invalid internal result",
+                                {
+                                    "phase": "operation",
+                                    "operation_index": index,
+                                    "operation": operation_name,
+                                },
+                            )
+                        data = payload.get("data")
+                        if not isinstance(data, dict) or "result" not in data:
+                            raise WordToolkitError(
+                                ErrorCode.INTERNAL_ERROR,
+                                "Batch operation omitted its internal result",
+                                {
+                                    "phase": "operation",
+                                    "operation_index": index,
+                                    "operation": operation_name,
+                                },
+                            )
+                        results.append(
+                            DraftBatchStepResult(
+                                index=index,
+                                result=compact_batch_result(data["result"]),
+                            )
+                        )
+                finally:
+                    _DRAFT_BATCH_CONTEXT.reset(token)
+
+                await _run_locked_worker(
+                    _validate_mutation_candidate,
+                    clone,
+                    candidate_path,
+                )
+                version, previous = _commit_mutation_candidate(record, clone)
+                clone = None
+                cleanup_required = False
+                await _run_locked_worker(_close_engine_safely, previous)
+                outcome = DraftBatchOutcome(
+                    document_id=document_id,
+                    draft_version=version,
+                    results=results,
+                )
+                return ok(outcome.model_dump(mode="json"))
+            finally:
+                if clone is not None:
+                    await _run_locked_worker(_close_engine_safely, clone)
+                if cleanup_required:
+                    await _run_locked_worker(shutil.rmtree, transaction_dir, True)
+
+    @mcp.tool(
+        title="Apply an atomic batch of Word document operations",
+        description="Apply 1 to 16 ordered ordinary draft mutations on one isolated process-local copy-on-write engine, validate the final candidate once, and advance draft_version exactly once. Every operation is validated against its standalone tool contract before the fork; read-only variants are rejected. For insert_image, pass authorized files in the top-level files array and reference them by file_index. Image files are staged before the document transaction and may still consume session quota if a later operation fails.",
+        annotations=DELETE,
+        meta=BATCH_FILE_META,
+    )
+    @_safe
+    async def apply_document_operations(
+        document_id: str,
+        operations: list[DraftBatchOperation] = Field(
+            min_length=1, max_length=DRAFT_BATCH_MAX_OPERATIONS
+        ),
+        files: list[DraftBatchFile] = Field(default_factory=list, max_length=DRAFT_BATCH_MAX_FILES),
+        expected_version: DRAFT_VERSION = None,
+    ) -> dict:
+        subject = current_subject()
+        require_scope("documents:write")
+        prepared = validate_batch_operations(document_id, expected_version, operations, files)
+
+        async def prepare_images_and_execute() -> dict:
+            prepared_image_paths: dict[int, Path] = {}
+            image_indexes = [
+                index
+                for index, (operation_name, _kwargs, _handler) in enumerate(prepared)
+                if operation_name == "insert_image"
+            ]
+            if image_indexes:
+                record = await runtime.store.get_document(subject, document_id)
+                runtime.store.require_version(record, expected_version)
+                session = await runtime.store.get_session(subject, record.session_id)
+                staged_by_reference: dict[tuple[str, str], Path] = {}
+                for index in image_indexes:
+                    file = prepared[index][1]["file"]
+                    if not isinstance(file, OpenAIFile):
+                        raise WordToolkitError(
+                            ErrorCode.INVALID_INPUT,
+                            "Batch image operation has an invalid file reference",
+                            {"operation_index": index, "operation": "insert_image"},
+                        )
+                    cache_key = (file.file_id, file.download_url)
+                    image_path = staged_by_reference.get(cache_key)
+                    if image_path is None:
+                        image_path = await _download_verified_image(runtime, session, file)
+                        staged_by_reference[cache_key] = image_path
+                    prepared_image_paths[index] = image_path
+            return await execute_batch_transaction(
+                document_id,
+                expected_version,
+                prepared,
+                prepared_image_paths,
+            )
+
+        worker = asyncio.create_task(prepare_images_and_execute())
+        try:
+            return await asyncio.shield(worker)
+        except asyncio.CancelledError as cancellation:
+            with contextlib.suppress(BaseException):
+                await _drain_worker(worker)
+            raise cancellation
 
     @mcp.tool(
         title="Compare two Word documents",
@@ -1654,13 +2375,31 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
 
     # ── Quality control ───────────────────────────────────────────────────
 
-    async def _snapshot(document_id: str, label: str) -> tuple[str, Any, Path]:
+    async def _snapshot(document_id: str, label: str) -> tuple[str, int, Path]:
         subject = current_subject()
         async with runtime.store.locked_document(subject, document_id) as record:
             root = runtime.store.sessions[record.session_id].root
-            output = root / "quality" / record.document_id / f"{label}-v{record.version}.docx"
-            await asyncio.to_thread(record.engine.snapshot, output)
-            return subject, record, output
+            version = record.version
+            output = (
+                root
+                / "quality"
+                / record.document_id
+                / f"{label}-v{version}-{opaque_id('snap')}.docx"
+            )
+            await _run_locked_worker(record.engine.snapshot, output)
+            return subject, version, output
+
+    def _cleanup_snapshot(path: Path) -> None:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            active = sys.exc_info()[1]
+            if active is not None:
+                active.add_note(f"snapshot cleanup failed for {path}: {exc}")
+                return
+            raise RuntimeError(f"snapshot cleanup failed for {path}") from exc
 
     @mcp.tool(
         title="Validate OOXML package",
@@ -1670,11 +2409,12 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
     @_safe
     async def validate_ooxml(document_id: str) -> dict:
         require_scope("documents:read")
-        _subject, record, path = await _snapshot(document_id, "validate")
-        result = await asyncio.to_thread(runtime.validator.validate, path)
-        return ok(
-            {"document_id": document_id, "draft_version": record.version, "validation": result}
-        )
+        _subject, version, path = await _snapshot(document_id, "validate")
+        try:
+            result = await asyncio.to_thread(runtime.validator.validate, path)
+            return ok({"document_id": document_id, "draft_version": version, "validation": result})
+        finally:
+            _cleanup_snapshot(path)
 
     @mcp.tool(
         title="Audit Word document",
@@ -1693,16 +2433,19 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
     @_safe
     async def detect_corruption(document_id: str) -> dict:
         require_scope("documents:read")
-        _subject, record, path = await _snapshot(document_id, "corruption")
-        validation = await asyncio.to_thread(runtime.validator.validate, path)
-        return ok(
-            {
-                "document_id": document_id,
-                "draft_version": record.version,
-                "corrupt": not validation["valid"],
-                "issues": validation["issues"],
-            }
-        )
+        _subject, version, path = await _snapshot(document_id, "corruption")
+        try:
+            validation = await asyncio.to_thread(runtime.validator.validate, path)
+            return ok(
+                {
+                    "document_id": document_id,
+                    "draft_version": version,
+                    "corrupt": not validation["valid"],
+                    "issues": validation["issues"],
+                }
+            )
+        finally:
+            _cleanup_snapshot(path)
 
     @mcp.tool(
         title="Repair Word document",
@@ -1710,8 +2453,17 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         annotations=EXPORT,
     )
     @_safe
-    async def repair_document(document_id: str, file_name: str = "repaired.docx") -> CallToolResult:
-        return await _export_docx(document_id, file_name, "Repaired and validated DOCX ready")
+    async def repair_document(
+        document_id: str,
+        file_name: str = "repaired.docx",
+        expected_version: DRAFT_VERSION = None,
+    ) -> CallToolResult:
+        return await _export_docx(
+            document_id,
+            expected_version,
+            file_name,
+            "Repaired and validated DOCX ready",
+        )
 
     @mcp.tool(
         title="Check document accessibility",
@@ -1739,85 +2491,84 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
     @_safe
     async def detect_orphaned_relationships(document_id: str) -> dict:
         require_scope("documents:read")
-        _subject, record, path = await _snapshot(document_id, "relationships")
-        validation = await asyncio.to_thread(runtime.validator.validate, path)
-        issues = [
-            item
-            for item in validation["issues"]
-            if item["code"].startswith("REL_") or "ORPHANED" in item["code"]
-        ]
-        return ok({"document_id": document_id, "draft_version": record.version, "issues": issues})
+        _subject, version, path = await _snapshot(document_id, "relationships")
+        try:
+            validation = await asyncio.to_thread(runtime.validator.validate, path)
+            issues = [
+                item
+                for item in validation["issues"]
+                if item["code"].startswith("REL_") or "ORPHANED" in item["code"]
+            ]
+            return ok({"document_id": document_id, "draft_version": version, "issues": issues})
+        finally:
+            _cleanup_snapshot(path)
 
     # ── Export and visual verification ────────────────────────────────────
 
     async def _export_docx(
-        document_id: str, file_name: str, label: str = "Validated DOCX ready"
+        document_id: str,
+        expected_version: int | None,
+        file_name: str,
+        label: str = "Validated DOCX ready",
     ) -> CallToolResult:
-        subject = current_subject()
-        require_scope("documents:write")
-        async with runtime.store.locked_document(subject, document_id) as record:
-            record.version += 1
-            root = runtime.store.sessions[record.session_id].root
-            output = (
-                root
-                / "versions"
-                / record.document_id
-                / f"v{record.version}-{clean_filename(file_name, 'document.docx')}"
-            )
-            if output.suffix.lower() != ".docx":
-                output = output.with_suffix(".docx")
-            result = await asyncio.to_thread(record.engine.save_version, output)
-            record.current_path = output
-            version = record.version
-        return await runtime.artifact_result(
-            subject,
-            output,
-            mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            filename=output.name,
-            data={"document_id": document_id, "draft_version": version, "save": _public(result)},
-            label=label,
-        )
+        return await _publish_docx(document_id, expected_version, file_name, label)
 
     async def _render(
         document_id: str,
         file_name: str,
         include_pages: bool,
         dpi: int,
+        expected_version: int | None,
         max_pages: int | None = None,
     ) -> CallToolResult:
         subject = current_subject()
         require_scope("documents:write")
         async with runtime.store.locked_document(subject, document_id) as record:
-            record.version += 1
+            runtime.store.require_version(record, expected_version)
+            version = record.version + 1
             root = runtime.store.sessions[record.session_id].root
             stem = Path(clean_filename(file_name, "document.pdf")).stem
-            directory = root / "renders" / record.document_id / f"v{record.version}"
+            directory = root / "renders" / record.document_id / f"v{version}"
             docx = directory / f"{stem}.docx"
             pdf = directory / f"{stem}.pdf"
-            save = await asyncio.to_thread(record.engine.save_version, docx)
-            rendering = await asyncio.to_thread(runtime.renderer.to_pdf, docx, pdf)
-            pages = await asyncio.to_thread(
-                runtime.renderer.pages_to_png, pdf, directory / "pages", dpi=dpi
-            )
-            visual = await asyncio.to_thread(runtime.renderer.visual_audit, pdf, pages)
-            version = record.version
-        files = [(pdf, "application/pdf", pdf.name)]
-        if include_pages:
-            selected = pages[:max_pages] if max_pages else pages
-            files.extend((page, "image/png", f"{stem}-{page.name}") for page in selected)
-        return await runtime.multi_artifact_result(
-            subject,
-            files,
-            data={
-                "document_id": document_id,
-                "draft_version": version,
-                "save": _public(save),
-                "rendering": _public(rendering),
-                "visual_audit": visual,
-                "page_count": len(pages),
-            },
-            label="Rendered files and visual QA ready",
-        )
+            transaction_dir: Path | None = None
+            clone: WordDocumentEngine | None = None
+            committed = False
+            try:
+                transaction_dir, clone = await _fork_draft(record)
+                save = await _run_publish_worker(clone.save_version, docx)
+                rendering = await _run_publish_worker(runtime.renderer.to_pdf, docx, pdf)
+                pages = await _run_publish_worker(
+                    runtime.renderer.pages_to_png, pdf, directory / "pages", dpi=dpi
+                )
+                visual = await _run_publish_worker(runtime.renderer.visual_audit, pdf, pages)
+                inspection = await _run_publish_worker(clone.package_inspector.inspect, docx)
+                clone.inspection = inspection.to_dict()
+                files = [(pdf, "application/pdf", pdf.name)]
+                if include_pages:
+                    selected = pages[:max_pages] if max_pages else pages
+                    files.extend((page, "image/png", f"{stem}-{page.name}") for page in selected)
+                response = await runtime.multi_artifact_result(
+                    subject,
+                    files,
+                    data={
+                        "document_id": document_id,
+                        "draft_version": version,
+                        "save": _public(save),
+                        "rendering": _public(rendering),
+                        "visual_audit": visual,
+                        "page_count": len(pages),
+                    },
+                    label="Rendered files and visual QA ready",
+                )
+                previous = _commit_published_engine(record, clone, version, docx)
+                committed = True
+                await _run_publish_worker(_close_engine_safely, previous)
+                return response
+            finally:
+                await _cleanup_publish_attempt(
+                    transaction_dir, clone, [directory], committed=committed
+                )
 
     @mcp.tool(
         title="Render Word document",
@@ -1825,8 +2576,12 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         annotations=EXPORT,
     )
     @_safe
-    async def render_document(document_id: str, file_name: str = "document.pdf") -> CallToolResult:
-        return await _render(document_id, file_name, False, 144)
+    async def render_document(
+        document_id: str,
+        file_name: str = "document.pdf",
+        expected_version: DRAFT_VERSION = None,
+    ) -> CallToolResult:
+        return await _render(document_id, file_name, False, 144, expected_version)
 
     @mcp.tool(
         title="Render Word pages",
@@ -1839,8 +2594,9 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         file_name: str = "document.pdf",
         dpi: int = Field(default=144, ge=72, le=300),
         max_pages: int = Field(default=20, ge=1, le=100),
+        expected_version: DRAFT_VERSION = None,
     ) -> CallToolResult:
-        return await _render(document_id, file_name, True, dpi, max_pages)
+        return await _render(document_id, file_name, True, dpi, expected_version, max_pages)
 
     @mcp.tool(
         title="Convert Word document to PDF",
@@ -1848,8 +2604,12 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         annotations=EXPORT,
     )
     @_safe
-    async def convert_to_pdf(document_id: str, file_name: str = "document.pdf") -> CallToolResult:
-        return await _render(document_id, file_name, False, 144)
+    async def convert_to_pdf(
+        document_id: str,
+        file_name: str = "document.pdf",
+        expected_version: DRAFT_VERSION = None,
+    ) -> CallToolResult:
+        return await _render(document_id, file_name, False, 144, expected_version)
 
     @mcp.tool(
         title="Export Word document",
@@ -1861,29 +2621,43 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         document_id: str,
         output_format: Literal["docx", "markdown"] = "docx",
         file_name: str = "document.docx",
+        expected_version: DRAFT_VERSION = None,
     ) -> CallToolResult:
         if output_format == "docx":
-            return await _export_docx(document_id, file_name)
+            return await _export_docx(document_id, expected_version, file_name)
         subject = current_subject()
         require_scope("documents:read")
         async with runtime.store.locked_document(subject, document_id) as record:
             root = runtime.store.sessions[record.session_id].root
+            version = record.version
+            markdown_name = clean_filename(Path(file_name).with_suffix(".md").name, "document.md")
             output = (
                 root
                 / "exports"
                 / record.document_id
-                / clean_filename(Path(file_name).with_suffix(".md").name, "document.md")
+                / f"v{version}-{opaque_id('exp')}-{markdown_name}"
             )
             output.parent.mkdir(parents=True, exist_ok=True)
-            result = await asyncio.to_thread(record.engine.call, "export_markdown", str(output))
-        return await runtime.artifact_result(
-            subject,
-            output,
-            mime_type="text/markdown",
-            filename=output.name,
-            data={"document_id": document_id, "export": _public(result)},
-            label="Best-effort Markdown export ready",
-        )
+            try:
+                result = await _run_publish_worker(
+                    record.engine.call, "export_markdown", str(output)
+                )
+                return await runtime.artifact_result(
+                    subject,
+                    output,
+                    mime_type="text/markdown",
+                    filename=markdown_name,
+                    data={
+                        "document_id": document_id,
+                        "draft_version": version,
+                        "export": _public(result),
+                    },
+                    label="Best-effort Markdown export ready",
+                )
+            except BaseException:
+                with contextlib.suppress(OSError):
+                    output.unlink()
+                raise
 
     @mcp.tool(
         title="Generate document preview",
@@ -1895,5 +2669,141 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         document_id: str,
         max_pages: int = Field(default=6, ge=1, le=20),
         dpi: int = Field(default=120, ge=72, le=200),
+        expected_version: DRAFT_VERSION = None,
     ) -> CallToolResult:
-        return await _render(document_id, "preview.pdf", True, dpi, max_pages)
+        return await _render(document_id, "preview.pdf", True, dpi, expected_version, max_pages)
+
+    version_schema = {"type": "integer", "minimum": 0, "title": "Expected Version"}
+
+    def inline_version_schema(parameters: dict[str, Any]) -> None:
+        parameters["properties"]["expected_version"] = dict(version_schema)
+        definitions = parameters.get("$defs")
+        if isinstance(definitions, dict):
+            definitions.pop("DRAFT_VERSION", None)
+            if not definitions:
+                parameters.pop("$defs")
+
+    for tool_name in DRAFT_VERSION_REQUIRED_TOOLS:
+        registered = mcp._tool_manager.get_tool(tool_name)
+        if registered is None:
+            raise RuntimeError(f"Draft-version contract references an unknown tool: {tool_name}")
+        inline_version_schema(registered.parameters)
+        required = registered.parameters.setdefault("required", [])
+        if "expected_version" not in required:
+            required.append("expected_version")
+
+    def inline_local_schema_refs(
+        value: Any,
+        definitions: dict[str, Any],
+        resolving: frozenset[str] = frozenset(),
+    ) -> Any:
+        if isinstance(value, list):
+            return [inline_local_schema_refs(item, definitions, resolving) for item in value]
+        if not isinstance(value, dict):
+            return value
+        reference = value.get("$ref")
+        if isinstance(reference, str) and reference.startswith("#/$defs/"):
+            name = reference.removeprefix("#/$defs/")
+            if name in resolving or name not in definitions:
+                raise RuntimeError(f"Cannot inline recursive or missing batch schema: {name}")
+            replacement = copy.deepcopy(definitions[name])
+            siblings = {key: item for key, item in value.items() if key != "$ref"}
+            replacement.update(siblings)
+            return inline_local_schema_refs(
+                replacement,
+                definitions,
+                resolving | {name},
+            )
+        return {
+            key: inline_local_schema_refs(item, definitions, resolving)
+            for key, item in value.items()
+            if key != "title"
+        }
+
+    batch_variants: list[dict[str, Any]] = []
+    for tool_name in ORDINARY_DRAFT_MUTATION_TOOLS:
+        source_tool = mcp._tool_manager.get_tool(tool_name)
+        if source_tool is None:
+            raise RuntimeError(f"Batch contract references an unknown tool: {tool_name}")
+        source_schema = copy.deepcopy(source_tool.parameters)
+        definitions = source_schema.pop("$defs", {})
+        if not isinstance(definitions, dict):
+            definitions = {}
+        properties = source_schema.get("properties")
+        if not isinstance(properties, dict):
+            raise RuntimeError(f"Batch source schema has no properties: {tool_name}")
+        properties.pop("document_id", None)
+        properties.pop("expected_version", None)
+        required = [
+            name
+            for name in source_schema.get("required", [])
+            if name not in {"document_id", "expected_version"}
+        ]
+        action_allowlist = DRAFT_BATCH_ACTIONS.get(tool_name)
+        if action_allowlist is not None:
+            action_schema = properties.get("action")
+            if not isinstance(action_schema, dict):
+                raise RuntimeError(f"Batch hybrid tool has no action schema: {tool_name}")
+            action_schema["enum"] = sorted(action_allowlist)
+            action_schema.pop("default", None)
+            if "action" not in required:
+                required.append("action")
+        if tool_name == "insert_image":
+            properties.pop("file", None)
+            required = [name for name in required if name != "file"]
+            properties["file_index"] = {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": DRAFT_BATCH_MAX_FILES - 1,
+            }
+            required.append("file_index")
+        argument_schema: dict[str, Any] = {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": inline_local_schema_refs(properties, definitions),
+        }
+        if required:
+            argument_schema["required"] = required
+        batch_variants.append(
+            {
+                "properties": {
+                    "operation": {"const": tool_name},
+                    "arguments": argument_schema,
+                },
+            }
+        )
+
+    batch_tool = mcp._tool_manager.get_tool("apply_document_operations")
+    if batch_tool is None:
+        raise RuntimeError("Batch contract references an unknown batch tool")
+    operations_schema = batch_tool.parameters["properties"]["operations"]
+    operations_schema["items"] = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["operation", "arguments"],
+        "properties": {
+            "operation": {"type": "string"},
+            "arguments": {"type": "object"},
+        },
+        "oneOf": batch_variants,
+    }
+    definitions = batch_tool.parameters.get("$defs")
+    if isinstance(definitions, dict):
+        files_schema = batch_tool.parameters["properties"].get("files")
+        if isinstance(files_schema, dict) and "items" in files_schema:
+            files_schema["items"] = inline_local_schema_refs(files_schema["items"], definitions)
+        definitions.pop("DraftBatchOperation", None)
+        definitions.pop("DraftBatchFile", None)
+        if not definitions:
+            batch_tool.parameters.pop("$defs")
+
+    export_tool = mcp._tool_manager.get_tool("export_document")
+    if export_tool is None:
+        raise RuntimeError("Draft-version contract references an unknown export tool")
+    inline_version_schema(export_tool.parameters)
+    export_tool.parameters["allOf"] = [
+        {
+            "if": {"properties": {"output_format": {"const": "docx"}}},
+            "then": {"required": ["expected_version"]},
+        }
+    ]

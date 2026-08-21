@@ -80,7 +80,14 @@ function Invoke-Tool {
     try {
         $response = Invoke-Mcp `
             -Method "tools/call" `
-            -Params @{ name = $Name; arguments = $Arguments }
+            -Params @{
+                name = "execute_wordtoolkit_action"
+                arguments = @{
+                    action = $Name
+                    arguments = $Arguments
+                    response_mode = "full"
+                }
+            }
         if ($response.result.isError) {
             throw (
                 $response.result.structuredContent.error |
@@ -125,7 +132,14 @@ function Invoke-ExpectedToolError {
     $watch = [Diagnostics.Stopwatch]::StartNew()
     $response = Invoke-Mcp `
         -Method "tools/call" `
-        -Params @{ name = $Name; arguments = $Arguments }
+        -Params @{
+            name = "execute_wordtoolkit_action"
+            arguments = @{
+                action = $Name
+                arguments = $Arguments
+                response_mode = "full"
+            }
+        }
     $watch.Stop()
     if (-not $response.result.isError) {
         throw "Expected $Name to reject the operation"
@@ -410,11 +424,11 @@ try {
             }
         })
 
-    $stage = "verify 48 tools"
+    $stage = "verify token-lean public tool surface"
     $catalog = Invoke-Mcp -Method "tools/list" -Params @{}
     Assert-True `
-        -Condition ($catalog.result.tools.Count -eq 48) `
-        -Message "Expected 48 installed tools"
+        -Condition ($catalog.result.tools.Count -eq 15) `
+        -Message "Expected 15 exposed tools"
 
     $stage = "list documents"
     $listed = Invoke-Tool -Name "list_live_word_documents" -Arguments @{}
@@ -1936,7 +1950,8 @@ Audyt natywny: katalog zainstalowanego Worda wykrył $($types.stats.type_count) 
     $report.total_seconds = [Math]::Round($totalWatch.Elapsed.TotalSeconds, 3)
     $report.total_mcp_requests = $requestId
     $report.tool_calls = $toolCalls
-    $report.installed_tool_count = 48
+    $report.exposed_tool_count = 15
+    $report.available_action_count = 85
     $report.object_model_types = $types.stats.type_count
     $report.object_model_members = $types.stats.member_count
     $report.paragraphs = $finalInspection.document.paragraph_count

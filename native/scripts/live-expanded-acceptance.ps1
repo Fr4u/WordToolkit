@@ -74,7 +74,14 @@ function Invoke-Tool {
     )
     $response = Invoke-Mcp `
         -Method "tools/call" `
-        -Params @{ name = $Name; arguments = $Arguments }
+        -Params @{
+            name = "execute_wordtoolkit_action"
+            arguments = @{
+                action = $Name
+                arguments = $Arguments
+                response_mode = "full"
+            }
+        }
     if ($response.result.isError) {
         throw (
             $response.result.structuredContent.error |
@@ -109,9 +116,11 @@ try {
             }
         })
     $tools = Invoke-Mcp -Method "tools/list" -Params @{}
-    if ($tools.result.tools.Count -ne 48) {
-        throw "Expected 48 native tools, got $($tools.result.tools.Count)"
+    if ($tools.result.tools.Count -ne 15) {
+        throw "Expected 15 exposed tools, got $($tools.result.tools.Count)"
     }
+    $report.exposed_tool_count = $tools.result.tools.Count
+    $report.available_action_count = 85
 
     $stage = "start Word"
     $started = Invoke-Tool `
@@ -202,6 +211,25 @@ try {
     $version = [long]$image.live_version
     if (-not $image.image.native_verified) {
         throw "Image was not verified"
+    }
+
+    $stage = "inspect Word-executed drawing layout"
+    $drawingLayout = Invoke-Tool `
+        -Name "inspect_live_word_drawing_layout" `
+        -Arguments @{
+            live_document_id = $documentId
+            object_kind = "inline"
+            limit = 10
+            repaginate = $true
+            include_text = $false
+            include_screen_pixels = $false
+        }
+    if (
+        $drawingLayout.layout_source -ne "microsoft_word_object_model" -or
+        $drawingLayout.scan.returned_count -lt 1 -or
+        $drawingLayout.disclosure.raw_xml_returned
+    ) {
+        throw "Word-executed drawing layout inspection failed"
     }
 
     $stage = "set header"
@@ -385,7 +413,7 @@ try {
         }
     }
 
-    $report.tools = 48
+    $report.exercised_live_action_count = 49
     $report.start_word = $true
     $report.open_close = $true
     $report.comment = $true

@@ -1,7 +1,7 @@
 # Word Live
 
 Word Live is the Windows-only local STDIO capability shipped by the native
-WordToolkit 0.18 plugin. It can attach to the automation-visible
+WordToolkit 0.39 plugin. It can attach to the automation-visible
 `Word.Application` object registered in the Windows Running Object Table or
 start Word explicitly through native COM. Document open, close and application
 quit are available only through dedicated bounded lifecycle tools with strict
@@ -19,6 +19,11 @@ path, save-policy and confirmation checks.
 | `inspect_live_word_document` | Read live metadata, paragraph/table/equation counts and save state. |
 | `map_live_word_structures` | Inventory all Word stories and broad document collections without returning content. |
 | `inspect_live_word_structure_items` | Read one bounded page of semantic metadata from any mapped native collection. |
+| `inspect_live_word_drawing_layout` | Read Word-executed floating, inline, group and optional SmartArt layout without returning COM or XML. |
+| `inspect_live_word_version_profile` | Read raw Word version/build, document compatibility/save format and bounded feature-member probes without content or identity. |
+| `probe_live_word_feature_behaviors` | After explicit confirmation, test OMath, content-control, SmartArt and custom-Undo behavior in isolated unsaved scratch documents with mandatory cleanup proof. |
+| `prepare_live_word_smartart_text_edits` | Resolve one exact SmartArt root and issue one-time tokens bound to the complete node structure and text context. |
+| `apply_live_word_smartart_text_edits` | Replace up to 32 token-verified single-line SmartArt node texts in one Undo record with exact readback and rollback. |
 | `inspect_live_word_equation_learning` | Inspect privacy-preserving aggregate native-equation outcomes. |
 | `inspect_live_word_structure_learning` | Inspect aggregate native-type scan evidence and the adaptive rescan policy. |
 | `inspect_live_word_object_model_types` | Query a paged catalog of types in the installed Word COM type library. |
@@ -45,13 +50,21 @@ path, save-policy and confirmation checks.
 | `insert_live_word_bookmarks` | Insert and verify up to 200 native named ranges in one transaction. |
 | `preflight_live_word_fields` | Validate an allowlisted native-field batch without attaching to Word. |
 | `insert_live_word_fields` | Insert and update up to 200 allowlisted native Word fields in one transaction. |
+| `insert_live_word_caption` | Insert one localized native caption with a real `SEQ` field and guarded readback. |
+| `insert_live_word_table_of_figures` | Create and optionally update one native table of figures from existing captions. |
+| `insert_live_word_table_of_contents` | Create, optionally repaginate and update one native contents table from semantic heading settings. |
+| `mark_live_word_authority_citation` | Mark one fresh non-empty range as a native category-bound table-of-authorities entry. |
+| `insert_live_word_table_of_authorities` | Create, optionally repaginate and update one native authority table for one or all categories with verified separators and leaders. |
+| `mark_live_word_index_entry` | Mark one fresh token-bound location as a native hierarchical XE entry, cross-reference or bookmark page range. |
+| `insert_live_word_index` | Create, optionally repaginate and update one native index with verified semantic layout options. |
+| `update_live_word_reference_tables` | Refresh existing contents, figures, authorities and indexes in one bounded guarded transaction. |
 | `insert_live_word_image` | Embed one bounded local image as a native inline shape. |
 | `insert_live_word_comment` | Add one native comment to a fresh token-verified range or selection. |
 | `insert_live_word_note` | Add one native footnote or endnote. |
 | `set_live_word_header_footer` | Set one bounded header/footer variant in one section. |
-| `insert_live_word_equation` | Create, build up and verify one native Word OMath. |
-| `insert_live_word_equations_batch` | Insert up to 100 native equations in one COM attachment and verify the resulting native OMath count. |
-| `preflight_live_word_equations` | Convert and inspect up to 200 formulas without touching Word. |
+| `insert_live_word_equation` | Create, build up and selectively read back one native Word OMath. |
+| `insert_live_word_equations_batch` | Insert up to 100 native equations in one COM attachment, with automatic bounded readback for sensitive structures. |
+| `preflight_live_word_equations` | Convert up to 200 formulas without touching Word; compact mode returns lengths, fingerprints and readback flags only. |
 | `apply_live_word_operations` | Append up to 200 interleaved text/equation operations through one COM attachment, one payload and one Undo transaction. |
 | `validate_live_word_document` | Validate a temporary copy of the already-saved DOCX. |
 | `export_live_word_pdf` | Export the current live document through Word's native PDF renderer. |
@@ -59,6 +72,87 @@ path, save-policy and confirmation checks.
 | `close_live_word_document` | Close one connected document using an explicit save/discard policy. |
 | `quit_word_application` | Quit Word only with explicit confirmation and a save/discard-all policy. |
 | `disconnect_live_word_document` | Release only the WordToolkit handle. |
+
+## Verified rollback and quarantine
+
+No WordToolkit live mutation path equates an attempted `Document.Undo(1)` with a
+successful rollback. Every custom-Undo mutation now captures the live version, saved
+state, a whole-document Flat OPC hash, main-story text/OOXML hashes, every accessible
+linked story-range hash, exact target and bounded-context text/OOXML hashes,
+content/target/context boundaries, and paragraph, equation, table, field, bookmark,
+inline/floating shape, comment, footnote, endnote and section counts before its first
+write. SmartArt text and review properties that are not reliably represented by Word's
+Undo contract add dedicated supplemental state fingerprints. The mixed text/equation
+path additionally builds, styles and reads back every native equation in an unsaved
+hidden staging document before target publication.
+
+After a failed mutation, the custom Undo record must close, `Undo(1)` must return `true`,
+and every captured value must match. If no observable state changed, the runtime avoids
+an unsafe Undo that could cross into an unrelated history entry and returns the original
+error directly.
+
+If any proof is missing, the operation returns `ROLLBACK_FAILED` with the original error
+code, Undo outcome, mismatch names and before/after structural summaries. It does not
+return document text, OOXML or the hashes. The original live handle is removed and kept
+as a quarantine tombstone. Calls through that handle and attempts to reconnect the same
+open document return `LIVE_DOCUMENT_QUARANTINED`. A deliberate
+`disconnect_live_word_document` clears the tombstone without closing Word; this is an
+acknowledgement of unsafe state, not evidence that the document repaired itself.
+Real Word 16.0 proves why this is deliberately strict: a one-line insertion followed by
+`Undo(1)` returned `true` and restored the visible text and structural counts, while the
+Flat OPC, range OOXML and story graph still differed. WordToolkit reported
+`ROLLBACK_FAILED` instead of laundering that drift as a successful transaction.
+
+`insert_live_word_table_of_contents` inserts at the document start by default, or at the
+document end or a fresh token-verified collapsed cursor. It accepts heading levels 1–9,
+heading-style/outline-level source flags, page-number and hyperlink options, and optional
+repagination/update. It calls Word's native `TablesOfContents.Add`, then requires a
+one-object collection delta, one uniquely reacquired non-empty range and at least one
+field. A mismatch rolls the custom Undo record back. No field instruction or generated
+contents text crosses the tool boundary.
+
+`mark_live_word_authority_citation` requires exactly one fresh non-empty selection or
+range token and category 1–16. Omitted short and long citation strings are derived from
+that exact target but are not returned. WordToolkit calls the native
+`TablesOfAuthorities.MarkCitation`, then requires one new type-74 field with the exact
+code range and category. Any mismatch rolls the custom Undo record back.
+
+`insert_live_word_table_of_authorities` targets the document start/end or a fresh
+collapsed cursor. Category 1–16 selects one category; category 0 includes all valid
+authority marks. It requires at least one matching native entry and calls
+`TablesOfAuthorities.Add` with Word's sequence-name argument genuinely omitted. The
+default entry separator is one tab and the default leader is dots; alternative semantic
+leaders are `spaces`, `dashes`, `lines`, `heavy` and `middle_dot`. The action reads back
+every separator, `Passim`, entry-formatting, category-header and leader setting from the
+created native object. It also requires one exact non-empty range and at least one field.
+Failed readback requests one Undo. Citation text, separator values, generated table text,
+field instructions and COM objects do not cross the tool boundary.
+
+`mark_live_word_index_entry` requires exactly one fresh selection or range token. Omitted
+main-entry text is derived from the target; explicit text permits a collapsed cursor.
+Up to eight colon-free `subentries` form a Word hierarchy without making the model write
+field syntax. A cross-reference is mutually exclusive with an existing-bookmark page
+range and page-number bold/italic options. WordToolkit calls `Indexes.MarkEntry`, then
+requires one new type-4 field with the exact code range and parsed option readback. Entry,
+bookmark and cross-reference text remain private.
+
+`insert_live_word_index` targets the document start/end or a fresh collapsed cursor and
+requires at least one complete native `XE`. It maps semantic heading separators,
+`indented|run_in`, zero-to-four columns, accented-letter grouping and six leader choices
+to `Indexes.Add`, then reads all options back from the resulting `Index`. It optionally
+repaginates and updates, requires one unique non-empty type-8 field range and rolls back
+on any mismatch. Generated index text and field instructions are never returned.
+
+`update_live_word_reference_tables` targets all existing tables of contents, figures,
+authorities and indexes by default, or one exact collection and optional one-based index. It
+updates at most 128 objects, calls Word repagination first unless disabled, and performs
+the native full `Update` on each object. The operation requires the current
+`expected_version`, uses one custom Undo record and verifies that all four collection
+counts remain unchanged and every refreshed object still owns a readable non-empty
+field range. It returns counts and verification flags only: no table result text, field
+instructions or COM objects. A single cross-kind `page_numbers_only` option is
+intentionally absent because Word does not expose that narrower operation uniformly for
+all four object families.
 
 For visually stable UnicodeMath, fractional coefficients must use explicit
 multiplication. Write `1/3·(x^2+1)^(3/2)`, not
@@ -79,7 +173,14 @@ symbol or split the dagger exponent. LaTeX formulas still need explicit
 advanced notation through the converter and inspect the saved native equation
 when semantic fidelity matters.
 
-These 48 native desktop tools are absent from the remote HTTP MCP server.
+Use explicit differential notation for integrals. Prefer
+`\int f(x)\,\mathrm{d}x`; `\,d x`, `\operatorname{d}x` and `\dd x` are also
+recognized. The converter emits U+2146 `ⅆ` and an invisible Word operand group
+`〖…〗`. This prevents `BuildUp()` from raising the differential into an exponent
+or leaving it outside the integral body. A generic plain `d` is not silently
+reinterpreted as a differential.
+
+These 55 native desktop actions are absent from the remote HTTP MCP server.
 
 ## Native find and transactional replace
 
@@ -124,6 +225,104 @@ with body-length text, page-break-before on body paragraphs, oversized
 keep-together paragraphs, disabled widow control, runs of empty paragraphs,
 manual page breaks and heading-style overuse. Issues cap at 2,000 and report
 paragraph numbers, styles, lengths and severity.
+
+## Word-executed drawing layout
+
+`inspect_live_word_drawing_layout` is the bridge between declared OOXML placement and
+the object layout calculated by the connected Microsoft Word build. It can repaginate
+the document, then scan at most 10,000 root drawing objects across the main story and
+linked Word stories. Results are paged to at most 100 roots and classify floating
+`Shape` objects separately from character-like `InlineShape` objects.
+
+Floating results include the anchor range, page and section, size, rotation, visibility,
+z-order, page/margin/column/character or paragraph/line position references, alignment
+constants versus numeric point offsets, relative percentages when defined, wrapping and
+conditional page-relative bounds. A page-relative box is emitted only when both reference
+frames are the page and both positions are numeric. Group members are optional, flattened
+to at most 128 entries and explicitly use group-local coordinates.
+
+Inline objects remain in text-flow coordinates. Word's page-relative range positions are
+returned only when Word reports a nonnegative visible value; they are marked viewport
+dependent because Word returns `-1` for off-screen ranges. Optional `Window.GetPoint`
+screen rectangles are limited to ten roots, can fail when the whole object is not visible,
+and are always labelled pixels of the active window rather than page geometry.
+
+SmartArt node projection is a separate opt-in capped at 128 semantic nodes and 256
+associated rendered shapes. It exposes hierarchy level, hidden/type state, child count
+and SmartArt-layout coordinates. Names, titles, alternative text and node text are not
+even read unless `include_text=true`; a shared 4,096-character response budget and
+512-character field ceiling then apply. Raw XML, raw COM objects and external fetches
+have no response path.
+
+This is authoritative only for the installed Word build, fonts, printer/layout settings,
+view and current connected version. Traversal IDs are runtime locators, not durable OOXML
+IDs. Word may normalize declared DrawingML/VML group nodes into different runtime shape
+types, so package and live inspection must remain separate and both discrepancies must be
+reported.
+
+## Connected Word version profile
+
+`inspect_live_word_version_profile` reads only the already connected application's raw
+`Application.Version` and `Application.Build`, plus the document's numeric
+`CompatibilityMode` and `SaveFormat`. It conservatively maps the documented major versions
+11, 12, 14 and 15 to Word 2003, 2007, 2010 and 2013. Major version 16 is reported only as
+`word_16_generation`, because that value alone does not identify a product edition.
+
+Four independent property-access probes report `available`, `unavailable` or
+`probe_failed` for `UndoRecord`, `OMathAutoCorrect`, `SmartArtLayouts` and document
+`ContentControls`. They do not mutate a document or enumerate a collection. Availability
+only proves that the current COM object exposed that member; it is not a promise that every
+operation behaves the same across builds, channels, locale, document modes or policies.
+Each failed read produces a fixed issue code instead of returning exception text.
+
+The response contains no document text, path, raw COM object, user identity or licence
+identity, does not start Word and uses no network. Compatibility profiles follow the
+documented `WdCompatibilityMode` values 11, 12, 14, 15 and 65535; unknown values remain
+unknown instead of being coerced into a newer profile.
+
+## Isolated feature-behavior probes
+
+`probe_live_word_feature_behaviors` exists because successful COM property access is not
+proof that an operation works. It requires `confirm_scratch_documents=true` and is
+deliberately marked non-read-only: it temporarily changes Word application state by
+creating documents and switching the active document/window. It issues no content, style
+or object mutation to the connected document and does not change `live_version`. Word may
+still refresh volatile view/session package metadata during activation, so the action
+explicitly does not claim whole-package identity.
+
+The fixed probes are native OMath creation plus `BuildUp`, rich-text content-control
+creation, insertion of the first locally available SmartArt layout, and creation/closure/
+execution of one custom Undo record. Each probe gets a separate invisible unsaved Word
+document. SmartArt reports `unavailable` only when Word exposes zero layouts; other COM or
+verification failures report `failed` with a fixed issue code. No exception text, scratch
+text, path, COM object, user identity or licence identity enters the result.
+
+There is no soft cleanup path. After every probe WordToolkit calls `Document.Close(0)`,
+reactivates the exact prior document and window, checks both COM identities, and checks that
+the open-document count equals its baseline. `EndCustomRecord` failure is also cleanup
+failure because the record belongs to application state. Any uncertainty returns
+`TEMPORARY_DOCUMENT_CLEANUP_FAILED`, quarantines the connected handle and requires an
+explicit disconnect before reconnecting. A normal feature failure may be reported only
+after cleanup has been proved.
+
+## Guarded SmartArt node text
+
+Use the exact story/collection/source locator returned by the drawing-layout inspector;
+the traversal-only `wdlo_` value is not a mutation identity. Preparation reads the full
+bounded SmartArt text context and issues one-time tokens bound to the live version, Word
+shape/range identity, layout/style/color IDs, complete node structure and every node text
+hash. Text previews remain opt-in.
+
+Apply accepts at most 32 unique single-line replacements from one prepared root. It
+rechecks the complete context before opening one custom Undo record, writes through
+Word's `SmartArtNode.TextFrame2.TextRange.Text`, then demands exact target readback,
+unchanged structure and unchanged untargeted text. Any mismatch requests one bounded
+Undo. Exact no-ops do not create Undo entries, repaginate or advance the version.
+
+This is text mutation only. Node creation, deletion, reorder, hierarchy changes and
+layout/style/color edits remain unsupported. The real-Word fixture and persisted-drawing
+synchronization evidence are recorded in
+`docs/RESEARCH-SMARTART-TEXT-EDITING-2026.md`.
 
 ## Guarded WordToolkit Undo
 
@@ -192,13 +391,48 @@ The COM `OMaths.Add` path creates an equation from linear text and
 or preserving one advanced symbol is not proof that Word kept the complete
 formula.
 
-The native runtime currently verifies successful OMath creation and the final
-equation count. It does not yet compare Word's generated OMML against the
-prepared expression AST. A failed build-up or count mismatch raises
-`EQUATION_INVALID`, rolls back the transaction and leaves the live version
-unchanged, but a structurally valid equation can still be reinterpreted by
-Word. Use preflight and inspect advanced notation when exact mathematical
-fidelity matters.
+The native runtime verifies successful OMath creation and final equation count.
+It also automatically reads back structurally sensitive n-ary operators,
+differentials, matrices, cases, equation arrays, accents, hbar and dagger
+notation through the new equation range's bounded `WordOpenXML`. One top-level
+OMath is securely parsed, canonical hashes and symbol counts are compared, and
+every differential must remain below the corresponding `m:nary/m:e`. A mismatch
+raises `EQUATION_INVALID`, rolls back the transaction and leaves the live version
+unchanged. `verify_readback=true` extends the gate to a low-risk equation.
+
+LaTeX `\mathbf{...}` and `\boldsymbol{...}`, Presentation MathML `mathvariant`
+and OMML run/control properties use a separate style-preserving gate. Reserved
+private-use sentinels delimit the requested scopes only in the
+temporary linear payload and survive Word's `BuildUp()` across fractions,
+radicals, scripts and n-ary objects. A bounded internal rewrite removes all
+sentinels and applies native `m:sty="p"`, `m:sty="b"`, `m:sty="i"` or
+`m:sty="bi"` to the enclosed math runs. Separate scopes write `m:ctrlPr/w:rPr`
+bold/italic properties onto the intended OfficeMath
+objects so structural glyphs such as fraction bars, radicals, delimiters and
+n-ary operators carry the requested style too. Word then reads the equation back
+again; a style-placement hash, run and control counts, and the normal semantic
+contract must all agree. Readback normalizes Word's documented default italic/roman
+run properties and arbitrary coalescing of adjacent sibling runs only when every
+effective property is identical. Direct per-character
+`Range.Font` mutation is not used because real Word testing showed that mixed
+bold/italic edits inside a built OMath can destabilize COM.
+
+MathML inheritance is resolved from `math` and `mstyle`, then overridden at the token.
+The fourteen variants representable by native Word styles or mathematical alphabets
+are preserved. The contextual Arabic `initial`, `tailed`, `looped` and `stretched`
+variants fail with `EQUATION_INVALID` because silently turning them into ordinary
+Latin/Arabic text would be data loss.
+
+For textual conditions such as
+`\begin{cases}x^2&\text{gdy }x\ge0\\-x&\text{gdy }x<0\end{cases}`,
+ordinary U+0020 is insufficient because Word drops it outside quoted math text.
+The converter emits bounded U+2003 case-column spacing and U+2005 text-boundary
+spacing instead. Those characters survive Word build-up and are significant in
+the semantic readback hash, so losing either one rolls the transaction back.
+
+This is structural preservation evidence, not a proof of mathematical
+equivalence. The response returns hashes, counts and verification flags, never
+raw OMML or the reconstructed formula.
 
 The in-process learning counters retain only input format and success/failure
 counts. Formula text, document text, names and paths are not retained.
@@ -417,9 +651,11 @@ This removes repeated COM startup, repaint and viewport costs. Native
 claims.
 
 Use `preflight_live_word_equations` before large or unfamiliar formula sets.
-It returns the canonical AST, linear Word input, syntax-rule hits and whether
-advanced symbols force live readback. It never attaches to Word and never
-changes a document.
+Its default compact response returns only input/output lengths, a short linear
+fingerprint, format/display flags and whether native readback is required. It
+never attaches to Word and never changes a document. Request
+`response_mode="full"` through the lazy execution gateway only when the exact
+Word linear form is needed for diagnosis.
 
 ## Concurrency and failure behavior
 
@@ -441,6 +677,9 @@ changes a document.
   limited to the main document story.
 - Native math uses `OMaths.Add`, `BuildUp`, the explicit display/inline `Type`
   and an immediate `WordOpenXML` OMML parse.
+- Bold math uses only the bounded internal sentinel-to-`m:sty` and
+  sentinel-to-`m:ctrlPr/w:rPr` rewrite; every sentinel must disappear and both
+  style and semantic readback must pass.
 - Hbar and dagger inputs force readback. If the resulting native OMML lacks the
   required symbol, the complete mutation is rolled back.
 

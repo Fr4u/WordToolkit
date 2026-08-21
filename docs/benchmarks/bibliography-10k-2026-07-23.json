@@ -1,0 +1,84 @@
+{
+  "schema": "wordtoolkit-engine-benchmark-v1",
+  "scenario": "bibliography_graph",
+  "utc": "2026-07-23T18:45:06.9212511+00:00",
+  "runtime": ".NET 8.0.29",
+  "operating_system": "Microsoft Windows 10.0.19045",
+  "architecture": "X64",
+  "engine_version": "0.39.0",
+  "processor_count": 12,
+  "server_gc": false,
+  "measurements": {
+    "requested_sources": 10000,
+    "repetitions": 7,
+    "fixture": "synthetic_unique_book_sources_with_one_person_and_one_matching_citation_each",
+    "package_bytes": 165249,
+    "package_parts": 5,
+    "semantic_nodes": 40003,
+    "sources": 10000,
+    "contributors": 10000,
+    "people": 10000,
+    "citation_fields": 10000,
+    "resolved_citations": 10000,
+    "unresolved_citations": 0,
+    "issues": 0,
+    "package_fingerprint_preserved": true,
+    "execution_policy": "parse_package_only_never_open_word_evaluate_fields_execute_xslt_or_follow_external_targets",
+    "operation_resource_usage": {
+      "scope": "bibliography_graph_only_package_semantic_reference_setup_excluded",
+      "accounting_model": "word_operation_accounted_v1",
+      "accounted_bytes": 81230184,
+      "maximum_accounted_bytes": 671088640,
+      "stages": [
+        {
+          "stage": "Operation",
+          "accounted_bytes": 4096
+        },
+        {
+          "stage": "Bibliography",
+          "accounted_bytes": 81226088
+        }
+      ]
+    },
+    "timings_ms": {
+      "generate": 23.6843,
+      "package_read": 103.5584,
+      "semantic_projection": 1148.2916,
+      "reference_build": 446.4615,
+      "bibliography_build_samples": [
+        811.9211,
+        729.2039,
+        642.5681,
+        589.5653,
+        546.0135,
+        675.3234,
+        556.5619
+      ],
+      "bibliography_build_median": 642.5681,
+      "bibliography_build_p95": 811.9211,
+      "measured_setup_total": 1698.3114999999998
+    },
+    "bibliography_build_allocated_bytes": {
+      "samples": [
+        245639552,
+        245631904,
+        245629824,
+        245629504,
+        245629480,
+        245632144,
+        245631072
+      ],
+      "median": 245631072,
+      "p95": 245639552
+    },
+    "memory": {
+      "baseline_managed_bytes": 139296,
+      "final_managed_bytes": 66752496,
+      "retained_managed_delta_bytes": 66613200,
+      "allocated_delta_bytes": 2159493368,
+      "baseline_working_set_bytes": 28102656,
+      "final_working_set_bytes": 363753472,
+      "process_peak_working_set_bytes": 449871872
+    }
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "schema": "wordtoolkit-engine-benchmark-v1",
+  "scenario": "figure_caption_graph",
+  "utc": "2026-07-23T10:32:20.192652+00:00",
+  "runtime": ".NET 8.0.29",
+  "operating_system": "Microsoft Windows 10.0.19045",
+  "architecture": "X64",
+  "engine_version": "0.37.0",
+  "processor_count": 12,
+  "server_gc": false,
+  "measurements": {
+    "requested_figures": 10000,
+    "configured_figure_ceiling": 100000,
+    "configured_caption_ceiling": 100000,
+    "configured_association_ceiling": 500000,
+    "package_bytes": 181113,
+    "package_parts": 5,
+    "semantic_nodes": 260003,
+    "reference_fields": 10000,
+    "figures": 10000,
+    "representations": 10000,
+    "resources": 10000,
+    "captions": 10000,
+    "associations": 19999,
+    "selected_associations": 10000,
+    "issues": 0,
+    "parsed_xml_bytes": 7196059,
+    "parsed_xml_elements": 260003,
+    "timings_ms": {
+      "generate": 26.5652,
+      "package_read": 206.3705,
+      "semantic_projection": 5499.8,
+      "reference_build": 1654.4528,
+      "style_build": 10.0703,
+      "figure_build_samples": [
+        2084.6454,
+        2031.5003,
+        1897.5694,
+        1873.8231,
+        1869.2521,
+        2079.6601,
+        1547.722
+      ],
+      "figure_build_median": 1897.5694,
+      "figure_build_p95": 2084.6454,
+      "measured_setup_total": 7370.6936000000005
+    },
+    "memory": {
+      "baseline_managed_bytes": 130008,
+      "final_managed_bytes": 317324768,
+      "retained_managed_delta_bytes": 317194760,
+      "allocated_delta_bytes": 8138459592,
+      "baseline_working_set_bytes": 27729920,
+      "final_working_set_bytes": 1106980864,
+      "process_peak_working_set_bytes": 1251549184
+    }
+  }
+}
