@@ -1369,7 +1369,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is the locally qualified18 0.60.1 candidate (`0.60.1+codex.20260821181314`). Read-only installation inspection passed: artifact/source/cache parity is 199 files and 91,102,501 expanded bytes; cache path `C:\Users\Admin\.codex\plugins\cache\personal\wordtoolkit\0.60.1+codex.20260821181314`, and runtime guidance 149/149. Q18 inherits q17 live-full evidence (59/59, 15/149, combined 5/5, Word 0); q18's OCR/security-only delta was not rerun through Word. The latest immutable public release remains
+The development manifest/runtime is the locally qualified19 0.60.1 candidate (`0.60.1+codex.20260821184226`). Read-only installation inspection passed: artifact/source/cache parity is 199 files and 91,102,501 expanded bytes; cache path `C:\Users\Admin\.codex\plugins\cache\personal\wordtoolkit\0.60.1+codex.20260821184226`, and runtime guidance 149/149. Q19 inherits q17 live-full evidence (59/59, 15/149, combined 5/5, Word 0); q19's OCR-only dedicated-path exception and Windows symlink classification delta was not rerun through Word. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:

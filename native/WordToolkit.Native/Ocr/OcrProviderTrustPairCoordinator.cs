@@ -14,7 +14,7 @@ internal static class OcrProviderTrustPairCoordinator
         for (var current = full; current is not null; current = Path.GetDirectoryName(current))
         {
             if (IsReparseOrLink(current))
-                throw new IOException("OCR provider trust paths cannot contain reparse points.");
+                throw new OcrProviderTrustPathValidationException(current, new IOException("Reparse point detected."));
             var root = Path.GetPathRoot(current);
             if (string.Equals(Path.TrimEndingDirectorySeparator(current), Path.TrimEndingDirectorySeparator(root ?? current), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
                 break;
@@ -31,6 +31,10 @@ internal static class OcrProviderTrustPairCoordinator
         }
         catch (FileNotFoundException) { return false; }
         catch (DirectoryNotFoundException) { return false; }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or NotSupportedException or System.Security.SecurityException)
+        {
+            throw new OcrProviderTrustPathValidationException(path, exception);
+        }
     }
     internal sealed record Journal(
         [property: JsonPropertyName("primary_path")] string PrimaryPath,

@@ -1,31 +1,31 @@
 # WordToolkit 0.60.1 release qualification
 
-Current checkpoint: qualified18 `0.60.1+codex.20260821181314`; q17 and older are historical.
-Q18 inherits q17's live-full-capabilities evidence (59/59, 15/149, guidance 149/149, combined 5/5, Word 0); q18's delta is OCR/security-only and was not rerun through Word.
+Current checkpoint: qualified19 `0.60.1+codex.20260821184226`; q18 and older are historical.
+Q19 inherits q17's live-full-capabilities evidence (59/59, 15/149, guidance 149/149, combined 5/5, Word 0); q19's delta is OCR-only and was not rerun through Word.
 
 Qualified11 checkpoint: `0.60.1+codex.20260821123012`, native 587, LibreOffice 12,
 Python 1341/16 skipped; q10 atomic-writer evidence remains historical. Q11 adds
 expected_version/live_version binding, additive recovery guidance and corrected view placement.
 
-Status: local qualified18 record. Git publication and PR checks are not included as passed evidence.
+Status: local qualified19 record. Git publication and PR checks are not included as passed evidence.
 
-## Qualified18 candidate
+## Qualified19 candidate
 
-- Version: `0.60.1+codex.20260821181314`.
+- Version: `0.60.1+codex.20260821184226`.
 - Native MCP surface: 15 public tools, 149 native actions; guidance 149/149.
-- A/B trees: `dist/release-0.60.1-qualified18-a` and `dist/release-0.60.1-qualified18-b`; 199 files and 91,102,501 expanded bytes each; artifact/source/cache parity passed.
-- ZIPs: 37,872,587 bytes each, SHA-256 `A63F7990F96EC5CF64ABB51D91283027872750F743AE9B3B395515F5E3730DA2`.
-- Native executable SHA-256: `BD4677F8C647B1E19C3206C8E0B53FECACF6AA813B96D40184EE4245C49BBC6B`.
-- Native DLL SHA-256: `70C31959BBE833CBCA6C102EE3E8DA6529D78E0A71139A002D8489FAC2CC1038`.
+- A/B trees: `dist/release-0.60.1-qualified19-a` and `dist/release-0.60.1-qualified19-b`; 199 files and 91,102,501 expanded bytes each; artifact/source/cache parity passed.
+- ZIPs: 37,872,609 bytes each, SHA-256 `54F73EF6E0BD607902E55AEF7802842F3FE9B81BA59655DF1B8AA52E099D40C3`.
+- Native executable SHA-256: `F228262FAF21786578AE64B7CB8594263CF8EA6FA8825C892C04A03948EE58F1`.
+- Native DLL SHA-256: `BF724C91C01336272D20ED39CFB4E5F49EE49B82616EFA5F712816C1FDFCA5AF`.
 - Test counts: Python 1343 passed / 16 intentional skips; Engine 780; Native 613; LibreOffice 12; OCR 17×3.
 
-## Real qualified18 evidence
+## Real qualified19 evidence
 
-Q18 inherits q17's timed live-full-capabilities evidence: 59/59, 15/149, guidance 149/149, combined atomic checks 5/5 and final Word count 0. Q18 was not rerun through Word because its delta is OCR-only: reparse-point, journal, lock and scoped-security regressions; OCR 17×3 passed.
+Q19 inherits q17's timed live-full-capabilities evidence: 59/59, 15/149, guidance 149/149, combined atomic checks 5/5 and final Word count 0. Q19 was not rerun through Word because its delta is OCR-only: dedicated-path exception and Windows symlink classification; OCR 17×3 passed.
 
-## Historical qualified17 checkpoint
+## Historical qualified18 checkpoint
 
-q17 and older checkpoints remain historical and are not current qualification claims.
+q18 and older checkpoints remain historical and are not current qualification claims.
 
 ## Historical qualified10 candidate
 

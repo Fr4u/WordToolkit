@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Qualified q19 `0.60.1+codex.20260821184226`: 199-file/91,102,501-byte parity,
+  37,872,609-byte ZIP SHA `54F73EF6...`, executable `F228262F...`, DLL `BF724C91...`,
+  Python 1343/16 skipped, Engine 780, Native 613, LibreOffice 12 and OCR 17×3.
+  Q19 inherits q17 live-full evidence (59/59, 15/149, guidance 149/149, combined 5/5,
+  Word 0); its OCR-only dedicated-path exception and Windows symlink classification delta
+  was not rerun through Word. q18 and older are historical.
+
 - Qualified q18 `0.60.1+codex.20260821181314`: 199-file/91,102,501-byte parity,
   37,872,587-byte ZIP SHA `A63F7990...`, executable `BD4677F8...`, DLL `70C31959...`,
   Python 1343/16 skipped, Engine 780, Native 613, LibreOffice 12 and OCR 17×3.

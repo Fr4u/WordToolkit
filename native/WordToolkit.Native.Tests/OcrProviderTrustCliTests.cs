@@ -123,6 +123,7 @@ public sealed class OcrProviderTrustCliTests
         var o = new StringWriter(); var e = new StringWriter();
         var req = IssueRequest(f, Path.Combine(link, "manifest.json"), Path.Combine(link, "store.json"));
         Assert.Equal(64, OcrProviderTrustCli.Run(["--mode", "issue", "--request", "-"], new StringReader(req), o, e));
+        Assert.Equal("OCR_PROVIDER_TRUST_INVALID: OCR provider trust paths cannot contain reparse points.\r\n", e.ToString());
         Assert.False(File.Exists(target)); Assert.Empty(Directory.GetFiles(external));
         var inputLink = Path.Combine(f.Root, "input-link");
         try { File.CreateSymbolicLink(inputLink, f.Executable); }
@@ -132,6 +133,7 @@ public sealed class OcrProviderTrustCliTests
         o.GetStringBuilder().Clear(); e.GetStringBuilder().Clear();
         var bad = IssueRequest(f, f.Manifest, f.Store).Replace(f.Executable, inputLink, StringComparison.Ordinal);
         Assert.Equal(64, OcrProviderTrustCli.Run(["--mode", "issue", "--request", "-"], new StringReader(bad), o, e));
+        Assert.Equal("OCR_PROVIDER_TRUST_INVALID: OCR provider trust paths cannot contain reparse points.\r\n", e.ToString());
         Assert.False(File.Exists(f.Manifest)); Assert.False(File.Exists(f.Store));
     }
 
