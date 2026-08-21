@@ -1,4 +1,6 @@
+using System.ComponentModel;
 using System.Security.Cryptography;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -7,6 +9,14 @@ namespace WordToolkit.Native.Ocr;
 
 internal static class OcrProviderTrustPairCoordinator
 {
+    private const uint InvalidFileAttributes = 0xFFFFFFFF;
+    private const uint FileAttributeReparsePoint = 0x00000400;
+    private const int ErrorFileNotFound = 2;
+    private const int ErrorPathNotFound = 3;
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint GetFileAttributesW(string fileName);
+
     internal static string? LockRootOverride { get; set; }
     internal static void ValidateNoReparsePoints(string path)
     {
@@ -25,6 +35,18 @@ internal static class OcrProviderTrustPairCoordinator
     {
         try
         {
+            if (OperatingSystem.IsWindows())
+            {
+                var attributes = GetFileAttributesW(path);
+                if (attributes != InvalidFileAttributes)
+                    return (attributes & FileAttributeReparsePoint) != 0;
+
+                var error = Marshal.GetLastWin32Error();
+                if (error is ErrorFileNotFound or ErrorPathNotFound)
+                    return false;
+                throw new Win32Exception(error);
+            }
+
             if (File.Exists(path))
             {
                 // On some Windows/.NET builds GetAttributes follows a file symlink and

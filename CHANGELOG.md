@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Qualified q23 `0.60.1+codex.20260821203509`: 199-file/91,105,573-byte parity,
+  37,873,051-byte ZIP SHA `7E55CF1B...`, executable `441BC6A3...`, DLL `8CDE6C59...`.
+  Windows trust paths now use native `GetFileAttributesW` to detect a file symlink before
+  target attributes are followed. The exact symlink regression and Native 613/613 pass.
+  Q22 and older are historical.
+
 - Qualified q22 `0.60.1+codex.20260821202555`: 199-file/91,105,061-byte parity,
   37,872,932-byte ZIP SHA `9738480D...`, executable `4121E7A2...`, DLL `BDF97A13...`.
   Existing file symlinks are inspected through `FileInfo.LinkTarget` before target attributes,
