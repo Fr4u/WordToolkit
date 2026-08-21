@@ -87,6 +87,7 @@ show_missing = true
 skip_covered = true
 
 [tool.mutmut]
+debug = true
 source_paths = ["src/wordtoolkit/security.py"]
 pytest_add_cli_args_test_selection = ["tests/test_security.py"]
 
