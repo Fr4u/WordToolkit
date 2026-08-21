@@ -21,8 +21,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: "8.0.423"
       - run: dotnet restore native/WordToolkit.Engine.Tests/WordToolkit.Engine.Tests.csproj
@@ -35,11 +37,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: "8.0.423"
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
           java-version: "17.0.16+8"
@@ -128,7 +132,7 @@ jobs:
               --filter FullyQualifiedName~LibreOfficeRenderServiceTests \
               --logger "console;verbosity=normal"
       - name: Upload the exact qualified UNO helper JAR
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wordtoolkit-libreoffice-uno-helper-jdk17
           path: ${{ runner.temp }}/wordtoolkit-uno-helper.jar
@@ -140,8 +144,10 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: "8.0.423"
       - name: Test, publish, validate and archive the native plugin
@@ -161,7 +167,7 @@ jobs:
           if ($hashA -ne $hashB) { throw "Native ZIP is not deterministic: $hashA vs $hashB" }
           Write-Host "deterministic_native_zip_sha256=$hashA"
       - name: Upload the exact distributable ZIP
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wordtoolkit-native-win-x64
           path: dist/WordToolkit-*-native-win-x64.zip
@@ -173,9 +179,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v9.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: false
+          version: "0.11.23"
           python-version: "3.12"
       - run: sudo apt-get update && sudo apt-get install -y libreoffice-writer poppler-utils fonts-dejavu-core fonts-liberation2
       - run: uv sync --extra dev --locked
@@ -190,7 +200,18 @@ jobs:
           tests/test_plugin_contract.py tests/test_mcp_contract.py
           tests/test_action_guidance_contract.py
       - run: git diff --check
-      - run: uv run pytest -ra
+      - name: Run the full suite with branch coverage gates
+        run: |
+          mkdir -p artifacts
+          uv run pytest -ra --cov=wordtoolkit \
+            --cov-report=term-missing:skip-covered \
+            --cov-report=xml:artifacts/coverage.xml
+      - name: Enforce critical-module coverage floors
+        run: |
+          uv run coverage report --include='src/wordtoolkit/security.py' --fail-under=65
+          uv run coverage report --include='src/wordtoolkit/engine/document.py' --fail-under=56
+          uv run coverage report --include='src/wordtoolkit/sessions.py' --fail-under=73
+          uv run coverage report --include='src/wordtoolkit/engine/renderer.py' --fail-under=82
       - run: uv run python scripts/export_tool_schemas.py
       - name: Reject changes to the immutable remote v1 schema
         run: |
@@ -204,7 +225,14 @@ jobs:
         run: git diff --exit-code -- schemas/mcp-tools.v2.json schemas/draft-operations.v1.json docs/TOOL-CATALOG.md
       - run: uv run python scripts/generate_samples.py
       - run: uv run python scripts/advanced_torture_test.py
-      - uses: actions/upload-artifact@v7
+      - name: Upload Python coverage evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wordtoolkit-python-coverage
+          path: artifacts/coverage.xml
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wordtoolkit-golden-files
           path: |
@@ -218,8 +246,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: "8.0.423"
       - run: dotnet build tools/OpenXmlValidator/OpenXmlValidator.csproj -c Release
@@ -229,9 +259,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/build-push-action@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           push: false

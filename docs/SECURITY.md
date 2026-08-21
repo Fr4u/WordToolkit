@@ -6,6 +6,18 @@ Word COM. The retained Python service is a remote HTTP/container deployment with
 uploads and rendering. Controls that belong to one surface do not magically protect the
 other.
 
+## Repository and dependency controls
+
+Every third-party GitHub Action is referenced by a reviewed full commit SHA; the adjacent
+comment records the release tag used to resolve it. Dependabot proposes pinned-action,
+Python and NuGet updates instead of letting mutable major tags change CI implicitly.
+Pull requests run high-severity dependency review and C#/Python CodeQL analysis. A weekly
+non-release audit exports the exact locked Python dependency set without the unpublished
+editable project and checks it with `pip-audit --strict`; it also
+restores native and validator projects with transitive NuGet audit enabled at the lowest
+advisory severity. Secret scanning and push protection remain repository settings rather
+than claims made by application code.
+
 ## Trust boundaries
 
 Untrusted inputs are OAuth tokens, MCP JSON, file URLs supplied by ChatGPT, ZIP metadata, XML, relationships, image bytes, Markdown and renderer inputs. The remote service trusts only its configuration, immutable container image, configured identity provider and files it has produced inside the session root. The local plugin additionally trusts its installed runtime and explicit user-selected local paths; document contents and MCP arguments remain untrusted.

@@ -17,8 +17,10 @@ jobs:
     runs-on: [self-hosted, windows, word]
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: "8.0.423"
       - name: Reject pre-existing Word processes
@@ -67,7 +69,7 @@ jobs:
           if ($report.document.left_open_in_word) { throw "Document was left open in Word." }
           if ($report.cleanup_quit_status -notin @("already_quit", "quit_confirmed")) { throw "Cleanup status was not accepted." }
       - name: Upload package and live acceptance evidence
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wordtoolkit-word-release-gate-${{ github.sha }}
           path: |
