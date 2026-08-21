@@ -141,8 +141,20 @@ internal sealed partial class OcrProviderTrustPolicy : IOcrProviderTrustPolicy
         using var pairLock = OcrProviderTrustPairCoordinator.Acquire(_manifestPath, _trustStorePath);
         OcrProviderTrustPairCoordinator.ValidateNoReparsePoints(_manifestPath);
         OcrProviderTrustPairCoordinator.ValidateNoReparsePoints(_trustStorePath);
-        OcrProviderTrustPairCoordinator.Recover(_manifestPath, _trustStorePath);
+        OcrProviderTrustPairCoordinator.Recover(_manifestPath, _trustStorePath, (p,s) => ValidatePublishedPairBytes(p,s));
         return AuthorizeCore(executablePath, modelDirectory, languages, cancellationToken);
+    }
+
+    internal static bool ValidatePublishedPairBytes(byte[] manifestBytes, byte[] storeBytes)
+    {
+        try
+        {
+            var manifest = ParseManifest(manifestBytes);
+            var store = ParseTrustStore(storeBytes);
+            VerifyManifestSignature(manifest, store);
+            return true;
+        }
+        catch { return false; }
     }
 
     private OcrProviderTrustSnapshot AuthorizeCore(

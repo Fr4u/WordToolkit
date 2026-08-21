@@ -270,7 +270,7 @@ mutation/repair/render execution required by the goal.
 
 ### Qualified9 release checkpoint (2026-08-21)
 
-The current release checkpoint is qualified19: version `0.60.1+codex.20260821184226`; A/B trees are 199 files and 91,102,501 bytes; ZIP SHA `54F73EF6E0BD607902E55AEF7802842F3FE9B81BA59655DF1B8AA52E099D40C3`, executable `F228262FAF21786578AE64B7CB8594263CF8EA6FA8825C892C04A03948EE58F1`, DLL `BF724C91C01336272D20ED39CFB4E5F49EE49B82616EFA5F712816C1FDFCA5AF`. Native 613, Engine 780, Python 1343/16, LibreOffice 12, OCR 17×3; q18 and older are historical. Q19 inherits q17 live-full evidence (59/59, 15/149, guidance 149/149, combined 5/5, Word 0); q19's OCR-only dedicated-path exception and Windows symlink classification delta was not rerun through Word.
+The current release checkpoint is qualified20: version `0.60.1+codex.20260821194458`; A/B trees are 199 files and 91,105,061 bytes; ZIP SHA `97AE85EE078BCB69E730E4AF1D0D542A357B18FADD5421BC4B7FD3344C4B0C41`, executable `F331B345B826EA6D2A49DF14A375F94B5EDEE0649782CB4B4395C7C071F16131`, DLL `96807477D60508B3ECD6922E90A04B0240DE27D7765DA5A8EC1695CB1007E98B`. Native 613, Engine 780, Python 1343/16 and LibreOffice 12; q19 and older are historical. Q20 inherits q17 live-full evidence (59/59, 15/149, guidance 149/149, combined 5/5, Word 0); its OCR trust lock/recovery and snapshot-cleanup delta was not rerun through Word.
 
 - `C:\Users\Admin\.dotnet8\dotnet.exe test native/WordToolkit.Engine.Tests -p:TreatWarningsAsErrors=true` — 675 passed on pinned SDK 8.0.423.
 - `C:\Users\Admin\.dotnet8\dotnet.exe test native/WordToolkit.Native.Tests -p:TreatWarningsAsErrors=true` — 498 passed on pinned SDK 8.0.423, including real Open XML SDK equation-repair CLI and closed MCP-contract coverage.

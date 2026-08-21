@@ -6,6 +6,7 @@ import copy
 import functools
 import json
 import shutil
+import sys
 from collections.abc import Callable
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -2388,6 +2389,18 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
             await _run_locked_worker(record.engine.snapshot, output)
             return subject, version, output
 
+    def _cleanup_snapshot(path: Path) -> None:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            active = sys.exc_info()[1]
+            if active is not None:
+                active.add_note(f"snapshot cleanup failed for {path}: {exc}")
+                return
+            raise RuntimeError(f"snapshot cleanup failed for {path}") from exc
+
     @mcp.tool(
         title="Validate OOXML package",
         description="Run bounded ZIP/OPC, XML, relationship, note, paraId and native OMML validation on a snapshot without committing a version.",
@@ -2397,8 +2410,11 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
     async def validate_ooxml(document_id: str) -> dict:
         require_scope("documents:read")
         _subject, version, path = await _snapshot(document_id, "validate")
-        result = await asyncio.to_thread(runtime.validator.validate, path)
-        return ok({"document_id": document_id, "draft_version": version, "validation": result})
+        try:
+            result = await asyncio.to_thread(runtime.validator.validate, path)
+            return ok({"document_id": document_id, "draft_version": version, "validation": result})
+        finally:
+            _cleanup_snapshot(path)
 
     @mcp.tool(
         title="Audit Word document",
@@ -2418,15 +2434,18 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
     async def detect_corruption(document_id: str) -> dict:
         require_scope("documents:read")
         _subject, version, path = await _snapshot(document_id, "corruption")
-        validation = await asyncio.to_thread(runtime.validator.validate, path)
-        return ok(
-            {
-                "document_id": document_id,
-                "draft_version": version,
-                "corrupt": not validation["valid"],
-                "issues": validation["issues"],
-            }
-        )
+        try:
+            validation = await asyncio.to_thread(runtime.validator.validate, path)
+            return ok(
+                {
+                    "document_id": document_id,
+                    "draft_version": version,
+                    "corrupt": not validation["valid"],
+                    "issues": validation["issues"],
+                }
+            )
+        finally:
+            _cleanup_snapshot(path)
 
     @mcp.tool(
         title="Repair Word document",
@@ -2473,13 +2492,16 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
     async def detect_orphaned_relationships(document_id: str) -> dict:
         require_scope("documents:read")
         _subject, version, path = await _snapshot(document_id, "relationships")
-        validation = await asyncio.to_thread(runtime.validator.validate, path)
-        issues = [
-            item
-            for item in validation["issues"]
-            if item["code"].startswith("REL_") or "ORPHANED" in item["code"]
-        ]
-        return ok({"document_id": document_id, "draft_version": version, "issues": issues})
+        try:
+            validation = await asyncio.to_thread(runtime.validator.validate, path)
+            issues = [
+                item
+                for item in validation["issues"]
+                if item["code"].startswith("REL_") or "ORPHANED" in item["code"]
+            ]
+            return ok({"document_id": document_id, "draft_version": version, "issues": issues})
+        finally:
+            _cleanup_snapshot(path)
 
     # ── Export and visual verification ────────────────────────────────────
 

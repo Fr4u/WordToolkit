@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Qualified q20 `0.60.1+codex.20260821194458`: 199-file/91,105,061-byte parity,
+  37,872,971-byte ZIP SHA `97AE85EE...`, executable `F331B345...`, DLL `96807477...`,
+  Python 1343/16 skipped, Engine 780, Native 613 and LibreOffice 12. OCR trust locks
+  and journals now live outside read-only trust directories; recovery validates complete
+  pairs cryptographically and never deletes partial public files. Reparse-path failures
+  have a dedicated exit-64 contract, and remote validation snapshots are always cleaned.
+  Q20 inherits the unchanged q17 Word gate; q19 and older are historical.
+
 - Qualified q19 `0.60.1+codex.20260821184226`: 199-file/91,102,501-byte parity,
   37,872,609-byte ZIP SHA `54F73EF6...`, executable `F228262F...`, DLL `BF724C91...`,
   Python 1343/16 skipped, Engine 780, Native 613, LibreOffice 12 and OCR 17×3.

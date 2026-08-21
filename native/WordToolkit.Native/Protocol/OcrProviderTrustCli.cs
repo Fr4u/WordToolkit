@@ -113,7 +113,7 @@ internal static class OcrProviderTrustCli
                 privateKeyBytes,
                 trustStoreOutput,
                 trustStoreBytes
-            , options.Hooks);
+            , options.Hooks, ValidateKeygenPairBytes);
             using var verifier = LoadPrivateKey(privateKeyOutput);
             if (!verifier.ExportSubjectPublicKeyInfo().SequenceEqual(key.ExportSubjectPublicKeyInfo()))
             {
@@ -247,7 +247,7 @@ internal static class OcrProviderTrustCli
             manifestBytes,
             trustStoreOutput,
             trustStoreBytes,
-            options.Hooks
+            options.Hooks, OcrProviderTrustPolicy.ValidatePublishedPairBytes
         );
 
         try
@@ -643,7 +643,8 @@ internal static class OcrProviderTrustCli
         byte[] manifestBytes,
         string trustStorePath,
         byte[] trustStoreBytes,
-        OcrProviderTrustPairHooks? hooks = null
+        OcrProviderTrustPairHooks? hooks = null,
+        Func<byte[], byte[], bool>? validator = null
     )
     {
         try
@@ -660,7 +661,7 @@ internal static class OcrProviderTrustCli
             OcrProviderTrustPairCoordinator.ValidateNoReparsePoints(trustStorePath);
         }
         catch (OcrProviderTrustPathValidationException) { throw; }
-        OcrProviderTrustPairCoordinator.Recover(manifestPath, trustStorePath);
+        OcrProviderTrustPairCoordinator.Recover(manifestPath, trustStorePath, validator);
         if (File.Exists(manifestPath) || File.Exists(trustStorePath))
             throw new OutputAlreadyExistsException();
         var manifestStage = manifestPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
@@ -670,7 +671,7 @@ internal static class OcrProviderTrustCli
             WriteNew(manifestStage, manifestBytes);
             WriteNew(storeStage, trustStoreBytes);
             hooks?.BeforeJournalWrite?.Invoke();
-            OcrProviderTrustPairCoordinator.WriteJournal(manifestPath, trustStorePath, trustStoreBytes, Guid.NewGuid().ToString("N"));
+            OcrProviderTrustPairCoordinator.WriteJournal(manifestPath, trustStorePath, trustStoreBytes, Guid.NewGuid().ToString("N"), "manifest_store", manifestBytes);
             hooks?.BeforeSecondaryPublish?.Invoke();
             AtomicFilePublisher.PublishCreateNew(storeStage, trustStorePath);
             hooks?.AfterSecondaryPublish?.Invoke();
@@ -687,6 +688,18 @@ internal static class OcrProviderTrustCli
             TryDelete(manifestStage);
             TryDelete(storeStage);
         }
+    }
+
+    private static bool ValidateKeygenPairBytes(byte[] privatePem, byte[] storeBytes)
+    {
+        try
+        {
+            using var key = ECDsa.Create();
+            key.ImportFromPem(Encoding.ASCII.GetString(privatePem));
+            var publicKey = Convert.ToBase64String(key.ExportSubjectPublicKeyInfo());
+            return Encoding.UTF8.GetString(storeBytes).Contains(publicKey, StringComparison.Ordinal);
+        }
+        catch { return false; }
     }
 
     private static void WriteNew(string path, byte[] bytes)

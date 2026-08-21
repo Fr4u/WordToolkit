@@ -9,16 +9,13 @@ namespace WordToolkit.Native.Tests;
 public sealed class OcrProviderTrustCliTests
 {
     [Fact]
-    public void CrashedSecondaryOnlyJournalIsRecoveredBeforeIssueRetry()
+    public void ValidCommittedJournalIsCryptoValidatedAndCleared()
     {
         using var f = Fixture();
         var secondary = Encoding.UTF8.GetBytes("owned-secondary");
-        File.WriteAllBytes(f.Store, secondary);
-        OcrProviderTrustPairCoordinator.WriteJournal(f.Manifest, f.Store, secondary, "crashed");
-        var output = new StringWriter(); var error = new StringWriter();
-        // A caller that encountered the stale pair performs the bounded recovery, then retries publication.
-        OcrProviderTrustPairCoordinator.Recover(f.Manifest, f.Store);
-        Assert.Equal(0, OcrProviderTrustCli.Run(["--mode", "issue", "--request", "-"], new StringReader(IssueRequest(f, f.Manifest, f.Store)), output, error));
+        var primary = Encoding.UTF8.GetBytes("manifest"); File.WriteAllBytes(f.Manifest, primary); File.WriteAllBytes(f.Store, secondary);
+        OcrProviderTrustPairCoordinator.WriteJournal(f.Manifest, f.Store, secondary, "crashed", "pair", primary);
+        OcrProviderTrustPairCoordinator.Recover(f.Manifest, f.Store, (_, _) => true);
         Assert.True(File.Exists(f.Manifest)); Assert.True(File.Exists(f.Store));
         Assert.False(File.Exists(OcrProviderTrustPairCoordinator.JournalPath(f.Manifest, f.Store)));
     }
@@ -27,12 +24,12 @@ public sealed class OcrProviderTrustCliTests
     public void MismatchedSecondaryJournalFailsClosedAndPreservesExternalBytes()
     {
         using var f = Fixture();
-        var owned = Encoding.UTF8.GetBytes("owned"); File.WriteAllBytes(f.Store, owned);
-        OcrProviderTrustPairCoordinator.WriteJournal(f.Manifest, f.Store, owned, "crashed");
+        var owned = Encoding.UTF8.GetBytes("owned"); var primary = Encoding.UTF8.GetBytes("manifest"); File.WriteAllBytes(f.Manifest, primary); File.WriteAllBytes(f.Store, owned);
+        OcrProviderTrustPairCoordinator.WriteJournal(f.Manifest, f.Store, owned, "crashed", "pair", primary);
         var external = Encoding.UTF8.GetBytes("external"); File.WriteAllBytes(f.Store, external);
         var journal = OcrProviderTrustPairCoordinator.JournalPath(f.Manifest, f.Store);
         var error = Assert.Throws<IOException>(() => OcrProviderTrustPairCoordinator.Recover(f.Manifest, f.Store));
-        Assert.Contains("does not match", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("hashes", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(external, File.ReadAllBytes(f.Store)); Assert.True(File.Exists(journal));
     }
 
@@ -72,7 +69,7 @@ public sealed class OcrProviderTrustCliTests
         using var f = Fixture();
         var secondary = Encoding.UTF8.GetBytes("owned-secondary");
         File.WriteAllBytes(f.Manifest, [9, 8, 7]);
-        OcrProviderTrustPairCoordinator.WriteJournal(f.Manifest, f.Store, secondary, "primary-only");
+        OcrProviderTrustPairCoordinator.WriteJournal(f.Manifest, f.Store, secondary, "primary-only", "pair", [9, 8, 7]);
         var journal = OcrProviderTrustPairCoordinator.JournalPath(f.Manifest, f.Store);
         var error = Assert.Throws<IOException>(() => OcrProviderTrustPairCoordinator.Recover(f.Manifest, f.Store));
         Assert.Contains("incomplete", error.Message, StringComparison.OrdinalIgnoreCase);
@@ -161,14 +158,17 @@ public sealed class OcrProviderTrustCliTests
         var request = IssueRequest(f, f.Manifest, f.Store);
         var code = OcrProviderTrustCli.Run(["--mode", "issue", "--request", "-", "--format", "json"], new StringReader(request), output, error,
             new OcrProviderTrustPairHooks(() => throw new IOException("injected")));
-        Assert.Equal(2, code); Assert.False(File.Exists(f.Manifest)); Assert.False(File.Exists(f.Store));
-        Assert.Empty(Directory.GetFiles(f.Trust, "*.journal.json"));
+        Assert.Equal(2, code); Assert.False(File.Exists(f.Manifest)); Assert.True(File.Exists(f.Store));
+        var storeBytes = File.ReadAllBytes(f.Store);
+        Assert.Single(Directory.GetFiles(f.Trust, "*.journal.json"));
         Assert.Empty(Directory.GetFiles(f.Trust, "*.tmp"));
         output.GetStringBuilder().Clear(); error.GetStringBuilder().Clear();
         var verify = OcrProviderTrustCli.Run(["--mode", "verify", "--request", "-", "--format", "json"], new StringReader(VerifyRequest(f)), output, error);
         Assert.Equal(2, verify);
+        Assert.Equal(storeBytes, File.ReadAllBytes(f.Store)); Assert.Single(Directory.GetFiles(f.Trust, "*.journal.json"));
         output.GetStringBuilder().Clear(); error.GetStringBuilder().Clear();
-        Assert.Equal(0, OcrProviderTrustCli.Run(["--mode", "issue", "--request", "-"], new StringReader(IssueRequest(f, f.Manifest, f.Store)), output, error));
+        Assert.NotEqual(0, OcrProviderTrustCli.Run(["--mode", "issue", "--request", "-"], new StringReader(IssueRequest(f, f.Manifest, f.Store)), output, error));
+        Assert.Equal(storeBytes, File.ReadAllBytes(f.Store)); Assert.Single(Directory.GetFiles(f.Trust, "*.journal.json"));
     }
 
     [Fact]

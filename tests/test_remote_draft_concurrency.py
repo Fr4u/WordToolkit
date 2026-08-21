@@ -263,7 +263,7 @@ async def test_quality_snapshot_reports_captured_version_during_later_mutation(
             "validate-v0-snap_*.docx"
         )
     )
-    assert len(snapshots) == 1
+    assert len(snapshots) == 0
     assert record.version == 1
 
 
