@@ -4344,7 +4344,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         },
         "edits": {
           "source": "external_input"
@@ -4358,8 +4358,7 @@
           "live_document_id": "<bind:live_document_id>",
           "expected_version": {
             "type": "integer",
-            "source": "binding",
-            "minimum": 0
+            "source": "live_response.live_version"
           },
           "edits": []
         }
@@ -4377,7 +4376,19 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
+          }
+        },
+        "STAGING_TARGET_DRIFT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "live_document_id": "live_document_id"
+          }
+        },
+        "ROLLBACK_FAILED": {
+          "next_action": "disconnect_live_word_document",
+          "bindings": {
+            "live_document_id": "live_document_id"
           }
         }
       },
@@ -4565,7 +4576,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -4577,7 +4588,7 @@
           "operations": [],
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -4591,7 +4602,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -4645,7 +4656,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -4657,7 +4668,7 @@
           "search_text": "<provide:search_text>",
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -4669,7 +4680,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -4721,7 +4732,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -4733,7 +4744,7 @@
           "action": "<provide:action>",
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -4745,7 +4756,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -4847,7 +4858,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -4859,7 +4870,7 @@
           "undo_token": "<bind:undo_token>",
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -4871,7 +4882,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -4893,7 +4904,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -4905,7 +4916,7 @@
           "text": "<provide:text>",
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -4917,7 +4928,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -4939,7 +4950,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -4951,7 +4962,7 @@
           "selection_token": "<bind:selection_token>",
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -4963,7 +4974,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -4985,7 +4996,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -4997,7 +5008,7 @@
           "rows": [],
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5009,7 +5020,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5062,7 +5073,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5075,7 +5086,7 @@
           "formulas": [],
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5090,7 +5101,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5112,7 +5123,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5124,7 +5135,7 @@
           "table_index": "<provide:table_index>",
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5139,7 +5150,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5161,7 +5172,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5173,7 +5184,7 @@
           "items": [],
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5188,7 +5199,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5238,7 +5249,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5250,7 +5261,7 @@
           "bookmarks": [],
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5262,7 +5273,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5310,7 +5321,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5322,7 +5333,7 @@
           "fields": [],
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5334,7 +5345,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5353,7 +5364,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         },
         "selection_token": {
           "source": "external_input"
@@ -5367,8 +5378,7 @@
           "live_document_id": "<bind:live_document_id>",
           "expected_version": {
             "type": "integer",
-            "source": "binding",
-            "minimum": 0
+            "source": "live_response.live_version"
           },
           "selection_token": "<bind:selection_token>"
         }
@@ -5386,7 +5396,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5405,7 +5415,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5416,8 +5426,7 @@
           "live_document_id": "<bind:live_document_id>",
           "expected_version": {
             "type": "integer",
-            "source": "binding",
-            "minimum": 0
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5434,7 +5443,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5453,7 +5462,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5464,8 +5473,7 @@
           "live_document_id": "<bind:live_document_id>",
           "expected_version": {
             "type": "integer",
-            "source": "binding",
-            "minimum": 0
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5482,7 +5490,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5501,7 +5509,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5512,8 +5520,7 @@
           "live_document_id": "<bind:live_document_id>",
           "expected_version": {
             "type": "integer",
-            "source": "binding",
-            "minimum": 0
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5530,7 +5537,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5549,7 +5556,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5560,8 +5567,7 @@
           "live_document_id": "<bind:live_document_id>",
           "expected_version": {
             "type": "integer",
-            "source": "binding",
-            "minimum": 0
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5578,7 +5584,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5597,7 +5603,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5608,8 +5614,7 @@
           "live_document_id": "<bind:live_document_id>",
           "expected_version": {
             "type": "integer",
-            "source": "binding",
-            "minimum": 0
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5626,7 +5631,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5645,7 +5650,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5656,8 +5661,7 @@
           "live_document_id": "<bind:live_document_id>",
           "expected_version": {
             "type": "integer",
-            "source": "binding",
-            "minimum": 0
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5674,7 +5678,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5693,7 +5697,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5704,8 +5708,7 @@
           "live_document_id": "<bind:live_document_id>",
           "expected_version": {
             "type": "integer",
-            "source": "binding",
-            "minimum": 0
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5722,7 +5725,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5744,7 +5747,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5756,7 +5759,7 @@
           "file_path": "<bind:file_path>",
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5768,7 +5771,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5790,7 +5793,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5802,7 +5805,7 @@
           "text": "<provide:text>",
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5814,7 +5817,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5836,7 +5839,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5848,7 +5851,7 @@
           "text": "<provide:text>",
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5860,7 +5863,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5882,7 +5885,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5894,7 +5897,7 @@
           "kind": "<provide:kind>",
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5906,7 +5909,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5928,7 +5931,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5940,7 +5943,7 @@
           "value": "<provide:value>",
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5952,7 +5955,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -5974,7 +5977,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -5986,7 +5989,7 @@
           "equations": [],
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -5998,7 +6001,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -6073,7 +6076,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         },
         "equation_index": {
           "source": "inspect_live_word_equations.equations[].equation_index"
@@ -6093,8 +6096,7 @@
           "live_document_id": "<bind:live_document_id>",
           "expected_version": {
             "type": "integer",
-            "source": "binding",
-            "minimum": 0
+            "source": "live_response.live_version"
           },
           "equation_index": "<provide:equation_index>",
           "equation_token": "<bind:equation_token>",
@@ -6112,7 +6114,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -6137,7 +6139,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -6149,7 +6151,7 @@
           "operations": [],
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -6161,6 +6163,12 @@
         "predicates": []
       },
       "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        },
         "STAGING_TARGET_DRIFT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
@@ -6258,7 +6266,7 @@
           "source": "lifecycle_action"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -6269,7 +6277,7 @@
           "live_document_id": "<bind:live_document_id>",
           "expected_version": {
             "type": "integer",
-            "source": "live_response.version"
+            "source": "live_response.live_version"
           }
         }
       },
@@ -6281,7 +6289,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },
@@ -6303,7 +6311,7 @@
           "source": "external_input"
         },
         "expected_version": {
-          "source": "live_response.version"
+          "source": "live_response.live_version"
         }
       },
       "example": {
@@ -6315,8 +6323,7 @@
           "save_changes": "<provide:save_changes>",
           "expected_version": {
             "type": "integer",
-            "source": "binding",
-            "minimum": 0
+            "source": "live_response.live_version"
           }
         }
       },
@@ -6328,7 +6335,7 @@
         "VERSION_CONFLICT": {
           "next_action": "inspect_live_word_document",
           "bindings": {
-            "expected_version": "latest.version"
+            "expected_version": "live_response.live_version"
           }
         }
       },

@@ -1,8 +1,30 @@
 # WordToolkit 0.60.1 release qualification
 
-Status: local qualified10 record. Git publication and PR checks are not included as passed evidence.
+Current checkpoint: qualified12 `0.60.1+codex.20260821123719`; q10/q11 are historical.
+The timed live-full-capabilities Word gate passed 59/59, including OpenXML validation, save and reconnect.
 
-## Qualified10 candidate
+Qualified11 checkpoint: `0.60.1+codex.20260821123012`, native 587, LibreOffice 12,
+Python 1341/16 skipped; q10 atomic-writer evidence remains historical. Q11 adds
+expected_version/live_version binding, additive recovery guidance and corrected view placement.
+
+Status: local qualified12 record. Git publication and PR checks are not included as passed evidence.
+
+## Qualified12 candidate
+
+- Version: `0.60.1+codex.20260821123719`.
+- Native MCP surface: 15 public tools, 149 native actions; guidance 149/149.
+- A/B trees: `dist/release-0.60.1-qualified12-a` and `dist/release-0.60.1-qualified12-b`; 199 files and 91,087,141 expanded bytes each, map SHA-256 `BC5B9B6B5DC24D4EC25472A0D605C889A4120391DB268ACF3B293E5944AA1A36`.
+- ZIPs: 37,867,739 bytes each, SHA-256 `F66DB4672A982D36F4A170EBC48E39FCD8054A67E418778E7F42CFDDAE36203D`.
+- Native executable SHA-256: `A7A6BD839C81BE14796D503CD85E01CACE6AE486114C6ED2FE7AE6C78ADA9ED9`.
+- Native DLL SHA-256: `9E72259FDF947362BD89F459AC1CB1C17EE6932FF68539219FBBC748D7B42E62`.
+- Installed cache has matching 199-file relative-map parity and q12 version.
+- Test counts: Python 1341 passed / 16 intentional skips; Engine 779; Native 587; LibreOffice 12.
+
+## Real qualified12 evidence
+
+The timed `live-full-capabilities` gate passed 59/59, with 15/149 live action coverage and guidance 149/149. OpenXML validation, save and reconnect passed. Integral x2, Style x1 and Rollback x1 passed after the test-only owned-app fix; Word process count was 0, with the earlier rollback evidence 3/3. Integral fixture hygiene was corrected for the test corpus only and is not a production behavior change.
+
+## Historical qualified10 candidate
 
 - Version: `0.60.1+codex.20260821114902`.
 - Native MCP surface: 15 public tools, 149 native actions; metadata and first-call guidance are 149/149.
@@ -13,15 +35,15 @@ Status: local qualified10 record. Git publication and PR checks are not included
 - Installed cache: `C:\Users\Admin\.codex\plugins\cache\personal\wordtoolkit\0.60.1+codex.20260821114902`; artifact/source/cache all have 199 files and relative-map SHA-256 `026b5fb...`.
 - Installed `skills/wordtoolkit/SKILL.md` SHA-256: `348EA65375847E1A953DFF3C2D685951729839CADED574C66B621ADC9A54ECFE`.
 - Test counts: Python 1341 passed / 16 intentional skips; Engine 779; Native 585; LibreOffice 12.
-- Guidance artifact: 149/149, SHA-256 `D94287...` (full hash is retained in the current guidance evidence).
+- Guidance artifact: 149/149, SHA-256 `6DD3C13A55FC1748F206F246A2797A1278F2DE5708BD9A84EA0FE737C601C090`.
 
-## Real qualified10 evidence
+## Historical qualified10 evidence
 
 The prior real gate remains historical qualified9 evidence: `dist/acceptance-0.60.1-qualified9-final/acceptance-report-qualified9-final.json` records 59/59 positive live actions. The qualified10 production delta is the package-writer atomic hard-link no-clobber race fix, covered by package-level evidence. The exact qualified10 real-Word gate was not run because the pre-existing user Word document safety stop blocked it; q10 therefore makes no live-Word PASS claim. The documented live boundary remains 15/149, with the three retained fully-qualified-name proofs from q9; no claim is made that the 149-action catalog was fully live-exercised.
 
 ## Installation boundary
 
-Installation **passed**: read-only inspection proved artifact/source/cache parity at 199 files, expanded-map SHA `026B5FB44FD054EEC8F4A586AA0FDCCB96484271AAAE8E77884AC96EE0257175`, cache version `0.60.1+codex.20260821114902`, runtime capabilities and guidance 149/149. Old personal-cache processes stopped: 0.
+Historical q10 installation evidence recorded read-only artifact/source/cache parity at 199 files; it is not the current q12 cache claim.
 
 ## Limits and history
 
@@ -31,10 +53,10 @@ ManualFix remains a 25-operation boundary. SmartArt and feature-behavior probes 
 
 | Requirement | Evidence |
 |---|---|
-| Version/catalog | `plugin/wordtoolkit/.codex-plugin/plugin.json`; `schemas/mcp-tools-local.v1.json`; qualified10 runtime |
-| Deterministic package | `dist/release-0.60.1-qualified10-a`, `dist/release-0.60.1-qualified10-b`, `dist/qualified10-a.zip`, `dist/qualified10-b.zip` |
-| Guidance parity | current generated guidance artifact, 149/149, SHA prefix `D94287...` |
-| Real Word gate | q9 historical report `dist/acceptance-0.60.1-qualified9-final/acceptance-report-qualified9-final.json` (59/59); q10 gate deferred by the pre-existing user-document safety stop |
-| Installation | Passed: artifact/source/cache parity, 199-file map SHA `026B5FB4...`, exact q10 cache version/path, runtime capabilities and guidance 149/149 |
+| Version/catalog | `plugin/wordtoolkit/.codex-plugin/plugin.json`; `schemas/mcp-tools-local.v1.json`; qualified12 runtime |
+| Deterministic package | q12 A/B package paths and hashes above |
+| Guidance parity | current generated guidance artifact, 149/149, SHA-256 `6DD3C13A55FC1748F206F246A2797A1278F2DE5708BD9A84EA0FE737C601C090` |
+| Real Word gate | q12 timed live-full-capabilities gate: 59/59, OpenXML/save/reconnect passed; q10/q11 historical |
+| Installation | Passed: artifact/source/cache parity, 199-file map SHA `BC5B9B6B...`, exact q12 cache version/path, runtime capabilities and guidance 149/149 |
 
 Additional local gates include Ruff/format, metadata and dispatcher 149/149, schema export, deterministic A/B ZIP parity, and the local Word interop workflow. GitHub execution after push is not claimed.

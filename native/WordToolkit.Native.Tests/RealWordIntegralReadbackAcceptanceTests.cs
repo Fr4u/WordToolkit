@@ -37,7 +37,19 @@ I&=\operatorname{Im}\left[e^{(2+3i)x}\left(\frac{x^3}{2+3i}-\frac{3x^2}{(2+3i)^2
         );
         string? documentId = null;
         var version = 0;
-        await using var host = new WordComHost();
+        object? ownedApplication = null;
+        object CreateApplication(bool launchIfMissing)
+        {
+            if (ownedApplication is not null) return ownedApplication;
+            if (!launchIfMissing) throw new InvalidOperationException("Dedicated Word application was not created.");
+            var wordType = Type.GetTypeFromProgID("Word.Application", throwOnError: true)
+                ?? throw new InvalidOperationException("Microsoft Word ProgID is unavailable.");
+            ownedApplication = Activator.CreateInstance(wordType)
+                ?? throw new InvalidOperationException("Could not create dedicated Word application.");
+            return ownedApplication;
+        }
+        CreateApplication(true);
+        await using var host = new WordComHost(CreateApplication);
         var service = new WordLiveService(host);
         try
         {
@@ -72,7 +84,7 @@ I&=\operatorname{Im}\left[e^{(2+3i)x}\left(\frac{x^3}{2+3i}-\frac{3x^2}{(2+3i)^2
                         diagnosticDocument.Close(0);
                     }
                 },
-                launchIfMissing: true
+                launchIfMissing: false
             );
             Assert.Equal(canonical.Expected, canonical.Actual);
             using (var created = await Call(
@@ -217,6 +229,14 @@ I&=\operatorname{Im}\left[e^{(2+3i)x}\left(\frac{x^3}{2+3i}-\frac{3x^2}{(2+3i)^2
                         return true;
                     }
                 );
+            }
+            catch
+            {
+                // Preserve the primary acceptance failure.
+            }
+            try
+            {
+                await host.InvokeAsync(application => { application.Quit(0); return true; }, launchIfMissing: false);
             }
             catch
             {

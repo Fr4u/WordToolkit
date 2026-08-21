@@ -157,6 +157,22 @@ public sealed class CapabilityManifestTests
     }
 
     [Fact]
+    public void CapabilitiesSchemaViewIsAcceptedAndInvalidViewIsRejected()
+    {
+        var catalog = ToolCatalog.LoadNativeWordTools();
+        using var schema = JsonDocument.Parse("{\"view\":\"schema\"}");
+        Assert.Equal(
+            "application/schema+json",
+            catalog.GetCapabilities(schema.RootElement)["media_type"]!.GetValue<string>()
+        );
+
+        using var invalid = JsonDocument.Parse("{\"view\":\"bogus\"}");
+        var error = Assert.Throws<NativeToolException>(() => catalog.GetCapabilities(invalid.RootElement));
+        Assert.Equal("INVALID_INPUT", error.ErrorCode);
+        Assert.Contains("manifest", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CliReturnsTheSameContractAndStableUsageExitWithoutStartingWord()
     {
         var output = new StringWriter();

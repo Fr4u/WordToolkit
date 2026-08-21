@@ -305,6 +305,17 @@ internal sealed class McpServer
             {
                 observation = BeginObservation(name);
                 var root = argumentsDocument.RootElement;
+                foreach (var property in root.EnumerateObject())
+                {
+                    if (property.Name is not ("query" or "max_results"))
+                    {
+                        throw new NativeToolException(
+                            "INVALID_INPUT",
+                            "Unknown search argument",
+                            new { argument = property.Name }
+                        );
+                    }
+                }
                 var query = root.TryGetProperty("query", out var queryNode)
                     ? queryNode.GetString() ?? ""
                     : "";

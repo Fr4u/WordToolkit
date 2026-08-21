@@ -65,10 +65,11 @@ def main() -> None:
             bindings["live_document_id"] = {"source": "lifecycle_action"}
         if "expected_version" in all_props:
             prereq.append("fresh expected_version from live response")
-            bindings["expected_version"] = {"source": "live_response.version"}
-            ex.setdefault(
-                "expected_version", {"type": "integer", "source": "live_response.version"}
-            )
+            bindings["expected_version"] = {"source": "live_response.live_version"}
+            ex["expected_version"] = {
+                "type": "integer",
+                "source": "live_response.live_version",
+            }
         if "local_path" in required:
             prereq.append("explicit existing local_path")
         if "expected_package_fingerprint" in all_props:
@@ -113,13 +114,16 @@ def main() -> None:
         ]
         if name.startswith(("plan_ooxml_", "apply_ooxml_")) and "package" in name:
             prereq = ["exact package_fingerprint from the matching inspect/query action"]
-        recovery = ov.get("recovery", {})
-        if not recovery and ("expected_version" in all_props or name.startswith("apply_live_")):
+        # Recovery guidance is additive: generic safety paths must remain present
+        # even when an action supplies custom recovery overrides. Custom entries
+        # take precedence only for the same key.
+        recovery = {}
+        if "expected_version" in all_props or name.startswith("apply_live_"):
             recovery["VERSION_CONFLICT"] = {
                 "next_action": "inspect_live_word_document",
-                "bindings": {"expected_version": "latest.version"},
+                "bindings": {"expected_version": "live_response.live_version"},
             }
-        if not recovery and "expected_package_fingerprint" in all_props:
+        if "expected_package_fingerprint" in all_props:
             recovery["VERSION_CONFLICT"] = {
                 "next_action": "inspect_ooxml_package",
                 "bindings": {"expected_package_fingerprint": "package_fingerprint"},
@@ -139,16 +143,23 @@ def main() -> None:
                 },
             )
         if name.startswith("apply_live_"):
-            recovery = recovery or {
-                "STAGING_TARGET_DRIFT": {
+            recovery.setdefault(
+                "STAGING_TARGET_DRIFT",
+                {
                     "next_action": "inspect_live_word_document",
                     "bindings": {"live_document_id": "live_document_id"},
                 },
-                "ROLLBACK_FAILED": {
+            )
+            recovery.setdefault(
+                "ROLLBACK_FAILED",
+                {
                     "next_action": "disconnect_live_word_document",
                     "bindings": {"live_document_id": "live_document_id"},
                 },
-            }
+            )
+        # Explicit overrides win while retaining all generic defaults.
+        for key, value in ov.get("recovery", {}).items():
+            recovery[key] = value
         entries.append(
             {
                 "name": name,
@@ -172,7 +183,7 @@ def main() -> None:
         if json.loads(a.output.read_text(encoding="utf-8")) != doc:
             raise SystemExit("guidance drift")
     else:
-        a.output.write_text(text, encoding="utf-8")
+        a.output.write_text(text, encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

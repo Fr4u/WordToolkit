@@ -83,6 +83,18 @@ public sealed class McpServerTests
             tools.EnumerateArray(),
             tool => tool.GetProperty("name").GetString() == "get_wordtoolkit_capabilities"
         );
+        var searchSchema = tools.EnumerateArray().Single(
+            tool => tool.GetProperty("name").GetString() == "search_wordtoolkit_actions"
+        ).GetProperty("inputSchema");
+        Assert.False(searchSchema.GetProperty("properties").TryGetProperty("view", out _));
+        var capabilitySchema = tools.EnumerateArray().Single(
+            tool => tool.GetProperty("name").GetString() == "get_wordtoolkit_capabilities"
+        ).GetProperty("inputSchema");
+        Assert.Equal(
+            new[] { "manifest", "schema" },
+            capabilitySchema.GetProperty("properties").GetProperty("view").GetProperty("enum")
+                .EnumerateArray().Select(item => item.GetString()).ToArray()
+        );
         foreach (
             var required in new[]
             {
@@ -175,6 +187,23 @@ public sealed class McpServerTests
         {
             response.Dispose();
         }
+    }
+
+    [Fact]
+    public async Task SearchGatewayRejectsCapabilityViewArgument()
+    {
+        const string input =
+            "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"search_wordtoolkit_actions\",\"arguments\":{\"query\":\"image\",\"view\":\"schema\"}}}\n";
+        var output = new StringWriter();
+        var server = new McpServer(
+            new StringReader(input), output, ToolCatalog.LoadNativeWordTools(), new FakeToolHandler()
+        );
+        await server.RunAsync();
+        using var response = JsonDocument.Parse(output.ToString());
+        var error = response.RootElement.GetProperty("result").GetProperty("structuredContent")
+            .GetProperty("error");
+        Assert.Equal("INVALID_INPUT", error.GetProperty("code").GetString());
+        Assert.Contains("view", error.GetProperty("details").GetProperty("argument").GetString());
     }
 
     [Fact]

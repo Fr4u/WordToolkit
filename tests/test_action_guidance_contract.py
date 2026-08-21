@@ -28,6 +28,12 @@ def test_guidance_contract_and_determinism(tmp_path):
             t.get("outputSchema", {}).get("required", [])
         )
         assert not any(v == 0 for v in args.values())
+        if "expected_version" in t.get("inputSchema", {}).get("properties", {}):
+            assert g["bindings"]["expected_version"] == {"source": "live_response.live_version"}
+            assert g["example"]["arguments"]["expected_version"] == {
+                "type": "integer",
+                "source": "live_response.live_version",
+            }
     out = tmp_path / "a.json"
     subprocess.check_call(
         [sys.executable, str(ROOT / "scripts/generate_action_guidance.py"), "--output", str(out)]
@@ -48,6 +54,10 @@ def test_live_apply_guidance_has_terminal_recovery_paths():
     guide = load(ROOT / "schemas/action-guidance.v1.json")
     action = next(x for x in guide["actions"] if x["name"] == "apply_live_word_operations")
     assert action["recovery"] == {
+        "VERSION_CONFLICT": {
+            "next_action": "inspect_live_word_document",
+            "bindings": {"expected_version": "live_response.live_version"},
+        },
         "STAGING_TARGET_DRIFT": {
             "next_action": "inspect_live_word_document",
             "bindings": {"live_document_id": "live_document_id"},
@@ -57,6 +67,7 @@ def test_live_apply_guidance_has_terminal_recovery_paths():
             "bindings": {"live_document_id": "live_document_id"},
         },
     }
+    assert len(action["recovery"]) == 3
     assert action["recovery"]["ROLLBACK_FAILED"]["next_action"] != "apply_live_word_operations"
 
 

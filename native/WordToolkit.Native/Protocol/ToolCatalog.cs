@@ -375,14 +375,6 @@ internal sealed partial class ToolCatalog
                         ["type"] = "string",
                         ["description"] = "Capability keywords, for example image or review.",
                     },
-                    ["view"] = new JsonObject
-                    {
-                        ["type"] = "string",
-                        ["enum"] = new JsonArray("manifest", "schema"),
-                        ["default"] = "manifest",
-                        ["description"] =
-                            "Return a manifest page or the exact embedded capability JSON Schema text.",
-                    },
                     ["max_results"] = new JsonObject
                     {
                         ["type"] = "integer",
@@ -476,6 +468,14 @@ internal sealed partial class ToolCatalog
                         ["minimum"] = 1,
                         ["maximum"] = CapabilityManifest.MaxPageSize,
                         ["default"] = CapabilityManifest.DefaultPageSize,
+                    },
+                    ["view"] = new JsonObject
+                    {
+                        ["type"] = "string",
+                        ["enum"] = new JsonArray("manifest", "schema"),
+                        ["default"] = "manifest",
+                        ["description"] =
+                            "Return a manifest page or the exact embedded capability JSON Schema text.",
                     },
                 },
                 ["additionalProperties"] = false,

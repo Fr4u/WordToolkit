@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Qualified q12 `0.60.1+codex.20260821123719`: 199-file, 91,087,141-byte A/B parity
+  (map SHA `BC5B9B6...`), 37,867,739-byte ZIP (SHA `F66DB467...`), executable
+  `A7A6BD83...`, native DLL `9E72259F...`, Engine 779, Native 587, Python 1341/16
+  skipped and LibreOffice 12; installed artifact/source/cache parity matches.
+  The timed live-full-capabilities Word gate passed 59/59 with OpenXML validation,
+  save and reconnect; coverage remains 15/149 with guidance 149/149. Integral x2,
+  Style x1 and Rollback x1 passed after a test-only owned-app fix; Word process count
+  was 0. Integral fixture hygiene was test-corpus-only, not a production change.
+
+- Qualified local 0.60.1 candidate `0.60.1+codex.20260821123012` as qualified11: additive
+  recovery guidance, expected-version/live-version binding and corrected view placement;
+  Python 1341/16 skipped, Native 587 and LibreOffice 12. Deterministic native A/B package
+  evidence is recorded in `docs/RELEASE-QUALIFICATION-0.60.1.md`.
+
 - Added generated first-call guidance for all 149/149 native actions (search, inspect,
   bind/acquire, example, execute, success and recovery). No public tools were added.
 - Qualified local 0.60.1 candidate `0.60.1+codex.20260821114902` as qualified10: deterministic
