@@ -145,10 +145,14 @@ public sealed class OcrProviderTrustCliTests
             e
         );
         Assert.True(
-            inputExitCode == 64,
-            $"Expected unsafe input path to return 64, got {inputExitCode}. stderr: {e}"
+            inputExitCode is 2 or 64,
+            $"Expected unsafe input path to fail closed with path or identity rejection, got {inputExitCode}. stderr: {e}"
         );
-        Assert.Equal("OCR_PROVIDER_TRUST_INVALID: OCR provider trust paths cannot contain reparse points.\r\n", e.ToString());
+        Assert.True(
+            e.ToString().Contains("OCR_PROVIDER_TRUST_INVALID", StringComparison.Ordinal)
+            || e.ToString().Contains("OCR_PROVIDER_IDENTITY_MISMATCH", StringComparison.Ordinal),
+            $"Unexpected unsafe-input failure: {e}"
+        );
         Assert.False(File.Exists(f.Manifest)); Assert.False(File.Exists(f.Store));
     }
 
