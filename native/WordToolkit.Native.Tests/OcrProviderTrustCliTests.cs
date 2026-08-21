@@ -88,6 +88,69 @@ public sealed class OcrProviderTrustCliTests
                 new OcrProviderTrustCli.RunOptions(null, _ => DriveType.Network)));
             Assert.Contains("not local", error.ToString(), StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void JournalIsDurableBeforeSecondaryPublicationAndCrashRecovers()
+    {
+        using var f = Fixture();
+        var journal = OcrProviderTrustPairCoordinator.JournalPath(f.Manifest, f.Store);
+        var hook = new OcrProviderTrustPairHooks(
+            BeforeSecondaryPublish: () =>
+            {
+                Assert.True(File.Exists(journal));
+                Assert.False(File.Exists(f.Store));
+                throw new IOException("injected crash before secondary publication");
+            });
+        var o = new StringWriter(); var e = new StringWriter();
+        Assert.Equal(2, OcrProviderTrustCli.Run(["--mode", "issue", "--request", "-"], new StringReader(IssueRequest(f, f.Manifest, f.Store)), o, e, hook));
+        Assert.False(File.Exists(f.Manifest)); Assert.False(File.Exists(f.Store)); Assert.False(File.Exists(journal));
+        o.GetStringBuilder().Clear(); e.GetStringBuilder().Clear();
+        Assert.Equal(0, OcrProviderTrustCli.Run(["--mode", "issue", "--request", "-"], new StringReader(IssueRequest(f, f.Manifest, f.Store)), o, e));
+        Assert.True(File.Exists(f.Manifest)); Assert.True(File.Exists(f.Store));
+    }
+
+    [Fact]
+    public void SymlinkedOutputDirectoryAndInputAreRejectedWithoutTouchingTarget()
+    {
+        using var f = Fixture();
+        var external = Path.Combine(f.Root, "external"); Directory.CreateDirectory(external);
+        var link = Path.Combine(f.Root, "linked");
+        try { Directory.CreateSymbolicLink(link, external); }
+        catch (PlatformNotSupportedException) { return; }
+        catch (UnauthorizedAccessException) { return; }
+        catch (IOException ex) when (ex.Message.Contains("uprawnie", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("permission", StringComparison.OrdinalIgnoreCase)) { return; }
+        var target = Path.Combine(external, "manifest.json");
+        var o = new StringWriter(); var e = new StringWriter();
+        var req = IssueRequest(f, Path.Combine(link, "manifest.json"), Path.Combine(link, "store.json"));
+        Assert.Equal(64, OcrProviderTrustCli.Run(["--mode", "issue", "--request", "-"], new StringReader(req), o, e));
+        Assert.False(File.Exists(target)); Assert.Empty(Directory.GetFiles(external));
+        var inputLink = Path.Combine(f.Root, "input-link");
+        try { File.CreateSymbolicLink(inputLink, f.Executable); }
+        catch (PlatformNotSupportedException) { return; }
+        catch (UnauthorizedAccessException) { return; }
+        catch (IOException ex) when (ex.Message.Contains("uprawnie", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("permission", StringComparison.OrdinalIgnoreCase)) { return; }
+        o.GetStringBuilder().Clear(); e.GetStringBuilder().Clear();
+        var bad = IssueRequest(f, f.Manifest, f.Store).Replace(f.Executable, inputLink, StringComparison.Ordinal);
+        Assert.Equal(64, OcrProviderTrustCli.Run(["--mode", "issue", "--request", "-"], new StringReader(bad), o, e));
+        Assert.False(File.Exists(f.Manifest)); Assert.False(File.Exists(f.Store));
+    }
+
+    [Fact]
+    public void ReaderRejectsSymlinkedTrustParentBeforeCreatingLockOrJournal()
+    {
+        using var f = Fixture();
+        var external = Path.Combine(f.Root, "reader-external"); Directory.CreateDirectory(external);
+        var link = Path.Combine(f.Root, "reader-linked");
+        try { Directory.CreateSymbolicLink(link, external); }
+        catch (PlatformNotSupportedException) { return; }
+        catch (UnauthorizedAccessException) { return; }
+        catch (IOException ex) when (ex.Message.Contains("uprawnie", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("permission", StringComparison.OrdinalIgnoreCase)) { return; }
+        var before = Directory.GetFileSystemEntries(external).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        var manifest = Path.Combine(link, "manifest.json"); var store = Path.Combine(link, "store.json");
+        var error = Assert.ThrowsAny<Exception>(() => new OcrProviderTrustPolicy(manifest, store).Authorize(f.Executable, f.Models, ["eng"], CancellationToken.None));
+        Assert.Contains("reparse", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(before, Directory.GetFileSystemEntries(external).OrderBy(x => x, StringComparer.Ordinal).ToArray());
+    }
     [Fact]
     public void SecondaryPublishFailureLeavesStoreOnlyAndAuthorizationFailsClosed()
     {
@@ -104,6 +167,17 @@ public sealed class OcrProviderTrustCliTests
         Assert.Equal(2, verify);
         output.GetStringBuilder().Clear(); error.GetStringBuilder().Clear();
         Assert.Equal(0, OcrProviderTrustCli.Run(["--mode", "issue", "--request", "-"], new StringReader(IssueRequest(f, f.Manifest, f.Store)), output, error));
+    }
+
+    [Fact]
+    public void JournalWriteFailureLeavesNeitherOutput()
+    {
+        using var f = Fixture();
+        var o = new StringWriter(); var e = new StringWriter();
+        var hook = new OcrProviderTrustPairHooks(BeforeJournalWrite: () => throw new IOException("journal unavailable"));
+        Assert.Equal(2, OcrProviderTrustCli.Run(["--mode", "issue", "--request", "-"], new StringReader(IssueRequest(f, f.Manifest, f.Store)), o, e, hook));
+        Assert.False(File.Exists(f.Manifest)); Assert.False(File.Exists(f.Store));
+        Assert.Empty(Directory.GetFiles(f.Trust, "*.journal.json")); Assert.Empty(Directory.GetFiles(f.Trust, "*.tmp"));
     }
 
     [Fact]

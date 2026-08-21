@@ -1,31 +1,31 @@
 # WordToolkit 0.60.1 release qualification
 
-Current checkpoint: qualified17 `0.60.1+codex.20260821171101`; q16 and older are historical.
-The timed live-full-capabilities Word gate passed 59/59, with 15/149 live coverage and guidance 149/149; Word exited naturally after delayed shutdown and final Word count was 0.
+Current checkpoint: qualified18 `0.60.1+codex.20260821181314`; q17 and older are historical.
+Q18 inherits q17's live-full-capabilities evidence (59/59, 15/149, guidance 149/149, combined 5/5, Word 0); q18's delta is OCR/security-only and was not rerun through Word.
 
 Qualified11 checkpoint: `0.60.1+codex.20260821123012`, native 587, LibreOffice 12,
 Python 1341/16 skipped; q10 atomic-writer evidence remains historical. Q11 adds
 expected_version/live_version binding, additive recovery guidance and corrected view placement.
 
-Status: local qualified17 record. Git publication and PR checks are not included as passed evidence.
+Status: local qualified18 record. Git publication and PR checks are not included as passed evidence.
 
-## Qualified17 candidate
+## Qualified18 candidate
 
-- Version: `0.60.1+codex.20260821171101`.
+- Version: `0.60.1+codex.20260821181314`.
 - Native MCP surface: 15 public tools, 149 native actions; guidance 149/149.
-- A/B trees: `dist/release-0.60.1-qualified17-a` and `dist/release-0.60.1-qualified17-b`; 199 files and 91,100,453 expanded bytes each; artifact/source/cache parity passed.
-- ZIPs: 37,872,116 bytes each, SHA-256 `7CD202F4336B2720C2A8C6F8D14A2139CC64C6741120280B49CC229F0489A843`.
-- Native executable SHA-256: `C030E92254630B5780165AE25F3610482C873683BF2DEBFB4FC800C26B4E8411`.
-- Native DLL SHA-256: `C60F602196F9CA8D4DF6BEB6B3679ACB1536330D30D31C3E290764EDD896D57B`.
-- Test counts: Python 1343 passed / 16 intentional skips; Engine 780; Native 609; LibreOffice 12.
+- A/B trees: `dist/release-0.60.1-qualified18-a` and `dist/release-0.60.1-qualified18-b`; 199 files and 91,102,501 expanded bytes each; artifact/source/cache parity passed.
+- ZIPs: 37,872,587 bytes each, SHA-256 `A63F7990F96EC5CF64ABB51D91283027872750F743AE9B3B395515F5E3730DA2`.
+- Native executable SHA-256: `BD4677F8C647B1E19C3206C8E0B53FECACF6AA813B96D40184EE4245C49BBC6B`.
+- Native DLL SHA-256: `70C31959BBE833CBCA6C102EE3E8DA6529D78E0A71139A002D8489FAC2CC1038`.
+- Test counts: Python 1343 passed / 16 intentional skips; Engine 780; Native 613; LibreOffice 12; OCR 17×3.
 
-## Real qualified17 evidence
+## Real qualified18 evidence
 
-The timed `live-full-capabilities` gate passed 59/59 with 15/149 coverage and guidance 149/149. Combined atomic checks passed 5/5. Word exited naturally after delayed shutdown; final Word count was 0. The full atomic/OCR wave covers shared publisher Flat OPC, native PDF/patch, LibreOffice/Python staging, OCR lock/journal/mapped-drive/scoped-resolver/conflict semantics, shutdown and serialization.
+Q18 inherits q17's timed live-full-capabilities evidence: 59/59, 15/149, guidance 149/149, combined atomic checks 5/5 and final Word count 0. Q18 was not rerun through Word because its delta is OCR-only: reparse-point, journal, lock and scoped-security regressions; OCR 17×3 passed.
 
-## Historical qualified16 checkpoint
+## Historical qualified17 checkpoint
 
-q16 and older checkpoints remain historical and are not current qualification claims.
+q17 and older checkpoints remain historical and are not current qualification claims.
 
 ## Historical qualified10 candidate
 

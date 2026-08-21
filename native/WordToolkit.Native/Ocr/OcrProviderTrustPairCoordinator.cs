@@ -7,6 +7,31 @@ namespace WordToolkit.Native.Ocr;
 
 internal static class OcrProviderTrustPairCoordinator
 {
+    internal static void ValidateNoReparsePoints(string path)
+    {
+        var full = Path.GetFullPath(path);
+        // Walk lexically; never resolve/follow a link while checking ancestors.
+        for (var current = full; current is not null; current = Path.GetDirectoryName(current))
+        {
+            if (IsReparseOrLink(current))
+                throw new IOException("OCR provider trust paths cannot contain reparse points.");
+            var root = Path.GetPathRoot(current);
+            if (string.Equals(Path.TrimEndingDirectorySeparator(current), Path.TrimEndingDirectorySeparator(root ?? current), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                break;
+        }
+    }
+    private static bool IsReparseOrLink(string path)
+    {
+        try
+        {
+            if (File.Exists(path) || Directory.Exists(path))
+                return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+            // LinkTarget is available even for dangling links and does not follow the target.
+            return new FileInfo(path).LinkTarget is not null || new DirectoryInfo(path).LinkTarget is not null;
+        }
+        catch (FileNotFoundException) { return false; }
+        catch (DirectoryNotFoundException) { return false; }
+    }
     internal sealed record Journal(
         [property: JsonPropertyName("primary_path")] string PrimaryPath,
         [property: JsonPropertyName("secondary_path")] string SecondaryPath,
@@ -16,6 +41,9 @@ internal static class OcrProviderTrustPairCoordinator
     {
         var manifest = Path.GetFullPath(manifestPath);
         var store = Path.GetFullPath(storePath);
+        // Reject links before any directory creation, journal-path computation, or lock-file open.
+        ValidateNoReparsePoints(manifest);
+        ValidateNoReparsePoints(store);
         var identity = (OperatingSystem.IsWindows() ? manifest.ToUpperInvariant() : manifest)
             + "\n" + (OperatingSystem.IsWindows() ? store.ToUpperInvariant() : store);
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity))).ToLowerInvariant();

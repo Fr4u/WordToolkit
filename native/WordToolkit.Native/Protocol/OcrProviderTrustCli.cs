@@ -575,6 +575,8 @@ internal static class OcrProviderTrustCli
             throw Invalid("OCR provider trust paths must be absolute.");
         }
         var fullPath = Path.GetFullPath(path);
+        try { OcrProviderTrustPairCoordinator.ValidateNoReparsePoints(fullPath); }
+        catch (IOException) { throw Invalid("OCR provider trust paths cannot contain reparse points."); }
         if (fullPath.StartsWith("\\\\", StringComparison.Ordinal)
             || fullPath.StartsWith("\\\\?\\", StringComparison.Ordinal)
             || (expectDirectory ? !Directory.Exists(fullPath) : !File.Exists(fullPath)))
@@ -610,6 +612,8 @@ internal static class OcrProviderTrustCli
             throw Invalid("OCR provider trust outputs require absolute paths.");
         }
         var fullPath = Path.GetFullPath(path);
+        try { OcrProviderTrustPairCoordinator.ValidateNoReparsePoints(fullPath); }
+        catch (IOException) { throw Invalid("OCR provider trust outputs cannot contain reparse points."); }
         var outputRoot = Path.GetPathRoot(fullPath);
         if (outputRoot is null || driveTypeResolver(outputRoot) == DriveType.Network)
             throw Invalid("OCR provider trust outputs must be local files (not local network paths).");
@@ -630,6 +634,8 @@ internal static class OcrProviderTrustCli
             throw Invalid("OCR provider private-key outputs require absolute paths.");
         }
         var fullPath = Path.GetFullPath(path);
+        try { OcrProviderTrustPairCoordinator.ValidateNoReparsePoints(fullPath); }
+        catch (IOException) { throw Invalid("OCR provider private-key outputs cannot contain reparse points."); }
         var outputRoot = Path.GetPathRoot(fullPath);
         if (outputRoot is null || driveTypeResolver(outputRoot) == DriveType.Network)
             throw Invalid("OCR provider private-key outputs must be local files (not local network paths).");
@@ -651,7 +657,20 @@ internal static class OcrProviderTrustCli
         OcrProviderTrustPairHooks? hooks = null
     )
     {
+        try
+        {
+            OcrProviderTrustPairCoordinator.ValidateNoReparsePoints(manifestPath);
+            OcrProviderTrustPairCoordinator.ValidateNoReparsePoints(trustStorePath);
+        }
+        catch (IOException) { throw Invalid("OCR provider trust outputs cannot contain reparse points."); }
         using var pairLock = OcrProviderTrustPairCoordinator.Acquire(manifestPath, trustStorePath);
+        hooks?.AfterLockAcquired?.Invoke();
+        try
+        {
+            OcrProviderTrustPairCoordinator.ValidateNoReparsePoints(manifestPath);
+            OcrProviderTrustPairCoordinator.ValidateNoReparsePoints(trustStorePath);
+        }
+        catch (IOException) { throw Invalid("OCR provider trust outputs cannot contain reparse points."); }
         OcrProviderTrustPairCoordinator.Recover(manifestPath, trustStorePath);
         if (File.Exists(manifestPath) || File.Exists(trustStorePath))
             throw new OutputAlreadyExistsException();
@@ -661,8 +680,10 @@ internal static class OcrProviderTrustCli
         {
             WriteNew(manifestStage, manifestBytes);
             WriteNew(storeStage, trustStoreBytes);
-            AtomicFilePublisher.PublishCreateNew(storeStage, trustStorePath);
+            hooks?.BeforeJournalWrite?.Invoke();
             OcrProviderTrustPairCoordinator.WriteJournal(manifestPath, trustStorePath, trustStoreBytes, Guid.NewGuid().ToString("N"));
+            hooks?.BeforeSecondaryPublish?.Invoke();
+            AtomicFilePublisher.PublishCreateNew(storeStage, trustStorePath);
             hooks?.AfterSecondaryPublish?.Invoke();
             AtomicFilePublisher.PublishCreateNew(manifestStage, manifestPath);
             OcrProviderTrustPairCoordinator.DeleteJournal(manifestPath, trustStorePath);
