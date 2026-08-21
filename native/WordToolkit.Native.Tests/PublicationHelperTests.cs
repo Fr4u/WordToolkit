@@ -47,6 +47,34 @@ public sealed class PublicationHelperTests
         Assert.Throws<FileNotFoundException>(() => LibreOfficeUnoRenderProvider.PublishStagedPdfNoClobber(Path.Combine(t.Root, "missing.tmp"), Path.Combine(t.Root, "x.pdf")));
     }
 
+    [Fact]
+    public void LibreOfficeFailureCleanupPreservesReplacedPublishedDestination()
+    {
+        using var t = new TempFiles();
+        var workspace = Path.Combine(t.Root, "workspace");
+        Directory.CreateDirectory(workspace);
+        File.WriteAllText(t.Output, "competitor");
+
+        var error = Assert.Throws<WordToolkitOperationException>(() =>
+            LibreOfficeUnoRenderProvider.RequireFailureCleanup(
+                workspace,
+                t.Output,
+                outputPublished: true,
+                originalErrorCode: "CLEANUP_FAILED",
+                processTreeKillRequired: false,
+                outputPathMustBePreserved: false
+            )
+        );
+
+        Assert.Equal("ROLLBACK_FAILED", error.Code);
+        Assert.Equal("competitor", File.ReadAllText(t.Output));
+        Assert.Contains(
+            "output_preserved",
+            System.Text.Json.JsonSerializer.Serialize(error.Details),
+            StringComparison.Ordinal
+        );
+    }
+
     private sealed class TempFiles : IDisposable
     {
         public string Root { get; } = Path.Combine(Path.GetTempPath(), "wt-pub-" + Guid.NewGuid().ToString("N"));

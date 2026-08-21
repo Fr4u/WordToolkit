@@ -120,6 +120,19 @@ public sealed class WordRelationshipRepairTests
             dead.Fingerprint
         );
 
+        var uppercase = command with
+        {
+            ExpectedRelationshipFingerprint = command.ExpectedRelationshipFingerprint
+                .ToUpperInvariant(),
+        };
+        Assert.NotEqual(
+            command.ExpectedRelationshipFingerprint,
+            uppercase.ExpectedRelationshipFingerprint
+        );
+        Assert.NotEmpty(
+            new WordRelationshipRepairPlanner().Plan(baseline, [uppercase]).Actions
+        );
+
         Assert.Throws<WordSemanticPreconditionException>(() =>
             new WordRelationshipRepairPlanner().Plan(
                 baseline,

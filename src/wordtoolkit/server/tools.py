@@ -2411,7 +2411,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         require_scope("documents:read")
         _subject, version, path = await _snapshot(document_id, "validate")
         try:
-            result = await asyncio.to_thread(runtime.validator.validate, path)
+            result = await _run_locked_worker(runtime.validator.validate, path)
             return ok({"document_id": document_id, "draft_version": version, "validation": result})
         finally:
             _cleanup_snapshot(path)
@@ -2435,7 +2435,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         require_scope("documents:read")
         _subject, version, path = await _snapshot(document_id, "corruption")
         try:
-            validation = await asyncio.to_thread(runtime.validator.validate, path)
+            validation = await _run_locked_worker(runtime.validator.validate, path)
             return ok(
                 {
                     "document_id": document_id,
@@ -2493,7 +2493,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         require_scope("documents:read")
         _subject, version, path = await _snapshot(document_id, "relationships")
         try:
-            validation = await asyncio.to_thread(runtime.validator.validate, path)
+            validation = await _run_locked_worker(runtime.validator.validate, path)
             issues = [
                 item
                 for item in validation["issues"]

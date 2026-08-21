@@ -87,6 +87,29 @@ public sealed class OcrProviderTrustCliTests
     }
 
     [Fact]
+    public void ResolvedOutputVolumeRejectsNetworkDriveBeforePublication()
+    {
+        using var f = Fixture();
+        string? resolvedVolume = null;
+
+        Assert.Throws<OcrProviderTrustPathValidationException>(() =>
+            OcrProviderTrustPairCoordinator.AcquireStableOutputDirectories(
+                f.Manifest,
+                f.Store,
+                volume =>
+                {
+                    resolvedVolume = volume;
+                    return DriveType.Network;
+                }
+            )
+        );
+
+        Assert.False(string.IsNullOrWhiteSpace(resolvedVolume));
+        Assert.False(File.Exists(f.Manifest));
+        Assert.False(File.Exists(f.Store));
+    }
+
+    [Fact]
     public void JournalIsDurableBeforeSecondaryPublicationAndCrashRecovers()
     {
         using var f = Fixture();
@@ -172,6 +195,48 @@ public sealed class OcrProviderTrustCliTests
         Assert.Contains("reparse", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(before, Directory.GetFileSystemEntries(external).OrderBy(x => x, StringComparer.Ordinal).ToArray());
     }
+
+    [Fact]
+    public void SymlinkedRuntimeAndModelResourcesFailClosedBeforePublication()
+    {
+        using var f = Fixture();
+        var externalRuntime = Path.Combine(f.Root, "external-runtime.dll");
+        File.WriteAllBytes(externalRuntime, [7, 8, 9]);
+        var runtimeLink = Path.Combine(f.Root, "runtime-link.dll");
+        try { File.CreateSymbolicLink(runtimeLink, externalRuntime); }
+        catch (PlatformNotSupportedException) { return; }
+        catch (UnauthorizedAccessException) { return; }
+        catch (IOException exception) when (
+            exception.Message.Contains("permission", StringComparison.OrdinalIgnoreCase)
+            || exception.Message.Contains("uprawnie", StringComparison.OrdinalIgnoreCase)
+        ) { return; }
+        var output = new StringWriter();
+        var error = new StringWriter();
+        Assert.NotEqual(0, OcrProviderTrustCli.Run(
+            ["--mode", "issue", "--request", "-"],
+            new StringReader(IssueRequest(f, f.Manifest, f.Store)),
+            output,
+            error
+        ));
+        Assert.False(File.Exists(f.Manifest));
+        Assert.False(File.Exists(f.Store));
+
+        File.Delete(runtimeLink);
+        var model = Path.Combine(f.Models, "eng.traineddata");
+        var externalModel = Path.Combine(f.Root, "external-model.traineddata");
+        File.Move(model, externalModel);
+        File.CreateSymbolicLink(model, externalModel);
+        output.GetStringBuilder().Clear();
+        error.GetStringBuilder().Clear();
+        Assert.NotEqual(0, OcrProviderTrustCli.Run(
+            ["--mode", "issue", "--request", "-"],
+            new StringReader(IssueRequest(f, f.Manifest, f.Store)),
+            output,
+            error
+        ));
+        Assert.False(File.Exists(f.Manifest));
+        Assert.False(File.Exists(f.Store));
+    }
     [Fact]
     public void SecondaryPublishFailureLeavesStoreOnlyAndAuthorizationFailsClosed()
     {
@@ -182,15 +247,17 @@ public sealed class OcrProviderTrustCliTests
             new OcrProviderTrustPairHooks(() => throw new IOException("injected")));
         Assert.Equal(2, code); Assert.False(File.Exists(f.Manifest)); Assert.True(File.Exists(f.Store));
         var storeBytes = File.ReadAllBytes(f.Store);
-        Assert.Single(Directory.GetFiles(f.Trust, "*.journal.json"));
+        var journal = OcrProviderTrustPairCoordinator.JournalPath(f.Manifest, f.Store);
+        Assert.True(File.Exists(journal));
+        Assert.NotEqual(f.Trust, Path.GetDirectoryName(journal));
         Assert.Empty(Directory.GetFiles(f.Trust, "*.tmp"));
         output.GetStringBuilder().Clear(); error.GetStringBuilder().Clear();
         var verify = OcrProviderTrustCli.Run(["--mode", "verify", "--request", "-", "--format", "json"], new StringReader(VerifyRequest(f)), output, error);
         Assert.Equal(2, verify);
-        Assert.Equal(storeBytes, File.ReadAllBytes(f.Store)); Assert.Single(Directory.GetFiles(f.Trust, "*.journal.json"));
+        Assert.Equal(storeBytes, File.ReadAllBytes(f.Store)); Assert.True(File.Exists(journal));
         output.GetStringBuilder().Clear(); error.GetStringBuilder().Clear();
         Assert.NotEqual(0, OcrProviderTrustCli.Run(["--mode", "issue", "--request", "-"], new StringReader(IssueRequest(f, f.Manifest, f.Store)), output, error));
-        Assert.Equal(storeBytes, File.ReadAllBytes(f.Store)); Assert.Single(Directory.GetFiles(f.Trust, "*.journal.json"));
+        Assert.Equal(storeBytes, File.ReadAllBytes(f.Store)); Assert.True(File.Exists(journal));
     }
 
     [Fact]
@@ -201,7 +268,140 @@ public sealed class OcrProviderTrustCliTests
         var hook = new OcrProviderTrustPairHooks(BeforeJournalWrite: () => throw new IOException("journal unavailable"));
         Assert.Equal(2, OcrProviderTrustCli.Run(["--mode", "issue", "--request", "-"], new StringReader(IssueRequest(f, f.Manifest, f.Store)), o, e, hook));
         Assert.False(File.Exists(f.Manifest)); Assert.False(File.Exists(f.Store));
-        Assert.Empty(Directory.GetFiles(f.Trust, "*.journal.json")); Assert.Empty(Directory.GetFiles(f.Trust, "*.tmp"));
+        Assert.False(File.Exists(OcrProviderTrustPairCoordinator.JournalPath(f.Manifest, f.Store)));
+        Assert.Empty(Directory.GetFiles(f.Trust, "*.tmp"));
+    }
+
+    [Fact]
+    public void AncestorReplacementFailsClosedWithoutPublishingIntoReplacement()
+    {
+        using var f = Fixture();
+        var moved = f.Trust + "-moved";
+        var replacement = Path.Combine(f.Root, "replacement");
+        Directory.CreateDirectory(replacement);
+        var probe = Path.Combine(f.Root, "symlink-probe");
+        try
+        {
+            Directory.CreateSymbolicLink(probe, replacement);
+            Directory.Delete(probe);
+        }
+        catch (PlatformNotSupportedException) { return; }
+        catch (UnauthorizedAccessException) { return; }
+        catch (IOException exception) when (
+            exception.Message.Contains("permission", StringComparison.OrdinalIgnoreCase)
+            || exception.Message.Contains("uprawnie", StringComparison.OrdinalIgnoreCase)
+        ) { return; }
+        var hooks = new OcrProviderTrustPairHooks(
+            BeforeSecondaryPublish: () =>
+            {
+                Directory.Move(f.Trust, moved);
+                Directory.CreateSymbolicLink(f.Trust, replacement);
+            }
+        );
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        var exitCode = OcrProviderTrustCli.Run(
+            ["--mode", "issue", "--request", "-"],
+            new StringReader(IssueRequest(f, f.Manifest, f.Store)),
+            output,
+            error,
+            hooks
+        );
+        Assert.NotEqual(0, exitCode);
+        Assert.Empty(Directory.GetFileSystemEntries(replacement));
+        Assert.False(File.Exists(Path.Combine(moved, "manifest.json")));
+        Assert.False(File.Exists(Path.Combine(moved, "store.json")));
+        Assert.Empty(Directory.GetFiles(moved, "*.tmp"));
+    }
+
+    [Fact]
+    public void InvalidManifestWindowIsRejectedBeforeImmutableOutputsArePublished()
+    {
+        using var f = Fixture();
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var issued = DateTimeOffset.UtcNow.AddDays(2);
+
+        Assert.Equal(
+            2,
+            OcrProviderTrustCli.Run(
+                ["--mode", "issue", "--request", "-"],
+                new StringReader(IssueRequest(
+                    f,
+                    f.Manifest,
+                    f.Store,
+                    issued,
+                    issued.AddDays(1)
+                )),
+                output,
+                error
+            )
+        );
+        Assert.Contains("MANIFEST_EXPIRED", error.ToString(), StringComparison.Ordinal);
+        Assert.False(File.Exists(f.Manifest));
+        Assert.False(File.Exists(f.Store));
+        Assert.False(File.Exists(OcrProviderTrustPairCoordinator.JournalPath(f.Manifest, f.Store)));
+    }
+
+    [Fact]
+    public void ReadOnlyTrustFilesAuthorizeWithoutWritingBesideThem()
+    {
+        using var f = Fixture();
+        var output = new StringWriter();
+        var error = new StringWriter();
+        Assert.Equal(0, OcrProviderTrustCli.Run(
+            ["--mode", "issue", "--request", "-"],
+            new StringReader(IssueRequest(f, f.Manifest, f.Store)),
+            output,
+            error
+        ));
+        File.SetAttributes(f.Manifest, File.GetAttributes(f.Manifest) | FileAttributes.ReadOnly);
+        File.SetAttributes(f.Store, File.GetAttributes(f.Store) | FileAttributes.ReadOnly);
+        var before = Directory.GetFileSystemEntries(f.Trust)
+            .OrderBy(item => item, StringComparer.Ordinal)
+            .ToArray();
+
+        using var snapshot = new OcrProviderTrustPolicy(f.Manifest, f.Store)
+            .Authorize(f.Executable, f.Models, ["eng"], CancellationToken.None);
+
+        Assert.Equal("wordtoolkit.project", snapshot.Binding.PublisherId);
+        Assert.Equal(
+            before,
+            Directory.GetFileSystemEntries(f.Trust)
+                .OrderBy(item => item, StringComparer.Ordinal)
+                .ToArray()
+        );
+    }
+
+    [Fact]
+    public void RecoveryPreservesCompetitorReplacementAndJournal()
+    {
+        using var f = Fixture();
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var hooks = new OcrProviderTrustPairHooks(
+            AfterSecondaryPublish: () => throw new IOException("injected crash")
+        );
+        Assert.Equal(2, OcrProviderTrustCli.Run(
+            ["--mode", "issue", "--request", "-"],
+            new StringReader(IssueRequest(f, f.Manifest, f.Store)),
+            output,
+            error,
+            hooks
+        ));
+        var journal = OcrProviderTrustPairCoordinator.JournalPath(f.Manifest, f.Store);
+        var competitor = Encoding.UTF8.GetBytes("competitor replacement");
+        File.Delete(f.Store);
+        File.WriteAllBytes(f.Store, competitor);
+
+        Assert.Throws<IOException>(() => OcrProviderTrustPairCoordinator.Recover(
+            f.Manifest,
+            f.Store,
+            OcrProviderTrustPolicy.ValidatePublishedPairBytes
+        ));
+        Assert.Equal(competitor, File.ReadAllBytes(f.Store));
+        Assert.True(File.Exists(journal));
     }
 
     [Fact]
@@ -244,12 +444,42 @@ public sealed class OcrProviderTrustCliTests
         Assert.Equal("release-test", snapshot.Binding.PublisherKeyId);
     }
 
-    private sealed record FixtureData(string Root, string Trust, string Executable, string Models, string PrivateKey, string Manifest, string Store) : IDisposable { public void Dispose() { try { Directory.Delete(Root, true); } catch { } } }
+    private sealed record FixtureData(string Root, string Trust, string Executable, string Models, string PrivateKey, string Manifest, string Store) : IDisposable
+    {
+        public void Dispose()
+        {
+            try { File.SetAttributes(Manifest, FileAttributes.Normal); } catch { }
+            try { File.SetAttributes(Store, FileAttributes.Normal); } catch { }
+            OcrProviderTrustPairCoordinator.DeleteJournal(Manifest, Store);
+            try { Directory.Delete(Root, true); } catch { }
+        }
+    }
     private static FixtureData Fixture()
     {
-        var root = Path.Combine(Path.GetTempPath(), "wt-ocr-" + Guid.NewGuid().ToString("N")); var trust = Path.Combine(root, "trust"); var models = Path.Combine(root, "models"); Directory.CreateDirectory(trust); Directory.CreateDirectory(models); var exe = Path.Combine(root, "tesseract.exe"); File.WriteAllBytes(exe, [1,2,3]); File.WriteAllBytes(Path.Combine(models, "eng.traineddata"), [4,5,6]); var pk = Path.Combine(trust, "key.pem"); var gen = Path.Combine(trust, "gen.json"); var o = new StringWriter(); var e = new StringWriter(); var req = JsonSerializer.Serialize(new { publisher_id="wordtoolkit.project", key_id="release-test", private_key_output_path=pk, trust_store_output_path=gen }, JsonDefaults.Compact); Assert.Equal(0, OcrProviderTrustCli.Run(["--mode","keygen","--request","-"], new StringReader(req), o,e)); return new(root, trust, exe, models, pk, Path.Combine(trust,"manifest.json"), Path.Combine(trust,"store.json"));
+        var root = Path.Combine(Path.GetTempPath(), "wt-ocr-" + Guid.NewGuid().ToString("N")); var trust = Path.Combine(root, "trust"); var models = Path.Combine(root, "models"); Directory.CreateDirectory(trust); Directory.CreateDirectory(models); var exe = Path.Combine(root, "tesseract.exe"); File.WriteAllBytes(exe, [1,2,3]); File.WriteAllBytes(Path.Combine(models, "eng.traineddata"), [4,5,6]); var pk = Path.Combine(trust, "key.pem"); var gen = Path.Combine(trust, "gen.json"); var o = new StringWriter(); var e = new StringWriter(); var req = JsonSerializer.Serialize(new { publisher_id="wordtoolkit.project", key_id="release-test", private_key_output_path=pk, trust_store_output_path=gen }, JsonDefaults.Compact); var code = OcrProviderTrustCli.Run(["--mode","keygen","--request","-"], new StringReader(req), o,e); Assert.True(code == 0, $"Keygen failed with {code}: {e}"); return new(root, trust, exe, models, pk, Path.Combine(trust,"manifest.json"), Path.Combine(trust,"store.json"));
     }
-    private static string IssueRequest(FixtureData f,string m,string s)=>JsonSerializer.Serialize(new { executable_path=f.Executable, model_directory=f.Models, languages=new[]{"eng"}, publisher_id="wordtoolkit.project", key_id="release-test", provider_version="5.5.0", private_key_pkcs8_pem_path=f.PrivateKey, manifest_output_path=m, trust_store_output_path=s, issued_at_utc=DateTimeOffset.UtcNow.AddMinutes(-1).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"), expires_at_utc=DateTimeOffset.UtcNow.AddDays(1).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'") }, JsonDefaults.Compact);
+    private static string IssueRequest(
+        FixtureData f,
+        string manifest,
+        string store,
+        DateTimeOffset? issuedAt = null,
+        DateTimeOffset? expiresAt = null
+    ) => JsonSerializer.Serialize(new
+    {
+        executable_path = f.Executable,
+        model_directory = f.Models,
+        languages = new[] { "eng" },
+        publisher_id = "wordtoolkit.project",
+        key_id = "release-test",
+        provider_version = "5.5.0",
+        private_key_pkcs8_pem_path = f.PrivateKey,
+        manifest_output_path = manifest,
+        trust_store_output_path = store,
+        issued_at_utc = (issuedAt ?? DateTimeOffset.UtcNow.AddMinutes(-1))
+            .ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"),
+        expires_at_utc = (expiresAt ?? DateTimeOffset.UtcNow.AddDays(1))
+            .ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"),
+    }, JsonDefaults.Compact);
     private static string VerifyRequest(FixtureData f)=>JsonSerializer.Serialize(new { executable_path=f.Executable, model_directory=f.Models, languages=new[]{"eng"}, manifest_path=f.Manifest, trust_store_path=f.Store }, JsonDefaults.Compact);
     [Fact]
     public void IssueAndVerifyCreateTokenFreeHostTrustArtifacts()

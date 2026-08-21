@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using WordToolkit.Engine.Extensions;
-using WordToolkit.Engine.Publishing;
 using WordToolkit.Native.Ocr;
 
 namespace WordToolkit.Native.Protocol;
@@ -228,6 +227,10 @@ internal static class OcrProviderTrustCli
             request.IssuedAtUtc,
             request.ExpiresAtUtc,
             signer
+        );
+        OcrProviderTrustPolicy.ValidateManifestWindowForPublication(
+            manifest,
+            DateTimeOffset.UtcNow
         );
         var trustStore = new OcrProviderTrustStore(
             OcrProviderTrustPolicy.TrustStoreContract,
@@ -655,6 +658,11 @@ internal static class OcrProviderTrustCli
         catch (OcrProviderTrustPathValidationException) { throw; }
         using var pairLock = OcrProviderTrustPairCoordinator.Acquire(manifestPath, trustStorePath);
         hooks?.AfterLockAcquired?.Invoke();
+        using var directoryLease = OcrProviderTrustPairCoordinator.AcquireStableOutputDirectories(
+            manifestPath,
+            trustStorePath
+        );
+        hooks?.AfterDirectoriesLeased?.Invoke();
         try
         {
             OcrProviderTrustPairCoordinator.ValidateNoReparsePoints(manifestPath);
@@ -664,29 +672,20 @@ internal static class OcrProviderTrustCli
         OcrProviderTrustPairCoordinator.Recover(manifestPath, trustStorePath, validator);
         if (File.Exists(manifestPath) || File.Exists(trustStorePath))
             throw new OutputAlreadyExistsException();
-        var manifestStage = manifestPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        var storeStage = trustStorePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            WriteNew(manifestStage, manifestBytes);
-            WriteNew(storeStage, trustStoreBytes);
             hooks?.BeforeJournalWrite?.Invoke();
             OcrProviderTrustPairCoordinator.WriteJournal(manifestPath, trustStorePath, trustStoreBytes, Guid.NewGuid().ToString("N"), "manifest_store", manifestBytes);
             hooks?.BeforeSecondaryPublish?.Invoke();
-            AtomicFilePublisher.PublishCreateNew(storeStage, trustStorePath);
+            directoryLease.PublishCreateNew(trustStorePath, trustStoreBytes);
             hooks?.AfterSecondaryPublish?.Invoke();
-            AtomicFilePublisher.PublishCreateNew(manifestStage, manifestPath);
+            directoryLease.PublishCreateNew(manifestPath, manifestBytes);
             OcrProviderTrustPairCoordinator.DeleteJournal(manifestPath, trustStorePath);
         }
         catch
         {
             try { OcrProviderTrustPairCoordinator.Recover(manifestPath, trustStorePath); } catch { }
             throw;
-        }
-        finally
-        {
-            TryDelete(manifestStage);
-            TryDelete(storeStage);
         }
     }
 
@@ -700,32 +699,6 @@ internal static class OcrProviderTrustCli
             return Encoding.UTF8.GetString(storeBytes).Contains(publicKey, StringComparison.Ordinal);
         }
         catch { return false; }
-    }
-
-    private static void WriteNew(string path, byte[] bytes)
-    {
-        using var stream = new FileStream(
-            path,
-            FileMode.CreateNew,
-            FileAccess.Write,
-            FileShare.None,
-            64 * 1024,
-            FileOptions.WriteThrough
-        );
-        stream.Write(bytes);
-        stream.Flush(flushToDisk: true);
-    }
-
-    private static void TryDelete(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch
-        {
-            // The CLI reports failure; leftover provisioning artifacts are never trusted implicitly.
-        }
     }
 
     private static string ReadRequestFile(string path, Func<string, DriveType> resolver)

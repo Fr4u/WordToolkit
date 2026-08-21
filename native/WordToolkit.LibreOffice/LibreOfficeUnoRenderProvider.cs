@@ -367,17 +367,14 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
             }
             if (!TryDeleteDirectory(workspace))
             {
-                if (!TryDeleteFile(normalized.OutputPdfPath))
-                {
-                    throw Error(
-                        "ROLLBACK_FAILED",
-                        "LibreOffice workspace cleanup failed and the staged PDF could not be removed"
-                    );
-                }
-                outputPublished = false;
                 throw Error(
-                    "CLEANUP_FAILED",
-                    "LibreOffice private profile or workspace cleanup could not be proved"
+                    "ROLLBACK_FAILED",
+                    "LibreOffice workspace cleanup failed; the published PDF was preserved because destination ownership cannot be proved atomically after publication",
+                    new
+                    {
+                        output_preserved = true,
+                        published_pdf_sha256 = pdf.Sha256,
+                    }
                 );
             }
 
@@ -1303,7 +1300,7 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
         }
     }
 
-    private static void RequireFailureCleanup(
+    internal static void RequireFailureCleanup(
         string workspace,
         string outputPath,
         bool outputPublished,
@@ -1312,7 +1309,10 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
         bool outputPathMustBePreserved
     )
     {
-        var outputRemoved = outputPathMustBePreserved || !outputPublished || TryDeleteFile(outputPath);
+        // Never unlink a public destination after publication. Another process can replace
+        // the directory entry between any path/hash check and File.Delete; preserving the
+        // path and reporting ROLLBACK_FAILED is the only ownership-safe fallback.
+        var outputRemoved = outputPathMustBePreserved || !outputPublished;
         var workspaceRemoved = TryDeleteDirectory(workspace);
         if (!outputRemoved || !workspaceRemoved)
         {
@@ -1323,6 +1323,7 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
                 {
                     original_error_code = originalErrorCode,
                     output_removed = outputRemoved,
+                    output_preserved = outputPublished || outputPathMustBePreserved,
                     workspace_removed = workspaceRemoved,
                     process_tree_kill_required = processTreeKillRequired,
                 }
