@@ -10,6 +10,75 @@ public sealed class WordComHostTests
     private const int RpcEDisconnected = unchecked((int)0x80010108);
 
     [Fact]
+    public async Task DefaultShutdownTimeoutIsFiveSeconds()
+    {
+        await using var host = new WordComHost(_ => new object());
+        Assert.Equal(TimeSpan.FromSeconds(5), host.ShutdownTimeout);
+    }
+
+    [Fact]
+    public async Task CustomShutdownTimeoutIsRetained()
+    {
+        await using var host = new WordComHost(
+            _ => new object(),
+            shutdownTimeout: TimeSpan.FromSeconds(15)
+        );
+        Assert.Equal(TimeSpan.FromSeconds(15), host.ShutdownTimeout);
+    }
+
+    [Fact]
+    public async Task DisposeBreaksClientObservationWaitWhenContinuationIsBlocked()
+    {
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var host = new WordComHost(
+            _ => new object(),
+            beforeClientObservationCompleted: () =>
+            {
+                entered.Set();
+                release.Wait();
+            },
+            shutdownTimeout: TimeSpan.FromSeconds(2)
+        );
+        var pending = host.InvokeAsync(_ => true);
+        Assert.True(await Task.Run(() => entered.Wait(TimeSpan.FromSeconds(5))));
+        var dispose = host.DisposeAsync().AsTask();
+        Assert.True(await Task.WhenAny(dispose, Task.Delay(TimeSpan.FromSeconds(2))) == dispose);
+        release.Set();
+        await pending;
+    }
+
+    [Fact]
+    public async Task DisposeTimeoutIncludesExecutingStage()
+    {
+        using var started = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var host = new WordComHost(_ => new object(), shutdownTimeout: TimeSpan.FromMilliseconds(100));
+        var pending = host.InvokeAsync(_ =>
+        {
+            started.Set();
+            release.Wait();
+            return true;
+        });
+        Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
+        var error = await Assert.ThrowsAsync<TimeoutException>(() => host.DisposeAsync().AsTask());
+        Assert.Contains("stage=Executing", error.Message, StringComparison.Ordinal);
+        release.Set();
+        await pending;
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(301)]
+    public void InvalidShutdownTimeoutIsRejected(double seconds)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new WordComHost(_ => new object(), shutdownTimeout: TimeSpan.FromSeconds(seconds))
+        );
+    }
+
+    [Fact]
     public async Task InjectedApplicationFactoryNeverClaimsRuntimeOwnership()
     {
         await using var host = new WordComHost(_ => new object());

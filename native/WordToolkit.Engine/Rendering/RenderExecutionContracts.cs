@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using WordToolkit.Engine.Operations;
+using WordToolkit.Engine.Publishing;
 
 namespace WordToolkit.Engine.Rendering;
 
@@ -846,54 +847,20 @@ internal sealed class PhysicalRenderArtifactPublicationFileSystem
 
     public void PublishNoClobber(string temporaryPath, string outputPath)
     {
-        int error;
-        if (OperatingSystem.IsWindows())
+        try
         {
-            if (CreateHardLinkWindows(outputPath, temporaryPath, IntPtr.Zero))
-            {
-                return;
-            }
-            error = Marshal.GetLastWin32Error();
+            AtomicFilePublisher.PublishCreateNew(temporaryPath, outputPath);
         }
-        else
-        {
-            if (CreateHardLinkUnix(temporaryPath, outputPath) == 0)
-            {
-                return;
-            }
-            error = Marshal.GetLastWin32Error();
-        }
-        if ((OperatingSystem.IsWindows() && error is 80 or 183)
-            || (!OperatingSystem.IsWindows() && error == 17))
+        catch (IOException exception) when (AtomicFilePublisher.IsAlreadyExists(exception))
         {
             throw new RenderOutputExistsException(
                 "A render artifact output already exists.",
-                new Win32Exception(error)
+                exception.InnerException ?? exception
             );
         }
-        throw new IOException(
-            "Atomic create-new render artifact publication failed.",
-            new Win32Exception(error)
-        );
     }
 
     public void DeleteFile(string path) => File.Delete(path);
-
-    [DllImport(
-        "kernel32.dll",
-        EntryPoint = "CreateHardLinkW",
-        CharSet = CharSet.Unicode,
-        SetLastError = true
-    )]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CreateHardLinkWindows(
-        string newFileName,
-        string existingFileName,
-        IntPtr securityAttributes
-    );
-
-    [DllImport("libc", EntryPoint = "link", SetLastError = true)]
-    private static extern int CreateHardLinkUnix(string existingPath, string newPath);
 
     [DllImport(
         "kernel32.dll",

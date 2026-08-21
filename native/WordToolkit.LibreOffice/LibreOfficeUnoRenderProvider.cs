@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using WordToolkit.Engine.Operations;
+using WordToolkit.Engine.Publishing;
 
 namespace WordToolkit.LibreOffice;
 
@@ -104,6 +105,7 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
         var helperPath = Path.Combine(workspace, "wordtoolkit-uno-helper.jar");
         var pipeName = "wtu_" + Guid.NewGuid().ToString("N");
         var outputPublished = false;
+        var outputPathMustBePreserved = false;
         var processTreeKillRequired = false;
         Process? officeProcess = null;
         Process? helperProcess = null;
@@ -339,8 +341,30 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
                 "EXECUTABLE_DRIFT"
             );
 
-            File.Move(stagedPdf, normalized.OutputPdfPath);
-            outputPublished = true;
+            // The staged PDF lives in the private workspace, while the shared
+            // publisher requires same-directory hard-link publication. Move it
+            // to a unique sibling first, then publish create-new and remove the
+            // temporary sibling. A competing destination is reported explicitly
+            // instead of being misclassified as a backend failure.
+            var publicationStagingPath = Path.Combine(
+                outputDirectory,
+                ".wordtoolkit-publish-" + Guid.NewGuid().ToString("N") + ".tmp"
+            );
+            try
+            {
+                File.Move(stagedPdf, publicationStagingPath, overwrite: false);
+                PublishStagedPdfNoClobber(publicationStagingPath, normalized.OutputPdfPath);
+                outputPublished = true;
+            }
+            catch (IOException exception) when (AtomicFilePublisher.IsAlreadyExists(exception))
+            {
+                outputPathMustBePreserved = true;
+                throw Error("OUTPUT_EXISTS", "The output PDF already exists", innerException: exception);
+            }
+            finally
+            {
+                TryDeleteFile(publicationStagingPath);
+            }
             if (!TryDeleteDirectory(workspace))
             {
                 if (!TryDeleteFile(normalized.OutputPdfPath))
@@ -428,7 +452,8 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
                 normalized.OutputPdfPath,
                 outputPublished,
                 "CANCELLED",
-                processTreeKillRequired
+                processTreeKillRequired,
+                outputPathMustBePreserved
             );
             throw;
         }
@@ -441,7 +466,8 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
                 normalized.OutputPdfPath,
                 outputPublished,
                 exception.Code,
-                processTreeKillRequired
+                processTreeKillRequired,
+                outputPathMustBePreserved
             );
             throw;
         }
@@ -465,7 +491,8 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
                 normalized.OutputPdfPath,
                 outputPublished,
                 mapped.Code,
-                processTreeKillRequired
+                processTreeKillRequired,
+                outputPathMustBePreserved
             );
             throw mapped;
         }
@@ -473,6 +500,15 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
         {
             helperProcess?.Dispose();
             officeProcess?.Dispose();
+        }
+    }
+
+    internal static void PublishStagedPdfNoClobber(string stagedPath, string outputPath)
+    {
+        try { AtomicFilePublisher.PublishCreateNew(stagedPath, outputPath); }
+        catch (IOException exception) when (AtomicFilePublisher.IsAlreadyExists(exception))
+        {
+            throw Error("OUTPUT_EXISTS", "The output PDF already exists", innerException: exception);
         }
     }
 
@@ -1131,7 +1167,7 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
         if (string.IsNullOrWhiteSpace(configured)
             || configured.Length > LibreOfficeUnoRenderContract.MaximumPathCharacters
             || !Path.IsPathFullyQualified(configured)
-            || configured.IndexOfAny(['\r', '\n', '\0']) >= 0)
+            || configured.IndexOfAny(['\n', '\n', '\0']) >= 0)
         {
             throw Error("INVALID_INPUT", $"The {label} path must be explicit and absolute");
         }
@@ -1272,10 +1308,11 @@ public sealed class LibreOfficeUnoRenderProvider : ILibreOfficeUnoRenderProvider
         string outputPath,
         bool outputPublished,
         string originalErrorCode,
-        bool processTreeKillRequired
+        bool processTreeKillRequired,
+        bool outputPathMustBePreserved
     )
     {
-        var outputRemoved = !outputPublished || TryDeleteFile(outputPath);
+        var outputRemoved = outputPathMustBePreserved || !outputPublished || TryDeleteFile(outputPath);
         var workspaceRemoved = TryDeleteDirectory(workspace);
         if (!outputRemoved || !workspaceRemoved)
         {

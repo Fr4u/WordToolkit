@@ -2,12 +2,17 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using WordToolkit.Engine.Extensions;
+using WordToolkit.Engine.Publishing;
 using WordToolkit.Native.Ocr;
 
 namespace WordToolkit.Native.Protocol;
 
 internal static class OcrProviderTrustCli
 {
+    internal sealed record RunOptions(OcrProviderTrustPairHooks? Hooks, Func<string, DriveType> DriveTypeResolver)
+    {
+        internal static RunOptions Default => new(null, root => new DriveInfo(root).DriveType);
+    }
     private const int MaximumRequestCharacters = 256 * 1024;
     private static readonly string Usage =
         "usage: wordtoolkit-native ocr-provider-trust --mode <keygen|issue|verify> --request <request.json|-> [--format json]";
@@ -18,6 +23,17 @@ internal static class OcrProviderTrustCli
         TextWriter output,
         TextWriter error
     )
+        => Run(args, input, output, error, RunOptions.Default);
+
+    internal static int Run(
+        string[] args,
+        TextReader input,
+        TextWriter output,
+        TextWriter error,
+        OcrProviderTrustPairHooks? hooks
+    ) => Run(args, input, output, error, new RunOptions(hooks, root => new DriveInfo(root).DriveType));
+
+    internal static int Run(string[] args, TextReader input, TextWriter output, TextWriter error, RunOptions options)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(input);
@@ -25,15 +41,15 @@ internal static class OcrProviderTrustCli
         ArgumentNullException.ThrowIfNull(error);
         try
         {
-            var options = ParseOptions(args);
-            var json = options.RequestSource == "-"
+            var parsed = ParseOptions(args);
+            var json = parsed.RequestSource == "-"
                 ? ReadBounded(input)
-                : ReadRequestFile(options.RequestSource);
-            object result = options.Mode switch
+                : ReadRequestFile(parsed.RequestSource, options.DriveTypeResolver);
+            object result = parsed.Mode switch
             {
-                "keygen" => Keygen(ParseKeygenRequest(json)),
-                "issue" => Issue(ParseIssueRequest(json)),
-                "verify" => Verify(ParseVerifyRequest(json)),
+                "keygen" => Keygen(ParseKeygenRequest(json), options),
+                "issue" => Issue(ParseIssueRequest(json), options),
+                "verify" => Verify(ParseVerifyRequest(json), options),
                 _ => throw Invalid("The OCR provider trust mode is invalid."),
             };
             output.WriteLine(JsonSerializer.Serialize(result, JsonDefaults.Indented));
@@ -46,6 +62,11 @@ internal static class OcrProviderTrustCli
                 ? 64
                 : 2;
         }
+        catch (OutputAlreadyExistsException exception)
+        {
+            error.WriteLine($"OCR_PROVIDER_TRUST_OUTPUT_EXISTS: {exception.Message}");
+            return 2;
+        }
         catch (Exception)
         {
             error.WriteLine("OCR_PROVIDER_TRUST_FAILED: The OCR provider trust operation failed.");
@@ -53,10 +74,10 @@ internal static class OcrProviderTrustCli
         }
     }
 
-    private static object Keygen(KeygenRequest request)
+    private static object Keygen(KeygenRequest request, RunOptions options)
     {
-        var privateKeyOutput = NewPemOutput(request.PrivateKeyOutputPath);
-        var trustStoreOutput = NewJsonOutput(request.TrustStoreOutputPath);
+        var privateKeyOutput = NewPemOutput(request.PrivateKeyOutputPath, options.DriveTypeResolver);
+        var trustStoreOutput = NewJsonOutput(request.TrustStoreOutputPath, options.DriveTypeResolver);
         if (string.Equals(privateKeyOutput, trustStoreOutput, PathComparison())
             || !string.Equals(
                 Path.GetDirectoryName(privateKeyOutput),
@@ -87,7 +108,7 @@ internal static class OcrProviderTrustCli
                 privateKeyBytes,
                 trustStoreOutput,
                 trustStoreBytes
-            );
+            , options.Hooks);
             using var verifier = LoadPrivateKey(privateKeyOutput);
             if (!verifier.ExportSubjectPublicKeyInfo().SequenceEqual(key.ExportSubjectPublicKeyInfo()))
             {
@@ -106,25 +127,20 @@ internal static class OcrProviderTrustCli
                 paths_returned = false,
             };
         }
-        catch
-        {
-            TryDelete(privateKeyOutput);
-            TryDelete(trustStoreOutput);
-            throw;
-        }
+        catch { throw; }
         finally
         {
             CryptographicOperations.ZeroMemory(privateKeyBytes);
         }
     }
 
-    private static object Issue(IssueRequest request)
+    private static object Issue(IssueRequest request, RunOptions options)
     {
-        var executablePath = ExistingFile(request.ExecutablePath, 128L * 1024 * 1024);
-        var modelDirectory = ExistingDirectory(request.ModelDirectory);
-        var privateKeyPath = ExistingFile(request.PrivateKeyPkcs8PemPath, 64 * 1024);
-        var manifestOutput = NewJsonOutput(request.ManifestOutputPath);
-        var trustStoreOutput = NewJsonOutput(request.TrustStoreOutputPath);
+        var executablePath = ExistingFile(request.ExecutablePath, 128L * 1024 * 1024, options.DriveTypeResolver);
+        var modelDirectory = ExistingDirectory(request.ModelDirectory, options.DriveTypeResolver);
+        var privateKeyPath = ExistingFile(request.PrivateKeyPkcs8PemPath, 64 * 1024, options.DriveTypeResolver);
+        var manifestOutput = NewJsonOutput(request.ManifestOutputPath, options.DriveTypeResolver);
+        var trustStoreOutput = NewJsonOutput(request.TrustStoreOutputPath, options.DriveTypeResolver);
         if (string.Equals(manifestOutput, trustStoreOutput, PathComparison()))
         {
             throw Invalid("Manifest and trust-store outputs must be different files.");
@@ -225,12 +241,13 @@ internal static class OcrProviderTrustCli
             manifestOutput,
             manifestBytes,
             trustStoreOutput,
-            trustStoreBytes
+            trustStoreBytes,
+            options.Hooks
         );
 
         try
         {
-            var policy = new OcrProviderTrustPolicy(manifestOutput, trustStoreOutput);
+            var policy = new OcrProviderTrustPolicy(manifestOutput, trustStoreOutput, driveTypeResolver: options.DriveTypeResolver);
             using var snapshot = policy.Authorize(
                 executablePath,
                 modelDirectory,
@@ -239,19 +256,15 @@ internal static class OcrProviderTrustCli
             );
             return Result(snapshot.Binding, request.Languages.Count, issue: true);
         }
-        catch
-        {
-            TryDelete(manifestOutput);
-            TryDelete(trustStoreOutput);
-            throw;
-        }
+        catch { throw; }
     }
 
-    private static object Verify(VerifyRequest request)
+    private static object Verify(VerifyRequest request, RunOptions options)
     {
         var policy = new OcrProviderTrustPolicy(
             request.ManifestPath,
-            request.TrustStorePath
+            request.TrustStorePath,
+            driveTypeResolver: options.DriveTypeResolver
         );
         using var snapshot = policy.Authorize(
             request.ExecutablePath,
@@ -538,9 +551,9 @@ internal static class OcrProviderTrustCli
         }
     }
 
-    private static string ExistingFile(string path, long maximumBytes)
+    private static string ExistingFile(string path, long maximumBytes, Func<string, DriveType> resolver)
     {
-        var fullPath = ExistingLocalPath(path, expectDirectory: false);
+        var fullPath = ExistingLocalPath(path, expectDirectory: false, resolver);
         var length = new FileInfo(fullPath).Length;
         if (length is < 1 || length > maximumBytes)
         {
@@ -549,12 +562,13 @@ internal static class OcrProviderTrustCli
         return fullPath;
     }
 
-    private static string ExistingDirectory(string path) => ExistingLocalPath(
+    private static string ExistingDirectory(string path, Func<string, DriveType> resolver) => ExistingLocalPath(
         path,
-        expectDirectory: true
+        expectDirectory: true,
+        resolver
     );
 
-    private static string ExistingLocalPath(string path, bool expectDirectory)
+    private static string ExistingLocalPath(string path, bool expectDirectory, Func<string, DriveType> resolver)
     {
         if (string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path))
         {
@@ -567,6 +581,9 @@ internal static class OcrProviderTrustCli
         {
             throw Invalid("An OCR provider trust path is unavailable or not local.");
         }
+        var driveRoot = Path.GetPathRoot(fullPath);
+        if (driveRoot is null || resolver(driveRoot) == DriveType.Network)
+            throw Invalid("An OCR provider trust path is unavailable or not local.");
         for (var current = fullPath; current is not null; current = Path.GetDirectoryName(current))
         {
             if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
@@ -586,35 +603,43 @@ internal static class OcrProviderTrustCli
         return fullPath;
     }
 
-    private static string NewJsonOutput(string path)
+    private static string NewJsonOutput(string path, Func<string, DriveType> driveTypeResolver)
     {
         if (string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path))
         {
             throw Invalid("OCR provider trust outputs require absolute paths.");
         }
         var fullPath = Path.GetFullPath(path);
+        var outputRoot = Path.GetPathRoot(fullPath);
+        if (outputRoot is null || driveTypeResolver(outputRoot) == DriveType.Network)
+            throw Invalid("OCR provider trust outputs must be local files (not local network paths).");
         if (!string.Equals(Path.GetExtension(fullPath), ".json", StringComparison.OrdinalIgnoreCase)
-            || File.Exists(fullPath)
             || !Directory.Exists(Path.GetDirectoryName(fullPath)))
         {
             throw Invalid("OCR provider trust outputs must be new JSON files in an existing directory.");
         }
+        if (File.Exists(fullPath))
+            throw new OutputAlreadyExistsException();
         return fullPath;
     }
 
-    private static string NewPemOutput(string path)
+    private static string NewPemOutput(string path, Func<string, DriveType> driveTypeResolver)
     {
         if (string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path))
         {
             throw Invalid("OCR provider private-key outputs require absolute paths.");
         }
         var fullPath = Path.GetFullPath(path);
+        var outputRoot = Path.GetPathRoot(fullPath);
+        if (outputRoot is null || driveTypeResolver(outputRoot) == DriveType.Network)
+            throw Invalid("OCR provider private-key outputs must be local files (not local network paths).");
         if (!string.Equals(Path.GetExtension(fullPath), ".pem", StringComparison.OrdinalIgnoreCase)
-            || File.Exists(fullPath)
             || !Directory.Exists(Path.GetDirectoryName(fullPath)))
         {
             throw Invalid("OCR provider private-key outputs must be new PEM files in an existing directory.");
         }
+        if (File.Exists(fullPath))
+            throw new OutputAlreadyExistsException();
         return fullPath;
     }
 
@@ -622,29 +647,35 @@ internal static class OcrProviderTrustCli
         string manifestPath,
         byte[] manifestBytes,
         string trustStorePath,
-        byte[] trustStoreBytes
+        byte[] trustStoreBytes,
+        OcrProviderTrustPairHooks? hooks = null
     )
     {
+        using var pairLock = OcrProviderTrustPairCoordinator.Acquire(manifestPath, trustStorePath);
+        OcrProviderTrustPairCoordinator.Recover(manifestPath, trustStorePath);
+        if (File.Exists(manifestPath) || File.Exists(trustStorePath))
+            throw new OutputAlreadyExistsException();
         var manifestStage = manifestPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
         var storeStage = trustStorePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        var manifestPublished = false;
         try
         {
             WriteNew(manifestStage, manifestBytes);
             WriteNew(storeStage, trustStoreBytes);
-            File.Move(manifestStage, manifestPath);
-            manifestPublished = true;
-            File.Move(storeStage, trustStorePath);
+            AtomicFilePublisher.PublishCreateNew(storeStage, trustStorePath);
+            OcrProviderTrustPairCoordinator.WriteJournal(manifestPath, trustStorePath, trustStoreBytes, Guid.NewGuid().ToString("N"));
+            hooks?.AfterSecondaryPublish?.Invoke();
+            AtomicFilePublisher.PublishCreateNew(manifestStage, manifestPath);
+            OcrProviderTrustPairCoordinator.DeleteJournal(manifestPath, trustStorePath);
         }
         catch
         {
-            if (manifestPublished)
-            {
-                TryDelete(manifestPath);
-            }
+            try { OcrProviderTrustPairCoordinator.Recover(manifestPath, trustStorePath); } catch { }
+            throw;
+        }
+        finally
+        {
             TryDelete(manifestStage);
             TryDelete(storeStage);
-            throw;
         }
     }
 
@@ -674,9 +705,9 @@ internal static class OcrProviderTrustCli
         }
     }
 
-    private static string ReadRequestFile(string path)
+    private static string ReadRequestFile(string path, Func<string, DriveType> resolver)
     {
-        var fullPath = ExistingFile(path, MaximumRequestCharacters);
+        var fullPath = ExistingFile(path, MaximumRequestCharacters, resolver);
         return File.ReadAllText(fullPath, new UTF8Encoding(false, true));
     }
 
@@ -708,6 +739,9 @@ internal static class OcrProviderTrustCli
         string message,
         Exception? innerException = null
     ) => new("OCR_PROVIDER_TRUST_INVALID", message, innerException: innerException);
+
+    private sealed class OutputAlreadyExistsException()
+        : IOException("The OCR provider trust output already exists; existing files are never overwritten.");
 
     private static string Sha256(ReadOnlySpan<byte> value) => Convert.ToHexString(
         SHA256.HashData(value)

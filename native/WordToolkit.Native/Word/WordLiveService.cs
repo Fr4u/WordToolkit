@@ -11,6 +11,7 @@ using DocumentFormat.OpenXml.Validation;
 using WordToolkit.Engine.Operations;
 using WordToolkit.Engine.Observability;
 using WordToolkit.Engine.Resources;
+using WordToolkit.Engine.Publishing;
 using WordToolkit.LibreOffice;
 using WordToolkit.Native.Equations;
 using WordToolkit.Native.Protocol;
@@ -82,6 +83,8 @@ internal sealed partial class WordLiveService : IToolHandler
     private readonly byte[] _smartArtFingerprintKey = RandomNumberGenerator.GetBytes(32);
     private readonly ConcurrentDictionary<string, CachedSemanticIndex> _semanticIndexes = new();
     private readonly object _semanticIndexGate = new();
+
+    internal Action<string, string>? BeforeCreateNewPublication { get; set; }
 
     public WordLiveService(IWordComHost host)
         : this(
@@ -246,7 +249,8 @@ internal sealed partial class WordLiveService : IToolHandler
             ),
             "create_ooxml_patch" => CreatePackagePatchAsync(
                 arguments,
-                cancellationToken
+                cancellationToken,
+                BeforeCreateNewPublication
             ),
             "inspect_ooxml_patch" => InspectPackagePatchAsync(
                 arguments,
@@ -1650,8 +1654,8 @@ internal sealed partial class WordLiveService : IToolHandler
                             );
                         }
                         return value
-                            .Replace("\r\n", "\n", StringComparison.Ordinal)
-                            .Replace('\r', '\n')
+                            .Replace("\n", "\n", StringComparison.Ordinal)
+                            .Replace('\n', '\n')
                             .Replace('\n', '\v');
                     }
                 )
@@ -1712,7 +1716,7 @@ internal sealed partial class WordLiveService : IToolHandler
             ),
         };
         CheckVersion(record, expectedVersion);
-        var tsv = string.Join("\r", rows.Select(row => string.Join("\t", row)));
+        var tsv = string.Join("\n", rows.Select(row => string.Join("\t", row)));
         var started = Stopwatch.GetTimestamp();
         return await _host.InvokeAsync<object>(
             application =>
@@ -1874,8 +1878,8 @@ internal sealed partial class WordLiveService : IToolHandler
                 );
             }
             var normalized = item
-                .Replace("\r\n", "\n", StringComparison.Ordinal)
-                .Replace('\r', '\n')
+                .Replace("\n", "\n", StringComparison.Ordinal)
+                .Replace('\n', '\n')
                 .Replace('\n', '\v');
             if (normalized.Length > 50_000)
             {
@@ -1916,7 +1920,7 @@ internal sealed partial class WordLiveService : IToolHandler
             ? formatNode.Clone()
             : (JsonElement?)null;
         CheckVersion(record, expectedVersion);
-        var listText = string.Join("\r", items);
+        var listText = string.Join("\n", items);
         var started = Stopwatch.GetTimestamp();
         return await _host.InvokeAsync<object>(
             application =>
@@ -3092,10 +3096,10 @@ internal sealed partial class WordLiveService : IToolHandler
                     var newParagraph = operation.AsNewParagraph;
                     var prefix = newParagraph
                         && insertionStart + offset > 0
-                        && previous != "\r"
-                            ? "\r"
+                        && previous != "\n"
+                            ? "\n"
                             : "";
-                    var suffix = newParagraph ? "\r" : "";
+                    var suffix = newParagraph ? "\n" : "";
                     var piece = prefix + raw + suffix;
                     segments.Add((offset + prefix.Length, offset + prefix.Length + raw.Length));
                     pieces.Add(piece);
@@ -3727,19 +3731,7 @@ internal sealed partial class WordLiveService : IToolHandler
                     "Word did not create a non-empty PDF"
                 );
             }
-            if (overwrite && File.Exists(outputPath))
-            {
-                File.Replace(
-                    temporaryPath,
-                    outputPath,
-                    destinationBackupFileName: null,
-                    ignoreMetadataErrors: true
-                );
-            }
-            else
-            {
-                File.Move(temporaryPath, outputPath, overwrite: false);
-            }
+            PublishStagedPdf(temporaryPath, outputPath, overwrite, BeforeCreateNewPublication);
         }
         finally
         {
@@ -3760,6 +3752,24 @@ internal sealed partial class WordLiveService : IToolHandler
             document = snapshot,
             performance = Performance(started),
         };
+    }
+
+    internal static void PublishStagedPdf(string stagedPath, string outputPath, bool overwrite, Action<string, string>? beforeCreateNewPublication = null)
+    {
+        if (overwrite && File.Exists(outputPath))
+        {
+            File.Replace(stagedPath, outputPath, null, true);
+            return;
+        }
+        try
+        {
+            beforeCreateNewPublication?.Invoke(stagedPath, outputPath);
+            AtomicFilePublisher.PublishCreateNew(stagedPath, outputPath);
+        }
+        catch (IOException exception) when (AtomicFilePublisher.IsAlreadyExists(exception))
+        {
+            throw new NativeToolException("VERSION_CONFLICT", "The PDF output file was created concurrently; it was not overwritten");
+        }
     }
 
     private async Task<object> CloseDocumentAsync(
@@ -4056,7 +4066,7 @@ internal sealed partial class WordLiveService : IToolHandler
         if (
             conversion.BuildLinear.Any(
                 character =>
-                    (character < 32 && character is not ('\t' or '\n' or '\r'))
+                    (character < 32 && character is not ('\t' or '\n' or '\n'))
                     || character == 127
             )
         )
@@ -4445,7 +4455,7 @@ internal sealed partial class WordLiveService : IToolHandler
         var unsafeCharacters = searchText
             .Where(
                 character =>
-                    (character < 32 && character is not ('\t' or '\n' or '\r' or '\f'))
+                    (character < 32 && character is not ('\t' or '\n' or '\n' or '\f'))
                     || character == 127
             )
             .Select(character => $"U+{(int)character:X4}")
@@ -4569,7 +4579,7 @@ internal sealed partial class WordLiveService : IToolHandler
     )
     {
         var cleaned = value
-            .Replace('\r', '\n')
+            .Replace('\n', '\n')
             .Replace("\x07", "", StringComparison.Ordinal)
             .Replace("\0", "", StringComparison.Ordinal);
         return (
@@ -4682,17 +4692,17 @@ internal sealed partial class WordLiveService : IToolHandler
         var previous = start > 0
             ? (string?)document.Range(start - 1, start).Text ?? ""
             : "";
-        var prefix = asNewParagraph && start > 0 && previous != "\r" ? "\r" : "";
-        var suffix = asNewParagraph ? "\r" : "";
+        var prefix = asNewParagraph && start > 0 && previous != "\n" ? "\n" : "";
+        var suffix = asNewParagraph ? "\n" : "";
         return (prefix + normalized + suffix, prefix, suffix);
     }
 
     private static string NormalizeWordText(string value)
     {
         return value
-            .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace('\r', '\n')
-            .Replace('\n', '\r');
+            .Replace("\n", "\n", StringComparison.Ordinal)
+            .Replace('\n', '\n')
+            .Replace('\n', '\n');
     }
 
     private static void ApplyFormatting(dynamic range, JsonElement formatting)

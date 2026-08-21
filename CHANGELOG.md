@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Qualified q17 `0.60.1+codex.20260821171101`: 199-file/91,100,453-byte parity,
+  37,872,116-byte ZIP SHA `7CD202F4...`, executable `C030E922...`, DLL `C60F6021...`,
+  Python 1343/16 skipped, Engine 780, Native 609 and LibreOffice 12. The timed
+  live-full-capabilities gate passed 59/59 (15/149, guidance 149/149); combined atomic
+  checks passed 5/5. Word exited naturally after delayed shutdown with final count 0.
+  Full atomic/OCR, shutdown and serialization wave is covered; q16 and older are historical.
+
+- Qualified q14 `0.60.1+codex.20260821155232`: 199-file/91,098,917-byte parity,
+  37,871,655-byte ZIP SHA `59B4B353...`, executable `D29D211A...`, DLL `4508EEE...`,
+  Python 1343/16 skipped, Engine 780, Native 602 and LibreOffice 12. The timed
+  live-full-capabilities Word gate passed 59/59 (15/149, guidance 149/149,
+  OpenXML/save/reconnect, Word 0); FQN passed 3/3. Atomic no-clobber publisher/staging
+  and OCR lock/journal/mapped-drive/scoped-resolver/conflict semantics are covered.
+
 - Qualified q13 `0.60.1+codex.20260821135315`: external SHA fingerprints are now
   case-insensitive in DocumentAnalysis, HeadingOutline and SemanticRole; uppercase regressions 17/17.
   The 199-file/91,087,141-byte A/B package has map SHA `BC5B9B6...`, ZIPs are
@@ -2266,7 +2280,7 @@
   function application no longer invents an extra argument delimiter, while `lim`,
   `min` and `max` now receive an explicit Word boundary after their lower limit so the
   following operand cannot be swallowed into that limit.
-- Added LaTeX `\left\|...\right\|` and `\|...\|` norm delimiters, and canonicalized
+- Added LaTeX `\left\|...\night\|` and `\|...\|` norm delimiters, and canonicalized
   the edge whitespace that Word removes from mathematical text inside `cases`.
 - Scoped differential-placement verification to differentials owned by integral
   operands. Ordinary derivatives such as `\frac{\mathrm{d}y}{\mathrm{d}x}` retain the

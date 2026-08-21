@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using WordToolkit.Engine.Publishing;
 using System.Text;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
@@ -80,11 +81,21 @@ public sealed class FlatOpcWordPackageOperation
 {
     private readonly OpcPackageReader _reader;
     private readonly FlatOpcPackageCodec _codec;
+    private readonly Action<string>? _beforeAtomicPublish;
 
     public FlatOpcWordPackageOperation(OpcPackageLimits? limits = null)
+        : this(limits, null)
+    {
+    }
+
+    internal FlatOpcWordPackageOperation(
+        OpcPackageLimits? limits,
+        Action<string>? beforeAtomicPublish
+    )
     {
         _reader = new OpcPackageReader(limits);
         _codec = new FlatOpcPackageCodec(limits);
+        _beforeAtomicPublish = beforeAtomicPublish;
     }
 
     public FlatOpcWordPackageResult Execute(
@@ -134,11 +145,12 @@ public sealed class FlatOpcWordPackageOperation
                     cancellationToken
                 );
             AssertDestinationAbsent(outputPath);
+            _beforeAtomicPublish?.Invoke(outputPath);
             try
             {
-                File.Move(temporaryPath, outputPath, overwrite: false);
+                AtomicFilePublisher.PublishCreateNew(temporaryPath, outputPath);
             }
-            catch (IOException) when (File.Exists(outputPath))
+            catch (IOException exception) when (AtomicFilePublisher.IsAlreadyExists(exception))
             {
                 throw new WordToolkitOperationException(
                     "VERSION_CONFLICT",

@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using WordToolkit.Engine.Operations;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Publishing;
 using WordToolkit.Engine.Semantics;
 using WordToolkit.Native.Protocol;
 using WordToolkit.OpenXmlSdk;
@@ -26,7 +27,8 @@ internal sealed partial class WordLiveService
 
     private static Task<object> CreatePackagePatchAsync(
         JsonElement arguments,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        Action<string, string>? beforeCreateNewPublication = null
     ) => ExecutePackagePatchAction(() =>
     {
         var started = Stopwatch.GetTimestamp();
@@ -54,7 +56,8 @@ internal sealed partial class WordLiveService
         var artifact = WritePackagePatchArtifact(
             outputPath,
             context.Plan.Patch,
-            cancellationToken
+            cancellationToken,
+            beforeCreateNewPublication
         );
         return new
         {
@@ -1033,7 +1036,8 @@ internal sealed partial class WordLiveService
     private static PackagePatchArtifactResult WritePackagePatchArtifact(
         string destinationPath,
         OpcPackagePatch patch,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        Action<string, string>? beforeCreateNewPublication = null
     )
     {
         var directory = Path.GetDirectoryName(destinationPath)
@@ -1080,9 +1084,10 @@ internal sealed partial class WordLiveService
             }
             try
             {
-                File.Move(temporaryPath, destinationPath, overwrite: false);
+                beforeCreateNewPublication?.Invoke(temporaryPath, destinationPath);
+                AtomicFilePublisher.PublishCreateNew(temporaryPath, destinationPath);
             }
-            catch (IOException) when (File.Exists(destinationPath))
+            catch (IOException exception) when (AtomicFilePublisher.IsAlreadyExists(exception))
             {
                 throw new NativeToolException(
                     "ALREADY_EXISTS",

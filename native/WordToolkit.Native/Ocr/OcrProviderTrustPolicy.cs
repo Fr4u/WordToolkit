@@ -102,16 +102,19 @@ internal sealed partial class OcrProviderTrustPolicy : IOcrProviderTrustPolicy
     private readonly string _manifestPath;
     private readonly string _trustStorePath;
     private readonly Func<DateTimeOffset> _utcNow;
+    private readonly Func<string, DriveType> _driveTypeResolver;
 
     internal OcrProviderTrustPolicy(
         string manifestPath,
         string trustStorePath,
-        Func<DateTimeOffset>? utcNow = null
+        Func<DateTimeOffset>? utcNow = null,
+        Func<string, DriveType>? driveTypeResolver = null
     )
     {
         _manifestPath = ResolveConfigurationFile(manifestPath);
         _trustStorePath = ResolveConfigurationFile(trustStorePath);
         _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
+        _driveTypeResolver = driveTypeResolver ?? (root => new DriveInfo(root).DriveType);
     }
 
     internal static OcrProviderTrustPolicy FromEnvironment()
@@ -135,6 +138,19 @@ internal sealed partial class OcrProviderTrustPolicy : IOcrProviderTrustPolicy
         CancellationToken cancellationToken
     )
     {
+        using var pairLock = OcrProviderTrustPairCoordinator.Acquire(_manifestPath, _trustStorePath);
+        OcrProviderTrustPairCoordinator.Recover(_manifestPath, _trustStorePath);
+        return AuthorizeCore(executablePath, modelDirectory, languages, cancellationToken);
+    }
+
+    private OcrProviderTrustSnapshot AuthorizeCore(
+        string executablePath,
+        string modelDirectory,
+        IReadOnlyList<string> languages,
+        CancellationToken cancellationToken
+    )
+    {
+        ValidateConfigurationFiles();
         ArgumentException.ThrowIfNullOrWhiteSpace(executablePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(modelDirectory);
         ArgumentNullException.ThrowIfNull(languages);
@@ -942,31 +958,22 @@ internal sealed partial class OcrProviderTrustPolicy : IOcrProviderTrustPolicy
             );
         }
         var fullPath = Path.GetFullPath(path);
-        if (
-            fullPath.StartsWith("\\\\", StringComparison.Ordinal)
-            || fullPath.StartsWith("\\\\?\\", StringComparison.Ordinal)
-            || !File.Exists(fullPath)
-        )
-        {
-            throw Error(
-                "OCR_PROVIDER_TRUST_NOT_CONFIGURED",
-                "An OCR provider trust file is unavailable or not local."
-            );
-        }
-        VerifyNoReparsePoints(fullPath);
-        if (OperatingSystem.IsWindows())
-        {
-            var root = Path.GetPathRoot(fullPath);
-            if (!string.IsNullOrWhiteSpace(root)
-                && new DriveInfo(root).DriveType == DriveType.Network)
-            {
-                throw Error(
-                    "OCR_PROVIDER_TRUST_NOT_CONFIGURED",
-                    "OCR provider trust files cannot use mapped network drives."
-                );
-            }
-        }
         return fullPath;
+    }
+
+    private void ValidateConfigurationFiles()
+    {
+        foreach (var path in new[] { _manifestPath, _trustStorePath })
+        {
+            if (path.StartsWith("\\\\", StringComparison.Ordinal)
+                || path.StartsWith("\\\\?\\", StringComparison.Ordinal)
+                || !File.Exists(path))
+                throw Error("OCR_PROVIDER_TRUST_NOT_CONFIGURED", "An OCR provider trust file is unavailable or not local.");
+            var root = Path.GetPathRoot(path);
+            if (root is null || _driveTypeResolver(root) == DriveType.Network)
+                throw Error("OCR_PROVIDER_TRUST_NOT_CONFIGURED", "An OCR provider trust file is unavailable or not local.");
+            VerifyNoReparsePoints(path);
+        }
     }
 
     private static FileSnapshot ReadConfigurationFile(

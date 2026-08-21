@@ -16,6 +16,33 @@ def _make_doc(tmp_path: Path) -> DocxDocument:
 
 
 class TestConvertToPdf:
+    def test_rejects_existing_output_without_invoking_libreoffice(self, tmp_path: Path):
+        doc = _make_doc(tmp_path)
+        pdf_out = tmp_path / "out.pdf"
+        pdf_out.write_bytes(b"existing")
+        with patch("shutil.which", return_value="/usr/bin/libreoffice"), pytest.raises(
+            FileExistsError
+        ):
+            doc.convert_to_pdf(str(pdf_out))
+
+    def test_competing_output_is_not_clobbered(self, tmp_path: Path):
+        doc = _make_doc(tmp_path)
+        pdf_out = tmp_path / "out.pdf"
+        generated = tmp_path / "test.pdf"
+
+        def convert(_args, **_kwargs):
+            generated_path = Path(_args[_args.index("--outdir") + 1]) / "test.pdf"
+            generated_path.write_bytes(b"generated")
+            pdf_out.write_bytes(b"competitor")
+            return MagicMock(returncode=0)
+
+        with patch("shutil.which", return_value="/usr/bin/libreoffice"), patch(
+            "subprocess.run", side_effect=convert
+        ), pytest.raises(FileExistsError):
+            doc.convert_to_pdf(str(pdf_out))
+        assert pdf_out.read_bytes() == b"competitor"
+        assert not generated.exists()
+
     def test_returns_pdf_path_key(self, tmp_path: Path):
         """convert_to_pdf returns dict with 'pdf_path' key."""
         doc = _make_doc(tmp_path)
@@ -24,10 +51,12 @@ class TestConvertToPdf:
         with (
             patch("shutil.which", return_value="/usr/bin/libreoffice"),
             patch("subprocess.run") as mock_run,
-            patch("pathlib.Path.exists", return_value=True),
-            patch("pathlib.Path.rename"),
         ):
             mock_run.return_value = MagicMock(returncode=0)
+            mock_run.side_effect = lambda args, **_: (
+                (Path(args[args.index("--outdir") + 1]) / "test.pdf").write_bytes(b"%PDF-test"),
+                MagicMock(returncode=0),
+            )[1]
             result = doc.convert_to_pdf(pdf_out)
 
         assert "pdf_path" in result
@@ -49,10 +78,12 @@ class TestConvertToPdf:
         with (
             patch("shutil.which", return_value="/usr/bin/libreoffice"),
             patch("subprocess.run") as mock_run,
-            patch("pathlib.Path.exists", return_value=True),
-            patch("pathlib.Path.rename"),
         ):
             mock_run.return_value = MagicMock(returncode=0)
+            mock_run.side_effect = lambda args, **_: (
+                (Path(args[args.index("--outdir") + 1]) / "test.pdf").write_bytes(b"%PDF-test"),
+                MagicMock(returncode=0),
+            )[1]
             doc.convert_to_pdf(pdf_out)
 
         call_args = mock_run.call_args

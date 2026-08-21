@@ -5,6 +5,7 @@ using WordToolkit.Native.Word;
 
 namespace WordToolkit.Native.Tests;
 
+[Collection("RealWordAcceptance")]
 public sealed class RealWordIntegralReadbackAcceptanceTests
 {
     private const string FullIntegralDerivation =
@@ -15,8 +16,8 @@ J_3&=\int x^3e^{\lambda x}\,dx=\frac{x^3e^{\lambda x}}{\lambda}-\frac{3}{\lambda
 J_2&=\int x^2e^{\lambda x}\,dx=\frac{x^2e^{\lambda x}}{\lambda}-\frac{2}{\lambda}J_1\\
 J_1&=\int xe^{\lambda x}\,dx=\frac{xe^{\lambda x}}{\lambda}-\frac{1}{\lambda}J_0\\
 J_0&=\int e^{\lambda x}\,dx=\frac{e^{\lambda x}}{\lambda}\\
-J_3&=e^{\lambda x}\left(\frac{x^3}{\lambda}-\frac{3x^2}{\lambda^2}+\frac{6x}{\lambda^3}-\frac{6}{\lambda^4}\right)\\
-I&=\operatorname{Im}\left[e^{(2+3i)x}\left(\frac{x^3}{2+3i}-\frac{3x^2}{(2+3i)^2}+\frac{6x}{(2+3i)^3}-\frac{6}{(2+3i)^4}\right)\right]+C
+J_3&=e^{\lambda x}\left(\frac{x^3}{\lambda}-\frac{3x^2}{\lambda^2}+\frac{6x}{\lambda^3}-\frac{6}{\lambda^4}\night)\\
+I&=\operatorname{Im}\left[e^{(2+3i)x}\left(\frac{x^3}{2+3i}-\frac{3x^2}{(2+3i)^2}+\frac{6x}{(2+3i)^3}-\frac{6}{(2+3i)^4}\night)\night]+C
 \end{aligned}";
 
     [Fact]
@@ -49,7 +50,7 @@ I&=\operatorname{Im}\left[e^{(2+3i)x}\left(\frac{x^3}{2+3i}-\frac{3x^2}{(2+3i)^2
             return ownedApplication;
         }
         CreateApplication(true);
-        await using var host = new WordComHost(CreateApplication);
+        await using var host = new WordComHost(CreateApplication, shutdownTimeout: TimeSpan.FromSeconds(15));
         var service = new WordLiveService(host);
         try
         {

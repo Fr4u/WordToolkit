@@ -216,6 +216,38 @@ public sealed class PackagePatchServiceTests
     }
 
     [Fact]
+    public async Task CreatePatchConcurrentCompetitorIsAlreadyExistsAndCleansTemporaryArtifact()
+    {
+        var files = CreatePatchFiles("before text", "after text");
+        try
+        {
+            var service = Service();
+            var plan = await Plan(service, files);
+            var artifact = files.NewArtifactPath("concurrent");
+            var competitor = Encoding.UTF8.GetBytes("competitor");
+            service.BeforeCreateNewPublication = (_, destination) =>
+                File.WriteAllBytes(destination, competitor);
+
+            var exception = await Assert.ThrowsAsync<NativeToolException>(() =>
+                CreateArtifact(service, files, plan, artifact));
+
+            Assert.Equal("ALREADY_EXISTS", exception.ErrorCode);
+            Assert.Equal(competitor, File.ReadAllBytes(artifact));
+            Assert.DoesNotContain(
+                Directory.EnumerateFiles(Path.GetDirectoryName(artifact)!),
+                path => Path.GetFileName(path).StartsWith(
+                    ".wordtoolkit-patch-",
+                    StringComparison.Ordinal
+                )
+            );
+        }
+        finally
+        {
+            files.Dispose();
+        }
+    }
+
+    [Fact]
     public async Task MacroPatchIsBlockedUntilItsSpecificAuthorizationIsPresent()
     {
         var files = CreatePatchFiles(

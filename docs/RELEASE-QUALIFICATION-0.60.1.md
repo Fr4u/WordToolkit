@@ -1,32 +1,31 @@
 # WordToolkit 0.60.1 release qualification
 
-Current checkpoint: qualified13 `0.60.1+codex.20260821135315`; q12/q11/q10 are historical.
-The timed live-full-capabilities Word gate passed 59/59, with 15/149 live coverage, guidance 149/149, OpenXML validation, save and reconnect; Word process count was 0.
+Current checkpoint: qualified17 `0.60.1+codex.20260821171101`; q16 and older are historical.
+The timed live-full-capabilities Word gate passed 59/59, with 15/149 live coverage and guidance 149/149; Word exited naturally after delayed shutdown and final Word count was 0.
 
 Qualified11 checkpoint: `0.60.1+codex.20260821123012`, native 587, LibreOffice 12,
 Python 1341/16 skipped; q10 atomic-writer evidence remains historical. Q11 adds
 expected_version/live_version binding, additive recovery guidance and corrected view placement.
 
-Status: local qualified13 record. Git publication and PR checks are not included as passed evidence.
+Status: local qualified17 record. Git publication and PR checks are not included as passed evidence.
 
-## Qualified13 candidate
+## Qualified17 candidate
 
-- Version: `0.60.1+codex.20260821135315`.
+- Version: `0.60.1+codex.20260821171101`.
 - Native MCP surface: 15 public tools, 149 native actions; guidance 149/149.
-- A/B trees: `dist/release-0.60.1-qualified13-a` and `dist/release-0.60.1-qualified13-b`; 199 files and 91,087,141 expanded bytes each, map SHA-256 `BC5B9B6B5DC24D4EC25472A0D605C889A4120391DB268ACF3B293E5944AA1A36`.
-- ZIPs: 37,867,740 bytes each, SHA-256 `AD58F39BB77DF05FD945D3B79D6157EC04F151AAF9BCB940175904869373F1DE`.
-- Native executable SHA-256: `432D5618D4F2ADAFAB0A65E144F9791C2871F10324AF29F3AF4A3BB57FDA407D`.
-- Native DLL SHA-256: `6D863495A85285BD904637FDD3845641F2CD8B963CE3D44321A037814AC520CC`.
-- Installed cache has matching 199-file relative-map parity and q13 version.
-- Test counts: Python 1341 passed / 16 intentional skips; Engine 779; Native 587; LibreOffice 12.
+- A/B trees: `dist/release-0.60.1-qualified17-a` and `dist/release-0.60.1-qualified17-b`; 199 files and 91,100,453 expanded bytes each; artifact/source/cache parity passed.
+- ZIPs: 37,872,116 bytes each, SHA-256 `7CD202F4336B2720C2A8C6F8D14A2139CC64C6741120280B49CC229F0489A843`.
+- Native executable SHA-256: `C030E92254630B5780165AE25F3610482C873683BF2DEBFB4FC800C26B4E8411`.
+- Native DLL SHA-256: `C60F602196F9CA8D4DF6BEB6B3679ACB1536330D30D31C3E290764EDD896D57B`.
+- Test counts: Python 1343 passed / 16 intentional skips; Engine 780; Native 609; LibreOffice 12.
 
-## Real qualified13 evidence
+## Real qualified17 evidence
 
-The timed `live-full-capabilities` gate passed 59/59, with 15/149 live action coverage and guidance 149/149. OpenXML validation, save and reconnect passed; Word process count was 0. Integral and Rollback passed. EquationStyle had an initial cleanup `TimeoutException` with final Word count 0, then an exact rerun passed 3/3 with Word count 0; this is intermittent evidence, not a production or test change.
+The timed `live-full-capabilities` gate passed 59/59 with 15/149 coverage and guidance 149/149. Combined atomic checks passed 5/5. Word exited naturally after delayed shutdown; final Word count was 0. The full atomic/OCR wave covers shared publisher Flat OPC, native PDF/patch, LibreOffice/Python staging, OCR lock/journal/mapped-drive/scoped-resolver/conflict semantics, shutdown and serialization.
 
-## Historical qualified12 checkpoint
+## Historical qualified16 checkpoint
 
-q12 remains historical: 199 files, 91,087,141 expanded bytes, Native 587, and the prior 59/59 live gate. q11 and q10 remain historical beneath it.
+q16 and older checkpoints remain historical and are not current qualification claims.
 
 ## Historical qualified10 candidate
 

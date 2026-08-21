@@ -5,6 +5,7 @@ using WordToolkit.Native.Word;
 
 namespace WordToolkit.Native.Tests;
 
+[Collection("RealWordAcceptance")]
 public sealed class RealWordEquationStyleBatchAcceptanceTests
 {
     [Fact]
@@ -35,7 +36,7 @@ public sealed class RealWordEquationStyleBatchAcceptanceTests
         // Create the dedicated instance outside the host; every COM request below must
         // use launchIfMissing:false and therefore can never attach/launch another Word.
         ownedApplication = CreateApplication(true);
-        await using var host = new WordComHost(CreateApplication);
+        await using var host = new WordComHost(CreateApplication, shutdownTimeout: TimeSpan.FromSeconds(15));
         var service = new WordLiveService(host);
         string? documentId = null;
         string? documentName = null;

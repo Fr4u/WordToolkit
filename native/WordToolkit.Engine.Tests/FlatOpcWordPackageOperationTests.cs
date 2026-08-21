@@ -8,6 +8,36 @@ namespace WordToolkit.Engine.Tests;
 public sealed class FlatOpcWordPackageOperationTests
 {
     [Fact]
+    public void PublishRacePreservesCompetitorAndCleansTemporaryFile()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var input = Path.Combine(directory, "source.docx");
+            var output = Path.Combine(directory, "race.xml");
+            using (var source = FlatOpcPackageCodecTests.BuildWordPackage())
+            using (var file = File.Create(input)) source.CopyTo(file);
+            var competitor = Encoding.UTF8.GetBytes("competitor");
+            var operation = new FlatOpcWordPackageOperation(
+                null,
+                path => File.WriteAllBytes(path, competitor)
+            );
+
+            var error = Assert.Throws<WordToolkitOperationException>(() => operation.Execute(
+                new FlatOpcWordPackageRequest(input, output, FlatOpcConversionDirection.ToFlatOpc)
+            ));
+
+            Assert.Equal("VERSION_CONFLICT", error.Code);
+            Assert.Equal(competitor, File.ReadAllBytes(output));
+            Assert.DoesNotContain(
+                Directory.EnumerateFiles(directory).Select(Path.GetFileName),
+                name => name!.Contains(".wordtoolkit-flatopc-", StringComparison.Ordinal)
+            );
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
+    [Fact]
     public void DirectOperationExportsAndImportsCreateNewVerifiedArtifacts()
     {
         var directory = TemporaryDirectory();

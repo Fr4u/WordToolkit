@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -34,33 +36,49 @@ class PdfExportMixin:
                 "'soffice' is on PATH."
             )
 
-        self.save(self.source_path, backup=False)
-
         out = Path(output_path)
+        if out.exists():
+            raise FileExistsError(f"PDF output already exists: {out}")
         outdir = out.parent
         outdir.mkdir(parents=True, exist_ok=True)
 
-        result = subprocess.run(
-            [
-                lo,
-                "--headless",
-                "--convert-to",
-                "pdf",
-                "--outdir",
-                str(outdir),
-                str(self.source_path),
-            ],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"LibreOffice conversion failed (exit {result.returncode}): {result.stderr.strip()}"
+        # Never let the converter write the caller-visible path.  A private
+        # sibling directory keeps conversion and publication on one filesystem.
+        staging_dir = Path(tempfile.mkdtemp(prefix=".pdf-export-", dir=str(outdir)))
+        generated = staging_dir / (Path(self.source_path).stem + ".pdf")
+        try:
+            self.save(self.source_path, backup=False)
+            result = subprocess.run(
+                [
+                    lo,
+                    "--headless",
+                    "--convert-to",
+                    "pdf",
+                    "--outdir",
+                    str(staging_dir),
+                    str(self.source_path),
+                ],
+                capture_output=True,
+                text=True,
             )
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"LibreOffice conversion failed (exit {result.returncode}): {result.stderr.strip()}"
+                )
+            if not generated.is_file():
+                raise RuntimeError("LibreOffice conversion produced no PDF output")
 
-        # LibreOffice names the output after the input stem
-        generated = outdir / (Path(self.source_path).stem + ".pdf")
-        if generated != out and generated.exists():
-            generated.rename(out)
+            # link() is create-new on Windows and POSIX.  The final link is the
+            # authoritative no-clobber gate if a competitor appears meanwhile.
+            os.link(generated, out)
+        finally:
+            try:
+                if generated.exists():
+                    generated.unlink()
+                staging_dir.rmdir()
+            except OSError:
+                # Preserve the conversion/publication error; cleanup failures
+                # must not leave a partial final output or mask its cause.
+                pass
 
         return {"pdf_path": str(out)}

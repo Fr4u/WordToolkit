@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using WordToolkit.Engine.Rendering;
+using WordToolkit.Engine.Publishing;
 
 namespace WordToolkit.Engine.Packaging;
 
@@ -158,13 +159,13 @@ public sealed class OpcAtomicPackageWriter
                 _beforeAtomicReplace?.Invoke(destination);
                 try
                 {
-                    SemanticRenderArtifactPublisher.PublishNoClobberHardLink(
+                    AtomicFilePublisher.PublishCreateNew(
                         temporaryPath,
                         destination
                     );
                 }
                 catch (IOException exception) when (
-                    SemanticRenderArtifactPublisher.IsAlreadyExistsError(exception)
+                    AtomicFilePublisher.IsAlreadyExists(exception)
                 )
                 {
                     throw new OpcPackageConcurrencyException(

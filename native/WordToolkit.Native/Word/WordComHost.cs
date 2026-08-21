@@ -12,23 +12,31 @@ internal sealed class WordComHost : IWordComHost
     private readonly Func<bool, object>? _applicationFactory;
     private readonly Action? _beforeCancellationObservation;
     private readonly Action? _afterWorkItemCompleted;
+    private readonly Action? _beforeClientObservationCompleted;
+    private readonly TimeSpan _shutdownTimeout;
+    private readonly ManualResetEventSlim _shutdownRequested = new(false);
     private object? _application;
     private bool _applicationOwnedByRuntime;
     private int _abandonedExecutionCount;
     private int _unknownOutcome;
-    private bool _disposed;
+    private int _disposed;
+    private int _stage;
 
     public WordComHost() : this(applicationFactory: null) { }
 
     internal WordComHost(
-        Func<bool, object>? applicationFactory,
+        Func<bool, object>? applicationFactory = null,
         Action? beforeCancellationObservation = null,
-        Action? afterWorkItemCompleted = null
+        Action? afterWorkItemCompleted = null,
+        Action? beforeClientObservationCompleted = null,
+        TimeSpan? shutdownTimeout = null
     )
     {
+        _shutdownTimeout = ValidateShutdownTimeout(shutdownTimeout ?? TimeSpan.FromSeconds(5));
         _applicationFactory = applicationFactory;
         _beforeCancellationObservation = beforeCancellationObservation;
         _afterWorkItemCompleted = afterWorkItemCompleted;
+        _beforeClientObservationCompleted = beforeClientObservationCompleted;
         _thread = new Thread(Run)
         {
             IsBackground = true,
@@ -36,6 +44,18 @@ internal sealed class WordComHost : IWordComHost
         };
         _thread.SetApartmentState(ApartmentState.STA);
         _thread.Start();
+    }
+
+    internal TimeSpan ShutdownTimeout => _shutdownTimeout;
+    internal string CurrentWorkerStage => ((WorkerStage)Volatile.Read(ref _stage)).ToString();
+
+    private static TimeSpan ValidateShutdownTimeout(TimeSpan timeout)
+    {
+        if (timeout <= TimeSpan.Zero || timeout > TimeSpan.FromMinutes(5))
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout), "Shutdown timeout must be greater than zero and no more than five minutes");
+        }
+        return timeout;
     }
 
     public Task<T> InvokeAsync<T>(
@@ -57,7 +77,7 @@ internal sealed class WordComHost : IWordComHost
         bool launchIfMissing = false
     )
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         cancellationToken.ThrowIfCancellationRequested();
         var completion = new TaskCompletionSource<object?>(
             TaskCreationOptions.RunContinuationsAsynchronously
@@ -119,6 +139,7 @@ internal sealed class WordComHost : IWordComHost
         }
         finally
         {
+            _beforeClientObservationCompleted?.Invoke();
             item.MarkClientObservationCompleted();
         }
     }
@@ -143,6 +164,7 @@ internal sealed class WordComHost : IWordComHost
 
     private void Run()
     {
+        SetStage(WorkerStage.Starting);
         var initialized = NativeMethods.CoInitializeEx(
             IntPtr.Zero,
             NativeMethods.COINIT_APARTMENTTHREADED
@@ -155,6 +177,7 @@ internal sealed class WordComHost : IWordComHost
         OleMessageFilter.Register();
         try
         {
+            SetStage(WorkerStage.Idle);
             foreach (var item in _queue.GetConsumingEnumerable())
             {
                 try
@@ -176,23 +199,28 @@ internal sealed class WordComHost : IWordComHost
                 }
                 finally
                 {
-                    item.WaitForClientObservation();
+                    SetStage(WorkerStage.WaitingForClientObservation);
+                    item.WaitForClientObservation(_shutdownRequested);
+                    SetStage(WorkerStage.Idle);
                 }
             }
         }
         finally
         {
+            SetStage(WorkerStage.ResettingApplication);
             ResetApplication();
             OleMessageFilter.Revoke();
             if (initialized >= 0)
             {
                 NativeMethods.CoUninitialize();
             }
+            SetStage(WorkerStage.Stopped);
         }
     }
 
     private void Execute(WorkItem item)
     {
+        SetStage(WorkerStage.Executing);
         item.MarkStarted();
         try
         {
@@ -464,19 +492,22 @@ internal sealed class WordComHost : IWordComHost
 
     public ValueTask DisposeAsync()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
             return ValueTask.CompletedTask;
         }
-        _disposed = true;
+        _shutdownRequested.Set();
         _queue.CompleteAdding();
-        if (!_thread.Join(TimeSpan.FromSeconds(5)))
+        if (!_thread.Join(_shutdownTimeout))
         {
-            throw new TimeoutException("The native Word COM thread did not stop");
+            throw new TimeoutException($"The native Word COM thread did not stop (stage={CurrentWorkerStage})");
         }
         _queue.Dispose();
+        _shutdownRequested.Dispose();
         return ValueTask.CompletedTask;
     }
+
+    private void SetStage(WorkerStage stage) => Volatile.Write(ref _stage, (int)stage);
 
     private sealed class WorkItem
     {
@@ -484,6 +515,7 @@ internal sealed class WordComHost : IWordComHost
         private readonly TaskCompletionSource<bool> _clientObservation = new(
             TaskCreationOptions.RunContinuationsAsynchronously
         );
+        private readonly ManualResetEventSlim _clientObservationSignal = new(false);
         private WorkState _state;
         private bool _abandoned;
 
@@ -560,9 +592,17 @@ internal sealed class WordComHost : IWordComHost
             }
         }
 
-        public void MarkClientObservationCompleted() => _clientObservation.TrySetResult(true);
+        public void MarkClientObservationCompleted()
+        {
+            _clientObservation.TrySetResult(true);
+            _clientObservationSignal.Set();
+        }
 
-        public void WaitForClientObservation() => _clientObservation.Task.GetAwaiter().GetResult();
+        public void WaitForClientObservation(ManualResetEventSlim shutdown)
+        {
+            var handles = new WaitHandle[] { _clientObservationSignal.WaitHandle, shutdown.WaitHandle };
+            WaitHandle.WaitAny(handles);
+        }
 
         private enum WorkState
         {
@@ -570,6 +610,16 @@ internal sealed class WordComHost : IWordComHost
             Executing,
             Completed,
         }
+    }
+
+    internal enum WorkerStage
+    {
+        Starting = 1,
+        Idle,
+        Executing,
+        WaitingForClientObservation,
+        ResettingApplication,
+        Stopped,
     }
 
     private enum CancellationObservation

@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using WordToolkit.Engine.Operations;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Semantics;
+using WordToolkit.Engine.Publishing;
 
 namespace WordToolkit.Engine.Rendering;
 
@@ -296,9 +297,9 @@ internal static class SemanticRenderArtifactPublisher
                 // the same filesystem. The temporary file is already closed,
                 // flushed and never written again before its private link is
                 // removed.
-                PublishNoClobberHardLink(temporaryPath, outputPath);
+                AtomicFilePublisher.PublishCreateNew(temporaryPath, outputPath);
             }
-            catch (IOException exception) when (File.Exists(outputPath))
+                catch (IOException exception) when (AtomicFilePublisher.IsAlreadyExists(exception))
             {
                 throw new WordToolkitOperationException(
                     "OUTPUT_EXISTS",
@@ -355,56 +356,4 @@ internal static class SemanticRenderArtifactPublisher
         throw new IOException("A private temporary output path could not be allocated.");
     }
 
-    internal static void PublishNoClobberHardLink(
-        string temporaryPath,
-        string outputPath
-    )
-    {
-        int error;
-        if (OperatingSystem.IsWindows())
-        {
-            if (CreateHardLinkWindows(outputPath, temporaryPath, IntPtr.Zero))
-            {
-                return;
-            }
-            error = Marshal.GetLastWin32Error();
-        }
-        else
-        {
-            if (CreateHardLinkUnix(temporaryPath, outputPath) == 0)
-            {
-                return;
-            }
-            error = Marshal.GetLastWin32Error();
-        }
-        throw new IOException(
-            "Atomic create-new artifact publication failed.",
-            new Win32Exception(error)
-        );
-    }
-
-    internal static bool IsAlreadyExistsError(IOException exception)
-    {
-        var code = (exception.InnerException as Win32Exception)?.NativeErrorCode;
-        return code is 17 or 80 or 183;
-    }
-
-    [DllImport(
-        "kernel32.dll",
-        EntryPoint = "CreateHardLinkW",
-        CharSet = CharSet.Unicode,
-        SetLastError = true
-    )]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CreateHardLinkWindows(
-        string newFileName,
-        string existingFileName,
-        IntPtr securityAttributes
-    );
-
-    [DllImport("libc", EntryPoint = "link", SetLastError = true)]
-    private static extern int CreateHardLinkUnix(
-        string existingPath,
-        string newPath
-    );
 }

@@ -421,7 +421,7 @@ wordtoolkit-native transform-package .\input.docx .\output.docx `
   --operation replace_first_text_occurrence `
   --find-text "old text" --replace-text "new text" --format json
 
-wordtoolkit-native transform-package .\review.docx .\accepted.docx `
+wordtoolkit-native transform-package .\neview.docx .\accepted.docx `
   --operation accept_all_tracked_changes --format json
 ```
 
@@ -443,7 +443,7 @@ hashes/counts, not document XML:
 ```powershell
 wordtoolkit-native flat-opc-package .\input.docx .\transport.xml `
   --direction to_flat_opc --format json
-wordtoolkit-native flat-opc-package .\transport.xml .\restored.docx `
+wordtoolkit-native flat-opc-package .\transport.xml .\nestored.docx `
   --direction from_flat_opc --format json
 ```
 
@@ -1078,9 +1078,9 @@ result, policy gates, destination-bound identity, candidate validation and atomi
 Direct .NET, lazy MCP and the strict non-interactive JSON CLI execute that same code:
 
 ```powershell
-wordtoolkit-native patch-rollback-package --mode plan --request .\rollback-plan.json --format json
-wordtoolkit-native patch-rollback-package --mode apply --request .\rollback-apply.json --format json
-Get-Content .\rollback-plan.json -Raw | wordtoolkit-native patch-rollback-package --mode plan --request - --format json
+wordtoolkit-native patch-rollback-package --mode plan --request .\nollback-plan.json --format json
+wordtoolkit-native patch-rollback-package --mode apply --request .\nollback-apply.json --format json
+Get-Content .\nollback-plan.json -Raw | wordtoolkit-native patch-rollback-package --mode plan --request - --format json
 ```
 
 Unknown JSON fields are rejected. A changed package without an injected schema validator
@@ -1125,7 +1125,7 @@ fingerprint and stable IDs or redacted author fingerprints. Then build a dry pla
 
 ```json
 {
-  "local_path": "C:\\docs\\reviewed.docx",
+  "local_path": "C:\\docs\\neviewed.docx",
   "expected_package_fingerprint": "<64-hex fingerprint>",
   "decision": "accept",
   "author_fingerprints": ["<16-hex fingerprint>"]
@@ -1138,7 +1138,7 @@ same resolved decision set and the exact plan identity:
 
 ```json
 {
-  "local_path": "C:\\docs\\reviewed.docx",
+  "local_path": "C:\\docs\\neviewed.docx",
   "expected_package_fingerprint": "<64-hex fingerprint>",
   "expected_plan_id": "wrplan_<returned-id>",
   "decision": "accept",
@@ -1369,7 +1369,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is the locally qualified13 0.60.1 candidate (`0.60.1+codex.20260821135315`). Read-only installation inspection passed: artifact/source/cache parity is 199 files with relative-map SHA `BC5B9B6B5DC24D4EC25472A0D605C889A4120391DB268ACF3B293E5944AA1A36`, cache path `C:\Users\Admin\.codex\plugins\cache\personal\wordtoolkit\0.60.1+codex.20260821135315`, and runtime guidance 149/149. The timed q13 live-full-capabilities Word gate passed 59/59 with OpenXML validation, save and reconnect; q10/q11/q12 are historical. The latest immutable public release remains
+The development manifest/runtime is the locally qualified17 0.60.1 candidate (`0.60.1+codex.20260821171101`). Read-only installation inspection passed: artifact/source/cache parity is 199 files and 91,100,453 expanded bytes; cache path `C:\Users\Admin\.codex\plugins\cache\personal\wordtoolkit\0.60.1+codex.20260821171101`, and runtime guidance 149/149. The timed q17 live-full-capabilities Word gate passed 59/59; q16 and older are historical. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:

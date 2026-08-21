@@ -5,6 +5,7 @@ using WordToolkit.Native.Word;
 
 namespace WordToolkit.Native.Tests;
 
+[Collection("RealWordAcceptance")]
 public sealed class RealWordRollbackAcceptanceTests
 {
     [Fact]
@@ -36,7 +37,7 @@ public sealed class RealWordRollbackAcceptanceTests
             return ownedApplication;
         }
 
-        await using var host = new WordComHost(CreateApplication);
+        await using var host = new WordComHost(CreateApplication, shutdownTimeout: TimeSpan.FromSeconds(15));
         var service = new WordLiveService(host);
         string? documentName = null;
         ExceptionDispatchInfo? primary = null;
@@ -173,9 +174,18 @@ public sealed class RealWordRollbackAcceptanceTests
             return;
         }
 
-        await using var host = new WordComHost();
+        object? ownedApplication = null;
+        object CreateApplication(bool launchIfMissing)
+        {
+            if (ownedApplication is not null) return ownedApplication;
+            if (!launchIfMissing) throw new InvalidOperationException("The real-Word regression requires its dedicated application instance.");
+            ownedApplication = CreateOwnedWordApplication();
+            return ownedApplication;
+        }
+        await using var host = new WordComHost(CreateApplication, shutdownTimeout: TimeSpan.FromSeconds(15));
         var service = new WordLiveService(host);
-        await host.InvokeAsync(
+        ExceptionDispatchInfo? primary = null;
+        try { await host.InvokeAsync(
             application =>
             {
                 dynamic document = application.Documents.Add(Visible: false);
@@ -196,7 +206,7 @@ public sealed class RealWordRollbackAcceptanceTests
                     dynamic undoRecord = application.UndoRecord;
                     undoRecord.StartCustomRecord("WordToolkit: real rollback proof");
                     var undoStarted = true;
-                    document.Range(0, 0).InsertBefore("contamination\r");
+                    document.Range(0, 0).InsertBefore("contamination\n");
 
                     var error = Assert.Throws<NativeToolException>(
                         () =>
@@ -232,9 +242,14 @@ public sealed class RealWordRollbackAcceptanceTests
                 {
                     document.Close(0);
                 }
-            },
-            launchIfMissing: true
-        );
+            }, launchIfMissing: true);
+        } catch (Exception exception) { primary = ExceptionDispatchInfo.Capture(exception); }
+        finally
+        {
+            try { await host.InvokeAsync(application => { application.Quit(0); return true; }, launchIfMissing: false); }
+            catch (Exception cleanup) { primary ??= ExceptionDispatchInfo.Capture(cleanup); }
+            primary?.Throw();
+        }
     }
 
     [Fact]
@@ -249,14 +264,23 @@ public sealed class RealWordRollbackAcceptanceTests
             return;
         }
 
-        await using var host = new WordComHost();
-        await host.InvokeAsync(
+        object? ownedApplication = null;
+        object CreateApplication(bool launchIfMissing)
+        {
+            if (ownedApplication is not null) return ownedApplication;
+            if (!launchIfMissing) throw new InvalidOperationException("The real-Word regression requires its dedicated application instance.");
+            ownedApplication = CreateOwnedWordApplication();
+            return ownedApplication;
+        }
+        await using var host = new WordComHost(CreateApplication, shutdownTimeout: TimeSpan.FromSeconds(15));
+        ExceptionDispatchInfo? primary = null;
+        try { await host.InvokeAsync(
             application =>
             {
                 dynamic document = application.Documents.Add(Visible: false);
                 try
                 {
-                    document.Content.Text = "Przed\rEquation: x^2 + y^2 = z^2\rPo\r";
+                    document.Content.Text = "Przed\nEquation: x^2 + y^2 = z^2\nPo\n";
                     dynamic equationParagraph = document.Paragraphs.Item(2).Range;
                     dynamic equationRange = document.Range(
                         (int)equationParagraph.Start + 10,
@@ -270,7 +294,7 @@ public sealed class RealWordRollbackAcceptanceTests
                     );
                     var flatOpc = (string)document.WordOpenXML;
 
-                    document.Content.Text = "skażenie\rresztka\rresztka\r";
+                    document.Content.Text = "skażenie\nresztka\nresztka\n";
                     Assert.Equal(0, (int)document.OMaths.Count);
 
                     WordLiveService.RestoreLiveMainStoryFromFlatOpc(
@@ -296,8 +320,13 @@ public sealed class RealWordRollbackAcceptanceTests
                 {
                     document.Close(0);
                 }
-            },
-            launchIfMissing: true
-        );
+            }, launchIfMissing: true); }
+        catch (Exception exception) { primary = ExceptionDispatchInfo.Capture(exception); }
+        finally
+        {
+            try { await host.InvokeAsync(application => { application.Quit(0); return true; }, launchIfMissing: false); }
+            catch (Exception cleanup) { primary ??= ExceptionDispatchInfo.Capture(cleanup); }
+            primary?.Throw();
+        }
     }
 }
