@@ -134,7 +134,7 @@ public sealed class SemanticRoleWordPackageOperation
             && !string.Equals(
                 request.ExpectedPackageFingerprint,
                 package.Fingerprint,
-                StringComparison.Ordinal
+                StringComparison.OrdinalIgnoreCase
             ))
         {
             throw new WordToolkitOperationException(

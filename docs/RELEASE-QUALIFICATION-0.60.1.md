@@ -1,28 +1,32 @@
 # WordToolkit 0.60.1 release qualification
 
-Current checkpoint: qualified12 `0.60.1+codex.20260821123719`; q10/q11 are historical.
-The timed live-full-capabilities Word gate passed 59/59, including OpenXML validation, save and reconnect.
+Current checkpoint: qualified13 `0.60.1+codex.20260821135315`; q12/q11/q10 are historical.
+The timed live-full-capabilities Word gate passed 59/59, with 15/149 live coverage, guidance 149/149, OpenXML validation, save and reconnect; Word process count was 0.
 
 Qualified11 checkpoint: `0.60.1+codex.20260821123012`, native 587, LibreOffice 12,
 Python 1341/16 skipped; q10 atomic-writer evidence remains historical. Q11 adds
 expected_version/live_version binding, additive recovery guidance and corrected view placement.
 
-Status: local qualified12 record. Git publication and PR checks are not included as passed evidence.
+Status: local qualified13 record. Git publication and PR checks are not included as passed evidence.
 
-## Qualified12 candidate
+## Qualified13 candidate
 
-- Version: `0.60.1+codex.20260821123719`.
+- Version: `0.60.1+codex.20260821135315`.
 - Native MCP surface: 15 public tools, 149 native actions; guidance 149/149.
-- A/B trees: `dist/release-0.60.1-qualified12-a` and `dist/release-0.60.1-qualified12-b`; 199 files and 91,087,141 expanded bytes each, map SHA-256 `BC5B9B6B5DC24D4EC25472A0D605C889A4120391DB268ACF3B293E5944AA1A36`.
-- ZIPs: 37,867,739 bytes each, SHA-256 `F66DB4672A982D36F4A170EBC48E39FCD8054A67E418778E7F42CFDDAE36203D`.
-- Native executable SHA-256: `A7A6BD839C81BE14796D503CD85E01CACE6AE486114C6ED2FE7AE6C78ADA9ED9`.
-- Native DLL SHA-256: `9E72259FDF947362BD89F459AC1CB1C17EE6932FF68539219FBBC748D7B42E62`.
-- Installed cache has matching 199-file relative-map parity and q12 version.
+- A/B trees: `dist/release-0.60.1-qualified13-a` and `dist/release-0.60.1-qualified13-b`; 199 files and 91,087,141 expanded bytes each, map SHA-256 `BC5B9B6B5DC24D4EC25472A0D605C889A4120391DB268ACF3B293E5944AA1A36`.
+- ZIPs: 37,867,740 bytes each, SHA-256 `AD58F39BB77DF05FD945D3B79D6157EC04F151AAF9BCB940175904869373F1DE`.
+- Native executable SHA-256: `432D5618D4F2ADAFAB0A65E144F9791C2871F10324AF29F3AF4A3BB57FDA407D`.
+- Native DLL SHA-256: `6D863495A85285BD904637FDD3845641F2CD8B963CE3D44321A037814AC520CC`.
+- Installed cache has matching 199-file relative-map parity and q13 version.
 - Test counts: Python 1341 passed / 16 intentional skips; Engine 779; Native 587; LibreOffice 12.
 
-## Real qualified12 evidence
+## Real qualified13 evidence
 
-The timed `live-full-capabilities` gate passed 59/59, with 15/149 live action coverage and guidance 149/149. OpenXML validation, save and reconnect passed. Integral x2, Style x1 and Rollback x1 passed after the test-only owned-app fix; Word process count was 0, with the earlier rollback evidence 3/3. Integral fixture hygiene was corrected for the test corpus only and is not a production behavior change.
+The timed `live-full-capabilities` gate passed 59/59, with 15/149 live action coverage and guidance 149/149. OpenXML validation, save and reconnect passed; Word process count was 0. Integral and Rollback passed. EquationStyle had an initial cleanup `TimeoutException` with final Word count 0, then an exact rerun passed 3/3 with Word count 0; this is intermittent evidence, not a production or test change.
+
+## Historical qualified12 checkpoint
+
+q12 remains historical: 199 files, 91,087,141 expanded bytes, Native 587, and the prior 59/59 live gate. q11 and q10 remain historical beneath it.
 
 ## Historical qualified10 candidate
 
@@ -43,7 +47,7 @@ The prior real gate remains historical qualified9 evidence: `dist/acceptance-0.6
 
 ## Installation boundary
 
-Historical q10 installation evidence recorded read-only artifact/source/cache parity at 199 files; it is not the current q12 cache claim.
+Installation **passed**: read-only inspection proved q13 artifact/source/cache parity at 199 files, map SHA `BC5B9B6B...`, exact q13 cache version/path, runtime capabilities and guidance 149/149.
 
 ## Limits and history
 
@@ -53,10 +57,10 @@ ManualFix remains a 25-operation boundary. SmartArt and feature-behavior probes 
 
 | Requirement | Evidence |
 |---|---|
-| Version/catalog | `plugin/wordtoolkit/.codex-plugin/plugin.json`; `schemas/mcp-tools-local.v1.json`; qualified12 runtime |
-| Deterministic package | q12 A/B package paths and hashes above |
-| Guidance parity | current generated guidance artifact, 149/149, SHA-256 `6DD3C13A55FC1748F206F246A2797A1278F2DE5708BD9A84EA0FE737C601C090` |
-| Real Word gate | q12 timed live-full-capabilities gate: 59/59, OpenXML/save/reconnect passed; q10/q11 historical |
-| Installation | Passed: artifact/source/cache parity, 199-file map SHA `BC5B9B6B...`, exact q12 cache version/path, runtime capabilities and guidance 149/149 |
+| Version/catalog | `plugin/wordtoolkit/.codex-plugin/plugin.json`; `schemas/mcp-tools-local.v1.json`; qualified13 runtime |
+| Deterministic package | q13 A/B package paths and hashes above |
+| Guidance parity | current generated guidance artifact, 149/149 |
+| Real Word gate | q13 timed live-full-capabilities gate: 59/59, OpenXML/save/reconnect passed; q10/q11/q12 historical |
+| Installation | Passed: q13 artifact/source/cache parity, 199-file map SHA `BC5B9B6B...`, exact q13 cache version/path, runtime capabilities and guidance 149/149 |
 
 Additional local gates include Ruff/format, metadata and dispatcher 149/149, schema export, deterministic A/B ZIP parity, and the local Word interop workflow. GitHub execution after push is not claimed.

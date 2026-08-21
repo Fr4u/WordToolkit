@@ -90,6 +90,15 @@ public sealed class HeadingOutlineWordPackageOperationTests
                 MaxItems: 1
             ));
             Assert.Equal(1, first.NextOffset);
+            var upperFingerprint = first.PackageFingerprint.ToUpperInvariant();
+            Assert.NotEqual(first.PackageFingerprint, upperFingerprint);
+
+            var uppercase = operation.Inspect(new HeadingOutlineInspectionRequest(
+                path,
+                ExpectedPackageFingerprint: upperFingerprint,
+                MaxItems: 1
+            ));
+            Assert.Equal(first.PackageFingerprint, uppercase.PackageFingerprint);
 
             var second = operation.Inspect(new HeadingOutlineInspectionRequest(
                 path,
@@ -108,6 +117,16 @@ public sealed class HeadingOutlineWordPackageOperationTests
                 operation.Inspect(new HeadingOutlineInspectionRequest(path, Offset: 1))
             );
             Assert.Equal("INVALID_INPUT", invalid.Code);
+            var mismatch = first.PackageFingerprint[..^1]
+                + (first.PackageFingerprint[^1] == '0' ? '1' : '0');
+            var conflict = Assert.Throws<WordToolkitOperationException>(() =>
+                operation.Inspect(new HeadingOutlineInspectionRequest(
+                    path,
+                    ExpectedPackageFingerprint: mismatch,
+                    MaxItems: 1
+                ))
+            );
+            Assert.Equal("VERSION_CONFLICT", conflict.Code);
         }
         finally
         {

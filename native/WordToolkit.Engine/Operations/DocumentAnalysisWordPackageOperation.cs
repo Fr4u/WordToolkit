@@ -132,7 +132,7 @@ public sealed class DocumentAnalysisWordPackageOperation
             && !string.Equals(
                 request.ExpectedPackageFingerprint,
                 package.Fingerprint,
-                StringComparison.Ordinal
+                StringComparison.OrdinalIgnoreCase
             ))
         {
             throw new WordToolkitOperationException(

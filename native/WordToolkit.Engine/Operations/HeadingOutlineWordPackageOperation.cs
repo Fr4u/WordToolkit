@@ -133,7 +133,7 @@ public sealed class HeadingOutlineWordPackageOperation
             && !string.Equals(
                 request.ExpectedPackageFingerprint,
                 package.Fingerprint,
-                StringComparison.Ordinal
+                StringComparison.OrdinalIgnoreCase
             )
         )
         {

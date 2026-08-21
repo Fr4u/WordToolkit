@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Qualified q13 `0.60.1+codex.20260821135315`: external SHA fingerprints are now
+  case-insensitive in DocumentAnalysis, HeadingOutline and SemanticRole; uppercase regressions 17/17.
+  The 199-file/91,087,141-byte A/B package has map SHA `BC5B9B6...`, ZIPs are
+  37,867,740 bytes with SHA `AD58F39B...`, executable `432D5618...` and native DLL
+  `6D863495...`; installed artifact/source/cache parity matches. Engine 779, Native 587,
+  Python 1341/16 skipped and LibreOffice 12. The timed live-full-capabilities Word gate
+  passed 59/59 (15/149 coverage, guidance 149/149, OpenXML/save/reconnect, Word 0).
+  Integral and Rollback passed. EquationStyle had an initial cleanup TimeoutException
+  with final Word 0, then exact rerun 3/3 passed with Word 0; intermittent evidence only,
+  no production or test change.
+
 - Qualified q12 `0.60.1+codex.20260821123719`: 199-file, 91,087,141-byte A/B parity
   (map SHA `BC5B9B6...`), 37,867,739-byte ZIP (SHA `F66DB467...`), executable
   `A7A6BD83...`, native DLL `9E72259F...`, Engine 779, Native 587, Python 1341/16

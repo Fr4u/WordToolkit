@@ -126,8 +126,16 @@ public sealed class DocumentAnalysisWordPackageOperationTests
         try
         {
             File.WriteAllBytes(path, BuildPackage(includeActiveContent: false));
+            var operation = new DocumentAnalysisWordPackageOperation();
+            var first = operation.Analyze(new DocumentAnalysisRequest(path));
+            var upperFingerprint = first.PackageFingerprint.ToUpperInvariant();
+            Assert.NotEqual(first.PackageFingerprint, upperFingerprint);
+            var uppercase = operation.Analyze(
+                new DocumentAnalysisRequest(path, upperFingerprint)
+            );
+            Assert.Equal(first.PackageFingerprint, uppercase.PackageFingerprint);
             var stale = Assert.Throws<WordToolkitOperationException>(() =>
-                new DocumentAnalysisWordPackageOperation().Analyze(
+                operation.Analyze(
                     new DocumentAnalysisRequest(path, new string('0', 64))
                 )
             );

@@ -1369,7 +1369,7 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-The development manifest/runtime is the locally qualified12 0.60.1 candidate (`0.60.1+codex.20260821123719`). Read-only installation inspection passed: artifact/source/cache parity is 199 files with relative-map SHA `BC5B9B6B5DC24D4EC25472A0D605C889A4120391DB268ACF3B293E5944AA1A36`, cache path `C:\Users\Admin\.codex\plugins\cache\personal\wordtoolkit\0.60.1+codex.20260821123719`, and runtime guidance 149/149. The timed q12 live-full-capabilities Word gate passed 59/59 with OpenXML validation, save and reconnect; q10/q11 are historical. The latest immutable public release remains
+The development manifest/runtime is the locally qualified13 0.60.1 candidate (`0.60.1+codex.20260821135315`). Read-only installation inspection passed: artifact/source/cache parity is 199 files with relative-map SHA `BC5B9B6B5DC24D4EC25472A0D605C889A4120391DB268ACF3B293E5944AA1A36`, cache path `C:\Users\Admin\.codex\plugins\cache\personal\wordtoolkit\0.60.1+codex.20260821135315`, and runtime guidance 149/149. The timed q13 live-full-capabilities Word gate passed 59/59 with OpenXML validation, save and reconnect; q10/q11/q12 are historical. The latest immutable public release remains
 0.34.0 until the strengthened CI, review and licensed Word release gate pass.
 
 Version:
