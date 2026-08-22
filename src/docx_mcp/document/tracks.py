@@ -13,9 +13,11 @@ New in this version
 
 from __future__ import annotations
 
+import copy
 import difflib
 import re
 
+import regex
 from lxml import etree
 
 from .base import W, _now_iso, _preserve
@@ -53,6 +55,8 @@ _PRENORM_MAP: dict[str, str] = {
     "\u2060": "",  # word joiner
     "\ufeff": "",  # BOM / zero-width no-break space
 }
+
+_GRAPHEME_RE = regex.compile(r"\X")
 
 
 def _pre_normalize(text: str) -> str:
@@ -123,6 +127,18 @@ def _norm(text: str, *, ignore_case: bool = False) -> tuple[str, list[int]]:
     return ws_norm, orig_idx
 
 
+def _grapheme_boundaries(text: str) -> set[int]:
+    """Return every safe extended-grapheme boundary in *text*.
+
+    Python indexes Unicode code points, while Word users edit perceived characters.
+    UAX #29 boundaries keep combining marks, variation selectors, emoji modifiers,
+    regional-indicator flags, and ZWJ sequences indivisible.
+    """
+    boundaries = {0}
+    boundaries.update(match.end() for match in _GRAPHEME_RE.finditer(text))
+    return boundaries
+
+
 # ── Accepted-view flattening ───────────────────────────────────────────────────
 
 
@@ -163,10 +179,12 @@ def _flatten_para(para: etree._Element) -> list[_Slot]:
             for r in child.findall(f"{W}r"):
                 idx = _slots_from_run(r, slots, idx, in_ins=child)
         elif child.tag == f"{W}hyperlink":
-            # TODO: w:ins > w:r nested inside w:hyperlink (tracked insertion of hyperlink
-            # text) is not yet handled — findall only reaches direct w:r children.
-            for r in child.findall(f"{W}r"):
-                idx = _slots_from_run(r, slots, idx, in_ins=None)
+            for hyperlink_child in child:
+                if hyperlink_child.tag == f"{W}r":
+                    idx = _slots_from_run(hyperlink_child, slots, idx, in_ins=None)
+                elif hyperlink_child.tag == f"{W}ins":
+                    for r in hyperlink_child.findall(f"{W}r"):
+                        idx = _slots_from_run(r, slots, idx, in_ins=hyperlink_child)
         # w:del, w:pPr, w:bookmarkStart, etc. → skip
     return slots
 
@@ -240,8 +258,20 @@ def _doc_norm_count(doc: etree._Element, norm_find: str, *, ignore_case: bool = 
         slots = _flatten_para(p)
         if not slots:
             continue
-        nt, nt_to_orig = _norm("".join(s.char for s in slots), ignore_case=ignore_case)
-        if _find_in_norm(nt, norm_find, "", "", nt_to_orig):
+        accepted = "".join(s.char for s in slots)
+        nt, nt_to_orig = _norm(accepted, ignore_case=ignore_case)
+        matches = _find_in_norm(nt, norm_find, "", "", nt_to_orig)
+        if not matches:
+            continue
+        boundaries = _grapheme_boundaries(accepted)
+        aligned_match = False
+        for norm_start, norm_end in matches:
+            source_start = nt_to_orig[norm_start]
+            source_end = nt_to_orig[norm_end - 1] + 1
+            if source_start in boundaries and source_end in boundaries:
+                aligned_match = True
+                break
+        if aligned_match:
             count += 1
     return count
 
@@ -323,6 +353,12 @@ def _resolve(
     ns, ne = match
     slot_s = orig_idx[ns]
     slot_e = orig_idx[ne - 1] + 1 if ne > ns else slot_s + 1
+    boundaries = _grapheme_boundaries(accepted)
+    if slot_s not in boundaries or slot_e not in boundaries:
+        raise ValueError(
+            "Matched text cuts through an extended Unicode grapheme cluster; "
+            "select the complete user-perceived character"
+        )
     return slot_s, slot_e, slots
 
 
@@ -343,6 +379,19 @@ def _build_run(
     t = etree.SubElement(r, tag)
     _preserve(t, text)
     return r
+
+
+def _publish_para_candidate(original: etree._Element, candidate: etree._Element) -> None:
+    """Publish a verified paragraph candidate without invalidating *original* references."""
+    original.attrib.clear()
+    original.attrib.update(candidate.attrib)
+    original.text = candidate.text
+    original.tail = candidate.tail
+    for child in list(original):
+        original.remove(child)
+    for child in list(candidate):
+        candidate.remove(child)
+        original.append(child)
 
 
 def _collapse_diff(find: str, replace: str) -> tuple[str, str, str, str]:
@@ -372,6 +421,48 @@ def _collapse_diff(find: str, replace: str) -> tuple[str, str, str, str]:
 
 
 # ── Deletion helper ───────────────────────────────────────────────────────────
+
+
+def _validate_run_groups(
+    run_groups: list[tuple[etree._Element, bytes | None, str]],
+) -> list[tuple[etree._Element, list[tuple[etree._Element, bytes | None, str]]]]:
+    """Preflight editable runs and group consecutive runs by their direct parent."""
+    segments: list[
+        tuple[etree._Element, list[tuple[etree._Element, bytes | None, str]]]
+    ] = []
+    allowed_run_children = {f"{W}rPr", f"{W}t"}
+
+    for group in run_groups:
+        run_el = group[0]
+        parent = run_el.getparent()
+        if parent is None:
+            raise ValueError("Cannot edit a detached text run")
+        if any(
+            callable(child.tag) or child.tag not in allowed_run_children for child in run_el
+        ):
+            raise ValueError(
+                "Cannot edit a text run that also contains fields, drawings, tabs, breaks, "
+                "or other non-text content"
+            )
+        if segments and segments[-1][0] is parent:
+            segments[-1][1].append(group)
+        else:
+            segments.append((parent, [group]))
+
+    for parent, segment_groups in segments:
+        child_positions = {id(child): index for index, child in enumerate(parent)}
+        positions: list[int] = []
+        for run_el, _, _ in segment_groups:
+            try:
+                positions.append(child_positions[id(run_el)])
+            except KeyError as exc:
+                raise ValueError("Cannot edit a run outside its recorded container") from exc
+        if any(right != left + 1 for left, right in zip(positions, positions[1:])):
+            raise ValueError(
+                "Cannot edit text across bookmarks, fields, or other rich inline boundaries"
+            )
+
+    return segments
 
 
 def _apply_deletion(
@@ -420,6 +511,13 @@ def _apply_deletion(
     if prev is not None:
         run_groups.append((prev, rpr_b, "".join(acc)))
 
+    segments = _validate_run_groups(run_groups)
+    if len(segments) != 1:
+        raise ValueError(
+            "Tracked deletion cannot cross run-container boundaries such as hyperlinks; "
+            "use an exact single-container target or tracked=False"
+        )
+
     first_run = run_groups[0][0]
     last_run = run_groups[-1][0]
 
@@ -433,7 +531,7 @@ def _apply_deletion(
     after_rpr = last_all[0].rpr_bytes if last_all else None
 
     # ── Find insertion point in parent ────────────────────────────────────
-    parent = first_run.getparent()
+    parent = segments[0][0]
     children = list(parent)
     insert_pos = children.index(first_run)
 
@@ -499,8 +597,9 @@ def _apply_untracked_deletion(
 ) -> tuple[etree._Element, int]:
     """Remove ``slots[slot_s:slot_e]`` directly without ``w:del`` markup.
 
-    Returns ``(parent, insert_pos)`` — the parent element and child index where
-    replacement text should be spliced in.
+    Returns ``(parent, insert_pos)`` — the first matched run's parent and child
+    index where replacement text should be spliced in. This makes a replacement
+    inherit the structural container of its first changed character.
     """
     del_slots = slots[slot_s:slot_e]
     if not del_slots:
@@ -522,6 +621,8 @@ def _apply_untracked_deletion(
     if prev is not None:
         run_groups.append((prev, rpr_b, "".join(acc)))
 
+    segments = _validate_run_groups(run_groups)
+
     first_run = run_groups[0][0]
     last_run = run_groups[-1][0]
 
@@ -533,27 +634,31 @@ def _apply_untracked_deletion(
     after_text = "".join(s.char for s in last_all if s.idx >= slot_e)
     after_rpr = last_all[0].rpr_bytes if last_all else None
 
-    parent = first_run.getparent()
-    children = list(parent)
-    insert_pos = children.index(first_run)
+    replacement_parent: etree._Element | None = None
+    replacement_pos = 0
 
-    seen: set[int] = set()
-    for run_el, _, _ in run_groups:
-        if id(run_el) not in seen:
+    for segment_index, (parent, segment_groups) in enumerate(segments):
+        segment_first_run = segment_groups[0][0]
+        segment_last_run = segment_groups[-1][0]
+        insert_pos = list(parent).index(segment_first_run)
+
+        for run_el, _, _ in segment_groups:
             parent.remove(run_el)
-            seen.add(id(run_el))
 
-    pos = insert_pos
-    if before_text:
-        parent.insert(pos, _build_run(before_text, before_rpr))
-        pos += 1
+        pos = insert_pos
+        if segment_first_run is first_run and before_text:
+            parent.insert(pos, _build_run(before_text, before_rpr))
+            pos += 1
 
-    insert_here = pos  # where replacement text should be inserted
+        if segment_index == 0:
+            replacement_parent = parent
+            replacement_pos = pos
 
-    if after_text:
-        parent.insert(pos, _build_run(after_text, after_rpr))
+        if segment_last_run is last_run and after_text:
+            parent.insert(pos, _build_run(after_text, after_rpr))
 
-    return parent, insert_here
+    assert replacement_parent is not None
+    return replacement_parent, replacement_pos
 
 
 # ── TracksMixin ───────────────────────────────────────────────────────────────
@@ -692,9 +797,10 @@ class TracksMixin:
     ) -> dict:
         """Mark *text* as deleted with ``<w:del>`` markup, or remove directly when tracked=False."""
         doc = self._require("word/document.xml")
-        para = self._find_para(doc, para_id)
-        if para is None:
+        original_para = self._find_para(doc, para_id)
+        if original_para is None:
             raise ValueError(f"Paragraph '{para_id}' not found")
+        para = copy.deepcopy(original_para)
 
         cid = self._next_markup_id(doc)
         now = _now_iso()
@@ -706,6 +812,7 @@ class TracksMixin:
             _apply_deletion(para, slot_s, slot_e, slots, cid, author, now)
         else:
             _apply_untracked_deletion(para, slot_s, slot_e, slots)
+        _publish_para_candidate(original_para, para)
         self._mark("word/document.xml")
         return {
             "change_id": cid if tracked else None,
@@ -737,9 +844,10 @@ class TracksMixin:
         Returns ``{"type": "replacement", ...}``.
         """
         doc = self._require("word/document.xml")
-        para = self._find_para(doc, para_id)
-        if para is None:
+        original_para = self._find_para(doc, para_id)
+        if original_para is None:
             raise ValueError(f"Paragraph '{para_id}' not found")
+        para = copy.deepcopy(original_para)
 
         slot_s, slot_e, slots = _resolve(
             doc, para, find, context_before, context_after, ignore_case=ignore_case
@@ -774,7 +882,9 @@ class TracksMixin:
                 last_del = del_els[-1] if del_els else None
 
             if ins_text:
-                ins_cid = self._next_markup_id(doc)
+                # The candidate paragraph is detached until the whole edit succeeds, so
+                # the document scan cannot see the deletion ID yet.
+                ins_cid = cid + 1 if del_text else cid
                 ins_el = etree.Element(f"{W}ins")
                 ins_el.set(f"{W}id", str(ins_cid))
                 ins_el.set(f"{W}author", author)
@@ -800,6 +910,7 @@ class TracksMixin:
             if ins_text:
                 parent.insert(insert_pos, _build_run(ins_text, rpr_bytes))
 
+        _publish_para_candidate(original_para, para)
         self._mark("word/document.xml")
         return {
             "del_id": cid if (tracked and del_text) else None,

@@ -330,3 +330,150 @@ class TestCasefoldExpansion:
         )
         assert deleted_text == "Straße"
         assert inserted_text == "Weg"
+
+
+@pytest.mark.parametrize(
+    ("source", "partial"),
+    [
+        ("e\u0301", "e"),
+        ("✈️", "✈"),
+        ("👩‍💻", "👩"),
+        ("🇵🇱", "🇵"),
+        ("👍🏽", "👍"),
+        ("1️⃣", "1"),
+        ("👨‍👩‍👧‍👦", "👨"),
+        ("🏴\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f", "🏴"),
+        ("가", "ᄀ"),
+        ("क्‍ष", "क"),
+    ],
+)
+@pytest.mark.parametrize("operation", ["delete", "replace"])
+def test_partial_grapheme_cluster_edit_is_rejected_atomically(
+    tmp_path: Path,
+    source: str,
+    partial: str,
+    operation: str,
+):
+    para_id = "00000036"
+    path = tmp_path / f"grapheme-{operation}.docx"
+    body = (
+        f'    <w:p w14:paraId="{para_id}" w14:textId="77777777">\n'
+        f'      <w:r><w:t xml:space="preserve">A{source}B</w:t></w:r>\n'
+        "    </w:p>"
+    )
+    _minimal_docx(path, body)
+    server.open_document(str(path))
+    paragraph = _para_xml(para_id)
+    before = etree.tostring(paragraph)
+
+    with pytest.raises(ValueError, match="grapheme cluster"):
+        if operation == "delete":
+            server.delete_text(para_id, partial)
+        else:
+            server.replace_text(para_id, find=partial, replace="X")
+
+    assert etree.tostring(paragraph) == before
+    assert not list(paragraph.iter(f"{W}del"))
+    assert not list(paragraph.iter(f"{W}ins"))
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "e\u0301",
+        "✈️",
+        "👩‍💻",
+        "🇵🇱",
+        "👍🏽",
+        "1️⃣",
+        "👨‍👩‍👧‍👦",
+        "🏴\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f",
+        "가",
+        "क्‍ष",
+    ],
+)
+def test_complete_grapheme_cluster_remains_editable(tmp_path: Path, source: str):
+    para_id = "00000037"
+    path = tmp_path / "complete-grapheme.docx"
+    body = (
+        f'    <w:p w14:paraId="{para_id}" w14:textId="77777777">\n'
+        f'      <w:r><w:t xml:space="preserve">A{source}B</w:t></w:r>\n'
+        "    </w:p>"
+    )
+    _minimal_docx(path, body)
+    server.open_document(str(path))
+
+    result = _j(server.delete_text(para_id, source))
+
+    assert result["type"] == "deletion"
+    paragraph = _para_xml(para_id)
+    assert "".join(node.text or "" for node in paragraph.iter(f"{W}delText")) == source
+
+
+def test_grapheme_cluster_split_across_runs_remains_indivisible(tmp_path: Path):
+    para_id = "0000003A"
+    path = tmp_path / "split-grapheme.docx"
+    body = (
+        f'    <w:p w14:paraId="{para_id}" w14:textId="77777777">\n'
+        "      <w:r><w:t>A👩</w:t></w:r>\n"
+        "      <w:r><w:t>‍</w:t></w:r>\n"
+        "      <w:r><w:t>💻B</w:t></w:r>\n"
+        "    </w:p>"
+    )
+    _minimal_docx(path, body)
+    server.open_document(str(path))
+    document = server._doc._require("word/document.xml")
+    before = etree.tostring(document)
+
+    with pytest.raises(ValueError, match="grapheme cluster"):
+        server.delete_text(para_id, "👩")
+
+    assert etree.tostring(document) == before
+
+
+@pytest.mark.parametrize(
+    ("source", "partial", "complete_query"),
+    [
+        ("İ", "i", "i\u0307"),
+        ("ﬃ", "f", "ffi"),
+    ],
+)
+def test_casefold_expansion_respects_source_and_grapheme_boundaries(
+    tmp_path: Path,
+    source: str,
+    partial: str,
+    complete_query: str,
+):
+    para_id = "0000003B"
+    path = tmp_path / "casefold-grapheme.docx"
+    body = (
+        f'    <w:p w14:paraId="{para_id}" w14:textId="77777777">'
+        f"<w:r><w:t>A{source}B</w:t></w:r></w:p>"
+    )
+    _minimal_docx(path, body)
+    server.open_document(str(path))
+
+    with pytest.raises(ValueError):
+        server.delete_text(para_id, partial, ignore_case=True)
+
+    result = _j(server.delete_text(para_id, complete_query, ignore_case=True))
+    assert result["type"] == "deletion"
+    paragraph = _para_xml(para_id)
+    assert "".join(node.text or "" for node in paragraph.iter(f"{W}delText")) == source
+
+
+def test_partial_cluster_in_another_paragraph_does_not_create_false_ambiguity(tmp_path: Path):
+    target_id = "00000038"
+    path = tmp_path / "grapheme-global-count.docx"
+    body = (
+        f'    <w:p w14:paraId="{target_id}" w14:textId="77777777">'
+        "<w:r><w:t>A e B</w:t></w:r></w:p>\n"
+        '    <w:p w14:paraId="00000039" w14:textId="77777777">'
+        "<w:r><w:t>A e\u0301 B</w:t></w:r></w:p>"
+    )
+    _minimal_docx(path, body)
+    server.open_document(str(path))
+
+    result = _j(server.delete_text(target_id, "e"))
+
+    assert result["type"] == "deletion"
