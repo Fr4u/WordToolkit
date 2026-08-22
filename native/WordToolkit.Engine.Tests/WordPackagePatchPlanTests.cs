@@ -360,6 +360,44 @@ public sealed class WordPackagePatchPlanTests
         Assert.True(
             plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
         );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Fact]
+    public void InvalidProtectionEditModeIsNonOverridable()
+    {
+        const string settings =
+            "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+            + "<w:documentProtection w:edit='bogus' w:enforcement='1'/>"
+            + "</w:settings>";
+        var before = Read(BuildPackage(
+            "before",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+        var after = Read(BuildPackage(
+            "after",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.True(
+            plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
+        );
         Assert.Contains(
             "protection_metadata_malformed",
             plan.Evaluate(new WordPackagePatchApplyPolicy
@@ -367,6 +405,98 @@ public sealed class WordPackagePatchPlanTests
                 AllowProtectedDocumentEdit = true,
             }).BlockCodes
         );
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DuplicateOrMissingSettingsPartIsNonOverridable(
+        bool duplicateRelationships
+    )
+    {
+        const string settings =
+            "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+            + "<w:documentProtection w:edit='readOnly' w:enforcement='1'/>"
+            + "</w:settings>";
+        var extras = duplicateRelationships
+            ? new Dictionary<string, byte[]>
+            {
+                ["word/settings.xml"] = Utf8(settings),
+            }
+            : null;
+        var overrides = duplicateRelationships ? SettingsContentTypeOverride() : null;
+        var relationships = duplicateRelationships
+            ? DuplicateSettingsRelationships()
+            : SettingsRelationships();
+        var before = Read(BuildPackage(
+            "before",
+            extras,
+            overrides,
+            relationships
+        ));
+        var after = Read(BuildPackage(
+            "after",
+            extras,
+            overrides,
+            relationships
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.True(
+            plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Fact]
+    public void InvalidSettingsContentTypeIsNonOverridable()
+    {
+        const string settings =
+            "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+            + "<w:documentProtection w:edit='readOnly' w:enforcement='1'/>"
+            + "</w:settings>";
+        var extras = new Dictionary<string, byte[]>
+        {
+            ["word/settings.xml"] = Utf8(settings),
+        };
+        var before = Read(BuildPackage(
+            "before",
+            extras,
+            documentRelationships: SettingsRelationships()
+        ));
+        var after = Read(BuildPackage(
+            "after",
+            extras,
+            documentRelationships: SettingsRelationships()
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.True(
+            plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
     }
 
     [Fact]
@@ -1025,6 +1155,12 @@ public sealed class WordPackagePatchPlanTests
     private static string SettingsRelationships() =>
         "<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'>"
         + "<Relationship Id='rIdSettings' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings' Target='settings.xml'/>"
+        + "</Relationships>";
+
+    private static string DuplicateSettingsRelationships() =>
+        "<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'>"
+        + "<Relationship Id='rIdSettings1' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings' Target='settings.xml'/>"
+        + "<Relationship Id='rIdSettings2' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings' Target='settings.xml'/>"
         + "</Relationships>";
 
     private static string DuplicateRelationships(int count) =>

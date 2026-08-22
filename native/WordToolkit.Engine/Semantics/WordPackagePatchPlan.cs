@@ -600,6 +600,8 @@ public static class WordPackagePatchRiskAnalyzer
             "http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings";
         const string strictSettingsRelationship =
             "http://purl.oclc.org/ooxml/officeDocument/relationships/settings";
+        const string settingsContentType =
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml";
         var relationships = package.RelationshipsFrom(mainPartUri)
             .Where(relationship =>
                 relationship.Type is
@@ -607,13 +609,22 @@ public static class WordPackagePatchRiskAnalyzer
                     or strictSettingsRelationship
             )
             .ToArray();
+        if (relationships.Length == 0)
+        {
+            return new DocumentProtectionMetadataEvidence(false, null);
+        }
         if (
             relationships.Length != 1
             || relationships[0].ResolvedTargetPartUri is not { } partUri
             || !package.Parts.TryGetValue(partUri, out var part)
+            || !string.Equals(
+                part.ContentType,
+                settingsContentType,
+                StringComparison.OrdinalIgnoreCase
+            )
         )
         {
-            return new DocumentProtectionMetadataEvidence(false, null);
+            return new DocumentProtectionMetadataEvidence(true, null);
         }
         var source = LosslessXmlDocument.Parse(
             part.Entry.Content,
@@ -658,6 +669,7 @@ public static class WordPackagePatchRiskAnalyzer
                 misplacedProtectionAttribute
                 || parsedEnforcement is null
                 || editMode?.Length > 64
+                || !IsDocumentProtectionEditMode(editMode)
             )
             {
                 unmodeled = true;
@@ -692,6 +704,14 @@ public static class WordPackagePatchRiskAnalyzer
         "true" or "1" or "on" => true,
         _ => null,
     };
+
+    private static bool IsDocumentProtectionEditMode(string? value) => value is
+        null
+        or "none"
+        or "readOnly"
+        or "comments"
+        or "trackedChanges"
+        or "forms";
 
     private sealed record ProtectionEvidence(
         bool DocumentProtectionEnforced,
