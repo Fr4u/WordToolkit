@@ -36,6 +36,11 @@ public sealed class PackageMergeServiceTests
             output["properties"]!["protection_authorization_id"]!["pattern"]!.GetValue<string>()
         );
         Assert.NotNull(output["properties"]!["risk"]!["properties"]!["protection"]);
+        var protection = output["properties"]!["risk"]!["properties"]!["protection"]!;
+        Assert.Contains(
+            "unmodeled_document_protection_metadata",
+            protection["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
         Assert.Equal(
             "^wtmergeapply_[A-Za-z0-9_-]+$",
             apply["inputSchema"]!["properties"]!["protected_edit_authorization"]!["pattern"]!.GetValue<string>()
@@ -286,12 +291,16 @@ public sealed class PackageMergeServiceTests
         Assert.True(File.Exists(outputPath));
     }
 
-    [Fact]
-    public async Task MalformedPermissionRangesHardBlockMergeWithoutTouchingInputs()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MalformedProtectionMetadataHardBlocksMergeWithoutTouchingInputs(
+        bool useUnmodeledDocumentProtection
+    )
     {
         const string invalidPermission =
-            "<w:permStart w:id='7' w:edGrp='everyone' w:colFirst='2' w:colLast='1'/>"
-            + "<w:permEnd w:id='7'/>";
+            "<w:permStart ws:id='7' ws:edGrp='everyone' ws:colFirst='0' ws:colLast='2'/>"
+            + "<w:permEnd ws:id='7'/>";
         using var files = CreateFiles(
             "ancestor",
             "beta",
@@ -299,7 +308,10 @@ public sealed class PackageMergeServiceTests
             "beta",
             "ancestor",
             "right",
-            permissionMarkup: invalidPermission
+            permissionMarkup: useUnmodeledDocumentProtection ? null : invalidPermission,
+            settingsXml: useUnmodeledDocumentProtection
+                ? AlternateContentSettingsXml()
+                : null
         );
         var ancestorBytes = File.ReadAllBytes(files.AncestorPath);
         var leftBytes = File.ReadAllBytes(files.LeftPath);
@@ -464,7 +476,8 @@ public sealed class PackageMergeServiceTests
         byte[]? leftMacro = null,
         byte[]? rightMacro = null,
         string? protectionMode = null,
-        string? permissionMarkup = null
+        string? permissionMarkup = null,
+        string? settingsXml = null
     )
     {
         var stem = Path.Combine(
@@ -483,7 +496,8 @@ public sealed class PackageMergeServiceTests
             ancestorSecond,
             ancestorMacro,
             protectionMode: protectionMode,
-            permissionMarkup: permissionMarkup
+            permissionMarkup: permissionMarkup,
+            settingsXml: settingsXml
         );
         WriteDocument(
             leftPath,
@@ -491,7 +505,8 @@ public sealed class PackageMergeServiceTests
             leftSecond,
             leftMacro,
             protectionMode: protectionMode,
-            permissionMarkup: permissionMarkup
+            permissionMarkup: permissionMarkup,
+            settingsXml: settingsXml
         );
         WriteDocument(
             rightPath,
@@ -499,7 +514,8 @@ public sealed class PackageMergeServiceTests
             rightSecond,
             rightMacro,
             protectionMode: protectionMode,
-            permissionMarkup: permissionMarkup
+            permissionMarkup: permissionMarkup,
+            settingsXml: settingsXml
         );
         return new MergeFiles(stem, ancestorPath, leftPath, rightPath);
     }
@@ -511,9 +527,11 @@ public sealed class PackageMergeServiceTests
         byte[]? macro,
         bool overwrite = false,
         string? protectionMode = null,
-        string? permissionMarkup = null
+        string? permissionMarkup = null,
+        string? settingsXml = null
     )
     {
+        var hasSettings = protectionMode is not null || settingsXml is not null;
         using var stream = new FileStream(
             path,
             overwrite ? FileMode.Create : FileMode.CreateNew,
@@ -523,25 +541,29 @@ public sealed class PackageMergeServiceTests
         Write(
             archive,
             "[Content_Types].xml",
-            ContentTypes(macro is not null, protectionMode is not null)
+            ContentTypes(macro is not null, hasSettings)
         );
         Write(archive, "_rels/.rels", RootRelationships());
         Write(archive, "word/document.xml", DocumentXml(first, second, permissionMarkup));
-        if (macro is not null || protectionMode is not null)
+        if (macro is not null || hasSettings)
         {
             Write(
                 archive,
                 "word/_rels/document.xml.rels",
-                DocumentRelationships(macro is not null, protectionMode is not null)
+                DocumentRelationships(macro is not null, hasSettings)
             );
         }
         if (macro is not null)
         {
             Write(archive, "word/vbaProject.bin", macro);
         }
-        if (protectionMode is not null)
+        if (hasSettings)
         {
-            Write(archive, "word/settings.xml", SettingsXml(protectionMode));
+            Write(
+                archive,
+                "word/settings.xml",
+                settingsXml ?? SettingsXml(protectionMode!)
+            );
         }
     }
 
@@ -551,6 +573,7 @@ public sealed class PackageMergeServiceTests
         string? permissionMarkup = null
     ) =>
         "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:ws='http://purl.oclc.org/ooxml/wordprocessingml/main' "
         + "xmlns:w14='http://schemas.microsoft.com/office/word/2010/wordml'>"
         + $"<w:body><w:p w14:paraId='11111111'>{permissionMarkup}<w:r><w:t>{first}</w:t></w:r></w:p>"
         + $"<w:p w14:paraId='22222222'><w:r><w:t>{second}</w:t></w:r></w:p>"
@@ -589,6 +612,16 @@ public sealed class PackageMergeServiceTests
         "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
         + $"<w:documentProtection w:edit='{protectionMode}' w:enforcement='1'/>"
         + "</w:settings>";
+
+    private static string AlternateContentSettingsXml() =>
+        "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:w14='http://schemas.microsoft.com/office/word/2010/wordml' "
+        + "xmlns:mc='http://schemas.openxmlformats.org/markup-compatibility/2006' mc:Ignorable='w14'>"
+        + "<mc:AlternateContent><mc:Choice Requires='w14'>"
+        + "<w:documentProtection w:edit='readOnly' w:enforcement='1'/>"
+        + "</mc:Choice><mc:Fallback>"
+        + "<w:documentProtection w:edit='readOnly' w:enforcement='1'/>"
+        + "</mc:Fallback></mc:AlternateContent></w:settings>";
 
     private static void Write(ZipArchive archive, string name, string value) =>
         Write(archive, name, Encoding.UTF8.GetBytes(value));

@@ -210,6 +210,83 @@ public sealed class WordPackagePatchPlanTests
     }
 
     [Fact]
+    public void MixedPermissionAttributeNamespacesAreNonOverridable()
+    {
+        var before = Read(BuildPackage(
+            "unused",
+            documentXml: MixedNamespacePermissionDocumentXml("before")
+        ));
+        var after = Read(BuildPackage(
+            "unused",
+            documentXml: MixedNamespacePermissionDocumentXml("after")
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.True(plan.RiskAssessment.Protection.HasMalformedProtectionMetadata);
+        Assert.Contains(
+            "PERMISSION_ATTRIBUTE_NAMESPACE_INVALID",
+            plan.RiskAssessment.Protection.PermissionIssueCodes
+        );
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MceWrappedDocumentProtectionIsNonOverridable(bool includeFallback)
+    {
+        var settings = AlternateContentSettingsXml(includeFallback);
+        var before = Read(BuildPackage(
+            "before",
+            new Dictionary<string, byte[]>
+            {
+                ["word/settings.xml"] = Utf8(settings),
+            },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+        var after = Read(BuildPackage(
+            "after",
+            new Dictionary<string, byte[]>
+            {
+                ["word/settings.xml"] = Utf8(settings),
+            },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.True(
+            plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
+        );
+        Assert.True(plan.RiskAssessment.Protection.HasMalformedProtectionMetadata);
+        Assert.True(plan.RiskAssessment.Protection.AuthorizationRequired);
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Fact]
     public void ProtectedNoOpDoesNotDemandMeaninglessAuthorization()
     {
         var snapshot = Read(BuildProtectedPackage("same", "readOnly", enforced: true));
@@ -734,12 +811,31 @@ public sealed class WordPackagePatchPlanTests
         + $"<w:r><w:t>{text}</w:t></w:r><w:permEnd w:id='7'/>"
         + "</w:p></w:body></w:document>";
 
+    private static string MixedNamespacePermissionDocumentXml(string text) =>
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:ws='http://purl.oclc.org/ooxml/wordprocessingml/main'>"
+        + "<w:body><w:p><w:permStart ws:id='7' ws:edGrp='everyone' ws:colFirst='0' ws:colLast='2'/>"
+        + $"<w:r><w:t>{text}</w:t></w:r><w:permEnd ws:id='7'/>"
+        + "</w:p></w:body></w:document>";
+
     private static string SettingsXml(string? editMode, bool enforced) =>
         "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
         + (editMode is null
             ? string.Empty
             : $"<w:documentProtection w:edit='{editMode}' w:enforcement='{(enforced ? 1 : 0)}'/>")
         + "</w:settings>";
+
+    private static string AlternateContentSettingsXml(bool includeFallback) =>
+        "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:w14='http://schemas.microsoft.com/office/word/2010/wordml' "
+        + "xmlns:mc='http://schemas.openxmlformats.org/markup-compatibility/2006' mc:Ignorable='w14'>"
+        + "<mc:AlternateContent><mc:Choice Requires='w14'>"
+        + "<w:documentProtection w:edit='readOnly' w:enforcement='1'/>"
+        + "</mc:Choice>"
+        + (includeFallback
+            ? "<mc:Fallback><w:documentProtection w:edit='readOnly' w:enforcement='1'/></mc:Fallback>"
+            : string.Empty)
+        + "</mc:AlternateContent></w:settings>";
 
     private static IReadOnlyDictionary<string, string> SettingsContentTypeOverride() =>
         new Dictionary<string, string>

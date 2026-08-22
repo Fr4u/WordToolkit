@@ -9,6 +9,8 @@ public sealed class WordReviewGraphTests
 {
     private const string Word =
         "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    private const string WordStrict =
+        "http://purl.oclc.org/ooxml/wordprocessingml/main";
     private const string Word2010 =
         "http://schemas.microsoft.com/office/word/2010/wordml";
     private const string Word2012 =
@@ -257,6 +259,53 @@ public sealed class WordReviewGraphTests
             issue =>
                 issue.Code == "PERMISSION_COLUMN_RANGE_INVALID"
                 && issue.Message.Contains("non-negative", StringComparison.Ordinal)
+        );
+    }
+
+    [Fact]
+    public void DiagnosesMixedPermissionAttributeNamespaces()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}" xmlns:ws="{WordStrict}" xmlns:w14="{Word2010}"><w:body><w:p w14:paraId="A0000001">
+              <w:permStart ws:id="7" ws:edGrp="everyone" ws:colFirst="0" ws:colLast="2" ws:displacedByCustomXml="next"/>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd ws:id="7"/>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_ATTRIBUTE_NAMESPACE_INVALID"
+        );
+        Assert.DoesNotContain(graph.Permissions, permission =>
+            permission.Status == WordReviewRangeStatus.Complete
+        );
+    }
+
+    [Fact]
+    public void DiagnosesStrictMarkersWithTransitionalPermissionAttributes()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <ws:document xmlns:w="{Word}" xmlns:ws="{WordStrict}"><ws:body><ws:p>
+              <ws:permStart w:id="7" w:ed="user@example.test"/>
+              <ws:r><ws:t>x</ws:t></ws:r>
+              <ws:permEnd w:id="7"/>
+            </ws:p></ws:body></ws:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_ATTRIBUTE_NAMESPACE_INVALID"
         );
     }
 

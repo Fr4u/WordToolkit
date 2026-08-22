@@ -369,7 +369,7 @@ public sealed class PatchRollbackWordPackageOperation
                 hasChanges: !context.ReversePatch.IsNoOp
             ),
             context.Plan.RiskAssessment.Protection.AuthorizationRequired
-                && !context.Plan.RiskAssessment.Protection.HasMalformedPermissionMetadata
+                && !context.Plan.RiskAssessment.Protection.HasMalformedProtectionMetadata
                     ? context.RollbackPlanId
                     : null,
             request.View,
@@ -488,6 +488,7 @@ public sealed class PatchRollbackWordPackageOperation
             risk.Protection.ResultDocumentProtectionEnforced,
             risk.Protection.ResultDocumentProtectionEditMode,
             risk.Protection.DocumentProtectionMetadataChanged,
+            risk.Protection.UnmodeledDocumentProtectionMetadata,
             risk.Protection.BasePermissionRangeCount,
             risk.Protection.ResultPermissionRangeCount,
             risk.Protection.MalformedPermissionRangeCount,
@@ -556,7 +557,7 @@ public sealed class PatchRollbackWordPackageOperation
             return context.FormatHardBlockCodes;
         }
         var blocks = new List<string>(context.FormatHardBlockCodes);
-        if (context.Plan.RiskAssessment.Protection.HasMalformedPermissionMetadata)
+        if (context.Plan.RiskAssessment.Protection.HasMalformedProtectionMetadata)
         {
             blocks.Add("protection_metadata_malformed");
         }
@@ -639,7 +640,7 @@ public sealed class PatchRollbackWordPackageOperation
         if (
             hasChanges
             && risk.Protection.AuthorizationRequired
-            && !risk.Protection.HasMalformedPermissionMetadata
+            && !risk.Protection.HasMalformedProtectionMetadata
         )
         {
             result.Add("protected_edit_authorization");

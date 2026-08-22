@@ -902,7 +902,14 @@ public sealed class WordReviewGraphBuilder
         }
         var ordinal = source.GetElementOrdinal(element);
         var location = LocationFor(partUri, source, element, state);
-        var ooxmlId = WordAttribute(element, "id");
+        ValidatePermissionAttributeNamespaces(
+            partUri,
+            element,
+            location,
+            ordinal,
+            state
+        );
+        var ooxmlId = PermissionAttribute(element, "id");
         if (string.IsNullOrWhiteSpace(ooxmlId))
         {
             state.AddIssue(
@@ -925,7 +932,7 @@ public sealed class WordReviewGraphBuilder
                 ordinal
             );
         }
-        var displacedByCustomXml = WordAttribute(element, "displacedByCustomXml");
+        var displacedByCustomXml = PermissionAttribute(element, "displacedByCustomXml");
         if (
             displacedByCustomXml is not null
             && displacedByCustomXml is not ("next" or "prev")
@@ -1234,14 +1241,16 @@ public sealed class WordReviewGraphBuilder
             var start = starts.FirstOrDefault();
             var end = ends.FirstOrDefault();
             var status = RangeStatus(starts, ends);
-            var editor = start is null ? null : WordAttribute(start.Element, "ed");
-            var editorGroup = start is null ? null : WordAttribute(start.Element, "edGrp");
+            var editor = start is null ? null : PermissionAttribute(start.Element, "ed");
+            var editorGroup = start is null
+                ? null
+                : PermissionAttribute(start.Element, "edGrp");
             var rawColumnFirst = start is null
                 ? null
-                : WordAttribute(start.Element, "colFirst");
+                : PermissionAttribute(start.Element, "colFirst");
             var rawColumnLast = start is null
                 ? null
-                : WordAttribute(start.Element, "colLast");
+                : PermissionAttribute(start.Element, "colLast");
             var columnFirst = ParseInteger(rawColumnFirst);
             var columnLast = ParseInteger(rawColumnLast);
             var id = StableId(
@@ -1838,6 +1847,48 @@ public sealed class WordReviewGraphBuilder
         or "editors"
         or "owners"
         or "current";
+
+    private static readonly IReadOnlySet<string> PermissionAttributeNames =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "id",
+            "ed",
+            "edGrp",
+            "colFirst",
+            "colLast",
+            "displacedByCustomXml",
+        };
+
+    private static string? PermissionAttribute(XElement element, string localName) =>
+        element.Attribute(element.Name.Namespace + localName)?.Value;
+
+    private static void ValidatePermissionAttributeNamespaces(
+        string partUri,
+        XElement element,
+        StoryLocation location,
+        int ordinal,
+        BuildState state
+    )
+    {
+        if (
+            !element.Attributes().Any(attribute =>
+                !attribute.IsNamespaceDeclaration
+                && PermissionAttributeNames.Contains(attribute.Name.LocalName)
+                && attribute.Name.Namespace != element.Name.Namespace
+            )
+        )
+        {
+            return;
+        }
+        state.AddIssue(
+            "PERMISSION_ATTRIBUTE_NAMESPACE_INVALID",
+            WordReviewIssueSeverity.Error,
+            "Permission-range attributes must use the same WordprocessingML namespace as their marker element.",
+            partUri,
+            location.StoryId,
+            ordinal
+        );
+    }
 
     private static string? WordAttribute(XElement element, string localName) =>
         element.Attribute(element.Name.Namespace + localName)?.Value

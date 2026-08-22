@@ -8117,7 +8117,7 @@
     {
       "name": "plan_ooxml_patch_apply",
       "title": "Plan safe application of a Word package patch",
-      "description": "Rebuild a patch candidate against an exact saved-package fingerprint, recompute semantic differences and risk evidence, verify result package type against the destination extension, and compare baseline and candidate Open XML SDK validation results. Returns a deterministic destination-bound apply-plan ID and separate required authorization flags without writing the document or opening Word. When protected editing is reviewable, protection_authorization_id must be returned unchanged as protected_edit_authorization during apply; malformed permission metadata is a hard block.",
+      "description": "Rebuild a patch candidate against an exact saved-package fingerprint, recompute semantic differences and risk evidence, verify result package type against the destination extension, and compare baseline and candidate Open XML SDK validation results. Returns a deterministic destination-bound apply-plan ID and separate required authorization flags without writing the document or opening Word. When protected editing is reviewable, protection_authorization_id must be returned unchanged as protected_edit_authorization during apply; unmodeled or ambiguous document-protection placement and malformed permission metadata are a hard block.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -8280,7 +8280,7 @@
     {
       "name": "apply_ooxml_patch",
       "title": "Atomically apply a reviewed Word package patch",
-      "description": "Rebuild and atomically apply an exact reviewed .wtpatch artifact to a saved Word package. Requires the base fingerprint, patch ID and destination-bound apply-plan ID; enforces result package type against the in-place extension, validates the candidate, writes through a sibling temporary file, rechecks fingerprints, and keeps a recovery backup by default. Risk authorizations are separate and default to false. Protected non-no-op edits require the exact protection_authorization_id from the same apply plan as protected_edit_authorization; malformed permission metadata cannot be overridden.",
+      "description": "Rebuild and atomically apply an exact reviewed .wtpatch artifact to a saved Word package. Requires the base fingerprint, patch ID and destination-bound apply-plan ID; enforces result package type against the in-place extension, validates the candidate, writes through a sibling temporary file, rechecks fingerprints, and keeps a recovery backup by default. Risk authorizations are separate and default to false. Protected non-no-op edits require the exact protection_authorization_id from the same apply plan as protected_edit_authorization; unmodeled or ambiguous document-protection placement and malformed permission metadata cannot be overridden.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -8410,7 +8410,7 @@
     {
       "name": "plan_ooxml_patch_rollback",
       "title": "Plan safe rollback of an applied Word package patch",
-      "description": "Read an original .wtpatch artifact, derive its exact reverse patch, require the current saved package to match the original result fingerprint, recompute semantic, risk, package-type, and Open XML validation evidence, and return a deterministic destination-bound rollback-plan ID. When protected editing is reviewable, protection_authorization_id must be returned unchanged as protected_edit_authorization during apply; malformed permission metadata is a hard block. The operation writes nothing and never opens Word.",
+      "description": "Read an original .wtpatch artifact, derive its exact reverse patch, require the current saved package to match the original result fingerprint, recompute semantic, risk, package-type, and Open XML validation evidence, and return a deterministic destination-bound rollback-plan ID. When protected editing is reviewable, protection_authorization_id must be returned unchanged as protected_edit_authorization during apply; unmodeled or ambiguous document-protection placement and malformed permission metadata are a hard block. The operation writes nothing and never opens Word.",
       "operationVersion": "1.0",
       "permissions": {
         "filesystem": "read_input_package_and_patch_artifact",
@@ -8542,13 +8542,14 @@
               "new_structural_error_count": {"type": "integer", "minimum": 0},
               "protection": {
                 "type": "object",
-                "required": ["base_document_protection_enforced", "result_document_protection_enforced", "document_protection_metadata_changed", "base_permission_range_count", "result_permission_range_count", "malformed_permission_range_count", "permission_issues_truncated", "permission_issue_codes", "authorization_required"],
+                "required": ["base_document_protection_enforced", "result_document_protection_enforced", "document_protection_metadata_changed", "unmodeled_document_protection_metadata", "base_permission_range_count", "result_permission_range_count", "malformed_permission_range_count", "permission_issues_truncated", "permission_issue_codes", "authorization_required"],
                 "properties": {
                   "base_document_protection_enforced": {"type": "boolean"},
                   "base_document_protection_edit_mode": {"type": ["string", "null"], "maxLength": 64},
                   "result_document_protection_enforced": {"type": "boolean"},
                   "result_document_protection_edit_mode": {"type": ["string", "null"], "maxLength": 64},
                   "document_protection_metadata_changed": {"type": "boolean"},
+                  "unmodeled_document_protection_metadata": {"type": "boolean"},
                   "base_permission_range_count": {"type": "integer", "minimum": 0},
                   "result_permission_range_count": {"type": "integer", "minimum": 0},
                   "malformed_permission_range_count": {"type": "integer", "minimum": 0},
@@ -8648,7 +8649,7 @@
     {
       "name": "apply_ooxml_patch_rollback",
       "title": "Atomically roll back an applied Word package patch",
-      "description": "Rebuild the exact reverse of an original .wtpatch artifact and atomically restore the saved Word package after verifying its current fingerprint, source patch ID, destination-bound rollback-plan ID, risk authorizations, result type, and Open XML validation. Protected non-no-op edits require the exact protection_authorization_id from the same rollback plan as protected_edit_authorization; malformed permission metadata cannot be overridden. Keeps a redo-capable recovery backup by default, returns no payloads or XML, and never opens Word.",
+      "description": "Rebuild the exact reverse of an original .wtpatch artifact and atomically restore the saved Word package after verifying its current fingerprint, source patch ID, destination-bound rollback-plan ID, risk authorizations, result type, and Open XML validation. Protected non-no-op edits require the exact protection_authorization_id from the same rollback plan as protected_edit_authorization; unmodeled or ambiguous document-protection placement and malformed permission metadata cannot be overridden. Keeps a redo-capable recovery backup by default, returns no payloads or XML, and never opens Word.",
       "operationVersion": "1.0",
       "permissions": {
         "filesystem": "read_patch_and_read_write_input_package_with_optional_backup",
@@ -8799,7 +8800,7 @@
     {
       "name": "plan_ooxml_merge",
       "title": "Plan a guarded three-way Word package merge",
-      "description": "Merge two saved Word branches against an explicit common ancestor without opening Word. Automatically selects one-sided and identical entry changes and composes disjoint lossless source-linked text edits; every other divergence becomes a stable conflict requiring an explicit resolution. Returns a compact summary by default and bounded conflict, entry, operation, risk, or schema-error pages on demand. The destination-bound apply-plan ID covers all three package fingerprints, resolutions, validation evidence, result type, and output path. When protected editing is reviewable, protection_authorization_id must be returned unchanged as protected_edit_authorization during apply; malformed permission metadata is a hard block.",
+      "description": "Merge two saved Word branches against an explicit common ancestor without opening Word. Automatically selects one-sided and identical entry changes and composes disjoint lossless source-linked text edits; every other divergence becomes a stable conflict requiring an explicit resolution. Returns a compact summary by default and bounded conflict, entry, operation, risk, or schema-error pages on demand. The destination-bound apply-plan ID covers all three package fingerprints, resolutions, validation evidence, result type, and output path. When protected editing is reviewable, protection_authorization_id must be returned unchanged as protected_edit_authorization during apply; unmodeled or ambiguous document-protection placement and malformed permission metadata are a hard block.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -8939,6 +8940,7 @@
                             "base_document_protection_enforced",
                             "result_document_protection_enforced",
                             "document_protection_metadata_changed",
+                            "unmodeled_document_protection_metadata",
                             "base_permission_range_count",
                             "result_permission_range_count",
                             "malformed_permission_range_count",
@@ -8968,6 +8970,9 @@
                                 "maxLength": 64
                             },
                             "document_protection_metadata_changed": {
+                                "type": "boolean"
+                            },
+                            "unmodeled_document_protection_metadata": {
                                 "type": "boolean"
                             },
                             "base_permission_range_count": {
@@ -9040,7 +9045,7 @@
     {
       "name": "apply_ooxml_merge",
       "title": "Create a reviewed three-way Word merge result",
-      "description": "Recompute and create a reviewed three-way merge as a new Word package. Requires exact ancestor, left, and right fingerprints plus the destination-bound merge apply-plan ID. It never overwrites a file, rejects unresolved conflicts, validates the candidate with the Open XML SDK, enforces result type against the output extension, and keeps active-content, signature, external-link, opaque-binary, new-error, and protected-edit authorizations separate and false by default. Protected non-no-op edits require the exact protection_authorization_id from the same merge plan as protected_edit_authorization; malformed permission metadata cannot be overridden.",
+      "description": "Recompute and create a reviewed three-way merge as a new Word package. Requires exact ancestor, left, and right fingerprints plus the destination-bound merge apply-plan ID. It never overwrites a file, rejects unresolved conflicts, validates the candidate with the Open XML SDK, enforces result type against the output extension, and keeps active-content, signature, external-link, opaque-binary, new-error, and protected-edit authorizations separate and false by default. Protected non-no-op edits require the exact protection_authorization_id from the same merge plan as protected_edit_authorization; unmodeled or ambiguous document-protection placement and malformed permission metadata cannot be overridden.",
       "inputSchema": {
         "type": "object",
         "properties": {

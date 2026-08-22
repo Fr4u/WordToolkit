@@ -188,7 +188,8 @@ base and candidate protection state before publication. A non-no-op mutation is 
 by default when `w:documentProtection` is enforced, the exact protection element changes,
 or either state contains a complete `w:permStart`/`w:permEnd` range. The caller must pass
 the exact plan-bound `protected_edit_authorization` disclosed by that reviewed plan; a
-token from another plan is rejected before writing. Orphaned, duplicated, reversed or
+token from another plan is rejected before writing. Unmodeled or ambiguous document-protection placement,
+including protection inside `mc:AlternateContent`, and orphaned, duplicated, reversed or
 otherwise malformed permission ranges are non-overridable. Results expose only modes,
 counts and bounded issue codes, not cryptographic verifier material. Word document
 protection is an editing restriction, not encryption, password verification or proof of

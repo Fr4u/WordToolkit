@@ -634,6 +634,8 @@ internal sealed partial class WordLiveService
                 risk.Protection.ResultDocumentProtectionEditMode,
             document_protection_metadata_changed =
                 risk.Protection.DocumentProtectionMetadataChanged,
+            unmodeled_document_protection_metadata =
+                risk.Protection.UnmodeledDocumentProtectionMetadata,
             base_permission_range_count = risk.Protection.BasePermissionRangeCount,
             result_permission_range_count = risk.Protection.ResultPermissionRangeCount,
             malformed_permission_range_count =
@@ -836,7 +838,7 @@ internal sealed partial class WordLiveService
             return context.FormatHardBlockCodes;
         }
         var blocks = new List<string>(context.FormatHardBlockCodes);
-        if (context.Plan.RiskAssessment.Protection.HasMalformedPermissionMetadata)
+        if (context.Plan.RiskAssessment.Protection.HasMalformedProtectionMetadata)
         {
             blocks.Add("protection_metadata_malformed");
         }
@@ -928,7 +930,7 @@ internal sealed partial class WordLiveService
         if (
             hasChanges
             && risk.Protection.AuthorizationRequired
-            && !risk.Protection.HasMalformedPermissionMetadata
+            && !risk.Protection.HasMalformedProtectionMetadata
         )
         {
             names.Add("protected_edit_authorization");
@@ -972,7 +974,7 @@ internal sealed partial class WordLiveService
         WordPackagePatchRiskAssessment risk,
         string planId
     ) => risk.Protection.AuthorizationRequired
-        && !risk.Protection.HasMalformedPermissionMetadata
+        && !risk.Protection.HasMalformedProtectionMetadata
             ? planId
             : null;
 

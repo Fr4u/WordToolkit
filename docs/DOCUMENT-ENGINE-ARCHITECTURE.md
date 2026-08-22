@@ -782,7 +782,7 @@ gates with false defaults. Enforced document protection, exact protection-elemen
 and complete permission ranges form another independent gate. Plan responses disclose a
 `protection_authorization_id` only when authorization is required and the permission
 metadata is structurally usable; apply accepts that exact plan ID as
-`protected_edit_authorization`. Malformed permission ranges are non-overridable. This is
+`protected_edit_authorization`. Unmodeled or ambiguous document-protection placement and malformed permission ranges are non-overridable. This is
 an edit-policy decision without password checking or caller-identity proof. There is no
 blanket `force`. Inherited structural/schema
 errors may survive when the candidate adds none; newly introduced errors require their

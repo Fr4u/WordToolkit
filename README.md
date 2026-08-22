@@ -1081,7 +1081,8 @@ relationships, opaque binaries and new structural errors have independent explic
 authorizations. Enforced document protection, a change to protection metadata or any
 complete permission range also requires the exact `protection_authorization_id` returned
 by the reviewed plan to be passed as `protected_edit_authorization`; a token from another
-plan fails. Malformed permission ranges are non-overridable. This gate does not validate
+plan fails. Unmodeled or ambiguous document-protection placement, including protection
+inside `mc:AlternateContent`, and malformed permission ranges are non-overridable. This gate does not validate
 a password or prove a caller identity. Validation truncation, an SDK-open failure or a result-type/extension
 mismatch cannot be overridden. Successful replacement is atomic and retains a recovery
 backup by default; a no-op does not touch the file.
@@ -1132,7 +1133,7 @@ structural semantic merge; those cases remain explicit conflicts.
 When a merge candidate changes a package governed by enforced document protection or
 permission ranges, the plan returns a `protection_authorization_id`. Apply accepts it
 only as the exact `protected_edit_authorization` for that same `wtmergeapply_` plan.
-Malformed permission ranges remain a hard block.
+Unmodeled or ambiguous document-protection placement and malformed permission ranges remain a hard block.
 
 Saved-package review inspection links standard comments to story-scoped start/end/reference
 anchors, `commentsExtended` threads and resolved state, `commentsIds` durable IDs,

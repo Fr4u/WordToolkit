@@ -7,7 +7,7 @@
   `w:documentProtection`, exact protection-metadata changes and complete or malformed
   `w:permStart`/`w:permEnd` ranges. A non-no-op protected mutation requires the exact
   plan-bound `protected_edit_authorization`; a token from another plan is rejected,
-  while malformed permission metadata remains non-overridable. Plans disclose only
+  while unmodeled or ambiguous document-protection placement and malformed permission metadata remain non-overridable. Plans disclose only
   modes, counts and issue codes, never protection hashes or salts. This is an editing-
   policy gate, not password validation, user identity or encryption. Added Engine and
   MCP regressions for all four protection modes, disabled enforcement, complete and

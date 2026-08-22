@@ -46,6 +46,15 @@ public sealed class PackagePatchServiceTests
             "wordtoolkit.apply_ooxml_patch_rollback/1.0",
             apply["outputSchema"]!["properties"]!["data"]!["properties"]!["operation_contract"]!["const"]!.GetValue<string>()
         );
+        var protection = plan["outputSchema"]!["$defs"]!["risk"]!["properties"]!["protection"]!;
+        Assert.Contains(
+            "unmodeled_document_protection_metadata",
+            protection["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.Equal(
+            "boolean",
+            protection["properties"]!["unmodeled_document_protection_metadata"]!["type"]!.GetValue<string>()
+        );
         Assert.False(plan["reversibility"]!["applicable"]!.GetValue<bool>());
         Assert.Equal(
             "reverse_patch_with_destination_bound_plan_and_atomic_redo_backup",
@@ -371,10 +380,16 @@ public sealed class PackagePatchServiceTests
         }
     }
 
-    [Fact]
-    public async Task MalformedPermissionRangesHardBlockPatchAndRollbackWithoutMutation()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MalformedProtectionMetadataHardBlocksPatchAndRollbackWithoutMutation(
+        bool useUnmodeledDocumentProtection
+    )
     {
-        var files = CreateMalformedPermissionPatchFiles("before text", "after text");
+        var files = useUnmodeledDocumentProtection
+            ? CreateUnmodeledProtectionPatchFiles("before text", "after text")
+            : CreateMalformedPermissionPatchFiles("before text", "after text");
         try
         {
             var service = Service();
@@ -1303,10 +1318,27 @@ public sealed class PackagePatchServiceTests
         var beforePath = stem + "-before.docx";
         var afterPath = stem + "-after.docx";
         const string invalidPermission =
-            "<w:permStart w:id='7' w:edGrp='everyone' w:colFirst='2' w:colLast='1'/>"
-            + "<w:permEnd w:id='7'/>";
+            "<w:permStart ws:id='7' ws:edGrp='everyone' ws:colFirst='0' ws:colLast='2'/>"
+            + "<w:permEnd ws:id='7'/>";
         WriteDocument(beforePath, beforeText, macro: null, permissionMarkup: invalidPermission);
         WriteDocument(afterPath, afterText, macro: null, permissionMarkup: invalidPermission);
+        return new PatchFiles(stem, beforePath, afterPath);
+    }
+
+    private static PatchFiles CreateUnmodeledProtectionPatchFiles(
+        string beforeText,
+        string afterText
+    )
+    {
+        var stem = Path.Combine(
+            Path.GetTempPath(),
+            $"wordtoolkit-patch-service-{Guid.NewGuid():N}"
+        );
+        var beforePath = stem + "-before.docx";
+        var afterPath = stem + "-after.docx";
+        var settingsXml = AlternateContentSettingsXml();
+        WriteDocument(beforePath, beforeText, macro: null, settingsXml: settingsXml);
+        WriteDocument(afterPath, afterText, macro: null, settingsXml: settingsXml);
         return new PatchFiles(stem, beforePath, afterPath);
     }
 
@@ -1328,33 +1360,39 @@ public sealed class PackagePatchServiceTests
         string text,
         byte[]? macro,
         string? protectionMode = null,
-        string? permissionMarkup = null
+        string? permissionMarkup = null,
+        string? settingsXml = null
     )
     {
+        var hasSettings = protectionMode is not null || settingsXml is not null;
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
         Write(
             archive,
             "[Content_Types].xml",
-            ContentTypes(macro is not null, protectionMode is not null)
+            ContentTypes(macro is not null, hasSettings)
         );
         Write(archive, "_rels/.rels", RootRelationships());
         Write(archive, "word/document.xml", DocumentXml(text, permissionMarkup));
-        if (macro is not null || protectionMode is not null)
+        if (macro is not null || hasSettings)
         {
             Write(
                 archive,
                 "word/_rels/document.xml.rels",
-                DocumentRelationships(macro is not null, protectionMode is not null)
+                DocumentRelationships(macro is not null, hasSettings)
             );
         }
         if (macro is not null)
         {
             Write(archive, "word/vbaProject.bin", macro);
         }
-        if (protectionMode is not null)
+        if (hasSettings)
         {
-            Write(archive, "word/settings.xml", SettingsXml(protectionMode));
+            Write(
+                archive,
+                "word/settings.xml",
+                settingsXml ?? SettingsXml(protectionMode!)
+            );
         }
     }
 
@@ -1373,7 +1411,8 @@ public sealed class PackagePatchServiceTests
         + "</Types>";
 
     private static string DocumentXml(string text, string? permissionMarkup = null) =>
-        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:ws='http://purl.oclc.org/ooxml/wordprocessingml/main'>"
         + $"<w:body><w:p>{permissionMarkup}<w:r><w:t>{text}</w:t></w:r></w:p><w:sectPr/></w:body>"
         + "</w:document>";
 
@@ -1396,6 +1435,16 @@ public sealed class PackagePatchServiceTests
         "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
         + $"<w:documentProtection w:edit='{protectionMode}' w:enforcement='1'/>"
         + "</w:settings>";
+
+    private static string AlternateContentSettingsXml() =>
+        "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:w14='http://schemas.microsoft.com/office/word/2010/wordml' "
+        + "xmlns:mc='http://schemas.openxmlformats.org/markup-compatibility/2006' mc:Ignorable='w14'>"
+        + "<mc:AlternateContent><mc:Choice Requires='w14'>"
+        + "<w:documentProtection w:edit='readOnly' w:enforcement='1'/>"
+        + "</mc:Choice><mc:Fallback>"
+        + "<w:documentProtection w:edit='readOnly' w:enforcement='1'/>"
+        + "</mc:Fallback></mc:AlternateContent></w:settings>";
 
     private static void Write(ZipArchive archive, string name, string value) =>
         Write(archive, name, Encoding.UTF8.GetBytes(value));

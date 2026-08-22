@@ -553,7 +553,7 @@ internal sealed partial class WordLiveService
         var blocks = new List<string>(formatHardBlocks);
         if (
             plan.Patch is { IsNoOp: false }
-            && plan.ResultPlan?.RiskAssessment.Protection.HasMalformedPermissionMetadata == true
+            && plan.ResultPlan?.RiskAssessment.Protection.HasMalformedProtectionMetadata == true
         )
         {
             blocks.Add("protection_metadata_malformed");

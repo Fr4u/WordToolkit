@@ -95,6 +95,7 @@ public sealed record PatchRollbackProtectionRiskSummary(
     bool ResultDocumentProtectionEnforced,
     string? ResultDocumentProtectionEditMode,
     bool DocumentProtectionMetadataChanged,
+    bool UnmodeledDocumentProtectionMetadata,
     int BasePermissionRangeCount,
     int ResultPermissionRangeCount,
     int MalformedPermissionRangeCount,

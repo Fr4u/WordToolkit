@@ -24,6 +24,7 @@ public sealed record WordPackageProtectionRiskAssessment(
     bool ResultDocumentProtectionEnforced,
     string? ResultDocumentProtectionEditMode,
     bool DocumentProtectionMetadataChanged,
+    bool UnmodeledDocumentProtectionMetadata,
     int BasePermissionRangeCount,
     int ResultPermissionRangeCount,
     int MalformedPermissionRangeCount,
@@ -37,6 +38,9 @@ public sealed record WordPackageProtectionRiskAssessment(
 
     public bool HasMalformedPermissionMetadata =>
         MalformedPermissionRangeCount != 0 || PermissionIssuesTruncated;
+
+    public bool HasMalformedProtectionMetadata =>
+        UnmodeledDocumentProtectionMetadata || HasMalformedPermissionMetadata;
 }
 
 public sealed record WordPackagePatchRiskAssessment(
@@ -148,7 +152,7 @@ public sealed class WordPackagePatchPlan
         {
             blocks.Add("new_structural_errors");
         }
-        if (!Patch.IsNoOp && RiskAssessment.Protection.HasMalformedPermissionMetadata)
+        if (!Patch.IsNoOp && RiskAssessment.Protection.HasMalformedProtectionMetadata)
         {
             blocks.Add("protection_metadata_malformed");
         }
@@ -368,6 +372,9 @@ public static class WordPackagePatchRiskAnalyzer
         );
         var permissionIssuesTruncated = beforeProtection.PermissionIssuesTruncated
             || afterProtection.PermissionIssuesTruncated;
+        var unmodeledDocumentProtectionMetadata =
+            beforeProtection.UnmodeledDocumentProtectionMetadata
+            || afterProtection.UnmodeledDocumentProtectionMetadata;
         var protectionMetadataChanged = !string.Equals(
             beforeProtection.DocumentProtectionFingerprint,
             afterProtection.DocumentProtectionFingerprint,
@@ -380,6 +387,7 @@ public static class WordPackagePatchRiskAnalyzer
                 || beforeProtection.PermissionRangeCount != 0
                 || afterProtection.PermissionRangeCount != 0
                 || protectionMetadataChanged
+                || unmodeledDocumentProtectionMetadata
             );
         var protection = new WordPackageProtectionRiskAssessment(
             beforeProtection.DocumentProtectionEnforced,
@@ -387,6 +395,7 @@ public static class WordPackagePatchRiskAnalyzer
             afterProtection.DocumentProtectionEnforced,
             afterProtection.DocumentProtectionEditMode,
             protectionMetadataChanged,
+            unmodeledDocumentProtectionMetadata,
             beforeProtection.PermissionRangeCount,
             afterProtection.PermissionRangeCount,
             malformedPermissionRangeCount,
@@ -499,12 +508,12 @@ public static class WordPackagePatchRiskAnalyzer
                 newErrors.Count
             ));
         }
-        if (protection.HasMalformedPermissionMetadata && !patch.IsNoOp)
+        if (protection.HasMalformedProtectionMetadata && !patch.IsNoOp)
         {
             items.Add(new WordPackagePatchRiskItem(
                 "protection_metadata_malformed",
                 WordPackagePatchRiskSeverity.Block,
-                "The base or result package contains incomplete or ambiguous Word permission-range metadata; a generic package mutation cannot determine an authorized edit scope.",
+                "The base or result package contains unmodeled document-protection metadata or incomplete or ambiguous Word permission-range metadata; a generic package mutation cannot determine an authorized edit scope.",
                 patch.OperationCount
             ));
         }
@@ -543,11 +552,25 @@ public static class WordPackagePatchRiskAnalyzer
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var settings = new WordSettingsGraphBuilder().Build(
+        var documentProtectionMetadata = DocumentProtectionMetadata(
             package,
-            document,
+            document.MainPartUri,
             cancellationToken
         );
+        WordSettingsGraph? settings = null;
+        try
+        {
+            settings = new WordSettingsGraphBuilder().Build(
+                package,
+                document,
+                cancellationToken
+            );
+        }
+        catch (WordSettingsProjectionException)
+            when (documentProtectionMetadata.Unmodeled)
+        {
+            // Ambiguous protection placement is already a non-overridable hard block.
+        }
         var review = new WordReviewGraphBuilder().Build(
             package,
             document,
@@ -570,9 +593,10 @@ public static class WordPackagePatchRiskAnalyzer
             );
         }
         return new ProtectionEvidence(
-            settings.DocumentProtection?.IsEnforced == true,
-            settings.DocumentProtection?.EditMode,
-            DocumentProtectionFingerprint(package, settings, cancellationToken),
+            settings?.DocumentProtection?.IsEnforced == true,
+            settings?.DocumentProtection?.EditMode,
+            documentProtectionMetadata.Fingerprint,
+            documentProtectionMetadata.Unmodeled,
             review.Permissions.Count,
             malformedPermissionRangeCount,
             review.IssuesTruncated && review.Permissions.Count != 0,
@@ -580,50 +604,74 @@ public static class WordPackagePatchRiskAnalyzer
         );
     }
 
-    private static string? DocumentProtectionFingerprint(
+    private static DocumentProtectionMetadataEvidence DocumentProtectionMetadata(
         OpcPackageSnapshot package,
-        WordSettingsGraph settings,
+        string mainPartUri,
         CancellationToken cancellationToken
     )
     {
+        const string transitionalSettingsRelationship =
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings";
+        const string strictSettingsRelationship =
+            "http://purl.oclc.org/ooxml/officeDocument/relationships/settings";
+        var relationships = package.RelationshipsFrom(mainPartUri)
+            .Where(relationship =>
+                relationship.Type is
+                    transitionalSettingsRelationship
+                    or strictSettingsRelationship
+            )
+            .ToArray();
         if (
-            settings.SettingsPartUri is not { } partUri
+            relationships.Length != 1
+            || relationships[0].ResolvedTargetPartUri is not { } partUri
             || !package.Parts.TryGetValue(partUri, out var part)
         )
         {
-            return null;
+            return new DocumentProtectionMetadataEvidence(false, null);
         }
         var source = LosslessXmlDocument.Parse(
             part.Entry.Content,
             cancellationToken: cancellationToken
         );
-        var element = source.Elements.SingleOrDefault(candidate =>
+        var elements = source.Elements.Where(candidate =>
             candidate.LocalName == "documentProtection"
             && candidate.NamespaceUri is
                 "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
                 or "http://purl.oclc.org/ooxml/wordprocessingml/main"
-        );
-        if (element is null)
+        ).ToArray();
+        if (elements.Length == 0)
         {
-            return null;
+            return new DocumentProtectionMetadataEvidence(false, null);
         }
-        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-                source.SourceBytes.Span.Slice(
-                    element.FullSpan.ByteOffset,
-                    element.FullSpan.ByteLength
-                )
-            ))
+        var unmodeled = elements.Length != 1
+            || elements[0].ParentOrdinal != source.Root.Ordinal;
+        var fingerprintBytes = elements.Length == 1
+            ? source.SourceBytes.Span.Slice(
+                elements[0].FullSpan.ByteOffset,
+                elements[0].FullSpan.ByteLength
+            )
+            : source.SourceBytes.Span;
+        var fingerprint = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(fingerprintBytes)
+            )
             .ToLowerInvariant();
+        return new DocumentProtectionMetadataEvidence(unmodeled, fingerprint);
     }
 
     private sealed record ProtectionEvidence(
         bool DocumentProtectionEnforced,
         string? DocumentProtectionEditMode,
         string? DocumentProtectionFingerprint,
+        bool UnmodeledDocumentProtectionMetadata,
         int PermissionRangeCount,
         int MalformedPermissionRangeCount,
         bool PermissionIssuesTruncated,
         IReadOnlyList<string> PermissionIssueCodes
+    );
+
+    private sealed record DocumentProtectionMetadataEvidence(
+        bool Unmodeled,
+        string? Fingerprint
     );
 
     public static bool HasDigitalSignatures(OpcPackageSnapshot package) =>
