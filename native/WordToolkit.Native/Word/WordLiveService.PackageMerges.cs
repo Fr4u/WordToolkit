@@ -45,7 +45,7 @@ internal sealed partial class WordLiveService
             );
         }
 
-        var policy = ParsePackagePatchPolicy(arguments);
+        var policy = ParsePackagePatchPolicy(arguments, context.ApplyPlanId);
         var blocks = PackageMergeBlockCodes(context, policy);
         if (blocks.Count != 0)
         {
@@ -265,6 +265,12 @@ internal sealed partial class WordLiveService
                     resultPlan.RiskAssessment,
                     SchemaValidationHasNewErrors(context.Validation),
                     hasChanges: patch is { IsNoOp: false }
+                ),
+            protection_authorization_id = resultPlan is null
+                ? null
+                : ProtectionAuthorizationId(
+                    resultPlan.RiskAssessment,
+                    context.ApplyPlanId
                 ),
             resolution_choices = new[] { "use_ancestor", "use_left", "use_right" },
             view = request.View,
@@ -545,6 +551,13 @@ internal sealed partial class WordLiveService
     )
     {
         var blocks = new List<string>(formatHardBlocks);
+        if (
+            plan.Patch is { IsNoOp: false }
+            && plan.ResultPlan?.RiskAssessment.Protection.HasMalformedPermissionMetadata == true
+        )
+        {
+            blocks.Add("protection_metadata_malformed");
+        }
         if (plan.UnresolvedConflictCount != 0)
         {
             blocks.Add("unresolved_merge_conflicts");

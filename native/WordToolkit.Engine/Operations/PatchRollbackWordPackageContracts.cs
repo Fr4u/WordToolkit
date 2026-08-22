@@ -44,7 +44,8 @@ public sealed record PatchRollbackApplyRequest(
     bool AllowExternalRelationshipChanges = false,
     bool AllowOpaqueBinaryChanges = false,
     bool AllowNewStructuralErrors = false,
-    bool KeepBackup = true
+    bool KeepBackup = true,
+    string? ProtectedEditAuthorization = null
 );
 
 public sealed record PatchRollbackChangeCounts(
@@ -84,7 +85,22 @@ public sealed record PatchRollbackRiskSummary(
     int InfrastructureOperationCount,
     int BaselineStructuralErrorCount,
     int CandidateStructuralErrorCount,
-    int NewStructuralErrorCount
+    int NewStructuralErrorCount,
+    PatchRollbackProtectionRiskSummary Protection
+);
+
+public sealed record PatchRollbackProtectionRiskSummary(
+    bool BaseDocumentProtectionEnforced,
+    string? BaseDocumentProtectionEditMode,
+    bool ResultDocumentProtectionEnforced,
+    string? ResultDocumentProtectionEditMode,
+    bool DocumentProtectionMetadataChanged,
+    int BasePermissionRangeCount,
+    int ResultPermissionRangeCount,
+    int MalformedPermissionRangeCount,
+    bool PermissionIssuesTruncated,
+    IReadOnlyList<string> PermissionIssueCodes,
+    bool AuthorizationRequired
 );
 
 public sealed record PatchRollbackSchemaValidationSummary(
@@ -146,6 +162,7 @@ public sealed record PatchRollbackPlanResult(
     PatchRollbackDefaultPolicy DefaultPolicy,
     IReadOnlyList<string> HardBlockCodes,
     IReadOnlyList<string> RequiredAuthorizations,
+    string? ProtectionAuthorizationId,
     PatchRollbackView View,
     int FilteredItemCount,
     int Offset,

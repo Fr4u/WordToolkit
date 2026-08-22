@@ -18,6 +18,8 @@
   "plan_ooxml_numbering_repair": {"recipe_ids":["package.numbering.plan_apply"],"acquisition_steps":["Bind paragraph_node_id, number_id and level_index from inspect_ooxml_numbering"]},
   "apply_ooxml_numbering_repair": {"recipe_ids":["package.numbering.plan_apply"],"acquisition_steps":["Pass identical numbering evidence and plan_id from plan_ooxml_numbering_repair"]},
   "plan_ooxml_patch": {"recipe_ids":["package.patch.plan_apply"],"acquisition_steps":["Retain returned patch_id and before/after fingerprints"]},
-  "apply_ooxml_patch": {"recipe_ids":["package.patch.plan_apply"],"acquisition_steps":["Pass exact patch_id and apply_plan_id from preceding plan actions"]},
+  "apply_ooxml_patch": {"recipe_ids":["package.patch.plan_apply"],"acquisition_steps":["Pass exact patch_id and apply_plan_id from preceding plan actions","If plan_ooxml_patch_apply returns protection_authorization_id, pass that exact value as protected_edit_authorization"]},
+  "apply_ooxml_patch_rollback": {"recipe_ids":["package.patch.plan_apply"],"acquisition_steps":["Pass the exact rollback_plan_id returned by plan_ooxml_patch_rollback","If the rollback plan returns protection_authorization_id, pass that exact value as protected_edit_authorization"]},
+  "apply_ooxml_merge": {"recipe_ids":["package.patch.plan_apply"],"acquisition_steps":["Pass the exact merge_apply_plan_id returned by plan_ooxml_merge","If the merge plan returns protection_authorization_id, pass that exact value as protected_edit_authorization"]},
   "apply_live_word_operations": {"recipe_ids":["live.transactional"],"recovery":{"STAGING_TARGET_DRIFT":{"next_action":"inspect_live_word_document","bindings":{"live_document_id":"live_document_id"}},"ROLLBACK_FAILED":{"next_action":"disconnect_live_word_document","bindings":{"live_document_id":"live_document_id"}}}}
 }

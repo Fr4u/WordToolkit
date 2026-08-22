@@ -8117,7 +8117,7 @@
     {
       "name": "plan_ooxml_patch_apply",
       "title": "Plan safe application of a Word package patch",
-      "description": "Rebuild a patch candidate against an exact saved-package fingerprint, recompute semantic differences and risk evidence, verify result package type against the destination extension, and compare baseline and candidate Open XML SDK validation results. Returns a deterministic destination-bound apply-plan ID and separate required authorization flags without writing the document or opening Word.",
+      "description": "Rebuild a patch candidate against an exact saved-package fingerprint, recompute semantic differences and risk evidence, verify result package type against the destination extension, and compare baseline and candidate Open XML SDK validation results. Returns a deterministic destination-bound apply-plan ID and separate required authorization flags without writing the document or opening Word. When protected editing is reviewable, protection_authorization_id must be returned unchanged as protected_edit_authorization during apply; malformed permission metadata is a hard block.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -8221,6 +8221,14 @@
             "required_authorizations": {
                 "type": "array"
             },
+            "protection_authorization_id": {
+                "type": [
+                    "string",
+                    "null"
+                ],
+                "pattern": "^wtapply_[A-Za-z0-9_-]+$",
+                "description": "When non-null, pass this exact destination-bound apply-plan ID as protected_edit_authorization."
+            },
             "view": {
                 "type": "string"
             },
@@ -8272,7 +8280,7 @@
     {
       "name": "apply_ooxml_patch",
       "title": "Atomically apply a reviewed Word package patch",
-      "description": "Rebuild and atomically apply an exact reviewed .wtpatch artifact to a saved Word package. Requires the base fingerprint, patch ID and destination-bound apply-plan ID; enforces result package type against the in-place extension, validates the candidate, writes through a sibling temporary file, rechecks fingerprints, and keeps a recovery backup by default. Risk authorizations are separate and default to false.",
+      "description": "Rebuild and atomically apply an exact reviewed .wtpatch artifact to a saved Word package. Requires the base fingerprint, patch ID and destination-bound apply-plan ID; enforces result package type against the in-place extension, validates the candidate, writes through a sibling temporary file, rechecks fingerprints, and keeps a recovery backup by default. Risk authorizations are separate and default to false. Protected non-no-op edits require the exact protection_authorization_id from the same apply plan as protected_edit_authorization; malformed permission metadata cannot be overridden.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -8319,6 +8327,11 @@
             "default": false,
             "description": "Explicitly authorize newly introduced OPC or Open XML schema errors. Validation failure, truncation, or inability to open the candidate remains non-overridable."
           },
+          "protected_edit_authorization": {
+            "type": "string",
+            "pattern": "^wtapply_[A-Za-z0-9_-]+$",
+            "description": "Exact protection_authorization_id from the reviewed apply plan. Required for a generic patch that changes a package with enforced Word editing protection, permission ranges, or protection metadata. This is an explicit caller authorization, not a password or identity proof."
+          },
           "keep_backup": {
             "type": "boolean",
             "default": true,
@@ -8352,11 +8365,44 @@
     "outputSchema": {
         "type": "object",
         "required": [
-            "plan_id"
+            "patch_id",
+            "apply_plan_id",
+            "applied",
+            "no_op",
+            "package_fingerprint",
+            "backup_path",
+            "changed_entry_names"
         ],
         "properties": {
-            "plan_id": {
-                "type": "string"
+            "patch_id": {
+                "type": "string",
+                "pattern": "^wtpatch_[A-Za-z0-9_-]+$"
+            },
+            "apply_plan_id": {
+                "type": "string",
+                "pattern": "^wtapply_[A-Za-z0-9_-]+$"
+            },
+            "applied": {
+                "type": "boolean"
+            },
+            "no_op": {
+                "type": "boolean"
+            },
+            "package_fingerprint": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+            },
+            "backup_path": {
+                "type": [
+                    "string",
+                    "null"
+                ]
+            },
+            "changed_entry_names": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
             }
         }
     }
@@ -8364,7 +8410,7 @@
     {
       "name": "plan_ooxml_patch_rollback",
       "title": "Plan safe rollback of an applied Word package patch",
-      "description": "Read an original .wtpatch artifact, derive its exact reverse patch, require the current saved package to match the original result fingerprint, recompute semantic, risk, package-type, and Open XML validation evidence, and return a deterministic destination-bound rollback-plan ID. The operation writes nothing and never opens Word.",
+      "description": "Read an original .wtpatch artifact, derive its exact reverse patch, require the current saved package to match the original result fingerprint, recompute semantic, risk, package-type, and Open XML validation evidence, and return a deterministic destination-bound rollback-plan ID. When protected editing is reviewable, protection_authorization_id must be returned unchanged as protected_edit_authorization during apply; malformed permission metadata is a hard block. The operation writes nothing and never opens Word.",
       "operationVersion": "1.0",
       "permissions": {
         "filesystem": "read_input_package_and_patch_artifact",
@@ -8441,7 +8487,8 @@
               "allow_active_content_changes",
               "allow_external_relationship_changes",
               "allow_opaque_binary_changes",
-              "allow_new_structural_errors"
+              "allow_new_structural_errors",
+              "protected_edit_authorization"
             ]
           },
           "change_counts": {
@@ -8475,7 +8522,7 @@
           },
           "risk": {
             "type": "object",
-            "required": ["item_count", "block_item_count", "review_item_count", "digital_signatures_present", "digital_signature_material_changed", "macro_operation_count", "embedded_object_operation_count", "activex_operation_count", "external_relationship_added_count", "external_relationship_removed_count", "opaque_binary_operation_count", "custom_xml_operation_count", "infrastructure_operation_count", "baseline_structural_error_count", "candidate_structural_error_count", "new_structural_error_count"],
+            "required": ["item_count", "block_item_count", "review_item_count", "digital_signatures_present", "digital_signature_material_changed", "macro_operation_count", "embedded_object_operation_count", "activex_operation_count", "external_relationship_added_count", "external_relationship_removed_count", "opaque_binary_operation_count", "custom_xml_operation_count", "infrastructure_operation_count", "baseline_structural_error_count", "candidate_structural_error_count", "new_structural_error_count", "protection"],
             "properties": {
               "item_count": {"type": "integer", "minimum": 0},
               "block_item_count": {"type": "integer", "minimum": 0},
@@ -8492,7 +8539,25 @@
               "infrastructure_operation_count": {"type": "integer", "minimum": 0},
               "baseline_structural_error_count": {"type": "integer", "minimum": 0},
               "candidate_structural_error_count": {"type": "integer", "minimum": 0},
-              "new_structural_error_count": {"type": "integer", "minimum": 0}
+              "new_structural_error_count": {"type": "integer", "minimum": 0},
+              "protection": {
+                "type": "object",
+                "required": ["base_document_protection_enforced", "result_document_protection_enforced", "document_protection_metadata_changed", "base_permission_range_count", "result_permission_range_count", "malformed_permission_range_count", "permission_issues_truncated", "permission_issue_codes", "authorization_required"],
+                "properties": {
+                  "base_document_protection_enforced": {"type": "boolean"},
+                  "base_document_protection_edit_mode": {"type": ["string", "null"], "maxLength": 64},
+                  "result_document_protection_enforced": {"type": "boolean"},
+                  "result_document_protection_edit_mode": {"type": ["string", "null"], "maxLength": 64},
+                  "document_protection_metadata_changed": {"type": "boolean"},
+                  "base_permission_range_count": {"type": "integer", "minimum": 0},
+                  "result_permission_range_count": {"type": "integer", "minimum": 0},
+                  "malformed_permission_range_count": {"type": "integer", "minimum": 0},
+                  "permission_issues_truncated": {"type": "boolean"},
+                  "permission_issue_codes": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
+                  "authorization_required": {"type": "boolean"}
+                },
+                "additionalProperties": false
+              }
             },
             "additionalProperties": false
           },
@@ -8551,7 +8616,8 @@
               "openxml_schema_validation": {"$ref": "#/$defs/validation"},
               "default_policy": {"$ref": "#/$defs/policy"},
               "hard_block_codes": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
-              "required_authorizations": {"type": "array", "maxItems": 5, "uniqueItems": true, "items": {"$ref": "#/$defs/authorization"}},
+              "required_authorizations": {"type": "array", "maxItems": 6, "uniqueItems": true, "items": {"$ref": "#/$defs/authorization"}},
+              "protection_authorization_id": {"type": ["string", "null"], "pattern": "^wtrollback_[A-Za-z0-9_-]+$", "maxLength": 96},
               "view": {"enum": ["summary", "operations", "risks", "schema_errors"]},
               "filtered_item_count": {"type": "integer", "minimum": 0},
               "offset": {"type": "integer", "minimum": 0},
@@ -8582,7 +8648,7 @@
     {
       "name": "apply_ooxml_patch_rollback",
       "title": "Atomically roll back an applied Word package patch",
-      "description": "Rebuild the exact reverse of an original .wtpatch artifact and atomically restore the saved Word package after verifying its current fingerprint, source patch ID, destination-bound rollback-plan ID, risk authorizations, result type, and Open XML validation. Keeps a redo-capable recovery backup by default, returns no payloads or XML, and never opens Word.",
+      "description": "Rebuild the exact reverse of an original .wtpatch artifact and atomically restore the saved Word package after verifying its current fingerprint, source patch ID, destination-bound rollback-plan ID, risk authorizations, result type, and Open XML validation. Protected non-no-op edits require the exact protection_authorization_id from the same rollback plan as protected_edit_authorization; malformed permission metadata cannot be overridden. Keeps a redo-capable recovery backup by default, returns no payloads or XML, and never opens Word.",
       "operationVersion": "1.0",
       "permissions": {
         "filesystem": "read_patch_and_read_write_input_package_with_optional_backup",
@@ -8640,6 +8706,12 @@
             "type": "boolean",
             "default": false
           },
+          "protected_edit_authorization": {
+            "type": "string",
+            "pattern": "^wtrollback_[A-Za-z0-9_-]+$",
+            "maxLength": 96,
+            "description": "Exact protection_authorization_id from the reviewed rollback plan. This authorizes the generic protected-package mutation but does not prove a Word user identity or password."
+          },
           "keep_backup": {
             "type": "boolean",
             "default": true,
@@ -8668,7 +8740,8 @@
               "allow_active_content_changes",
               "allow_external_relationship_changes",
               "allow_opaque_binary_changes",
-              "allow_new_structural_errors"
+              "allow_new_structural_errors",
+              "protected_edit_authorization"
             ]
           },
           "performance": {
@@ -8702,7 +8775,7 @@
               "changed_entry_names": {"type": "array", "maxItems": 20000, "uniqueItems": true, "items": {"type": "string", "maxLength": 512}},
               "diagnostic_count": {"type": "integer", "minimum": 0},
               "digital_signatures_may_be_invalidated": {"type": "boolean"},
-              "explicit_authorizations": {"type": "array", "maxItems": 5, "uniqueItems": true, "items": {"$ref": "#/$defs/authorization"}},
+              "explicit_authorizations": {"type": "array", "maxItems": 6, "uniqueItems": true, "items": {"$ref": "#/$defs/authorization"}},
               "raw_payloads_returned": {"const": false},
               "raw_xml_returned": {"const": false},
               "mutation_performed": {"type": "boolean"},
@@ -8726,7 +8799,7 @@
     {
       "name": "plan_ooxml_merge",
       "title": "Plan a guarded three-way Word package merge",
-      "description": "Merge two saved Word branches against an explicit common ancestor without opening Word. Automatically selects one-sided and identical entry changes and composes disjoint lossless source-linked text edits; every other divergence becomes a stable conflict requiring an explicit resolution. Returns a compact summary by default and bounded conflict, entry, operation, risk, or schema-error pages on demand. The destination-bound apply-plan ID covers all three package fingerprints, resolutions, validation evidence, result type, and output path.",
+      "description": "Merge two saved Word branches against an explicit common ancestor without opening Word. Automatically selects one-sided and identical entry changes and composes disjoint lossless source-linked text edits; every other divergence becomes a stable conflict requiring an explicit resolution. Returns a compact summary by default and bounded conflict, entry, operation, risk, or schema-error pages on demand. The destination-bound apply-plan ID covers all three package fingerprints, resolutions, validation evidence, result type, and output path. When protected editing is reviewable, protection_authorization_id must be returned unchanged as protected_edit_authorization during apply; malformed permission metadata is a hard block.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -8839,11 +8912,127 @@
     "outputSchema": {
         "type": "object",
         "required": [
-            "merge_id"
+            "merge_id",
+            "merge_apply_plan_id",
+            "risk",
+            "hard_block_codes",
+            "required_authorizations",
+            "protection_authorization_id"
         ],
         "properties": {
             "merge_id": {
                 "type": "string"
+            },
+            "merge_apply_plan_id": {
+                "type": "string",
+                "pattern": "^wtmergeapply_[A-Za-z0-9_-]+$"
+            },
+            "risk": {
+                "type": [
+                    "object",
+                    "null"
+                ],
+                "properties": {
+                    "protection": {
+                        "type": "object",
+                        "required": [
+                            "base_document_protection_enforced",
+                            "result_document_protection_enforced",
+                            "document_protection_metadata_changed",
+                            "base_permission_range_count",
+                            "result_permission_range_count",
+                            "malformed_permission_range_count",
+                            "permission_issues_truncated",
+                            "permission_issue_codes",
+                            "authorization_required"
+                        ],
+                        "properties": {
+                            "base_document_protection_enforced": {
+                                "type": "boolean"
+                            },
+                            "base_document_protection_edit_mode": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 64
+                            },
+                            "result_document_protection_enforced": {
+                                "type": "boolean"
+                            },
+                            "result_document_protection_edit_mode": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 64
+                            },
+                            "document_protection_metadata_changed": {
+                                "type": "boolean"
+                            },
+                            "base_permission_range_count": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "result_permission_range_count": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "malformed_permission_range_count": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "permission_issues_truncated": {
+                                "type": "boolean"
+                            },
+                            "permission_issue_codes": {
+                                "type": "array",
+                                "maxItems": 64,
+                                "uniqueItems": true,
+                                "items": {
+                                    "type": "string",
+                                    "maxLength": 128
+                                }
+                            },
+                            "authorization_required": {
+                                "type": "boolean"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "hard_block_codes": {
+                "type": "array",
+                "maxItems": 64,
+                "uniqueItems": true,
+                "items": {
+                    "type": "string",
+                    "maxLength": 128
+                }
+            },
+            "required_authorizations": {
+                "type": "array",
+                "maxItems": 6,
+                "uniqueItems": true,
+                "items": {
+                    "enum": [
+                        "allow_digital_signature_invalidation",
+                        "allow_active_content_changes",
+                        "allow_external_relationship_changes",
+                        "allow_opaque_binary_changes",
+                        "allow_new_structural_errors",
+                        "protected_edit_authorization"
+                    ]
+                }
+            },
+            "protection_authorization_id": {
+                "type": [
+                    "string",
+                    "null"
+                ],
+                "pattern": "^wtmergeapply_[A-Za-z0-9_-]+$",
+                "description": "When non-null, pass this exact merge apply-plan ID as protected_edit_authorization."
             }
         }
     }
@@ -8851,7 +9040,7 @@
     {
       "name": "apply_ooxml_merge",
       "title": "Create a reviewed three-way Word merge result",
-      "description": "Recompute and create a reviewed three-way merge as a new Word package. Requires exact ancestor, left, and right fingerprints plus the destination-bound merge apply-plan ID. It never overwrites a file, rejects unresolved conflicts, validates the candidate with the Open XML SDK, enforces result type against the output extension, and keeps active-content, signature, external-link, opaque-binary, and new-error authorizations separate and false by default.",
+      "description": "Recompute and create a reviewed three-way merge as a new Word package. Requires exact ancestor, left, and right fingerprints plus the destination-bound merge apply-plan ID. It never overwrites a file, rejects unresolved conflicts, validates the candidate with the Open XML SDK, enforces result type against the output extension, and keeps active-content, signature, external-link, opaque-binary, new-error, and protected-edit authorizations separate and false by default. Protected non-no-op edits require the exact protection_authorization_id from the same merge plan as protected_edit_authorization; malformed permission metadata cannot be overridden.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -8919,6 +9108,11 @@
             "type": "boolean",
             "default": false,
             "description": "Explicitly authorize newly introduced OPC or Open XML schema errors. Validation failure, truncation, or inability to open the candidate remains non-overridable."
+          },
+          "protected_edit_authorization": {
+            "type": "string",
+            "pattern": "^wtmergeapply_[A-Za-z0-9_-]+$",
+            "description": "Exact protection_authorization_id from the reviewed merge plan. Required when the materialized merge generically changes a package with enforced Word editing protection, permission ranges, or protection metadata."
           }
         },
         "required": [
@@ -8951,11 +9145,29 @@
     "outputSchema": {
         "type": "object",
         "required": [
-            "merge_id"
+            "merge_id",
+            "merge_apply_plan_id",
+            "created",
+            "overwritten",
+            "package_fingerprint"
         ],
         "properties": {
             "merge_id": {
                 "type": "string"
+            },
+            "merge_apply_plan_id": {
+                "type": "string",
+                "pattern": "^wtmergeapply_[A-Za-z0-9_-]+$"
+            },
+            "created": {
+                "type": "boolean"
+            },
+            "overwritten": {
+                "type": "boolean"
+            },
+            "package_fingerprint": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
             }
         }
     }

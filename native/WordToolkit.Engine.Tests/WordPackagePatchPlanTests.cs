@@ -29,6 +29,168 @@ public sealed class WordPackagePatchPlanTests
         Assert.Empty(decision.BlockCodes);
     }
 
+    [Theory]
+    [InlineData("readOnly")]
+    [InlineData("comments")]
+    [InlineData("trackedChanges")]
+    [InlineData("forms")]
+    public void EnforcedDocumentProtectionRequiresExplicitAuthorization(string editMode)
+    {
+        var before = Read(BuildProtectedPackage("before", editMode, enforced: true));
+        var after = Read(BuildProtectedPackage("after", editMode, enforced: true));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.True(plan.RiskAssessment.Protection.BaseDocumentProtectionEnforced);
+        Assert.Equal(editMode, plan.RiskAssessment.Protection.BaseDocumentProtectionEditMode);
+        Assert.True(plan.RiskAssessment.Protection.AuthorizationRequired);
+        Assert.False(plan.RiskAssessment.Protection.DocumentProtectionMetadataChanged);
+        Assert.Contains(
+            "protected_document_edit_not_authorized",
+            plan.Evaluate().BlockCodes
+        );
+        Assert.True(plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        }).CanApply);
+    }
+
+    [Theory]
+    [InlineData("readOnly")]
+    [InlineData("comments")]
+    [InlineData("trackedChanges")]
+    [InlineData("forms")]
+    public void NonEnforcedProtectionDoesNotBlockOrdinaryContentChanges(string editMode)
+    {
+        var before = Read(BuildProtectedPackage("before", editMode, enforced: false));
+        var after = Read(BuildProtectedPackage("after", editMode, enforced: false));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.False(plan.RiskAssessment.Protection.BaseDocumentProtectionEnforced);
+        Assert.False(plan.RiskAssessment.Protection.AuthorizationRequired);
+        Assert.True(plan.Evaluate().CanApply);
+    }
+
+    [Fact]
+    public void PermissionRangesRequireAuthorizationBecausePackageMutationHasNoUserIdentity()
+    {
+        var before = Read(BuildPackage(
+            "unused",
+            documentXml: PermissionDocumentXml("before", includeEnd: true)
+        ));
+        var after = Read(BuildPackage(
+            "unused",
+            documentXml: PermissionDocumentXml("after", includeEnd: true)
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.Equal(1, plan.RiskAssessment.Protection.BasePermissionRangeCount);
+        Assert.Equal(0, plan.RiskAssessment.Protection.MalformedPermissionRangeCount);
+        Assert.Contains(
+            "protected_document_edit_not_authorized",
+            plan.Evaluate().BlockCodes
+        );
+        Assert.True(plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        }).CanApply);
+    }
+
+    [Fact]
+    public void MalformedPermissionRangesAreNonOverridable()
+    {
+        var before = Read(BuildPackage(
+            "unused",
+            documentXml: PermissionDocumentXml("before", includeEnd: false)
+        ));
+        var after = Read(BuildPackage(
+            "unused",
+            documentXml: PermissionDocumentXml("after", includeEnd: false)
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.True(plan.RiskAssessment.Protection.HasMalformedPermissionMetadata);
+        Assert.Contains(
+            "PERMISSION_RANGE_INCOMPLETE",
+            plan.RiskAssessment.Protection.PermissionIssueCodes
+        );
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Fact]
+    public void ProtectedNoOpDoesNotDemandMeaninglessAuthorization()
+    {
+        var snapshot = Read(BuildProtectedPackage("same", "readOnly", enforced: true));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            snapshot.Package,
+            snapshot.Document,
+            snapshot.Package,
+            snapshot.Document
+        );
+
+        Assert.True(plan.Patch.IsNoOp);
+        Assert.False(plan.RiskAssessment.Protection.AuthorizationRequired);
+        Assert.True(plan.Evaluate().CanApply);
+    }
+
+    [Fact]
+    public void ChangingProtectionMetadataRequiresAuthorizationEvenWhenNotEnforced()
+    {
+        var before = Read(BuildPackage(
+            "same",
+            new Dictionary<string, byte[]>
+            {
+                ["word/settings.xml"] = Utf8(SettingsXml(null, enforced: false)),
+            },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+        var after = Read(BuildProtectedPackage("same", "readOnly", enforced: false));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.True(plan.RiskAssessment.Protection.DocumentProtectionMetadataChanged);
+        Assert.True(plan.RiskAssessment.Protection.AuthorizationRequired);
+        Assert.Contains(
+            "protected_document_edit_not_authorized",
+            plan.Evaluate().BlockCodes
+        );
+    }
+
     [Fact]
     public void MacroChangeRequiresOnlyExplicitActiveContentAuthorization()
     {
@@ -421,7 +583,8 @@ public sealed class WordPackagePatchPlanTests
         IReadOnlyDictionary<string, byte[]>? extras = null,
         IReadOnlyDictionary<string, string>? overrides = null,
         string? documentRelationships = null,
-        bool includeBinaryDefault = true
+        bool includeBinaryDefault = true,
+        string? documentXml = null
     )
     {
         var stream = new MemoryStream();
@@ -436,7 +599,7 @@ public sealed class WordPackagePatchPlanTests
                 includeBinaryDefault
             ));
             Write(archive, "_rels/.rels", RootRelationships());
-            Write(archive, "word/document.xml", DocumentXml(text));
+            Write(archive, "word/document.xml", documentXml ?? DocumentXml(text));
             if (documentRelationships is not null)
             {
                 Write(
@@ -453,6 +616,20 @@ public sealed class WordPackagePatchPlanTests
         stream.Position = 0;
         return stream;
     }
+
+    private static MemoryStream BuildProtectedPackage(
+        string text,
+        string editMode,
+        bool enforced
+    ) => BuildPackage(
+        text,
+        new Dictionary<string, byte[]>
+        {
+            ["word/settings.xml"] = Utf8(SettingsXml(editMode, enforced)),
+        },
+        SettingsContentTypeOverride(),
+        SettingsRelationships()
+    );
 
     private static void Write(ZipArchive archive, string name, string value) =>
         Write(archive, name, Utf8(value));
@@ -474,6 +651,27 @@ public sealed class WordPackagePatchPlanTests
         "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
         + $"<w:body><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:body></w:document>";
 
+    private static string PermissionDocumentXml(string text, bool includeEnd) =>
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+        + "<w:body><w:p><w:permStart w:id='7' w:edGrp='everyone'/>"
+        + $"<w:r><w:t>{text}</w:t></w:r>"
+        + (includeEnd ? "<w:permEnd w:id='7'/>" : string.Empty)
+        + "</w:p></w:body></w:document>";
+
+    private static string SettingsXml(string? editMode, bool enforced) =>
+        "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+        + (editMode is null
+            ? string.Empty
+            : $"<w:documentProtection w:edit='{editMode}' w:enforcement='{(enforced ? 1 : 0)}'/>")
+        + "</w:settings>";
+
+    private static IReadOnlyDictionary<string, string> SettingsContentTypeOverride() =>
+        new Dictionary<string, string>
+        {
+            ["/word/settings.xml"] =
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml",
+        };
+
     private static string RootRelationships() =>
         "<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'>"
         + "<Relationship Id='rId1' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument' Target='word/document.xml'/>"
@@ -482,6 +680,11 @@ public sealed class WordPackagePatchPlanTests
     private static string DocumentRelationships(string target) =>
         "<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'>"
         + $"<Relationship Id='rIdExternal' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink' Target='{target}' TargetMode='External'/>"
+        + "</Relationships>";
+
+    private static string SettingsRelationships() =>
+        "<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'>"
+        + "<Relationship Id='rIdSettings' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings' Target='settings.xml'/>"
         + "</Relationships>";
 
     private static string DuplicateRelationships(int count) =>

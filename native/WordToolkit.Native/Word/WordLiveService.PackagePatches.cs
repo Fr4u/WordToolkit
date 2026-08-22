@@ -182,7 +182,7 @@ internal sealed partial class WordLiveService
             );
         }
 
-        var policy = ParsePackagePatchPolicy(arguments);
+        var policy = ParsePackagePatchPolicy(arguments, context.ApplyPlanId);
         var blocks = PackagePatchBlockCodes(context, policy);
         if (blocks.Count != 0)
         {
@@ -553,6 +553,10 @@ internal sealed partial class WordLiveService
                 SchemaValidationHasNewErrors(context.Validation),
                 hasChanges: !context.Patch.IsNoOp
             ),
+            protection_authorization_id = ProtectionAuthorizationId(
+                context.Plan.RiskAssessment,
+                context.ApplyPlanId
+            ),
             view = request.View,
             filtered_item_count = page.FilteredCount,
             offset = page.Offset,
@@ -618,6 +622,26 @@ internal sealed partial class WordLiveService
         baseline_structural_error_count = risk.BaselineStructuralErrorCount,
         candidate_structural_error_count = risk.CandidateStructuralErrorCount,
         new_structural_error_count = risk.NewStructuralErrorCount,
+        protection = new
+        {
+            base_document_protection_enforced =
+                risk.Protection.BaseDocumentProtectionEnforced,
+            base_document_protection_edit_mode =
+                risk.Protection.BaseDocumentProtectionEditMode,
+            result_document_protection_enforced =
+                risk.Protection.ResultDocumentProtectionEnforced,
+            result_document_protection_edit_mode =
+                risk.Protection.ResultDocumentProtectionEditMode,
+            document_protection_metadata_changed =
+                risk.Protection.DocumentProtectionMetadataChanged,
+            base_permission_range_count = risk.Protection.BasePermissionRangeCount,
+            result_permission_range_count = risk.Protection.ResultPermissionRangeCount,
+            malformed_permission_range_count =
+                risk.Protection.MalformedPermissionRangeCount,
+            permission_issues_truncated = risk.Protection.PermissionIssuesTruncated,
+            permission_issue_codes = risk.Protection.PermissionIssueCodes,
+            authorization_required = risk.Protection.AuthorizationRequired,
+        },
     };
 
     private static object SchemaValidationSummary(
@@ -750,7 +774,8 @@ internal sealed partial class WordLiveService
     }
 
     private static WordPackagePatchApplyPolicy ParsePackagePatchPolicy(
-        JsonElement arguments
+        JsonElement arguments,
+        string? expectedProtectionAuthorization = null
     ) => new()
     {
         AllowDigitalSignatureInvalidation = arguments.Boolean(
@@ -773,6 +798,12 @@ internal sealed partial class WordLiveService
             "allow_new_structural_errors",
             false
         ),
+        AllowProtectedDocumentEdit = expectedProtectionAuthorization is not null
+            && string.Equals(
+                arguments.String("protected_edit_authorization", string.Empty),
+                expectedProtectionAuthorization,
+                StringComparison.Ordinal
+            ),
     };
 
     private static IReadOnlyList<string> PackagePatchBlockCodes(
@@ -805,6 +836,10 @@ internal sealed partial class WordLiveService
             return context.FormatHardBlockCodes;
         }
         var blocks = new List<string>(context.FormatHardBlockCodes);
+        if (context.Plan.RiskAssessment.Protection.HasMalformedPermissionMetadata)
+        {
+            blocks.Add("protection_metadata_malformed");
+        }
         if (!validation.Performed)
         {
             blocks.Add("openxml_validation_not_performed");
@@ -890,6 +925,14 @@ internal sealed partial class WordLiveService
         {
             names.Add("allow_new_structural_errors");
         }
+        if (
+            hasChanges
+            && risk.Protection.AuthorizationRequired
+            && !risk.Protection.HasMalformedPermissionMetadata
+        )
+        {
+            names.Add("protected_edit_authorization");
+        }
         return names.ToArray();
     }
 
@@ -918,8 +961,20 @@ internal sealed partial class WordLiveService
         {
             names.Add("allow_new_structural_errors");
         }
+        if (policy.AllowProtectedDocumentEdit)
+        {
+            names.Add("protected_edit_authorization");
+        }
         return names.ToArray();
     }
+
+    private static string? ProtectionAuthorizationId(
+        WordPackagePatchRiskAssessment risk,
+        string planId
+    ) => risk.Protection.AuthorizationRequired
+        && !risk.Protection.HasMalformedPermissionMetadata
+            ? planId
+            : null;
 
     private static string ComputeApplyPlanId(
         WordPackagePatchPlan plan,

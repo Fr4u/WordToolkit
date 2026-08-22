@@ -183,6 +183,18 @@ custom limit can be higher, but it must be backed by workload-specific memory ev
 The envelope also materializes its serialized patch and AES-GCM payload; it improves
 confidentiality/authenticity, not memory scaling.
 
+Generic saved-package patch apply, three-way merge apply and patch rollback inspect the
+base and candidate protection state before publication. A non-no-op mutation is blocked
+by default when `w:documentProtection` is enforced, the exact protection element changes,
+or either state contains a complete `w:permStart`/`w:permEnd` range. The caller must pass
+the exact plan-bound `protected_edit_authorization` disclosed by that reviewed plan; a
+token from another plan is rejected before writing. Orphaned, duplicated, reversed or
+otherwise malformed permission ranges are non-overridable. Results expose only modes,
+counts and bounded issue codes, not cryptographic verifier material. Word document
+protection is an editing restriction, not encryption, password verification or proof of
+the caller's identity. Other saved-package mutation families do not yet share this gate;
+deployments requiring universal enforcement must deny those operations separately.
+
 The in-memory session registry makes this release a single-instance service. Do not run multiple replicas without a shared encrypted object store, distributed locks and shared metadata. The supplied hosting profiles deliberately use one instance.
 
 ## Word Live field, object-model, bookmark, learning and equation boundaries

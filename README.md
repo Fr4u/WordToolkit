@@ -1078,14 +1078,19 @@ plan ID bound to the reviewed destination path, verifies that the result's Word 
 type matches the in-place file extension, and rechecks the destination before and after
 candidate serialization. Signature invalidation, macro/OLE/ActiveX changes, external
 relationships, opaque binaries and new structural errors have independent explicit
-authorizations. Validation truncation, an SDK-open failure or a result-type/extension
+authorizations. Enforced document protection, a change to protection metadata or any
+complete permission range also requires the exact `protection_authorization_id` returned
+by the reviewed plan to be passed as `protected_edit_authorization`; a token from another
+plan fails. Malformed permission ranges are non-overridable. This gate does not validate
+a password or prove a caller identity. Validation truncation, an SDK-open failure or a result-type/extension
 mismatch cannot be overridden. Successful replacement is atomic and retains a recovery
 backup by default; a no-op does not touch the file.
 
 Rollback is a separate reviewed transaction, not an inference from that backup. Call
 `plan_ooxml_patch_rollback` with the current package fingerprint and the original
 artifact's `patch_id`; WordToolkit derives the exact reverse patch internally and returns
-a destination-bound `rollback_plan_id`. Then call `apply_ooxml_patch_rollback` with that
+a destination-bound `rollback_plan_id` and, when needed, a matching
+`protection_authorization_id`. Then call `apply_ooxml_patch_rollback` with that
 exact ID and only the individually accepted risk authorizations. The current package
 must still equal the original patch result, package type and baseline-versus-candidate
 validation are rechecked, publication is atomic, and the default backup contains the
@@ -1123,6 +1128,11 @@ reuses the independent patch-risk authorizations, checks the Word main-part type
 the requested extension, and creates a new file through a flushed sibling temporary
 file. It never overwrites. This is not yet a general revision-aware or arbitrary
 structural semantic merge; those cases remain explicit conflicts.
+
+When a merge candidate changes a package governed by enforced document protection or
+permission ranges, the plan returns a `protection_authorization_id`. Apply accepts it
+only as the exact `protected_edit_authorization` for that same `wtmergeapply_` plan.
+Malformed permission ranges remain a hard block.
 
 Saved-package review inspection links standard comments to story-scoped start/end/reference
 anchors, `commentsExtended` threads and resolved state, `commentsIds` durable IDs,

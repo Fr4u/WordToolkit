@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
 
@@ -17,6 +18,27 @@ public sealed record WordPackagePatchRiskItem(
     int AffectedOperationCount = 0
 );
 
+public sealed record WordPackageProtectionRiskAssessment(
+    bool BaseDocumentProtectionEnforced,
+    string? BaseDocumentProtectionEditMode,
+    bool ResultDocumentProtectionEnforced,
+    string? ResultDocumentProtectionEditMode,
+    bool DocumentProtectionMetadataChanged,
+    int BasePermissionRangeCount,
+    int ResultPermissionRangeCount,
+    int MalformedPermissionRangeCount,
+    bool PermissionIssuesTruncated,
+    IReadOnlyList<string> PermissionIssueCodes,
+    bool AuthorizationRequired
+)
+{
+    public bool PermissionRangesPresent =>
+        BasePermissionRangeCount != 0 || ResultPermissionRangeCount != 0;
+
+    public bool HasMalformedPermissionMetadata =>
+        MalformedPermissionRangeCount != 0 || PermissionIssuesTruncated;
+}
+
 public sealed record WordPackagePatchRiskAssessment(
     bool DigitalSignaturesPresent,
     bool DigitalSignatureMaterialChanged,
@@ -31,6 +53,7 @@ public sealed record WordPackagePatchRiskAssessment(
     int BaselineStructuralErrorCount,
     int CandidateStructuralErrorCount,
     int NewStructuralErrorCount,
+    WordPackageProtectionRiskAssessment Protection,
     IReadOnlyList<WordPackagePatchRiskItem> Items
 )
 {
@@ -55,6 +78,8 @@ public sealed record WordPackagePatchApplyPolicy
     public bool AllowOpaqueBinaryChanges { get; init; }
 
     public bool AllowNewStructuralErrors { get; init; }
+
+    public bool AllowProtectedDocumentEdit { get; init; }
 }
 
 public sealed record WordPackagePatchPolicyDecision(
@@ -123,6 +148,17 @@ public sealed class WordPackagePatchPlan
         {
             blocks.Add("new_structural_errors");
         }
+        if (!Patch.IsNoOp && RiskAssessment.Protection.HasMalformedPermissionMetadata)
+        {
+            blocks.Add("protection_metadata_malformed");
+        }
+        else if (
+            RiskAssessment.Protection.AuthorizationRequired
+            && !policy.AllowProtectedDocumentEdit
+        )
+        {
+            blocks.Add("protected_document_edit_not_authorized");
+        }
         return new WordPackagePatchPolicyDecision(
             blocks.Count == 0,
             new ReadOnlyCollection<string>(blocks)
@@ -188,8 +224,11 @@ public sealed class WordPackagePatchPlanner
         }
         var risk = WordPackagePatchRiskAnalyzer.Assess(
             beforePackage,
+            beforeDocument,
             afterPackage,
-            patch
+            afterDocument,
+            patch,
+            cancellationToken
         );
         return new WordPackagePatchPlan(patch, diff, risk);
     }
@@ -252,13 +291,19 @@ public static class WordPackagePatchRiskAnalyzer
 {
     public static WordPackagePatchRiskAssessment Assess(
         OpcPackageSnapshot before,
+        WordSemanticDocument beforeDocument,
         OpcPackageSnapshot after,
-        OpcPackagePatch patch
+        WordSemanticDocument afterDocument,
+        OpcPackagePatch patch,
+        CancellationToken cancellationToken = default
     )
     {
         ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(beforeDocument);
         ArgumentNullException.ThrowIfNull(after);
+        ArgumentNullException.ThrowIfNull(afterDocument);
         ArgumentNullException.ThrowIfNull(patch);
+        cancellationToken.ThrowIfCancellationRequested();
         if (
             !string.Equals(
                 before.Fingerprint,
@@ -302,6 +347,53 @@ public static class WordPackagePatchRiskAnalyzer
         var externalRemoved = beforeExternal.Except(afterExternal, StringComparer.Ordinal).Count();
         var baselineErrors = StructuralErrors(before);
         var candidateErrors = StructuralErrors(after);
+        var beforeProtection = ProtectionEvidenceFor(
+            before,
+            beforeDocument,
+            cancellationToken
+        );
+        var afterProtection = ProtectionEvidenceFor(
+            after,
+            afterDocument,
+            cancellationToken
+        );
+        var permissionIssueCodes = beforeProtection.PermissionIssueCodes
+            .Concat(afterProtection.PermissionIssueCodes)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var malformedPermissionRangeCount = checked(
+            beforeProtection.MalformedPermissionRangeCount
+            + afterProtection.MalformedPermissionRangeCount
+        );
+        var permissionIssuesTruncated = beforeProtection.PermissionIssuesTruncated
+            || afterProtection.PermissionIssuesTruncated;
+        var protectionMetadataChanged = !string.Equals(
+            beforeProtection.DocumentProtectionFingerprint,
+            afterProtection.DocumentProtectionFingerprint,
+            StringComparison.Ordinal
+        );
+        var protectionAuthorizationRequired = !patch.IsNoOp
+            && (
+                beforeProtection.DocumentProtectionEnforced
+                || afterProtection.DocumentProtectionEnforced
+                || beforeProtection.PermissionRangeCount != 0
+                || afterProtection.PermissionRangeCount != 0
+                || protectionMetadataChanged
+            );
+        var protection = new WordPackageProtectionRiskAssessment(
+            beforeProtection.DocumentProtectionEnforced,
+            beforeProtection.DocumentProtectionEditMode,
+            afterProtection.DocumentProtectionEnforced,
+            afterProtection.DocumentProtectionEditMode,
+            protectionMetadataChanged,
+            beforeProtection.PermissionRangeCount,
+            afterProtection.PermissionRangeCount,
+            malformedPermissionRangeCount,
+            permissionIssuesTruncated,
+            new ReadOnlyCollection<string>(permissionIssueCodes),
+            protectionAuthorizationRequired
+        );
         var baselineErrorCounts = baselineErrors.GroupBy(
             value => value,
             StringComparer.Ordinal
@@ -407,6 +499,24 @@ public static class WordPackagePatchRiskAnalyzer
                 newErrors.Count
             ));
         }
+        if (protection.HasMalformedPermissionMetadata && !patch.IsNoOp)
+        {
+            items.Add(new WordPackagePatchRiskItem(
+                "protection_metadata_malformed",
+                WordPackagePatchRiskSeverity.Block,
+                "The base or result package contains incomplete or ambiguous Word permission-range metadata; a generic package mutation cannot determine an authorized edit scope.",
+                patch.OperationCount
+            ));
+        }
+        else if (protection.AuthorizationRequired)
+        {
+            items.Add(new WordPackagePatchRiskItem(
+                "protected_document_edit_requires_authorization",
+                WordPackagePatchRiskSeverity.Block,
+                "The base or result package enforces Word editing protection, contains permission ranges, or changes document-protection metadata. Generic package mutation requires an explicit plan-bound authorization.",
+                patch.OperationCount
+            ));
+        }
         return new WordPackagePatchRiskAssessment(
             signaturePresent,
             signatureChanges != 0,
@@ -421,9 +531,103 @@ public static class WordPackagePatchRiskAnalyzer
             baselineErrors.Count,
             candidateErrors.Count,
             newErrors.Count,
+            protection,
             new ReadOnlyCollection<WordPackagePatchRiskItem>(items)
         );
     }
+
+    private static ProtectionEvidence ProtectionEvidenceFor(
+        OpcPackageSnapshot package,
+        WordSemanticDocument document,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var settings = new WordSettingsGraphBuilder().Build(
+            package,
+            document,
+            cancellationToken
+        );
+        var review = new WordReviewGraphBuilder().Build(
+            package,
+            document,
+            cancellationToken
+        );
+        var permissionIssueCodes = review.Issues
+            .Where(issue => issue.Code.StartsWith("PERMISSION_", StringComparison.Ordinal))
+            .Select(issue => issue.Code)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var malformedPermissionRangeCount = review.Permissions.Count(permission =>
+            permission.Status != WordReviewRangeStatus.Complete
+        );
+        if (permissionIssueCodes.Contains(
+                "PERMISSION_COLUMN_RANGE_INCOMPLETE",
+                StringComparer.Ordinal
+            ))
+        {
+            malformedPermissionRangeCount = Math.Max(
+                malformedPermissionRangeCount,
+                1
+            );
+        }
+        return new ProtectionEvidence(
+            settings.DocumentProtection?.IsEnforced == true,
+            settings.DocumentProtection?.EditMode,
+            DocumentProtectionFingerprint(package, settings, cancellationToken),
+            review.Permissions.Count,
+            malformedPermissionRangeCount,
+            review.IssuesTruncated && review.Permissions.Count != 0,
+            permissionIssueCodes
+        );
+    }
+
+    private static string? DocumentProtectionFingerprint(
+        OpcPackageSnapshot package,
+        WordSettingsGraph settings,
+        CancellationToken cancellationToken
+    )
+    {
+        if (
+            settings.SettingsPartUri is not { } partUri
+            || !package.Parts.TryGetValue(partUri, out var part)
+        )
+        {
+            return null;
+        }
+        var source = LosslessXmlDocument.Parse(
+            part.Entry.Content,
+            cancellationToken: cancellationToken
+        );
+        var element = source.Elements.SingleOrDefault(candidate =>
+            candidate.LocalName == "documentProtection"
+            && candidate.NamespaceUri is
+                "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                or "http://purl.oclc.org/ooxml/wordprocessingml/main"
+        );
+        if (element is null)
+        {
+            return null;
+        }
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                source.SourceBytes.Span.Slice(
+                    element.FullSpan.ByteOffset,
+                    element.FullSpan.ByteLength
+                )
+            ))
+            .ToLowerInvariant();
+    }
+
+    private sealed record ProtectionEvidence(
+        bool DocumentProtectionEnforced,
+        string? DocumentProtectionEditMode,
+        string? DocumentProtectionFingerprint,
+        int PermissionRangeCount,
+        int MalformedPermissionRangeCount,
+        bool PermissionIssuesTruncated,
+        IReadOnlyList<string> PermissionIssueCodes
+    );
 
     public static bool HasDigitalSignatures(OpcPackageSnapshot package) =>
         package.Entries.Any(entry =>
