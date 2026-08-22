@@ -120,6 +120,55 @@ DRAFT_MUTATION_TOOLS = {
 }
 
 
+def test_live_table_formula_items_have_explicit_runtime_contract() -> None:
+    catalog = json.loads(
+        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    tool = next(
+        item for item in catalog["tools"] if item["name"] == "insert_live_word_table_formulas"
+    )
+    item = tool["inputSchema"]["properties"]["formulas"]["items"]
+    Draft202012Validator.check_schema(item)
+    validator = Draft202012Validator(item)
+    valid = {"row": 1, "column": 2, "function": "sum", "directions": ["above"]}
+    assert not list(validator.iter_errors(valid))
+    assert list(validator.iter_errors({"row": 1, "column": 2, "formula": "=SUM(ABOVE)"}))
+    assert list(validator.iter_errors({"row": 1, "column": 2, "function": "sum"}))
+    assert list(
+        validator.iter_errors(
+            {
+                "row": 1,
+                "column": 2,
+                "function": "sum",
+                "directions": ["above"],
+                "cell_range": {"start": {"row": 1, "column": 1}, "end": {"row": 1, "column": 2}},
+            }
+        )
+    )
+
+
+def test_live_caption_schema_accepts_exactly_one_target_token() -> None:
+    catalog = json.loads(
+        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    tool = next(item for item in catalog["tools"] if item["name"] == "insert_live_word_caption")
+    schema = tool["inputSchema"]
+    Draft202012Validator.check_schema(schema)
+    validator = Draft202012Validator(schema)
+    base = {"live_document_id": "live", "expected_version": 0}
+
+    assert not list(validator.iter_errors({**base, "selection_token": "selection"}))
+    assert not list(validator.iter_errors({**base, "range_token": "range"}))
+    assert list(validator.iter_errors(base))
+    assert list(
+        validator.iter_errors({**base, "selection_token": "selection", "range_token": "range"})
+    )
+
+
 @pytest.mark.asyncio
 async def test_all_required_tools_have_object_schemas_and_annotations(tmp_path) -> None:
     app = build_app(

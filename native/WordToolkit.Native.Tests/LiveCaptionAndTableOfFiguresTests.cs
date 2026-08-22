@@ -114,6 +114,34 @@ public sealed class LiveCaptionAndTableOfFiguresTests
     }
 
     [Fact]
+    public async Task RequiresExactlyOneCaptionTargetTokenBeforeMutation()
+    {
+        await using var host = new CaptionFakeHost();
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        var selectionToken = await SelectionTokenAsync(service, documentId);
+
+        foreach (var payload in new[]
+        {
+            new { selection_token = "", range_token = "" },
+            new { selection_token = selectionToken, range_token = "range" },
+        })
+        {
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                live_document_id = documentId,
+                expected_version = version,
+                payload.selection_token,
+                payload.range_token,
+            }));
+            var error = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync("insert_live_word_caption", arguments.RootElement, CancellationToken.None));
+            Assert.Equal("INVALID_INPUT", error.ErrorCode);
+            Assert.Equal(0, host.Application.ActiveDocument.Fields.Count);
+        }
+    }
+
+    [Fact]
     public async Task RollsBackWhenWordDoesNotCreateExactlyOneCaptionField()
     {
         await using var host = new CaptionFakeHost();

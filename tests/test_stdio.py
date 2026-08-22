@@ -7,6 +7,7 @@ from urllib.parse import unquote, urlparse
 
 import httpx
 import pytest
+from jsonschema import Draft202012Validator
 
 from wordtoolkit import __version__
 from wordtoolkit import runtime as runtime_module
@@ -96,6 +97,44 @@ async def test_live_word_tools_exist_only_on_local_stdio(tmp_path: Path) -> None
     assert mapping["insert_live_word_equation"].annotations.destructiveHint is True
     assert mapping["preflight_live_word_equations"].annotations.readOnlyHint is True
     assert mapping["apply_live_word_operations"].annotations.destructiveHint is True
+
+    live_batch_schema = mapping["apply_live_word_operations"].inputSchema
+    Draft202012Validator.check_schema(live_batch_schema)
+    assert live_batch_schema["properties"]["operations"]["maxItems"] == 200
+    definitions = live_batch_schema["$defs"]
+    run_formatting = definitions["LiveRunFormatting"]
+    text_formatting = definitions["LiveTextFormatting"]
+    assert run_formatting["additionalProperties"] is False
+    assert text_formatting["additionalProperties"] is False
+    assert set(run_formatting["properties"]) == {
+        "font_name",
+        "font_size_pt",
+        "font_size",
+        "font_color_rgb",
+        "bold",
+        "italic",
+        "underline",
+        "strike",
+        "double_strike",
+        "all_caps",
+        "small_caps",
+        "hidden",
+        "highlight_color_index",
+    }
+    assert {
+        "paragraph_alignment",
+        "alignment",
+        "space_before_pt",
+        "space_after_pt",
+        "left_indent_pt",
+        "right_indent_pt",
+        "first_line_indent_pt",
+        "keep_with_next",
+        "keep_together",
+        "page_break_before",
+        "widow_control",
+    } <= set(text_formatting["properties"])
+    assert "paragraph_alignment" not in run_formatting["properties"]
 
 
 @pytest.mark.asyncio

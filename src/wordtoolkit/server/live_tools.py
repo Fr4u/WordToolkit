@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Literal
+from typing import Annotated, Any, Literal
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..auth import current_subject, require_scope
 from ..errors import ok
@@ -30,6 +30,119 @@ LIVE_HANDLE = ToolAnnotations(
     idempotentHint=True,
     openWorldHint=True,
 )
+
+
+class LiveRunFormatting(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"allOf": [{"not": {"required": ["font_size", "font_size_pt"]}}]},
+    )
+
+    font_name: str | None = Field(default=None, min_length=1, max_length=128)
+    font_size_pt: float | None = Field(default=None, ge=1, le=200)
+    font_size: float | None = Field(
+        default=None,
+        ge=1,
+        le=200,
+        json_schema_extra={"deprecated": True},
+    )
+    font_color_rgb: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    bold: bool | None = None
+    italic: bool | None = None
+    underline: bool | None = None
+    strike: bool | None = None
+    double_strike: bool | None = None
+    all_caps: bool | None = None
+    small_caps: bool | None = None
+    hidden: bool | None = None
+    highlight_color_index: int | None = Field(default=None, ge=0, le=16)
+
+    @model_validator(mode="after")
+    def reject_duplicate_size_alias(self) -> LiveRunFormatting:
+        if self.font_size is not None and self.font_size_pt is not None:
+            raise ValueError("Use either font_size or font_size_pt, not both")
+        return self
+
+
+class LiveTextFormatting(LiveRunFormatting):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "allOf": [
+                {"not": {"required": ["font_size", "font_size_pt"]}},
+                {"not": {"required": ["alignment", "paragraph_alignment"]}},
+            ]
+        },
+    )
+
+    paragraph_alignment: Literal["left", "center", "right", "justify", "distribute"] | None = None
+    alignment: Literal["left", "center", "right", "justify", "distribute"] | None = Field(
+        default=None,
+        json_schema_extra={"deprecated": True},
+    )
+    space_before_pt: float | None = Field(default=None, ge=0, le=1584)
+    space_after_pt: float | None = Field(default=None, ge=0, le=1584)
+    left_indent_pt: float | None = Field(default=None, ge=-1584, le=1584)
+    right_indent_pt: float | None = Field(default=None, ge=-1584, le=1584)
+    first_line_indent_pt: float | None = Field(default=None, ge=-1584, le=1584)
+    keep_with_next: bool | None = None
+    keep_together: bool | None = None
+    page_break_before: bool | None = None
+    widow_control: bool | None = None
+
+    @model_validator(mode="after")
+    def reject_duplicate_alignment_alias(self) -> LiveTextFormatting:
+        if self.alignment is not None and self.paragraph_alignment is not None:
+            raise ValueError("Use either alignment or paragraph_alignment, not both")
+        return self
+
+
+class LiveTextRun(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(min_length=1, max_length=200_000)
+    formatting: LiveRunFormatting = Field(default_factory=LiveRunFormatting)
+
+
+class LiveTextOperation(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "oneOf": [
+                {"required": ["text"], "not": {"required": ["runs"]}},
+                {"required": ["runs"], "not": {"required": ["text"]}},
+            ]
+        },
+    )
+
+    type: Literal["text"]
+    text: str | None = Field(default=None, min_length=1, max_length=200_000)
+    runs: list[LiveTextRun] | None = Field(default=None, min_length=1, max_length=1_000)
+    as_new_paragraph: bool = False
+    style: str = Field(default="", max_length=128)
+    formatting: LiveTextFormatting | None = None
+
+    @model_validator(mode="after")
+    def require_exactly_one_text_source(self) -> LiveTextOperation:
+        if (self.text is None) == (self.runs is None):
+            raise ValueError("Provide exactly one of text or runs")
+        return self
+
+
+class LiveEquationOperation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["equation"]
+    value: str | dict[str, Any]
+    input_format: Literal["latex", "unicodemath", "mathml", "omml", "ast"] = "latex"
+    display: bool = True
+    verify_readback: bool | None = None
+
+
+LiveWordOperation = Annotated[
+    LiveTextOperation | LiveEquationOperation,
+    Field(discriminator="type"),
+]
 
 
 def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
@@ -325,7 +438,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
 
     @mcp.tool(
         title="Execute catalog-backed operations in an open Microsoft Word document",
-        description="Execute up to 50 preflighted per-member virtual tools by stable capability ID. Targets are restricted to the connected document, its current selection or content, and typed results of earlier operations. A mutating batch requires expected_version and runs in one Word Undo record with rollback on failure. Indexed setters remain non-executable until their exact Word Undo behavior is proven.",
+        description="Execute up to 50 preflighted per-member virtual tools by stable capability ID. Targets are restricted to the connected document, its current selection or content, and typed results of earlier operations. Only operations that include a result_id publish entries in the results array; executed_count counts all executed operations. A mutating batch requires expected_version and runs in one Word Undo record with rollback on failure. Indexed setters remain non-executable until their exact Word Undo behavior is proven.",
         annotations=LIVE_WRITE,
     )
     @_safe
@@ -947,13 +1060,13 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
 
     @mcp.tool(
         title="Apply a fast mixed batch directly in open Microsoft Word",
-        description="Append up to 200 interleaved text and native equation operations in one COM attachment and one Word Undo transaction. The complete batch is preflighted before mutation, inserted as one payload, and rolled back if any style, OMath build-up, count or symbol-preservation check fails.",
+        description="Append up to 200 interleaved text and native equation operations in one COM attachment and one Word Undo transaction. Text accepts either one text value or 1-1000 inline runs with schema-enumerated character formatting; paragraph formatting belongs only on the enclosing text operation. The complete batch is preflighted before mutation, inserted as one payload, and rolled back if any style, OMath build-up, count or symbol-preservation check fails.",
         annotations=LIVE_WRITE,
     )
     @_safe
     async def apply_live_word_operations(
         live_document_id: str,
-        operations: list[dict],
+        operations: list[LiveWordOperation] = Field(min_length=1, max_length=200),
         activate: bool = True,
         expected_version: int | None = None,
         verify_readback: bool = False,
@@ -965,7 +1078,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
             runtime.live_word.apply_operations,
             subject,
             live_document_id,
-            operations=operations,
+            operations=[operation.model_dump(exclude_none=True) for operation in operations],
             activate=activate,
             expected_version=expected_version,
             verify_readback=verify_readback,

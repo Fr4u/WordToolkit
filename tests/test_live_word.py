@@ -96,23 +96,27 @@ class FakeStructureCollection:
 
 
 class FakeFormattingObject:
-    def __init__(self, document, prefix: str):
+    def __init__(self, document, target_range, prefix: str):
         object.__setattr__(self, "document", document)
+        object.__setattr__(self, "target_range", target_range)
         object.__setattr__(self, "prefix", prefix)
 
     def __setattr__(self, name: str, value) -> None:
-        if name in {"document", "prefix"}:
+        if name in {"document", "target_range", "prefix"}:
             object.__setattr__(self, name, value)
             return
         if self.document.fail_format_property == name:
             raise RuntimeError(f"simulated formatting failure for {name}")
         self.document.formatting_log[f"{self.prefix}.{name}"] = value
+        self.document.formatting_ranges.append(
+            (self.prefix, name, self.target_range.Start, self.target_range.End, value)
+        )
         object.__setattr__(self, name, value)
 
 
 class FakeParagraphFormat(FakeFormattingObject):
-    def __init__(self, document):
-        super().__init__(document, "paragraph")
+    def __init__(self, document, target_range):
+        super().__init__(document, target_range, "paragraph")
         object.__setattr__(self, "Alignment", 0)
         object.__setattr__(self, "KeepWithNext", 0)
         object.__setattr__(self, "KeepTogether", 0)
@@ -122,8 +126,8 @@ class FakeParagraphFormat(FakeFormattingObject):
 
 
 class FakeFont(FakeFormattingObject):
-    def __init__(self, document):
-        super().__init__(document, "font")
+    def __init__(self, document, target_range):
+        super().__init__(document, target_range, "font")
 
 
 class FakeFind:
@@ -225,8 +229,8 @@ class FakeRange:
         self.Start = start
         self.End = end
         self._style = ""
-        self.Font = FakeFont(document)
-        self.ParagraphFormat = FakeParagraphFormat(document)
+        self.Font = FakeFont(document, self)
+        self.ParagraphFormat = FakeParagraphFormat(document, self)
         self.ListFormat = FakeListFormat(document, self)
         self.StoryType = 1
         self.Paragraphs = FakeCount(lambda: self.Text.count("\r"))
@@ -294,7 +298,7 @@ class FakeParagraph:
         self.index = index
         self._range = FakeRange(document, start, end)
         self._range._style = document.paragraph_styles.get(index, "Normal")
-        self.Format = FakeParagraphFormat(document)
+        self.Format = FakeParagraphFormat(document, self._range)
         for name, value in document.paragraph_format_values.get(index, {}).items():
             object.__setattr__(self.Format, name, value)
         self._range.ParagraphFormat = self.Format
@@ -914,6 +918,7 @@ class FakeDocument:
         self.text_write_count = 0
         self.fail_text_value: str | None = None
         self.formatting_log: dict[str, Any] = {}
+        self.formatting_ranges: list[tuple[str, str, int, int, Any]] = []
         self.fail_format_property: str | None = None
         self.word_open_xml_override: str | None = None
         self.word_open_xml_queue: list[str] = []
@@ -2473,6 +2478,107 @@ def test_live_word_applies_mixed_batch_with_one_attachment_and_one_undo_record(
     assert result["operations"][3]["equation"]["readback_verified"] is True
 
 
+def test_live_word_mixed_batch_accepts_inline_runs(live_bridge) -> None:
+    bridge, _application, document = live_bridge
+    connected = bridge.connect("owner", use_active=True)
+
+    result = bridge.apply_operations(
+        "owner",
+        connected["live_document_id"],
+        operations=[
+            {
+                "type": "text",
+                "runs": [
+                    {"text": "plain ", "formatting": {}},
+                    {"text": "bold", "formatting": {"bold": True}},
+                    {"text": " and large", "formatting": {"font_size_pt": 18}},
+                ],
+                "as_new_paragraph": True,
+            }
+        ],
+        expected_version=0,
+    )
+
+    assert "plain bold and large" in document.text
+    assert result["operation_count"] == 1
+    assert result["operations"][0]["type"] == "text"
+    assert result["operations"][0]["run_count"] == 3
+    bold_range = next(item for item in document.formatting_ranges if item[:2] == ("font", "Bold"))
+    size_range = next(item for item in document.formatting_ranges if item[:2] == ("font", "Size"))
+    assert document.text[bold_range[2] : bold_range[3]] == "bold"
+    assert bold_range[4] == -1
+    assert document.text[size_range[2] : size_range[3]] == " and large"
+    assert size_range[4] == 18.0
+
+
+def test_live_word_inline_runs_reject_paragraph_formatting_before_mutation(
+    live_bridge,
+) -> None:
+    bridge, application, document = live_bridge
+    connected = bridge.connect("owner", use_active=True)
+    before_text = document.text
+    before_undo = application.UndoRecord.started
+
+    with pytest.raises(WordToolkitError) as error:
+        bridge.apply_operations(
+            "owner",
+            connected["live_document_id"],
+            operations=[
+                {
+                    "type": "text",
+                    "runs": [
+                        {
+                            "text": "must not mutate",
+                            "formatting": {"paragraph_alignment": "center"},
+                        }
+                    ],
+                }
+            ],
+            expected_version=0,
+        )
+
+    assert error.value.code is ErrorCode.INVALID_INPUT
+    assert error.value.details == {"fields": ["paragraph_alignment"]}
+    assert document.text == before_text
+    assert application.UndoRecord.started == before_undo
+
+
+def test_live_word_inline_run_ranges_follow_mixed_newline_normalization(
+    live_bridge,
+) -> None:
+    bridge, _application, document = live_bridge
+    connected = bridge.connect("owner", use_active=True)
+
+    result = bridge.apply_operations(
+        "owner",
+        connected["live_document_id"],
+        operations=[
+            {
+                "type": "text",
+                "runs": [
+                    {"text": "A\r\n", "formatting": {"bold": True}},
+                    {"text": "B\n", "formatting": {"italic": True}},
+                    {"text": "C\rD", "formatting": {"underline": True}},
+                ],
+                "as_new_paragraph": True,
+            }
+        ],
+        expected_version=0,
+    )
+
+    formatted_text = {
+        name: document.text[start:end]
+        for prefix, name, start, end, _value in document.formatting_ranges
+        if prefix == "font" and name in {"Bold", "Italic", "Underline"}
+    }
+    assert formatted_text == {
+        "Bold": "A\r",
+        "Italic": "B\r",
+        "Underline": "C\rD",
+    }
+    assert result["operations"][0]["run_count"] == 3
+
+
 def test_live_word_mixed_batch_is_preflighted_before_mutation(live_bridge) -> None:
     bridge, application, document = live_bridge
     connected = bridge.connect("owner", use_active=True)
@@ -2756,11 +2862,14 @@ def test_live_word_validates_snapshot_saves_same_path_and_disconnects(live_bridg
 
     validation = bridge.validate("owner", document_id)
     saved = bridge.save("owner", document_id, expected_version=0)
+    inspected_after_save = bridge.inspect("owner", document_id)
     disconnected = bridge.disconnect("owner", document_id)
 
     assert validation["validation"]["valid"] is True
     assert validation["snapshot_only"] is True
     assert saved["saved"] is True
+    assert saved["live_version"] == 0
+    assert inspected_after_save["live_version"] == 0
     assert document.save_calls == 1
     assert disconnected["disconnected"] is True
     with pytest.raises(WordToolkitError):

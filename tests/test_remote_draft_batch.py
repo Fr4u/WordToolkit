@@ -400,7 +400,7 @@ async def test_aggregate_argument_limit_is_enforced_before_fork(
 
 
 @pytest.mark.asyncio
-async def test_image_is_staged_but_document_remains_atomic_on_later_failure(
+async def test_image_stage_is_removed_and_document_remains_atomic_on_later_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     server, runtime = _build_server(tmp_path, monkeypatch)
@@ -450,7 +450,226 @@ async def test_image_is_staged_but_document_remains_atomic_on_later_failure(
     assert record.engine is original_engine
     assert _snapshot_hashes(record.engine, tmp_path / "after-image-batch.docx") == before
     uploads = list((runtime.store.sessions[record.session_id].root / "uploads").glob("*.png"))
-    assert len(uploads) == 1
+    assert uploads == []
+
+
+@pytest.mark.asyncio
+async def test_image_stage_is_removed_after_successful_batch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server, runtime = _build_server(tmp_path, monkeypatch)
+    created = await _create_document(server)
+    record = runtime.store.documents[created["document_id"]]
+    image_path = tmp_path / "success.png"
+    Image.new("RGB", (2, 2), (20, 40, 60)).save(image_path)
+
+    response = _payload(
+        await server.call_tool(
+            "apply_document_operations",
+            {
+                "document_id": created["document_id"],
+                "expected_version": 0,
+                "files": [
+                    {
+                        "download_url": image_path.resolve().as_uri(),
+                        "file_id": "file_success_pixel",
+                        "mime_type": "image/png",
+                        "file_name": "success.png",
+                    }
+                ],
+                "operations": [
+                    {
+                        "operation": "insert_image",
+                        "arguments": {
+                            "paragraph_id": created["anchor_paragraph_id"],
+                            "file_index": 0,
+                            "width_mm": 10,
+                            "height_mm": 10,
+                        },
+                    }
+                ],
+            },
+        )
+    )
+
+    assert response["ok"] is True
+    assert record.version == 1
+    uploads = list((runtime.store.sessions[record.session_id].root / "uploads").glob("*.png"))
+    assert uploads == []
+
+
+@pytest.mark.asyncio
+async def test_image_stage_is_removed_after_successful_standalone_insert(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server, runtime = _build_server(tmp_path, monkeypatch)
+    created = await _create_document(server)
+    record = runtime.store.documents[created["document_id"]]
+    image_path = tmp_path / "standalone.png"
+    Image.new("RGB", (2, 2), (60, 40, 20)).save(image_path)
+
+    response = _payload(
+        await server.call_tool(
+            "insert_image",
+            {
+                "document_id": created["document_id"],
+                "paragraph_id": created["anchor_paragraph_id"],
+                "file": {
+                    "download_url": image_path.resolve().as_uri(),
+                    "file_id": "file_standalone_pixel",
+                    "mime_type": "image/png",
+                    "file_name": "standalone.png",
+                },
+                "expected_version": 0,
+            },
+        )
+    )
+
+    assert response["ok"] is True
+    assert response["warnings"] == []
+    assert record.version == 1
+    uploads = list((runtime.store.sessions[record.session_id].root / "uploads").glob("*.png"))
+    assert uploads == []
+
+
+@pytest.mark.asyncio
+async def test_image_cleanup_failure_warns_without_masking_successful_commit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server, runtime = _build_server(tmp_path, monkeypatch)
+    created = await _create_document(server)
+    record = runtime.store.documents[created["document_id"]]
+    image_path = tmp_path / "cleanup-warning.png"
+    Image.new("RGB", (2, 2), (20, 60, 40)).save(image_path)
+
+    def fail_cleanup(_session: Any, _path: Path) -> bool:
+        raise OSError("simulated cleanup failure")
+
+    monkeypatch.setattr(tools_module, "_discard_session_upload", fail_cleanup)
+    response = _payload(
+        await server.call_tool(
+            "apply_document_operations",
+            {
+                "document_id": created["document_id"],
+                "expected_version": 0,
+                "files": [
+                    {
+                        "download_url": image_path.resolve().as_uri(),
+                        "file_id": "file_cleanup_warning",
+                        "mime_type": "image/png",
+                        "file_name": "cleanup-warning.png",
+                    }
+                ],
+                "operations": [
+                    {
+                        "operation": "insert_image",
+                        "arguments": {
+                            "paragraph_id": created["anchor_paragraph_id"],
+                            "file_index": 0,
+                        },
+                    }
+                ],
+            },
+        )
+    )
+
+    assert response["ok"] is True
+    assert response["warnings"] == [tools_module.UPLOAD_CLEANUP_WARNING]
+    assert record.version == 1
+
+
+@pytest.mark.asyncio
+async def test_image_cleanup_failure_never_masks_the_original_batch_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server, runtime = _build_server(tmp_path, monkeypatch)
+    created = await _create_document(server)
+    record = runtime.store.documents[created["document_id"]]
+    original_engine = record.engine
+    image_path = tmp_path / "cleanup-error.png"
+    Image.new("RGB", (2, 2), (40, 20, 60)).save(image_path)
+
+    def fail_cleanup(_session: Any, _path: Path) -> bool:
+        raise OSError("simulated cleanup failure")
+
+    monkeypatch.setattr(tools_module, "_discard_session_upload", fail_cleanup)
+    response = _payload(
+        await server.call_tool(
+            "apply_document_operations",
+            {
+                "document_id": created["document_id"],
+                "expected_version": 0,
+                "files": [
+                    {
+                        "download_url": image_path.resolve().as_uri(),
+                        "file_id": "file_cleanup_error",
+                        "mime_type": "image/png",
+                        "file_name": "cleanup-error.png",
+                    }
+                ],
+                "operations": [
+                    {
+                        "operation": "insert_image",
+                        "arguments": {
+                            "paragraph_id": created["anchor_paragraph_id"],
+                            "file_index": 0,
+                        },
+                    },
+                    {
+                        "operation": "delete_paragraph",
+                        "arguments": {"paragraph_id": "FFFFFFFF"},
+                    },
+                ],
+            },
+        )
+    )
+
+    assert response["error"]["details"]["operation_index"] == 1
+    assert record.version == 0
+    assert record.engine is original_engine
+
+
+@pytest.mark.asyncio
+async def test_invalid_image_stage_is_removed_before_batch_fork(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server, runtime = _build_server(tmp_path, monkeypatch)
+    created = await _create_document(server)
+    record = runtime.store.documents[created["document_id"]]
+    invalid_path = tmp_path / "invalid.png"
+    invalid_path.write_bytes(b"not-an-image")
+
+    response = _payload(
+        await server.call_tool(
+            "apply_document_operations",
+            {
+                "document_id": created["document_id"],
+                "expected_version": 0,
+                "files": [
+                    {
+                        "download_url": invalid_path.resolve().as_uri(),
+                        "file_id": "file_invalid_pixel",
+                        "mime_type": "image/png",
+                        "file_name": "invalid.png",
+                    }
+                ],
+                "operations": [
+                    {
+                        "operation": "insert_image",
+                        "arguments": {
+                            "paragraph_id": created["anchor_paragraph_id"],
+                            "file_index": 0,
+                        },
+                    }
+                ],
+            },
+        )
+    )
+
+    assert response["error"]["code"] == "INVALID_INPUT"
+    assert record.version == 0
+    uploads = list((runtime.store.sessions[record.session_id].root / "uploads").glob("*.png"))
+    assert uploads == []
 
 
 @pytest.mark.asyncio

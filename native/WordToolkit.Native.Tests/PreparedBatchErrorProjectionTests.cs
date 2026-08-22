@@ -56,6 +56,21 @@ public sealed class PreparedBatchErrorProjectionTests
     }
 
     [Fact]
+    public void RewrappingAnIndexedFailureNeverInventsADifferentOperationIndex()
+    {
+        var original = WordLiveService.WithFailedOperationIndex(
+            new NativeToolException("EQUATION_INVALID", "invalid equation"),
+            12
+        );
+
+        var projected = Assert.IsType<NativeToolException>(
+            WordLiveService.WithFailedOperationIndex(original, 13)
+        );
+
+        Assert.Equal(12, WordLiveService.TryGetFailedOperationIndex(projected));
+    }
+
+    [Fact]
     public void IgnoresUnserializableDetailsWhenRecoveringFailedOperationIndex()
     {
         var details = new Dictionary<string, object?>();

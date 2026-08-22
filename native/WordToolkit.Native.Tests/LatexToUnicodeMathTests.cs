@@ -30,6 +30,10 @@ public sealed class LatexToUnicodeMathTests
         "∬_(D)▒〖f(x,y) ⅆx ⅆy〗"
     )]
     [InlineData(
+        @"\iiint_V f(x,y,z)\,\mathrm{d}x\,\mathrm{d}y\,\mathrm{d}z",
+        "∭_(V)▒〖f(x,y,z) ⅆx ⅆy ⅆz〗"
+    )]
+    [InlineData(
         @"\int u v' \,\mathrm{d}x = uv - \int u' v \,\mathrm{d}x",
         "∫▒〖u v' ⅆx〗 = u v - ∫▒〖u' v ⅆx〗"
     )]

@@ -67,6 +67,77 @@ public sealed class EquationReadbackVerifierTests
     }
 
     [Fact]
+    public void RejectsTwoDifferentialsAttachedToFirstOfTwoIntegrals()
+    {
+        const string omml = """
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:nary><m:naryPr><m:chr m:val="∫" /></m:naryPr><m:e><m:r><m:t>u</m:t></m:r><m:r><m:t> ⅆx ⅆx</m:t></m:r></m:e></m:nary>
+              <m:r><m:t> =u − </m:t></m:r>
+              <m:nary><m:naryPr><m:chr m:val="∫" /></m:naryPr><m:e><m:r><m:t>v</m:t></m:r></m:e></m:nary>
+            </m:oMath>
+            """;
+
+        var error = Assert.Throws<NativeToolException>(() =>
+            EquationReadbackVerifier.Verify(
+                Wrap(omml),
+                "∫▒〖u ⅆx〗 =u-∫▒〖v ⅆx〗"
+            )
+        );
+
+        Assert.Equal("EQUATION_INVALID", error.ErrorCode);
+    }
+
+    [Fact]
+    public void VerifiesNestedIntegralDifferentialsPerOperand()
+    {
+        const string omml = """
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:nary>
+                <m:naryPr><m:chr m:val="∫" /></m:naryPr>
+                <m:e>
+                  <m:nary><m:naryPr><m:chr m:val="∫" /></m:naryPr><m:e><m:r><m:t>f</m:t></m:r><m:r><m:t> ⅆx</m:t></m:r></m:e></m:nary>
+                  <m:r><m:t> ⅆy</m:t></m:r>
+                </m:e>
+              </m:nary>
+            </m:oMath>
+            """;
+
+        var result = EquationReadbackVerifier.Verify(
+            Wrap(omml),
+            "∫▒〖∫▒〖f ⅆx〗 ⅆy〗"
+        );
+
+        Assert.Equal(2, result.NaryCount);
+        Assert.Equal(2, result.DifferentialCount);
+        Assert.True(result.DifferentialPlacementVerified);
+    }
+
+    [Fact]
+    public void AllowsNestedIntegralDifferentialsInAdjacentWordRuns()
+    {
+        const string omml = """
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:nary>
+                <m:naryPr><m:chr m:val="∫" /></m:naryPr>
+                <m:e>
+                  <m:nary><m:naryPr><m:chr m:val="∫" /></m:naryPr><m:e><m:r><m:t>f</m:t></m:r></m:e></m:nary>
+                  <m:r><m:t> ⅆx ⅆy</m:t></m:r>
+                </m:e>
+              </m:nary>
+            </m:oMath>
+            """;
+
+        var result = EquationReadbackVerifier.Verify(
+            Wrap(omml),
+            "∫▒〖∫▒〖f ⅆx〗 ⅆy〗"
+        );
+
+        Assert.Equal(2, result.NaryCount);
+        Assert.Equal(2, result.DifferentialCount);
+        Assert.True(result.DifferentialPlacementVerified);
+    }
+
+    [Fact]
     public void RejectsDifferentialThatWordPlacedOutsideTheNaryBody()
     {
         var error = Assert.Throws<NativeToolException>(() =>
