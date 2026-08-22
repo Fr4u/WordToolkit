@@ -4101,13 +4101,14 @@ class LiveWordBridge:
         direct_font = {
             "font_name": "Name",
             "font_size_pt": "Size",
-            "highlight_color_index": "HighlightColorIndex",
         }
         for source, target in direct_font.items():
             if source in formatting:
                 setattr(font, target, formatting[source])
         if "font_color_rgb" in formatting:
             font.Color = cls._word_rgb(formatting["font_color_rgb"])
+        if "highlight_color_index" in formatting:
+            target_range.HighlightColorIndex = formatting["highlight_color_index"]
         boolean_font = {
             "bold": "Bold",
             "italic": "Italic",

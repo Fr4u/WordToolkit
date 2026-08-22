@@ -229,6 +229,7 @@ class FakeRange:
         self.Start = start
         self.End = end
         self._style = ""
+        self._highlight_color_index = 0
         self.Font = FakeFont(document, self)
         self.ParagraphFormat = FakeParagraphFormat(document, self)
         self.ListFormat = FakeListFormat(document, self)
@@ -249,6 +250,20 @@ class FakeRange:
         self._style = value
         if value:
             self.document.formatting_log["style"] = value
+
+    @property
+    def HighlightColorIndex(self) -> int:
+        return self._highlight_color_index
+
+    @HighlightColorIndex.setter
+    def HighlightColorIndex(self, value: int) -> None:
+        if self.document.fail_format_property == "HighlightColorIndex":
+            raise RuntimeError("simulated formatting failure for HighlightColorIndex")
+        self._highlight_color_index = value
+        self.document.formatting_log["range.HighlightColorIndex"] = value
+        self.document.formatting_ranges.append(
+            ("range", "HighlightColorIndex", self.Start, self.End, value)
+        )
 
     @property
     def WordOpenXML(self) -> str:
@@ -1374,7 +1389,7 @@ def test_live_word_formats_exact_selection_in_one_undo_record(live_bridge) -> No
     assert document.formatting_log["style"] == "Emphasis"
     assert document.formatting_log["font.Italic"] == -1
     assert document.formatting_log["font.Underline"] == 1
-    assert document.formatting_log["font.HighlightColorIndex"] == 7
+    assert document.formatting_log["range.HighlightColorIndex"] == 7
     assert document.formatting_log["paragraph.KeepWithNext"] == -1
     assert document.formatting_log["paragraph.FirstLineIndent"] == 18.0
 

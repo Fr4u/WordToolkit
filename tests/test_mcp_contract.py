@@ -149,6 +149,113 @@ def test_live_table_formula_items_have_explicit_runtime_contract() -> None:
     )
 
 
+def test_live_formatting_contract_is_typed_and_alias_safe() -> None:
+    catalog = json.loads(
+        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    for name in (
+        "insert_live_word_text",
+        "format_live_word_selection",
+        "insert_live_word_list",
+        "set_live_word_header_footer",
+    ):
+        tool = next(item for item in catalog["tools"] if item["name"] == name)
+        formatting = tool["inputSchema"]["properties"]["formatting"]
+        schema = next(item for item in formatting["anyOf"] if item.get("type") == "object")
+        Draft202012Validator.check_schema(schema)
+        validator = Draft202012Validator(schema)
+        assert not list(
+            validator.iter_errors(
+                {
+                    "font_name": "Aptos",
+                    "font_size_pt": 11,
+                    "bold": True,
+                    "double_strike": True,
+                    "paragraph_alignment": "distribute",
+                    "highlight_color_index": 6,
+                }
+            )
+        )
+        assert list(validator.iter_errors({"font_size_pt": "banana"}))
+        assert list(validator.iter_errors({"font_size_pt": 201}))
+        assert list(validator.iter_errors({"font_name": "x" * 129}))
+        assert list(validator.iter_errors({"font_color_rgb": "#GGGGGG"}))
+        assert list(validator.iter_errors({"double_strike": 1}))
+        assert list(validator.iter_errors({"highlight_color_index": 17}))
+        assert list(validator.iter_errors({"paragraph_alignment": "thai"}))
+        assert list(validator.iter_errors({"font_size": 10, "font_size_pt": 11}))
+        assert list(validator.iter_errors({"alignment": "left", "paragraph_alignment": "right"}))
+        assert list(validator.iter_errors({"unknown": True}))
+
+
+def test_live_mixed_formatting_contract_matches_extended_runtime_fields() -> None:
+    catalog = json.loads(
+        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    tool = next(item for item in catalog["tools"] if item["name"] == "apply_live_word_operations")
+    defs = tool["inputSchema"]["$defs"]
+    run = defs["liveRunFormatting"]
+    text = defs["liveTextFormatting"]
+    schema = tool["inputSchema"]
+    Draft202012Validator.check_schema(schema)
+    validator = Draft202012Validator(schema)
+    assert run["properties"]["font_name"]["maxLength"] == 128
+    assert {"double_strike", "highlight_color_index"} <= set(run["properties"])
+    assert "distribute" in text["properties"]["paragraph_alignment"]["enum"]
+    valid = {
+        "live_document_id": "live",
+        "expected_version": 0,
+        "operations": [
+            {
+                "type": "text",
+                "runs": [
+                    {
+                        "text": "verified",
+                        "formatting": {
+                            "double_strike": True,
+                            "highlight_color_index": 7,
+                        },
+                    }
+                ],
+                "formatting": {"paragraph_alignment": "distribute"},
+            }
+        ],
+    }
+    assert not list(validator.iter_errors(valid))
+    invalid_run = json.loads(json.dumps(valid))
+    invalid_run["operations"][0]["runs"][0]["formatting"]["highlight_color_index"] = 17
+    assert list(validator.iter_errors(invalid_run))
+    invalid_paragraph_field = json.loads(json.dumps(valid))
+    invalid_paragraph_field["operations"][0]["runs"][0]["formatting"]["paragraph_alignment"] = (
+        "center"
+    )
+    assert list(validator.iter_errors(invalid_paragraph_field))
+
+
+def test_live_table_formula_batch_bounds_are_published() -> None:
+    catalog = json.loads(
+        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    tool = next(
+        item for item in catalog["tools"] if item["name"] == "preflight_live_word_table_formulas"
+    )
+    formulas = tool["inputSchema"]["properties"]["formulas"]
+    Draft202012Validator.check_schema(tool["inputSchema"])
+    validator = Draft202012Validator(tool["inputSchema"])
+    assert formulas["minItems"] == 1
+    assert formulas["maxItems"] == 200
+    valid = {"row": 1, "column": 1, "function": "sum", "directions": ["above"]}
+    assert not list(validator.iter_errors({"formulas": [valid]}))
+    assert list(validator.iter_errors({"formulas": []}))
+    assert list(validator.iter_errors({"formulas": [valid] * 201}))
+
+
 def test_live_caption_schema_accepts_exactly_one_target_token() -> None:
     catalog = json.loads(
         (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v1.json").read_text(

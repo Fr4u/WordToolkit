@@ -20003,9 +20003,31 @@
             "anyOf": [
               {
                 "type": "object",
-                "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
-                "propertyNames": {
-                  "enum": ["font_name", "font_size_pt", "font_size", "font_color_rgb", "bold", "italic", "underline", "strike", "all_caps", "small_caps", "hidden", "paragraph_alignment", "alignment", "space_before_pt", "space_after_pt", "left_indent_pt", "right_indent_pt", "first_line_indent_pt", "keep_with_next", "keep_together", "page_break_before", "widow_control"]
+                "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify|distribute); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
+                "additionalProperties": false,
+                "allOf": [
+                  {"not": {"required": ["font_size", "font_size_pt"]}},
+                  {"not": {"required": ["alignment", "paragraph_alignment"]}}
+                ],
+                "properties": {
+                  "font_name": {"type": "string", "minLength": 1, "maxLength": 128},
+                  "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200},
+                  "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true},
+                  "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+                  "bold": {"type": "boolean"}, "italic": {"type": "boolean"},
+                  "underline": {"type": "boolean"}, "strike": {"type": "boolean"},
+                  "double_strike": {"type": "boolean"}, "all_caps": {"type": "boolean"},
+                  "small_caps": {"type": "boolean"}, "hidden": {"type": "boolean"},
+                  "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16},
+                  "paragraph_alignment": {"type": "string", "enum": ["left", "center", "right", "justify", "distribute"]},
+                  "alignment": {"type": "string", "enum": ["left", "center", "right", "justify", "distribute"], "deprecated": true},
+                  "space_before_pt": {"type": "number", "minimum": 0, "maximum": 1584},
+                  "space_after_pt": {"type": "number", "minimum": 0, "maximum": 1584},
+                  "left_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
+                  "right_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
+                  "first_line_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
+                  "keep_with_next": {"type": "boolean"}, "keep_together": {"type": "boolean"},
+                  "page_break_before": {"type": "boolean"}, "widow_control": {"type": "boolean"}
                 }
               },
               {
@@ -20100,9 +20122,13 @@
             "anyOf": [
               {
                 "type": "object",
-                "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
-                "propertyNames": {
-                  "enum": ["font_name", "font_size_pt", "font_size", "font_color_rgb", "bold", "italic", "underline", "strike", "all_caps", "small_caps", "hidden", "paragraph_alignment", "alignment", "space_before_pt", "space_after_pt", "left_indent_pt", "right_indent_pt", "first_line_indent_pt", "keep_with_next", "keep_together", "page_break_before", "widow_control"]
+                "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify|distribute); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
+                "additionalProperties": false,
+                "allOf": [{"not": {"required": ["font_size", "font_size_pt"]}}, {"not": {"required": ["alignment", "paragraph_alignment"]}}],
+                "properties": {
+                  "font_name": {"type": "string", "minLength": 1, "maxLength": 128}, "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200}, "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true}, "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+                  "bold": {"type": "boolean"}, "italic": {"type": "boolean"}, "underline": {"type": "boolean"}, "strike": {"type": "boolean"}, "double_strike": {"type": "boolean"}, "all_caps": {"type": "boolean"}, "small_caps": {"type": "boolean"}, "hidden": {"type": "boolean"}, "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16},
+                  "paragraph_alignment": {"type": "string", "enum": ["left", "center", "right", "justify", "distribute"]}, "alignment": {"type": "string", "enum": ["left", "center", "right", "justify", "distribute"], "deprecated": true}, "space_before_pt": {"type": "number", "minimum": 0, "maximum": 1584}, "space_after_pt": {"type": "number", "minimum": 0, "maximum": 1584}, "left_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "right_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "first_line_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "keep_with_next": {"type": "boolean"}, "keep_together": {"type": "boolean"}, "page_break_before": {"type": "boolean"}, "widow_control": {"type": "boolean"}
                 }
               },
               {
@@ -20294,6 +20320,8 @@
       "inputSchema": {
         "properties": {
           "formulas": {
+            "minItems": 1,
+            "maxItems": 200,
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -20658,9 +20686,13 @@
             "anyOf": [
               {
                 "type": "object",
-                "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
-                "propertyNames": {
-                  "enum": ["font_name", "font_size_pt", "font_size", "font_color_rgb", "bold", "italic", "underline", "strike", "all_caps", "small_caps", "hidden", "paragraph_alignment", "alignment", "space_before_pt", "space_after_pt", "left_indent_pt", "right_indent_pt", "first_line_indent_pt", "keep_with_next", "keep_together", "page_break_before", "widow_control"]
+                "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify|distribute); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
+                "additionalProperties": false,
+                "allOf": [{"not": {"required": ["font_size", "font_size_pt"]}}, {"not": {"required": ["alignment", "paragraph_alignment"]}}],
+                "properties": {
+                  "font_name": {"type": "string", "minLength": 1, "maxLength": 128}, "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200}, "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true}, "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+                  "bold": {"type": "boolean"}, "italic": {"type": "boolean"}, "underline": {"type": "boolean"}, "strike": {"type": "boolean"}, "double_strike": {"type": "boolean"}, "all_caps": {"type": "boolean"}, "small_caps": {"type": "boolean"}, "hidden": {"type": "boolean"}, "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16},
+                  "paragraph_alignment": {"type": "string", "enum": ["left", "center", "right", "justify", "distribute"]}, "alignment": {"type": "string", "enum": ["left", "center", "right", "justify", "distribute"], "deprecated": true}, "space_before_pt": {"type": "number", "minimum": 0, "maximum": 1584}, "space_after_pt": {"type": "number", "minimum": 0, "maximum": 1584}, "left_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "right_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "first_line_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "keep_with_next": {"type": "boolean"}, "keep_together": {"type": "boolean"}, "page_break_before": {"type": "boolean"}, "widow_control": {"type": "boolean"}
                 }
               },
               {
@@ -21551,7 +21583,7 @@
               {"not": {"required": ["alignment", "paragraph_alignment"]}}
             ],
             "properties": {
-              "font_name": {"type": "string", "minLength": 1, "maxLength": 256},
+              "font_name": {"type": "string", "minLength": 1, "maxLength": 128},
               "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200},
               "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true},
               "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
@@ -21559,11 +21591,13 @@
               "italic": {"type": "boolean"},
               "underline": {"type": "boolean"},
               "strike": {"type": "boolean"},
+              "double_strike": {"type": "boolean"},
               "all_caps": {"type": "boolean"},
               "small_caps": {"type": "boolean"},
               "hidden": {"type": "boolean"},
-              "paragraph_alignment": {"enum": ["left", "center", "right", "justify"]},
-              "alignment": {"enum": ["left", "center", "right", "justify"], "deprecated": true},
+              "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16},
+              "paragraph_alignment": {"enum": ["left", "center", "right", "justify", "distribute"]},
+              "alignment": {"enum": ["left", "center", "right", "justify", "distribute"], "deprecated": true},
               "space_before_pt": {"type": "number", "minimum": 0, "maximum": 1584},
               "space_after_pt": {"type": "number", "minimum": 0, "maximum": 1584},
               "left_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
@@ -21582,7 +21616,7 @@
               {"not": {"required": ["font_size", "font_size_pt"]}}
             ],
             "properties": {
-              "font_name": {"type": "string", "minLength": 1, "maxLength": 256},
+              "font_name": {"type": "string", "minLength": 1, "maxLength": 128},
               "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200},
               "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true},
               "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
@@ -21590,9 +21624,11 @@
               "italic": {"type": "boolean"},
               "underline": {"type": "boolean"},
               "strike": {"type": "boolean"},
+              "double_strike": {"type": "boolean"},
               "all_caps": {"type": "boolean"},
               "small_caps": {"type": "boolean"},
-              "hidden": {"type": "boolean"}
+              "hidden": {"type": "boolean"},
+              "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16}
             }
           }
         },
@@ -23193,9 +23229,13 @@
             "anyOf": [
               {
                 "type": "object",
-                "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
-                "propertyNames": {
-                  "enum": ["font_name", "font_size_pt", "font_size", "font_color_rgb", "bold", "italic", "underline", "strike", "all_caps", "small_caps", "hidden", "paragraph_alignment", "alignment", "space_before_pt", "space_after_pt", "left_indent_pt", "right_indent_pt", "first_line_indent_pt", "keep_with_next", "keep_together", "page_break_before", "widow_control"]
+                "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify|distribute); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
+                "additionalProperties": false,
+                "allOf": [{"not": {"required": ["font_size", "font_size_pt"]}}, {"not": {"required": ["alignment", "paragraph_alignment"]}}],
+                "properties": {
+                  "font_name": {"type": "string", "minLength": 1, "maxLength": 128}, "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200}, "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true}, "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+                  "bold": {"type": "boolean"}, "italic": {"type": "boolean"}, "underline": {"type": "boolean"}, "strike": {"type": "boolean"}, "double_strike": {"type": "boolean"}, "all_caps": {"type": "boolean"}, "small_caps": {"type": "boolean"}, "hidden": {"type": "boolean"}, "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16},
+                  "paragraph_alignment": {"type": "string", "enum": ["left", "center", "right", "justify", "distribute"]}, "alignment": {"type": "string", "enum": ["left", "center", "right", "justify", "distribute"], "deprecated": true}, "space_before_pt": {"type": "number", "minimum": 0, "maximum": 1584}, "space_after_pt": {"type": "number", "minimum": 0, "maximum": 1584}, "left_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "right_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "first_line_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "keep_with_next": {"type": "boolean"}, "keep_together": {"type": "boolean"}, "page_break_before": {"type": "boolean"}, "widow_control": {"type": "boolean"}
                 }
               },
               {

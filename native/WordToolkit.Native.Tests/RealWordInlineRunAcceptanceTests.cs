@@ -105,13 +105,22 @@ public sealed class RealWordInlineRunAcceptanceTests
                                         text = " italic",
                                         formatting = new { italic = true },
                                     },
+                                    new
+                                    {
+                                        text = " double",
+                                        formatting = new
+                                        {
+                                            double_strike = true,
+                                            highlight_color_index = 7,
+                                        },
+                                    },
                                 },
                                 as_new_paragraph = true,
                                 formatting = new
                                 {
                                     font_name = "Times New Roman",
                                     font_size = 12,
-                                    alignment = "center",
+                                    alignment = "distribute",
                                 },
                             },
                             new
@@ -137,7 +146,7 @@ public sealed class RealWordInlineRunAcceptanceTests
                 )
             );
             var operation = applied.RootElement.GetProperty("operations")[0];
-            Assert.Equal(3, operation.GetProperty("run_count").GetInt32());
+            Assert.Equal(4, operation.GetProperty("run_count").GetInt32());
             Assert.True(
                 applied.RootElement
                     .GetProperty("operations")[1]
@@ -150,15 +159,26 @@ public sealed class RealWordInlineRunAcceptanceTests
                 application =>
                 {
                     dynamic document = application.Documents.Item(documentName);
-                    Assert.Equal("Normal bold italic", (string)document.Range(start, start + 18).Text);
+                    Assert.Equal(
+                        "Normal bold italic double",
+                        (string)document.Range(start, start + 25).Text
+                    );
                     Assert.Equal(
                         "Times New Roman",
-                        (string)document.Range(start, start + 18).Font.Name
+                        (string)document.Range(start, start + 25).Font.Name
                     );
-                    Assert.Equal(12f, (float)document.Range(start, start + 18).Font.Size);
-                    Assert.Equal(1, (int)document.Range(start, start + 18).ParagraphFormat.Alignment);
+                    Assert.Equal(12f, (float)document.Range(start, start + 25).Font.Size);
+                    Assert.Equal(4, (int)document.Range(start, start + 25).ParagraphFormat.Alignment);
                     Assert.Equal(-1, (int)document.Range(start + 7, start + 11).Font.Bold);
                     Assert.Equal(-1, (int)document.Range(start + 11, start + 18).Font.Italic);
+                    Assert.Equal(
+                        -1,
+                        (int)document.Range(start + 18, start + 25).Font.DoubleStrikeThrough
+                    );
+                    Assert.Equal(
+                        7,
+                        (int)document.Range(start + 18, start + 25).HighlightColorIndex
+                    );
                     Assert.Equal(1, (int)document.OMaths.Count);
                     savedPath = Path.Combine(
                         Path.GetTempPath(),

@@ -4965,12 +4965,12 @@ internal sealed partial class WordLiveService : IToolHandler
             if (
                 value.ValueKind != JsonValueKind.String
                 || string.IsNullOrWhiteSpace(value.GetString())
-                || value.GetString()!.Length > 256
+                || value.GetString()!.Length > 128
             )
             {
                 throw new NativeToolException(
                     "INVALID_INPUT",
-                    "font_name must be a non-empty string of at most 256 characters"
+                    "font_name must be a non-empty string of at most 128 characters"
                 );
             }
             return;
@@ -4996,6 +4996,7 @@ internal sealed partial class WordLiveService : IToolHandler
                 or "italic"
                 or "underline"
                 or "strike"
+                or "double_strike"
                 or "all_caps"
                 or "small_caps"
                 or "hidden"
@@ -5030,11 +5031,29 @@ internal sealed partial class WordLiveService : IToolHandler
         if (name == "paragraph_alignment")
         {
             var alignment = value.ValueKind == JsonValueKind.String ? value.GetString() : null;
-            if (!allowParagraphFormatting || alignment is not ("left" or "center" or "right" or "justify"))
+            if (
+                !allowParagraphFormatting
+                || alignment is not ("left" or "center" or "right" or "justify" or "distribute")
+            )
             {
                 throw new NativeToolException(
                     "INVALID_INPUT",
-                    "paragraph_alignment must be left, center, right, or justify"
+                    "paragraph_alignment must be left, center, right, justify, or distribute"
+                );
+            }
+            return;
+        }
+        if (name == "highlight_color_index")
+        {
+            if (
+                value.ValueKind != JsonValueKind.Number
+                || !value.TryGetInt32(out var colorIndex)
+                || colorIndex is < 0 or > 16
+            )
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "highlight_color_index must be an integer from 0 to 16"
                 );
             }
             return;
@@ -5079,6 +5098,17 @@ internal sealed partial class WordLiveService : IToolHandler
         JsonElement formatting,
         bool allowParagraphFormatting = true
     ) => NormalizeFormatting(formatting, allowParagraphFormatting);
+
+    internal static IReadOnlyDictionary<string, string> ApplyAndCaptureFormattingForTesting(
+        object range,
+        JsonElement formatting,
+        bool allowParagraphFormatting = true
+    )
+    {
+        var normalized = NormalizeFormatting(formatting, allowParagraphFormatting);
+        ApplyFormatting((dynamic)range, normalized);
+        return CaptureRequestedFormatting((dynamic)range, normalized);
+    }
 
     private static IReadOnlyList<PreparedTextRun> ParseTextRuns(JsonElement node)
     {
@@ -5145,9 +5175,11 @@ internal sealed partial class WordLiveService : IToolHandler
             "italic",
             "underline",
             "strike",
+            "double_strike",
             "all_caps",
             "small_caps",
             "hidden",
+            "highlight_color_index",
             "paragraph_alignment",
             "space_before_pt",
             "space_after_pt",
@@ -5194,12 +5226,17 @@ internal sealed partial class WordLiveService : IToolHandler
         SetWordBoolean(font, formatting, "bold", "Bold");
         SetWordBoolean(font, formatting, "italic", "Italic");
         SetWordBoolean(font, formatting, "strike", "StrikeThrough");
+        SetWordBoolean(font, formatting, "double_strike", "DoubleStrikeThrough");
         SetWordBoolean(font, formatting, "all_caps", "AllCaps");
         SetWordBoolean(font, formatting, "small_caps", "SmallCaps");
         SetWordBoolean(font, formatting, "hidden", "Hidden");
         if (formatting.TryGetProperty("underline", out var underline))
         {
             font.Underline = underline.GetBoolean() ? 1 : 0;
+        }
+        if (formatting.TryGetProperty("highlight_color_index", out var highlightColorIndex))
+        {
+            SetDynamicProperty(range, "HighlightColorIndex", highlightColorIndex.GetInt32());
         }
         if (formatting.TryGetProperty("paragraph_alignment", out var alignment))
         {
@@ -5209,6 +5246,7 @@ internal sealed partial class WordLiveService : IToolHandler
                 "center" => 1,
                 "right" => 2,
                 "justify" => 3,
+                "distribute" => 4,
                 _ => throw new NativeToolException(
                     "INVALID_INPUT",
                     "Unsupported paragraph_alignment"

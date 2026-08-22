@@ -52,6 +52,33 @@ def _select_range_in_running_word(path: Path, start: int, end: int) -> None:
         pythoncom.CoUninitialize()
 
 
+def _read_range_formatting_in_running_word(path: Path, start: int, end: int) -> dict[str, int]:
+    import pythoncom  # type: ignore[import-untyped]
+    import win32com.client  # type: ignore[import-untyped]
+
+    pythoncom.CoInitializeEx(pythoncom.COINIT_APARTMENTTHREADED)
+    application = None
+    try:
+        application = win32com.client.GetActiveObject("Word.Application")
+        wanted = os.path.normcase(str(path))
+        matches = [
+            application.Documents.Item(index)
+            for index in range(1, int(application.Documents.Count) + 1)
+            if os.path.normcase(str(application.Documents.Item(index).FullName)) == wanted
+        ]
+        if len(matches) != 1:
+            raise AssertionError("Live test document could not be inspected exactly")
+        target = matches[0].Range(start, end)
+        return {
+            "double_strike": int(target.Font.DoubleStrikeThrough),
+            "highlight_color_index": int(target.HighlightColorIndex),
+            "paragraph_alignment": int(target.ParagraphFormat.Alignment),
+        }
+    finally:
+        application = None
+        pythoncom.CoUninitialize()
+
+
 @pytest.mark.word
 @pytest.mark.asyncio
 async def test_word_live_edits_and_saves_the_same_open_document(
@@ -178,12 +205,25 @@ async def test_word_live_edits_and_saves_the_same_open_document(
             "style": "Heading 2",
             "formatting": {
                 "bold": True,
-                "paragraph_alignment": "center",
+                "double_strike": True,
+                "highlight_color_index": 7,
+                "paragraph_alignment": "distribute",
                 "keep_with_next": True,
             },
             "expected_version": 1,
         },
     )
+    formatted_readback = await asyncio.to_thread(
+        _read_range_formatting_in_running_word,
+        document_path,
+        inserted_text["inserted_range"]["start"],
+        inserted_text["inserted_range"]["end"],
+    )
+    assert formatted_readback == {
+        "double_strike": -1,
+        "highlight_color_index": 7,
+        "paragraph_alignment": 4,
+    }
     inserted_equation = await _call_ok(
         server,
         "insert_live_word_equation",
@@ -499,7 +539,7 @@ async def test_word_live_edits_and_saves_the_same_open_document(
     assert inserted_text["document"]["full_name"] == str(document_path)
     assert inserted_text["formatting"]["font_color_rgb"] == "#204060"
     assert formatted["live_version"] == 2
-    assert formatted["formatting"]["paragraph_alignment"] == "center"
+    assert formatted["formatting"]["paragraph_alignment"] == "distribute"
     assert inserted_equation["equation"]["native_verified"] is True
     assert preflight["valid"] is True
     assert preflight["mutated_word"] is False

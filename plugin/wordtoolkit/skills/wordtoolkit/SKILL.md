@@ -1182,11 +1182,12 @@ in Word, then call `disconnect_live_word_document` only as an explicit acknowled
 before any fresh connection.
 
 For text formatting, prefer `font_size_pt` and `paragraph_alignment`; the latter
-accepts `left`, `center`, `right`, or `justify`. Compatibility aliases
+accepts `left`, `center`, `right`, `justify`, or `distribute`. Compatibility aliases
 `font_size` and `alignment` are accepted only when the corresponding canonical
-field is absent. Use `runs` instead of `text` when one paragraph needs distinct
-font formatting such as bold or italic spans. Put paragraph formatting on the
-parent text operation, not on an inline run.
+field is absent. `double_strike` and `highlight_color_index` (`0..16`) are
+available for text and inline runs. Use `runs` instead of `text` when one
+paragraph needs distinct font formatting such as bold or italic spans. Put
+paragraph formatting on the parent text operation, not on an inline run.
 
 ## Lazy actions
 
