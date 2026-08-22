@@ -433,6 +433,14 @@ WORD_INTERNATIONAL_LIST_SEPARATOR = 17
 WORD_INTERNATIONAL_DECIMAL_SEPARATOR = 18
 WORD_INTERNATIONAL_THOUSANDS_SEPARATOR = 19
 WORD_FIELD_MARKER = "\ue000"
+
+
+def _word_utf16_length(value: str) -> int:
+    """Return the number of UTF-16 code units used by Word Range offsets."""
+
+    return len(value.encode("utf-16-le", errors="surrogatepass")) // 2
+
+
 WORD_BOOKMARK_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]{0,39}")
 LIVE_EQUATION_STRUCTURE_KINDS = frozenset(
     {
@@ -5676,9 +5684,9 @@ class LiveWordBridge:
             ):
                 payload += "\r"
             payload += item.prefix_text
-            bookmark_start = len(payload)
+            bookmark_start = _word_utf16_length(payload)
             payload += item.text
-            ranges.append((bookmark_start, len(payload)))
+            ranges.append((bookmark_start, _word_utf16_length(payload)))
             payload += item.suffix_text
             if item.as_new_paragraph and not payload.endswith("\r"):
                 payload += "\r"
@@ -6144,7 +6152,7 @@ class LiveWordBridge:
             ):
                 payload += "\r"
             payload += item.prefix_text
-            marker_start = len(payload)
+            marker_start = _word_utf16_length(payload)
             payload += WORD_FIELD_MARKER
             markers.append((marker_start, marker_start + 1))
             payload += item.suffix_text
@@ -6783,11 +6791,11 @@ class LiveWordBridge:
                     prefix = "" if insertion_start + offset == 0 or previous == "\r" else "\r"
                     suffix = "\r"
                 piece = prefix + normalized + suffix
-                segment_start = offset + len(prefix)
-                segment_end = segment_start + len(normalized)
+                segment_start = offset + _word_utf16_length(prefix)
+                segment_end = segment_start + _word_utf16_length(normalized)
                 chunks.append(piece)
                 segments.append((segment_start, segment_end))
-                offset += len(piece)
+                offset += _word_utf16_length(piece)
                 if piece:
                     previous = piece[-1]
 
@@ -6826,9 +6834,12 @@ class LiveWordBridge:
                     if prepared_operation.runs:
                         run_offset = relative_start
                         for run_text, run_formatting in prepared_operation.runs:
-                            run_end = run_offset + len(
-                                run_text.replace("\r\n", "\n").replace("\n", "\r")
+                            normalized_run_text = (
+                                run_text.replace("\r\n", "\n")
+                                .replace("\r", "\n")
+                                .replace("\n", "\r")
                             )
+                            run_end = run_offset + _word_utf16_length(normalized_run_text)
                             if run_formatting:
                                 self._apply_text_formatting(
                                     document.Range(

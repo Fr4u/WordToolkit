@@ -11,7 +11,8 @@
   unlocalizable aggregate drift. Multi-integral equation readback validates differential
   placement per integral operand instead of accepting only an aggregate count. The Python
   live backend now implements the inline formatted runs already advertised by the local
-  schema, and its documented formatting properties match the fields accepted at runtime.
+  schema, counts every payload-relative Word range in UTF-16 code units, and keeps its
+  documented formatting properties aligned with the fields accepted at runtime.
 
 - Removed four contract dead ends found by an external AI workflow. Native captions now
   accept exactly one fresh selection or found-range token; table-formula schemas enumerate

@@ -13,7 +13,7 @@ from wordtoolkit.live_member_capabilities import (
     PreparedMemberOperation,
     build_member_capability_registry,
 )
-from wordtoolkit.live_word import LiveWordBridge
+from wordtoolkit.live_word import LiveWordBridge, _word_utf16_length
 from wordtoolkit.math import MathEngine
 
 _FAKE_MATH = MathEngine()
@@ -2072,6 +2072,21 @@ def test_live_word_inserts_native_bookmarks_in_one_attachment(live_bridge) -> No
     assert application.UndoRecord.started == application.UndoRecord.ended == 1
 
 
+def test_live_word_bookmark_payload_ranges_use_word_utf16_offsets(live_bridge) -> None:
+    bridge, _application, document = live_bridge
+    prepared = bridge._prepare_bookmarks(
+        [
+            {"name": "Emoji_1", "prefix_text": "\U0001f600 ", "text": "alpha"},
+            {"name": "Emoji_2", "prefix_text": "\U0001f680 ", "text": "beta"},
+        ]
+    )
+
+    payload, ranges = bridge._bookmark_batch_payload(document, 0, prepared)
+
+    assert payload == "\U0001f600 alpha\U0001f680 beta"
+    assert ranges == [(3, 8), (11, 15)]
+
+
 def test_live_word_rejects_existing_bookmark_before_mutation(live_bridge) -> None:
     bridge, application, document = live_bridge
     connected = bridge.connect("owner", use_active=True)
@@ -2212,6 +2227,21 @@ def test_live_word_inserts_safe_native_field_batch_in_one_attachment(live_bridge
     assert result["content_returned"] is False
     assert result["document"]["field_count"] == before_fields + 4
     assert "ROUND" not in str(result)
+
+
+def test_live_word_field_markers_use_word_utf16_offsets(live_bridge) -> None:
+    bridge, _application, document = live_bridge
+    prepared = bridge._prepare_fields(
+        [
+            {"kind": "page", "prefix_text": "\U0001f600 "},
+            {"kind": "num_pages", "prefix_text": "\U0001f680 "},
+        ]
+    )
+
+    payload, markers = bridge._field_batch_payload(document, 0, prepared)
+
+    assert payload == "\U0001f600 \ue000\U0001f680 \ue000"
+    assert markers == [(3, 4), (7, 8)]
 
 
 def test_live_word_localizes_formula_field_separators(live_bridge) -> None:
@@ -2577,6 +2607,38 @@ def test_live_word_inline_run_ranges_follow_mixed_newline_normalization(
         "Underline": "C\rD",
     }
     assert result["operations"][0]["run_count"] == 3
+
+
+def test_live_word_inline_run_ranges_use_word_utf16_offsets(live_bridge) -> None:
+    bridge, _application, document = live_bridge
+    connected = bridge.connect("owner", use_active=True)
+    insertion_start = len(document.text) - 1
+
+    bridge.apply_operations(
+        "owner",
+        connected["live_document_id"],
+        operations=[
+            {
+                "type": "text",
+                "runs": [
+                    {"text": "A\U0001f600\r\n", "formatting": {"bold": True}},
+                    {"text": "B", "formatting": {"italic": True}},
+                ],
+            }
+        ],
+        expected_version=0,
+    )
+
+    formatted_ranges = {
+        name: (start, end)
+        for prefix, name, start, end, _value in document.formatting_ranges
+        if prefix == "font" and name in {"Bold", "Italic"}
+    }
+    assert _word_utf16_length("A\U0001f600\r") == 4
+    assert formatted_ranges == {
+        "Bold": (insertion_start, insertion_start + 4),
+        "Italic": (insertion_start + 4, insertion_start + 5),
+    }
 
 
 def test_live_word_mixed_batch_is_preflighted_before_mutation(live_bridge) -> None:
