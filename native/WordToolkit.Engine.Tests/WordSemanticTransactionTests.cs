@@ -141,6 +141,46 @@ public sealed class WordSemanticTransactionTests
         );
     }
 
+    [Theory]
+    [InlineData("ins", "t")]
+    [InlineData("del", "delText")]
+    [InlineData("moveFrom", "delText")]
+    [InlineData("moveTo", "t")]
+    public void RejectsPlainTextEditsInsideTrackedRevisionsWithoutChangingPackage(
+        string revisionElement,
+        string textElement
+    )
+    {
+        var documentXml = $"""
+            <w:document xmlns:w="{WordNamespace}"><w:body><w:p><w:{revisionElement} w:id="1" w:author="Author"><w:r><w:{textElement}>old</w:{textElement}></w:r></w:{revisionElement}></w:p></w:body></w:document>
+            """;
+        using var stream = BuildPackage(documentXml);
+        var package = new OpcPackageReader().Read(stream);
+        var originalFingerprint = package.Fingerprint;
+        var originalDocumentBytes = package.Parts["/word/document.xml"].Entry.Content.ToArray();
+        var semantic = new WordSemanticProjector().Project(package);
+        Assert.Contains(
+            semantic.Nodes,
+            node => node.Kind == WordSemanticNodeKind.Revision
+        );
+        var text = semantic.Nodes.Single(node => node.Kind == WordSemanticNodeKind.Text);
+
+        var error = Assert.Throws<WordSemanticEditException>(() =>
+            new WordSemanticTransactionPlanner().PlanTextReplacements(
+                package,
+                semantic,
+                [new WordTextReplacementCommand(text.Id, "new", "old")]
+            )
+        );
+
+        Assert.Contains("inside tracked revision markup", error.Message, StringComparison.Ordinal);
+        Assert.Equal(originalFingerprint, package.Fingerprint);
+        Assert.Equal(
+            originalDocumentBytes,
+            package.Parts["/word/document.xml"].Entry.Content.ToArray()
+        );
+    }
+
     [Fact]
     public void EnforcesCommandAndReplacementCharacterLimits()
     {

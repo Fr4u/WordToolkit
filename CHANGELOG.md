@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Closed two fail-closed diagnostic gaps. Saved-package plain-text plans now
+  reject `w:t` or `w:delText` nodes inside tracked insertion, deletion and move
+  wrappers before producing a mutation plan; callers must use the dedicated
+  review-decision workflow for revision markup. The maintained Python live
+  backend now matches the native mixed-batch contract by returning the exact
+  zero-based `failed_operation_index` for an attributable equation failure and
+  explicit `failed_operation_index_available=false` plus `failure_scope=batch`
+  when only aggregate equation-count drift is known. Regression tests prove the
+  source DOCX remains byte-exact and failed live batches publish no text and do
+  not advance the live version.
+
 - Made native live-formatting contracts executable instead of aspirational. The
   inspected schemas now type every accepted value and reject unknown fields,
   alias conflicts, invalid colors, wrong JSON types and out-of-range numbers

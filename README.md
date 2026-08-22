@@ -1137,6 +1137,11 @@ cell-deletion rejection; unsupported paragraph merges, table-grid/vertical-merge
 numbering reconstruction, custom XML and conflicting nested decisions are reported and
 not guessed.
 
+Generic saved-package text plans deliberately reject text nodes nested inside tracked
+insertions, deletions and moves. Editing a revision payload as ordinary text would
+silently rewrite review history; use the fingerprint-bound review-decision plan/apply
+workflow to accept or reject supported revisions instead.
+
 ## Saved-package review decisions
 
 First inspect only the required revision records and retain the returned package
@@ -1144,7 +1149,7 @@ fingerprint and stable IDs or redacted author fingerprints. Then build a dry pla
 
 ```json
 {
-  "local_path": "C:\\docs\\neviewed.docx",
+  "local_path": "C:\\docs\\reviewed.docx",
   "expected_package_fingerprint": "<64-hex fingerprint>",
   "decision": "accept",
   "author_fingerprints": ["<16-hex fingerprint>"]
@@ -1157,7 +1162,7 @@ same resolved decision set and the exact plan identity:
 
 ```json
 {
-  "local_path": "C:\\docs\\neviewed.docx",
+  "local_path": "C:\\docs\\reviewed.docx",
   "expected_package_fingerprint": "<64-hex fingerprint>",
   "expected_plan_id": "wrplan_<returned-id>",
   "decision": "accept",
@@ -1212,7 +1217,10 @@ paragraph alignment through `paragraph_alignment: "distribute"`. Do not enable
 `strike` and `double_strike` together; Word preserves only one. LaTeX conversion
 is intentionally bounded rather than a complete TeX implementation; the supported
 subset now includes `\boxed{...}` and `\implies`, and unsupported commands fail in
-batch preflight with `failed_operation_index`.
+batch preflight with `failed_operation_index`. Both maintained live backends return
+the zero-based failing operation index when an equation failure is attributable to one
+operation; an aggregate count mismatch instead reports that the index is unavailable
+and marks the failure scope as the whole batch.
 
 Successful batches return only identifiers, the new live version, operation
 counts, native verification and compact document state. They do not echo the

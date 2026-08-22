@@ -2110,6 +2110,72 @@ public sealed class PackageInspectionServiceTests
     }
 
     [Fact]
+    public async Task PlanTextEditsRejectsTrackedRevisionTextWithoutChangingPackage()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-revision-text-rejection-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "revision.docx");
+            CreatePackage(
+                path,
+                additionalBodyXml: """
+                <w:p>
+                  <w:del w:id="1" w:author="Author">
+                    <w:r><w:delText>old</w:delText></w:r>
+                  </w:del>
+                </w:p>
+                """
+            );
+            var beforeBytes = File.ReadAllBytes(path);
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var text = new WordSemanticProjector().Project(before).Nodes.Single(node =>
+                node.Kind == WordSemanticNodeKind.Text && node.Text == "old"
+            );
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = before.Fingerprint,
+                commands = new[]
+                {
+                    new
+                    {
+                        node_id = text.Id.Value,
+                        new_text = "new",
+                        expected_text = "old",
+                    },
+                },
+            }));
+
+            var error = await Assert.ThrowsAsync<NativeToolException>(() =>
+                new WordLiveService(new NoInvokeHost()).CallAsync(
+                    "plan_ooxml_text_edits",
+                    arguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+
+            Assert.Equal("UNSAFE_EDIT", error.ErrorCode);
+            Assert.Contains(
+                "inside tracked revision markup",
+                error.Message,
+                StringComparison.Ordinal
+            );
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.Equal(before.Fingerprint, reader.Read(path).Fingerprint);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task PlansAndAtomicallyAppliesReviewedSemanticStyleWithoutStartingWord()
     {
         var directory = Path.Combine(
