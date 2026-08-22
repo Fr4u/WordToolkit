@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Fixed case-insensitive tracked-edit anchoring for Unicode characters whose
+  case-folded form expands to multiple code points, such as `ß` to `ss`. The
+  normalized match now retains an exact position map back to the original Word
+  text and rejects matches that cut through only part of an expansion. This
+  prevents both `IndexError` and silent over-selection while preserving the
+  document's original glyphs in tracked deletions and replacements.
+
 - Repaired the pinned HTTP transport's typed `httpcore` adapter contract by
   forwarding the complete TCP timeout, local-address and socket-option inputs and
   by modeling the asynchronous response body explicitly. The maintained Python
