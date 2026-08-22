@@ -11,24 +11,12 @@ public sealed class OpcPackageSourceChangedException : IOException
     }
 }
 
-internal sealed class ZeroingMemoryStream : MemoryStream
-{
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing && TryGetBuffer(out var buffer))
-        {
-            CryptographicOperations.ZeroMemory(buffer.AsSpan());
-        }
-        base.Dispose(disposing);
-    }
-}
-
 internal static class StablePackagePathSnapshot
 {
     private const int Attempts = 2;
     private const int BufferBytes = 80 * 1024;
 
-    internal static ZeroingMemoryStream Capture(
+    internal static EncryptedTemporaryStream Capture(
         string path,
         long maxBytes,
         CancellationToken cancellationToken,
@@ -44,7 +32,7 @@ internal static class StablePackagePathSnapshot
         for (var attempt = 1; attempt <= Attempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var snapshot = new ZeroingMemoryStream();
+            var snapshot = new EncryptedTemporaryStream(maxBytes);
             SnapshotHash? copied = null;
             SnapshotHash? verified = null;
             try
@@ -71,6 +59,7 @@ internal static class StablePackagePathSnapshot
                     );
                 if (stable)
                 {
+                    snapshot.CompleteWriting();
                     snapshot.Position = 0;
                     return snapshot;
                 }

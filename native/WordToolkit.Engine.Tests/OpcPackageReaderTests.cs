@@ -148,20 +148,6 @@ public sealed class OpcPackageReaderTests
     }
 
     [Fact]
-    public void InMemorySnapshotClearsRetainedPackageBytesWhenDisposed()
-    {
-        var sensitive = Encoding.UTF8.GetBytes("private document payload");
-        var stream = new ZeroingMemoryStream();
-        stream.Write(sensitive);
-        Assert.True(stream.TryGetBuffer(out var buffer));
-        var retained = Assert.IsType<byte[]>(buffer.Array);
-
-        stream.Dispose();
-
-        Assert.All(retained, value => Assert.Equal(0, value));
-    }
-
-    [Fact]
     public void CaseCollisionDiagnosticDoesNotJoinAttackerControlledNames()
     {
         using var package = BuildPackage(

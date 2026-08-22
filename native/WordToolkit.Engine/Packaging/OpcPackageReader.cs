@@ -256,7 +256,7 @@ public sealed class OpcPackageReader
         return result;
     }
 
-    private MemoryStream SpoolToBoundedSeekableStream(
+    private EncryptedTemporaryStream SpoolToBoundedSeekableStream(
         Stream source,
         CancellationToken cancellationToken
     )
@@ -267,7 +267,7 @@ public sealed class OpcPackageReader
             bufferBytes
         );
         var buffer = GC.AllocateUninitializedArray<byte>(bufferBytes);
-        var target = new ZeroingMemoryStream();
+        var target = new EncryptedTemporaryStream(_limits.MaxArchiveBytes);
         try
         {
             long totalBytes = 0;
@@ -288,6 +288,7 @@ public sealed class OpcPackageReader
                 target.Write(buffer, 0, read);
                 totalBytes += read;
             }
+            target.CompleteWriting();
             target.Position = 0;
             return target;
         }
