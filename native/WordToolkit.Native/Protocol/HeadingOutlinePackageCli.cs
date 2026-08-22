@@ -156,12 +156,12 @@ internal static class HeadingOutlinePackageCli
         return result.ToString();
     }
 
-    private static int ExitCode(string code) => code switch
+    internal static int ExitCode(string code) => code switch
     {
         "INVALID_INPUT" => 64,
         "NOT_FOUND" => 66,
         "INVALID_PACKAGE" or "INVALID_WORD_PACKAGE" or "PACKAGE_LIMIT" => 65,
-        "VERSION_CONFLICT" => 75,
+        "VERSION_CONFLICT" or "SOURCE_CHANGED" => 75,
         "ACCESS_DENIED" => 77,
         "IO_ERROR" => 74,
         _ => 70,

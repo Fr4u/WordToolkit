@@ -104,7 +104,8 @@ internal sealed partial class WordLiveService
             );
         }
         var path = ResolvePackagePatchPath(arguments, "patch_path", mustExist: true);
-        var patch = ReadPackagePatch(path, cancellationToken);
+        var artifact = ReadPackagePatch(path, cancellationToken);
+        var patch = artifact.Patch;
         VerifyOptionalPatchId(arguments, patch.PatchId);
         var page = PackagePatchOperationPage(patch, request);
         return new
@@ -124,8 +125,8 @@ internal sealed partial class WordLiveService
             },
             payload_count = patch.PayloadCount,
             payload_bytes = patch.PayloadBytes,
-            artifact_bytes = new FileInfo(path).Length,
-            artifact_sha256 = HashFile(path),
+            artifact_bytes = artifact.SerializedBytes,
+            artifact_sha256 = artifact.SerializedSha256,
             no_op = patch.IsNoOp,
             reversible = true,
             entry_payload_exact = true,
@@ -373,7 +374,7 @@ internal sealed partial class WordLiveService
             "expected_package_fingerprint"
         );
         var expectedPatchId = RequiredPackagePatchId(arguments, "expected_patch_id");
-        var patch = ReadPackagePatch(patchPath, cancellationToken);
+        var patch = ReadPackagePatch(patchPath, cancellationToken).Patch;
         if (!string.Equals(patch.PatchId, expectedPatchId, StringComparison.Ordinal))
         {
             throw new NativeToolException(
@@ -1114,20 +1115,14 @@ internal sealed partial class WordLiveService
         }
     }
 
-    private static OpcPackagePatch ReadPackagePatch(
+    private static OpcPackagePatchFileReadResult ReadPackagePatch(
         string path,
         CancellationToken cancellationToken
     )
     {
         try
         {
-            using var stream = new FileStream(
-                path,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read
-            );
-            return new OpcPackagePatchCodec().Read(stream, cancellationToken);
+            return new OpcPackagePatchCodec().ReadFileFromPath(path, cancellationToken);
         }
         catch (OpcPackagePatchException)
         {
@@ -1237,6 +1232,14 @@ internal sealed partial class WordLiveService
         catch (NativeToolException)
         {
             throw;
+        }
+        catch (OpcPackageSourceChangedException)
+        {
+            throw new NativeToolException(
+                "SOURCE_CHANGED",
+                "The patch artifact changed while a stable snapshot was being captured",
+                retryable: true
+            );
         }
         catch (OpcPackagePatchLimitException exception)
         {

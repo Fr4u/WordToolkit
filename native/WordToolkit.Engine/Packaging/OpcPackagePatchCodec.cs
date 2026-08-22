@@ -3,8 +3,17 @@ using System.Text.Json;
 
 namespace WordToolkit.Engine.Packaging;
 
+public sealed record OpcPackagePatchFileReadResult(
+    OpcPackagePatch Patch,
+    long SerializedBytes,
+    string SerializedSha256
+);
+
 public sealed class OpcPackagePatchCodec
 {
+    private const int MaximumDeflateOverheadBytesPerEntry = 22;
+    private const int MaximumArchiveOverheadBytesPerEntry = 512;
+    private const int MaximumArchiveFixedOverheadBytes = 64 * 1024;
     private const string ManifestEntryName = "manifest.json";
     private const string PayloadPrefix = "payloads/";
     private const string PayloadSuffix = ".bin";
@@ -81,13 +90,15 @@ public sealed class OpcPackagePatchCodec
             );
         }
         using var archive = new ZipArchive(source, ZipArchiveMode.Read, leaveOpen: true);
-        if (archive.Entries.Count > _limits.MaxPayloads + 1)
+        var maximumArchiveEntries = (long)_limits.MaxPayloads + 1;
+        if ((long)archive.Entries.Count > maximumArchiveEntries)
         {
             throw new OpcPackagePatchLimitException(
                 "Patch archive contains too many entries."
             );
         }
         var entries = new Dictionary<string, ZipArchiveEntry>(StringComparer.Ordinal);
+        var maximumExpandedBytes = MaximumExpandedArchiveBytes();
         long totalExpandedBytes = 0;
         foreach (var entry in archive.Entries)
         {
@@ -99,13 +110,13 @@ public sealed class OpcPackagePatchCodec
                     $"Patch archive contains duplicate entry '{entry.FullName}'."
                 );
             }
-            totalExpandedBytes = checked(totalExpandedBytes + entry.Length);
-            if (totalExpandedBytes > _limits.MaxManifestBytes + _limits.MaxPayloadBytes)
+            if (entry.Length > maximumExpandedBytes - totalExpandedBytes)
             {
                 throw new OpcPackagePatchLimitException(
                     "Patch archive expands beyond its configured total limit."
                 );
             }
+            totalExpandedBytes += entry.Length;
         }
         if (!entries.TryGetValue(ManifestEntryName, out var manifestEntry))
         {
@@ -206,6 +217,103 @@ public sealed class OpcPackagePatchCodec
         ValidatePatchLimits(patch);
         return patch;
     }
+
+    public OpcPackagePatch ReadFromPath(
+        string path,
+        CancellationToken cancellationToken = default
+    ) => ReadFileFromPath(path, cancellationToken).Patch;
+
+    public OpcPackagePatchFileReadResult ReadFileFromPath(
+        string path,
+        CancellationToken cancellationToken = default
+    ) => ReadPath(path, cancellationToken, afterCopy: null);
+
+    internal OpcPackagePatchFileReadResult ReadPath(
+        string path,
+        CancellationToken cancellationToken,
+        Action<int>? afterCopy
+    )
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        EncryptedTemporaryStream snapshot;
+        long serializedBytes;
+        string serializedSha256;
+        try
+        {
+            snapshot = StablePackagePathSnapshot.CaptureWithMetadata(
+                path,
+                MaximumSerializedArchiveBytes(),
+                cancellationToken,
+                out serializedBytes,
+                out serializedSha256,
+                afterCopy
+            );
+        }
+        catch (OpcPackageLimitException exception)
+        {
+            throw new OpcPackagePatchLimitException(
+                "Patch artifact exceeds its serialized safety limit.",
+                exception
+            );
+        }
+        using (snapshot)
+        {
+            return new OpcPackagePatchFileReadResult(
+                Read(snapshot, cancellationToken),
+                serializedBytes,
+                serializedSha256
+            );
+        }
+    }
+
+    internal long MaximumSerializedArchiveBytes()
+    {
+        var entryCount = (long)_limits.MaxPayloads + 1;
+        var expandedBytes = MaximumExpandedArchiveBytes();
+
+        // System.IO.Compression emits a raw DEFLATE stream for each compressed
+        // ZIP entry. This conservative fixed-block bound covers nine-bit
+        // literals plus block/wrapper slack for every entry, including empty
+        // entries. It deliberately scales with input size instead of assuming
+        // that incompressible data never expands.
+        var compressedBytes = SaturatingAdd(
+            expandedBytes,
+            expandedBytes >> 3
+        );
+        compressedBytes = SaturatingAdd(
+            compressedBytes,
+            expandedBytes >> 8
+        );
+        compressedBytes = SaturatingAdd(
+            compressedBytes,
+            expandedBytes >> 9
+        );
+        compressedBytes = SaturatingAdd(
+            compressedBytes,
+            SaturatingMultiply(entryCount, MaximumDeflateOverheadBytesPerEntry)
+        );
+
+        var archiveStructureBytes = SaturatingAdd(
+            SaturatingMultiply(entryCount, MaximumArchiveOverheadBytesPerEntry),
+            MaximumArchiveFixedOverheadBytes
+        );
+        return SaturatingAdd(compressedBytes, archiveStructureBytes);
+    }
+
+    private long MaximumExpandedArchiveBytes() => SaturatingAdd(
+        _limits.MaxPayloadBytes,
+        _limits.MaxManifestBytes
+    );
+
+    private static long SaturatingAdd(long left, long right) =>
+        left > long.MaxValue - right ? long.MaxValue : left + right;
+
+    private static long SaturatingMultiply(long left, long right) =>
+        left == 0 || right == 0
+            ? 0
+            : left > long.MaxValue / right
+                ? long.MaxValue
+                : left * right;
 
     private void ValidatePatchLimits(OpcPackagePatch patch)
     {

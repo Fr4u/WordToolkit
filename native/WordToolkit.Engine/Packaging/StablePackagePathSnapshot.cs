@@ -21,6 +21,41 @@ internal static class StablePackagePathSnapshot
         long maxBytes,
         CancellationToken cancellationToken,
         Action<int>? afterCopy = null
+    ) => CaptureCore(
+        path,
+        maxBytes,
+        cancellationToken,
+        includeMetadata: false,
+        out _,
+        out _,
+        afterCopy
+    );
+
+    internal static EncryptedTemporaryStream CaptureWithMetadata(
+        string path,
+        long maxBytes,
+        CancellationToken cancellationToken,
+        out long capturedBytes,
+        out string capturedSha256,
+        Action<int>? afterCopy = null
+    ) => CaptureCore(
+        path,
+        maxBytes,
+        cancellationToken,
+        includeMetadata: true,
+        out capturedBytes,
+        out capturedSha256,
+        afterCopy
+    );
+
+    private static EncryptedTemporaryStream CaptureCore(
+        string path,
+        long maxBytes,
+        CancellationToken cancellationToken,
+        bool includeMetadata,
+        out long capturedBytes,
+        out string capturedSha256,
+        Action<int>? afterCopy
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -28,6 +63,8 @@ internal static class StablePackagePathSnapshot
         {
             throw new ArgumentOutOfRangeException(nameof(maxBytes));
         }
+        capturedBytes = 0;
+        capturedSha256 = string.Empty;
 
         for (var attempt = 1; attempt <= Attempts; attempt++)
         {
@@ -61,6 +98,12 @@ internal static class StablePackagePathSnapshot
                 {
                     snapshot.CompleteWriting();
                     snapshot.Position = 0;
+                    if (includeMetadata)
+                    {
+                        capturedBytes = copied.Bytes;
+                        capturedSha256 = Convert.ToHexString(copied.Sha256)
+                            .ToLowerInvariant();
+                    }
                     return snapshot;
                 }
             }

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Hardened file-backed `.wtpatch` reads against concurrent replacement and
+  in-place rewriting. Native patch inspection/apply and the shared rollback
+  engine now decode one bounded, encrypted stable snapshot captured with
+  read/write/delete sharing instead of parsing a live `FileStream`; two
+  inconsistent captures fail with retryable `SOURCE_CHANGED`, and inspection
+  length/hash metadata comes from that same accepted snapshot. The snapshot
+  cap now includes a saturating worst-case DEFLATE/ZIP bound, so large custom
+  limits cannot make a codec-produced patch reject its own path round trip.
+  Oversized patch snapshots now remain `PATCH_LIMIT`, while every package CLI
+  that can emit retryable `SOURCE_CHANGED` returns temporary-failure exit code 75.
+  Added deterministic bound/distribution and race regressions plus a Strict
+  WordprocessingML review
+  transaction case proving insertion/deletion decisions and exact inverse
+  restoration under both Transitional and Strict namespaces.
+
 - Closed two fail-closed diagnostic gaps. Saved-package plain-text plans now
   reject `w:t` or `w:delText` nodes inside tracked insertion, deletion and move
   wrappers, including Word 2010 conflict revisions, before producing a mutation

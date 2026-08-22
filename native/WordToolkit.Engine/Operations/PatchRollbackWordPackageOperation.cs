@@ -698,15 +698,7 @@ public sealed class PatchRollbackWordPackageOperation
         string path,
         CancellationToken cancellationToken
     )
-    {
-        using var stream = new FileStream(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read
-        );
-        return new OpcPackagePatchCodec().Read(stream, cancellationToken);
-    }
+        => new OpcPackagePatchCodec().ReadFromPath(path, cancellationToken);
 
     private static void ValidateIdentityRequest(
         string localPath,
@@ -905,6 +897,13 @@ public sealed class PatchRollbackWordPackageOperation
         string? patchPath
     ) => exception switch
     {
+        OpcPackageSourceChangedException changed =>
+            new WordToolkitOperationException(
+                "SOURCE_CHANGED",
+                "The patch artifact changed while a stable snapshot was being captured",
+                retryable: true,
+                innerException: changed
+            ),
         OpcPackagePatchLimitException limit => new WordToolkitOperationException(
             "PATCH_LIMIT",
             SafeReason(limit.Message, localPath, patchPath)
