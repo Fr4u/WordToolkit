@@ -359,7 +359,9 @@
         "explicit existing local_path",
         "explicit new output path; never overwrite"
       ],
-      "acquisition_steps": [],
+      "acquisition_steps": [
+        "Conversion snapshots local_path once; if SOURCE_CHANGED is returned, wait for the writer to finish and retry without reusing prior hashes"
+      ],
       "bindings": {
         "local_path": {
           "source": "external_input"
@@ -390,7 +392,16 @@
           "ok is present"
         ]
       },
-      "recovery": {},
+      "recovery": {
+        "SOURCE_CHANGED": {
+          "next_action": "convert_ooxml_flat_opc",
+          "bindings": {
+            "local_path": "local_path",
+            "output_path": "output_path",
+            "direction": "direction"
+          }
+        }
+      },
       "recipe_ids": [
         "native.default"
       ]
@@ -481,7 +492,9 @@
       "prerequisites": [
         "explicit existing local_path"
       ],
-      "acquisition_steps": [],
+      "acquisition_steps": [
+        "When a guarded text edit targets a returned outline paragraph, set include_text_node_locators=true and a small max_text_node_locators; bind node_id from text_node_locators, package_fingerprint from this response, and expected_text only from an untruncated locator preview"
+      ],
       "bindings": {
         "local_path": {
           "source": "external_input"

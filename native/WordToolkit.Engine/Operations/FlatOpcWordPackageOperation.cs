@@ -1,8 +1,8 @@
 using System.Security.Cryptography;
-using WordToolkit.Engine.Publishing;
 using System.Text;
 using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Publishing;
 using WordToolkit.Engine.Semantics;
 using WordToolkit.Engine.Xml;
 
@@ -81,7 +81,10 @@ public sealed class FlatOpcWordPackageOperation
 {
     private readonly OpcPackageReader _reader;
     private readonly FlatOpcPackageCodec _codec;
+    private readonly OpcPackageLimits _limits;
     private readonly Action<string>? _beforeAtomicPublish;
+    private readonly Action<string>? _afterInputSnapshot;
+    private readonly Action<int>? _afterInputSnapshotCopy;
 
     public FlatOpcWordPackageOperation(OpcPackageLimits? limits = null)
         : this(limits, null)
@@ -90,12 +93,17 @@ public sealed class FlatOpcWordPackageOperation
 
     internal FlatOpcWordPackageOperation(
         OpcPackageLimits? limits,
-        Action<string>? beforeAtomicPublish
+        Action<string>? beforeAtomicPublish,
+        Action<string>? afterInputSnapshot = null,
+        Action<int>? afterInputSnapshotCopy = null
     )
     {
-        _reader = new OpcPackageReader(limits);
-        _codec = new FlatOpcPackageCodec(limits);
+        _limits = limits ?? OpcPackageLimits.Default;
+        _reader = new OpcPackageReader(_limits);
+        _codec = new FlatOpcPackageCodec(_limits);
         _beforeAtomicPublish = beforeAtomicPublish;
+        _afterInputSnapshot = afterInputSnapshot;
+        _afterInputSnapshotCopy = afterInputSnapshotCopy;
     }
 
     public FlatOpcWordPackageResult Execute(
@@ -157,7 +165,7 @@ public sealed class FlatOpcWordPackageOperation
                     "The output path was created while the conversion was being published"
                 );
             }
-            return result with { OutputSha256 = HashFile(outputPath) };
+            return result;
         }
         catch (OperationCanceledException)
         {
@@ -186,7 +194,14 @@ public sealed class FlatOpcWordPackageOperation
         CancellationToken cancellationToken
     )
     {
-        var source = ReadValidWordPackage(inputPath, cancellationToken);
+        using var inputSnapshot = CaptureInputSnapshot(
+            inputPath,
+            FlatOpcConversionDirection.ToFlatOpc,
+            cancellationToken
+        );
+        _afterInputSnapshot?.Invoke(inputPath);
+        var inputSha256 = HashSnapshot(inputSnapshot);
+        var source = ReadValidWordPackage(inputSnapshot, cancellationToken);
         BlockDigitalSignatures(source);
         FlatOpcPackageStatistics statistics;
         using (
@@ -215,7 +230,7 @@ public sealed class FlatOpcWordPackageOperation
             direction,
             inputPath,
             outputPath,
-            HashFile(inputPath),
+            inputSha256,
             HashFile(temporaryPath),
             source,
             roundTrip,
@@ -231,8 +246,15 @@ public sealed class FlatOpcWordPackageOperation
         CancellationToken cancellationToken
     )
     {
+        using var inputSnapshot = CaptureInputSnapshot(
+            inputPath,
+            FlatOpcConversionDirection.FromFlatOpc,
+            cancellationToken
+        );
+        _afterInputSnapshot?.Invoke(inputPath);
+        var inputSha256 = HashSnapshot(inputSnapshot);
         FlatOpcPackageStatistics statistics;
-        using (var source = File.OpenRead(inputPath))
+        inputSnapshot.Position = 0;
         using (
             var destination = new FileStream(
                 temporaryPath,
@@ -245,15 +267,15 @@ public sealed class FlatOpcWordPackageOperation
         )
         {
             statistics = _codec.ConvertToPackage(
-                source,
+                inputSnapshot,
                 destination,
                 cancellationToken
             );
             destination.Flush(flushToDisk: true);
         }
 
-        using var sourceAgain = File.OpenRead(inputPath);
-        var sourcePackage = _codec.Read(sourceAgain, cancellationToken);
+        inputSnapshot.Position = 0;
+        var sourcePackage = _codec.Read(inputSnapshot, cancellationToken);
         ValidateWordPackage(sourcePackage, cancellationToken);
         BlockDigitalSignatures(sourcePackage);
         var candidate = _reader.Read(temporaryPath, cancellationToken);
@@ -264,7 +286,7 @@ public sealed class FlatOpcWordPackageOperation
             direction,
             inputPath,
             outputPath,
-            HashFile(inputPath),
+            inputSha256,
             HashFile(temporaryPath),
             sourcePackage,
             candidate,
@@ -302,13 +324,52 @@ public sealed class FlatOpcWordPackageOperation
     );
 
     private OpcPackageSnapshot ReadValidWordPackage(
-        string path,
+        Stream stream,
         CancellationToken cancellationToken
     )
     {
-        var package = _reader.Read(path, cancellationToken);
+        var package = _reader.Read(stream, cancellationToken);
         ValidateWordPackage(package, cancellationToken);
         return package;
+    }
+
+    private EncryptedTemporaryStream CaptureInputSnapshot(
+        string path,
+        FlatOpcConversionDirection direction,
+        CancellationToken cancellationToken
+    )
+    {
+        var maximumBytes = direction == FlatOpcConversionDirection.FromFlatOpc
+            ? Math.Max(
+                _limits.MaxArchiveBytes,
+                MaximumEncodedXmlBytes(_limits.MaxFlatOpcXmlCharacters)
+            )
+            : _limits.MaxArchiveBytes;
+        return StablePackagePathSnapshot.Capture(
+            path,
+            maximumBytes,
+            cancellationToken,
+            _afterInputSnapshotCopy
+        );
+    }
+
+    private static long MaximumEncodedXmlBytes(long maximumCharacters)
+    {
+        const int maximumBytesPerCharacter = 4;
+        const int maximumPreambleBytes = 4;
+        return maximumCharacters > (long.MaxValue - maximumPreambleBytes)
+            / maximumBytesPerCharacter
+            ? long.MaxValue
+            : maximumCharacters * maximumBytesPerCharacter
+                + maximumPreambleBytes;
+    }
+
+    private static string HashSnapshot(Stream snapshot)
+    {
+        snapshot.Position = 0;
+        var hash = Convert.ToHexString(SHA256.HashData(snapshot)).ToLowerInvariant();
+        snapshot.Position = 0;
+        return hash;
     }
 
     private static void ValidateWordPackage(
@@ -621,6 +682,14 @@ public sealed class FlatOpcWordPackageOperation
     private static WordToolkitOperationException MapFailure(Exception exception) =>
         exception switch
         {
+            OpcPackageSourceChangedException changed =>
+                new WordToolkitOperationException(
+                    "SOURCE_CHANGED",
+                    "The Flat OPC conversion input changed while a stable snapshot was captured",
+                    Bound(changed.Message),
+                    retryable: true,
+                    innerException: changed
+                ),
             OpcPackageLimitException limit => new WordToolkitOperationException(
                 "PACKAGE_LIMIT",
                 "Flat OPC conversion exceeds a bounded package limit",

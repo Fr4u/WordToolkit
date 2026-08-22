@@ -87,8 +87,10 @@ public sealed class PackageInspectionServiceTests
             {
                 local_path = path,
                 max_nodes = 10,
-                text_preview_chars = 5,
+                text_preview_chars = 6,
                 include_source_paths = true,
+                include_text_node_locators = true,
+                max_text_node_locators = 2,
             }));
             var service = new WordLiveService(new NoInvokeHost());
 
@@ -139,6 +141,358 @@ public sealed class PackageInspectionServiceTests
                         node.GetProperty("source_element_ordinal").GetInt32() >= 0
                     );
                 }
+            );
+            var paragraph = Assert.Single(
+                outline.EnumerateArray(),
+                node => node.GetProperty("kind").GetString() == "paragraph"
+            );
+            var locators = root.GetProperty("text_node_locators");
+            Assert.Equal(
+                "returned_outline_paragraphs",
+                root.GetProperty("text_node_locator_scope").GetString()
+            );
+            Assert.Equal(3, root.GetProperty("text_node_locator_count").GetInt32());
+            Assert.Equal(
+                2,
+                root.GetProperty("returned_text_node_locator_count").GetInt32()
+            );
+            Assert.True(root.GetProperty("text_node_locators_truncated").GetBoolean());
+            Assert.Equal(2, locators.GetArrayLength());
+            Assert.All(
+                locators.EnumerateArray(),
+                locator =>
+                {
+                    Assert.StartsWith(
+                        "wdn_",
+                        locator.GetProperty("node_id").GetString(),
+                        StringComparison.Ordinal
+                    );
+                    Assert.Equal(
+                        paragraph.GetProperty("node_id").GetString(),
+                        locator.GetProperty("paragraph_node_id").GetString()
+                    );
+                    Assert.Equal(
+                        "content_fingerprint",
+                        locator.GetProperty("identity_kind").GetString()
+                    );
+                }
+            );
+            Assert.Equal(
+                "Hello ",
+                locators[0].GetProperty("text_preview").GetString()
+            );
+            Assert.False(
+                locators[0].GetProperty("text_preview_truncated").GetBoolean()
+            );
+            Assert.Equal("a", locators[1].GetProperty("text_preview").GetString());
+            Assert.False(
+                locators[1].GetProperty("text_preview_truncated").GetBoolean()
+            );
+
+            var nodeId = locators[0].GetProperty("node_id").GetString()!;
+            var packageFingerprint = root.GetProperty("package_fingerprint").GetString()!;
+            using var planArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = packageFingerprint,
+                commands = new[]
+                {
+                    new
+                    {
+                        node_id = nodeId,
+                        new_text = "Changed ",
+                        expected_text = "Hello ",
+                    },
+                },
+                include_details = true,
+            }));
+            var planObject = await service.CallAsync(
+                "plan_ooxml_text_edits",
+                planArguments.RootElement,
+                CancellationToken.None
+            );
+            using var planJson = JsonDocument.Parse(JsonSerializer.Serialize(planObject));
+            var operation = Assert.Single(
+                planJson.RootElement.GetProperty("operations").EnumerateArray()
+            );
+
+            Assert.True(planJson.RootElement.GetProperty("has_changes").GetBoolean());
+            Assert.Equal(nodeId, operation.GetProperty("node_id").GetString());
+
+            using var staleTextArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = packageFingerprint,
+                commands = new[]
+                {
+                    new
+                    {
+                        node_id = nodeId,
+                        new_text = "Changed ",
+                        expected_text = "stale",
+                    },
+                },
+            }));
+            var staleText = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "plan_ooxml_text_edits",
+                    staleTextArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("VERSION_CONFLICT", staleText.ErrorCode);
+
+            using var staleFingerprintArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    expected_package_fingerprint = new string('0', 64),
+                    commands = new[]
+                    {
+                        new
+                        {
+                            node_id = nodeId,
+                            new_text = "Changed ",
+                            expected_text = "Hello ",
+                        },
+                    },
+                })
+            );
+            var staleFingerprint = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "plan_ooxml_text_edits",
+                    staleFingerprintArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("VERSION_CONFLICT", staleFingerprint.ErrorCode);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task InspectSemanticsOmitsTextNodeLocatorsByDefault()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-semantic-default-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "semantic.docx");
+            CreatePackage(path);
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+            }));
+            var service = new WordLiveService(new NoInvokeHost());
+
+            var result = await service.CallAsync(
+                "inspect_ooxml_semantics",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            using var json = JsonDocument.Parse(
+                JsonSerializer.Serialize(result, JsonDefaults.Compact)
+            );
+            var root = json.RootElement;
+
+            Assert.False(root.TryGetProperty("text_node_locator_scope", out _));
+            Assert.False(root.TryGetProperty("text_node_locator_count", out _));
+            Assert.False(root.TryGetProperty("returned_text_node_locator_count", out _));
+            Assert.False(root.TryGetProperty("text_node_locators", out _));
+            Assert.False(root.TryGetProperty("text_node_locators_truncated", out _));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task InspectSemanticsTextNodeLocatorsRespectZeroPreviewBudget()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-semantic-private-locator-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "semantic.docx");
+            CreatePackage(path);
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                text_preview_chars = 0,
+                include_text_node_locators = true,
+                max_text_node_locators = 1,
+            }));
+            var service = new WordLiveService(new NoInvokeHost());
+
+            var result = await service.CallAsync(
+                "inspect_ooxml_semantics",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            using var json = JsonDocument.Parse(
+                JsonSerializer.Serialize(result, JsonDefaults.Compact)
+            );
+            var locator = Assert.Single(
+                json.RootElement.GetProperty("text_node_locators").EnumerateArray()
+            );
+
+            Assert.False(locator.TryGetProperty("text_preview", out _));
+            Assert.False(
+                locator.GetProperty("text_preview_truncated").GetBoolean()
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task InspectSemanticsBindsNestedTextToNearestReturnedParagraph()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-semantic-nested-paragraph-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "semantic.docx");
+            CreatePackage(
+                path,
+                additionalBodyXml:
+                    """
+                    <w:p w14:paraId="10112233">
+                      <w:r>
+                        <w:t>Outer</w:t>
+                        <w:txbxContent>
+                          <w:p w14:paraId="20112233"><w:r><w:t>Inner</w:t></w:r></w:p>
+                        </w:txbxContent>
+                      </w:r>
+                    </w:p>
+                    """
+            );
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                max_nodes = 20,
+                text_preview_chars = 20,
+                include_text_node_locators = true,
+                max_text_node_locators = 20,
+            }));
+
+            var result = await new WordLiveService(new NoInvokeHost()).CallAsync(
+                "inspect_ooxml_semantics",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            using var json = JsonDocument.Parse(JsonSerializer.Serialize(result));
+            var root = json.RootElement;
+            var paragraphs = root.GetProperty("outline").EnumerateArray()
+                .Where(node => node.GetProperty("kind").GetString() == "paragraph")
+                .ToArray();
+            var outerParagraph = Assert.Single(paragraphs, node =>
+                node.GetProperty("text_preview").GetString()!.StartsWith(
+                    "Outer",
+                    StringComparison.Ordinal
+                )
+            );
+            var innerParagraph = Assert.Single(paragraphs, node =>
+                node.GetProperty("text_preview").GetString() == "Inner"
+            );
+            var locators = root.GetProperty("text_node_locators").EnumerateArray()
+                .ToArray();
+            var outerLocator = Assert.Single(locators, locator =>
+                locator.GetProperty("text_preview").GetString() == "Outer"
+            );
+            var innerLocator = Assert.Single(locators, locator =>
+                locator.GetProperty("text_preview").GetString() == "Inner"
+            );
+
+            Assert.Equal(
+                outerParagraph.GetProperty("node_id").GetString(),
+                outerLocator.GetProperty("paragraph_node_id").GetString()
+            );
+            Assert.Equal(
+                innerParagraph.GetProperty("node_id").GetString(),
+                innerLocator.GetProperty("paragraph_node_id").GetString()
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task InspectSemanticsReturnsTextNodeLocatorsAcrossMcpBoundary()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-semantic-mcp-locator-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "semantic.docx");
+            CreatePackage(path);
+            var request = JsonSerializer.Serialize(new
+            {
+                jsonrpc = "2.0",
+                id = 1,
+                method = "tools/call",
+                @params = new
+                {
+                    name = "inspect_ooxml_semantics",
+                    arguments = new
+                    {
+                        local_path = path,
+                        max_nodes = 10,
+                        text_preview_chars = 20,
+                        include_text_node_locators = true,
+                        max_text_node_locators = 1,
+                    },
+                },
+            });
+            var output = new StringWriter();
+            var server = new McpServer(
+                new StringReader(request + Environment.NewLine),
+                output,
+                ToolCatalog.LoadNativeWordTools(),
+                new WordLiveService(new NoInvokeHost())
+            );
+
+            await server.RunAsync();
+
+            using var response = JsonDocument.Parse(output.ToString().Trim());
+            var result = response.RootElement.GetProperty("result");
+            var structured = result.GetProperty("structuredContent");
+            var data = structured.GetProperty("data");
+            var locator = Assert.Single(
+                data.GetProperty("text_node_locators").EnumerateArray()
+            );
+
+            Assert.False(result.GetProperty("isError").GetBoolean());
+            Assert.True(structured.GetProperty("ok").GetBoolean());
+            Assert.Equal("Hello ", locator.GetProperty("text_preview").GetString());
+            Assert.StartsWith(
+                "wdn_",
+                locator.GetProperty("node_id").GetString(),
+                StringComparison.Ordinal
             );
         }
         finally
