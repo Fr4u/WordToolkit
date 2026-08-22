@@ -49,13 +49,14 @@ class PackageInspection:
 
 
 def _safe_member_name(name: str) -> PurePosixPath:
-    if "\\" in name or "\x00" in name:
+    if not name or "\\" in name or "\x00" in name:
         raise WordToolkitError(ErrorCode.UNSAFE_ARCHIVE, "Unsafe ZIP entry name")
-    path = PurePosixPath(name)
-    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+    raw_parts = name[:-1].split("/") if name.endswith("/") else name.split("/")
+    if not raw_parts or any(part in {"", ".", ".."} for part in raw_parts):
         raise WordToolkitError(
             ErrorCode.UNSAFE_ARCHIVE, "ZIP entry escapes the package root", {"entry": name}
         )
+    path = PurePosixPath(name)
     if re.match(r"^[A-Za-z]:", name):
         raise WordToolkitError(ErrorCode.UNSAFE_ARCHIVE, "Drive-qualified ZIP entry rejected")
     return path
@@ -74,22 +75,24 @@ def secure_xml_parser() -> etree.XMLParser:
 
 
 def parse_xml_bytes(data: bytes, *, part: str) -> etree._Element:
-    head = data[:4096].upper()
-    if b"<!DOCTYPE" in head or b"<!ENTITY" in head:
-        raise WordToolkitError(
-            ErrorCode.UNSAFE_XML, "DTD and entity declarations are forbidden", {"part": part}
-        )
     try:
-        return etree.fromstring(data, parser=secure_xml_parser())
+        root = etree.fromstring(data, parser=secure_xml_parser())
     except etree.XMLSyntaxError as exc:
         raise WordToolkitError(
             ErrorCode.OOXML_INVALID, "Malformed XML part", {"part": part, "reason": str(exc)}
         ) from exc
+    if root.getroottree().docinfo.doctype or any(
+        isinstance(node, etree._Entity) for node in root.iter()
+    ):
+        raise WordToolkitError(
+            ErrorCode.UNSAFE_XML, "DTD and entity declarations are forbidden", {"part": part}
+        )
+    return root
 
 
 def resolve_internal_target(source_part: str, target: str) -> str:
     parsed = urlparse(target)
-    if parsed.scheme or parsed.netloc:
+    if parsed.scheme or parsed.netloc or target.startswith("/") or "\\" in target:
         raise WordToolkitError(
             ErrorCode.UNSAFE_RELATIONSHIP,
             "Internal relationship contains an absolute URI",
@@ -98,8 +101,6 @@ def resolve_internal_target(source_part: str, target: str) -> str:
     base = PurePosixPath(source_part).parent
     combined: list[str] = []
     for part in (base / target).parts:
-        if part in {"", "."}:
-            continue
         if part == "..":
             if not combined:
                 raise WordToolkitError(
@@ -253,6 +254,7 @@ class SafePackageInspector:
         destination.mkdir(parents=True, exist_ok=False)
         root = destination.resolve()
         with zipfile.ZipFile(package) as archive:
+            remaining = self.settings.max_uncompressed_bytes
             for info in archive.infolist():
                 rel = _safe_member_name(info.filename)
                 target = (destination / Path(*rel.parts)).resolve()
@@ -263,7 +265,6 @@ class SafePackageInspector:
                     continue
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with archive.open(info) as source, target.open("wb") as output:
-                    remaining = self.settings.max_uncompressed_bytes
                     while chunk := source.read(min(1024 * 1024, remaining + 1)):
                         remaining -= len(chunk)
                         if remaining < 0:
@@ -274,25 +275,54 @@ class SafePackageInspector:
         return report
 
 
-def validate_remote_url(url: str, allowed_suffixes: tuple[str, ...]) -> None:
+def validate_remote_url(
+    url: str,
+    allowed_suffixes: tuple[str, ...],
+    *,
+    allow_localhost: bool = False,
+) -> tuple[str, ...]:
     parsed = urlparse(url)
-    if parsed.scheme != "https" and parsed.hostname not in {"127.0.0.1", "localhost"}:
+    host = (parsed.hostname or "").lower().rstrip(".")
+    is_local_test_host = host in {"127.0.0.1", "::1", "localhost"}
+    if parsed.scheme not in {"http", "https"}:
         raise WordToolkitError(ErrorCode.INVALID_INPUT, "Only HTTPS file URLs are accepted")
-    host = (parsed.hostname or "").lower()
-    if not any(host == suffix.lstrip(".") or host.endswith(suffix) for suffix in allowed_suffixes):
+    if not host or parsed.username is not None or parsed.password is not None:
+        raise WordToolkitError(ErrorCode.INVALID_INPUT, "File URL authority is invalid")
+    local_access_allowed = allow_localhost and is_local_test_host
+    if is_local_test_host and not local_access_allowed:
+        raise WordToolkitError(ErrorCode.AUTH_FORBIDDEN, "Localhost file URL rejected")
+    if parsed.scheme != "https" and not local_access_allowed:
+        raise WordToolkitError(ErrorCode.INVALID_INPUT, "Only HTTPS file URLs are accepted")
+    normalized_suffixes = {
+        suffix.strip().lower().strip(".") for suffix in allowed_suffixes if suffix.strip(".")
+    }
+    if not any(host == suffix or host.endswith(f".{suffix}") for suffix in normalized_suffixes):
         raise WordToolkitError(
             ErrorCode.AUTH_FORBIDDEN, "File URL host is not allowlisted", {"host": host}
         )
     try:
-        addresses = {item[4][0] for item in socket.getaddrinfo(host, parsed.port or 443)}
+        port = parsed.port or (80 if parsed.scheme == "http" else 443)
+    except ValueError as exc:
+        raise WordToolkitError(ErrorCode.INVALID_INPUT, "File URL port is invalid") from exc
+    try:
+        addresses = {item[4][0] for item in socket.getaddrinfo(host, port)}
     except socket.gaierror as exc:
         raise WordToolkitError(ErrorCode.INVALID_INPUT, "File URL host cannot be resolved") from exc
+    if not addresses:
+        raise WordToolkitError(ErrorCode.INVALID_INPUT, "File URL host cannot be resolved")
+    validated_addresses: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = []
     for address in addresses:
-        ip = ipaddress.ip_address(address)
-        if host not in {"127.0.0.1", "localhost"} and (
-            ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast
-        ):
+        try:
+            ip = ipaddress.ip_address(address)
+        except ValueError as exc:
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT, "File URL host resolved incorrectly"
+            ) from exc
+        if not local_access_allowed and (not ip.is_global or ip.is_multicast):
             raise WordToolkitError(ErrorCode.AUTH_FORBIDDEN, "Private network file URL rejected")
+        validated_addresses.append(ip)
+    validated_addresses.sort(key=lambda ip: (ip.version, str(ip)))
+    return tuple(str(ip) for ip in validated_addresses)
 
 
 def safe_join(root: Path, *segments: str) -> Path:

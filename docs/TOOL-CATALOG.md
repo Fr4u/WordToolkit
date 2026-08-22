@@ -4,7 +4,16 @@ The current remote Python service source of truth is `schemas/mcp-tools.v2.json`
 
 The public MCP surface has 15 tools: 11 core actions and 4 capability gateways.
 The capability, search, inspect and execute gateways negotiate the versioned contract
-and lazily expose 149 native actions. Rare
+and lazily expose 149 native actions.
+
+`local_path` and `output_path` are deliberate roles, not aliases: the former names an
+existing input package and the latter names a newly written artifact. Likewise, the
+gateway dispatcher field is `action`; `action_name` is not a compatibility spelling.
+
+Live Word formatting uses canonical `font_size_pt` and `paragraph_alignment` keys.
+Compatibility spellings `font_size` and `alignment` are normalized before COM and
+cannot be supplied together with their canonical counterpart. The inspected action
+schema enumerates and types every formatting field before execution.
 
 ## First-call guidance
 
@@ -16,7 +25,7 @@ re-plan when required, and stop on rollback or quarantine boundaries). This
 guidance is generated for all 149 native actions and checked for
 parity by `scripts/generate_action_guidance.py --check`.
 
-saved-package inspectors remain lazy so their schemas do not enter model context until
+Rare saved-package inspectors remain lazy so their schemas do not enter model context until
 needed. `inspect_wordtoolkit_extensions` exposes the bounded, content-free registry
 catalog, including process-memory limits for hard process-boundary capabilities, without
 loading assemblies, reading a document or opening Word.

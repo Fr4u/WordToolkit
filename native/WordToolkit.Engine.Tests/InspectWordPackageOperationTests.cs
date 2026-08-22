@@ -81,6 +81,34 @@ public sealed class InspectWordPackageOperationTests
         }
     }
 
+    [Fact]
+    public void PathInspectionWorksWhileAnotherHandleSharesReadWrite()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "open-in-word.docx");
+            File.WriteAllBytes(path, PackageBytes());
+            using var openDocument = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.ReadWrite,
+                FileShare.ReadWrite
+            );
+
+            var result = new InspectWordPackageOperation().Execute(
+                new InspectWordPackageRequest(path, IncludeDetails: true, MaxItems: 20)
+            );
+
+            Assert.NotEqual("IO_ERROR", result.Diagnostics.Items.FirstOrDefault()?.Code);
+            Assert.True(result.ValidWordPackage);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData("", 10)]
     [InlineData("sample.txt", 10)]

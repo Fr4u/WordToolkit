@@ -1385,10 +1385,7 @@ internal sealed partial class WordLiveService : IToolHandler
         var style = arguments.String("style");
         var expectedVersion = arguments.NullableInt64("expected_version");
         var optimizeScreenUpdates = arguments.Boolean("optimize_screen_updates", true);
-        var formatting = arguments.TryGetProperty("formatting", out var formatNode)
-            && formatNode.ValueKind == JsonValueKind.Object
-            ? formatNode.Clone()
-            : (JsonElement?)null;
+        var formatting = PrepareFormattingArgument(arguments);
         if (style.Length == 0 && formatting is null)
         {
             throw new NativeToolException(
@@ -1509,10 +1506,7 @@ internal sealed partial class WordLiveService : IToolHandler
         var replaceSelection = arguments.Boolean("replace_selection", false);
         var activate = arguments.Boolean("activate", true);
         var expectedVersion = arguments.NullableInt64("expected_version");
-        var formatting = arguments.TryGetProperty("formatting", out var formatNode)
-            && formatNode.ValueKind == JsonValueKind.Object
-            ? formatNode.Clone()
-            : (JsonElement?)null;
+        var formatting = PrepareFormattingArgument(arguments);
         CheckVersion(record, expectedVersion);
 
         var started = Stopwatch.GetTimestamp();
@@ -1915,10 +1909,7 @@ internal sealed partial class WordLiveService : IToolHandler
         var activate = arguments.Boolean("activate", true);
         var optimizeScreenUpdates = arguments.Boolean("optimize_screen_updates", true);
         var expectedVersion = arguments.NullableInt64("expected_version");
-        var formatting = arguments.TryGetProperty("formatting", out var formatNode)
-            && formatNode.ValueKind == JsonValueKind.Object
-            ? formatNode.Clone()
-            : (JsonElement?)null;
+        var formatting = PrepareFormattingArgument(arguments);
         CheckVersion(record, expectedVersion);
         var listText = string.Join("\n", items);
         var started = Stopwatch.GetTimestamp();
@@ -2487,10 +2478,7 @@ internal sealed partial class WordLiveService : IToolHandler
         var enabled = arguments.Boolean("enabled", true);
         var linkToPrevious = arguments.Boolean("link_to_previous", false);
         var style = arguments.String("style");
-        var formatting = arguments.TryGetProperty("formatting", out var formattingNode)
-            && formattingNode.ValueKind == JsonValueKind.Object
-            ? formattingNode.Clone()
-            : (JsonElement?)null;
+        var formatting = PrepareFormattingArgument(arguments);
         var optimizeScreenUpdates = arguments.Boolean("optimize_screen_updates", true);
         var expectedVersion = arguments.NullableInt64("expected_version");
         if (sectionIndex is < 1 or > 10_000)
@@ -2970,52 +2958,73 @@ internal sealed partial class WordLiveService : IToolHandler
         var prepared = new List<PreparedOperation>();
         var totalText = 0;
         var equations = 0;
+        var operationIndex = 0;
         foreach (var item in operations.EnumerateArray())
         {
-            var type = item.String("type");
-            if (type == "text")
+            try
             {
-                var text = item.String("text");
-                if (text.Length == 0)
+                var type = item.String("type");
+                if (type == "text")
+                {
+                    var hasRuns = item.TryGetProperty("runs", out var runsNode);
+                    var hasText = item.TryGetProperty("text", out _);
+                    if (hasRuns && hasText)
+                    {
+                        throw new NativeToolException(
+                            "INVALID_INPUT",
+                            "A text operation accepts either text or runs, not both"
+                        );
+                    }
+                    var runs = hasRuns
+                        ? ParseTextRuns(runsNode)
+                        : Array.Empty<PreparedTextRun>();
+                    var text = hasRuns
+                        ? string.Concat(runs.Select(run => run.Text))
+                        : item.String("text");
+                    if (text.Length == 0)
+                    {
+                        throw new NativeToolException(
+                            "INVALID_INPUT",
+                            "Every text operation requires non-empty text"
+                        );
+                    }
+                    if (text.Length > 200_000)
+                    {
+                        throw new NativeToolException(
+                            "LIMIT_EXCEEDED",
+                            "One text operation exceeds 200,000 characters"
+                        );
+                    }
+                    totalText += text.Length;
+                    var formatting = PrepareFormattingArgument(item);
+                    prepared.Add(
+                        new PreparedTextOperation(
+                            text,
+                            item.Boolean("as_new_paragraph", false),
+                            item.String("style"),
+                            formatting,
+                            runs
+                        )
+                    );
+                }
+                else if (type == "equation")
+                {
+                    equations++;
+                    prepared.Add(EquationOperationFromArguments(item));
+                }
+                else
                 {
                     throw new NativeToolException(
                         "INVALID_INPUT",
-                        "Every text operation requires non-empty text"
+                        "Operation type must be 'text' or 'equation'"
                     );
                 }
-                if (text.Length > 200_000)
-                {
-                    throw new NativeToolException(
-                        "LIMIT_EXCEEDED",
-                        "One text operation exceeds 200,000 characters"
-                    );
-                }
-                totalText += text.Length;
-                var formatting = item.TryGetProperty("formatting", out var formatNode)
-                    && formatNode.ValueKind == JsonValueKind.Object
-                    ? formatNode.Clone()
-                    : (JsonElement?)null;
-                prepared.Add(
-                    new PreparedTextOperation(
-                        text,
-                        item.Boolean("as_new_paragraph", false),
-                        item.String("style"),
-                        formatting
-                    )
-                );
             }
-            else if (type == "equation")
+            catch (Exception exception)
             {
-                equations++;
-                prepared.Add(EquationOperationFromArguments(item));
+                throw WithFailedOperationIndex(exception, operationIndex);
             }
-            else
-            {
-                throw new NativeToolException(
-                    "INVALID_INPUT",
-                    "Operation type must be 'text' or 'equation'"
-                );
-            }
+            operationIndex++;
         }
         if (totalText > 500_000)
         {
@@ -3262,12 +3271,19 @@ internal sealed partial class WordLiveService : IToolHandler
                             insertionStart + expectedRange.Start,
                             insertionStart + expectedRange.End
                         );
-                        VerifyPublishedTextOperation(
-                            inserted,
-                            textOperation,
-                            expectedRange,
-                            index
-                        );
+                        try
+                        {
+                            VerifyPublishedTextOperation(
+                                inserted,
+                                textOperation,
+                                expectedRange,
+                                index
+                            );
+                        }
+                        catch (Exception exception)
+                        {
+                            throw WithFailedOperationIndex(exception, index);
+                        }
                         textRanges[index] = (object)inserted;
                     }
                     for (var ordinal = 0; ordinal < staged.EquationIndexes.Count; ordinal++)
@@ -3295,10 +3311,17 @@ internal sealed partial class WordLiveService : IToolHandler
                                 }
                             );
                         }
-                        builtEquations[index] = VerifyPublishedEquation(
-                            equation,
-                            staged.Equations[index]
-                        );
+                        try
+                        {
+                            builtEquations[index] = VerifyPublishedEquation(
+                                equation,
+                                staged.Equations[index]
+                            );
+                        }
+                        catch (Exception exception)
+                        {
+                            throw WithFailedOperationIndex(exception, index);
+                        }
                     }
                     for (var index = 0; index < operations.Count; index++)
                     {
@@ -3314,6 +3337,7 @@ internal sealed partial class WordLiveService : IToolHandler
                                     end = (int)inserted.End,
                                 },
                                 style = textOperation.Style,
+                                run_count = textOperation.Runs.Count > 0 ? textOperation.Runs.Count : 1,
                             };
                             continue;
                         }
@@ -4705,6 +4729,243 @@ internal sealed partial class WordLiveService : IToolHandler
             .Replace('\n', '\n');
     }
 
+    private static JsonElement? PrepareFormattingArgument(
+        JsonElement container,
+        bool allowParagraphFormatting = true
+    )
+    {
+        if (!container.TryGetProperty("formatting", out var formatting))
+        {
+            return null;
+        }
+        if (formatting.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+        if (formatting.ValueKind != JsonValueKind.Object)
+        {
+            throw new NativeToolException("INVALID_INPUT", "formatting must be an object or null");
+        }
+        return NormalizeFormatting(formatting, allowParagraphFormatting);
+    }
+
+    private static JsonElement NormalizeFormatting(
+        JsonElement formatting,
+        bool allowParagraphFormatting
+    )
+    {
+        var normalized = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        foreach (var property in formatting.EnumerateObject())
+        {
+            var canonicalName = property.Name switch
+            {
+                "font_size" => "font_size_pt",
+                "alignment" => "paragraph_alignment",
+                _ => property.Name,
+            };
+            if (!allowParagraphFormatting && canonicalName == "paragraph_alignment")
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    $"Unsupported inline run formatting field: {property.Name}"
+                );
+            }
+            if (!normalized.TryAdd(canonicalName, property.Value.Clone()))
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    $"Formatting field {canonicalName} was supplied more than once or through both its alias and canonical name"
+                );
+            }
+        }
+
+        foreach (var property in normalized)
+        {
+            ValidateFormattingValue(property.Key, property.Value, allowParagraphFormatting);
+        }
+        return JsonSerializer.SerializeToElement(normalized);
+    }
+
+    private static void ValidateFormattingValue(
+        string name,
+        JsonElement value,
+        bool allowParagraphFormatting
+    )
+    {
+        if (name == "font_name")
+        {
+            if (
+                value.ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(value.GetString())
+                || value.GetString()!.Length > 256
+            )
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "font_name must be a non-empty string of at most 256 characters"
+                );
+            }
+            return;
+        }
+        if (name == "font_color_rgb")
+        {
+            var color = value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : "";
+            if (
+                color.Length != 7
+                || color[0] != '#'
+                || !color.AsSpan(1).ToArray().All(Uri.IsHexDigit)
+            )
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "font_color_rgb must use #RRGGBB"
+                );
+            }
+            return;
+        }
+        if (
+            name is "bold"
+                or "italic"
+                or "underline"
+                or "strike"
+                or "all_caps"
+                or "small_caps"
+                or "hidden"
+                or "keep_with_next"
+                or "keep_together"
+                or "page_break_before"
+                or "widow_control"
+        )
+        {
+            if (value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            {
+                throw new NativeToolException("INVALID_INPUT", $"{name} must be true or false");
+            }
+            if (
+                !allowParagraphFormatting
+                && name
+                    is (
+                        "keep_with_next"
+                        or "keep_together"
+                        or "page_break_before"
+                        or "widow_control"
+                    )
+            )
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    $"Unsupported inline run formatting field: {name}"
+                );
+            }
+            return;
+        }
+        if (name == "paragraph_alignment")
+        {
+            var alignment = value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+            if (!allowParagraphFormatting || alignment is not ("left" or "center" or "right" or "justify"))
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "paragraph_alignment must be left, center, right, or justify"
+                );
+            }
+            return;
+        }
+
+        var numericRange = name switch
+        {
+            "font_size_pt" => (Minimum: 1d, Maximum: 200d),
+            "space_before_pt" or "space_after_pt" => (Minimum: 0d, Maximum: 1584d),
+            "left_indent_pt" or "right_indent_pt" or "first_line_indent_pt" =>
+                (Minimum: -1584d, Maximum: 1584d),
+            _ => ((double Minimum, double Maximum)?)null,
+        };
+        if (numericRange is not null)
+        {
+            if (
+                (!allowParagraphFormatting && name is not "font_size_pt")
+                || value.ValueKind != JsonValueKind.Number
+                || !value.TryGetDouble(out var number)
+                || !double.IsFinite(number)
+                || number < numericRange.Value.Minimum
+                || number > numericRange.Value.Maximum
+            )
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    $"{name} is outside the supported numeric range"
+                );
+            }
+            return;
+        }
+
+        throw new NativeToolException(
+            "INVALID_INPUT",
+            allowParagraphFormatting
+                ? $"Unsupported formatting field: {name}"
+                : $"Unsupported inline run formatting field: {name}"
+        );
+    }
+
+    internal static JsonElement NormalizeFormattingForTesting(
+        JsonElement formatting,
+        bool allowParagraphFormatting = true
+    ) => NormalizeFormatting(formatting, allowParagraphFormatting);
+
+    private static IReadOnlyList<PreparedTextRun> ParseTextRuns(JsonElement node)
+    {
+        if (node.ValueKind != JsonValueKind.Array || node.GetArrayLength() is < 1 or > 1000)
+        {
+            throw new NativeToolException("INVALID_INPUT", "runs must contain between 1 and 1000 items");
+        }
+        var result = new List<PreparedTextRun>(node.GetArrayLength());
+        var totalCharacters = 0;
+        foreach (var run in node.EnumerateArray())
+        {
+            if (
+                run.ValueKind != JsonValueKind.Object
+                || !run.TryGetProperty("text", out var textNode)
+                || textNode.ValueKind != JsonValueKind.String
+            )
+            {
+                throw new NativeToolException("INVALID_INPUT", "Every run requires non-empty text");
+            }
+            var text = NormalizeWordText(textNode.GetString() ?? "");
+            if (text.Length == 0)
+            {
+                throw new NativeToolException("INVALID_INPUT", "Every run requires non-empty text");
+            }
+            totalCharacters = checked(totalCharacters + text.Length);
+            if (totalCharacters > 200_000)
+            {
+                throw new NativeToolException(
+                    "LIMIT_EXCEEDED",
+                    "Combined inline run text exceeds 200,000 characters"
+                );
+            }
+            JsonElement? formatting = null;
+            if (run.TryGetProperty("formatting", out var formatNode))
+            {
+                if (formatNode.ValueKind != JsonValueKind.Object)
+                {
+                    throw new NativeToolException(
+                        "INVALID_INPUT",
+                        "run formatting must be an object"
+                    );
+                }
+                formatting = NormalizeFormatting(formatNode, allowParagraphFormatting: false);
+            }
+            result.Add(new PreparedTextRun(text, formatting));
+        }
+        return result;
+    }
+
+    internal static (string Text, int RunCount) ParseTextRunsForTesting(JsonElement node)
+    {
+        var runs = ParseTextRuns(node);
+        return (string.Concat(runs.Select(run => run.Text)), runs.Count);
+    }
+
     private static void ApplyFormatting(dynamic range, JsonElement formatting)
     {
         var allowed = new HashSet<string>(StringComparer.Ordinal)
@@ -5449,8 +5710,11 @@ internal sealed partial class WordLiveService : IToolHandler
         string Text,
         bool NewParagraph,
         string Style,
-        JsonElement? Formatting
+        JsonElement? Formatting,
+        IReadOnlyList<PreparedTextRun> Runs
     ) : PreparedOperation(Text, NewParagraph);
+
+    private sealed record PreparedTextRun(string Text, JsonElement? Formatting);
 
     private sealed record PreparedEquationOperation(
         string Linear,

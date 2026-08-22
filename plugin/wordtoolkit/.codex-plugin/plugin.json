@@ -1,6 +1,6 @@
 {
   "name": "wordtoolkit",
-  "version": "0.60.3+codex.20260822010325",
+  "version": "0.60.4+codex.20260822103554",
   "description": "Token-lean native Microsoft Word automation with 15 public MCP tools: 11 core actions and 4 capability gateways, exposing 149 native actions lazily.",
   "author": {
     "name": "WordToolkit contributors"

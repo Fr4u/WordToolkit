@@ -82,5 +82,11 @@ class Settings(BaseSettings):
             problems.append("oauth_issuer, oauth_audience and oauth_jwks_url are required")
         if self.signing_secret.startswith("change-me") or len(self.signing_secret) < 32:
             problems.append("signing_secret must be at least 32 random characters")
+        local_upload_hosts = {"localhost", "127.0.0.1", "::1"}
+        configured_upload_hosts = {value.lstrip(".") for value in self.upload_host_suffixes}
+        if configured_upload_hosts & local_upload_hosts:
+            problems.append(
+                "production upload allowlist must not include localhost, 127.0.0.1 or ::1"
+            )
         if problems:
             raise RuntimeError("Unsafe production configuration: " + "; ".join(problems))

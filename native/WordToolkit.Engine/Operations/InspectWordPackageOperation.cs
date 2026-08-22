@@ -123,7 +123,10 @@ public sealed class InspectWordPackageOperation
                 path,
                 FileMode.Open,
                 FileAccess.Read,
-                FileShare.Read
+                // Word keeps the document open for read/write while editing. Request
+                // compatible sharing so inspection can read the stable on-disk view
+                // instead of turning an ordinary open document into IO_ERROR.
+                FileShare.ReadWrite
             );
             return ExecuteCore(
                 stream,

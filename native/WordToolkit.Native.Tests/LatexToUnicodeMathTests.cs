@@ -7,6 +7,9 @@ public sealed class LatexToUnicodeMathTests
 {
     [Theory]
     [InlineData(@"\frac{x^2+1}{\sqrt[3]{y}}", "(x^(2)+1)/(√(3&y))")]
+    [InlineData(@"A \implies B", "A ⇒ B")]
+    [InlineData(@"\boxed{x+1}", "▭(x+1)")]
+    [InlineData(@"\boxed{\frac{x}{y}}", "▭((x)/(y))")]
     [InlineData(@"\sum_{i=1}^{n} i^2", "∑_(i=1)^(n)▒i^(2)")]
     [InlineData(@"\sum\limits_{i=1}^{n} i^2", "∑_(i=1)^(n)▒i^(2)")]
     [InlineData(@"\sum_{\int_0^1}^{n} x", "∑_(∫_(0)^(1))^(n)▒x")]
@@ -25,6 +28,10 @@ public sealed class LatexToUnicodeMathTests
     [InlineData(
         @"\iint_D f(x,y)\,\mathrm{d}x\,\mathrm{d}y",
         "∬_(D)▒〖f(x,y) ⅆx ⅆy〗"
+    )]
+    [InlineData(
+        @"\int u v' \,\mathrm{d}x = uv - \int u' v \,\mathrm{d}x",
+        "∫▒〖u v' ⅆx〗 = u v - ∫▒〖u' v ⅆx〗"
     )]
     [InlineData(
         @"\begin{matrix}a&b\\c&d\end{matrix}",

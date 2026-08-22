@@ -128,7 +128,7 @@ internal sealed partial class ToolCatalog
         var exposed = new JsonArray();
         foreach (var name in coreToolOrder)
         {
-            exposed.Add(allTools[name].DeepClone());
+            exposed.Add(CoreToolProjection(allTools[name]));
         }
         exposed.Add(SearchActionsTool());
         exposed.Add(InspectActionTool());
@@ -292,6 +292,36 @@ internal sealed partial class ToolCatalog
         var compact = source.DeepClone().AsObject();
         RemovePresentationMetadata(compact);
         return compact;
+    }
+
+    private static JsonObject CoreToolProjection(JsonObject source)
+    {
+        var projection = source.DeepClone().AsObject();
+        projection.Remove("operationVersion");
+        projection.Remove("permissions");
+        projection.Remove("reversibility");
+        RemoveNestedDescriptions(projection["inputSchema"]);
+        RemoveNestedDescriptions(projection["outputSchema"]);
+        return projection;
+    }
+
+    private static void RemoveNestedDescriptions(JsonNode? node)
+    {
+        if (node is JsonObject obj)
+        {
+            obj.Remove("description");
+            foreach (var child in obj)
+            {
+                RemoveNestedDescriptions(child.Value);
+            }
+        }
+        else if (node is JsonArray array)
+        {
+            foreach (var child in array)
+            {
+                RemoveNestedDescriptions(child);
+            }
+        }
     }
 
     private static void RemovePresentationMetadata(JsonNode? node)

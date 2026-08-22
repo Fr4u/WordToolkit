@@ -1508,7 +1508,7 @@ internal sealed partial class WordLiveService
             }
             if (node.ValueKind == JsonValueKind.Object)
             {
-                formatting = node.Clone();
+                formatting = NormalizeFormatting(node, allowParagraphFormatting: true);
             }
         }
         return new PreparedBookmark(

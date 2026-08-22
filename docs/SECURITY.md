@@ -76,7 +76,7 @@ Production startup fails unless the public URL is HTTPS, JWT OAuth mode is enabl
 
 ## Upload and SSRF controls
 
-ChatGPT file inputs use `_meta["openai/fileParams"]`. The server downloads an authorized HTTPS URL with redirects disabled by default and revalidates every redirect. Allowed host suffixes are configurable; DNS resolution rejects loopback, private, link-local, multicast, reserved and unspecified addresses. Localhost HTTP is allowed only for local tests. Downloads stream to a bounded session file and do not log body content or credentials.
+ChatGPT file inputs use `_meta["openai/fileParams"]`. The server downloads an authorized HTTPS URL with redirects disabled by default and revalidates every redirect. Allowed host suffixes are configurable; DNS resolution rejects loopback, private, link-local, multicast, reserved and unspecified addresses. Each hop pins the validated address at the TCP transport while preserving the original hostname for TLS verification and SNI; proxy environment variables are ignored. Redirects receive a fresh client and a fresh validation. Localhost HTTP requires an explicit non-production runtime and production startup rejects local upload hosts. Downloads stream to a bounded session file and do not log body content or credentials.
 
 If an authorized file reference omits the optional `file_name`, the downloader derives a filename only from an allowlisted extension in the final URL, declared MIME type or response `Content-Type`. An unrecognized type fails closed. Interrupted and failed downloads remove their partial session file; operation-specific package/image validation still runs after download.
 
@@ -97,7 +97,7 @@ The default limits are 50 MiB compressed, 250 MiB expanded, 5,000 entries and a 
 
 ## XML and relationship controls
 
-All parsed XML uses `resolve_entities=False`, `load_dtd=False`, `no_network=True`, `huge_tree=False` and no recovery. DTD and entity declarations are rejected before parsing. Internal relationship targets are normalized relative to the owning part and cannot escape the package. Missing targets are validation errors on publication.
+All parsed XML uses `resolve_entities=False`, `load_dtd=False`, `no_network=True`, `huge_tree=False` and no recovery. After that non-resolving parse, actual DTD declarations and entity nodes are rejected from the parsed structure; marker text inside comments is not misclassified as markup. Internal relationship targets are normalized relative to the owning part and cannot escape the package. Missing targets are validation errors on publication.
 
 External HTTP, HTTPS and `mailto` relationships can be preserved but are never fetched. `file`, `ftp`, `javascript`, `data`, `vbscript`, absolute internal targets and unknown external schemes are rejected. VBA content types and macro containers are rejected. Macros are never executed.
 

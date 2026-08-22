@@ -539,6 +539,10 @@ TEXT_FORMATTING_KEYS = {
     "page_break_before",
     "widow_control",
 }
+TEXT_FORMATTING_ALIASES = {
+    "font_size": "font_size_pt",
+    "alignment": "paragraph_alignment",
+}
 
 
 class WordBackend(Protocol):
@@ -3947,6 +3951,16 @@ class LiveWordBridge:
                 ErrorCode.INVALID_INPUT,
                 "formatting must be an object",
             )
+        value = dict(value)
+        for alias, canonical in TEXT_FORMATTING_ALIASES.items():
+            if alias not in value:
+                continue
+            if canonical in value:
+                raise WordToolkitError(
+                    ErrorCode.INVALID_INPUT,
+                    f"Use either {alias} or {canonical}, not both",
+                )
+            value[canonical] = value.pop(alias)
         unknown = sorted(set(value) - TEXT_FORMATTING_KEYS)
         if unknown:
             raise WordToolkitError(
@@ -3993,7 +4007,7 @@ class LiveWordBridge:
                     )
                 normalized[name] = value[name]
         numeric_ranges = {
-            "font_size_pt": (1.0, 1638.0),
+            "font_size_pt": (1.0, 200.0),
             "space_before_pt": (0.0, 1584.0),
             "space_after_pt": (0.0, 1584.0),
             "left_indent_pt": (-1584.0, 1584.0),

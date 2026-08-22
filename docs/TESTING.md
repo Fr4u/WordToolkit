@@ -170,6 +170,16 @@ uv run mutmut results
 reviewed Linux execution environment. A green unit-test or coverage job does not imply a
 green mutation result.
 
+The weekly `bounded fuzz smoke` workflow also runs on demand through
+`workflow_dispatch`. It is a deterministic, bounded mutation gate for the OPC reader:
+`OpcFuzzSmokeTests` and `OpcStructuredMutationTests` run with fixed small input/seed
+budgets on Ubuntu, with the normal package limits still active. This is not
+coverage-guided fuzzing and it is not evidence of exhaustive malformed-DOCX coverage;
+it is a cheap regression signal that malformed or structurally mutated packages stay
+inside the documented failure and preservation boundaries. The workflow deliberately
+does not run the complete native suite or claim Microsoft Word interoperability. Its
+bounded TRX diagnostics are retained for seven days even when the gate fails.
+
 For a fast semantic-oracle check while changing a parser or graph builder:
 
 ```powershell
