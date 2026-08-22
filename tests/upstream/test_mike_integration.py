@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from lxml import etree
 
 from docx_mcp import server
 from docx_mcp.document.tracks import _flatten_para
@@ -29,6 +30,136 @@ def test_flatten_para_includes_hyperlink_text(mike_corpus_docx):
     assert "thirty calendar days" in text, (
         f"hyperlink text not found in _flatten_para output; got: {text!r}"
     )
+
+
+def test_flatten_para_includes_tracked_insertion_inside_hyperlink():
+    para = etree.fromstring(
+        f"""<w:p xmlns:w="{W[1:-1]}">
+        <w:hyperlink w:anchor="target">
+          <w:ins w:id="1" w:author="Editor">
+            <w:r><w:t>inserted link text</w:t></w:r>
+          </w:ins>
+        </w:hyperlink>
+        </w:p>"""
+    )
+
+    slots = _flatten_para(para)
+
+    assert "".join(slot.char for slot in slots) == "inserted link text"
+    assert all(slot.in_ins is not None for slot in slots)
+
+
+def _mike_para(para_id: str):
+    doc = server._doc._require("word/document.xml")
+    for para in doc.iter(f"{W}p"):
+        if para.get(f"{W14}paraId") == para_id:
+            return para
+    raise AssertionError(f"paragraph {para_id} not found")
+
+
+@pytest.mark.parametrize("operation", ["delete", "replace"])
+def test_tracked_edit_crossing_hyperlink_fails_atomically(mike_corpus_docx, operation):
+    server.open_document(str(mike_corpus_docx))
+    document = server._doc._require("word/document.xml")
+    para = _mike_para("00000101")
+    before = etree.tostring(document)
+
+    with pytest.raises(ValueError, match="cannot cross run-container boundaries"):
+        if operation == "delete":
+            server.delete_text("00000101", "require thirty")
+        else:
+            server.replace_text(
+                para_id="00000101",
+                find="require thirty",
+                replace="settle",
+            )
+
+    assert etree.tostring(document) == before
+    assert "".join(slot.char for slot in _flatten_para(para)) == (
+        "Payment terms require thirty calendar days for settlement."
+    )
+    assert not list(para.iter(f"{W}del"))
+    assert not list(para.iter(f"{W}ins"))
+
+
+def test_untracked_replace_crossing_hyperlink_preserves_exact_remainder(mike_corpus_docx):
+    server.open_document(str(mike_corpus_docx))
+
+    server.replace_text(
+        para_id="00000101",
+        find="require thirty",
+        replace="settle",
+        tracked=False,
+    )
+
+    para = _mike_para("00000101")
+    assert "".join(slot.char for slot in _flatten_para(para)) == (
+        "Payment terms settle calendar days for settlement."
+    )
+    hyperlink = para.find(f"{W}hyperlink")
+    assert hyperlink is not None
+    assert "".join(node.text or "" for node in hyperlink.iter(f"{W}t")) == " calendar days"
+    replacement_runs = [
+        run
+        for run in para.iter(f"{W}r")
+        if "".join(node.text or "" for node in run.iter(f"{W}t")) == "settle"
+    ]
+    assert len(replacement_runs) == 1
+    assert replacement_runs[0].getparent() is para
+
+
+def test_untracked_cross_container_replacement_inherits_first_container(mike_corpus_docx):
+    server.open_document(str(mike_corpus_docx))
+
+    server.replace_text(
+        para_id="00000101",
+        find="days for",
+        replace="window",
+        tracked=False,
+    )
+
+    para = _mike_para("00000101")
+    assert "".join(slot.char for slot in _flatten_para(para)) == (
+        "Payment terms require thirty calendar window settlement."
+    )
+    hyperlink = para.find(f"{W}hyperlink")
+    assert hyperlink is not None
+    assert "".join(node.text or "" for node in hyperlink.iter(f"{W}t")) == (
+        "thirty calendar window"
+    )
+
+
+def test_tracked_delete_inside_hyperlink_keeps_valid_container(mike_corpus_docx):
+    server.open_document(str(mike_corpus_docx))
+
+    server.delete_text("00000101", "thirty")
+
+    para = _mike_para("00000101")
+    hyperlink = para.find(f"{W}hyperlink")
+    assert hyperlink is not None
+    deletion = hyperlink.find(f"{W}del")
+    assert deletion is not None
+    assert "".join(node.text or "" for node in deletion.iter(f"{W}delText")) == "thirty"
+
+
+@pytest.mark.parametrize("operation", ["delete", "replace"])
+def test_successful_edit_preserves_paragraph_element_identity(mike_corpus_docx, operation):
+    server.open_document(str(mike_corpus_docx))
+    para = _mike_para("00000108")
+    parent = para.getparent()
+
+    if operation == "delete":
+        server.delete_text("00000108", "initial")
+    else:
+        server.replace_text(
+            para_id="00000108",
+            find="initial deposit",
+            replace="upfront payment",
+        )
+
+    assert para.getparent() is parent
+    assert _mike_para("00000108") is para
+    assert list(para.iter(f"{W}del"))
 
 
 def test_get_body_text_returns_body_string(mike_corpus_docx):

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Hardened legacy text edits at structural and Unicode boundaries. Failed tracked
+  edits that cross a hyperlink now reject before publication instead of removing
+  an earlier run and then throwing; untracked replacements can cross the wrapper,
+  inherit the first changed character's container and preserve the exact untouched
+  hyperlink remainder. Paragraph mutations are prepared on an isolated copy and
+  published without invalidating existing paragraph references, rich inline run
+  content fails closed, and
+  UAX #29 grapheme checks prevent edits from leaving an orphaned combining mark,
+  variation selector, emoji component or regional-indicator half. Accepted-view
+  search now also includes tracked insertions nested inside hyperlinks.
+
 - Fixed case-insensitive tracked-edit anchoring for Unicode characters whose
   case-folded form expands to multiple code points, such as `ß` to `ss`. The
   normalized match now retains an exact position map back to the original Word

@@ -24,6 +24,7 @@ dependencies = [
   "Pillow>=11.2,<13",
   "pypdf>=6.15,<7",
   "mistune>=3.1,<4",
+  "regex>=2025.7,<2027",
   "pywin32>=312; sys_platform == 'win32'",
 ]
 

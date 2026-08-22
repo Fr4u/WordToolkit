@@ -14,7 +14,6 @@ WordToolkit reviewed `vace/markdown-docx` at commit `0217bc8d4a4b4fad14fcc31285a
 
 ## Runtime dependencies
 
-Direct Python dependencies and their declared licenses must be verified by the release SBOM job. Principal dependencies are the MCP Python SDK, Starlette, Uvicorn, Pydantic, lxml, latex2mathml, httpx, PyJWT, Pillow, pypdf and Mistune. The container also installs LibreOffice, Poppler and fonts from Debian packages, and builds `DocumentFormat.OpenXml` 3.3.0 from NuGet.
+Direct Python dependencies and their declared licenses must be verified by the release SBOM job. Principal dependencies are the MCP Python SDK, Starlette, Uvicorn, Pydantic, lxml, latex2mathml, httpx, PyJWT, Pillow, pypdf, Mistune and regex. The container also installs LibreOffice, Poppler and fonts from Debian packages, and builds `DocumentFormat.OpenXml` 3.3.0 from NuGet.
 
 `uv.lock` and the container base image make exact versions auditable. Before redistribution, generate an SBOM and retain all package license files required by their respective licenses.
-
