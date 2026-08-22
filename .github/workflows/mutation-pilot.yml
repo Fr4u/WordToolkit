@@ -25,4 +25,4 @@ jobs:
         run: uv run mutmut run
       - name: Print surviving and killed mutants
         if: ${{ always() }}
-        run: uv run mutmut results
+        run: uv run mutmut results --all=true
