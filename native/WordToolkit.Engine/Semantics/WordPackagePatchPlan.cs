@@ -562,10 +562,7 @@ public static class WordPackagePatchRiskAnalyzer
         var malformedPermissionRangeCount = review.Permissions.Count(permission =>
             permission.Status != WordReviewRangeStatus.Complete
         );
-        if (permissionIssueCodes.Contains(
-                "PERMISSION_COLUMN_RANGE_INCOMPLETE",
-                StringComparer.Ordinal
-            ))
+        if (permissionIssueCodes.Length != 0)
         {
             malformedPermissionRangeCount = Math.Max(
                 malformedPermissionRangeCount,

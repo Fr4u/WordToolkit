@@ -1302,9 +1302,11 @@ public sealed class PackagePatchServiceTests
         );
         var beforePath = stem + "-before.docx";
         var afterPath = stem + "-after.docx";
-        const string orphanPermission = "<w:permStart w:id='7' w:edGrp='everyone'/>";
-        WriteDocument(beforePath, beforeText, macro: null, permissionMarkup: orphanPermission);
-        WriteDocument(afterPath, afterText, macro: null, permissionMarkup: orphanPermission);
+        const string invalidPermission =
+            "<w:permStart w:id='7' w:edGrp='everyone' w:colFirst='invalid' w:colLast='2'/>"
+            + "<w:permEnd w:id='7'/>";
+        WriteDocument(beforePath, beforeText, macro: null, permissionMarkup: invalidPermission);
+        WriteDocument(afterPath, afterText, macro: null, permissionMarkup: invalidPermission);
         return new PatchFiles(stem, beforePath, afterPath);
     }
 

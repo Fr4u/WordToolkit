@@ -914,6 +914,32 @@ public sealed class WordReviewGraphBuilder
                 ordinal
             );
         }
+        else if (ParseInteger(ooxmlId) is null)
+        {
+            state.AddIssue(
+                "PERMISSION_RANGE_ID_INVALID",
+                WordReviewIssueSeverity.Error,
+                "Permission range marker w:id is not a valid Int32 value.",
+                partUri,
+                location.StoryId,
+                ordinal
+            );
+        }
+        var displacedByCustomXml = WordAttribute(element, "displacedByCustomXml");
+        if (
+            displacedByCustomXml is not null
+            && displacedByCustomXml is not ("next" or "prev")
+        )
+        {
+            state.AddIssue(
+                "PERMISSION_DISPLACEMENT_INVALID",
+                WordReviewIssueSeverity.Error,
+                "Permission range displacement metadata is invalid.",
+                partUri,
+                location.StoryId,
+                ordinal
+            );
+        }
         state.PermissionMarkers.Add(
             new Marker(
                 location,
@@ -1208,6 +1234,16 @@ public sealed class WordReviewGraphBuilder
             var start = starts.FirstOrDefault();
             var end = ends.FirstOrDefault();
             var status = RangeStatus(starts, ends);
+            var editor = start is null ? null : WordAttribute(start.Element, "ed");
+            var editorGroup = start is null ? null : WordAttribute(start.Element, "edGrp");
+            var rawColumnFirst = start is null
+                ? null
+                : WordAttribute(start.Element, "colFirst");
+            var rawColumnLast = start is null
+                ? null
+                : WordAttribute(start.Element, "colLast");
+            var columnFirst = ParseInteger(rawColumnFirst);
+            var columnLast = ParseInteger(rawColumnLast);
             var id = StableId(
                 "wdpr_",
                 first.Location.StoryId,
@@ -1221,10 +1257,10 @@ public sealed class WordReviewGraphBuilder
                 first.Location.StoryNode?.Id,
                 first.PartUri,
                 first.OoxmlId,
-                start is null ? null : WordAttribute(start.Element, "ed"),
-                start is null ? null : WordAttribute(start.Element, "edGrp"),
-                start is null ? null : ParseInteger(WordAttribute(start.Element, "colFirst")),
-                start is null ? null : ParseInteger(WordAttribute(start.Element, "colLast")),
+                editor,
+                editorGroup,
+                columnFirst,
+                columnLast,
                 starts.Length,
                 ends.Length,
                 start?.Ordinal,
@@ -1245,14 +1281,42 @@ public sealed class WordReviewGraphBuilder
             }
             if (start is not null)
             {
-                var columnFirst = WordAttribute(start.Element, "colFirst");
-                var columnLast = WordAttribute(start.Element, "colLast");
-                if ((columnFirst is null) != (columnLast is null))
+                if ((rawColumnFirst is null) != (rawColumnLast is null))
                 {
                     state.AddIssue(
                         "PERMISSION_COLUMN_RANGE_INCOMPLETE",
                         WordReviewIssueSeverity.Error,
                         "Table-column permission must define both colFirst and colLast.",
+                        first.PartUri,
+                        first.Location.StoryId,
+                        start.Ordinal,
+                        id
+                    );
+                }
+                if (
+                    rawColumnFirst is not null && columnFirst is null
+                    || rawColumnLast is not null && columnLast is null
+                )
+                {
+                    state.AddIssue(
+                        "PERMISSION_COLUMN_RANGE_INVALID",
+                        WordReviewIssueSeverity.Error,
+                        "Table-column permission contains a non-Int32 column value.",
+                        first.PartUri,
+                        first.Location.StoryId,
+                        start.Ordinal,
+                        id
+                    );
+                }
+                if (
+                    editorGroup is not null
+                    && !IsPermissionEditingGroup(editorGroup)
+                )
+                {
+                    state.AddIssue(
+                        "PERMISSION_EDITOR_GROUP_INVALID",
+                        WordReviewIssueSeverity.Error,
+                        "Permission editor-group metadata is invalid.",
                         first.PartUri,
                         first.Location.StoryId,
                         start.Ordinal,
@@ -1760,6 +1824,15 @@ public sealed class WordReviewGraphBuilder
         int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
             ? parsed
             : null;
+
+    private static bool IsPermissionEditingGroup(string value) => value is
+        "none"
+        or "everyone"
+        or "administrators"
+        or "contributors"
+        or "editors"
+        or "owners"
+        or "current";
 
     private static string? WordAttribute(XElement element, string localName) =>
         element.Attribute(element.Name.Namespace + localName)?.Value

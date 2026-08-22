@@ -146,6 +146,38 @@ public sealed class WordPackagePatchPlanTests
     }
 
     [Fact]
+    public void InvalidCompletePermissionAttributesAreNonOverridable()
+    {
+        var before = Read(BuildPackage(
+            "unused",
+            documentXml: InvalidPermissionDocumentXml("before")
+        ));
+        var after = Read(BuildPackage(
+            "unused",
+            documentXml: InvalidPermissionDocumentXml("after")
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.True(plan.RiskAssessment.Protection.HasMalformedPermissionMetadata);
+        Assert.Contains(
+            "PERMISSION_COLUMN_RANGE_INVALID",
+            plan.RiskAssessment.Protection.PermissionIssueCodes
+        );
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Fact]
     public void ProtectedNoOpDoesNotDemandMeaninglessAuthorization()
     {
         var snapshot = Read(BuildProtectedPackage("same", "readOnly", enforced: true));
@@ -656,6 +688,12 @@ public sealed class WordPackagePatchPlanTests
         + "<w:body><w:p><w:permStart w:id='7' w:edGrp='everyone'/>"
         + $"<w:r><w:t>{text}</w:t></w:r>"
         + (includeEnd ? "<w:permEnd w:id='7'/>" : string.Empty)
+        + "</w:p></w:body></w:document>";
+
+    private static string InvalidPermissionDocumentXml(string text) =>
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+        + "<w:body><w:p><w:permStart w:id='7' w:edGrp='everyone' w:colFirst='invalid' w:colLast='2'/>"
+        + $"<w:r><w:t>{text}</w:t></w:r><w:permEnd w:id='7'/>"
         + "</w:p></w:body></w:document>";
 
     private static string SettingsXml(string? editMode, bool enforced) =>

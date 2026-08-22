@@ -289,7 +289,9 @@ public sealed class PackageMergeServiceTests
     [Fact]
     public async Task MalformedPermissionRangesHardBlockMergeWithoutTouchingInputs()
     {
-        const string orphanPermission = "<w:permStart w:id='7' w:edGrp='everyone'/>";
+        const string invalidPermission =
+            "<w:permStart w:id='7' w:edGrp='everyone' w:colFirst='invalid' w:colLast='2'/>"
+            + "<w:permEnd w:id='7'/>";
         using var files = CreateFiles(
             "ancestor",
             "beta",
@@ -297,7 +299,7 @@ public sealed class PackageMergeServiceTests
             "beta",
             "ancestor",
             "right",
-            permissionMarkup: orphanPermission
+            permissionMarkup: invalidPermission
         );
         var ancestorBytes = File.ReadAllBytes(files.AncestorPath);
         var leftBytes = File.ReadAllBytes(files.LeftPath);
