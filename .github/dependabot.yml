@@ -25,6 +25,13 @@ updates:
       python-dependencies:
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: mcp
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: nuget
     directories:
