@@ -366,6 +366,54 @@ public sealed class WordReviewGraphTests
     }
 
     [Fact]
+    public void DiagnosesUnknownWordPermissionAttributes()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}"><w:body><w:p>
+              <w:permStart w:id="7" w:bogus="x"/>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd w:id="7"/>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_ATTRIBUTE_UNKNOWN"
+        );
+    }
+
+    [Fact]
+    public void PreservesExtensionNamespacePermissionAttributesAsOpaqueMetadata()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}" xmlns:w14="{Word2010}"><w:body><w:p>
+              <w:permStart w:id="7" w14:opaque="x"/>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd w:id="7"/>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.DoesNotContain(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_ATTRIBUTE_UNKNOWN"
+        );
+        Assert.Equal(
+            WordReviewRangeStatus.Complete,
+            Assert.Single(graph.Permissions).Status
+        );
+    }
+
+    [Fact]
     public void EnforcesReviewLimitsAndCapsIssueFlood()
     {
         using var bytes = BuildPackage(

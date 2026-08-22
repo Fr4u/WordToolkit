@@ -303,6 +303,91 @@ public sealed class WordPackagePatchPlanTests
         Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
     }
 
+    [Fact]
+    public void UnknownWordPermissionAttributesAreNonOverridable()
+    {
+        var before = Read(BuildPackage(
+            "unused",
+            documentXml: UnknownPermissionAttributeDocumentXml("before")
+        ));
+        var after = Read(BuildPackage(
+            "unused",
+            documentXml: UnknownPermissionAttributeDocumentXml("after")
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.Contains(
+            "PERMISSION_ATTRIBUTE_UNKNOWN",
+            plan.RiskAssessment.Protection.PermissionIssueCodes
+        );
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnrelatedMalformedReviewMetadataDoesNotAbortPermissionRisk(
+        bool includePermission
+    )
+    {
+        var extras = new Dictionary<string, byte[]>
+        {
+            ["word/commentsExtended.xml"] = Utf8("<wrong/>")
+        };
+        var before = Read(BuildPackage(
+            "unused",
+            extras,
+            CommentsExtendedContentTypeOverride(),
+            CommentsExtendedRelationships(),
+            documentXml: includePermission
+                ? PermissionDocumentXml("before", includeEnd: true)
+                : DocumentXml("before")
+        ));
+        var after = Read(BuildPackage(
+            "unused",
+            extras,
+            CommentsExtendedContentTypeOverride(),
+            CommentsExtendedRelationships(),
+            documentXml: includePermission
+                ? PermissionDocumentXml("after", includeEnd: true)
+                : DocumentXml("after")
+        ));
+
+        Assert.Throws<WordReviewProjectionException>(() =>
+            new WordReviewGraphBuilder().Build(before.Package, before.Document)
+        );
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.Equal(
+            includePermission ? 1 : 0,
+            plan.RiskAssessment.Protection.BasePermissionRangeCount
+        );
+        Assert.Equal(
+            includePermission,
+            plan.RiskAssessment.Protection.AuthorizationRequired
+        );
+        Assert.Equal(
+            !includePermission,
+            plan.Evaluate().CanApply
+        );
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -426,6 +511,48 @@ public sealed class WordPackagePatchPlanTests
         {
             AllowProtectedDocumentEdit = true,
         });
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Theory]
+    [InlineData("TRUE")]
+    [InlineData("False")]
+    [InlineData("ON")]
+    [InlineData("Off")]
+    public void ProtectionEnforcementLexicalValuesAreCaseSensitive(string enforcement)
+    {
+        var settings =
+            "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+            + $"<w:documentProtection w:edit='readOnly' w:enforcement='{enforcement}'/>"
+            + "</w:settings>";
+        var before = Read(BuildPackage(
+            "before",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+        var after = Read(BuildPackage(
+            "after",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.True(
+            plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
+        );
         Assert.False(decision.CanApply);
         Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
     }
@@ -557,6 +684,46 @@ public sealed class WordPackagePatchPlanTests
         {
             AllowProtectedDocumentEdit = true,
         });
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Fact]
+    public void MalformedSettingsXmlIsNonOverridable()
+    {
+        var extras = new Dictionary<string, byte[]>
+        {
+            ["word/settings.xml"] = Utf8(
+                "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:documentProtection"
+            ),
+        };
+        var before = Read(BuildPackage(
+            "before",
+            extras,
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+        var after = Read(BuildPackage(
+            "after",
+            extras,
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.True(
+            plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
+        );
         Assert.False(decision.CanApply);
         Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
     }
@@ -1256,6 +1423,12 @@ public sealed class WordPackagePatchPlanTests
         + "<w:permEnd w:id='7' w:edGrp='everyone' w:colFirst='0' w:colLast='2'/>"
         + "</w:p></w:body></w:document>";
 
+    private static string UnknownPermissionAttributeDocumentXml(string text) =>
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+        + "<w:body><w:p><w:permStart w:id='7' w:bogus='x'/>"
+        + $"<w:r><w:t>{text}</w:t></w:r><w:permEnd w:id='7'/>"
+        + "</w:p></w:body></w:document>";
+
     private static string SettingsXml(string? editMode, bool enforced) =>
         "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
         + (editMode is null
@@ -1293,6 +1466,13 @@ public sealed class WordPackagePatchPlanTests
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml",
         };
 
+    private static IReadOnlyDictionary<string, string> CommentsExtendedContentTypeOverride() =>
+        new Dictionary<string, string>
+        {
+            ["/word/commentsExtended.xml"] =
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtended+xml",
+        };
+
     private static string RootRelationships() =>
         "<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'>"
         + "<Relationship Id='rId1' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument' Target='word/document.xml'/>"
@@ -1306,6 +1486,11 @@ public sealed class WordPackagePatchPlanTests
     private static string SettingsRelationships() =>
         "<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'>"
         + "<Relationship Id='rIdSettings' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings' Target='settings.xml'/>"
+        + "</Relationships>";
+
+    private static string CommentsExtendedRelationships() =>
+        "<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'>"
+        + "<Relationship Id='rIdCommentsExtended' Type='http://schemas.microsoft.com/office/2011/relationships/commentsExtended' Target='commentsExtended.xml'/>"
         + "</Relationships>";
 
     private static string DuplicateSettingsRelationships() =>

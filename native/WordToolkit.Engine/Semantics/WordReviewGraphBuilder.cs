@@ -169,6 +169,43 @@ public sealed class WordReviewGraphBuilder
         );
     }
 
+    internal WordPermissionEvidence BuildPermissions(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        ArgumentNullException.ThrowIfNull(semanticDocument);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (
+            !string.Equals(
+                package.Fingerprint,
+                semanticDocument.PackageFingerprint,
+                StringComparison.Ordinal
+            )
+        )
+        {
+            throw new WordReviewProjectionException(
+                "Permission evidence requires a semantic projection of the same package snapshot."
+            );
+        }
+
+        var state = new BuildState(_options, semanticDocument);
+        foreach (var partUri in semanticDocument.ProjectedPartUris)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var source = state.SourceFor(package, partUri, this, cancellationToken);
+            ParsePermissionMarkup(partUri, source, state, cancellationToken);
+        }
+        FinalizePermissions(state);
+        return new WordPermissionEvidence(
+            state.Permissions,
+            state.Issues,
+            state.IssuesTruncated
+        );
+    }
+
     private static OpcPart? RelatedPart(
         OpcPackageSnapshot package,
         string mainPartUri,
@@ -811,6 +848,37 @@ public sealed class WordReviewGraphBuilder
         }
     }
 
+    private void ParsePermissionMarkup(
+        string partUri,
+        LosslessXmlDocument source,
+        BuildState state,
+        CancellationToken cancellationToken
+    )
+    {
+        var root = source.ParsedDocument.Root
+            ?? throw new WordReviewProjectionException(
+                $"Projected story part '{partUri}' has no root element."
+            );
+        foreach (var element in root.DescendantsAndSelf().OrderBy(source.GetElementOrdinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                IsWordElement(element)
+                && element.Name.LocalName is "permStart" or "permEnd"
+            )
+            {
+                AddPermissionMarker(
+                    partUri,
+                    source,
+                    element,
+                    element.Name.LocalName,
+                    root.Name.Namespace,
+                    state
+                );
+            }
+        }
+    }
+
     private void AddCommentMarker(
         string partUri,
         LosslessXmlDocument source,
@@ -929,6 +997,13 @@ public sealed class WordReviewGraphBuilder
             partUri,
             element,
             localName,
+            location,
+            ordinal,
+            state
+        );
+        ValidateUnknownPermissionAttributes(
+            partUri,
+            element,
             location,
             ordinal,
             state
@@ -1976,6 +2051,34 @@ public sealed class WordReviewGraphBuilder
         );
     }
 
+    private static void ValidateUnknownPermissionAttributes(
+        string partUri,
+        XElement element,
+        StoryLocation location,
+        int ordinal,
+        BuildState state
+    )
+    {
+        if (
+            !element.Attributes().Any(attribute =>
+                !attribute.IsNamespaceDeclaration
+                && attribute.Name.Namespace == element.Name.Namespace
+                && !PermissionAttributeNames.Contains(attribute.Name.LocalName)
+            )
+        )
+        {
+            return;
+        }
+        state.AddIssue(
+            "PERMISSION_ATTRIBUTE_UNKNOWN",
+            WordReviewIssueSeverity.Error,
+            "Permission-range markers contain an unrecognized WordprocessingML attribute.",
+            partUri,
+            location.StoryId,
+            ordinal
+        );
+    }
+
     private static string? WordAttribute(XElement element, string localName) =>
         element.Attribute(element.Name.Namespace + localName)?.Value
         ?? element.Attributes().FirstOrDefault(attribute =>
@@ -2401,3 +2504,9 @@ public sealed class WordReviewGraphBuilder
             );
     }
 }
+
+internal sealed record WordPermissionEvidence(
+    IReadOnlyList<WordPermissionRangeDefinition> Permissions,
+    IReadOnlyList<WordReviewIssue> Issues,
+    bool IssuesTruncated
+);

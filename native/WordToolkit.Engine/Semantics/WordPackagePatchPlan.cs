@@ -558,18 +558,18 @@ public static class WordPackagePatchRiskAnalyzer
             document.MainPartUri,
             cancellationToken
         );
-        var review = new WordReviewGraphBuilder().Build(
+        var permissions = new WordReviewGraphBuilder().BuildPermissions(
             package,
             document,
             cancellationToken
         );
-        var permissionIssueCodes = review.Issues
+        var permissionIssueCodes = permissions.Issues
             .Where(issue => issue.Code.StartsWith("PERMISSION_", StringComparison.Ordinal))
             .Select(issue => issue.Code)
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToArray();
-        var malformedPermissionRangeCount = review.Permissions.Count(permission =>
+        var malformedPermissionRangeCount = permissions.Permissions.Count(permission =>
             permission.Status != WordReviewRangeStatus.Complete
         );
         if (permissionIssueCodes.Length != 0)
@@ -584,9 +584,9 @@ public static class WordPackagePatchRiskAnalyzer
             documentProtectionMetadata.EditMode,
             documentProtectionMetadata.Fingerprint,
             documentProtectionMetadata.Unmodeled,
-            review.Permissions.Count,
+            permissions.Permissions.Count,
             malformedPermissionRangeCount,
-            review.IssuesTruncated && review.Permissions.Count != 0,
+            permissions.IssuesTruncated && permissions.Permissions.Count != 0,
             permissionIssueCodes
         );
     }
@@ -627,15 +627,29 @@ public static class WordPackagePatchRiskAnalyzer
         {
             return new DocumentProtectionMetadataEvidence(true, null);
         }
-        var source = LosslessXmlDocument.Parse(
-            part.Entry.Content,
-            cancellationToken: cancellationToken
-        );
+        LosslessXmlDocument source;
+        try
+        {
+            source = LosslessXmlDocument.Parse(
+                part.Entry.Content,
+                cancellationToken: cancellationToken
+            );
+        }
+        catch (LosslessXmlException)
+        {
+            return new DocumentProtectionMetadataEvidence(true, null);
+        }
+        if (
+            source.Root.LocalName != "settings"
+            || source.Root.NamespaceUri is not
+                "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                and not "http://purl.oclc.org/ooxml/wordprocessingml/main"
+        )
+        {
+            return new DocumentProtectionMetadataEvidence(true, source.SourceSha256);
+        }
         var elements = source.Elements.Where(candidate =>
             candidate.LocalName == "documentProtection"
-            && candidate.NamespaceUri is
-                "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-                or "http://purl.oclc.org/ooxml/wordprocessingml/main"
         ).ToArray();
         if (elements.Length == 0)
         {
@@ -644,8 +658,7 @@ public static class WordPackagePatchRiskAnalyzer
         var unmodeled = elements.Length != 1
             || elements[0].ParentOrdinal != source.Root.Ordinal
             || elements[0].NamespaceUri != source.Root.NamespaceUri
-            || source.Root.LocalName != "settings"
-            || source.Root.NamespaceUri is not
+            || elements[0].NamespaceUri is not
                 "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
                 and not "http://purl.oclc.org/ooxml/wordprocessingml/main";
         var enforced = false;
@@ -702,7 +715,7 @@ public static class WordPackagePatchRiskAnalyzer
         );
     }
 
-    private static bool? ParseOnOff(string? value) => value?.ToLowerInvariant() switch
+    private static bool? ParseOnOff(string? value) => value switch
     {
         null or "false" or "0" or "off" => false,
         "true" or "1" or "on" => true,
