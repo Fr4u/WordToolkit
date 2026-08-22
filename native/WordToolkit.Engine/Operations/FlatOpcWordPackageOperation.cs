@@ -340,7 +340,10 @@ public sealed class FlatOpcWordPackageOperation
     )
     {
         var maximumBytes = direction == FlatOpcConversionDirection.FromFlatOpc
-            ? Math.Max(_limits.MaxArchiveBytes, _limits.MaxFlatOpcXmlCharacters)
+            ? Math.Max(
+                _limits.MaxArchiveBytes,
+                MaximumEncodedXmlBytes(_limits.MaxFlatOpcXmlCharacters)
+            )
             : _limits.MaxArchiveBytes;
         return StablePackagePathSnapshot.Capture(
             path,
@@ -348,6 +351,17 @@ public sealed class FlatOpcWordPackageOperation
             cancellationToken,
             _afterInputSnapshotCopy
         );
+    }
+
+    private static long MaximumEncodedXmlBytes(long maximumCharacters)
+    {
+        const int maximumBytesPerCharacter = 4;
+        const int maximumPreambleBytes = 4;
+        return maximumCharacters > (long.MaxValue - maximumPreambleBytes)
+            / maximumBytesPerCharacter
+            ? long.MaxValue
+            : maximumCharacters * maximumBytesPerCharacter
+                + maximumPreambleBytes;
     }
 
     private static string HashSnapshot(Stream snapshot)
