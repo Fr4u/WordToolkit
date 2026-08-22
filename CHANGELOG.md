@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Closed two deterministic package-workflow gaps. `inspect_ooxml_semantics` can
+  now opt into at most 200 source-ordered text-node locators bound to paragraphs
+  already present in its bounded outline, with shared preview privacy, explicit
+  scope/count/truncation evidence and package-fingerprint guidance for guarded
+  edits. Flat OPC import/export now captures input once and uses those exact
+  bytes for conversion, validation and `InputSha256`, eliminating a path-based
+  time-of-check/time-of-use race that could previously mix three file versions.
+
 - Closed transaction-boundary gaps across both authoring surfaces. Remote draft image
   inputs are now ephemeral: invalid images, successful inserts and later batch failures
   remove their session upload instead of leaking storage quota after commit or rollback;

@@ -122,10 +122,16 @@ signature and hash provenance do not prove OCR accuracy or deterministic reprodu
 across an otherwise unbound host environment.
 Use the lazy `inspect_ooxml_semantics` action when meaning is needed without
 opening Word. Keep previews and node counts bounded; request source XML paths
-only for a precise diagnostic or planned edit.
+only for a precise diagnostic or planned edit. When the next operation is a
+guarded text edit inside a returned outline paragraph, set
+`include_text_node_locators=true` and a small `max_text_node_locators`. Each
+locator binds one exact text-node ID to its paragraph and exposes only the
+preview allowed by `text_preview_chars`. Reuse the returned
+`package_fingerprint`, and set `expected_text` only when that locator preview is
+untruncated; otherwise narrow the target with `query_ooxml_semantics`.
 Use the lazy `query_ooxml_semantics` action when the task needs exact node IDs,
-text nodes hidden beneath an outline item, a style/property selector, or a
-phrase spanning several runs. Filter narrowly, page with `next_offset`, keep
+text outside the returned outline paragraphs, a style/property selector, a
+truncated leaf value, or a phrase spanning several runs. Filter narrowly, page with `next_offset`, keep
 previews short, and request properties or source provenance only when the next
 operation consumes them. The query covers the main body and related header,
 footer, footnote, endnote, comment and glossary stories; use `source_part_uri`
@@ -838,6 +844,10 @@ Engine streams the outer XML under DTD, depth, part-count and decoded-byte limit
 reconstructs `[Content_Types].xml`, keeps binary and AltChunk payloads binary, blocks
 signed packages and publishes only after part/content-type/relationship/payload-semantic
 round-trip proof. The response contains hashes, filenames and counts, never raw XML.
+Input bytes are captured once through a bounded shared-read snapshot and the reported
+`input_sha256` covers exactly the bytes converted and validated. If another process keeps
+writing the input during capture, stop on retryable `SOURCE_CHANGED`, wait for the save
+to finish and retry; do not treat a prior hash as current.
 Do not use this operation as a signature-preserving archive format: XML lexical bytes
 may be reserialized even though tree semantics are verified.
 

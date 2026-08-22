@@ -16,11 +16,13 @@ WordToolkit deliberately avoids claiming complete Microsoft Word parity.
 
 - The numbering sequence executor and repair are deliberately bounded. The executor formats only deterministic decimal, zero-padded decimal, Roman, Latin-letter and `none` labels. Locale-dependent/custom formats and picture bullets retain exact counter evidence but no invented label; paragraphs under revision or unresolved MCE wrappers are skipped because no view is selected. The only mutation is `restart_numbering_sequence` with fixed scope `remaining_instance_in_story`: it clones one existing `w:num`, reassigns the selected and later uses of that instance in the same story, and writes one explicit non-negative start. It does not rebuild abstract definitions or levels, repair corrupt numbering, merge lists, render picture bullets/locales, integrate HTML/SVG lists or provide a cross-version Office matrix. Signed packages, stale IDs, ambiguous revisions/MCE, structural errors, new SDK errors and tails above 10,000 paragraphs fail closed. Detail output is capped at 200 paragraphs with an explicit truncation flag. Guarded real-Word qualifications cover Word 16.0 build 16.0.20131; the observed replacement-level `start` precedence conflicts with Microsoft's written note, so the repair synchronizes `startOverride` and replacement-level `start` only for that qualified behavior and exposes the compatibility rule.
 - Semantic indexing is currently a bounded single-process acceleration layer, not a durable search database. A handle covers one immutable package fingerprint, at most 100,000 nodes and one million property occurrences; the runtime keeps no more than four handles or 250,000 cached nodes, expires them within 30 minutes and loses them on restart. It indexes exact kind/part/property postings and can derive strict ancestor/descendant candidate sets with one tree propagation, but it has no full-text tokens, durable relationship postings, embeddings or multi-document ranking. Parent/child, sibling and arbitrary dependency-graph axes are not query predicates. Raw document text stays in process memory as part of the semantic projection and is never returned by index management, but it is not encrypted in memory. Callers should release handles as soon as repeated queries finish.
-- The compact `inspect_ooxml_semantics` outline omits leaf `text` node IDs even though
-  guarded text-edit plans require a text target. Callers must create a semantic index
-  and query the bounded `semantic_node_kind=text` to discover those IDs; passing the visible paragraph
-  ID to a text edit correctly fails as non-editable. A direct outline-to-text binding is
-  still missing.
+- The compact `inspect_ooxml_semantics` outline keeps leaf `text` nodes out of the
+  default response. Callers preparing a guarded edit inside a returned outline
+  paragraph can opt into at most 200 flat `text_node_locators`, each bound to its
+  paragraph and the response package fingerprint. Locators are limited to returned
+  outline paragraphs and may be truncated globally or per text preview; text outside
+  that scope, exact long values and phrases spanning runs still require a bounded
+  `query_ooxml_semantics` call. A visible paragraph ID itself remains non-editable.
 - Saved-package semantic style mutation can create a minimal inherited paragraph,
   character, table or numbering style, losslessly clone one existing definition,
   consolidate an explicitly selected custom, non-default source into an existing

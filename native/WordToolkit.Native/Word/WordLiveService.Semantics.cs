@@ -36,6 +36,20 @@ internal sealed partial class WordLiveService
         }
 
         var includeSourcePaths = arguments.Boolean("include_source_paths", false);
+        var includeTextNodeLocators = arguments.Boolean(
+            "include_text_node_locators",
+            false
+        );
+        var requestedTextNodeLocatorMaximum =
+            arguments.NullableInt64("max_text_node_locators") ?? 80;
+        if (requestedTextNodeLocatorMaximum is < 1 or > 200)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "max_text_node_locators must be between 1 and 200"
+            );
+        }
+
         try
         {
             var package = new OpcPackageReader().Read(path, cancellationToken);
@@ -57,8 +71,8 @@ internal sealed partial class WordLiveService
                 .ToArray();
             var maxNodes = (int)requestedMaximum;
             var previewCharacters = (int)requestedPreview;
-            var outline = outlineCandidates
-                .Take(maxNodes)
+            var returnedOutlineNodes = outlineCandidates.Take(maxNodes).ToArray();
+            var outline = returnedOutlineNodes
                 .Select(node =>
                 {
                     var rawPreview = previewCharacters == 0
@@ -89,6 +103,63 @@ internal sealed partial class WordLiveService
                     };
                 })
                 .ToArray();
+            var returnedParagraphIds = returnedOutlineNodes
+                .Where(node => node.Kind == WordSemanticNodeKind.Paragraph)
+                .Select(node => node.Id)
+                .ToHashSet();
+            var textNodeLocatorCandidateList = new List<(
+                WordSemanticNode Paragraph,
+                WordSemanticNode Text
+            )>();
+            if (includeTextNodeLocators)
+            {
+                foreach (
+                    var textNode in document.Nodes.Where(node =>
+                        node.Kind == WordSemanticNodeKind.Text
+                    )
+                )
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var paragraph = FindNearestParagraph(
+                        document,
+                        textNode,
+                        returnedParagraphIds
+                    );
+                    if (paragraph is not null)
+                    {
+                        textNodeLocatorCandidateList.Add((paragraph, textNode));
+                    }
+                }
+            }
+            var textNodeLocatorCandidates = textNodeLocatorCandidateList.ToArray();
+            var textNodeLocatorMaximum = (int)requestedTextNodeLocatorMaximum;
+            var textNodeLocators = includeTextNodeLocators
+                ? textNodeLocatorCandidates
+                    .Take(textNodeLocatorMaximum)
+                    .Select(candidate =>
+                    {
+                        var rawPreview = previewCharacters == 0
+                            ? null
+                            : candidate.Text.TextPreview(previewCharacters + 1);
+                        var previewTruncated = rawPreview is not null
+                            && rawPreview.Length > previewCharacters;
+                        var preview = previewTruncated
+                            ? rawPreview![..previewCharacters]
+                            : rawPreview;
+                        return new
+                        {
+                            node_id = candidate.Text.Id.Value,
+                            paragraph_node_id = candidate.Paragraph.Id.Value,
+                            source_order = candidate.Text.SourceOrder,
+                            identity_kind = ToSnakeCase(
+                                candidate.Text.IdentityKind.ToString()
+                            ),
+                            text_preview = preview,
+                            text_preview_truncated = previewTruncated,
+                        };
+                    })
+                    .ToArray()
+                : null;
             var returnedWarnings = document.Warnings
                 .Take(40)
                 .Select(warning => BoundForResponse(warning, 512))
@@ -113,6 +184,17 @@ internal sealed partial class WordLiveService
                 node_counts = counts,
                 outline,
                 outline_truncated = outlineCandidates.Length > outline.Length,
+                text_node_locator_scope = includeTextNodeLocators
+                    ? "returned_outline_paragraphs"
+                    : null,
+                text_node_locator_count = includeTextNodeLocators
+                    ? textNodeLocatorCandidates.Length
+                    : (int?)null,
+                returned_text_node_locator_count = textNodeLocators?.Length,
+                text_node_locators = textNodeLocators,
+                text_node_locators_truncated = includeTextNodeLocators
+                    ? textNodeLocatorCandidates.Length > textNodeLocators!.Length
+                    : (bool?)null,
                 warnings = returnedWarnings,
                 warnings_truncated = document.Warnings.Count > returnedWarnings.Length,
                 runtime = "dotnet-native",
@@ -198,6 +280,26 @@ internal sealed partial class WordLiveService
         or WordSemanticNodeKind.Drawing
         or WordSemanticNodeKind.AlternateContent
         or WordSemanticNodeKind.ExtensionIsland;
+
+    private static WordSemanticNode? FindNearestParagraph(
+        WordSemanticDocument document,
+        WordSemanticNode node,
+        IReadOnlySet<SemanticNodeId> returnedParagraphIds
+    )
+    {
+        var parentId = node.ParentId;
+        while (parentId is { } id && document.TryGetNode(id, out var parent))
+        {
+            if (parent!.Kind == WordSemanticNodeKind.Paragraph)
+            {
+                return returnedParagraphIds.Contains(parent.Id) ? parent : null;
+            }
+
+            parentId = parent.ParentId;
+        }
+
+        return null;
+    }
 
     private static string ToSnakeCase(string value)
     {

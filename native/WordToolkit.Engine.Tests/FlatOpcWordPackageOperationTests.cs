@@ -100,6 +100,147 @@ public sealed class FlatOpcWordPackageOperationTests
     }
 
     [Fact]
+    public void ImportUsesOneInputSnapshotWhenSourceChangesAfterCapture()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var source = Path.Combine(directory, "source.docx");
+            var flat = Path.Combine(directory, "transport.xml");
+            var output = Path.Combine(directory, "roundtrip.docx");
+            using (var package = FlatOpcPackageCodecTests.BuildWordPackage())
+            using (var file = File.Create(source)) package.CopyTo(file);
+            new FlatOpcWordPackageOperation().Execute(
+                new FlatOpcWordPackageRequest(
+                    source,
+                    flat,
+                    FlatOpcConversionDirection.ToFlatOpc
+                )
+            );
+            var originalHash = Hash(flat);
+            var mutated = false;
+            var operation = new FlatOpcWordPackageOperation(
+                null,
+                null,
+                path =>
+                {
+                    File.AppendAllText(path, "\n<!-- changed after snapshot -->\n");
+                    mutated = true;
+                }
+            );
+
+            var result = operation.Execute(
+                new FlatOpcWordPackageRequest(
+                    flat,
+                    output,
+                    FlatOpcConversionDirection.FromFlatOpc
+                )
+            );
+
+            Assert.True(mutated);
+            Assert.Equal(originalHash, result.InputSha256);
+            Assert.NotEqual(originalHash, Hash(flat));
+            Assert.True(result.StructurallyValid);
+            Assert.Equal(
+                result.ResultPackageFingerprint,
+                new OpcPackageReader().Read(output).Fingerprint
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ExportUsesOneInputSnapshotWhenSourceChangesAfterCapture()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var source = Path.Combine(directory, "source.docx");
+            var output = Path.Combine(directory, "transport.xml");
+            using (var package = FlatOpcPackageCodecTests.BuildWordPackage())
+            using (var file = File.Create(source)) package.CopyTo(file);
+            var originalHash = Hash(source);
+            var originalFingerprint = new OpcPackageReader().Read(source).Fingerprint;
+            var mutated = false;
+            var operation = new FlatOpcWordPackageOperation(
+                null,
+                null,
+                path =>
+                {
+                    File.AppendAllText(path, "changed after snapshot");
+                    mutated = true;
+                }
+            );
+
+            var result = operation.Execute(
+                new FlatOpcWordPackageRequest(
+                    source,
+                    output,
+                    FlatOpcConversionDirection.ToFlatOpc
+                )
+            );
+
+            Assert.True(mutated);
+            Assert.Equal(originalHash, result.InputSha256);
+            Assert.NotEqual(originalHash, Hash(source));
+            Assert.Equal(originalFingerprint, result.SourcePackageFingerprint);
+            Assert.True(result.StructurallyValid);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ChangingInputDuringSnapshotReturnsSourceChanged()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var source = Path.Combine(directory, "source.docx");
+            var flat = Path.Combine(directory, "transport.xml");
+            var output = Path.Combine(directory, "roundtrip.docx");
+            using (var package = FlatOpcPackageCodecTests.BuildWordPackage())
+            using (var file = File.Create(source)) package.CopyTo(file);
+            new FlatOpcWordPackageOperation().Execute(
+                new FlatOpcWordPackageRequest(
+                    source,
+                    flat,
+                    FlatOpcConversionDirection.ToFlatOpc
+                )
+            );
+            var operation = new FlatOpcWordPackageOperation(
+                null,
+                null,
+                null,
+                _ => File.AppendAllText(flat, "\n<!-- concurrent write -->\n")
+            );
+
+            var exception = Assert.Throws<WordToolkitOperationException>(() =>
+                operation.Execute(
+                    new FlatOpcWordPackageRequest(
+                        flat,
+                        output,
+                        FlatOpcConversionDirection.FromFlatOpc
+                    )
+                )
+            );
+
+            Assert.Equal("SOURCE_CHANGED", exception.Code);
+            Assert.True(exception.Retryable);
+            Assert.False(File.Exists(output));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void BundledAdvancedDocumentRoundTripsDespiteXmlDeclarationNormalization()
     {
         var root = FindRepositoryRoot();

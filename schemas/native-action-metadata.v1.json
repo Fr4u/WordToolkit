@@ -411,6 +411,70 @@
           "outline": {
             "type": "array"
           },
+          "text_node_locator_scope": {
+            "type": "string",
+            "const": "returned_outline_paragraphs"
+          },
+          "text_node_locator_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "returned_text_node_locator_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 200
+          },
+          "text_node_locators": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "object",
+              "required": [
+                "node_id",
+                "paragraph_node_id",
+                "source_order",
+                "identity_kind",
+                "text_preview_truncated"
+              ],
+              "properties": {
+                "node_id": {
+                  "type": "string",
+                  "pattern": "^wdn_[A-Za-z0-9_-]+$",
+                  "maxLength": 128
+                },
+                "paragraph_node_id": {
+                  "type": "string",
+                  "pattern": "^wdn_[A-Za-z0-9_-]+$",
+                  "maxLength": 128
+                },
+                "source_order": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "identity_kind": {
+                  "type": "string",
+                  "enum": [
+                    "durable_anchor",
+                    "content_fingerprint"
+                  ]
+                },
+                "text_preview": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 400
+                },
+                "text_preview_truncated": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "text_node_locators_truncated": {
+            "type": "boolean"
+          },
           "warnings": {
             "type": "array"
           },
