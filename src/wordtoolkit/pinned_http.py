@@ -25,10 +25,23 @@ class PinnedAsyncNetworkBackend(httpcore.AsyncNetworkBackend):
         self.pinned_address = str(ipaddress.ip_address(pinned_address))
         self._delegate = AutoBackend()
 
-    async def connect_tcp(self, host: str, port: int, **kwargs):
+    async def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options: typing.Iterable[httpcore.SOCKET_OPTION] | None = None,
+    ) -> httpcore.AsyncNetworkStream:
         if host != self.hostname:
             raise RuntimeError("Pinned transport received an unexpected origin host")
-        return await self._delegate.connect_tcp(self.pinned_address, port, **kwargs)
+        return await self._delegate.connect_tcp(
+            self.pinned_address,
+            port,
+            timeout=timeout,
+            local_address=local_address,
+            socket_options=socket_options,
+        )
 
     async def connect_unix_socket(self, *args, **kwargs):
         raise RuntimeError("Pinned transport does not support Unix sockets")
@@ -37,8 +50,14 @@ class PinnedAsyncNetworkBackend(httpcore.AsyncNetworkBackend):
         await self._delegate.sleep(seconds)
 
 
+class _AsyncResponseBody(typing.Protocol):
+    def __aiter__(self) -> typing.AsyncIterator[bytes]: ...
+
+    async def aclose(self) -> None: ...
+
+
 class _AsyncResponseStream(httpx.AsyncByteStream):
-    def __init__(self, stream: typing.AsyncIterable[bytes]):
+    def __init__(self, stream: _AsyncResponseBody):
         self._stream = stream
 
     async def __aiter__(self):
@@ -97,7 +116,7 @@ class PinnedAsyncTransport(httpx.AsyncBaseTransport):
         return httpx.Response(
             status_code=response.status,
             headers=response.headers,
-            stream=_AsyncResponseStream(response.stream),
+            stream=_AsyncResponseStream(typing.cast(_AsyncResponseBody, response.stream)),
             extensions=response.extensions,
             request=request,
         )

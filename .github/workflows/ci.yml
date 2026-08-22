@@ -191,6 +191,7 @@ jobs:
       - run: uv sync --extra dev --locked
       - run: uv run ruff check src/wordtoolkit scripts tests/test_*.py
       - run: uv run ruff format --check .
+      - run: uv run mypy src/wordtoolkit
       - run: uv run python scripts/apply_metadata_contracts.py --check
       - run: uv run python scripts/generate_action_guidance.py --check
       - name: Focused metadata, plugin and draft-contract tests

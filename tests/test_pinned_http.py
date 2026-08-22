@@ -21,8 +21,21 @@ async def test_backend_replaces_only_tcp_host(monkeypatch):
 
     backend = PinnedAsyncNetworkBackend("files.example", "93.184.216.34")
     backend._delegate = Delegate()
-    await backend.connect_tcp("files.example", 443, timeout=2)
+    socket_options = [(1, 2, 3)]
+    await backend.connect_tcp(
+        "files.example",
+        443,
+        timeout=2,
+        local_address="192.0.2.10",
+        socket_options=socket_options,
+    )
     assert calls[0][0] == "93.184.216.34"
+    assert calls[0][1] == 443
+    assert calls[0][2] == {
+        "timeout": 2,
+        "local_address": "192.0.2.10",
+        "socket_options": socket_options,
+    }
     with pytest.raises(RuntimeError):
         await backend.connect_tcp("other.example", 443)
 

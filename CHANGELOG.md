@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Repaired the pinned HTTP transport's typed `httpcore` adapter contract by
+  forwarding the complete TCP timeout, local-address and socket-option inputs and
+  by modeling the asynchronous response body explicitly. The maintained Python
+  layer is now checked by mypy in CI instead of relying on stale prose claims.
+  Python dependency updates retain the deliberate `mcp<2` compatibility boundary;
+  Dependabot groups minor and patch updates while MCP 2 remains blocked until its
+  removed `mcp.server.fastmcp` API is migrated deliberately. The exact
+  `pydantic-settings==2.15.0` build is excluded because it reports FastMCP's
+  unresolved `lifespan` field during server construction; later fixed builds remain
+  eligible, and pytest now fails if that incomplete-field warning returns.
+
 - Prepared the `0.60.7` live-equation COM-ownership line. Repeated native-equation
   inspection and point replacement now release their `OMaths`, equation, range,
   formatted-text, content and custom-Undo RCWs on success, rejection, rollback and
