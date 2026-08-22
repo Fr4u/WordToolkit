@@ -615,15 +615,18 @@ paragraph changes run inside one Undo record and preserve the selection.
 
 The formatting object is also accepted by `insert_live_word_text` and each
 `type="text"` entry in `apply_live_word_operations`. Supported fields cover
-font family and size, `#RRGGBB` color, bold/italic/underline, caps, strike,
-hidden text, paragraph alignment, spacing and indentation, keep-with-next,
-keep-together, page-break-before and widow control. The canonical size and
-alignment names are `font_size_pt` (1 through 200) and
-`paragraph_alignment` (`left`, `center`, `right`, or `justify`). Compatibility
+font family and size, `#RRGGBB` color, bold/italic/underline, caps, single or
+double strike, hidden text, highlight color indexes `0` through `16`, paragraph
+alignment, spacing and indentation, keep-with-next, keep-together,
+page-break-before and widow control. The canonical size and alignment names are
+`font_size_pt` (1 through 200) and `paragraph_alignment` (`left`, `center`,
+`right`, `justify`, or `distribute`). Compatibility
 aliases `font_size` and `alignment` are accepted and normalized before COM;
 supplying an alias together with its canonical field is invalid. The action
-schema publishes the complete property-name set. Unknown names, wrong JSON
+schema publishes types and bounds for the complete property set. Unknown names, wrong JSON
 types and out-of-range values fail during preflight, before Word is mutated.
+`strike` and `double_strike` may each be false or omitted, but cannot both be
+true because Word clears the first mode when the second is applied.
 
 One text operation may use `runs` instead of `text` to apply distinct font
 formatting inside a single paragraph. Run-level formatting accepts font fields

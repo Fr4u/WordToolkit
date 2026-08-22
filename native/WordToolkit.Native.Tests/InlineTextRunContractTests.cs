@@ -86,6 +86,8 @@ public sealed class InlineTextRunContractTests
     [InlineData("{\"font_size_pt\":\"12\"}")]
     [InlineData("{\"font_name\":7}")]
     [InlineData("{\"font_color_rgb\":\"red\"}")]
+    [InlineData("{\"highlight_color_index\":17}")]
+    [InlineData("{\"highlight_color_index\":1.5}")]
     public void RejectsInvalidInlineFormattingTypesBeforeCom(string json)
     {
         using var document = JsonDocument.Parse(json);
@@ -98,6 +100,78 @@ public sealed class InlineTextRunContractTests
         );
 
         Assert.Equal("INVALID_INPUT", error.ErrorCode);
+    }
+
+    [Fact]
+    public void RejectsDocumentAlignmentOutsideThePublishedContract()
+    {
+        using var document = JsonDocument.Parse("""{"paragraph_alignment":"thai"}""");
+
+        var error = Assert.Throws<NativeToolException>(() =>
+            WordLiveService.NormalizeFormattingForTesting(document.RootElement)
+        );
+
+        Assert.Equal("INVALID_INPUT", error.ErrorCode);
+    }
+
+    [Fact]
+    public void RejectsFontNameAboveThePublishedLimit()
+    {
+        using var document = JsonDocument.Parse(
+            JsonSerializer.Serialize(new { font_name = new string('x', 129) })
+        );
+
+        var error = Assert.Throws<NativeToolException>(() =>
+            WordLiveService.NormalizeFormattingForTesting(document.RootElement)
+        );
+
+        Assert.Equal("INVALID_INPUT", error.ErrorCode);
+    }
+
+    [Fact]
+    public void RejectsMutuallyEnabledStrikeModesBeforeCom()
+    {
+        using var document = JsonDocument.Parse("""{"strike":true,"double_strike":true}""");
+
+        var error = Assert.Throws<NativeToolException>(() =>
+            WordLiveService.NormalizeFormattingForTesting(
+                document.RootElement,
+                allowParagraphFormatting: false
+            )
+        );
+
+        Assert.Equal("INVALID_INPUT", error.ErrorCode);
+        Assert.Contains("cannot both be true", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AppliesAndCapturesExtendedNativeFormatting()
+    {
+        using var document = JsonDocument.Parse(
+            """
+            {
+              "strike": false,
+              "double_strike": true,
+              "highlight_color_index": 7,
+              "paragraph_alignment": "distribute"
+            }
+            """
+        );
+        var range = new ExtendedFormattingFakeRange();
+
+        var captured = WordLiveService.ApplyAndCaptureFormattingForTesting(
+            range,
+            document.RootElement
+        );
+
+        Assert.Equal(0, range.Font.StrikeThrough);
+        Assert.Equal(-1, range.Font.DoubleStrikeThrough);
+        Assert.Equal(7, range.HighlightColorIndex);
+        Assert.Equal(4, range.ParagraphFormat.Alignment);
+        Assert.Equal("0", captured["strike"]);
+        Assert.Equal("-1", captured["double_strike"]);
+        Assert.Equal("7", captured["highlight_color_index"]);
+        Assert.Equal("4", captured["paragraph_alignment"]);
     }
 
     [Fact]
@@ -119,6 +193,19 @@ public sealed class InlineTextRunContractTests
         Assert.True(formattingProperties["font_size"]!["deprecated"]!.GetValue<bool>());
         Assert.Equal("boolean", formattingProperties["bold"]!["type"]!.GetValue<string>());
         Assert.Equal("boolean", formattingProperties["underline"]!["type"]!.GetValue<string>());
+        Assert.Equal(
+            "boolean",
+            formattingProperties["double_strike"]!["type"]!.GetValue<string>()
+        );
+        Assert.Equal(
+            16,
+            formattingProperties["highlight_color_index"]!["maximum"]!.GetValue<int>()
+        );
+        Assert.Contains(
+            "distribute",
+            formattingProperties["paragraph_alignment"]!["enum"]!.ToJsonString(),
+            StringComparison.Ordinal
+        );
         Assert.True(formattingProperties["alignment"]!["deprecated"]!.GetValue<bool>());
         Assert.Contains("font_size_pt", textFormatting["allOf"]!.ToJsonString());
         Assert.Contains("paragraph_alignment", textFormatting["allOf"]!.ToJsonString());
@@ -131,4 +218,25 @@ public sealed class InlineTextRunContractTests
         Assert.Contains("\"type\":\"null\"", item.ToJsonString(), StringComparison.Ordinal);
         Assert.DoesNotContain("#/definitions/", item.ToJsonString(), StringComparison.Ordinal);
     }
+}
+
+public sealed class ExtendedFormattingFakeRange
+{
+    public ExtendedFormattingFakeFont Font { get; } = new();
+
+    public ExtendedFormattingFakeParagraphFormat ParagraphFormat { get; } = new();
+
+    public int HighlightColorIndex { get; set; }
+}
+
+public sealed class ExtendedFormattingFakeFont
+{
+    public int StrikeThrough { get; set; }
+
+    public int DoubleStrikeThrough { get; set; }
+}
+
+public sealed class ExtendedFormattingFakeParagraphFormat
+{
+    public int Alignment { get; set; }
 }
