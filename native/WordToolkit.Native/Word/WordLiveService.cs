@@ -3550,140 +3550,260 @@ internal sealed partial class WordLiveService : IToolHandler
         PreparedEquationOperation equationOperation
     )
     {
-        dynamic equationRange = document.Range(start, end);
-        dynamic added = document.OMaths.Add(equationRange);
-        dynamic equation = added.OMaths.Item(1);
-        equation.BuildUp();
-        EquationStyleRewriteResult? styleRewrite = null;
-        EquationStyleVerification? styleVerification = null;
-        string readbackXml = "";
-        if (equationOperation.HasFormatting)
+        dynamic? equationRange = null;
+        dynamic? added = null;
+        dynamic? equation = null;
+        var equationOwnershipTransferred = false;
+        try
         {
-            var equationStart = (int)equation.Range.Start;
-            var equationsBeforeRewrite = (int)document.OMaths.Count;
-            styleRewrite = EquationStyleRewriter.Rewrite(
-                (string?)equation.Range.WordOpenXML ?? "",
-                equationOperation.StyleCounts
-            );
-            dynamic rewriteRange = equation.Range.Duplicate;
-            try { rewriteRange.InsertXML(styleRewrite.WordOpenXml); }
-            finally { if (Marshal.IsComObject(rewriteRange)) Marshal.FinalReleaseComObject(rewriteRange); }
-            // InsertXML replaces the OMath and Word may expand the duplicate range
-            // to include adjacent tail content.  Binding through that range is
-            // therefore unsafe: it can return two equations or a range that escapes
-            // the publication segment.  Re-bind the replacement by its stable story
-            // position instead, then keep the existing semantic verification below.
-            dynamic? rewrittenEquation = null;
-            dynamic allEquations = document.OMaths;
-            int allEquationCount;
-            try { allEquationCount = (int)allEquations.Count; }
-            catch
-            {
-                if (Marshal.IsComObject(allEquations)) Marshal.FinalReleaseComObject(allEquations);
-                throw;
-            }
-            if (allEquationCount != equationsBeforeRewrite)
-            {
-                if (Marshal.IsComObject(allEquations))
-                {
-                    Marshal.FinalReleaseComObject(allEquations);
-                }
-                throw new NativeToolException(
-                    "EQUATION_INVALID",
-                    "Microsoft Word changed the native equation collection while rewriting one equation",
-                    new { before = equationsBeforeRewrite, after = allEquationCount, equation_start = equationStart }
-                );
-            }
             try
             {
-                for (var equationIndex = 1; equationIndex <= allEquationCount; equationIndex++)
+                equationRange = document.Range(start, end);
+                dynamic addedOMaths = document.OMaths;
+                try
                 {
-                    dynamic candidate = allEquations.Item(equationIndex);
-                    var keepCandidate = false;
+                    added = addedOMaths.Add(equationRange);
+                    dynamic addedEquationOMaths = added.OMaths;
                     try
                     {
-                        var candidateStart = (int)candidate.Range.Start;
-                        var candidateEnd = (int)candidate.Range.End;
-                        if (candidateStart == equationStart && candidateEnd > candidateStart)
-                        {
-                            if (rewrittenEquation is not null)
-                            {
-                                if (Marshal.IsComObject(rewrittenEquation)) Marshal.FinalReleaseComObject(rewrittenEquation);
-                                rewrittenEquation = null;
-                                throw new NativeToolException(
-                                    "EQUATION_INVALID",
-                                    "Microsoft Word produced multiple styled native equations at one position",
-                                    new { equation_start = equationStart }
-                                );
-                            }
-                            rewrittenEquation = candidate;
-                            keepCandidate = true;
-                        }
+                        equation = addedEquationOMaths.Item(1);
                     }
                     finally
                     {
-                        if (!keepCandidate && Marshal.IsComObject(candidate))
-                        {
-                            Marshal.FinalReleaseComObject(candidate);
-                        }
+                        FinalReleaseBatchComObject(addedEquationOMaths);
                     }
                 }
-            }
-            catch
-            {
-                if (rewrittenEquation is not null && Marshal.IsComObject(rewrittenEquation))
+                finally
                 {
-                    Marshal.FinalReleaseComObject(rewrittenEquation);
-                    rewrittenEquation = null;
+                    FinalReleaseBatchComObject(addedOMaths);
                 }
-                throw;
             }
             finally
             {
-                if (Marshal.IsComObject(allEquations))
-                {
-                    Marshal.FinalReleaseComObject(allEquations);
-                }
+                FinalReleaseBatchComObject(added);
+                FinalReleaseBatchComObject(equationRange);
             }
-            if (rewrittenEquation is null)
+            if (equation is null)
             {
                 throw new NativeToolException(
                     "EQUATION_INVALID",
-                    "Microsoft Word did not preserve exactly one styled native equation",
-                    new
-                    {
-                        equation_count = 0,
-                        equation_start = equationStart,
-                    }
+                    "Microsoft Word did not return the native equation created for the staged operation"
                 );
             }
-            equation = rewrittenEquation;
-        }
-        equation.Type = equationOperation.Display ? 0 : 1;
-        if (styleRewrite is not null)
-        {
-            readbackXml = (string?)equation.Range.WordOpenXML ?? "";
-            styleVerification = EquationStyleRewriter.Verify(readbackXml, styleRewrite);
-        }
-        EquationReadbackVerification? readback = null;
-        if (equationOperation.VerifyReadback)
-        {
-            if (readbackXml.Length == 0)
+            equation.BuildUp();
+            EquationStyleRewriteResult? styleRewrite = null;
+            EquationStyleVerification? styleVerification = null;
+            string readbackXml = "";
+            if (equationOperation.HasFormatting)
             {
-                readbackXml = (string?)equation.Range.WordOpenXML ?? "";
+                dynamic equationStartRange = equation.Range;
+                int equationStart;
+                try
+                {
+                    equationStart = (int)equationStartRange.Start;
+                }
+                finally
+                {
+                    FinalReleaseBatchComObject(equationStartRange);
+                }
+                dynamic rewriteOMaths = document.OMaths;
+                int equationsBeforeRewrite;
+                try
+                {
+                    equationsBeforeRewrite = (int)rewriteOMaths.Count;
+                }
+                finally
+                {
+                    FinalReleaseBatchComObject(rewriteOMaths);
+                }
+                dynamic equationXmlRange = equation.Range;
+                string equationXml;
+                try
+                {
+                    equationXml = (string?)equationXmlRange.WordOpenXML ?? "";
+                }
+                finally
+                {
+                    FinalReleaseBatchComObject(equationXmlRange);
+                }
+                styleRewrite = EquationStyleRewriter.Rewrite(equationXml, equationOperation.StyleCounts);
+                dynamic rewriteSourceRange = equation.Range;
+                dynamic rewriteRange;
+                try
+                {
+                    rewriteRange = rewriteSourceRange.Duplicate;
+                }
+                finally
+                {
+                    FinalReleaseBatchComObject(rewriteSourceRange);
+                }
+                try { rewriteRange.InsertXML(styleRewrite.WordOpenXml); }
+                finally { if (Marshal.IsComObject(rewriteRange)) Marshal.FinalReleaseComObject(rewriteRange); }
+                // InsertXML replaces the OMath and Word may expand the duplicate range
+                // to include adjacent tail content.  Binding through that range is
+                // therefore unsafe: it can return two equations or a range that escapes
+                // the publication segment.  Re-bind the replacement by its stable story
+                // position instead, then keep the existing semantic verification below.
+                dynamic? rewrittenEquation = null;
+                dynamic allEquations = document.OMaths;
+                int allEquationCount;
+                try { allEquationCount = (int)allEquations.Count; }
+                catch
+                {
+                    if (Marshal.IsComObject(allEquations)) Marshal.FinalReleaseComObject(allEquations);
+                    throw;
+                }
+                if (allEquationCount != equationsBeforeRewrite)
+                {
+                    if (Marshal.IsComObject(allEquations))
+                    {
+                        Marshal.FinalReleaseComObject(allEquations);
+                    }
+                    throw new NativeToolException(
+                        "EQUATION_INVALID",
+                        "Microsoft Word changed the native equation collection while rewriting one equation",
+                        new { before = equationsBeforeRewrite, after = allEquationCount, equation_start = equationStart }
+                    );
+                }
+                try
+                {
+                    for (var equationIndex = 1; equationIndex <= allEquationCount; equationIndex++)
+                    {
+                        dynamic candidate = allEquations.Item(equationIndex);
+                        var keepCandidate = false;
+                        try
+                        {
+                            dynamic candidateRange = candidate.Range;
+                            int candidateStart;
+                            int candidateEnd;
+                            try
+                            {
+                                candidateStart = (int)candidateRange.Start;
+                                candidateEnd = (int)candidateRange.End;
+                            }
+                            finally
+                            {
+                                FinalReleaseBatchComObject(candidateRange);
+                            }
+                            if (candidateStart == equationStart && candidateEnd > candidateStart)
+                            {
+                                if (rewrittenEquation is not null)
+                                {
+                                    if (Marshal.IsComObject(rewrittenEquation)) Marshal.FinalReleaseComObject(rewrittenEquation);
+                                    rewrittenEquation = null;
+                                    throw new NativeToolException(
+                                        "EQUATION_INVALID",
+                                        "Microsoft Word produced multiple styled native equations at one position",
+                                        new { equation_start = equationStart }
+                                    );
+                                }
+                                rewrittenEquation = candidate;
+                                keepCandidate = true;
+                            }
+                        }
+                        finally
+                        {
+                            if (!keepCandidate && Marshal.IsComObject(candidate))
+                            {
+                                Marshal.FinalReleaseComObject(candidate);
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    if (rewrittenEquation is not null && Marshal.IsComObject(rewrittenEquation))
+                    {
+                        Marshal.FinalReleaseComObject(rewrittenEquation);
+                        rewrittenEquation = null;
+                    }
+                    throw;
+                }
+                finally
+                {
+                    if (Marshal.IsComObject(allEquations))
+                    {
+                        Marshal.FinalReleaseComObject(allEquations);
+                    }
+                }
+                if (rewrittenEquation is null)
+                {
+                    throw new NativeToolException(
+                        "EQUATION_INVALID",
+                        "Microsoft Word did not preserve exactly one styled native equation",
+                        new
+                        {
+                            equation_count = 0,
+                            equation_start = equationStart,
+                        }
+                    );
+                }
+                var sameEquationIdentity = false;
+                try
+                {
+                    sameEquationIdentity = SameWordComIdentity(equation, rewrittenEquation);
+                }
+                catch (InvalidComObjectException)
+                {
+                    // InsertXML can invalidate the replaced wrapper before identity comparison.
+                }
+                if (!sameEquationIdentity)
+                {
+                    FinalReleaseBatchComObject(equation);
+                }
+                equation = rewrittenEquation;
             }
-            readback = EquationReadbackVerifier.Verify(
-                readbackXml,
-                equationOperation.Linear
+            equation.Type = equationOperation.Display ? 0 : 1;
+            if (styleRewrite is not null)
+            {
+                dynamic equationReadbackRange = equation.Range;
+                try
+                {
+                    readbackXml = (string?)equationReadbackRange.WordOpenXML ?? "";
+                }
+                finally
+                {
+                    FinalReleaseBatchComObject(equationReadbackRange);
+                }
+                styleVerification = EquationStyleRewriter.Verify(readbackXml, styleRewrite);
+            }
+            EquationReadbackVerification? readback = null;
+            if (equationOperation.VerifyReadback)
+            {
+                if (readbackXml.Length == 0)
+                {
+                    dynamic equationReadbackRange = equation.Range;
+                    try
+                    {
+                        readbackXml = (string?)equationReadbackRange.WordOpenXML ?? "";
+                    }
+                    finally
+                    {
+                        FinalReleaseBatchComObject(equationReadbackRange);
+                    }
+                }
+                readback = EquationReadbackVerifier.Verify(
+                    readbackXml,
+                    equationOperation.Linear
+                );
+            }
+            var result = new BuiltEquationResult(
+                (object)equation,
+                equationOperation,
+                readback,
+                styleRewrite,
+                styleVerification
             );
+            equationOwnershipTransferred = true;
+            return result;
         }
-        return new BuiltEquationResult(
-            (object)equation,
-            equationOperation,
-            readback,
-            styleRewrite,
-            styleVerification
-        );
+        finally
+        {
+            if (!equationOwnershipTransferred)
+            {
+                FinalReleaseBatchComObject(equation);
+            }
+        }
     }
 
     private async Task<object> SaveAsync(
@@ -5205,13 +5325,25 @@ internal sealed partial class WordLiveService : IToolHandler
 
     private static string SelectionContextHash(dynamic document, int start, int end)
     {
-        var documentEnd = Math.Max(0, (int)document.Content.End - 1);
-        var contextStart = Math.Max(0, start - 64);
-        var contextEnd = Math.Min(documentEnd, end + 64);
-        var text = (string?)document.Range(contextStart, contextEnd).Text ?? "";
-        var payload = $"{start}\0{end}\0{text}";
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)))
-            .ToLowerInvariant();
+        dynamic? content = null;
+        dynamic? contextRange = null;
+        try
+        {
+            content = document.Content;
+            var documentEnd = Math.Max(0, (int)content.End - 1);
+            var contextStart = Math.Max(0, start - 64);
+            var contextEnd = Math.Min(documentEnd, end + 64);
+            contextRange = document.Range(contextStart, contextEnd);
+            var text = (string?)contextRange.Text ?? "";
+            var payload = $"{start}\0{end}\0{text}";
+            return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)))
+                .ToLowerInvariant();
+        }
+        finally
+        {
+            FinalReleaseBatchComObject(contextRange);
+            FinalReleaseBatchComObject(content);
+        }
     }
 
     private void TrimSelectionGrants()

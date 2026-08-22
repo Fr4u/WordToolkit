@@ -416,6 +416,11 @@ internal sealed partial class WordLiveService
             $"wordtoolkit-live-recovery-{Guid.NewGuid():N}.xml"
         );
         dynamic? recoveryDocument = null;
+        dynamic? sourceContent = null;
+        dynamic? targetContent = null;
+        dynamic? sourceRange = null;
+        dynamic? targetRange = null;
+        dynamic? sourceFormattedText = null;
         Exception? failure = null;
         var trackRevisionsRead = false;
         var originalTrackRevisions = false;
@@ -451,15 +456,16 @@ internal sealed partial class WordLiveService
             {
                 targetDocument.TrackRevisions = false;
             }
-            dynamic sourceContent = recoveryDocument.Content;
-            dynamic targetContent = targetDocument.Content;
+            sourceContent = recoveryDocument.Content;
+            targetContent = targetDocument.Content;
             var sourceStart = (int)sourceContent.Start;
             var sourceEnd = Math.Max(sourceStart, (int)sourceContent.End - 1);
             var targetStart = (int)targetContent.Start;
             var targetEnd = Math.Max(targetStart, (int)targetContent.End - 1);
-            dynamic sourceRange = recoveryDocument.Range(sourceStart, sourceEnd);
-            dynamic targetRange = targetDocument.Range(targetStart, targetEnd);
-            targetRange.FormattedText = sourceRange.FormattedText;
+            sourceRange = recoveryDocument.Range(sourceStart, sourceEnd);
+            targetRange = targetDocument.Range(targetStart, targetEnd);
+            sourceFormattedText = sourceRange.FormattedText;
+            targetRange.FormattedText = sourceFormattedText;
             if (originalTrackRevisions)
             {
                 targetDocument.TrackRevisions = true;
@@ -483,6 +489,11 @@ internal sealed partial class WordLiveService
                     // The recovery failure remains authoritative and will quarantine the handle.
                 }
             }
+            FinalReleaseBatchComObject(sourceFormattedText);
+            FinalReleaseBatchComObject(targetRange);
+            FinalReleaseBatchComObject(sourceRange);
+            FinalReleaseBatchComObject(sourceContent);
+            FinalReleaseBatchComObject(targetContent);
             CloseStagingArtifacts(
                 recoveryDocument,
                 temporaryPath,
@@ -683,32 +694,41 @@ internal sealed partial class WordLiveService
             );
         }
 
-        string readbackXml = "";
-        EquationStyleVerification? styleVerification = null;
-        if (stagedEquation.StyleRewrite is not null)
+        dynamic? equationRange = null;
+        try
         {
-            readbackXml = (string?)equation.Range.WordOpenXML ?? "";
-            styleVerification = EquationStyleRewriter.Verify(
-                readbackXml,
-                stagedEquation.StyleRewrite
+            equationRange = equation.Range;
+            string readbackXml = "";
+            EquationStyleVerification? styleVerification = null;
+            if (stagedEquation.StyleRewrite is not null)
+            {
+                readbackXml = (string?)equationRange.WordOpenXML ?? "";
+                styleVerification = EquationStyleRewriter.Verify(
+                    readbackXml,
+                    stagedEquation.StyleRewrite
+                );
+            }
+            EquationReadbackVerification? readback = null;
+            if (operation.VerifyReadback)
+            {
+                if (readbackXml.Length == 0)
+                {
+                    readbackXml = (string?)equationRange.WordOpenXML ?? "";
+                }
+                readback = EquationReadbackVerifier.Verify(readbackXml, operation.Linear);
+            }
+            return new BuiltEquationResult(
+                (object)equation,
+                operation,
+                readback,
+                stagedEquation.StyleRewrite,
+                styleVerification
             );
         }
-        EquationReadbackVerification? readback = null;
-        if (operation.VerifyReadback)
+        finally
         {
-            if (readbackXml.Length == 0)
-            {
-                readbackXml = (string?)equation.Range.WordOpenXML ?? "";
-            }
-            readback = EquationReadbackVerifier.Verify(readbackXml, operation.Linear);
+            FinalReleaseBatchComObject(equationRange);
         }
-        return new BuiltEquationResult(
-            (object)equation,
-            operation,
-            readback,
-            stagedEquation.StyleRewrite,
-            styleVerification
-        );
     }
 
     private static void VerifyPublishedTextOperation(

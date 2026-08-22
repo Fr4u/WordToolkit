@@ -49,71 +49,93 @@ internal sealed partial class WordLiveService
             application =>
             {
                 dynamic document = ResolveDocument(application, record);
-                var total = (int)document.OMaths.Count;
-                var returned = Math.Min(limit, Math.Max(0, total - offset));
-                var items = new object[returned];
-                for (var itemIndex = 0; itemIndex < returned; itemIndex++)
+                dynamic? equations = null;
+                try
                 {
-                    var equationIndex = offset + itemIndex + 1;
-                    dynamic equation = document.OMaths.Item(equationIndex);
-                    dynamic range = equation.Range;
-                    var start = (int)range.Start;
-                    var end = (int)range.End;
-                    var wordOpenXml = (string?)range.WordOpenXML ?? "";
-                    var semanticHash = RollbackSemanticSha256(wordOpenXml);
-                    var contextHash = SelectionContextHash(document, start, end);
-                    var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32))
-                        .ToLowerInvariant();
-                    _equationGrants[token] = new EquationGrant(
-                        token,
-                        record.Id,
-                        record.Version,
-                        equationIndex,
-                        start,
-                        end,
-                        semanticHash,
-                        contextHash
-                    );
-                    var text = ((string?)range.Text ?? "")
-                        .Replace("\0", "", StringComparison.Ordinal);
-                    var textHash = Convert.ToHexString(
-                            SHA256.HashData(Encoding.UTF8.GetBytes(text))
-                        )
-                        .ToLowerInvariant()[..16];
-                    items[itemIndex] = new
+                    equations = document.OMaths;
+                    var total = (int)equations.Count;
+                    var returned = Math.Min(limit, Math.Max(0, total - offset));
+                    var items = new object[returned];
+                    for (var itemIndex = 0; itemIndex < returned; itemIndex++)
                     {
-                        equation_index = equationIndex,
-                        display = (int)equation.Type == 0,
-                        range = new { start, end },
-                        text_characters = text.Length,
-                        text_sha256 = textHash,
-                        text_preview = includeTextPreview
-                            ? text[..Math.Min(text.Length, 256)]
-                            : null,
-                        text_preview_truncated = includeTextPreview && text.Length > 256
-                            ? true
-                            : (bool?)null,
-                        equation_token = token,
-                        token_live_version = record.Version,
+                        dynamic? equation = null;
+                        dynamic? range = null;
+                        try
+                        {
+                            var equationIndex = offset + itemIndex + 1;
+                            equation = equations.Item(equationIndex);
+                            range = equation.Range;
+                            var start = (int)range.Start;
+                            var end = (int)range.End;
+                            var wordOpenXml = (string?)range.WordOpenXML ?? "";
+                            var semanticHash = RollbackSemanticSha256(wordOpenXml);
+                            var contextHash = SelectionContextHash(document, start, end);
+                            var token = Convert.ToHexString(
+                                    RandomNumberGenerator.GetBytes(32)
+                                )
+                                .ToLowerInvariant();
+                            _equationGrants[token] = new EquationGrant(
+                                token,
+                                record.Id,
+                                record.Version,
+                                equationIndex,
+                                start,
+                                end,
+                                semanticHash,
+                                contextHash
+                            );
+                            var text = ((string?)range.Text ?? "")
+                                .Replace("\0", "", StringComparison.Ordinal);
+                            var textHash = Convert.ToHexString(
+                                    SHA256.HashData(Encoding.UTF8.GetBytes(text))
+                                )
+                                .ToLowerInvariant()[..16];
+                            items[itemIndex] = new
+                            {
+                                equation_index = equationIndex,
+                                display = (int)equation.Type == 0,
+                                range = new { start, end },
+                                text_characters = text.Length,
+                                text_sha256 = textHash,
+                                text_preview = includeTextPreview
+                                    ? text[..Math.Min(text.Length, 256)]
+                                    : null,
+                                text_preview_truncated = includeTextPreview
+                                    && text.Length > 256
+                                        ? true
+                                        : (bool?)null,
+                                equation_token = token,
+                                token_live_version = record.Version,
+                                raw_omml_returned = false,
+                            };
+                        }
+                        finally
+                        {
+                            FinalReleaseBatchComObject(range);
+                            FinalReleaseBatchComObject(equation);
+                        }
+                    }
+                    TrimEquationGrants();
+                    return new
+                    {
+                        live_document_id = record.Id,
+                        live_version = record.Version,
+                        equation_count = total,
+                        offset,
+                        returned_equation_count = returned,
+                        next_offset = offset + returned < total
+                            ? offset + returned
+                            : (int?)null,
+                        equations = items,
                         raw_omml_returned = false,
+                        document = DocumentInfo(application, document),
+                        performance = Performance(started),
                     };
                 }
-                TrimEquationGrants();
-                return new
+                finally
                 {
-                    live_document_id = record.Id,
-                    live_version = record.Version,
-                    equation_count = total,
-                    offset,
-                    returned_equation_count = returned,
-                    next_offset = offset + returned < total
-                        ? offset + returned
-                        : (int?)null,
-                    equations = items,
-                    raw_omml_returned = false,
-                    document = DocumentInfo(application, document),
-                    performance = Performance(started),
-                };
+                    FinalReleaseBatchComObject(equations);
+                }
             },
             cancellationToken
         );
@@ -196,198 +218,243 @@ internal sealed partial class WordLiveService
                 {
                     document.Activate();
                 }
-                dynamic currentEquation = ResolveVerifiedEquation(
-                    document,
-                    record,
-                    equationIndex,
-                    grant
-                );
-                dynamic targetRange = currentEquation.Range.Duplicate;
-                var targetStart = (int)targetRange.Start;
-                var targetEnd = (int)targetRange.End;
-                var rollbackSnapshot = CaptureLiveRollbackSnapshot(
-                    document,
-                    targetStart,
-                    targetEnd,
-                    record.Version
-                );
-                var equationPayload = NormalizeWordText(operation.Value);
-                var stagingPayload = equationPayload + "\r";
-                StagedPreparedBatch? staged = null;
-                var stagingOpen = false;
+                dynamic? currentEquation = null;
+                dynamic? currentEquationRange = null;
+                dynamic? targetRange = null;
+                dynamic? publishedRange = null;
+                dynamic? publishedEquation = null;
+                dynamic? finalRange = null;
                 try
                 {
-                    staged = StagePreparedBatch(
-                        application,
+                    currentEquation = ResolveVerifiedEquation(
                         document,
-                        new PreparedOperation[] { operation },
-                        stagingPayload,
-                        new (int Start, int End)[] { (0, equationPayload.Length) }
-                    );
-                    stagingOpen = true;
-                    EnsureTargetUnchangedBeforePublication(
-                        document,
-                        rollbackSnapshot,
-                        record
-                    );
-                }
-                catch (Exception stagingException)
-                {
-                    Exception effectiveException = stagingException;
-                    if (staged is not null && stagingOpen)
-                    {
-                        try
-                        {
-                            CloseStagedPreparedBatch(
-                                staged,
-                                targetMutationAttempted: false,
-                                originalFailure: stagingException
-                            );
-                        }
-                        catch (Exception cleanupException)
-                        {
-                            effectiveException = cleanupException;
-                        }
-                    }
-                    EnsureTargetUnchangedBeforePublication(
-                        document,
-                        rollbackSnapshot,
                         record,
-                        effectiveException
+                        equationIndex,
+                        grant
                     );
-                    throw effectiveException;
-                }
-
-                var beforeContentEnd = (int)document.Content.End;
-                var beforeEquationCount = (int)document.OMaths.Count;
-                var replacedLength = targetEnd - targetStart;
-                dynamic? undoRecord = null;
-                var undoStarted = false;
-                var mutationAttempted = false;
-                bool? originalScreenUpdating = null;
-                try
-                {
-                    if (optimizeScreenUpdates)
-                    {
-                        originalScreenUpdating = (bool)application.ScreenUpdating;
-                        application.ScreenUpdating = false;
-                    }
-                    undoRecord = application.UndoRecord;
-                    undoRecord.StartCustomRecord("WordToolkit: update native equation");
-                    undoStarted = true;
-                    mutationAttempted = true;
-                    targetRange.FormattedText = ((dynamic)staged!.Equations[0].Equation)
-                        .Range.FormattedText;
-
-                    CloseStagedPreparedBatch(staged, targetMutationAttempted: true);
-                    stagingOpen = false;
-                    document.Activate();
-
-                    var afterContentEnd = (int)document.Content.End;
-                    var publishedLength = afterContentEnd - beforeContentEnd + replacedLength;
-                    dynamic publishedRange = document.Range(
+                    currentEquationRange = currentEquation.Range;
+                    targetRange = currentEquationRange.Duplicate;
+                    var targetStart = (int)targetRange.Start;
+                    var targetEnd = (int)targetRange.End;
+                    var rollbackSnapshot = CaptureLiveRollbackSnapshot(
+                        document,
                         targetStart,
-                        targetStart + publishedLength
+                        targetEnd,
+                        record.Version
                     );
-                    if (
-                        (int)document.OMaths.Count != beforeEquationCount
-                        || (int)publishedRange.OMaths.Count != 1
-                    )
+                    var equationPayload = NormalizeWordText(operation.Value);
+                    var stagingPayload = equationPayload + "\r";
+                    StagedPreparedBatch? staged = null;
+                    var stagingOpen = false;
+                    try
                     {
-                        throw new NativeToolException(
-                            "EQUATION_INVALID",
-                            "Microsoft Word did not preserve exactly one equation during point update",
-                            new
-                            {
-                                before = beforeEquationCount,
-                                after = (int)document.OMaths.Count,
-                                published = (int)publishedRange.OMaths.Count,
-                            }
+                        staged = StagePreparedBatch(
+                            application,
+                            document,
+                            new PreparedOperation[] { operation },
+                            stagingPayload,
+                            new (int Start, int End)[] { (0, equationPayload.Length) }
+                        );
+                        stagingOpen = true;
+                        EnsureTargetUnchangedBeforePublication(
+                            document,
+                            rollbackSnapshot,
+                            record
                         );
                     }
-                    dynamic publishedEquation = publishedRange.OMaths.Item(1);
-                    var verified = VerifyPublishedEquation(
-                        publishedEquation,
-                        staged.Equations[0]
-                    );
-                    undoRecord.EndCustomRecord();
-                    undoStarted = false;
-                    record.Version++;
-                    InvalidateSelectionGrants(record.Id);
-                    InvalidateRangeGrants(record.Id);
-                    InvalidateUndoGrants(record.Id);
-                    _equationLearning.AddOrUpdate(
-                        $"success:{operation.InputFormat}",
-                        1,
-                        static (_, current) => current + 1
-                    );
-                    dynamic finalRange = ((dynamic)verified.Equation).Range;
-                    return new
+                    catch (Exception stagingException)
                     {
-                        live_document_id = record.Id,
-                        live_version = record.Version,
-                        equation_index = equationIndex,
-                        updated = true,
-                        native_verified = true,
-                        readback_verified = verified.Readback is not null,
-                        native_style_verified = verified.StyleVerification is not null,
-                        range = new
+                        Exception effectiveException = stagingException;
+                        if (staged is not null && stagingOpen)
                         {
-                            start = (int)finalRange.Start,
-                            end = (int)finalRange.End,
-                        },
-                        stale_equation_token_invalidated = true,
-                        raw_omml_returned = false,
-                        document = DocumentInfo(application, document),
-                        performance = Performance(started),
-                    };
-                }
-                catch (Exception exception)
-                {
-                    Exception effectiveException = exception;
-                    if (stagingOpen)
+                            try
+                            {
+                                CloseStagedPreparedBatch(
+                                    staged,
+                                    targetMutationAttempted: false,
+                                    originalFailure: stagingException
+                                );
+                            }
+                            catch (Exception cleanupException)
+                            {
+                                effectiveException = cleanupException;
+                            }
+                        }
+                        EnsureTargetUnchangedBeforePublication(
+                            document,
+                            rollbackSnapshot,
+                            record,
+                            effectiveException
+                        );
+                        throw effectiveException;
+                    }
+
+                    var beforeContentEnd = ReadLiveContentEnd(document);
+                    var beforeEquationCount = ReadLiveEquationCount(document);
+                    var replacedLength = targetEnd - targetStart;
+                    dynamic? undoRecord = null;
+                    var undoStarted = false;
+                    var mutationAttempted = false;
+                    bool? originalScreenUpdating = null;
+                    try
                     {
+                        if (optimizeScreenUpdates)
+                        {
+                            originalScreenUpdating = (bool)application.ScreenUpdating;
+                            application.ScreenUpdating = false;
+                        }
+                        undoRecord = application.UndoRecord;
+                        undoRecord.StartCustomRecord("WordToolkit: update native equation");
+                        undoStarted = true;
+                        mutationAttempted = true;
+                        dynamic? stagedEquationRange = null;
+                        dynamic? stagedFormattedText = null;
                         try
                         {
-                            CloseStagedPreparedBatch(
-                                staged!,
-                                targetMutationAttempted: mutationAttempted,
-                                originalFailure: exception
-                            );
+                            stagedEquationRange = ((dynamic)staged!.Equations[0].Equation).Range;
+                            stagedFormattedText = stagedEquationRange.FormattedText;
+                            targetRange.FormattedText = stagedFormattedText;
                         }
-                        catch (Exception cleanupException)
+                        finally
                         {
-                            effectiveException = cleanupException;
+                            FinalReleaseBatchComObject(stagedFormattedText);
+                            FinalReleaseBatchComObject(stagedEquationRange);
+                        }
+
+                        CloseStagedPreparedBatch(staged, targetMutationAttempted: true);
+                        stagingOpen = false;
+                        document.Activate();
+
+                        var afterContentEnd = ReadLiveContentEnd(document);
+                        var publishedLength = afterContentEnd - beforeContentEnd + replacedLength;
+                        publishedRange = document.Range(
+                            targetStart,
+                            targetStart + publishedLength
+                        );
+                        var afterEquationCount = ReadLiveEquationCount(document);
+                        dynamic? publishedEquations = null;
+                        int publishedEquationCount;
+                        try
+                        {
+                            publishedEquations = publishedRange.OMaths;
+                            publishedEquationCount = (int)publishedEquations.Count;
+                            if (
+                                afterEquationCount != beforeEquationCount
+                                || publishedEquationCount != 1
+                            )
+                            {
+                                throw new NativeToolException(
+                                    "EQUATION_INVALID",
+                                    "Microsoft Word did not preserve exactly one equation during point update",
+                                    new
+                                    {
+                                        before = beforeEquationCount,
+                                        after = afterEquationCount,
+                                        published = publishedEquationCount,
+                                    }
+                                );
+                            }
+                            publishedEquation = publishedEquations.Item(1);
+                        }
+                        finally
+                        {
+                            FinalReleaseBatchComObject(publishedEquations);
+                        }
+                        var verified = VerifyPublishedEquation(
+                            publishedEquation,
+                            staged.Equations[0]
+                        );
+                        undoRecord.EndCustomRecord();
+                        undoStarted = false;
+                        record.Version++;
+                        InvalidateSelectionGrants(record.Id);
+                        InvalidateRangeGrants(record.Id);
+                        InvalidateUndoGrants(record.Id);
+                        _equationLearning.AddOrUpdate(
+                            $"success:{operation.InputFormat}",
+                            1,
+                            static (_, current) => current + 1
+                        );
+                        finalRange = ((dynamic)verified.Equation).Range;
+                        var finalStart = (int)finalRange.Start;
+                        var finalEnd = (int)finalRange.End;
+                        return new
+                        {
+                            live_document_id = record.Id,
+                            live_version = record.Version,
+                            equation_index = equationIndex,
+                            updated = true,
+                            native_verified = true,
+                            readback_verified = verified.Readback is not null,
+                            native_style_verified = verified.StyleVerification is not null,
+                            range = new
+                            {
+                                start = finalStart,
+                                end = finalEnd,
+                            },
+                            stale_equation_token_invalidated = true,
+                            raw_omml_returned = false,
+                            document = DocumentInfo(application, document),
+                            performance = Performance(started),
+                        };
+                    }
+                    catch (Exception exception)
+                    {
+                        Exception effectiveException = exception;
+                        if (stagingOpen)
+                        {
+                            try
+                            {
+                                CloseStagedPreparedBatch(
+                                    staged!,
+                                    targetMutationAttempted: mutationAttempted,
+                                    originalFailure: exception
+                                );
+                            }
+                            catch (Exception cleanupException)
+                            {
+                                effectiveException = cleanupException;
+                            }
+                        }
+                        _equationLearning.AddOrUpdate(
+                            $"failure:{operation.InputFormat}",
+                            1,
+                            static (_, current) => current + 1
+                        );
+                        RollbackPreparedOperationsOrThrow(
+                            document,
+                            undoRecord,
+                            ref undoStarted,
+                            mutationAttempted,
+                            rollbackSnapshot,
+                            record,
+                            effectiveException,
+                            independentRestore: (Action)(() =>
+                                RestoreLiveMainStoryFromFlatOpc(
+                                    application,
+                                    document,
+                                    staged!.BaselineFlatOpc
+                                ))
+                        );
+                        throw effectiveException;
+                    }
+                    finally
+                    {
+                        FinalReleaseBatchComObject(undoRecord);
+                        if (originalScreenUpdating is not null)
+                        {
+                            application.ScreenUpdating = originalScreenUpdating.Value;
                         }
                     }
-                    _equationLearning.AddOrUpdate(
-                        $"failure:{operation.InputFormat}",
-                        1,
-                        static (_, current) => current + 1
-                    );
-                    RollbackPreparedOperationsOrThrow(
-                        document,
-                        undoRecord,
-                        ref undoStarted,
-                        mutationAttempted,
-                        rollbackSnapshot,
-                        record,
-                        effectiveException,
-                        independentRestore: (Action)(() =>
-                            RestoreLiveMainStoryFromFlatOpc(
-                                application,
-                                document,
-                                staged!.BaselineFlatOpc
-                            ))
-                    );
-                    throw effectiveException;
                 }
                 finally
                 {
-                    if (originalScreenUpdating is not null)
-                    {
-                        application.ScreenUpdating = originalScreenUpdating.Value;
-                    }
+                    FinalReleaseBatchComObject(finalRange);
+                    FinalReleaseBatchComObject(publishedEquation);
+                    FinalReleaseBatchComObject(publishedRange);
+                    FinalReleaseBatchComObject(targetRange);
+                    FinalReleaseBatchComObject(currentEquationRange);
+                    FinalReleaseBatchComObject(currentEquation);
                 }
             },
             cancellationToken
@@ -401,42 +468,87 @@ internal sealed partial class WordLiveService
         EquationGrant grant
     )
     {
-        var count = (int)document.OMaths.Count;
-        if (
-            grant.DocumentId != record.Id
-            || grant.Version != record.Version
-            || grant.EquationIndex != equationIndex
-            || equationIndex > count
-        )
+        dynamic? equations = null;
+        dynamic? equation = null;
+        dynamic? range = null;
+        try
         {
-            throw new NativeToolException(
-                "VERSION_CONFLICT",
-                "The equation set changed after the token was issued",
-                retryable: true
+            equations = document.OMaths;
+            var count = (int)equations.Count;
+            if (
+                grant.DocumentId != record.Id
+                || grant.Version != record.Version
+                || grant.EquationIndex != equationIndex
+                || equationIndex > count
+            )
+            {
+                throw new NativeToolException(
+                    "VERSION_CONFLICT",
+                    "The equation set changed after the token was issued",
+                    retryable: true
+                );
+            }
+            equation = equations.Item(equationIndex);
+            range = equation.Range;
+            var start = (int)range.Start;
+            var end = (int)range.End;
+            var semanticHash = RollbackSemanticSha256(
+                (string?)range.WordOpenXML ?? ""
             );
+            var contextHash = SelectionContextHash(document, start, end);
+            if (
+                grant.Start != start
+                || grant.End != end
+                || !FixedHashEquals(grant.EquationSemanticHash, semanticHash)
+                || !FixedHashEquals(grant.ContextHash, contextHash)
+            )
+            {
+                throw new NativeToolException(
+                    "VERSION_CONFLICT",
+                    "The native equation or its surrounding context changed after the token was issued",
+                    retryable: true
+                );
+            }
         }
-        dynamic equation = document.OMaths.Item(equationIndex);
-        dynamic range = equation.Range;
-        var start = (int)range.Start;
-        var end = (int)range.End;
-        var semanticHash = RollbackSemanticSha256(
-            (string?)range.WordOpenXML ?? ""
-        );
-        var contextHash = SelectionContextHash(document, start, end);
-        if (
-            grant.Start != start
-            || grant.End != end
-            || !FixedHashEquals(grant.EquationSemanticHash, semanticHash)
-            || !FixedHashEquals(grant.ContextHash, contextHash)
-        )
+        catch
         {
-            throw new NativeToolException(
-                "VERSION_CONFLICT",
-                "The native equation or its surrounding context changed after the token was issued",
-                retryable: true
-            );
+            FinalReleaseBatchComObject(equation);
+            throw;
         }
-        return equation;
+        finally
+        {
+            FinalReleaseBatchComObject(range);
+            FinalReleaseBatchComObject(equations);
+        }
+        return equation!;
+    }
+
+    private static int ReadLiveContentEnd(dynamic document)
+    {
+        dynamic? content = null;
+        try
+        {
+            content = document.Content;
+            return (int)content.End;
+        }
+        finally
+        {
+            FinalReleaseBatchComObject(content);
+        }
+    }
+
+    private static int ReadLiveEquationCount(dynamic owner)
+    {
+        dynamic? equations = null;
+        try
+        {
+            equations = owner.OMaths;
+            return (int)equations.Count;
+        }
+        finally
+        {
+            FinalReleaseBatchComObject(equations);
+        }
     }
 
     private static bool FixedHashEquals(string left, string right)
