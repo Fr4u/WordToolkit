@@ -688,6 +688,17 @@ class FakeOMaths:
         return self.items[index - 1]
 
 
+class FakeAggregateDriftOMaths(FakeOMaths):
+    def __init__(self):
+        super().__init__()
+        self.count_reads = 0
+
+    @property
+    def Count(self) -> int:
+        self.count_reads += 1
+        return len(self.items) + (1 if self.count_reads > 1 else 0)
+
+
 class FakeTextRange:
     def __init__(self, text: str, start: int = -1, end: int = -1):
         self.Text = text
@@ -2723,7 +2734,7 @@ def test_live_word_mixed_batch_rolls_back_after_partial_word_failure(live_bridge
         return original_add(equation_range)
 
     document.OMaths.Add = fail_second_add
-    with pytest.raises(WordToolkitError):
+    with pytest.raises(WordToolkitError) as error:
         bridge.apply_operations(
             "owner",
             connected["live_document_id"],
@@ -2740,9 +2751,125 @@ def test_live_word_mixed_batch_rolls_back_after_partial_word_failure(live_bridge
         )
 
     assert add_calls == 2
+    assert error.value.code is ErrorCode.EXTERNAL_TOOL_FAILED
+    assert error.value.details is not None
+    assert error.value.details["failed_operation_index"] == 1
     assert document.undo_calls == 1
     assert application.UndoRecord.started == application.UndoRecord.ended == 1
     assert application.ScreenUpdating is True
+    assert bridge.inspect("owner", connected["live_document_id"])["live_version"] == 0
+
+
+def test_live_word_mixed_batch_reports_failed_equation_index_and_rolls_back(live_bridge) -> None:
+    bridge, application, document = live_bridge
+    connected = bridge.connect("owner", use_active=True)
+    document.word_open_xml_override = _fake_word_open_xml("not-the-requested-equation")
+
+    with pytest.raises(WordToolkitError) as error:
+        bridge.apply_operations(
+            "owner",
+            connected["live_document_id"],
+            operations=[
+                {"type": "text", "text": "before", "as_new_paragraph": True},
+                {"type": "equation", "value": r"x=1", "input_format": "latex"},
+                {"type": "text", "text": "after", "as_new_paragraph": True},
+            ],
+            expected_version=0,
+            verify_readback=True,
+        )
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+    assert error.value.details is not None
+    assert error.value.details["failed_operation_index"] == 1
+    assert "before" not in document.text
+    assert "after" not in document.text
+    assert document.undo_calls == 1
+    assert bridge.inspect("owner", connected["live_document_id"])["live_version"] == 0
+
+
+@pytest.mark.parametrize(
+    ("equation", "expected_code"),
+    [
+        (
+            {
+                "type": "equation",
+                "value": "I=1/3 (x^2+1)^(3/2)+C",
+                "input_format": "unicodemath",
+            },
+            ErrorCode.EQUATION_INVALID,
+        ),
+        (
+            {
+                "type": "equation",
+                "value": [],
+                "input_format": "latex",
+            },
+            ErrorCode.INVALID_INPUT,
+        ),
+    ],
+)
+def test_live_word_mixed_batch_reports_preflight_equation_index_without_attaching(
+    live_bridge,
+    equation,
+    expected_code,
+) -> None:
+    bridge, application, document = live_bridge
+    connected = bridge.connect("owner", use_active=True)
+    before_attach_calls = bridge.backend.attach_calls
+
+    with pytest.raises(WordToolkitError) as error:
+        bridge.apply_operations(
+            "owner",
+            connected["live_document_id"],
+            operations=[
+                {"type": "text", "text": "before", "as_new_paragraph": True},
+                equation,
+                {"type": "text", "text": "after", "as_new_paragraph": True},
+            ],
+            expected_version=0,
+        )
+
+    assert error.value.code is expected_code
+    assert error.value.details is not None
+    assert error.value.details["failed_operation_index"] == 1
+    assert bridge.backend.attach_calls == before_attach_calls
+    assert application.UndoRecord.started == 0
+    assert "before" not in document.text
+    assert "after" not in document.text
+    assert bridge.inspect("owner", connected["live_document_id"])["live_version"] == 0
+
+
+def test_live_word_mixed_batch_marks_aggregate_equation_failure_without_false_index(
+    live_bridge,
+) -> None:
+    bridge, application, document = live_bridge
+    connected = bridge.connect("owner", use_active=True)
+    document.OMaths = FakeAggregateDriftOMaths()
+
+    with pytest.raises(WordToolkitError) as error:
+        bridge.apply_operations(
+            "owner",
+            connected["live_document_id"],
+            operations=[
+                {"type": "text", "text": "before", "as_new_paragraph": True},
+                {
+                    "type": "equation",
+                    "value": "x=1",
+                    "input_format": "latex",
+                },
+            ],
+            expected_version=0,
+            verify_readback=False,
+        )
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+    assert error.value.details is not None
+    assert "failed_operation_index" not in error.value.details
+    assert error.value.details["failed_operation_index_available"] is False
+    assert error.value.details["failure_scope"] == "batch"
+    assert "before" not in document.text
+    assert document.undo_calls == 1
+    assert application.UndoRecord.started == application.UndoRecord.ended == 1
     assert bridge.inspect("owner", connected["live_document_id"])["live_version"] == 0
 
 

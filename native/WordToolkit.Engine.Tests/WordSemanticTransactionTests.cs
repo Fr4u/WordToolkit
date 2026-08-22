@@ -141,6 +141,52 @@ public sealed class WordSemanticTransactionTests
         );
     }
 
+    [Theory]
+    [InlineData("w", "ins", "t")]
+    [InlineData("w", "del", "delText")]
+    [InlineData("w", "moveFrom", "delText")]
+    [InlineData("w", "moveTo", "t")]
+    [InlineData("w14", "conflictIns", "t")]
+    [InlineData("w14", "conflictDel", "delText")]
+    public void RejectsPlainTextEditsInsideTrackedRevisionsWithoutChangingPackage(
+        string revisionPrefix,
+        string revisionElement,
+        string textElement
+    )
+    {
+        var documentXml = $"""
+            <w:document xmlns:w="{WordNamespace}" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"><w:body><w:p><{revisionPrefix}:{revisionElement} w:id="1" w:author="Author"><w:r><w:{textElement}>old</w:{textElement}></w:r></{revisionPrefix}:{revisionElement}></w:p></w:body></w:document>
+            """;
+        using var stream = BuildPackage(documentXml);
+        var package = new OpcPackageReader().Read(stream);
+        var originalFingerprint = package.Fingerprint;
+        var originalDocumentBytes = package.Parts["/word/document.xml"].Entry.Content.ToArray();
+        var semantic = new WordSemanticProjector().Project(package);
+        if (revisionPrefix == "w")
+        {
+            Assert.Contains(
+                semantic.Nodes,
+                node => node.Kind == WordSemanticNodeKind.Revision
+            );
+        }
+        var text = semantic.Nodes.Single(node => node.Kind == WordSemanticNodeKind.Text);
+
+        var error = Assert.Throws<WordSemanticEditException>(() =>
+            new WordSemanticTransactionPlanner().PlanTextReplacements(
+                package,
+                semantic,
+                [new WordTextReplacementCommand(text.Id, "new", "old")]
+            )
+        );
+
+        Assert.Contains("inside tracked revision markup", error.Message, StringComparison.Ordinal);
+        Assert.Equal(originalFingerprint, package.Fingerprint);
+        Assert.Equal(
+            originalDocumentBytes,
+            package.Parts["/word/document.xml"].Entry.Content.ToArray()
+        );
+    }
+
     [Fact]
     public void EnforcesCommandAndReplacementCharacterLimits()
     {

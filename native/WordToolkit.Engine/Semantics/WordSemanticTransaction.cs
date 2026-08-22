@@ -311,6 +311,12 @@ public sealed partial class WordSemanticTransactionPlanner
                     $"Source element {node.SourceElementOrdinal} is no longer a Word text element."
                 );
             }
+            if (WordSemanticTextTarget.HasRevisionAncestor(source, element))
+            {
+                throw new WordSemanticEditException(
+                    $"Semantic text node '{node.Id}' is inside tracked revision markup; use a revision-aware operation instead of plain text replacement."
+                );
+            }
 
             if (!seenSourceElements.Add((part.Uri, element.Ordinal)))
             {
@@ -1028,6 +1034,8 @@ internal static class WordSemanticTextTarget
         "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
     internal const string WordStrictNamespace =
         "http://purl.oclc.org/ooxml/wordprocessingml/main";
+    private const string Word2010Namespace =
+        "http://schemas.microsoft.com/office/word/2010/wordml";
     private const string MathTransitionalNamespace =
         "http://schemas.openxmlformats.org/officeDocument/2006/math";
     private const string MathStrictNamespace =
@@ -1042,6 +1050,39 @@ internal static class WordSemanticTextTarget
             element.NamespaceUri is MathTransitionalNamespace or MathStrictNamespace
             && element.LocalName == "t"
         );
+
+    public static bool HasRevisionAncestor(
+        LosslessXmlDocument source,
+        XmlSourceElement element
+    )
+    {
+        var parentOrdinal = element.ParentOrdinal;
+        var remaining = source.Elements.Count;
+        while (parentOrdinal is { } ordinal)
+        {
+            if (remaining-- == 0)
+            {
+                throw new WordSemanticEditException(
+                    "Source XML ancestry is cyclic or exceeds the parsed element count."
+                );
+            }
+
+            var ancestor = source.GetElement(ordinal);
+            if (
+                ancestor.NamespaceUri is WordTransitionalNamespace or WordStrictNamespace
+                && ancestor.LocalName is "ins" or "del" or "moveFrom" or "moveTo"
+                || ancestor.NamespaceUri == Word2010Namespace
+                    && ancestor.LocalName is "conflictIns" or "conflictDel"
+            )
+            {
+                return true;
+            }
+
+            parentOrdinal = ancestor.ParentOrdinal;
+        }
+
+        return false;
+    }
 }
 
 public sealed class WordSemanticTransactionLimitException : WordSemanticEditException
