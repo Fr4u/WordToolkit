@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from ..errors import ErrorCode, WordToolkitError
 
 
 def _windows_app_path(executable: str) -> str | None:
-    if os.name != "nt":
+    if sys.platform != "win32":
         return None
     try:
         import winreg
@@ -92,7 +93,9 @@ def _renderer_environment(profile: str) -> dict[str, str]:
 
 
 def _subprocess_flags() -> int:
-    return subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+    if sys.platform != "win32":
+        return 0
+    return subprocess.CREATE_NO_WINDOW
 
 
 class DocumentRenderer:
