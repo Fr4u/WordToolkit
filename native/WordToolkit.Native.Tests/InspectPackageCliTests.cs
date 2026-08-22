@@ -156,6 +156,12 @@ public sealed class InspectPackageCliTests
     }
 
     [Fact]
+    public void CliMapsAChangingSourceToTheRetryableTemporaryFailureExitCode()
+    {
+        Assert.Equal(75, InspectPackageCli.ExitCode("SOURCE_CHANGED"));
+    }
+
+    [Fact]
     public async Task McpRejectsUnknownArgumentsDeclaredClosedByTheSchema()
     {
         var directory = CreateTemporaryDirectory();

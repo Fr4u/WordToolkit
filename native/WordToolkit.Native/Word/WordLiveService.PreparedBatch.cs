@@ -22,8 +22,11 @@ internal sealed partial class WordLiveService
             $"wordtoolkit-live-stage-{Guid.NewGuid():N}.xml"
         );
         dynamic? stagingDocument = null;
+        dynamic? publicationRange = null;
         Exception? failure = null;
         var ownershipTransferred = false;
+        var textRanges = new Dictionary<int, object>();
+        var stagedEquations = new Dictionary<int, BuiltEquationResult>();
         try
         {
             var flatOpc = (string?)targetDocument.WordOpenXML ?? "";
@@ -60,13 +63,21 @@ internal sealed partial class WordLiveService
             }
 
             stagingDocument.TrackRevisions = false;
-            dynamic stagingContent = stagingDocument.Content;
-            stagingContent.Text = "";
-            var stagingStart = (int)stagingContent.Start;
-            dynamic publicationRange = stagingDocument.Range(stagingStart, stagingStart);
+            dynamic? stagingContent = null;
+            int stagingStart;
+            try
+            {
+                stagingContent = stagingDocument.Content;
+                stagingContent.Text = "";
+                stagingStart = (int)stagingContent.Start;
+            }
+            finally
+            {
+                FinalReleaseBatchComObject(stagingContent);
+            }
+            publicationRange = stagingDocument.Range(stagingStart, stagingStart);
             publicationRange.Text = payload;
 
-            var textRanges = new Dictionary<int, object>();
             for (var index = 0; index < operations.Count; index++)
             {
                 if (operations[index] is not PreparedTextOperation textOperation)
@@ -125,7 +136,6 @@ internal sealed partial class WordLiveService
             var equationIndexes = Enumerable.Range(0, operations.Count)
                 .Where(index => operations[index] is PreparedEquationOperation)
                 .ToArray();
-            var stagedEquations = new Dictionary<int, BuiltEquationResult>();
             var perOperationEquationCounts = new List<int>();
             var beforeEquations = (int)publicationRange.OMaths.Count;
             for (var reverse = equationIndexes.Length - 1; reverse >= 0; reverse--)
@@ -183,73 +193,82 @@ internal sealed partial class WordLiveService
             var operationRanges = new StagedOperationRange[operations.Count];
             for (var index = 0; index < operations.Count; index++)
             {
-                dynamic stagedRange = operations[index] is PreparedTextOperation
-                    ? textRanges[index]
-                    : ((dynamic)stagedEquations[index].Equation).Range;
-                var relativeStart = (int)stagedRange.Start - publicationStart;
-                var relativeEnd = (int)stagedRange.End - publicationStart;
-                if (
-                    relativeStart < 0
-                    || relativeEnd < relativeStart
-                    || publicationStart + relativeEnd > publicationEnd
-                )
-                {
-                    throw new NativeToolException(
-                        "STAGING_FAILED",
-                        "A staged operation escaped the isolated publication range",
-                        new { operation_index = index, target_document_mutated = false }
-                    );
-                }
                 var textOperation = operations[index] as PreparedTextOperation;
-                var runFormatting = new List<StagedRunFormatting>();
-                if (textOperation is not null && textOperation.Runs.Count > 0)
+                var ownsStagedRange = textOperation is null;
+                object stagedRangeObject = ownsStagedRange
+                    ? (object)((dynamic)stagedEquations[index].Equation).Range
+                    : textRanges[index];
+                dynamic stagedRange = stagedRangeObject;
+                try
                 {
-                    var runOffset = 0;
-                    foreach (var run in textOperation.Runs)
+                    var relativeStart = (int)stagedRange.Start - publicationStart;
+                    var relativeEnd = (int)stagedRange.End - publicationStart;
+                    if (
+                        relativeStart < 0
+                        || relativeEnd < relativeStart
+                        || publicationStart + relativeEnd > publicationEnd
+                    )
                     {
-                        if (run.Formatting is not null)
+                        throw new NativeToolException(
+                            "STAGING_FAILED",
+                            "A staged operation escaped the isolated publication range",
+                            new { operation_index = index, target_document_mutated = false }
+                        );
+                    }
+                    var runFormatting = new List<StagedRunFormatting>();
+                    if (textOperation is not null && textOperation.Runs.Count > 0)
+                    {
+                        var runOffset = 0;
+                        foreach (var run in textOperation.Runs)
                         {
-                            dynamic runRange = stagingDocument.Range(
-                                stagedRange.Start + runOffset,
-                                stagedRange.Start + runOffset + run.Text.Length
-                            );
-                            try
+                            if (run.Formatting is not null)
                             {
-                                runFormatting.Add(
-                                    new StagedRunFormatting(
-                                        runOffset,
-                                        runOffset + run.Text.Length,
-                                        run.Formatting.Value,
-                                        CaptureRequestedFormatting(
-                                            (object)runRange,
-                                            run.Formatting.Value
-                                        )
-                                    )
+                                dynamic runRange = stagingDocument.Range(
+                                    stagedRange.Start + runOffset,
+                                    stagedRange.Start + runOffset + run.Text.Length
                                 );
-                            }
-                            finally
-                            {
-                                if (Marshal.IsComObject(runRange))
+                                try
                                 {
-                                    Marshal.FinalReleaseComObject(runRange);
+                                    runFormatting.Add(
+                                        new StagedRunFormatting(
+                                            runOffset,
+                                            runOffset + run.Text.Length,
+                                            run.Formatting.Value,
+                                            CaptureRequestedFormatting(
+                                                (object)runRange,
+                                                run.Formatting.Value
+                                            )
+                                        )
+                                    );
+                                }
+                                finally
+                                {
+                                    FinalReleaseBatchComObject(runRange);
                                 }
                             }
+                            runOffset += run.Text.Length;
                         }
-                        runOffset += run.Text.Length;
+                    }
+                    operationRanges[index] = new StagedOperationRange(
+                        relativeStart,
+                        relativeEnd,
+                        RollbackSha256((string?)stagedRange.Text ?? ""),
+                        textOperation is null || textOperation.Style.Length == 0
+                            ? ""
+                            : ReadStyleIdentity(stagedRange),
+                        textOperation is null
+                            ? new Dictionary<string, string>(StringComparer.Ordinal)
+                            : CaptureRequestedFormatting(stagedRange, textOperation),
+                        runFormatting
+                    );
+                }
+                finally
+                {
+                    if (ownsStagedRange)
+                    {
+                        FinalReleaseBatchComObject(stagedRangeObject);
                     }
                 }
-                operationRanges[index] = new StagedOperationRange(
-                    relativeStart,
-                    relativeEnd,
-                    RollbackSha256((string?)stagedRange.Text ?? ""),
-                    textOperation is null || textOperation.Style.Length == 0
-                        ? ""
-                        : ReadStyleIdentity(stagedRange),
-                    textOperation is null
-                        ? new Dictionary<string, string>(StringComparer.Ordinal)
-                        : CaptureRequestedFormatting(stagedRange, textOperation),
-                    runFormatting
-                );
             }
 
             var stagedText = (string?)publicationRange.Text ?? "";
@@ -276,6 +295,18 @@ internal sealed partial class WordLiveService
         }
         finally
         {
+            foreach (var range in textRanges.Values)
+            {
+                FinalReleaseBatchComObject(range);
+            }
+            textRanges.Clear();
+            if (!ownershipTransferred)
+            {
+                foreach (var stagedEquation in stagedEquations.Values)
+                {
+                    FinalReleaseBatchComObject(stagedEquation.Equation);
+                }
+            }
             Exception? cleanupFailure = null;
             if (!ownershipTransferred)
             {
@@ -285,7 +316,8 @@ internal sealed partial class WordLiveService
                         stagingDocument,
                         temporaryPath,
                         failure,
-                        targetMutationAttempted: false
+                        targetMutationAttempted: false,
+                        publicationRange: publicationRange
                     );
                 }
                 catch (Exception exception)
@@ -343,15 +375,27 @@ internal sealed partial class WordLiveService
 
     private static void CloseStagedPreparedBatch(
         StagedPreparedBatch staged,
-        bool targetMutationAttempted
+        bool targetMutationAttempted,
+        Exception? originalFailure = null
     )
     {
-        CloseStagingArtifacts(
-            staged.Document,
-            staged.TemporaryPath,
-            null,
-            targetMutationAttempted
-        );
+        try
+        {
+            foreach (var stagedEquation in staged.Equations.Values)
+            {
+                FinalReleaseBatchComObject(stagedEquation.Equation);
+            }
+        }
+        finally
+        {
+            CloseStagingArtifacts(
+                staged.Document,
+                staged.TemporaryPath,
+                originalFailure,
+                targetMutationAttempted,
+                staged.PublicationRange
+            );
+        }
     }
 
     internal static void RestoreLiveMainStoryFromFlatOpc(
@@ -460,7 +504,8 @@ internal sealed partial class WordLiveService
         object? stagingDocument,
         string temporaryPath,
         Exception? originalFailure,
-        bool targetMutationAttempted
+        bool targetMutationAttempted,
+        object? publicationRange = null
     )
     {
         Exception? closeFailure = null;
@@ -476,6 +521,8 @@ internal sealed partial class WordLiveService
                 closeFailure = exception;
             }
         }
+        FinalReleaseBatchComObject(publicationRange);
+        FinalReleaseBatchComObject(stagingDocument);
         try
         {
             if (File.Exists(temporaryPath))
@@ -496,18 +543,56 @@ internal sealed partial class WordLiveService
             : originalFailure is null
                 ? null
                 : "EXTERNAL_TOOL_FAILED";
+        var details = new Dictionary<string, object?>
+        {
+            ["original_error_code"] = originalErrorCode,
+            ["close_failed"] = closeFailure is not null,
+            ["delete_failed"] = deleteFailure is not null,
+            ["target_mutation_attempted"] = targetMutationAttempted,
+            ["raw_document_content_returned"] = false,
+        };
+        if (TryGetFailedOperationIndex(originalFailure) is int failedOperationIndex)
+        {
+            details["failed_operation_index"] = failedOperationIndex;
+        }
         throw new NativeToolException(
             "STAGING_CLEANUP_FAILED",
             "WordToolkit could not prove deletion of the isolated live-batch staging artifact",
-            new
-            {
-                original_error_code = originalErrorCode,
-                close_failed = closeFailure is not null,
-                delete_failed = deleteFailure is not null,
-                target_mutation_attempted = targetMutationAttempted,
-                raw_document_content_returned = false,
-            }
+            details
         );
+    }
+
+    internal static int? TryGetFailedOperationIndex(Exception? exception)
+    {
+        if (exception is not NativeToolException { Details: not null } native)
+        {
+            return null;
+        }
+        try
+        {
+            using var document = JsonDocument.Parse(JsonSerializer.Serialize(native.Details));
+            if (
+                document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty(
+                    "failed_operation_index",
+                    out var failedOperationIndex
+                )
+                && failedOperationIndex.TryGetInt32(out var index)
+                && index >= 0
+            )
+            {
+                return index;
+            }
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+        return null;
     }
 
     private void EnsureTargetUnchangedBeforePublication(

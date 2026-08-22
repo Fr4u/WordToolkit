@@ -27,6 +27,22 @@ public sealed class PreparedBatchErrorProjectionTests
     }
 
     [Fact]
+    public void CleanupProjectionCanRecoverTheOriginalFailedOperationIndex()
+    {
+        var original = WordLiveService.WithFailedOperationIndex(
+            new NativeToolException("EQUATION_INVALID", "invalid equation"),
+            12
+        );
+
+        Assert.Equal(12, WordLiveService.TryGetFailedOperationIndex(original));
+        Assert.Null(
+            WordLiveService.TryGetFailedOperationIndex(
+                new NativeToolException("EQUATION_INVALID", "invalid equation")
+            )
+        );
+    }
+
+    [Fact]
     public void Preserves_index_for_a_twelve_operation_batch_boundary()
     {
         var projected = Assert.IsType<NativeToolException>(
@@ -37,5 +53,15 @@ public sealed class PreparedBatchErrorProjectionTests
         );
         using var json = JsonDocument.Parse(JsonSerializer.Serialize(projected.Details));
         Assert.Equal(12, json.RootElement.GetProperty("failed_operation_index").GetInt32());
+    }
+
+    [Fact]
+    public void IgnoresUnserializableDetailsWhenRecoveringFailedOperationIndex()
+    {
+        var details = new Dictionary<string, object?>();
+        details["self"] = details;
+        var error = new NativeToolException("STAGING_CLEANUP_FAILED", "cleanup", details);
+
+        Assert.Null(WordLiveService.TryGetFailedOperationIndex(error));
     }
 }

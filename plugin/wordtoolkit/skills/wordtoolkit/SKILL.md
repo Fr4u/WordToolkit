@@ -76,7 +76,9 @@ and changes no document state. Local JSONL segments are verified outside MCP wit
 For a saved DOCX/DOCM/DOTX/DOTM that only needs structural inspection, use
 `inspect_ooxml_package` directly. It does not open or start Word, never fetches
 external relationships, returns a compact summary by default, and exposes
-bounded part metadata only with `include_details=true`.
+bounded part metadata only with `include_details=true`. When another process can
+write the file, inspection requires two byte-identical bounded reads from one
+pinned handle. On `SOURCE_CHANGED`, wait for Word to finish saving and retry.
 Use lazy `inspect_ooxml_encryption` before treating a password-protected OOXML file as a
 corrupt ZIP. It parses bounded compound-file metadata without opening Word, classifies
 standard/agile/extensible headers, accepts no password and returns no path, stream name

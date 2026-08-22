@@ -14,7 +14,14 @@ public sealed class OpcStructuredMutationTests
     public void StructuredMutationsStayWithinThePublicFailureBoundary()
     {
         var baseline = MinimalDocx();
-        var mutations = new List<byte[]> { baseline[..^1], baseline[..(baseline.Length / 2)] };
+        // Keep one valid control package in the bounded corpus. This prevents a
+        // regression that maps every input, including a known-good package, to IO_ERROR.
+        var mutations = new List<byte[]>
+        {
+            baseline,
+            baseline[..^1],
+            baseline[..(baseline.Length / 2)],
+        };
 
         for (var seed = 0; seed < 16; seed++)
         {
@@ -67,7 +74,7 @@ public sealed class OpcStructuredMutationTests
                 Assert.NotEqual("INTERNAL_ERROR", exception.Code);
                 Assert.Contains(
                     exception.Code,
-                    new[] { "INVALID_PACKAGE", "PACKAGE_LIMIT", "INVALID_INPUT", "IO_ERROR" }
+                    new[] { "INVALID_PACKAGE", "PACKAGE_LIMIT", "INVALID_INPUT" }
                 );
             }
 

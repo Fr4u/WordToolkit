@@ -186,7 +186,9 @@
       "prerequisites": [
         "explicit existing local_path"
       ],
-      "acquisition_steps": [],
+      "acquisition_steps": [
+        "If SOURCE_CHANGED is returned, wait until Microsoft Word finishes saving and retry the same local_path"
+      ],
       "bindings": {
         "local_path": {
           "source": "external_input"
@@ -221,7 +223,14 @@
           "package_fingerprint is present"
         ]
       },
-      "recovery": {},
+      "recovery": {
+        "SOURCE_CHANGED": {
+          "next_action": "inspect_ooxml_package",
+          "bindings": {
+            "local_path": "local_path"
+          }
+        }
+      },
       "recipe_ids": [
         "native.default"
       ]
