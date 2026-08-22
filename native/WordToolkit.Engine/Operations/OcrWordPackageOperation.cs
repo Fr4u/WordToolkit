@@ -10,6 +10,7 @@ namespace WordToolkit.Engine.Operations;
 public sealed class OcrWordPackageOperation
 {
     private readonly OpcPackageReader _reader;
+    private readonly OpcPackageLimits _packageLimits;
     private readonly WordOcrGraphBuilder _graphBuilder;
     private readonly WordToolkitExtensionRegistry _extensions;
 
@@ -22,7 +23,8 @@ public sealed class OcrWordPackageOperation
     {
         ArgumentNullException.ThrowIfNull(extensions);
         _extensions = extensions;
-        _reader = new OpcPackageReader(packageLimits);
+        _packageLimits = packageLimits ?? OpcPackageLimits.Default;
+        _reader = new OpcPackageReader(_packageLimits);
         _graphBuilder = new WordOcrGraphBuilder(ocrOptions, figureOptions);
     }
 
@@ -40,8 +42,7 @@ public sealed class OcrWordPackageOperation
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var package = _reader.Read(stream, cancellationToken);
+            var package = _reader.Read(path, cancellationToken);
             return InspectPackage(
                 package,
                 Path.GetFileName(path),
@@ -77,15 +78,16 @@ public sealed class OcrWordPackageOperation
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var sourceFileHash = HashFile(path, cancellationToken);
+            string sourceFileHash;
             OpcPackageSnapshot package;
-            using (var stream = new FileStream(
+            using (var stream = StablePackagePathSnapshot.Capture(
                 path,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read
+                _packageLimits.MaxArchiveBytes,
+                cancellationToken
             ))
             {
+                sourceFileHash = HashStream(stream, cancellationToken);
+                stream.Position = 0;
                 package = _reader.Read(stream, cancellationToken);
             }
             if (!string.Equals(
@@ -167,7 +169,15 @@ public sealed class OcrWordPackageOperation
                 ));
             }
 
-            var reverifiedHash = HashFile(path, cancellationToken);
+            string reverifiedHash;
+            using (var stream = StablePackagePathSnapshot.Capture(
+                path,
+                _packageLimits.MaxArchiveBytes,
+                cancellationToken
+            ))
+            {
+                reverifiedHash = HashStream(stream, cancellationToken);
+            }
             if (!string.Equals(sourceFileHash, reverifiedHash, StringComparison.Ordinal))
             {
                 throw new WordToolkitOperationException(
@@ -827,22 +837,30 @@ public sealed class OcrWordPackageOperation
         }
     }
 
-    private static string HashFile(string path, CancellationToken cancellationToken)
+    private static string HashStream(Stream stream, CancellationToken cancellationToken)
     {
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        stream.Position = 0;
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var buffer = new byte[128 * 1024];
-        while (true)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var read = stream.Read(buffer, 0, buffer.Length);
-            if (read == 0)
+            while (true)
             {
-                break;
+                cancellationToken.ThrowIfCancellationRequested();
+                var read = stream.Read(buffer, 0, buffer.Length);
+                if (read == 0)
+                {
+                    break;
+                }
+                hash.AppendData(buffer, 0, read);
             }
-            hash.AppendData(buffer, 0, read);
+            return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
         }
-        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+        finally
+        {
+            CryptographicOperations.ZeroMemory(buffer);
+            stream.Position = 0;
+        }
     }
 
     private static string Truncate(string value, int maximum, out bool truncated)
@@ -921,6 +939,13 @@ public sealed class OcrWordPackageOperation
         string? localPath
     ) => exception switch
     {
+        OpcPackageSourceChangedException => new WordToolkitOperationException(
+            "SOURCE_CHANGED",
+            "The Word package changed while a stable snapshot was being captured",
+            "Retry after Microsoft Word finishes saving the document",
+            retryable: true,
+            innerException: exception
+        ),
         WordOcrLimitException => new WordToolkitOperationException(
             "PACKAGE_LIMIT",
             "The Word package exceeded an OCR projection limit",

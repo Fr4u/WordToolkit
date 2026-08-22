@@ -115,6 +115,39 @@ public sealed class OpcPackageReaderTests
     }
 
     [Fact]
+    public void ReadsAPathWhileAnotherHandleSharesReadWriteLikeWord()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "open-in-word.docx");
+            using (var package = BuildPackage(
+                ("[Content_Types].xml", ContentTypes(includePng: false)),
+                ("_rels/.rels", RootRelationships()),
+                ("word/document.xml", DocumentXml())
+            ))
+            {
+                File.WriteAllBytes(path, package.ToArray());
+            }
+            using var openDocument = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.ReadWrite,
+                FileShare.ReadWrite
+            );
+
+            var snapshot = new OpcPackageReader().Read(path);
+
+            Assert.True(snapshot.IsStructurallyValid);
+            Assert.Contains("/word/document.xml", snapshot.Parts.Keys);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void CaseCollisionDiagnosticDoesNotJoinAttackerControlledNames()
     {
         using var package = BuildPackage(

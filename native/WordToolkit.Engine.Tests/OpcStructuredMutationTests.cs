@@ -14,11 +14,8 @@ public sealed class OpcStructuredMutationTests
     public void StructuredMutationsStayWithinThePublicFailureBoundary()
     {
         var baseline = MinimalDocx();
-        // Keep one valid control package in the bounded corpus. This prevents a
-        // regression that maps every input, including a known-good package, to IO_ERROR.
         var mutations = new List<byte[]>
         {
-            baseline,
             baseline[..^1],
             baseline[..(baseline.Length / 2)],
         };
@@ -35,6 +32,24 @@ public sealed class OpcStructuredMutationTests
         mutations.Add(PackageWithMetadata("<Relationships><Relationship Id=\"rId1\""));
         mutations.Add(PackageWithDuplicateNames());
         mutations.Add(PackageWithCaseCollision());
+
+        using (var controlStream = new MemoryStream(baseline, writable: false))
+        {
+            var control = new InspectWordPackageOperation().Execute(
+                controlStream,
+                "control.docx",
+                includeDetails: true,
+                maxItems: 40
+            );
+
+            Assert.True(control.StructurallyValid);
+            Assert.True(control.ValidWordPackage);
+            Assert.Equal(0, control.Diagnostics.Errors);
+            Assert.DoesNotContain(
+                control.Diagnostics.Items,
+                item => item.Severity is "error" or "fatal"
+            );
+        }
 
         foreach (var bytes in mutations)
         {

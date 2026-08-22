@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-> **Status:** `main` contains the `0.60.5` stable-inspection and batch-diagnostics line; [`v0.60.1`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.60.1) remains the latest tagged release. The project is not presented as a complete LaTeX engine, Word-compatibility layer, or pixel-equivalent renderer across Word versions.
+> **Status:** `main` contains the `0.60.6` stable-path and encrypted-spool line; [`v0.60.1`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.60.1) remains the latest tagged release. The project is not presented as a complete LaTeX engine, Word-compatibility layer, or pixel-equivalent renderer across Word versions.
 
 ## Current authoring boundary
 

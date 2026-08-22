@@ -47,8 +47,7 @@ public sealed class SemanticRoleWordPackageOperation
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var package = _reader.Read(stream, cancellationToken);
+            var package = _reader.Read(path, cancellationToken);
             return InspectPackage(
                 package,
                 Path.GetFileName(path),
@@ -582,6 +581,13 @@ public sealed class SemanticRoleWordPackageOperation
         string? localPath
     ) => exception switch
     {
+        OpcPackageSourceChangedException => new WordToolkitOperationException(
+            "SOURCE_CHANGED",
+            "The Word package changed while a stable snapshot was being captured",
+            "Retry after Microsoft Word finishes saving the document",
+            retryable: true,
+            innerException: exception
+        ),
         WordSemanticRoleLimitException
             or WordContentControlLimitException
             or WordStyleLimitException

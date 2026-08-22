@@ -282,6 +282,30 @@ public sealed class InspectOoxmlEncryptionOperationTests
         Assert.Equal("ENCRYPTION_INSPECTION_LIMIT", limit.Code);
     }
 
+    [Fact]
+    public void PathOversizedPackageMapsToEncryptionInspectionLimit()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "wordtoolkit-encryption-limit-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "large.docx");
+        try
+        {
+            File.WriteAllBytes(path, new byte[1024]);
+            var exception = Assert.Throws<WordToolkitOperationException>(() =>
+                new InspectOoxmlEncryptionOperation(
+                    new OoxmlEncryptionInspectionLimits { MaxFileBytes = 512 }
+                ).Execute(new InspectOoxmlEncryptionRequest(path))
+            );
+
+            Assert.Equal("ENCRYPTION_INSPECTION_LIMIT", exception.Code);
+            Assert.False(exception.Retryable);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData("folder/input.docx")]
     [InlineData("folder\\input.docx")]

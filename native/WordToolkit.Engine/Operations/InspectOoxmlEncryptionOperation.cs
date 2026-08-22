@@ -75,10 +75,12 @@ public sealed class InspectOoxmlEncryptionOperation
     );
 
     private readonly OoxmlEncryptionInspector _inspector;
+    private readonly OoxmlEncryptionInspectionLimits _limits;
 
     public InspectOoxmlEncryptionOperation(OoxmlEncryptionInspectionLimits? limits = null)
     {
-        _inspector = new OoxmlEncryptionInspector(limits);
+        _limits = limits ?? OoxmlEncryptionInspectionLimits.Default;
+        _inspector = new OoxmlEncryptionInspector(_limits);
     }
 
     public InspectOoxmlEncryptionResult Execute(
@@ -90,7 +92,11 @@ public sealed class InspectOoxmlEncryptionOperation
         var path = ResolvePath(request.LocalPath);
         try
         {
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var stream = StablePackagePathSnapshot.Capture(
+                path,
+                _limits.MaxFileBytes,
+                cancellationToken
+            );
             return ExecuteCore(stream, Path.GetFileName(path), stream.Length, cancellationToken);
         }
         catch (OperationCanceledException)
@@ -101,7 +107,25 @@ public sealed class InspectOoxmlEncryptionOperation
         {
             throw;
         }
+        catch (OpcPackageSourceChangedException exception)
+        {
+            throw new WordToolkitOperationException(
+                "SOURCE_CHANGED",
+                "The OOXML file changed while a stable inspection snapshot was being captured",
+                "Retry after the application finishes saving the file",
+                retryable: true,
+                innerException: exception
+            );
+        }
         catch (OoxmlEncryptionInspectionLimitException exception)
+        {
+            throw new WordToolkitOperationException(
+                "ENCRYPTION_INSPECTION_LIMIT",
+                "The file exceeds a bounded encryption-inspection limit",
+                innerException: exception
+            );
+        }
+        catch (OpcPackageLimitException exception)
         {
             throw new WordToolkitOperationException(
                 "ENCRYPTION_INSPECTION_LIMIT",
@@ -163,6 +187,14 @@ public sealed class InspectOoxmlEncryptionOperation
             return ExecuteCore(stream, fileName, stream.Length, cancellationToken);
         }
         catch (OoxmlEncryptionInspectionLimitException exception)
+        {
+            throw new WordToolkitOperationException(
+                "ENCRYPTION_INSPECTION_LIMIT",
+                "The file exceeds a bounded encryption-inspection limit",
+                innerException: exception
+            );
+        }
+        catch (OpcPackageLimitException exception)
         {
             throw new WordToolkitOperationException(
                 "ENCRYPTION_INSPECTION_LIMIT",

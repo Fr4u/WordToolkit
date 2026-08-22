@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- Prepared the `0.60.6` stable-path and encrypted-spool line. Package reads
+  from filesystem paths now capture a bounded, two-pass SHA-256-verified snapshot
+  through a handle shared for read, write and delete, so analysis can inspect a
+  DOCX that Word still has open without parsing bytes from two saves. The shared
+  reader, document analysis, heading outline, semantic query, OCR, semantic-role
+  projection and encryption inspection use the same snapshot boundary. OCR hashes
+  and parses one captured byte sequence, then independently re-captures it after
+  provider execution. Path snapshots and non-seekable inputs now use a bounded,
+  seekable AES-256-GCM block spool: only ciphertext reaches its delete-on-close
+  temporary file, while fixed-size plaintext/cipher working buffers, nonces and the
+  per-stream key are zeroed on disposal. This avoids retaining the complete compressed
+  package in RAM while parsing can still retain bounded uncompressed OPC entries.
+  Oversized path-based encryption inspection now reports
+  `ENCRYPTION_INSPECTION_LIMIT` instead of the misleading `IO_ERROR`. The
+  structured-mutation gate requires its known-good control package to be structurally
+  valid, Word-valid and error-free instead of merely avoiding an exception. Local
+  qualification passed Engine 799/799, Native 646/646 and LibreOffice 12/12. Two
+  199-file, 91,149,869-byte builds produced byte-identical 37,887,577-byte ZIPs
+  with SHA-256
+  `1909870e9cc1e3112e8312c976922746973c4a26c64d5d8e04898130d57f4637`;
+  the Engine assembly is
+  `385edafbae52b0a84e44cabf534a895c689d87e00feb7190db55af49730f0115`,
+  the executable is
+  `667679fdca5e9de199e7b66feaab2f7bf70d7e112b085bb89c919186b16edebd`,
+  and the native runtime assembly is
+  `3b324b6b43bcf9ca9aa86cb9f0c3a18e304598285707f88779211b9e48816fe6`.
+  This line does not claim an operating-system atomic snapshot, protection against a
+  process that can read WordToolkit memory, or full malformed-package fuzz coverage.
+
 - Prepared the `0.60.5` stable-inspection and batch-diagnostics line. Path-based
   `inspect_ooxml_package` now copies the source to a bounded delete-on-close
   snapshot and requires two SHA-256/length-identical reads over one pinned file
