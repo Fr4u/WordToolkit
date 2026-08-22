@@ -111,13 +111,7 @@ public sealed class QueryWordPackageOperation
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            using var stream = new FileStream(
-                path,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read
-            );
-            var package = _reader.Read(stream, cancellationToken);
+            var package = _reader.Read(path, cancellationToken);
             return ExecutePackage(
                 package,
                 Path.GetFileName(path),
@@ -799,6 +793,13 @@ public sealed class QueryWordPackageOperation
     ) =>
         exception switch
         {
+            OpcPackageSourceChangedException => new WordToolkitOperationException(
+                "SOURCE_CHANGED",
+                "The Word package changed while a stable snapshot was being captured",
+                "Retry after Microsoft Word finishes saving the document",
+                retryable: true,
+                innerException: exception
+            ),
             WordSemanticLimitException limit => new WordToolkitOperationException(
                 "PACKAGE_LIMIT",
                 "Semantic projection exceeds a bounded safety limit",

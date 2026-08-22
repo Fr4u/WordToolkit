@@ -38,7 +38,11 @@ public sealed class DocumentAnalysisWordPackageOperation
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var stream = StablePackagePathSnapshot.Capture(
+                path,
+                _packageLimits.MaxArchiveBytes,
+                cancellationToken
+            );
             return AnalyzeCore(
                 stream,
                 Path.GetFileName(path),
@@ -786,6 +790,13 @@ public sealed class DocumentAnalysisWordPackageOperation
         }
         return exception switch
         {
+            OpcPackageSourceChangedException => new WordToolkitOperationException(
+                "SOURCE_CHANGED",
+                "The Word package changed while a stable snapshot was being captured",
+                "Retry after Microsoft Word finishes saving the document",
+                retryable: true,
+                innerException: exception
+            ),
             InvalidDataException => new WordToolkitOperationException(
                 "INVALID_PACKAGE",
                 "The file is not a readable OPC ZIP package",

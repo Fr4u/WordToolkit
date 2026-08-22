@@ -45,15 +45,7 @@ internal static class InspectEncryptionCli
         catch (WordToolkitOperationException exception)
         {
             WriteError(error, WordToolkitOperationError.FromException(exception));
-            return exception.Code switch
-            {
-                "INVALID_INPUT" => 64,
-                "NOT_FOUND" => 66,
-                "ENCRYPTION_INSPECTION_LIMIT" => 65,
-                "ACCESS_DENIED" => 77,
-                "IO_ERROR" => 74,
-                _ => 70,
-            };
+            return ExitCode(exception.Code);
         }
         catch (Exception)
         {
@@ -69,6 +61,18 @@ internal static class InspectEncryptionCli
             return 70;
         }
     }
+
+    internal static int ExitCode(string code) =>
+        code switch
+        {
+            "INVALID_INPUT" => 64,
+            "ENCRYPTION_INSPECTION_LIMIT" => 65,
+            "NOT_FOUND" => 66,
+            "IO_ERROR" => 74,
+            "SOURCE_CHANGED" => 75,
+            "ACCESS_DENIED" => 77,
+            _ => 70,
+        };
 
     private static int UsageError(TextWriter error)
     {

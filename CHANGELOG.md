@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- Prepared the `0.60.6` stable-path and in-memory-inspection line. Package reads
+  from filesystem paths now capture a bounded, two-pass SHA-256-verified snapshot
+  through a handle shared for read, write and delete, so analysis can inspect a
+  DOCX that Word still has open without parsing bytes from two saves. The shared
+  reader, document analysis, heading outline, semantic query, OCR, semantic-role
+  projection and encryption inspection use the same snapshot boundary. OCR hashes
+  and parses one captured byte sequence, then independently re-captures it after
+  provider execution. Non-seekable input and path inspection no longer persist
+  cleartext package copies in the temporary directory; the bounded in-memory buffer
+  is zeroed on disposal. The structured-mutation gate now requires its known-good
+  control package to be structurally valid, Word-valid and error-free instead of
+  merely avoiding an exception. Local qualification passed Engine 789/789, Native
+  646/646 and LibreOffice 12/12. Two 199-file, 91,144,749-byte builds produced
+  byte-identical 37,885,404-byte ZIPs with SHA-256 `1B2C6B01...`; the executable is
+  `667679FD...` and the native runtime assembly is `3B324B6B...`. This line does not
+  claim an operating-system atomic snapshot, protection against a process that can
+  read WordToolkit memory, or full malformed-package fuzz coverage.
+
 - Prepared the `0.60.5` stable-inspection and batch-diagnostics line. Path-based
   `inspect_ooxml_package` now copies the source to a bounded delete-on-close
   snapshot and requires two SHA-256/length-identical reads over one pinned file

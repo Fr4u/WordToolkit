@@ -44,12 +44,8 @@ public sealed class OpcPackageReader
     )
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        using var stream = new FileStream(
-            Path.GetFullPath(path),
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read
-        );
+        using var stream = StablePackagePathSnapshot.Capture(
+            Path.GetFullPath(path), _limits.MaxArchiveBytes, cancellationToken);
         return Read(stream, cancellationToken);
     }
 
@@ -260,7 +256,7 @@ public sealed class OpcPackageReader
         return result;
     }
 
-    private FileStream SpoolToBoundedSeekableStream(
+    private MemoryStream SpoolToBoundedSeekableStream(
         Stream source,
         CancellationToken cancellationToken
     )
@@ -271,18 +267,7 @@ public sealed class OpcPackageReader
             bufferBytes
         );
         var buffer = GC.AllocateUninitializedArray<byte>(bufferBytes);
-        var path = Path.Combine(
-            Path.GetTempPath(),
-            $"wordtoolkit-opc-{Guid.NewGuid():N}.tmp"
-        );
-        var target = new FileStream(
-            path,
-            FileMode.CreateNew,
-            FileAccess.ReadWrite,
-            FileShare.None,
-            bufferBytes,
-            FileOptions.DeleteOnClose | FileOptions.SequentialScan
-        );
+        var target = new ZeroingMemoryStream();
         try
         {
             long totalBytes = 0;

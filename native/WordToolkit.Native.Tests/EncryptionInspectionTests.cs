@@ -77,6 +77,12 @@ public sealed class EncryptionInspectionTests
     }
 
     [Fact]
+    public void CliMapsAChangingSourceToTheRetryableTemporaryFailureExitCode()
+    {
+        Assert.Equal(75, InspectEncryptionCli.ExitCode("SOURCE_CHANGED"));
+    }
+
+    [Fact]
     public async Task NativeServiceIsReadOnlyClosedAndDoesNotInvokeWord()
     {
         var directory = CreateTemporaryDirectory();
