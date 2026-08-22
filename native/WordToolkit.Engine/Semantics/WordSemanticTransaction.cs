@@ -1034,6 +1034,8 @@ internal static class WordSemanticTextTarget
         "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
     internal const string WordStrictNamespace =
         "http://purl.oclc.org/ooxml/wordprocessingml/main";
+    private const string Word2010Namespace =
+        "http://schemas.microsoft.com/office/word/2010/wordml";
     private const string MathTransitionalNamespace =
         "http://schemas.openxmlformats.org/officeDocument/2006/math";
     private const string MathStrictNamespace =
@@ -1069,6 +1071,8 @@ internal static class WordSemanticTextTarget
             if (
                 ancestor.NamespaceUri is WordTransitionalNamespace or WordStrictNamespace
                 && ancestor.LocalName is "ins" or "del" or "moveFrom" or "moveTo"
+                || ancestor.NamespaceUri == Word2010Namespace
+                    && ancestor.LocalName is "conflictIns" or "conflictDel"
             )
             {
                 return true;

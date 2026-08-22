@@ -2109,8 +2109,15 @@ public sealed class PackageInspectionServiceTests
         }
     }
 
-    [Fact]
-    public async Task PlanTextEditsRejectsTrackedRevisionTextWithoutChangingPackage()
+    [Theory]
+    [InlineData("w", "del", "delText")]
+    [InlineData("w14", "conflictIns", "t")]
+    [InlineData("w14", "conflictDel", "delText")]
+    public async Task PlanTextEditsRejectsTrackedRevisionTextWithoutChangingPackage(
+        string revisionPrefix,
+        string revisionElement,
+        string textElement
+    )
     {
         var directory = Path.Combine(
             Path.GetTempPath(),
@@ -2123,11 +2130,11 @@ public sealed class PackageInspectionServiceTests
             var path = Path.Combine(directory, "revision.docx");
             CreatePackage(
                 path,
-                additionalBodyXml: """
+                additionalBodyXml: $"""
                 <w:p>
-                  <w:del w:id="1" w:author="Author">
-                    <w:r><w:delText>old</w:delText></w:r>
-                  </w:del>
+                  <{revisionPrefix}:{revisionElement} w:id="1" w:author="Author">
+                    <w:r><w:{textElement}>old</w:{textElement}></w:r>
+                  </{revisionPrefix}:{revisionElement}>
                 </w:p>
                 """
             );

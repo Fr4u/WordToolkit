@@ -4,8 +4,9 @@
 
 - Closed two fail-closed diagnostic gaps. Saved-package plain-text plans now
   reject `w:t` or `w:delText` nodes inside tracked insertion, deletion and move
-  wrappers before producing a mutation plan; callers must use the dedicated
-  review-decision workflow for revision markup. The maintained Python live
+  wrappers, including Word 2010 conflict revisions, before producing a mutation
+  plan; callers must use the dedicated review-decision workflow for revision
+  markup. The maintained Python live
   backend now matches the native mixed-batch contract by returning the exact
   zero-based `failed_operation_index` for an attributable equation failure and
   explicit `failed_operation_index_available=false` plus `failure_scope=batch`
