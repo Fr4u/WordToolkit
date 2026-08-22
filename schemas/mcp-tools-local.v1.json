@@ -20007,7 +20007,8 @@
                 "additionalProperties": false,
                 "allOf": [
                   {"not": {"required": ["font_size", "font_size_pt"]}},
-                  {"not": {"required": ["alignment", "paragraph_alignment"]}}
+                  {"not": {"required": ["alignment", "paragraph_alignment"]}},
+                  {"not": {"required": ["strike", "double_strike"], "properties": {"strike": {"const": true}, "double_strike": {"const": true}}}}
                 ],
                 "properties": {
                   "font_name": {"type": "string", "minLength": 1, "maxLength": 128},
@@ -20124,7 +20125,7 @@
                 "type": "object",
                 "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify|distribute); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
                 "additionalProperties": false,
-                "allOf": [{"not": {"required": ["font_size", "font_size_pt"]}}, {"not": {"required": ["alignment", "paragraph_alignment"]}}],
+                "allOf": [{"not": {"required": ["font_size", "font_size_pt"]}}, {"not": {"required": ["alignment", "paragraph_alignment"]}}, {"not": {"required": ["strike", "double_strike"], "properties": {"strike": {"const": true}, "double_strike": {"const": true}}}}],
                 "properties": {
                   "font_name": {"type": "string", "minLength": 1, "maxLength": 128}, "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200}, "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true}, "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
                   "bold": {"type": "boolean"}, "italic": {"type": "boolean"}, "underline": {"type": "boolean"}, "strike": {"type": "boolean"}, "double_strike": {"type": "boolean"}, "all_caps": {"type": "boolean"}, "small_caps": {"type": "boolean"}, "hidden": {"type": "boolean"}, "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16},
@@ -20688,7 +20689,7 @@
                 "type": "object",
                 "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify|distribute); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
                 "additionalProperties": false,
-                "allOf": [{"not": {"required": ["font_size", "font_size_pt"]}}, {"not": {"required": ["alignment", "paragraph_alignment"]}}],
+                "allOf": [{"not": {"required": ["font_size", "font_size_pt"]}}, {"not": {"required": ["alignment", "paragraph_alignment"]}}, {"not": {"required": ["strike", "double_strike"], "properties": {"strike": {"const": true}, "double_strike": {"const": true}}}}],
                 "properties": {
                   "font_name": {"type": "string", "minLength": 1, "maxLength": 128}, "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200}, "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true}, "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
                   "bold": {"type": "boolean"}, "italic": {"type": "boolean"}, "underline": {"type": "boolean"}, "strike": {"type": "boolean"}, "double_strike": {"type": "boolean"}, "all_caps": {"type": "boolean"}, "small_caps": {"type": "boolean"}, "hidden": {"type": "boolean"}, "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16},
@@ -21580,7 +21581,8 @@
             "additionalProperties": false,
             "allOf": [
               {"not": {"required": ["font_size", "font_size_pt"]}},
-              {"not": {"required": ["alignment", "paragraph_alignment"]}}
+              {"not": {"required": ["alignment", "paragraph_alignment"]}},
+              {"not": {"required": ["strike", "double_strike"], "properties": {"strike": {"const": true}, "double_strike": {"const": true}}}}
             ],
             "properties": {
               "font_name": {"type": "string", "minLength": 1, "maxLength": 128},
@@ -21613,7 +21615,8 @@
             "type": "object",
             "additionalProperties": false,
             "allOf": [
-              {"not": {"required": ["font_size", "font_size_pt"]}}
+              {"not": {"required": ["font_size", "font_size_pt"]}},
+              {"not": {"required": ["strike", "double_strike"], "properties": {"strike": {"const": true}, "double_strike": {"const": true}}}}
             ],
             "properties": {
               "font_name": {"type": "string", "minLength": 1, "maxLength": 128},
@@ -23231,7 +23234,7 @@
                 "type": "object",
                 "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify|distribute); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
                 "additionalProperties": false,
-                "allOf": [{"not": {"required": ["font_size", "font_size_pt"]}}, {"not": {"required": ["alignment", "paragraph_alignment"]}}],
+                "allOf": [{"not": {"required": ["font_size", "font_size_pt"]}}, {"not": {"required": ["alignment", "paragraph_alignment"]}}, {"not": {"required": ["strike", "double_strike"], "properties": {"strike": {"const": true}, "double_strike": {"const": true}}}}],
                 "properties": {
                   "font_name": {"type": "string", "minLength": 1, "maxLength": 128}, "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200}, "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true}, "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
                   "bold": {"type": "boolean"}, "italic": {"type": "boolean"}, "underline": {"type": "boolean"}, "strike": {"type": "boolean"}, "double_strike": {"type": "boolean"}, "all_caps": {"type": "boolean"}, "small_caps": {"type": "boolean"}, "hidden": {"type": "boolean"}, "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16},

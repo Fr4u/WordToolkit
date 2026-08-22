@@ -183,6 +183,8 @@ def test_live_formatting_contract_is_typed_and_alias_safe() -> None:
         assert list(validator.iter_errors({"font_name": "x" * 129}))
         assert list(validator.iter_errors({"font_color_rgb": "#GGGGGG"}))
         assert list(validator.iter_errors({"double_strike": 1}))
+        assert not list(validator.iter_errors({"strike": False, "double_strike": True}))
+        assert list(validator.iter_errors({"strike": True, "double_strike": True}))
         assert list(validator.iter_errors({"highlight_color_index": 17}))
         assert list(validator.iter_errors({"paragraph_alignment": "thai"}))
         assert list(validator.iter_errors({"font_size": 10, "font_size_pt": 11}))
@@ -234,6 +236,11 @@ def test_live_mixed_formatting_contract_matches_extended_runtime_fields() -> Non
         "center"
     )
     assert list(validator.iter_errors(invalid_paragraph_field))
+    invalid_strikes = json.loads(json.dumps(valid))
+    invalid_strikes["operations"][0]["runs"][0]["formatting"].update(
+        {"strike": True, "double_strike": True}
+    )
+    assert list(validator.iter_errors(invalid_strikes))
 
 
 def test_live_table_formula_batch_bounds_are_published() -> None:

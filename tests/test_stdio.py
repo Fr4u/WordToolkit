@@ -135,6 +135,9 @@ async def test_live_word_tools_exist_only_on_local_stdio(tmp_path: Path) -> None
         "widow_control",
     } <= set(text_formatting["properties"])
     assert "paragraph_alignment" not in run_formatting["properties"]
+    run_validator = Draft202012Validator(run_formatting)
+    assert not list(run_validator.iter_errors({"strike": False, "double_strike": True}))
+    assert list(run_validator.iter_errors({"strike": True, "double_strike": True}))
 
 
 @pytest.mark.asyncio

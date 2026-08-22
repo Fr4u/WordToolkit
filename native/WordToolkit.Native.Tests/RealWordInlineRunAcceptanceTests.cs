@@ -179,6 +179,13 @@ public sealed class RealWordInlineRunAcceptanceTests
                         7,
                         (int)document.Range(start + 18, start + 25).HighlightColorIndex
                     );
+                    dynamic strikeRange = document.Range(start + 18, start + 25);
+                    strikeRange.Font.StrikeThrough = -1;
+                    Assert.Equal(-1, (int)strikeRange.Font.StrikeThrough);
+                    Assert.Equal(0, (int)strikeRange.Font.DoubleStrikeThrough);
+                    strikeRange.Font.DoubleStrikeThrough = -1;
+                    Assert.Equal(0, (int)strikeRange.Font.StrikeThrough);
+                    Assert.Equal(-1, (int)strikeRange.Font.DoubleStrikeThrough);
                     Assert.Equal(1, (int)document.OMaths.Count);
                     savedPath = Path.Combine(
                         Path.GetTempPath(),

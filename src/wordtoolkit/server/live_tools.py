@@ -35,7 +35,20 @@ LIVE_HANDLE = ToolAnnotations(
 class LiveRunFormatting(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
-        json_schema_extra={"allOf": [{"not": {"required": ["font_size", "font_size_pt"]}}]},
+        json_schema_extra={
+            "allOf": [
+                {"not": {"required": ["font_size", "font_size_pt"]}},
+                {
+                    "not": {
+                        "required": ["strike", "double_strike"],
+                        "properties": {
+                            "strike": {"const": True},
+                            "double_strike": {"const": True},
+                        },
+                    }
+                },
+            ]
+        },
     )
 
     font_name: str | None = Field(default=None, min_length=1, max_length=128)
@@ -58,9 +71,11 @@ class LiveRunFormatting(BaseModel):
     highlight_color_index: int | None = Field(default=None, ge=0, le=16)
 
     @model_validator(mode="after")
-    def reject_duplicate_size_alias(self) -> LiveRunFormatting:
+    def validate_run_formatting_contract(self) -> LiveRunFormatting:
         if self.font_size is not None and self.font_size_pt is not None:
             raise ValueError("Use either font_size or font_size_pt, not both")
+        if self.strike is True and self.double_strike is True:
+            raise ValueError("strike and double_strike cannot both be true")
         return self
 
 
@@ -71,6 +86,15 @@ class LiveTextFormatting(LiveRunFormatting):
             "allOf": [
                 {"not": {"required": ["font_size", "font_size_pt"]}},
                 {"not": {"required": ["alignment", "paragraph_alignment"]}},
+                {
+                    "not": {
+                        "required": ["strike", "double_strike"],
+                        "properties": {
+                            "strike": {"const": True},
+                            "double_strike": {"const": True},
+                        },
+                    }
+                },
             ]
         },
     )

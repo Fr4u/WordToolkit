@@ -129,12 +129,28 @@ public sealed class InlineTextRunContractTests
     }
 
     [Fact]
-    public void AppliesAndCapturesExtendedNativeFormattingWithoutLosingEitherStrikeMode()
+    public void RejectsMutuallyEnabledStrikeModesBeforeCom()
+    {
+        using var document = JsonDocument.Parse("""{"strike":true,"double_strike":true}""");
+
+        var error = Assert.Throws<NativeToolException>(() =>
+            WordLiveService.NormalizeFormattingForTesting(
+                document.RootElement,
+                allowParagraphFormatting: false
+            )
+        );
+
+        Assert.Equal("INVALID_INPUT", error.ErrorCode);
+        Assert.Contains("cannot both be true", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AppliesAndCapturesExtendedNativeFormatting()
     {
         using var document = JsonDocument.Parse(
             """
             {
-              "strike": true,
+              "strike": false,
               "double_strike": true,
               "highlight_color_index": 7,
               "paragraph_alignment": "distribute"
@@ -148,11 +164,11 @@ public sealed class InlineTextRunContractTests
             document.RootElement
         );
 
-        Assert.Equal(-1, range.Font.StrikeThrough);
+        Assert.Equal(0, range.Font.StrikeThrough);
         Assert.Equal(-1, range.Font.DoubleStrikeThrough);
         Assert.Equal(7, range.HighlightColorIndex);
         Assert.Equal(4, range.ParagraphFormat.Alignment);
-        Assert.Equal("-1", captured["strike"]);
+        Assert.Equal("0", captured["strike"]);
         Assert.Equal("-1", captured["double_strike"]);
         Assert.Equal("7", captured["highlight_color_index"]);
         Assert.Equal("4", captured["paragraph_alignment"]);

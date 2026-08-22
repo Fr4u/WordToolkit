@@ -7,10 +7,11 @@
   alias conflicts, invalid colors, wrong JSON types and out-of-range numbers
   before dispatch. Native Word now applies and verifies double strikethrough,
   highlight color indexes `0..16` and distributed paragraph alignment through
-  isolated staging and publication readback. The maintained Python COM backend
-  now applies highlighting through Word's documented `Range.HighlightColorIndex`
-  instead of attempting an undocumented `Font` member. Table-formula preflight
-  also publishes its actual `1..200` item bound. Native `font_name` input is now
+  isolated staging and publication readback; both backends reject simultaneously
+  enabled single and double strike because Word clears the first mode. The
+  maintained Python COM backend now applies highlighting through Word's documented
+  `Range.HighlightColorIndex` instead of attempting an undocumented `Font` member.
+  Table-formula preflight also publishes its actual `1..200` item bound. Native `font_name` input is now
   capped at the same 128-character bound already used by the Python contract.
   This intentionally replaces the former native-only 256-character maximum;
   callers sending 129–256-character pseudo-family names must shorten them.

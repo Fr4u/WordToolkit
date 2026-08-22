@@ -4951,6 +4951,18 @@ internal sealed partial class WordLiveService : IToolHandler
         {
             ValidateFormattingValue(property.Key, property.Value, allowParagraphFormatting);
         }
+        if (
+            normalized.TryGetValue("strike", out var strike)
+            && strike.GetBoolean()
+            && normalized.TryGetValue("double_strike", out var doubleStrike)
+            && doubleStrike.GetBoolean()
+        )
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "strike and double_strike cannot both be true because Microsoft Word preserves only one strike mode"
+            );
+        }
         return JsonSerializer.SerializeToElement(normalized);
     }
 

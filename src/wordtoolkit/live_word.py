@@ -4040,6 +4040,11 @@ class LiveWordBridge:
                         f"{name} must be true or false",
                     )
                 normalized[name] = value[name]
+        if normalized.get("strike") is True and normalized.get("double_strike") is True:
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "strike and double_strike cannot both be true because Microsoft Word preserves only one strike mode",
+            )
         numeric_ranges = {
             "font_size_pt": (1.0, 200.0),
             "space_before_pt": (0.0, 1584.0),

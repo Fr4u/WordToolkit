@@ -1208,10 +1208,11 @@ normalized before Word COM and conflict with their canonical counterpart. A
 text operation may use `runs` instead of `text` for inline bold, italic and
 other font formatting inside one paragraph. Native formatting also supports
 `double_strike`, `highlight_color_index` from 0 through 16, and distributed
-paragraph alignment through `paragraph_alignment: "distribute"`. LaTeX conversion is intentionally
-bounded rather than a complete TeX implementation; the supported subset now
-includes `\boxed{...}` and `\implies`, and unsupported commands fail in batch
-preflight with `failed_operation_index`.
+paragraph alignment through `paragraph_alignment: "distribute"`. Do not enable
+`strike` and `double_strike` together; Word preserves only one. LaTeX conversion
+is intentionally bounded rather than a complete TeX implementation; the supported
+subset now includes `\boxed{...}` and `\implies`, and unsupported commands fail in
+batch preflight with `failed_operation_index`.
 
 Successful batches return only identifiers, the new live version, operation
 counts, native verification and compact document state. They do not echo the

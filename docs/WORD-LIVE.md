@@ -625,6 +625,8 @@ aliases `font_size` and `alignment` are accepted and normalized before COM;
 supplying an alias together with its canonical field is invalid. The action
 schema publishes types and bounds for the complete property set. Unknown names, wrong JSON
 types and out-of-range values fail during preflight, before Word is mutated.
+`strike` and `double_strike` may each be false or omitted, but cannot both be
+true because Word clears the first mode when the second is applied.
 
 One text operation may use `runs` instead of `text` to apply distinct font
 formatting inside a single paragraph. Run-level formatting accepts font fields
