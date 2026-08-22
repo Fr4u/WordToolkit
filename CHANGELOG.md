@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- Prepared the `0.60.7` live-equation COM-ownership line. Repeated native-equation
+  inspection and point replacement now release their `OMaths`, equation, range,
+  formatted-text, content and custom-Undo RCWs on success, rejection, rollback and
+  cancellation paths. Native equation construction transfers the returned equation
+  only after build-up, optional style rewrite and semantic readback succeed; failures
+  release the partially built object, while rewritten equations use COM identity rather
+  than managed-wrapper identity before releasing an obsolete proxy. Rollback snapshots
+  release all eleven structural collections plus the explicit story-range enumerator,
+  and independent Flat OPC restoration releases its transient `FormattedText` range.
+  A gated real-Word regression performs 60 consecutive fresh-token inspect/update cycles,
+  verifies one editable OfficeMath object and native readback on every cycle, and quits
+  only the Word instance started by the test. Real Word passed the 60-cycle soak, the
+  dedicated styled-equation batch, the point-update/drift gate and the 59/59 live-action
+  acceptance over 153 MCP requests; the latter saved a 70-paragraph DOCX containing
+  12 equations and exported a valid PDF before closing Word. Local qualification passed
+  Python 1403/1403 with 16 explicit environment skips and 74.56% branch coverage,
+  Engine 799/799, Native 647/647 and LibreOffice 12/12. Two 199-file,
+  91,154,989-byte builds produced byte-identical 37,890,109-byte ZIPs with SHA-256
+  `332b4885c583196f8ea7b3f9e5b0d69e2c5ac9e9461a220306042f0ba8fa3715`;
+  the Engine assembly is
+  `6e34b89911497c6b2d49f932fd2b1ef5c44049ff36b740089c89b36fe324e640`,
+  the executable is
+  `c805614371c63ed2381bbd7c4dddc3d627b00cb9867535e67deb6cdf4ed2aef3`,
+  and the native runtime assembly is
+  `31533cb96dddfb02218ace8985e3b9c33c1ee6630a3fde19fdc81b9051759c6a`.
+  This line does not claim that
+  every Word COM path in the runtime has been exhaustively leak-tested or that one Word
+  build proves identical behavior across Office releases.
+
 - Prepared the `0.60.6` stable-path and encrypted-spool line. Package reads
   from filesystem paths now capture a bounded, two-pass SHA-256-verified snapshot
   through a handle shared for read, write and delete, so analysis can inspect a

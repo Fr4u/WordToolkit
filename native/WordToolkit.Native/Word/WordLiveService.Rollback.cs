@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Security.Cryptography;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -17,12 +18,19 @@ internal sealed partial class WordLiveService
     )
     {
         dynamic content = document.Content;
-        return CaptureLiveRollbackSnapshot(
-            document,
-            (int)content.Start,
-            (int)content.End,
-            liveVersion
-        );
+        try
+        {
+            return CaptureLiveRollbackSnapshot(
+                document,
+                (int)content.Start,
+                (int)content.End,
+                liveVersion
+            );
+        }
+        finally
+        {
+            FinalReleaseBatchComObject(content);
+        }
     }
 
     private static LiveRollbackSnapshot CaptureLiveRollbackSnapshot(
@@ -34,57 +42,67 @@ internal sealed partial class WordLiveService
     {
         var strictComReadback = Marshal.IsComObject((object)document);
         dynamic content = document.Content;
-        var contentStart = (int)content.Start;
-        var contentEnd = (int)content.End;
-        var targetStart = Math.Clamp(requestedTargetStart, contentStart, contentEnd);
-        var targetEnd = Math.Clamp(requestedTargetEnd, targetStart, contentEnd);
-        var contextStart = Math.Max(contentStart, targetStart - RollbackContextCharacters);
-        var contextEnd = Math.Min(contentEnd, targetEnd + RollbackContextCharacters);
-        dynamic targetRange = document.Range(targetStart, targetEnd);
-        dynamic contextRange = document.Range(contextStart, contextEnd);
-
-        var documentWordOpenXml = RollbackDocumentWordOpenXml(
-            document,
-            content,
-            strictComReadback
-        );
-        var contentWordOpenXml = RollbackWordOpenXml(content, strictComReadback);
-        var targetWordOpenXml = RollbackWordOpenXml(targetRange, strictComReadback);
-        var contextWordOpenXml = RollbackWordOpenXml(contextRange, strictComReadback);
-        var storyDigest = CaptureRollbackStoryDigest(document, strictComReadback);
-        var documentSemanticWordOpenXmlSha256 = RollbackStableSemanticSha256(
-            () => RollbackDocumentWordOpenXml(document, content, strictComReadback)
-        );
-        return new LiveRollbackSnapshot(
-            liveVersion,
-            RollbackSaved(document, strictComReadback),
-            contentStart,
-            contentEnd,
-            targetStart,
-            targetEnd,
-            contextStart,
-            contextEnd,
-            RollbackCount((object)document, strictComReadback, static value => (int)value.Paragraphs.Count, DocumentParagraphCount),
-            RollbackCount((object)document, strictComReadback, static value => (int)value.OMaths.Count, DocumentEquationCount),
-            RollbackCount((object)document, strictComReadback, static value => (int)value.Tables.Count, DocumentTableCount),
-            RollbackCount((object)document, strictComReadback, static value => (int)value.Fields.Count, DocumentFieldCount),
-            RollbackCount((object)document, strictComReadback, static value => (int)value.Bookmarks.Count, DocumentBookmarkCount),
-            RollbackCount((object)document, strictComReadback, static value => (int)value.InlineShapes.Count, DocumentInlineShapeCount),
-            RollbackCount((object)document, strictComReadback, static value => (int)value.Shapes.Count, DocumentShapeCount),
-            RollbackCount((object)document, strictComReadback, static value => (int)value.Comments.Count, DocumentCommentCount),
-            RollbackCount((object)document, strictComReadback, static value => (int)value.Footnotes.Count, DocumentFootnoteCount),
-            RollbackCount((object)document, strictComReadback, static value => (int)value.Endnotes.Count, DocumentEndnoteCount),
-            RollbackCount((object)document, strictComReadback, static value => (int)value.Sections.Count, DocumentSectionCount),
-            RollbackSha256(documentWordOpenXml),
-            documentSemanticWordOpenXmlSha256,
-            RollbackSha256((string?)content.Text ?? ""),
-            RollbackSha256(contentWordOpenXml),
-            RollbackSha256((string?)targetRange.Text ?? ""),
-            RollbackSha256(targetWordOpenXml),
-            RollbackSha256((string?)contextRange.Text ?? ""),
-            RollbackSha256(contextWordOpenXml),
-            storyDigest
-        );
+        dynamic? targetRange = null;
+        dynamic? contextRange = null;
+        try
+        {
+            var contentStart = (int)content.Start;
+            var contentEnd = (int)content.End;
+            var targetStart = Math.Clamp(requestedTargetStart, contentStart, contentEnd);
+            var targetEnd = Math.Clamp(requestedTargetEnd, targetStart, contentEnd);
+            var contextStart = Math.Max(contentStart, targetStart - RollbackContextCharacters);
+            var contextEnd = Math.Min(contentEnd, targetEnd + RollbackContextCharacters);
+            targetRange = document.Range(targetStart, targetEnd);
+            contextRange = document.Range(contextStart, contextEnd);
+            var documentWordOpenXml = RollbackDocumentWordOpenXml(
+                document,
+                content,
+                strictComReadback
+            );
+            var contentWordOpenXml = RollbackWordOpenXml(content, strictComReadback);
+            var targetWordOpenXml = RollbackWordOpenXml(targetRange, strictComReadback);
+            var contextWordOpenXml = RollbackWordOpenXml(contextRange, strictComReadback);
+            var storyDigest = CaptureRollbackStoryDigest(document, strictComReadback);
+            var documentSemanticWordOpenXmlSha256 = RollbackStableSemanticSha256(
+                () => RollbackDocumentWordOpenXml(document, content, strictComReadback)
+            );
+            return new LiveRollbackSnapshot(
+                liveVersion,
+                RollbackSaved(document, strictComReadback),
+                contentStart,
+                contentEnd,
+                targetStart,
+                targetEnd,
+                contextStart,
+                contextEnd,
+                RollbackCollectionCount((object)document, strictComReadback, static value => (object)value.Paragraphs, DocumentParagraphCount),
+                RollbackCollectionCount((object)document, strictComReadback, static value => (object)value.OMaths, DocumentEquationCount),
+                RollbackCollectionCount((object)document, strictComReadback, static value => (object)value.Tables, DocumentTableCount),
+                RollbackCollectionCount((object)document, strictComReadback, static value => (object)value.Fields, DocumentFieldCount),
+                RollbackCollectionCount((object)document, strictComReadback, static value => (object)value.Bookmarks, DocumentBookmarkCount),
+                RollbackCollectionCount((object)document, strictComReadback, static value => (object)value.InlineShapes, DocumentInlineShapeCount),
+                RollbackCollectionCount((object)document, strictComReadback, static value => (object)value.Shapes, DocumentShapeCount),
+                RollbackCollectionCount((object)document, strictComReadback, static value => (object)value.Comments, DocumentCommentCount),
+                RollbackCollectionCount((object)document, strictComReadback, static value => (object)value.Footnotes, DocumentFootnoteCount),
+                RollbackCollectionCount((object)document, strictComReadback, static value => (object)value.Endnotes, DocumentEndnoteCount),
+                RollbackCollectionCount((object)document, strictComReadback, static value => (object)value.Sections, DocumentSectionCount),
+                RollbackSha256(documentWordOpenXml),
+                documentSemanticWordOpenXmlSha256,
+                RollbackSha256((string?)content.Text ?? ""),
+                RollbackSha256(contentWordOpenXml),
+                RollbackSha256((string?)targetRange.Text ?? ""),
+                RollbackSha256(targetWordOpenXml),
+                RollbackSha256((string?)contextRange.Text ?? ""),
+                RollbackSha256(contextWordOpenXml),
+                storyDigest
+            );
+        }
+        finally
+        {
+            FinalReleaseBatchComObject(contextRange);
+            FinalReleaseBatchComObject(targetRange);
+            FinalReleaseBatchComObject(content);
+        }
     }
 
     private static string RollbackDocumentWordOpenXml(
@@ -115,20 +133,26 @@ internal sealed partial class WordLiveService
         }
     }
 
-    private static int RollbackCount(
+    private static int RollbackCollectionCount(
         object document,
         bool strictComReadback,
-        Func<dynamic, int> strictReader,
+        Func<dynamic, object> strictCollectionReader,
         Func<dynamic, int> testDoubleFallback
     )
     {
+        object? collection = null;
         try
         {
-            return strictReader((dynamic)document);
+            collection = strictCollectionReader((dynamic)document);
+            return (int)((dynamic)collection).Count;
         }
         catch when (!strictComReadback)
         {
             return testDoubleFallback((dynamic)document);
+        }
+        finally
+        {
+            FinalReleaseBatchComObject(collection);
         }
     }
 
@@ -156,38 +180,58 @@ internal sealed partial class WordLiveService
         }
 
         var records = new List<RollbackStoryRecord>();
-        foreach (dynamic firstRange in document.StoryRanges)
+        dynamic storyRanges = document.StoryRanges;
+        object? storyEnumerator = null;
+        try
         {
-            dynamic? current = firstRange;
-            var linkIndex = 0;
-            while (current is not null)
+            storyEnumerator = ((IEnumerable)storyRanges).GetEnumerator();
+            while (((IEnumerator)storyEnumerator).MoveNext())
             {
-                if (records.Count >= RollbackStoryRangeLimit)
+                dynamic? current = ((IEnumerator)storyEnumerator).Current;
+                var linkIndex = 0;
+                while (current is not null)
                 {
-                    throw new NativeToolException(
-                        "LIMIT_EXCEEDED",
-                        "The Word story graph exceeds the verified rollback range limit",
-                        new
+                    dynamic? next = null;
+                    try
+                    {
+                        if (records.Count >= RollbackStoryRangeLimit)
                         {
-                            limit = RollbackStoryRangeLimit,
-                            stage = "rollback_checkpoint",
+                            throw new NativeToolException(
+                                "LIMIT_EXCEEDED",
+                                "The Word story graph exceeds the verified rollback range limit",
+                                new
+                                {
+                                    limit = RollbackStoryRangeLimit,
+                                    stage = "rollback_checkpoint",
+                                }
+                            );
                         }
-                    );
+                        var storyWordOpenXml = RollbackWordOpenXml(current, strictComReadback);
+                        records.Add(
+                            new RollbackStoryRecord(
+                                (int)current.StoryType,
+                                linkIndex,
+                                (int)current.Start,
+                                (int)current.End,
+                                RollbackSha256((string?)current.Text ?? ""),
+                                RollbackSha256(storyWordOpenXml)
+                            )
+                        );
+                        next = current.NextStoryRange;
+                    }
+                    finally
+                    {
+                        FinalReleaseBatchComObject(current);
+                    }
+                    current = next;
+                    linkIndex++;
                 }
-                var storyWordOpenXml = RollbackWordOpenXml(current, strictComReadback);
-                records.Add(
-                    new RollbackStoryRecord(
-                        (int)current.StoryType,
-                        linkIndex,
-                        (int)current.Start,
-                        (int)current.End,
-                        RollbackSha256((string?)current.Text ?? ""),
-                        RollbackSha256(storyWordOpenXml)
-                    )
-                );
-                current = current.NextStoryRange;
-                linkIndex++;
             }
+        }
+        finally
+        {
+            FinalReleaseBatchComObject(storyEnumerator);
+            FinalReleaseBatchComObject(storyRanges);
         }
 
         var digest = new StringBuilder(records.Count * 192);
