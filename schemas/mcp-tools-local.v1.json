@@ -3927,7 +3927,7 @@
     {
       "name": "inspect_ooxml_package",
       "title": "Inspect a Word OOXML package",
-      "description": "Read a local DOCX, DOCM, DOTX, or DOTM without opening Word. Return a bounded OPC graph summary, content-type and relationship diagnostics, a stable package fingerprint, and optional part metadata. Encrypted and partial encryption envelopes fail with distinct stable codes instead of generic ZIP corruption. External relationship targets are never fetched and remain redacted.",
+      "description": "Read a local DOCX, DOCM, DOTX, or DOTM without opening Word. Return a bounded OPC graph summary, content-type and relationship diagnostics, a stable package fingerprint, and optional part metadata. Files held open for writing are copied through two byte-identical bounded passes over one pinned file handle; persistent save activity fails retryably as SOURCE_CHANGED instead of inspecting mixed bytes. Encrypted and partial encryption envelopes fail with distinct stable codes instead of generic ZIP corruption. External relationship targets are never fetched and remain redacted.",
       "inputSchema": {
         "type": "object",
         "properties": {

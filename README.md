@@ -1,6 +1,6 @@
 # WordToolkit Native
 
-> **Status:** `main` contains the `0.60.4` reliability and authoring-contract line; [`v0.60.1`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.60.1) remains the latest tagged release. The project is not presented as a complete LaTeX engine, Word-compatibility layer, or pixel-equivalent renderer across Word versions.
+> **Status:** `main` contains the `0.60.5` stable-inspection and batch-diagnostics line; [`v0.60.1`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.60.1) remains the latest tagged release. The project is not presented as a complete LaTeX engine, Word-compatibility layer, or pixel-equivalent renderer across Word versions.
 
 ## Current authoring boundary
 
@@ -16,7 +16,9 @@ process.
 The API is still deliberately bounded. Formatting uses documented canonical
 keys, with `font_size` and `alignment` retained only as compatibility aliases.
 LaTeX support is a tested subset. Saved-package inspection proves package
-structure, not visual identity; PDF export and real-Word acceptance remain
+structure, not visual identity. A file held open for writing is accepted only
+after two byte-identical bounded reads over one pinned handle; active saving
+returns retryable `SOURCE_CHANGED`. PDF export and real-Word acceptance remain
 separate evidence.
 
 ## Repository navigation

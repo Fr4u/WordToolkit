@@ -109,6 +109,76 @@ public sealed class InspectWordPackageOperationTests
         }
     }
 
+    [Fact]
+    public void PathInspectionRetriesWhenTheSourceChangesDuringSnapshotCapture()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "saving-in-word.docx");
+            File.WriteAllBytes(path, PackageBytes());
+            var replacement = PackageBytes(externalTarget: "https://example.test/replaced");
+            using var expectedStream = new MemoryStream(replacement);
+            var expected = new InspectWordPackageOperation().Execute(
+                expectedStream,
+                "saving-in-word.docx"
+            );
+            var copyCount = 0;
+            var operation = new InspectWordPackageOperation(
+                limits: null,
+                afterSnapshotCopy: attempt =>
+                {
+                    copyCount++;
+                    if (attempt == 1)
+                    {
+                        File.WriteAllBytes(path, replacement);
+                    }
+                }
+            );
+
+            var result = operation.Execute(new InspectWordPackageRequest(path));
+
+            Assert.Equal(2, copyCount);
+            Assert.Equal(expected.PackageFingerprint, result.PackageFingerprint);
+            Assert.Equal(replacement.Length, result.Bytes);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void PathInspectionFailsRetryablyWhenTheSourceNeverStabilizes()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "continuously-saving.docx");
+            var first = PackageBytes();
+            var second = PackageBytes(externalTarget: "https://example.test/second");
+            File.WriteAllBytes(path, first);
+            var operation = new InspectWordPackageOperation(
+                limits: null,
+                afterSnapshotCopy: attempt =>
+                    File.WriteAllBytes(path, attempt % 2 == 0 ? first : second)
+            );
+
+            var exception = Assert.Throws<WordToolkitOperationException>(() =>
+                operation.Execute(new InspectWordPackageRequest(path))
+            );
+
+            Assert.Equal("SOURCE_CHANGED", exception.Code);
+            Assert.True(exception.Retryable);
+            Assert.DoesNotContain(path, exception.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(path, exception.Reason, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData("", 10)]
     [InlineData("sample.txt", 10)]

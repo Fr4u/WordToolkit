@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- Prepared the `0.60.5` stable-inspection and batch-diagnostics line. Path-based
+  `inspect_ooxml_package` now copies the source to a bounded delete-on-close
+  snapshot and requires two SHA-256/length-identical reads over one pinned file
+  handle before parsing. A document that keeps changing during save fails with
+  retryable `SOURCE_CHANGED`; CLI returns temporary-failure exit code 75 and
+  action guidance tells agents to wait for the save and retry. Structured OPC
+  mutation smoke retains a valid control package and no longer accepts
+  `IO_ERROR`, preventing a blanket I/O regression from going green. Live mixed
+  batch publication projects per-operation failures through
+  `failed_operation_index` across COM range acquisition, verification and result
+  construction, and releases transferred text/equation RCWs on both success and
+  rollback paths; staging cleanup retains the original error code and failed
+  operation index even when cleanup itself fails. Staging ranges, equations and
+  documents now have explicit COM ownership and release points. A dormant real-Word
+  acceptance fixture typo (`\night` instead of `\right`) was corrected after the
+  licensed application rejected it. Local qualification passed Python 1403/1403
+  with 16 explicit environment skips and 74.56% branch coverage, Engine 787/787,
+  Native 645/645, LibreOffice 12/12, the dedicated real-Word regression gates and
+  the 59/59 live-action acceptance over 153 MCP requests. Two 199-file,
+  91,143,725-byte builds produced byte-identical 37,885,380-byte ZIPs with SHA-256
+  `8543ED39...`; the executable is `C8FCD8B1...` and the native runtime assembly is
+  `21081310...`. This line does not claim an operating-system atomic snapshot,
+  complete malformed-DOCX fuzz coverage or a new Microsoft Word build matrix.
+
 - Prepared the `0.60.4` reliability and authoring-contract line. The native
   LaTeX converter now accepts `\boxed{...}` and `\implies`; multiple-integral
   differential readback no longer applies an invalid one-to-one placement rule.
@@ -2384,7 +2408,7 @@
   function application no longer invents an extra argument delimiter, while `lim`,
   `min` and `max` now receive an explicit Word boundary after their lower limit so the
   following operand cannot be swallowed into that limit.
-- Added LaTeX `\left\|...\night\|` and `\|...\|` norm delimiters, and canonicalized
+- Added LaTeX `\left\|...\right\|` and `\|...\|` norm delimiters, and canonicalized
   the edge whitespace that Word removes from mathematical text inside `cases`.
 - Scoped differential-placement verification to differentials owned by integral
   operands. Ordinary derivatives such as `\frac{\mathrm{d}y}{\mathrm{d}x}` retain the

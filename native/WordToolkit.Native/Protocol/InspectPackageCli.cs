@@ -91,7 +91,7 @@ internal static class InspectPackageCli
         }
     }
 
-    private static int ExitCode(string errorCode)
+    internal static int ExitCode(string errorCode)
     {
         return errorCode switch
         {
@@ -103,6 +103,7 @@ internal static class InspectPackageCli
             or "ENCRYPTION_CONTAINER_INVALID" => 65,
             "ACCESS_DENIED" => 77,
             "IO_ERROR" => 74,
+            "SOURCE_CHANGED" => 75,
             _ => 70,
         };
     }

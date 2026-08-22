@@ -176,7 +176,9 @@ The weekly `bounded fuzz smoke` workflow also runs on demand through
 budgets on Ubuntu, with the normal package limits still active. This is not
 coverage-guided fuzzing and it is not evidence of exhaustive malformed-DOCX coverage;
 it is a cheap regression signal that malformed or structurally mutated packages stay
-inside the documented failure and preservation boundaries. The workflow deliberately
+inside the documented failure and preservation boundaries. One unmodified valid package
+is retained as a control, and `IO_ERROR` is not an accepted mutation outcome; this keeps
+a blanket I/O regression from producing a false-green run. The workflow deliberately
 does not run the complete native suite or claim Microsoft Word interoperability. Its
 bounded TRX diagnostics are retained for seven days even when the gate fails.
 

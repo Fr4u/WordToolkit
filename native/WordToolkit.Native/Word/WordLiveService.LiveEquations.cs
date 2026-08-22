@@ -240,7 +240,8 @@ internal sealed partial class WordLiveService
                         {
                             CloseStagedPreparedBatch(
                                 staged,
-                                targetMutationAttempted: false
+                                targetMutationAttempted: false,
+                                originalFailure: stagingException
                             );
                         }
                         catch (Exception cleanupException)
@@ -350,7 +351,8 @@ internal sealed partial class WordLiveService
                         {
                             CloseStagedPreparedBatch(
                                 staged!,
-                                targetMutationAttempted: mutationAttempted
+                                targetMutationAttempted: mutationAttempted,
+                                originalFailure: exception
                             );
                         }
                         catch (Exception cleanupException)

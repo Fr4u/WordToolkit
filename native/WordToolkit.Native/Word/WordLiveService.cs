@@ -3146,7 +3146,8 @@ internal sealed partial class WordLiveService : IToolHandler
                         {
                             CloseStagedPreparedBatch(
                                 staged,
-                                targetMutationAttempted: false
+                                targetMutationAttempted: false,
+                                originalFailure: stagingException
                             );
                         }
                         catch (Exception cleanupException)
@@ -3266,141 +3267,159 @@ internal sealed partial class WordLiveService : IToolHandler
                         {
                             continue;
                         }
-                        var expectedRange = staged.OperationRanges[index];
-                        dynamic inserted = document.Range(
-                            insertionStart + expectedRange.Start,
-                            insertionStart + expectedRange.End
-                        );
+                        dynamic? inserted = null;
                         try
                         {
+                            var expectedRange = staged.OperationRanges[index];
+                            inserted = document.Range(
+                                insertionStart + expectedRange.Start,
+                                insertionStart + expectedRange.End
+                            );
                             VerifyPublishedTextOperation(
                                 inserted,
                                 textOperation,
                                 expectedRange,
                                 index
                             );
+                            textRanges[index] = (object)inserted;
+                            inserted = null;
                         }
                         catch (Exception exception)
                         {
                             throw WithFailedOperationIndex(exception, index);
                         }
-                        textRanges[index] = (object)inserted;
+                        finally
+                        {
+                            FinalReleaseBatchComObject(inserted);
+                        }
                     }
                     for (var ordinal = 0; ordinal < staged.EquationIndexes.Count; ordinal++)
                     {
                         var index = staged.EquationIndexes[ordinal];
-                        dynamic equation = publishedRange.OMaths.Item(ordinal + 1);
-                        var expectedRange = staged.OperationRanges[index];
-                        var actualStart = (int)equation.Range.Start;
-                        var actualEnd = (int)equation.Range.End;
-                        if (
-                            actualStart != insertionStart + expectedRange.Start
-                            || actualEnd != insertionStart + expectedRange.End
-                        )
-                        {
-                            throw new NativeToolException(
-                                "EQUATION_INVALID",
-                                "Microsoft Word moved or resized a staged equation during publication",
-                                new
-                                {
-                                    operation_index = index,
-                                    expected_start = insertionStart + expectedRange.Start,
-                                    expected_end = insertionStart + expectedRange.End,
-                                    actual_start = actualStart,
-                                    actual_end = actualEnd,
-                                }
-                            );
-                        }
+                        dynamic? equation = null;
                         try
                         {
+                            equation = publishedRange.OMaths.Item(ordinal + 1);
+                            var expectedRange = staged.OperationRanges[index];
+                            var actualStart = (int)equation.Range.Start;
+                            var actualEnd = (int)equation.Range.End;
+                            if (
+                                actualStart != insertionStart + expectedRange.Start
+                                || actualEnd != insertionStart + expectedRange.End
+                            )
+                            {
+                                throw new NativeToolException(
+                                    "EQUATION_INVALID",
+                                    "Microsoft Word moved or resized a staged equation during publication",
+                                    new
+                                    {
+                                        expected_start = insertionStart + expectedRange.Start,
+                                        expected_end = insertionStart + expectedRange.End,
+                                        actual_start = actualStart,
+                                        actual_end = actualEnd,
+                                    }
+                                );
+                            }
                             builtEquations[index] = VerifyPublishedEquation(
                                 equation,
                                 staged.Equations[index]
                             );
+                            equation = null;
                         }
                         catch (Exception exception)
                         {
                             throw WithFailedOperationIndex(exception, index);
                         }
+                        finally
+                        {
+                            FinalReleaseBatchComObject(equation);
+                        }
                     }
                     for (var index = 0; index < operations.Count; index++)
                     {
-                        if (operations[index] is PreparedTextOperation textOperation)
+                        try
                         {
-                            dynamic inserted = textRanges[index];
+                            if (operations[index] is PreparedTextOperation textOperation)
+                            {
+                                dynamic inserted = textRanges[index];
+                                results[index] = new
+                                {
+                                    type = "text",
+                                    range = new
+                                    {
+                                        start = (int)inserted.Start,
+                                        end = (int)inserted.End,
+                                    },
+                                    style = textOperation.Style,
+                                    run_count = textOperation.Runs.Count > 0 ? textOperation.Runs.Count : 1,
+                                };
+                                continue;
+                            }
+                            var built = builtEquations[index];
+                            dynamic finalEquation = built.Equation;
+                            var equationOperation = built.Operation;
+                            var readback = built.Readback;
+                            var styleRewrite = built.StyleRewrite;
+                            var styleVerification = built.StyleVerification;
                             results[index] = new
                             {
-                                type = "text",
-                                range = new
+                                type = "equation",
+                                equation = new
                                 {
-                                    start = (int)inserted.Start,
-                                    end = (int)inserted.End,
+                                    input_format = equationOperation.InputFormat,
+                                    display = equationOperation.Display,
+                                    linear_input = equationOperation.Linear,
+                                    native_verified = true,
+                                    readback_verified = readback is not null,
+                                    readback_required = equationOperation.ReadbackRequired,
+                                    native_style_verified = styleVerification is not null,
+                                    formatting = styleVerification is null
+                                        ? null
+                                        : new
+                                        {
+                                            region_count = styleRewrite!.RegionCount,
+                                            plain_region_count = equationOperation.StyleCounts.Plain,
+                                            bold_region_count = equationOperation.StyleCounts.Bold,
+                                            italic_region_count = equationOperation.StyleCounts.Italic,
+                                            bold_italic_region_count = equationOperation.StyleCounts.BoldItalic,
+                                            styled_run_count = styleVerification.StyledRunCount,
+                                            plain_run_count = styleVerification.PlainRunCount,
+                                            bold_run_count = styleVerification.BoldRunCount,
+                                            italic_run_count = styleVerification.ItalicRunCount,
+                                            bold_italic_run_count = styleVerification.BoldItalicRunCount,
+                                            plain_control_count = styleVerification.PlainControlCount,
+                                            bold_control_count = styleVerification.BoldControlCount,
+                                            italic_control_count = styleVerification.ItalicControlCount,
+                                            bold_italic_control_count = styleVerification.BoldItalicControlCount,
+                                            expected_contract_sha256 = styleVerification.ExpectedContractSha256,
+                                            actual_contract_sha256 = styleVerification.ActualContractSha256,
+                                            internal_markers_returned = false,
+                                            raw_omml_returned = false,
+                                        },
+                                    readback = readback is null
+                                        ? null
+                                        : new
+                                        {
+                                            expected_contract_sha256 = readback.ExpectedContractSha256,
+                                            actual_contract_sha256 = readback.ActualContractSha256,
+                                            math_element_count = readback.MathElementCount,
+                                            nary_count = readback.NaryCount,
+                                            differential_count = readback.DifferentialCount,
+                                            differential_placement_verified = readback.DifferentialPlacementVerified,
+                                            raw_omml_returned = false,
+                                        },
+                                    range = new
+                                    {
+                                        start = (int)finalEquation.Range.Start,
+                                        end = (int)finalEquation.Range.End,
+                                    },
                                 },
-                                style = textOperation.Style,
-                                run_count = textOperation.Runs.Count > 0 ? textOperation.Runs.Count : 1,
                             };
-                            continue;
                         }
-                        var built = builtEquations[index];
-                        dynamic finalEquation = built.Equation;
-                        var equationOperation = built.Operation;
-                        var readback = built.Readback;
-                        var styleRewrite = built.StyleRewrite;
-                        var styleVerification = built.StyleVerification;
-                        results[index] = new
+                        catch (Exception exception)
                         {
-                            type = "equation",
-                            equation = new
-                            {
-                                input_format = equationOperation.InputFormat,
-                                display = equationOperation.Display,
-                                linear_input = equationOperation.Linear,
-                                native_verified = true,
-                                readback_verified = readback is not null,
-                                readback_required = equationOperation.ReadbackRequired,
-                                native_style_verified = styleVerification is not null,
-                                formatting = styleVerification is null
-                                    ? null
-                                    : new
-                                    {
-                                        region_count = styleRewrite!.RegionCount,
-                                        plain_region_count = equationOperation.StyleCounts.Plain,
-                                        bold_region_count = equationOperation.StyleCounts.Bold,
-                                        italic_region_count = equationOperation.StyleCounts.Italic,
-                                        bold_italic_region_count = equationOperation.StyleCounts.BoldItalic,
-                                        styled_run_count = styleVerification.StyledRunCount,
-                                        plain_run_count = styleVerification.PlainRunCount,
-                                        bold_run_count = styleVerification.BoldRunCount,
-                                        italic_run_count = styleVerification.ItalicRunCount,
-                                        bold_italic_run_count = styleVerification.BoldItalicRunCount,
-                                        plain_control_count = styleVerification.PlainControlCount,
-                                        bold_control_count = styleVerification.BoldControlCount,
-                                        italic_control_count = styleVerification.ItalicControlCount,
-                                        bold_italic_control_count = styleVerification.BoldItalicControlCount,
-                                        expected_contract_sha256 = styleVerification.ExpectedContractSha256,
-                                        actual_contract_sha256 = styleVerification.ActualContractSha256,
-                                        internal_markers_returned = false,
-                                        raw_omml_returned = false,
-                                    },
-                                readback = readback is null
-                                    ? null
-                                    : new
-                                    {
-                                        expected_contract_sha256 = readback.ExpectedContractSha256,
-                                        actual_contract_sha256 = readback.ActualContractSha256,
-                                        math_element_count = readback.MathElementCount,
-                                        nary_count = readback.NaryCount,
-                                        differential_count = readback.DifferentialCount,
-                                        differential_placement_verified = readback.DifferentialPlacementVerified,
-                                        raw_omml_returned = false,
-                                    },
-                                range = new
-                                {
-                                    start = (int)finalEquation.Range.Start,
-                                    end = (int)finalEquation.Range.End,
-                                },
-                            },
-                        };
+                            throw WithFailedOperationIndex(exception, index);
+                        }
                     }
                     undoRecord.EndCustomRecord();
                     undoStarted = false;
@@ -3439,7 +3458,8 @@ internal sealed partial class WordLiveService : IToolHandler
                         {
                             CloseStagedPreparedBatch(
                                 staged!,
-                                targetMutationAttempted: mutationAttempted
+                                targetMutationAttempted: mutationAttempted,
+                                originalFailure: exception
                             );
                         }
                         catch (Exception cleanupException)
@@ -3485,6 +3505,14 @@ internal sealed partial class WordLiveService : IToolHandler
                 }
                 finally
                 {
+                    foreach (var range in textRanges.Values)
+                    {
+                        FinalReleaseBatchComObject(range);
+                    }
+                    foreach (var built in builtEquations.Values)
+                    {
+                        FinalReleaseBatchComObject(built.Equation);
+                    }
                     if (originalScreenUpdating is not null)
                     {
                         application.ScreenUpdating = originalScreenUpdating.Value;
@@ -3493,6 +3521,26 @@ internal sealed partial class WordLiveService : IToolHandler
             },
             cancellationToken
         );
+    }
+
+    private static void FinalReleaseBatchComObject(object? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+        try
+        {
+            if (Marshal.IsComObject(value))
+            {
+                Marshal.FinalReleaseComObject(value);
+            }
+        }
+        catch (InvalidComObjectException)
+        {
+            // Another owned reference already released this RCW. Cleanup must not
+            // replace the authoritative publication or rollback result.
+        }
     }
 
     private static BuiltEquationResult BuildVerifiedNativeEquation(

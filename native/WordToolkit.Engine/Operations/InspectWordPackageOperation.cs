@@ -1,3 +1,5 @@
+using System.Buffers;
+using System.Security.Cryptography;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Semantics;
 using WordToolkit.Engine.Xml;
@@ -89,19 +91,32 @@ public sealed record InspectWordPackageResult(
 
 public sealed class InspectWordPackageOperation
 {
+    private const int StableSnapshotAttempts = 2;
+    private const int SnapshotBufferBytes = 64 * 1024;
+
     private readonly OpcPackageReader _reader;
     private readonly OoxmlEncryptionInspector _encryptionInspector;
+    private readonly OpcPackageLimits _limits;
+    private readonly Action<int>? _afterSnapshotCopy;
 
     public InspectWordPackageOperation(OpcPackageLimits? limits = null)
+        : this(limits, afterSnapshotCopy: null)
     {
-        _reader = new OpcPackageReader(limits);
+    }
+
+    internal InspectWordPackageOperation(
+        OpcPackageLimits? limits,
+        Action<int>? afterSnapshotCopy
+    )
+    {
+        _limits = limits ?? OpcPackageLimits.Default;
+        _limits.Validate();
+        _afterSnapshotCopy = afterSnapshotCopy;
+        _reader = new OpcPackageReader(_limits);
         _encryptionInspector = new OoxmlEncryptionInspector(
             new OoxmlEncryptionInspectionLimits
             {
-                MaxFileBytes = Math.Max(
-                    512,
-                    (limits ?? OpcPackageLimits.Default).MaxArchiveBytes
-                ),
+                MaxFileBytes = Math.Max(512, _limits.MaxArchiveBytes),
             }
         );
     }
@@ -119,15 +134,11 @@ public sealed class InspectWordPackageOperation
         var path = ResolvePath(request.LocalPath);
         try
         {
-            using var stream = new FileStream(
-                path,
-                FileMode.Open,
-                FileAccess.Read,
-                // Word keeps the document open for read/write while editing. Request
-                // compatible sharing so inspection can read the stable on-disk view
-                // instead of turning an ordinary open document into IO_ERROR.
-                FileShare.ReadWrite
-            );
+            // Word keeps the document open for read/write while editing. A shared
+            // FileStream alone can observe bytes from two saves. Capture the file to a
+            // bounded delete-on-close snapshot, then hash the source again. Inspection
+            // only proceeds when both passes are byte-identical.
+            using var stream = CaptureStablePathSnapshot(path, cancellationToken);
             return ExecuteCore(
                 stream,
                 Path.GetFileName(path),
@@ -150,6 +161,146 @@ public sealed class InspectWordPackageOperation
             throw MapFailure(exception, path, request.IncludeDetails);
         }
     }
+
+    private FileStream CaptureStablePathSnapshot(
+        string path,
+        CancellationToken cancellationToken
+    )
+    {
+        var temporaryPath = Path.Combine(
+            Path.GetTempPath(),
+            $"wordtoolkit-inspect-{Guid.NewGuid():N}.snapshot"
+        );
+        FileStream? snapshot = null;
+        try
+        {
+            snapshot = new FileStream(
+                temporaryPath,
+                FileMode.CreateNew,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                SnapshotBufferBytes,
+                FileOptions.DeleteOnClose | FileOptions.SequentialScan
+            );
+            for (var attempt = 1; attempt <= StableSnapshotAttempts; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                snapshot.Position = 0;
+                snapshot.SetLength(0);
+                using var source = OpenSharedSource(path);
+                var copied = CopyAndHash(
+                    source,
+                    snapshot,
+                    _limits.MaxArchiveBytes,
+                    cancellationToken
+                );
+                snapshot.Flush(flushToDisk: false);
+                _afterSnapshotCopy?.Invoke(attempt);
+                source.Position = 0;
+                var verified = CopyAndHash(
+                    source,
+                    Stream.Null,
+                    _limits.MaxArchiveBytes,
+                    cancellationToken
+                );
+                if (
+                    copied.Bytes == verified.Bytes
+                    && CryptographicOperations.FixedTimeEquals(copied.Sha256, verified.Sha256)
+                )
+                {
+                    snapshot.Position = 0;
+                    return snapshot;
+                }
+            }
+
+            throw new WordToolkitOperationException(
+                "SOURCE_CHANGED",
+                "The Word package changed while a stable inspection snapshot was being captured",
+                "Retry after Microsoft Word finishes saving the document",
+                retryable: true
+            );
+        }
+        catch
+        {
+            snapshot?.Dispose();
+            TryDeleteSnapshot(temporaryPath);
+            throw;
+        }
+    }
+
+    private static FileStream OpenSharedSource(string path)
+    {
+        return new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete,
+            SnapshotBufferBytes,
+            FileOptions.SequentialScan
+        );
+    }
+
+    private static SnapshotHash CopyAndHash(
+        Stream source,
+        Stream destination,
+        long maxBytes,
+        CancellationToken cancellationToken
+    )
+    {
+        if (source.Length > maxBytes)
+        {
+            throw new OpcPackageLimitException(
+                $"Package stream has {source.Length} bytes; limit is {maxBytes}."
+            );
+        }
+
+        var buffer = ArrayPool<byte>.Shared.Rent(SnapshotBufferBytes);
+        try
+        {
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            long totalBytes = 0;
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var read = source.Read(buffer, 0, buffer.Length);
+                if (read == 0)
+                {
+                    break;
+                }
+                if (totalBytes > maxBytes - read)
+                {
+                    throw new OpcPackageLimitException(
+                        $"Package stream exceeds {maxBytes} bytes."
+                    );
+                }
+                destination.Write(buffer, 0, read);
+                hash.AppendData(buffer, 0, read);
+                totalBytes += read;
+            }
+            return new SnapshotHash(totalBytes, hash.GetHashAndReset());
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
+        }
+    }
+
+    private static void TryDeleteSnapshot(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException
+        )
+        {
+            // DeleteOnClose is authoritative; this is a best-effort fallback for a
+            // constructor or platform failure before the handle owned the path.
+        }
+    }
+
+    private sealed record SnapshotHash(long Bytes, byte[] Sha256);
 
     public InspectWordPackageResult Execute(
         Stream packageStream,
