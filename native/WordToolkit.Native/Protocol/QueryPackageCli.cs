@@ -208,13 +208,13 @@ internal static class QueryPackageCli
         return result.ToString();
     }
 
-    private static int ExitCode(string errorCode) =>
+    internal static int ExitCode(string errorCode) =>
         errorCode switch
         {
             "INVALID_INPUT" => 64,
             "NOT_FOUND" => 66,
             "INVALID_PACKAGE" or "INVALID_WORD_PACKAGE" or "PACKAGE_LIMIT" => 65,
-            "VERSION_CONFLICT" or "TARGET_NOT_FOUND" => 75,
+            "VERSION_CONFLICT" or "TARGET_NOT_FOUND" or "SOURCE_CHANGED" => 75,
             "ACCESS_DENIED" => 77,
             "IO_ERROR" => 74,
             _ => 70,

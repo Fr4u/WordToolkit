@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
 using WordToolkit.Engine.Packaging;
@@ -73,6 +74,218 @@ public sealed class OpcPackagePatchTests
         Assert.Equal(before.Fingerprint, restored.Fingerprint);
         AssertEntryContentEqual(before, restored);
         Assert.Equal(patch.PatchId, reversed.Reverse().PatchId);
+    }
+
+    [Fact]
+    public void PathReadUsesAStableSnapshotAndRejectsConcurrentRewrite()
+    {
+        var (before, after) = ComparedPackages();
+        var patch = new OpcPackagePatchBuilder().Create(before, after);
+        using var artifact = WritePatch(patch);
+        var original = artifact.ToArray();
+        var changed = original.ToArray();
+        changed[changed.Length / 2] ^= 0xff;
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"wordtoolkit-{Guid.NewGuid():N}.wtpatch"
+        );
+        File.WriteAllBytes(path, original);
+        try
+        {
+            using (var writer = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Write,
+                FileShare.ReadWrite | FileShare.Delete
+            ))
+            {
+                var codec = new OpcPackagePatchCodec();
+                var decoded = codec.ReadFileFromPath(path);
+                Assert.Equal(patch.PatchId, decoded.Patch.PatchId);
+                Assert.Equal(original.LongLength, decoded.SerializedBytes);
+                Assert.Equal(
+                    Convert.ToHexString(SHA256.HashData(original)).ToLowerInvariant(),
+                    decoded.SerializedSha256
+                );
+
+                var exception = Assert.Throws<OpcPackageSourceChangedException>(() =>
+                    codec.ReadPath(
+                        path,
+                        CancellationToken.None,
+                        attempt =>
+                        {
+                            var replacement = attempt == 1 ? changed : original;
+                            writer.Position = 0;
+                            writer.Write(replacement);
+                            writer.SetLength(replacement.Length);
+                            writer.Flush(flushToDisk: true);
+                        }
+                    )
+                );
+
+                Assert.DoesNotContain(path, exception.Message, StringComparison.Ordinal);
+            }
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void PathSnapshotBoundScalesForWorstCaseDeflateExpansion()
+    {
+        const long oneGibibyte = 1024L * 1024 * 1024;
+        var limits = new OpcPackagePatchLimits
+        {
+            MaxPayloads = 1,
+            MaxPayloadBytes = oneGibibyte,
+            MaxPayloadBytesPerBlob = oneGibibyte,
+            MaxManifestBytes = 1,
+        };
+        var expandedBytes = limits.MaxPayloadBytes + limits.MaxManifestBytes;
+        const long entryCount = 2;
+        var expected = expandedBytes
+            + (expandedBytes >> 3)
+            + (expandedBytes >> 8)
+            + (expandedBytes >> 9)
+            + (entryCount * 22)
+            + (entryCount * 512)
+            + (64 * 1024);
+
+        var actual = new OpcPackagePatchCodec(limits)
+            .MaximumSerializedArchiveBytes();
+
+        Assert.Equal(expected, actual);
+        Assert.True(
+            actual
+                > expandedBytes
+                    + (entryCount * 512)
+                    + (64 * 1024),
+            "The serialized cap must include data-dependent DEFLATE expansion."
+        );
+    }
+
+    [Fact]
+    public void PathReadClassifiesOversizedArtifactAsPatchLimit()
+    {
+        var codec = new OpcPackagePatchCodec(new OpcPackagePatchLimits
+        {
+            MaxPayloads = 1,
+            MaxPayloadBytes = 1,
+            MaxPayloadBytesPerBlob = 1,
+            MaxManifestBytes = 1,
+        });
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"wordtoolkit-{Guid.NewGuid():N}.wtpatch"
+        );
+        using (var oversized = new FileStream(path, FileMode.CreateNew, FileAccess.Write))
+        {
+            oversized.SetLength(codec.MaximumSerializedArchiveBytes() + 1);
+        }
+        try
+        {
+            var exception = Assert.Throws<OpcPackagePatchLimitException>(() =>
+                codec.ReadFromPath(path)
+            );
+
+            Assert.IsType<OpcPackageLimitException>(exception.InnerException);
+            Assert.DoesNotContain(path, exception.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(31, 1)]
+    [InlineData(4, 65_535)]
+    [InlineData(3, 65_536)]
+    [InlineData(2, 1_048_576)]
+    public void SerializedPatchFitsBoundAcrossPayloadDistributions(
+        int payloadCount,
+        int payloadBytes
+    )
+    {
+        var beforeEntries = new Dictionary<string, byte[]>
+        {
+            ["word/document.xml"] = Utf8(DocumentXml("same")),
+        };
+        var afterEntries = new Dictionary<string, byte[]>(beforeEntries);
+        for (var index = 0; index < payloadCount; index++)
+        {
+            var payload = new byte[payloadBytes];
+            new Random(unchecked(0x5eed_1234 + index)).NextBytes(payload);
+            payload[0] = (byte)index;
+            afterEntries[$"custom/payload-{index:D4}.bin"] = payload;
+        }
+        using var beforeStream = BuildPackage(beforeEntries);
+        using var afterStream = BuildPackage(afterEntries);
+        var totalPayloadBytes = checked((long)payloadCount * payloadBytes);
+        var limits = new OpcPackagePatchLimits
+        {
+            MaxOperations = payloadCount,
+            MaxPayloads = payloadCount,
+            MaxPayloadBytes = totalPayloadBytes,
+            MaxPayloadBytesPerBlob = payloadBytes,
+            MaxManifestBytes = 4L * 1024 * 1024,
+            MaxCompressionRatio = double.MaxValue,
+        };
+        var patch = new OpcPackagePatchBuilder(limits).Create(
+            Read(beforeStream),
+            Read(afterStream)
+        );
+        var codec = new OpcPackagePatchCodec(limits);
+        using var first = new MemoryStream();
+        using var second = new MemoryStream();
+
+        codec.Write(first, patch);
+        codec.Write(second, patch);
+        first.Position = 0;
+        var decoded = codec.Read(first);
+
+        Assert.Equal(payloadCount, patch.PayloadCount);
+        Assert.True(first.Length <= codec.MaximumSerializedArchiveBytes());
+        Assert.Equal(first.ToArray(), second.ToArray());
+        Assert.Equal(patch.PatchId, decoded.PatchId);
+    }
+
+    [Fact]
+    public void ExtremeCustomLimitsRemainOverflowSafeForPathRoundTrip()
+    {
+        var limits = new OpcPackagePatchLimits
+        {
+            MaxOperations = int.MaxValue,
+            MaxPayloads = int.MaxValue,
+            MaxPayloadBytes = long.MaxValue,
+            MaxPayloadBytesPerBlob = long.MaxValue,
+            MaxManifestBytes = long.MaxValue,
+            MaxCompressionRatio = double.MaxValue,
+        };
+        var codec = new OpcPackagePatchCodec(limits);
+        var (before, after) = ComparedPackages();
+        var patch = new OpcPackagePatchBuilder().Create(before, after);
+        using var artifact = new MemoryStream();
+        codec.Write(artifact, patch);
+        var path = Path.Combine(
+            Path.GetTempPath(),
+            $"wordtoolkit-{Guid.NewGuid():N}.wtpatch"
+        );
+        File.WriteAllBytes(path, artifact.ToArray());
+        try
+        {
+            var decoded = codec.ReadFromPath(path);
+
+            Assert.Equal(long.MaxValue, codec.MaximumSerializedArchiveBytes());
+            Assert.Equal(patch.PatchId, decoded.PatchId);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     [Fact]

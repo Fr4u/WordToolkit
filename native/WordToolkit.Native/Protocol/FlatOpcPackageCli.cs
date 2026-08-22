@@ -79,12 +79,13 @@ internal static class FlatOpcPackageCli
         }
     }
 
-    private static int ExitCode(string code) => code switch
+    internal static int ExitCode(string code) => code switch
     {
         "INVALID_INPUT" => 64,
         "NOT_FOUND" => 66,
         "INVALID_PACKAGE" or "INVALID_WORD_PACKAGE" or "PACKAGE_LIMIT" => 65,
         "VERSION_CONFLICT" => 73,
+        "SOURCE_CHANGED" => 75,
         "IO_ERROR" => 74,
         "ACCESS_DENIED" => 77,
         "SIGNED_PACKAGE" or "UNSUPPORTED_DOCUMENT" => 78,

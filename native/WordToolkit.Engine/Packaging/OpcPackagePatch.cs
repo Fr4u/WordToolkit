@@ -536,6 +536,11 @@ public class OpcPackagePatchException : InvalidOperationException
         : base(message)
     {
     }
+
+    public OpcPackagePatchException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
 }
 
 public sealed class OpcPackagePatchPreconditionException : OpcPackagePatchException
@@ -558,6 +563,11 @@ public sealed class OpcPackagePatchLimitException : OpcPackagePatchException
 {
     public OpcPackagePatchLimitException(string message)
         : base(message)
+    {
+    }
+
+    public OpcPackagePatchLimitException(string message, Exception innerException)
+        : base(message, innerException)
     {
     }
 }

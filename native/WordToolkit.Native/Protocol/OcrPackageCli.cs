@@ -167,13 +167,14 @@ internal static class OcrPackageCli
         return result.ToString();
     }
 
-    private static int ExitCode(string code) => code switch
+    internal static int ExitCode(string code) => code switch
     {
         "INVALID_INPUT" => 64,
         "NOT_FOUND" or "OCR_CANDIDATE_NOT_FOUND" => 66,
         "INVALID_PACKAGE" or "INVALID_WORD_PACKAGE" or "PACKAGE_LIMIT"
             or "OCR_CANDIDATE_LIMIT" or "OCR_INPUT_LIMIT" or "OCR_OUTPUT_LIMIT" => 65,
-        "VERSION_CONFLICT" or "OCR_INPUT_CHANGED" or "OCR_PROVIDER_CHANGED" => 75,
+        "VERSION_CONFLICT" or "SOURCE_CHANGED" or "OCR_INPUT_CHANGED"
+            or "OCR_PROVIDER_CHANGED" => 75,
         "ACCESS_DENIED" or "OCR_PRIVACY_POLICY_DENIED" => 77,
         "IO_ERROR" => 74,
         "OCR_PROVIDER_UNAVAILABLE" or "OCR_LANGUAGE_UNAVAILABLE" => 69,

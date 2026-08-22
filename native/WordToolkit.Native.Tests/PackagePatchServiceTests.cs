@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -139,6 +140,16 @@ public sealed class PackagePatchServiceTests
             );
             Assert.Equal(JsonValueKind.Null, operation.GetProperty("before_sha256").ValueKind);
             Assert.True(inspectJson.RootElement.GetProperty("reversible").GetBoolean());
+            var inspectedArtifactBytes = File.ReadAllBytes(artifactOne);
+            Assert.Equal(
+                inspectedArtifactBytes.LongLength,
+                inspectJson.RootElement.GetProperty("artifact_bytes").GetInt64()
+            );
+            Assert.Equal(
+                Convert.ToHexString(SHA256.HashData(inspectedArtifactBytes))
+                    .ToLowerInvariant(),
+                inspectJson.RootElement.GetProperty("artifact_sha256").GetString()
+            );
             Assert.False(
                 inspectJson.RootElement.GetProperty("zip_container_byte_exact").GetBoolean()
             );

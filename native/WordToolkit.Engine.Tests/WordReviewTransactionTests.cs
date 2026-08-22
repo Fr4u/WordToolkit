@@ -9,13 +9,20 @@ public sealed class WordReviewTransactionTests
 {
     private const string WordNamespace =
         "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    private const string StrictWordNamespace =
+        "http://purl.oclc.org/ooxml/wordprocessingml/main";
 
-    [Fact]
-    public void AcceptsAndRejectsRunInsertionsAndDeletionsWithExactInverse()
+    [Theory]
+    [InlineData(WordNamespace)]
+    [InlineData(StrictWordNamespace)]
+    public void AcceptsAndRejectsRunInsertionsAndDeletionsWithExactInverse(
+        string wordNamespace
+    )
     {
         var xml = DocumentXml(
             "<w:p><w:ins w:id='1' w:author='A'><w:r><w:t>new</w:t></w:r></w:ins>"
-                + "<w:del w:id='2' w:author='B'><w:r><w:delText>old</w:delText></w:r></w:del></w:p>"
+                + "<w:del w:id='2' w:author='B'><w:r><w:delText>old</w:delText></w:r></w:del></w:p>",
+            wordNamespace
         );
         using var packageStream = BuildPackage(xml, [1, 2, 3, 4]);
         var reader = new OpcPackageReader();
@@ -53,13 +60,13 @@ public sealed class WordReviewTransactionTests
         using var acceptedStream = Serialize(accept.CreateMutation(package));
         var accepted = reader.Read(acceptedStream);
         Assert.Equal(
-            DocumentXml("<w:p><w:r><w:t>new</w:t></w:r></w:p>"),
+            DocumentXml("<w:p><w:r><w:t>new</w:t></w:r></w:p>", wordNamespace),
             PartXml(accepted)
         );
         using var rejectedStream = Serialize(reject.CreateMutation(package));
         var rejected = reader.Read(rejectedStream);
         Assert.Equal(
-            DocumentXml("<w:p><w:r><w:t>old</w:t></w:r></w:p>"),
+            DocumentXml("<w:p><w:r><w:t>old</w:t></w:r></w:p>", wordNamespace),
             PartXml(rejected)
         );
         using var revertedStream = Serialize(accept.CreateInverseMutation(accepted));
@@ -684,8 +691,10 @@ public sealed class WordReviewTransactionTests
         Assert.Equal("commands", exception.ParamName);
     }
 
-    private static string DocumentXml(string body) =>
-        $"<w:document xmlns:w='{WordNamespace}'><w:body>{body}</w:body></w:document>";
+    private static string DocumentXml(
+        string body,
+        string wordNamespace = WordNamespace
+    ) => $"<w:document xmlns:w='{wordNamespace}'><w:body>{body}</w:body></w:document>";
 
     private static string PartXml(OpcPackageSnapshot package) => Encoding.UTF8.GetString(
         package.Parts["/word/document.xml"].Entry.Content.Span

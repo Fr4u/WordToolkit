@@ -153,6 +153,19 @@ author. Protect raw patches with the same access controls, storage encryption, r
 and deletion policy as the source DOCX, and do not accept one from an untrusted party
 merely because its hashes validate.
 
+File-backed raw patch reads first capture one bounded encrypted temporary snapshot while
+holding a source handle with read/write/delete sharing. The source handle is hashed twice;
+if its length or SHA-256 changes, capture is retried once and then fails with retryable
+`SOURCE_CHANGED`. Inspection, forward apply and rollback decode only the accepted snapshot,
+and inspection derives its serialized byte count and SHA-256 from the same capture, so one
+operation cannot mix manifest, payload or artifact-identity metadata from different live
+file states. The serialized snapshot bound includes saturating worst-case DEFLATE expansion,
+per-entry ZIP structure and ZIP fixed overhead; custom limits therefore cannot overflow the
+bound or undercount an incompressible artifact emitted by the codec. Crossing this boundary
+is reported as patch-specific `PATCH_LIMIT`; a concurrent rewrite remains retryable
+`SOURCE_CHANGED` and package CLIs return temporary-failure exit code 75. This is consistency
+evidence, not author authentication.
+
 The optional engine-level patch envelope supports AES-256-GCM with a fresh 96-bit nonce,
 a 128-bit authentication tag and canonical metadata as associated data. Optional
 ECDSA-SHA256 signs the metadata, tag and payload and binds a restricted signer key ID.
