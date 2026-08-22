@@ -11,6 +11,7 @@ import pytest
 from wordtoolkit import __version__
 from wordtoolkit import runtime as runtime_module
 from wordtoolkit.config import Settings
+from wordtoolkit.errors import ErrorCode, WordToolkitError
 from wordtoolkit.runtime import ToolRuntime
 from wordtoolkit.server.stdio import build_stdio_server
 from wordtoolkit.server.tools import OpenAIFile
@@ -150,7 +151,6 @@ async def test_remote_download_cancellation_removes_partial_file(
 ) -> None:
     runtime = ToolRuntime(Settings(storage_root=tmp_path / "storage"))
     session = await runtime.session("download-test")
-    real_client = httpx.AsyncClient
 
     class CancelledStream(httpx.AsyncByteStream):
         async def __aiter__(self):
@@ -162,11 +162,10 @@ async def test_remote_download_cancellation_removes_partial_file(
 
     transport = httpx.MockTransport(handler)
 
-    def client_factory(**kwargs):
-        return real_client(transport=transport, **kwargs)
-
-    monkeypatch.setattr(runtime_module, "validate_remote_url", lambda *_args: None)
-    monkeypatch.setattr(runtime_module.httpx, "AsyncClient", client_factory)
+    monkeypatch.setattr(
+        runtime_module, "validate_remote_url", lambda *_args, **_kwargs: ("93.184.216.34",)
+    )
+    monkeypatch.setattr(runtime_module, "PinnedAsyncTransport", lambda *_args: transport)
     reference = OpenAIFile(
         download_url="https://files.example.test/input.docx",
         file_id="file_cancelled",
@@ -185,7 +184,6 @@ async def test_remote_download_uses_response_mime_when_optional_name_is_absent(
 ) -> None:
     runtime = ToolRuntime(Settings(storage_root=tmp_path / "storage"))
     session = await runtime.session("mime-test")
-    real_client = httpx.AsyncClient
 
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(
@@ -196,11 +194,10 @@ async def test_remote_download_uses_response_mime_when_optional_name_is_absent(
 
     transport = httpx.MockTransport(handler)
 
-    def client_factory(**kwargs):
-        return real_client(transport=transport, **kwargs)
-
-    monkeypatch.setattr(runtime_module, "validate_remote_url", lambda *_args: None)
-    monkeypatch.setattr(runtime_module.httpx, "AsyncClient", client_factory)
+    monkeypatch.setattr(
+        runtime_module, "validate_remote_url", lambda *_args, **_kwargs: ("93.184.216.34",)
+    )
+    monkeypatch.setattr(runtime_module, "PinnedAsyncTransport", lambda *_args: transport)
     reference = OpenAIFile(
         download_url="https://files.example.test/download",
         file_id="file_without_name",
@@ -210,3 +207,33 @@ async def test_remote_download_uses_response_mime_when_optional_name_is_absent(
 
     assert downloaded.suffix == ".png"
     assert downloaded.read_bytes() == b"not-decoded-by-the-generic-downloader"
+
+
+@pytest.mark.asyncio
+async def test_remote_download_rejects_invalid_content_length(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = ToolRuntime(Settings(storage_root=tmp_path / "storage"))
+    session = await runtime.session("invalid-length-test")
+    transport = httpx.MockTransport(
+        lambda _request: httpx.Response(
+            200,
+            headers={"content-length": "not-a-number"},
+            content=b"ignored",
+        )
+    )
+    monkeypatch.setattr(
+        runtime_module, "validate_remote_url", lambda *_args, **_kwargs: ("93.184.216.34",)
+    )
+    monkeypatch.setattr(runtime_module, "PinnedAsyncTransport", lambda *_args: transport)
+    reference = OpenAIFile(
+        download_url="https://files.example.test/input.docx",
+        file_id="file_invalid_length",
+        file_name="input.docx",
+    )
+
+    with pytest.raises(WordToolkitError) as error:
+        await runtime.download_file(reference, session, extensions={".docx"})
+
+    assert error.value.code == ErrorCode.INVALID_INPUT
+    assert not list((session.root / "uploads").glob("*"))

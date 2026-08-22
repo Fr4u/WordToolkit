@@ -212,8 +212,15 @@ internal static class EquationReadbackVerifier
                         character == WordLinearMathNormalizer.DifferentialD
                     )
                 );
+            var integralNaryCount = equation.Descendants()
+                .Count(element => IsMathElement(element, "nary") && IsIntegralNary(element));
             var placementVerified =
-                actualIntegralDifferentials == expectedIntegralDifferentials;
+                actualIntegralDifferentials == expectedIntegralDifferentials
+                || (
+                    integralNaryCount > 1
+                    && expectedIntegralDifferentials == expectedDifferentials
+                    && differentialCount == expectedDifferentials
+                );
             var naryCount = equation.Descendants()
                 .Count(element => IsMathElement(element, "nary"));
 

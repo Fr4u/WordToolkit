@@ -1169,6 +1169,13 @@ text looks clean. Do not reconnect or continue editing a quarantined document. I
 in Word, then call `disconnect_live_word_document` only as an explicit acknowledgement
 before any fresh connection.
 
+For text formatting, prefer `font_size_pt` and `paragraph_alignment`; the latter
+accepts `left`, `center`, `right`, or `justify`. Compatibility aliases
+`font_size` and `alignment` are accepted only when the corresponding canonical
+field is absent. Use `runs` instead of `text` when one paragraph needs distinct
+font formatting such as bold or italic spans. Put paragraph formatting on the
+parent text operation, not on an inline run.
+
 ## Lazy actions
 
 Search with two or three capability words such as `image`, `find replace`,
@@ -1182,6 +1189,8 @@ arguments.
 Equation inputs may be LaTeX, UnicodeMath, Presentation MathML, or OMML.
 Prefer LaTeX for model output. Equations must remain native editable OMath;
 never replace them with screenshots or plain-text approximations.
+LaTeX is a bounded converter contract, not a complete TeX engine. It supports
+`\boxed{...}` and `\implies`; preflight unfamiliar commands before a large batch.
 For an integral, write an explicit differential such as
 `\int f(x)\,\mathrm{d}x`; `\,d x`, `\operatorname{d}x`, and `\dd x` are also
 accepted. Use the exact field name `input_format`, never `source_format`.

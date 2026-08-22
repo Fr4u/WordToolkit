@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Prepared the `0.60.4` reliability and authoring-contract line. The native
+  LaTeX converter now accepts `\boxed{...}` and `\implies`; multiple-integral
+  differential readback no longer applies an invalid one-to-one placement rule.
+  Live formatting publishes its accepted fields, normalizes compatibility
+  aliases `font_size` and `alignment` before COM, rejects alias/canonical
+  conflicts and invalid JSON types during preflight, and supports bounded inline
+  font runs inside one paragraph. Mixed-batch errors report
+  `failed_operation_index` without echoing document content. Saved-package
+  inspection opens DOCX files with `FileShare.ReadWrite`, including a real-Word
+  acceptance case that inspects the file while Word still has it open.
+  Remote downloads pin each validated DNS answer to the TCP connection across
+  redirects, keep TLS hostname verification, disable proxy inheritance and
+  reject local/mixed-private destinations; ZIP/XML/relationship boundaries now
+  enforce cumulative extraction limits and fail-closed parsing. A scheduled and
+  manual deterministic structured-mutation smoke workflow records TRX evidence;
+  it is a bounded regression gate, not a fabricated full-fuzzing claim. Local
+  qualification passed Python 1403/1403 with 16 explicit environment skips and
+  74.56% branch coverage, Engine 785/785, Native 642/642, LibreOffice 12/12 and
+  the dedicated real-Word acceptance. Two 199-file, 91,139,960-byte builds
+  produced byte-identical 37,883,181-byte ZIPs with SHA-256 `4AA01911...`;
+  the executable is `B295C4B4...` and the native runtime assembly is
+  `F3944F1A...`.
+
 - Added the `0.60.3` supply-chain and test-quality baseline. Every third-party GitHub
   Action is pinned to a full commit SHA with its reviewed release tag recorded inline;
   Dependabot owns future GitHub Actions, Python and NuGet updates. Pull requests receive

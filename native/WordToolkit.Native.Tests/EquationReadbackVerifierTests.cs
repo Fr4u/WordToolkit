@@ -26,6 +26,47 @@ public sealed class EquationReadbackVerifierTests
     }
 
     [Fact]
+    public void VerifiesDifferentialsForMultipleIntegralsInOneEquation()
+    {
+        const string omml = """
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:nary><m:naryPr><m:chr m:val="∫" /></m:naryPr><m:sub><m:r><m:t> </m:t></m:r></m:sub><m:sup><m:r><m:t> </m:t></m:r></m:sup><m:e><m:r><m:t>u v'</m:t></m:r><m:r><m:t> ⅆx</m:t></m:r></m:e></m:nary>
+              <m:r><m:t> =u v − </m:t></m:r>
+              <m:nary><m:naryPr><m:chr m:val="∫" /></m:naryPr><m:sub><m:r><m:t> </m:t></m:r></m:sub><m:sup><m:r><m:t> </m:t></m:r></m:sup><m:e><m:r><m:t>u' v</m:t></m:r><m:r><m:t> ⅆx</m:t></m:r></m:e></m:nary>
+            </m:oMath>
+            """;
+
+        var result = EquationReadbackVerifier.Verify(
+            Wrap(omml),
+            "∫▒〖u v' ⅆx〗 =uv-∫▒〖u' v ⅆx〗"
+        );
+
+        Assert.Equal(2, result.NaryCount);
+        Assert.Equal(2, result.DifferentialCount);
+        Assert.True(result.DifferentialPlacementVerified);
+    }
+
+    [Fact]
+    public void AllowsWordToPlaceAdjacentDifferentialRunsOutsideMultipleIntegralOperands()
+    {
+        const string omml = """
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:nary><m:naryPr><m:chr m:val="∫" /></m:naryPr><m:e><m:r><m:t>u v'</m:t></m:r></m:e></m:nary><m:r><m:t> ⅆx =u v − </m:t></m:r>
+              <m:nary><m:naryPr><m:chr m:val="∫" /></m:naryPr><m:e><m:r><m:t>u' v</m:t></m:r></m:e></m:nary><m:r><m:t> ⅆx</m:t></m:r>
+            </m:oMath>
+            """;
+        var actual = MathMarkupToUnicodeMath.Convert(omml, "omml");
+        Assert.Equal("∫▒〖u v' ⅆx〗 =u v −∫▒〖u' v ⅆx〗", actual);
+        var result = EquationReadbackVerifier.Verify(
+            Wrap(omml),
+            "∫▒〖u v' ⅆx〗 =u v −∫▒〖u' v ⅆx〗"
+        );
+        Assert.Equal(2, result.NaryCount);
+        Assert.Equal(2, result.DifferentialCount);
+        Assert.True(result.DifferentialPlacementVerified);
+    }
+
+    [Fact]
     public void RejectsDifferentialThatWordPlacedOutsideTheNaryBody()
     {
         var error = Assert.Throws<NativeToolException>(() =>

@@ -1,6 +1,23 @@
 # WordToolkit Native
 
-> **Status:** `main` contains the `0.60.3` CI and dependency-security hardening line; [`v0.60.1`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.60.1) remains the latest published release. The project is not presented as a complete Word-compatibility layer or as pixel-equivalent across Word versions.
+> **Status:** `main` contains the `0.60.4` reliability and authoring-contract line; [`v0.60.1`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.60.1) remains the latest tagged release. The project is not presented as a complete LaTeX engine, Word-compatibility layer, or pixel-equivalent renderer across Word versions.
+
+## Current authoring boundary
+
+WordToolkit creates real DOCX files and native editable OfficeMath equations,
+not equation screenshots or plain-text imitations. Mixed text/equation batches
+are built in an isolated Word document, verified, and only then published to the
+target through one guarded transaction. The live acceptance suite covers inline
+font runs, Times New Roman with an explicit point size and paragraph alignment,
+`\boxed{...}`, rollback-sensitive publication, saved-package inspection while
+the DOCX remains open in Word, and preservation of the user's existing Word
+process.
+
+The API is still deliberately bounded. Formatting uses documented canonical
+keys, with `font_size` and `alignment` retained only as compatibility aliases.
+LaTeX support is a tested subset. Saved-package inspection proves package
+structure, not visual identity; PDF export and real-Word acceptance remain
+separate evidence.
 
 ## Repository navigation
 
@@ -1182,6 +1199,15 @@ For generated material, use `apply_live_word_operations` and send a coherent arr
 ```
 
 The model still generates text before the tool call. Word cannot safely accept half-token fragments as a transactional document structure. The optimization is one native batch per coherent section, not fake keystroke streaming.
+
+The canonical formatting fields are `font_size_pt` and
+`paragraph_alignment`. Compatibility inputs `font_size` and `alignment` are
+normalized before Word COM and conflict with their canonical counterpart. A
+text operation may use `runs` instead of `text` for inline bold, italic and
+other font formatting inside one paragraph. LaTeX conversion is intentionally
+bounded rather than a complete TeX implementation; the supported subset now
+includes `\boxed{...}` and `\implies`, and unsupported commands fail in batch
+preflight with `failed_operation_index`.
 
 Successful batches return only identifiers, the new live version, operation
 counts, native verification and compact document state. They do not echo the

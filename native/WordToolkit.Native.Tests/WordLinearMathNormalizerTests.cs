@@ -17,6 +17,10 @@ public sealed class WordLinearMathNormalizerTests
         "∫▒〖f ⅆx〗+∫▒〖g ⅆy〗"
     )]
     [InlineData("∫▒〖f ⅆx〗", "∫▒〖f ⅆx〗")]
+    [InlineData(
+        "∫▒u v' ⅆx =uv-∫▒u' v ⅆx",
+        "∫▒〖u v' ⅆx〗 =uv-∫▒〖u' v ⅆx〗"
+    )]
     [InlineData("∑_(i=1)^(n)▒i", "∑_(i=1)^(n)▒i")]
     public void ProducesIdempotentWordSafeIntegralOperands(
         string source,

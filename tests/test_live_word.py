@@ -1395,6 +1395,47 @@ def test_live_word_rejects_invalid_formatting_before_word_mutation(live_bridge) 
     assert document.formatting_log == {}
 
 
+def test_live_word_normalizes_compatibility_formatting_aliases_before_com(live_bridge) -> None:
+    bridge, application, document = live_bridge
+    connected = bridge.connect("owner", use_active=True)
+    application.Selection.SetRange(0, 8)
+    token = bridge.selection("owner", connected["live_document_id"])["selection"]["selection_token"]
+
+    bridge.format_selection(
+        "owner",
+        connected["live_document_id"],
+        selection_token=token,
+        formatting={"font_size": 12, "alignment": "center"},
+        expected_version=0,
+    )
+
+    assert document.formatting_log["font.Size"] == 12.0
+    assert document.formatting_log["paragraph.Alignment"] == 1
+
+
+def test_live_word_rejects_alias_and_canonical_formatting_conflict_before_com(
+    live_bridge,
+) -> None:
+    bridge, application, document = live_bridge
+    connected = bridge.connect("owner", use_active=True)
+    application.Selection.SetRange(0, 8)
+    token = bridge.selection("owner", connected["live_document_id"])["selection"]["selection_token"]
+    before_undo = application.UndoRecord.started
+
+    with pytest.raises(WordToolkitError) as error:
+        bridge.format_selection(
+            "owner",
+            connected["live_document_id"],
+            selection_token=token,
+            formatting={"font_size": 12, "font_size_pt": 14},
+            expected_version=0,
+        )
+
+    assert error.value.code is ErrorCode.INVALID_INPUT
+    assert application.UndoRecord.started == before_undo
+    assert document.formatting_log == {}
+
+
 def test_live_word_rolls_back_live_formatting_failure(live_bridge) -> None:
     bridge, application, document = live_bridge
     connected = bridge.connect("owner", use_active=True)

@@ -613,9 +613,18 @@ paragraph changes run inside one Undo record and preserve the selection.
 The formatting object is also accepted by `insert_live_word_text` and each
 `type="text"` entry in `apply_live_word_operations`. Supported fields cover
 font family and size, `#RRGGBB` color, bold/italic/underline, caps, strike,
-hidden text, highlighting, paragraph alignment, spacing and indentation,
-keep-with-next, keep-together, page-break-before and widow control. Unknown or
-out-of-range fields fail before Word is mutated.
+hidden text, paragraph alignment, spacing and indentation, keep-with-next,
+keep-together, page-break-before and widow control. The canonical size and
+alignment names are `font_size_pt` (1 through 200) and
+`paragraph_alignment` (`left`, `center`, `right`, or `justify`). Compatibility
+aliases `font_size` and `alignment` are accepted and normalized before COM;
+supplying an alias together with its canonical field is invalid. The action
+schema publishes the complete property-name set. Unknown names, wrong JSON
+types and out-of-range values fail during preflight, before Word is mutated.
+
+One text operation may use `runs` instead of `text` to apply distinct font
+formatting inside a single paragraph. Run-level formatting accepts font fields
+only; paragraph fields remain on the parent text operation.
 
 ## Local equation learning
 
@@ -635,6 +644,13 @@ never exposes a storage path because no file exists.
 `type="equation"`. The bridge validates every operation and converts every
 formula before it resolves the Word document. Invalid input therefore cannot
 leave a partial heading or explanation behind.
+
+LaTeX input is a documented subset rather than a claim of complete TeX macro
+compatibility. The converter supports the ordinary fractions, roots, limits,
+integrals, differentials, relations used by the live equation path, plus
+`\boxed{...}` and `\implies`. Unsupported commands fail during batch preflight
+with `failed_operation_index`; they are never discovered after a partial target
+publication.
 
 The payload text is assigned once. Equation ranges are then converted to native
 OMath from the end of the payload toward the beginning, so Word's build-up of

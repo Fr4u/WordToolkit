@@ -124,6 +124,7 @@ internal static class LatexToUnicodeMath
             ["leftarrow"] = "←",
             ["leftrightarrow"] = "↔",
             ["Rightarrow"] = "⇒",
+            ["implies"] = "⇒",
             ["Leftarrow"] = "⇐",
             ["Leftrightarrow"] = "⇔",
             ["mapsto"] = "↦",
@@ -584,6 +585,11 @@ internal static class LatexToUnicodeMath
                 return degree is null
                     ? $"√({body.Trim()})"
                     : $"√({degree.Trim()}&{body.Trim()})";
+            }
+            if (command == "boxed")
+            {
+                var body = ParseRequiredGroup(command);
+                return $"▭({body.Trim()})";
             }
             if (command == "text")
             {

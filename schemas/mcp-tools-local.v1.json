@@ -19926,8 +19926,11 @@
           "formatting": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "type": "object",
+                "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
+                "propertyNames": {
+                  "enum": ["font_name", "font_size_pt", "font_size", "font_color_rgb", "bold", "italic", "underline", "strike", "all_caps", "small_caps", "hidden", "paragraph_alignment", "alignment", "space_before_pt", "space_after_pt", "left_indent_pt", "right_indent_pt", "first_line_indent_pt", "keep_with_next", "keep_together", "page_break_before", "widow_control"]
+                }
               },
               {
                 "type": "null"
@@ -20020,8 +20023,11 @@
           "formatting": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "type": "object",
+                "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
+                "propertyNames": {
+                  "enum": ["font_name", "font_size_pt", "font_size", "font_color_rgb", "bold", "italic", "underline", "strike", "all_caps", "small_caps", "hidden", "paragraph_alignment", "alignment", "space_before_pt", "space_after_pt", "left_indent_pt", "right_indent_pt", "first_line_indent_pt", "keep_with_next", "keep_together", "page_break_before", "widow_control"]
+                }
               },
               {
                 "type": "null"
@@ -20512,8 +20518,11 @@
           "formatting": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "type": "object",
+                "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
+                "propertyNames": {
+                  "enum": ["font_name", "font_size_pt", "font_size", "font_color_rgb", "bold", "italic", "underline", "strike", "all_caps", "small_caps", "hidden", "paragraph_alignment", "alignment", "space_before_pt", "space_after_pt", "left_indent_pt", "right_indent_pt", "first_line_indent_pt", "keep_with_next", "keep_together", "page_break_before", "widow_control"]
+                }
               },
               {
                 "type": "null"
@@ -21392,8 +21401,62 @@
     {
       "name": "apply_live_word_operations",
       "title": "Apply a fast mixed batch directly in open Microsoft Word",
-      "description": "Append up to 200 interleaved text and native-equation operations in one COM attachment and custom Undo transaction. Every equation is first built and verified in an unsaved hidden staging document. Before target mutation the runtime fingerprints whole-document Flat OPC, main and linked stories, target/context OOXML, range boundaries and structural counts. A failed target batch must return to that exact state; otherwise it returns ROLLBACK_FAILED, invalidates the handle and quarantines the document until explicit disconnect.",
+      "description": "Apply up to 200 text/native-equation operations through one staged, verified Undo transaction. Failure rolls back; an unprovable rollback quarantines the live handle.",
       "inputSchema": {
+        "$defs": {
+          "liveTextFormatting": {
+            "type": "object",
+            "additionalProperties": false,
+            "allOf": [
+              {"not": {"required": ["font_size", "font_size_pt"]}},
+              {"not": {"required": ["alignment", "paragraph_alignment"]}}
+            ],
+            "properties": {
+              "font_name": {"type": "string", "minLength": 1, "maxLength": 256},
+              "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200},
+              "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true},
+              "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+              "bold": {"type": "boolean"},
+              "italic": {"type": "boolean"},
+              "underline": {"type": "boolean"},
+              "strike": {"type": "boolean"},
+              "all_caps": {"type": "boolean"},
+              "small_caps": {"type": "boolean"},
+              "hidden": {"type": "boolean"},
+              "paragraph_alignment": {"enum": ["left", "center", "right", "justify"]},
+              "alignment": {"enum": ["left", "center", "right", "justify"], "deprecated": true},
+              "space_before_pt": {"type": "number", "minimum": 0, "maximum": 1584},
+              "space_after_pt": {"type": "number", "minimum": 0, "maximum": 1584},
+              "left_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
+              "right_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
+              "first_line_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
+              "keep_with_next": {"type": "boolean"},
+              "keep_together": {"type": "boolean"},
+              "page_break_before": {"type": "boolean"},
+              "widow_control": {"type": "boolean"}
+            }
+          },
+          "liveRunFormatting": {
+            "type": "object",
+            "additionalProperties": false,
+            "allOf": [
+              {"not": {"required": ["font_size", "font_size_pt"]}}
+            ],
+            "properties": {
+              "font_name": {"type": "string", "minLength": 1, "maxLength": 256},
+              "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200},
+              "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true},
+              "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+              "bold": {"type": "boolean"},
+              "italic": {"type": "boolean"},
+              "underline": {"type": "boolean"},
+              "strike": {"type": "boolean"},
+              "all_caps": {"type": "boolean"},
+              "small_caps": {"type": "boolean"},
+              "hidden": {"type": "boolean"}
+            }
+          }
+        },
         "properties": {
           "live_document_id": {
             "title": "Live Document Id",
@@ -21401,9 +21464,63 @@
           },
           "operations": {
             "items": {
-              "additionalProperties": true,
-              "description": "Use {type,text,as_new_paragraph,style,formatting} for text or {type,value,input_format,display,verify_readback} for an equation.",
-              "type": "object"
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Text uses text or 1-1000 inline runs; equation uses value and input_format.",
+              "properties": {
+                "type": {"enum": ["text", "equation"]},
+                "text": {"type": "string", "minLength": 1, "maxLength": 200000},
+                "runs": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 1000,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["text"],
+                    "properties": {
+                      "text": {"type": "string", "minLength": 1, "maxLength": 200000},
+                      "formatting": {"$ref": "#/$defs/liveRunFormatting"}
+                    }
+                  }
+                },
+                "as_new_paragraph": {"type": "boolean", "default": false},
+                "style": {"type": "string", "maxLength": 128},
+                "formatting": {
+                  "anyOf": [
+                    {"$ref": "#/$defs/liveTextFormatting"},
+                    {"type": "null"}
+                  ]
+                },
+                "value": {"type": "string", "minLength": 1, "maxLength": 100000},
+                "input_format": {"enum": ["latex", "unicodemath", "mathml", "omml"], "default": "latex"},
+                "display": {"type": "boolean", "default": true},
+                "verify_readback": {"type": "boolean", "default": false}
+              },
+              "oneOf": [
+                {
+                  "properties": {
+                    "type": {"const": "text"}
+                  },
+                  "required": ["type"],
+                  "oneOf": [
+                    {
+                      "required": ["text"],
+                      "not": {"required": ["runs"]}
+                    },
+                    {
+                      "required": ["runs"],
+                      "not": {"required": ["text"]}
+                    }
+                  ]
+                },
+                {
+                  "properties": {
+                    "type": {"const": "equation"}
+                  },
+                  "required": ["type", "value"]
+                }
+              ]
             },
             "maxItems": 200,
             "minItems": 1,
@@ -22931,8 +23048,11 @@
           "formatting": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "type": "object",
+                "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
+                "propertyNames": {
+                  "enum": ["font_name", "font_size_pt", "font_size", "font_color_rgb", "bold", "italic", "underline", "strike", "all_caps", "small_caps", "hidden", "paragraph_alignment", "alignment", "space_before_pt", "space_after_pt", "left_indent_pt", "right_indent_pt", "first_line_indent_pt", "keep_with_next", "keep_together", "page_break_before", "widow_control"]
+                }
               },
               {
                 "type": "null"

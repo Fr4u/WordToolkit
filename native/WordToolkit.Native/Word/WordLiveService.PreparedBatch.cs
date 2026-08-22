@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using WordToolkit.Native.Equations;
 using WordToolkit.Native.Protocol;
 
@@ -72,20 +73,53 @@ internal sealed partial class WordLiveService
                 {
                     continue;
                 }
-                var segment = segments[index];
-                dynamic stagedTextRange = stagingDocument.Range(
-                    stagingStart + segment.Start,
-                    stagingStart + segment.End
-                );
-                if (textOperation.Style.Length > 0)
+                try
                 {
-                    stagedTextRange.Style = textOperation.Style;
+                    var segment = segments[index];
+                    dynamic stagedTextRange = stagingDocument.Range(
+                        stagingStart + segment.Start,
+                        stagingStart + segment.End
+                    );
+                    if (textOperation.Style.Length > 0)
+                    {
+                        stagedTextRange.Style = textOperation.Style;
+                    }
+                    if (textOperation.Formatting is not null)
+                    {
+                        ApplyFormatting(stagedTextRange, textOperation.Formatting.Value);
+                    }
+                    if (textOperation.Runs.Count > 0)
+                    {
+                        var runOffset = 0;
+                        foreach (var run in textOperation.Runs)
+                        {
+                            if (run.Formatting is not null)
+                            {
+                                dynamic runRange = stagingDocument.Range(
+                                    stagedTextRange.Start + runOffset,
+                                    stagedTextRange.Start + runOffset + run.Text.Length
+                                );
+                                try
+                                {
+                                    ApplyFormatting(runRange, run.Formatting.Value);
+                                }
+                                finally
+                                {
+                                    if (Marshal.IsComObject(runRange))
+                                    {
+                                        Marshal.FinalReleaseComObject(runRange);
+                                    }
+                                }
+                            }
+                            runOffset += run.Text.Length;
+                        }
+                    }
+                    textRanges[index] = (object)stagedTextRange;
                 }
-                if (textOperation.Formatting is not null)
+                catch (Exception exception)
                 {
-                    ApplyFormatting(stagedTextRange, textOperation.Formatting.Value);
+                    throw WithFailedOperationIndex(exception, index);
                 }
-                textRanges[index] = (object)stagedTextRange;
             }
 
             var equationIndexes = Enumerable.Range(0, operations.Count)
@@ -98,12 +132,19 @@ internal sealed partial class WordLiveService
             {
                 var index = equationIndexes[reverse];
                 var segment = segments[index];
-                stagedEquations[index] = BuildVerifiedNativeEquation(
-                    stagingDocument,
-                    stagingStart + segment.Start,
-                    stagingStart + segment.End,
-                    (PreparedEquationOperation)operations[index]
-                );
+                try
+                {
+                    stagedEquations[index] = BuildVerifiedNativeEquation(
+                        stagingDocument,
+                        stagingStart + segment.Start,
+                        stagingStart + segment.End,
+                        (PreparedEquationOperation)operations[index]
+                    );
+                }
+                catch (Exception exception)
+                {
+                    throw WithFailedOperationIndex(exception, index);
+                }
                 var perOperationEquationCount = (int)stagingDocument.OMaths.Count;
                 perOperationEquationCounts.Add(perOperationEquationCount);
                 var expectedPerOperationEquationCount = beforeEquations + (equationIndexes.Length - reverse);
@@ -160,6 +201,43 @@ internal sealed partial class WordLiveService
                     );
                 }
                 var textOperation = operations[index] as PreparedTextOperation;
+                var runFormatting = new List<StagedRunFormatting>();
+                if (textOperation is not null && textOperation.Runs.Count > 0)
+                {
+                    var runOffset = 0;
+                    foreach (var run in textOperation.Runs)
+                    {
+                        if (run.Formatting is not null)
+                        {
+                            dynamic runRange = stagingDocument.Range(
+                                stagedRange.Start + runOffset,
+                                stagedRange.Start + runOffset + run.Text.Length
+                            );
+                            try
+                            {
+                                runFormatting.Add(
+                                    new StagedRunFormatting(
+                                        runOffset,
+                                        runOffset + run.Text.Length,
+                                        run.Formatting.Value,
+                                        CaptureRequestedFormatting(
+                                            (object)runRange,
+                                            run.Formatting.Value
+                                        )
+                                    )
+                                );
+                            }
+                            finally
+                            {
+                                if (Marshal.IsComObject(runRange))
+                                {
+                                    Marshal.FinalReleaseComObject(runRange);
+                                }
+                            }
+                        }
+                        runOffset += run.Text.Length;
+                    }
+                }
                 operationRanges[index] = new StagedOperationRange(
                     relativeStart,
                     relativeEnd,
@@ -169,7 +247,8 @@ internal sealed partial class WordLiveService
                         : ReadStyleIdentity(stagedRange),
                     textOperation is null
                         ? new Dictionary<string, string>(StringComparer.Ordinal)
-                        : CaptureRequestedFormatting(stagedRange, textOperation)
+                        : CaptureRequestedFormatting(stagedRange, textOperation),
+                    runFormatting
                 );
             }
 
@@ -227,6 +306,39 @@ internal sealed partial class WordLiveService
                 throw cleanupFailure;
             }
         }
+    }
+
+    internal static Exception WithFailedOperationIndex(Exception exception, int index)
+    {
+        if (exception is NativeToolException native)
+        {
+            var details = new Dictionary<string, object?>
+            {
+                ["failed_operation_index"] = index,
+                ["raw_document_content_returned"] = false,
+            };
+            if (native.Details is not null)
+            {
+                using var document = JsonDocument.Parse(JsonSerializer.Serialize(native.Details));
+                if (document.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var property in document.RootElement.EnumerateObject())
+                    {
+                        if (property.Name.Contains("fingerprint", StringComparison.OrdinalIgnoreCase))
+                        {
+                            details[property.Name] = property.Value.Clone();
+                        }
+                    }
+                }
+            }
+            return new NativeToolException(native.ErrorCode, native.Message, details, native.Retryable);
+        }
+        return new NativeToolException(
+            "EXTERNAL_TOOL_FAILED",
+            "Microsoft Word rejected one operation in the batch",
+            new { failed_operation_index = index, raw_document_content_returned = false },
+            retryable: true
+        );
     }
 
     private static void CloseStagedPreparedBatch(
@@ -564,8 +676,50 @@ internal sealed partial class WordLiveService
                 throw new NativeToolException(
                     "PUBLICATION_INVALID",
                     "Microsoft Word changed staged formatting during publication",
-                    new { operation_index = operationIndex, field = pair.Key }
+                new { operation_index = operationIndex, field = pair.Key }
                 );
+            }
+        }
+        foreach (var run in expected.RunFormatting)
+        {
+            dynamic runRange = publishedRange.Document.Range(
+                publishedRange.Start + run.Start,
+                publishedRange.Start + run.End
+            );
+            Dictionary<string, string> actualRunFormatting;
+            try
+            {
+                actualRunFormatting = CaptureRequestedFormatting(
+                    (object)runRange,
+                    run.Requested
+                );
+            }
+            finally
+            {
+                if (Marshal.IsComObject(runRange))
+                {
+                    Marshal.FinalReleaseComObject(runRange);
+                }
+            }
+            foreach (var pair in run.Expected)
+            {
+                if (
+                    !actualRunFormatting.TryGetValue(pair.Key, out var actual)
+                    || !string.Equals(pair.Value, actual, StringComparison.Ordinal)
+                )
+                {
+                    throw new NativeToolException(
+                        "PUBLICATION_INVALID",
+                        "Microsoft Word changed staged run formatting during publication",
+                        new
+                        {
+                            operation_index = operationIndex,
+                            field = pair.Key,
+                            run_start = run.Start,
+                            run_end = run.End,
+                        }
+                    );
+                }
             }
         }
     }
@@ -573,16 +727,19 @@ internal sealed partial class WordLiveService
     private static Dictionary<string, string> CaptureRequestedFormatting(
         dynamic range,
         PreparedTextOperation operation
+    ) => operation.Formatting is null
+        ? new Dictionary<string, string>(StringComparer.Ordinal)
+        : CaptureRequestedFormatting(range, operation.Formatting.Value);
+
+    private static Dictionary<string, string> CaptureRequestedFormatting(
+        dynamic range,
+        JsonElement formatting
     )
     {
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (operation.Formatting is null)
-        {
-            return values;
-        }
         dynamic font = range.Font;
         dynamic paragraph = range.ParagraphFormat;
-        foreach (var property in operation.Formatting.Value.EnumerateObject())
+        foreach (var property in formatting.EnumerateObject())
         {
             values[property.Name] = property.Name switch
             {
@@ -660,6 +817,14 @@ internal sealed partial class WordLiveService
         int End,
         string TextSha256,
         string StyleIdentity,
-        IReadOnlyDictionary<string, string> Formatting
+        IReadOnlyDictionary<string, string> Formatting,
+        IReadOnlyList<StagedRunFormatting> RunFormatting
+    );
+
+    private sealed record StagedRunFormatting(
+        int Start,
+        int End,
+        JsonElement Requested,
+        IReadOnlyDictionary<string, string> Expected
     );
 }
