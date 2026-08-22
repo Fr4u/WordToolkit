@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Xml;
 
@@ -680,16 +681,19 @@ public static class WordPackagePatchRiskAnalyzer
                 enforced = parsedEnforcement.Value;
             }
         }
-        var fingerprintBytes = elements.Length == 1
-            ? source.SourceBytes.Span.Slice(
-                elements[0].FullSpan.ByteOffset,
-                elements[0].FullSpan.ByteLength
-            )
-            : source.SourceBytes.Span;
-        var fingerprint = Convert.ToHexString(
-                System.Security.Cryptography.SHA256.HashData(fingerprintBytes)
-            )
-            .ToLowerInvariant();
+        var fingerprint = !unmodeled && elements.Length == 1
+            ? DocumentProtectionFingerprint(source.Root, elements[0])
+            : Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(
+                        elements.Length == 1
+                            ? source.SourceBytes.Span.Slice(
+                                elements[0].FullSpan.ByteOffset,
+                                elements[0].FullSpan.ByteLength
+                            )
+                            : source.SourceBytes.Span
+                    )
+                )
+                .ToLowerInvariant();
         return new DocumentProtectionMetadataEvidence(
             unmodeled,
             fingerprint,
@@ -712,6 +716,46 @@ public static class WordPackagePatchRiskAnalyzer
         or "comments"
         or "trackedChanges"
         or "forms";
+
+    private static string DocumentProtectionFingerprint(
+        XmlSourceElement root,
+        XmlSourceElement element
+    )
+    {
+        const string xmlNamespaceDeclaration = "http://www.w3.org/2000/xmlns/";
+        var canonical = new StringBuilder();
+        AppendFingerprintField(canonical, root.NamespaceUri);
+        AppendFingerprintField(canonical, root.LocalName);
+        AppendFingerprintField(canonical, element.NamespaceUri);
+        AppendFingerprintField(canonical, element.LocalName);
+        foreach (
+            var attribute in element.Attributes
+                .Where(attribute =>
+                    attribute.NamespaceUri != xmlNamespaceDeclaration
+                    && attribute.QualifiedName != "xmlns"
+                )
+                .OrderBy(attribute => attribute.NamespaceUri, StringComparer.Ordinal)
+                .ThenBy(attribute => attribute.LocalName, StringComparer.Ordinal)
+        )
+        {
+            AppendFingerprintField(canonical, attribute.NamespaceUri);
+            AppendFingerprintField(canonical, attribute.LocalName);
+            AppendFingerprintField(canonical, attribute.Value);
+        }
+        return Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(
+                    Encoding.UTF8.GetBytes(canonical.ToString())
+                )
+            )
+            .ToLowerInvariant();
+    }
+
+    private static void AppendFingerprintField(StringBuilder builder, string value)
+    {
+        builder.Append(value.Length);
+        builder.Append(':');
+        builder.Append(value);
+    }
 
     private sealed record ProtectionEvidence(
         bool DocumentProtectionEnforced,

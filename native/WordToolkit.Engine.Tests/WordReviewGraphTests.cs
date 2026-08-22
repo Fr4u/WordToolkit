@@ -309,6 +309,62 @@ public sealed class WordReviewGraphTests
         );
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DiagnosesPermissionMarkersFromTheOtherStoryNamespace(bool strictStory)
+    {
+        var storyPrefix = strictStory ? "ws" : "w";
+        var markerPrefix = strictStory ? "w" : "ws";
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <{storyPrefix}:document xmlns:w="{Word}" xmlns:ws="{WordStrict}"><{storyPrefix}:body><{storyPrefix}:p>
+              <{markerPrefix}:permStart {markerPrefix}:id="7" {markerPrefix}:edGrp="everyone"/>
+              <{storyPrefix}:r><{storyPrefix}:t>x</{storyPrefix}:t></{storyPrefix}:r>
+              <{markerPrefix}:permEnd {markerPrefix}:id="7"/>
+            </{storyPrefix}:p></{storyPrefix}:body></{storyPrefix}:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Equal(
+            WordReviewRangeStatus.Complete,
+            Assert.Single(graph.Permissions).Status
+        );
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_MARKER_NAMESPACE_INVALID"
+        );
+    }
+
+    [Fact]
+    public void DiagnosesStartOnlyPermissionAttributesOnEndMarkers()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}"><w:body><w:p>
+              <w:permStart w:id="7"/>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd w:id="7" w:ed="user@example.test" w:edGrp="everyone" w:colFirst="0" w:colLast="2"/>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Equal(
+            WordReviewRangeStatus.Complete,
+            Assert.Single(graph.Permissions).Status
+        );
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_ATTRIBUTE_PLACEMENT_INVALID"
+        );
+    }
+
     [Fact]
     public void EnforcesReviewLimitsAndCapsIssueFlood()
     {

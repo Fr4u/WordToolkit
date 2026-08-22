@@ -703,7 +703,14 @@ public sealed class WordReviewGraphBuilder
                 }
                 if (localName is "permStart" or "permEnd")
                 {
-                    AddPermissionMarker(partUri, source, element, localName, state);
+                    AddPermissionMarker(
+                        partUri,
+                        source,
+                        element,
+                        localName,
+                        root.Name.Namespace,
+                        state
+                    );
                     continue;
                 }
             }
@@ -891,6 +898,7 @@ public sealed class WordReviewGraphBuilder
         LosslessXmlDocument source,
         XElement element,
         string localName,
+        XNamespace storyNamespace,
         BuildState state
     )
     {
@@ -902,9 +910,25 @@ public sealed class WordReviewGraphBuilder
         }
         var ordinal = source.GetElementOrdinal(element);
         var location = LocationFor(partUri, source, element, state);
+        ValidatePermissionMarkerNamespace(
+            partUri,
+            element,
+            storyNamespace,
+            location,
+            ordinal,
+            state
+        );
         ValidatePermissionAttributeNamespaces(
             partUri,
             element,
+            location,
+            ordinal,
+            state
+        );
+        ValidatePermissionAttributePlacement(
+            partUri,
+            element,
+            localName,
             location,
             ordinal,
             state
@@ -1859,8 +1883,40 @@ public sealed class WordReviewGraphBuilder
             "displacedByCustomXml",
         };
 
+    private static readonly IReadOnlySet<string> PermissionStartOnlyAttributeNames =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "ed",
+            "edGrp",
+            "colFirst",
+            "colLast",
+        };
+
     private static string? PermissionAttribute(XElement element, string localName) =>
         element.Attribute(element.Name.Namespace + localName)?.Value;
+
+    private static void ValidatePermissionMarkerNamespace(
+        string partUri,
+        XElement element,
+        XNamespace storyNamespace,
+        StoryLocation location,
+        int ordinal,
+        BuildState state
+    )
+    {
+        if (element.Name.Namespace == storyNamespace)
+        {
+            return;
+        }
+        state.AddIssue(
+            "PERMISSION_MARKER_NAMESPACE_INVALID",
+            WordReviewIssueSeverity.Error,
+            "Permission-range markers must use the same WordprocessingML namespace as their containing story part.",
+            partUri,
+            location.StoryId,
+            ordinal
+        );
+    }
 
     private static void ValidatePermissionAttributeNamespaces(
         string partUri,
@@ -1884,6 +1940,36 @@ public sealed class WordReviewGraphBuilder
             "PERMISSION_ATTRIBUTE_NAMESPACE_INVALID",
             WordReviewIssueSeverity.Error,
             "Permission-range attributes must use the same WordprocessingML namespace as their marker element.",
+            partUri,
+            location.StoryId,
+            ordinal
+        );
+    }
+
+    private static void ValidatePermissionAttributePlacement(
+        string partUri,
+        XElement element,
+        string localName,
+        StoryLocation location,
+        int ordinal,
+        BuildState state
+    )
+    {
+        if (
+            localName != "permEnd"
+            || !element.Attributes().Any(attribute =>
+                !attribute.IsNamespaceDeclaration
+                && attribute.Name.Namespace == element.Name.Namespace
+                && PermissionStartOnlyAttributeNames.Contains(attribute.Name.LocalName)
+            )
+        )
+        {
+            return;
+        }
+        state.AddIssue(
+            "PERMISSION_ATTRIBUTE_PLACEMENT_INVALID",
+            WordReviewIssueSeverity.Error,
+            "Permission end markers cannot carry editor or table-column attributes reserved for permission start markers.",
             partUri,
             location.StoryId,
             ordinal

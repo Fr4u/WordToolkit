@@ -241,6 +241,68 @@ public sealed class WordPackagePatchPlanTests
         Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
     }
 
+    [Fact]
+    public void MixedPermissionMarkerNamespacesAreNonOverridable()
+    {
+        var before = Read(BuildPackage(
+            "unused",
+            documentXml: MixedMarkerNamespacePermissionDocumentXml("before")
+        ));
+        var after = Read(BuildPackage(
+            "unused",
+            documentXml: MixedMarkerNamespacePermissionDocumentXml("after")
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.Contains(
+            "PERMISSION_MARKER_NAMESPACE_INVALID",
+            plan.RiskAssessment.Protection.PermissionIssueCodes
+        );
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Fact]
+    public void MisplacedPermissionEndAttributesAreNonOverridable()
+    {
+        var before = Read(BuildPackage(
+            "unused",
+            documentXml: MisplacedPermissionEndAttributeDocumentXml("before")
+        ));
+        var after = Read(BuildPackage(
+            "unused",
+            documentXml: MisplacedPermissionEndAttributeDocumentXml("after")
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.Contains(
+            "PERMISSION_ATTRIBUTE_PLACEMENT_INVALID",
+            plan.RiskAssessment.Protection.PermissionIssueCodes
+        );
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -617,6 +679,81 @@ public sealed class WordPackagePatchPlanTests
             "protected_document_edit_not_authorized",
             plan.Evaluate().BlockCodes
         );
+    }
+
+    [Fact]
+    public void ChangingProtectionConformanceRequiresAuthorizationWhenRawElementIsIdentical()
+    {
+        const string transitional =
+            "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+            + "<w:documentProtection w:edit='readOnly' w:enforcement='0'/>"
+            + "</w:settings>";
+        const string strict =
+            "<w:settings xmlns:w='http://purl.oclc.org/ooxml/wordprocessingml/main'>"
+            + "<w:documentProtection w:edit='readOnly' w:enforcement='0'/>"
+            + "</w:settings>";
+        var before = Read(BuildPackage(
+            "same",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(transitional) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+        var after = Read(BuildPackage(
+            "same",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(strict) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.True(plan.RiskAssessment.Protection.DocumentProtectionMetadataChanged);
+        Assert.True(plan.RiskAssessment.Protection.AuthorizationRequired);
+        Assert.Contains(
+            "protected_document_edit_not_authorized",
+            plan.Evaluate().BlockCodes
+        );
+    }
+
+    [Fact]
+    public void EquivalentProtectionPrefixesAndAttributeOrderKeepTheSameFingerprint()
+    {
+        const string beforeSettings =
+            "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+            + "<w:documentProtection w:edit='readOnly' w:enforcement='0'/>"
+            + "</w:settings>";
+        const string afterSettings =
+            "<x:settings xmlns:x='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>\n"
+            + "  <x:documentProtection x:enforcement='0' x:edit='readOnly'></x:documentProtection>\n"
+            + "</x:settings>";
+        var before = Read(BuildPackage(
+            "same",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(beforeSettings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+        var after = Read(BuildPackage(
+            "same",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(afterSettings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.False(plan.RiskAssessment.Protection.DocumentProtectionMetadataChanged);
+        Assert.False(plan.RiskAssessment.Protection.AuthorizationRequired);
+        Assert.True(plan.Evaluate().CanApply);
     }
 
     [Fact]
@@ -1103,6 +1240,20 @@ public sealed class WordPackagePatchPlanTests
         + "xmlns:ws='http://purl.oclc.org/ooxml/wordprocessingml/main'>"
         + "<w:body><w:p><w:permStart ws:id='7' ws:edGrp='everyone' ws:colFirst='0' ws:colLast='2'/>"
         + $"<w:r><w:t>{text}</w:t></w:r><w:permEnd ws:id='7'/>"
+        + "</w:p></w:body></w:document>";
+
+    private static string MixedMarkerNamespacePermissionDocumentXml(string text) =>
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:ws='http://purl.oclc.org/ooxml/wordprocessingml/main'>"
+        + "<w:body><w:p><ws:permStart ws:id='7' ws:edGrp='everyone'/>"
+        + $"<w:r><w:t>{text}</w:t></w:r><ws:permEnd ws:id='7'/>"
+        + "</w:p></w:body></w:document>";
+
+    private static string MisplacedPermissionEndAttributeDocumentXml(string text) =>
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+        + "<w:body><w:p><w:permStart w:id='7'/>"
+        + $"<w:r><w:t>{text}</w:t></w:r>"
+        + "<w:permEnd w:id='7' w:edGrp='everyone' w:colFirst='0' w:colLast='2'/>"
         + "</w:p></w:body></w:document>";
 
     private static string SettingsXml(string? editMode, bool enforced) =>
