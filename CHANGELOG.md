@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- Closed transaction-boundary gaps across both authoring surfaces. Remote draft image
+  inputs are now ephemeral: invalid images, successful inserts and later batch failures
+  remove their session upload instead of leaking storage quota after commit or rollback;
+  an OS cleanup failure is a warning and never masks an already committed mutation.
+  Native live batch staging projects the failing operation index across range construction
+  and per-operation equation-count verification without inventing an index for an
+  unlocalizable aggregate drift. Multi-integral equation readback validates differential
+  placement per integral operand instead of accepting only an aggregate count. The Python
+  live backend now implements the inline formatted runs already advertised by the local
+  schema, counts every payload-relative Word range in UTF-16 code units, and keeps its
+  documented formatting properties aligned with the fields accepted at runtime.
+
+- Removed four contract dead ends found by an external AI workflow. Native captions now
+  accept exactly one fresh selection or found-range token; table-formula schemas enumerate
+  the real typed source contract instead of accepting an opaque object; live structure
+  inspection omits unresolved COM wrappers instead of serializing `System.__ComObject`;
+  and member-operation guidance states that `result_id` is required to publish a result.
+
 - Hardened legacy text edits at structural and Unicode boundaries. Failed tracked
   edits that cross a hyperlink now reject before publication instead of removing
   an earlier run and then throwing; untracked replacements can cross the wrapper,

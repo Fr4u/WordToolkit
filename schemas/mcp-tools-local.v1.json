@@ -19087,7 +19087,7 @@
     {
       "name": "execute_live_word_member_operations",
       "title": "Execute catalog-backed operations in an open Microsoft Word document",
-      "description": "Execute up to 50 preflighted per-member virtual tools by stable capability ID. Targets are restricted to the connected document, its current selection or content, and typed results of earlier operations. A mutating batch requires expected_version and runs in one Word Undo record with rollback on failure. Indexed setters remain non-executable until their exact Word Undo behavior is proven.",
+      "description": "Execute up to 50 preflighted per-member virtual tools by stable capability ID. Targets are restricted to the connected document, its current selection or content, and typed results of earlier operations. Only operations that include a result_id publish entries in the results array; executed_count counts all executed operations. A mutating batch requires expected_version and runs in one Word Undo record with rollback on failure. Indexed setters remain non-executable until their exact Word Undo behavior is proven.",
       "inputSchema": {
         "properties": {
           "live_document_id": {
@@ -20219,8 +20219,57 @@
         "properties": {
           "formulas": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["row", "column", "function"],
+              "properties": {
+                "row": {"type": "integer", "minimum": 1, "maximum": 200},
+                "column": {"type": "integer", "minimum": 1, "maximum": 50},
+                "function": {
+                  "type": "string",
+                  "enum": ["sum", "average", "count", "max", "min", "product"]
+                },
+                "directions": {"type": "array"},
+                "cell_range": {"type": "object"},
+                "numeric_format": {"type": "string", "maxLength": 64, "pattern": "^[0#.,%$€£¥()\\-+ ]*$"},
+                "replace_existing": {"type": "boolean", "default": false}
+              },
+              "oneOf": [
+                {
+                  "required": ["directions"],
+                  "properties": {
+                    "directions": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 2,
+                      "uniqueItems": true,
+                      "items": {"type": "string", "enum": ["above", "below", "left", "right"]}
+                    }
+                  }
+                },
+                {
+                  "required": ["cell_range"],
+                  "properties": {
+                    "cell_range": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["start", "end"],
+                      "properties": {
+                        "start": {
+                          "type": "object", "additionalProperties": false,
+                          "required": ["row", "column"],
+                          "properties": {"row": {"type": "integer", "minimum": 1, "maximum": 200}, "column": {"type": "integer", "minimum": 1, "maximum": 50}}
+                        },
+                        "end": {
+                          "type": "object", "additionalProperties": false,
+                          "required": ["row", "column"],
+                          "properties": {"row": {"type": "integer", "minimum": 1, "maximum": 200}, "column": {"type": "integer", "minimum": 1, "maximum": 50}}
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
             },
             "title": "Formulas",
             "type": "array"
@@ -20287,8 +20336,22 @@
           },
           "formulas": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["row", "column", "function"],
+              "properties": {
+                "row": {"type": "integer", "minimum": 1, "maximum": 200},
+                "column": {"type": "integer", "minimum": 1, "maximum": 50},
+                "function": {"type": "string", "enum": ["sum", "average", "count", "max", "min", "product"]},
+                "directions": {"type": "array"},
+                "cell_range": {"type": "object"},
+                "numeric_format": {"type": "string", "maxLength": 64, "pattern": "^[0#.,%$€£¥()\\-+ ]*$"},
+                "replace_existing": {"type": "boolean", "default": false}
+              },
+              "oneOf": [
+                {"required": ["directions"], "properties": {"directions": {"type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": {"type": "string", "enum": ["above", "below", "left", "right"]}}}},
+                {"required": ["cell_range"], "properties": {"cell_range": {"type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": {"start": {"type": "object", "additionalProperties": false, "required": ["row", "column"], "properties": {"row": {"type": "integer", "minimum": 1, "maximum": 200}, "column": {"type": "integer", "minimum": 1, "maximum": 50}}}, "end": {"type": "object", "additionalProperties": false, "required": ["row", "column"], "properties": {"row": {"type": "integer", "minimum": 1, "maximum": 200}, "column": {"type": "integer", "minimum": 1, "maximum": 50}}}}}}}
+              ]
             },
             "maxItems": 200,
             "minItems": 1,
@@ -21943,7 +22006,7 @@
     {
       "name": "insert_live_word_caption",
       "title": "Insert a native Word caption",
-      "description": "Insert one native Word caption for a token-verified main-story selection. Uses an existing built-in or custom caption label, Word's real SEQ field and configured or explicit caption position. The operation creates one custom Undo record, verifies an exact one-field increase, and rolls back on mismatch. It never accepts raw field code, creates a global caption label, or returns caption text.",
+      "description": "Insert one native Word caption for exactly one token-verified main-story selection_token or content-bound range_token. Uses an existing built-in or custom caption label, Word's real SEQ field and configured or explicit caption position. The operation creates one custom Undo record, verifies an exact one-field increase, and rolls back on mismatch. It never accepts raw field code, creates a global caption label, or returns caption text.",
       "operationVersion": "1.0",
       "permissions": {
         "filesystem": "none",
@@ -21960,6 +22023,7 @@
           "live_document_id": {"type": "string", "minLength": 1, "maxLength": 128},
           "expected_version": {"type": "integer", "minimum": 0},
           "selection_token": {"type": "string", "minLength": 1, "maxLength": 128},
+          "range_token": {"type": "string", "minLength": 1, "maxLength": 128},
           "caption_kind": {
             "type": "string",
             "enum": ["figure", "table", "equation", "custom"],
@@ -21992,7 +22056,11 @@
           "exclude_label": {"type": "boolean", "default": false},
           "optimize_screen_updates": {"type": "boolean", "default": true}
         },
-        "required": ["live_document_id", "expected_version", "selection_token"],
+        "required": ["live_document_id", "expected_version"],
+        "oneOf": [
+          {"required": ["selection_token"], "not": {"required": ["range_token"]}},
+          {"required": ["range_token"], "not": {"required": ["selection_token"]}}
+        ],
         "additionalProperties": false
       },
       "outputSchema": {

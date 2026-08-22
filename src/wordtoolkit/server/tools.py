@@ -88,6 +88,9 @@ EXPORT = ToolAnnotations(
 )
 FILE_META = {"openai/fileParams": ["file"]}
 BATCH_FILE_META = {"openai/fileParams": ["files"]}
+UPLOAD_CLEANUP_WARNING = (
+    "UPLOAD_CLEANUP_FAILED: a staged image could not be removed from session storage"
+)
 type DRAFT_VERSION = Annotated[
     Any,
     WithJsonSchema({"type": "integer", "minimum": 0, "title": "Expected Version"}),
@@ -270,12 +273,45 @@ def _verify_image_file(path: Path) -> None:
         ) from exc
 
 
+def _discard_session_upload(session: Any, path: Path) -> bool:
+    """Delete only an upload owned by the supplied session."""
+    upload_root = (session.root / "uploads").resolve()
+    resolved = path.resolve()
+    if not resolved.is_relative_to(upload_root):
+        return False
+    resolved.unlink(missing_ok=True)
+    return True
+
+
+async def _discard_session_upload_safely(session: Any, path: Path) -> bool:
+    """Best-effort cleanup must never replace a mutation result or its original error."""
+    try:
+        await _run_locked_worker(_discard_session_upload, session, path)
+    except BaseException:
+        return False
+    return True
+
+
+def _warn_if_upload_cleanup_failed(response: dict, cleanup_succeeded: bool) -> None:
+    if cleanup_succeeded:
+        return
+    warnings = response.get("warnings")
+    if isinstance(warnings, list) and UPLOAD_CLEANUP_WARNING not in warnings:
+        warnings.append(UPLOAD_CLEANUP_WARNING)
+
+
 async def _download_verified_image(runtime: ToolRuntime, session: Any, file: OpenAIFile) -> Path:
-    path = await runtime.download_file(
-        file, session, extensions={".png", ".jpg", ".jpeg", ".gif", ".tif", ".tiff"}
-    )
-    await _run_locked_worker(_verify_image_file, path)
-    return path
+    path: Path | None = None
+    try:
+        path = await runtime.download_file(
+            file, session, extensions={".png", ".jpg", ".jpeg", ".gif", ".tif", ".tiff"}
+        )
+        await _run_locked_worker(_verify_image_file, path)
+        return path
+    except BaseException:
+        if path is not None:
+            await _discard_session_upload_safely(session, path)
+        raise
 
 
 async def _mutate(
@@ -1777,12 +1813,15 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         subject = current_subject()
         require_scope("documents:write")
         batch = _DRAFT_BATCH_CONTEXT.get()
+        session = None
+        owns_staged_upload = False
         if batch is not None and batch.operation_index in batch.prepared_image_paths:
             image_path = batch.prepared_image_paths[batch.operation_index]
         else:
             record = await runtime.store.get_document(subject, document_id)
             session = await runtime.store.get_session(subject, record.session_id)
             image_path = await _download_verified_image(runtime, session, file)
+            owns_staged_upload = True
         width_emu, height_emu = int(width_mm * 36000), int(height_mm * 36000)
 
         def operation(engine):
@@ -1797,7 +1836,16 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
                 engine.call("set_image_alt_text", result["rId"], alt_text)
             return result
 
-        return await _mutate(runtime, document_id, expected_version, operation)
+        response: dict | None = None
+        try:
+            response = await _mutate(runtime, document_id, expected_version, operation)
+        finally:
+            if owns_staged_upload and session is not None:
+                cleanup_succeeded = await _discard_session_upload_safely(session, image_path)
+                if response is not None:
+                    _warn_if_upload_cleanup_failed(response, cleanup_succeeded)
+        assert response is not None
+        return response
 
     @mcp.tool(
         title="Manage Word sections",
@@ -2271,7 +2319,7 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
 
     @mcp.tool(
         title="Apply an atomic batch of Word document operations",
-        description="Apply 1 to 16 ordered ordinary draft mutations on one isolated process-local copy-on-write engine, validate the final candidate once, and advance draft_version exactly once. Every operation is validated against its standalone tool contract before the fork; read-only variants are rejected. For insert_image, pass authorized files in the top-level files array and reference them by file_index. Image files are staged before the document transaction and may still consume session quota if a later operation fails.",
+        description="Apply 1 to 16 ordered ordinary draft mutations on one isolated process-local copy-on-write engine, validate the final candidate once, and advance draft_version exactly once. Every operation is validated against its standalone tool contract before the fork; read-only variants are rejected. For insert_image, pass authorized files in the top-level files array and reference them by file_index. Image files are staged before the document transaction and removed after either commit or rollback.",
         annotations=DELETE,
         meta=BATCH_FILE_META,
     )
@@ -2290,6 +2338,9 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
 
         async def prepare_images_and_execute() -> dict:
             prepared_image_paths: dict[int, Path] = {}
+            session = None
+            staged_by_reference: dict[tuple[str, str], Path] = {}
+            response: dict | None = None
             image_indexes = [
                 index
                 for index, (operation_name, _kwargs, _handler) in enumerate(prepared)
@@ -2299,27 +2350,40 @@ def register_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
                 record = await runtime.store.get_document(subject, document_id)
                 runtime.store.require_version(record, expected_version)
                 session = await runtime.store.get_session(subject, record.session_id)
-                staged_by_reference: dict[tuple[str, str], Path] = {}
-                for index in image_indexes:
-                    file = prepared[index][1]["file"]
-                    if not isinstance(file, OpenAIFile):
-                        raise WordToolkitError(
-                            ErrorCode.INVALID_INPUT,
-                            "Batch image operation has an invalid file reference",
-                            {"operation_index": index, "operation": "insert_image"},
+            try:
+                if session is not None:
+                    for index in image_indexes:
+                        file = prepared[index][1]["file"]
+                        if not isinstance(file, OpenAIFile):
+                            raise WordToolkitError(
+                                ErrorCode.INVALID_INPUT,
+                                "Batch image operation has an invalid file reference",
+                                {"operation_index": index, "operation": "insert_image"},
+                            )
+                        cache_key = (file.file_id, file.download_url)
+                        image_path = staged_by_reference.get(cache_key)
+                        if image_path is None:
+                            image_path = await _download_verified_image(runtime, session, file)
+                            staged_by_reference[cache_key] = image_path
+                        prepared_image_paths[index] = image_path
+                response = await execute_batch_transaction(
+                    document_id,
+                    expected_version,
+                    prepared,
+                    prepared_image_paths,
+                )
+            finally:
+                if session is not None:
+                    cleanup_succeeded = True
+                    for image_path in set(staged_by_reference.values()):
+                        cleanup_succeeded = (
+                            await _discard_session_upload_safely(session, image_path)
+                            and cleanup_succeeded
                         )
-                    cache_key = (file.file_id, file.download_url)
-                    image_path = staged_by_reference.get(cache_key)
-                    if image_path is None:
-                        image_path = await _download_verified_image(runtime, session, file)
-                        staged_by_reference[cache_key] = image_path
-                    prepared_image_paths[index] = image_path
-            return await execute_batch_transaction(
-                document_id,
-                expected_version,
-                prepared,
-                prepared_image_paths,
-            )
+                    if response is not None:
+                        _warn_if_upload_cleanup_failed(response, cleanup_succeeded)
+            assert response is not None
+            return response
 
         worker = asyncio.create_task(prepare_images_and_execute())
         try:

@@ -5367,7 +5367,9 @@
       "prerequisites": [
         "fresh expected_version from live response"
       ],
-      "acquisition_steps": [],
+      "acquisition_steps": [
+        "bind one fresh range_token from find_live_word_text"
+      ],
       "bindings": {
         "live_document_id": {
           "source": "external_input"
@@ -5375,8 +5377,8 @@
         "expected_version": {
           "source": "live_response.live_version"
         },
-        "selection_token": {
-          "source": "external_input"
+        "range_token": {
+          "source": "find_live_word_text.range_token"
         }
       },
       "example": {
@@ -5389,7 +5391,7 @@
             "type": "integer",
             "source": "live_response.live_version"
           },
-          "selection_token": "<bind:selection_token>"
+          "range_token": "<bind:range_token>"
         }
       },
       "success": {
@@ -6157,7 +6159,28 @@
         "template_only": true,
         "arguments": {
           "live_document_id": "<bind:live_document_id>",
-          "operations": [],
+          "operations": [
+            {
+              "type": "text",
+              "runs": [
+                {
+                  "text": "Normal ",
+                  "formatting": {}
+                },
+                {
+                  "text": "bold",
+                  "formatting": {
+                    "bold": true
+                  }
+                }
+              ],
+              "as_new_paragraph": true,
+              "formatting": {
+                "font_size_pt": 11,
+                "paragraph_alignment": "left"
+              }
+            }
+          ],
           "expected_version": {
             "type": "integer",
             "source": "live_response.live_version"

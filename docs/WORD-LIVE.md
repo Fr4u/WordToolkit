@@ -50,7 +50,7 @@ path, save-policy and confirmation checks.
 | `insert_live_word_bookmarks` | Insert and verify up to 200 native named ranges in one transaction. |
 | `preflight_live_word_fields` | Validate an allowlisted native-field batch without attaching to Word. |
 | `insert_live_word_fields` | Insert and update up to 200 allowlisted native Word fields in one transaction. |
-| `insert_live_word_caption` | Insert one localized native caption with a real `SEQ` field and guarded readback. |
+| `insert_live_word_caption` | Insert one localized native caption at exactly one fresh selection or found range token, with a real `SEQ` field and guarded readback. |
 | `insert_live_word_table_of_figures` | Create and optionally update one native table of figures from existing captions. |
 | `insert_live_word_table_of_contents` | Create, optionally repaginate and update one native contents table from semantic heading settings. |
 | `mark_live_word_authority_citation` | Mark one fresh non-empty range as a native category-bound table-of-authorities entry. |
@@ -377,6 +377,9 @@ never accepts a raw member name or dotted COM path. Read-only graphs leave the
 live version unchanged. A mutating graph requires `expected_version`, runs in
 one custom Undo record and advances the version once only after every step
 succeeds. A native failure requests one Undo and leaves the version unchanged.
+The response's `executed_count` counts every executed operation, while the
+`results` array contains only operations that supplied a `result_id`; callers
+that need a read value must publish and then reference that result explicitly.
 
 The registry does not pretend that all 12,167 entries are edits. On the
 release workstation it classified 3,756 enum constants as metadata-only,

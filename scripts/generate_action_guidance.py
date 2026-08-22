@@ -70,6 +70,25 @@ def main() -> None:
                 "type": "integer",
                 "source": "live_response.live_version",
             }
+        if name == "apply_live_word_operations":
+            ex["operations"] = [
+                {
+                    "type": "text",
+                    "runs": [
+                        {"text": "Normal ", "formatting": {}},
+                        {"text": "bold", "formatting": {"bold": True}},
+                    ],
+                    "as_new_paragraph": True,
+                    "formatting": {
+                        "font_size_pt": 11,
+                        "paragraph_alignment": "left",
+                    },
+                }
+            ]
+        if name == "insert_live_word_caption":
+            acquire.append("bind one fresh range_token from find_live_word_text")
+            bindings["range_token"] = {"source": "find_live_word_text.range_token"}
+            ex["range_token"] = "<bind:range_token>"
         if "local_path" in required:
             prereq.append("explicit existing local_path")
         if "expected_package_fingerprint" in all_props:

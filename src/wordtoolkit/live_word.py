@@ -433,6 +433,14 @@ WORD_INTERNATIONAL_LIST_SEPARATOR = 17
 WORD_INTERNATIONAL_DECIMAL_SEPARATOR = 18
 WORD_INTERNATIONAL_THOUSANDS_SEPARATOR = 19
 WORD_FIELD_MARKER = "\ue000"
+
+
+def _word_utf16_length(value: str) -> int:
+    """Return the number of UTF-16 code units used by Word Range offsets."""
+
+    return len(value.encode("utf-16-le", errors="surrogatepass")) // 2
+
+
 WORD_BOOKMARK_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]{0,39}")
 LIVE_EQUATION_STRUCTURE_KINDS = frozenset(
     {
@@ -538,6 +546,20 @@ TEXT_FORMATTING_KEYS = {
     "keep_together",
     "page_break_before",
     "widow_control",
+}
+INLINE_RUN_FORMATTING_KEYS = {
+    "font_name",
+    "font_size_pt",
+    "font_color_rgb",
+    "bold",
+    "italic",
+    "underline",
+    "all_caps",
+    "small_caps",
+    "strike",
+    "double_strike",
+    "hidden",
+    "highlight_color_index",
 }
 TEXT_FORMATTING_ALIASES = {
     "font_size": "font_size_pt",
@@ -661,6 +683,7 @@ class PreparedLiveTextOperation:
     as_new_paragraph: bool
     style: str
     formatting: dict[str, Any]
+    runs: tuple[tuple[str, dict[str, Any]], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -3943,7 +3966,11 @@ class LiveWordBridge:
         }
 
     @staticmethod
-    def _normalize_text_formatting(value: Any) -> dict[str, Any]:
+    def _normalize_text_formatting(
+        value: Any,
+        *,
+        allow_paragraph_formatting: bool = True,
+    ) -> dict[str, Any]:
         if value is None:
             value = {}
         if not isinstance(value, dict):
@@ -3961,11 +3988,18 @@ class LiveWordBridge:
                     f"Use either {alias} or {canonical}, not both",
                 )
             value[canonical] = value.pop(alias)
-        unknown = sorted(set(value) - TEXT_FORMATTING_KEYS)
+        allowed_fields = (
+            TEXT_FORMATTING_KEYS if allow_paragraph_formatting else INLINE_RUN_FORMATTING_KEYS
+        )
+        unknown = sorted(set(value) - allowed_fields)
         if unknown:
             raise WordToolkitError(
                 ErrorCode.INVALID_INPUT,
-                "Unsupported live text formatting fields",
+                (
+                    "Unsupported live text formatting fields"
+                    if allow_paragraph_formatting
+                    else "Unsupported inline run formatting fields"
+                ),
                 {"fields": unknown},
             )
         normalized: dict[str, Any] = {}
@@ -5650,9 +5684,9 @@ class LiveWordBridge:
             ):
                 payload += "\r"
             payload += item.prefix_text
-            bookmark_start = len(payload)
+            bookmark_start = _word_utf16_length(payload)
             payload += item.text
-            ranges.append((bookmark_start, len(payload)))
+            ranges.append((bookmark_start, _word_utf16_length(payload)))
             payload += item.suffix_text
             if item.as_new_paragraph and not payload.endswith("\r"):
                 payload += "\r"
@@ -6118,7 +6152,7 @@ class LiveWordBridge:
             ):
                 payload += "\r"
             payload += item.prefix_text
-            marker_start = len(payload)
+            marker_start = _word_utf16_length(payload)
             payload += WORD_FIELD_MARKER
             markers.append((marker_start, marker_start + 1))
             payload += item.suffix_text
@@ -6622,6 +6656,47 @@ class LiveWordBridge:
             operation_type = item.get("type")
             if operation_type == "text":
                 text = item.get("text")
+                runs_value = item.get("runs")
+                if (text is None) == (runs_value is None):
+                    raise WordToolkitError(
+                        ErrorCode.INVALID_INPUT,
+                        "Each text operation requires exactly one of text or runs",
+                        {"index": index},
+                    )
+                runs: tuple[tuple[str, dict[str, Any]], ...] = ()
+                if runs_value is not None:
+                    if not isinstance(runs_value, list) or not runs_value or len(runs_value) > 1000:
+                        raise WordToolkitError(
+                            ErrorCode.INVALID_INPUT,
+                            "runs must contain 1 to 1,000 items",
+                            {"index": index},
+                        )
+                    parsed_runs: list[tuple[str, dict[str, Any]]] = []
+                    for run_index, run in enumerate(runs_value):
+                        if not isinstance(run, dict) or set(run) - {"text", "formatting"}:
+                            raise WordToolkitError(
+                                ErrorCode.INVALID_INPUT,
+                                "Each inline run requires text and optional formatting",
+                                {"index": index, "run": run_index},
+                            )
+                        run_text = run.get("text")
+                        if not isinstance(run_text, str) or not run_text:
+                            raise WordToolkitError(
+                                ErrorCode.INVALID_INPUT,
+                                "Each inline run requires non-empty text",
+                                {"index": index, "run": run_index},
+                            )
+                        parsed_runs.append(
+                            (
+                                run_text,
+                                self._normalize_text_formatting(
+                                    run.get("formatting", {}),
+                                    allow_paragraph_formatting=False,
+                                ),
+                            )
+                        )
+                    runs = tuple(parsed_runs)
+                    text = "".join(run_text for run_text, _ in runs)
                 style = item.get("style", "")
                 if not isinstance(text, str) or not text:
                     raise WordToolkitError(
@@ -6646,6 +6721,7 @@ class LiveWordBridge:
                 prepared.append(
                     PreparedLiveTextOperation(
                         text=text,
+                        runs=runs,
                         as_new_paragraph=bool(item.get("as_new_paragraph", False)),
                         style=style,
                         formatting=text_formatting,
@@ -6715,11 +6791,11 @@ class LiveWordBridge:
                     prefix = "" if insertion_start + offset == 0 or previous == "\r" else "\r"
                     suffix = "\r"
                 piece = prefix + normalized + suffix
-                segment_start = offset + len(prefix)
-                segment_end = segment_start + len(normalized)
+                segment_start = offset + _word_utf16_length(prefix)
+                segment_end = segment_start + _word_utf16_length(normalized)
                 chunks.append(piece)
                 segments.append((segment_start, segment_end))
-                offset += len(piece)
+                offset += _word_utf16_length(piece)
                 if piece:
                     previous = piece[-1]
 
@@ -6755,12 +6831,33 @@ class LiveWordBridge:
                         inserted.Style = prepared_operation.style
                     if prepared_operation.formatting:
                         self._apply_text_formatting(inserted, prepared_operation.formatting)
+                    if prepared_operation.runs:
+                        run_offset = relative_start
+                        for run_text, run_formatting in prepared_operation.runs:
+                            normalized_run_text = (
+                                run_text.replace("\r\n", "\n")
+                                .replace("\r", "\n")
+                                .replace("\n", "\r")
+                            )
+                            run_end = run_offset + _word_utf16_length(normalized_run_text)
+                            if run_formatting:
+                                self._apply_text_formatting(
+                                    document.Range(
+                                        insertion_start + run_offset,
+                                        insertion_start + run_end,
+                                    ),
+                                    run_formatting,
+                                )
+                            run_offset = run_end
                     tracked_ranges[index] = inserted.Duplicate
                     operation_results[index] = {
                         "type": "text",
                         "range": {},
                         "style": prepared_operation.style,
                         "formatting": prepared_operation.formatting,
+                        "run_count": (
+                            len(prepared_operation.runs) if prepared_operation.runs else 1
+                        ),
                     }
 
                 equation_positions = [

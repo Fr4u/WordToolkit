@@ -3484,7 +3484,7 @@
     {
       "name": "apply_document_operations",
       "title": "Apply an atomic batch of Word document operations",
-      "description": "Apply 1 to 16 ordered ordinary draft mutations on one isolated process-local copy-on-write engine, validate the final candidate once, and advance draft_version exactly once. Every operation is validated against its standalone tool contract before the fork; read-only variants are rejected. For insert_image, pass authorized files in the top-level files array and reference them by file_index. Image files are staged before the document transaction and may still consume session quota if a later operation fails.",
+      "description": "Apply 1 to 16 ordered ordinary draft mutations on one isolated process-local copy-on-write engine, validate the final candidate once, and advance draft_version exactly once. Every operation is validated against its standalone tool contract before the fork; read-only variants are rejected. For insert_image, pass authorized files in the top-level files array and reference them by file_index. Image files are staged before the document transaction and removed after either commit or rollback.",
       "inputSchema": {
         "properties": {
           "document_id": {

@@ -36,11 +36,19 @@ internal sealed partial class WordLiveService
                 "expected_version is required for native caption insertion"
             );
         var selectionToken = arguments.String("selection_token");
-        if (selectionToken.Length is < 1 or > 128)
+        var rangeToken = arguments.String("range_token");
+        if ((selectionToken.Length == 0) == (rangeToken.Length == 0))
         {
             throw new NativeToolException(
                 "INVALID_INPUT",
-                "A fresh bounded selection_token is required"
+                "Provide exactly one fresh selection_token or range_token"
+            );
+        }
+        if (selectionToken.Length > 128 || rangeToken.Length > 128)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "selection_token and range_token are bounded to 128 characters"
             );
         }
         var captionKind = arguments.String("caption_kind", "figure");
@@ -69,13 +77,20 @@ internal sealed partial class WordLiveService
                 CheckVersion(record, expectedVersion);
                 dynamic document = ResolveDocument(application, record);
                 RequireEditable(document);
-                dynamic targetRange = ResolveVerifiedSelectionRange(
-                    (object)application,
-                    (object)document,
-                    record,
-                    selectionToken,
-                    requireNonEmpty: false
-                );
+                dynamic targetRange = rangeToken.Length > 0
+                    ? ResolveVerifiedRange(
+                        (object)document,
+                        record,
+                        rangeToken,
+                        requireNonEmpty: false
+                    )
+                    : ResolveVerifiedSelectionRange(
+                        (object)application,
+                        (object)document,
+                        record,
+                        selectionToken,
+                        requireNonEmpty: false
+                    );
                 var label = ResolveCaptionLabel(application, captionKind, customLabel);
                 var resolvedPosition = ResolveCaptionPosition(
                     label,

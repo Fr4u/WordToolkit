@@ -248,6 +248,15 @@ public sealed class LiveOperationRollbackTests
         var error = await ApplyFailingBatchAsync(service, documentId);
 
         Assert.Equal("EQUATION_INVALID", error.ErrorCode);
+        using (var errorDetails = JsonDocument.Parse(
+            JsonSerializer.Serialize(error.Details, JsonDefaults.Compact)
+        ))
+        {
+            Assert.Equal(
+                1,
+                errorDetails.RootElement.GetProperty("failed_operation_index").GetInt32()
+            );
+        }
         Assert.Equal("\r", host.Application.ActiveDocument.RawText);
         Assert.Equal(1, host.Application.ActiveDocument.Paragraphs.Count);
         Assert.Equal(0, host.Application.ActiveDocument.OMaths.Count);

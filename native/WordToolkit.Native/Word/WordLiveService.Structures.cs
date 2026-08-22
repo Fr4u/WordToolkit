@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using WordToolkit.Native.Protocol;
 
@@ -846,11 +847,19 @@ internal sealed partial class WordLiveService
             }
         }
 
-        void Text(string name, Func<string?> read, int limit = 512)
+        void Text(string name, Func<object?> read, int limit = 512)
         {
             try
             {
-                var value = read() ?? "";
+                var raw = read();
+                // Never serialize an unresolved COM wrapper as its runtime type
+                // name (for example, System.__ComObject).  Such values are not
+                // client-usable scalar metadata, so omit the optional field.
+                if (raw is not null && Marshal.IsComObject(raw))
+                {
+                    return;
+                }
+                var value = Convert.ToString(raw, CultureInfo.InvariantCulture) ?? "";
                 properties[name] = value[..Math.Min(value.Length, limit)];
             }
             catch
@@ -863,7 +872,7 @@ internal sealed partial class WordLiveService
         {
             case "paragraphs":
                 Range("range", () => item.Range);
-                Text("style", () => Convert.ToString(item.Style, CultureInfo.InvariantCulture));
+                Text("style", () => item.Style);
                 Integer("outline_level", () => (int)item.OutlineLevel);
                 break;
             case "sections":
@@ -872,7 +881,7 @@ internal sealed partial class WordLiveService
                 Integer("start_type", () => (int)item.Start);
                 break;
             case "styles":
-                Text("name_local", () => (string?)item.NameLocal);
+                Text("name_local", () => item.NameLocal);
                 Integer("type", () => (int)item.Type);
                 Boolean("built_in", () => (bool)item.BuiltIn);
                 Boolean("in_use", () => (bool)item.InUse);
@@ -883,7 +892,7 @@ internal sealed partial class WordLiveService
                 Integer("row_count", () => (int)item.Rows.Count);
                 Integer("column_count", () => (int)item.Columns.Count);
                 Integer("nesting_level", () => (int)item.NestingLevel);
-                Text("style", () => Convert.ToString(item.Style, CultureInfo.InvariantCulture));
+                Text("style", () => item.Style);
                 Boolean("allow_autofit", () => (bool)item.AllowAutoFit);
                 break;
             case "equations":

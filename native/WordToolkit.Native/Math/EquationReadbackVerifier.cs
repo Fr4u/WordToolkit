@@ -203,8 +203,10 @@ internal static class EquationReadbackVerifier
             var expectedDifferentials = expectedContract.Count(character =>
                 character == WordLinearMathNormalizer.DifferentialD
             );
+            var expectedIntegralDifferentialCounts =
+                CountTopLevelIntegralOperandDifferentialCounts(expectedContract);
             var expectedIntegralDifferentials =
-                CountIntegralOperandDifferentials(expectedContract);
+                expectedIntegralDifferentialCounts.Sum();
             var actualIntegralDifferentials = differentialTextNodes
                 .Where(IsInsideIntegralOperand)
                 .Sum(element =>
@@ -214,13 +216,18 @@ internal static class EquationReadbackVerifier
                 );
             var integralNaryCount = equation.Descendants()
                 .Count(element => IsMathElement(element, "nary") && IsIntegralNary(element));
+            var actualIntegralDifferentialCounts =
+                CountActualTopLevelIntegralDifferentialCounts(equation);
+            var perIntegralPlacementVerified =
+                actualIntegralDifferentialCounts.Count == expectedIntegralDifferentialCounts.Count
+                && actualIntegralDifferentialCounts
+                    .Select((actual, index) => actual <= expectedIntegralDifferentialCounts[index])
+                    .All(value => value);
             var placementVerified =
-                actualIntegralDifferentials == expectedIntegralDifferentials
-                || (
-                    integralNaryCount > 1
-                    && expectedIntegralDifferentials == expectedDifferentials
-                    && differentialCount == expectedDifferentials
-                );
+                perIntegralPlacementVerified
+                && actualIntegralDifferentials <= expectedIntegralDifferentials
+                && (actualIntegralDifferentials == expectedIntegralDifferentials
+                    || integralNaryCount > 1);
             var naryCount = equation.Descendants()
                 .Count(element => IsMathElement(element, "nary"));
 
@@ -240,6 +247,8 @@ internal static class EquationReadbackVerifier
                         actual_differential_count = differentialCount,
                         expected_integral_differential_count = expectedIntegralDifferentials,
                         actual_integral_differential_count = actualIntegralDifferentials,
+                        expected_integral_differential_counts = expectedIntegralDifferentialCounts,
+                        actual_integral_differential_counts = actualIntegralDifferentialCounts,
                         differential_placement_verified = placementVerified,
                         nary_count = naryCount,
                     }
@@ -454,9 +463,11 @@ internal static class EquationReadbackVerifier
         return output.ToString();
     }
 
-    private static int CountIntegralOperandDifferentials(string value)
+    private static IReadOnlyList<int> CountTopLevelIntegralOperandDifferentialCounts(
+        string value
+    )
     {
-        var positions = new HashSet<int>();
+        var operands = new List<(int Operator, int Opening, int Closing, int Count)>();
         var inQuotedText = false;
         for (var index = 0; index < value.Length; index++)
         {
@@ -496,15 +507,71 @@ internal static class EquationReadbackVerifier
             {
                 continue;
             }
+            var count = 0;
             for (var cursor = opening + 1; cursor < closing; cursor++)
             {
                 if (value[cursor] == WordLinearMathNormalizer.DifferentialD)
                 {
-                    positions.Add(cursor);
+                    count++;
                 }
             }
+            operands.Add((index, opening, closing, count));
         }
-        return positions.Count;
+        return operands
+            .Where(candidate => !operands.Any(parent =>
+                parent.Opening < candidate.Operator
+                && candidate.Operator < parent.Closing
+            ))
+            .Select(candidate => candidate.Count)
+            .ToArray();
+    }
+
+    private static IReadOnlyList<int> CountActualTopLevelIntegralDifferentialCounts(
+        XElement equation
+    )
+    {
+        var counts = new List<int>();
+        CollectActualTopLevelIntegralDifferentialCounts(equation, counts);
+        return counts;
+    }
+
+    private static void CollectActualTopLevelIntegralDifferentialCounts(
+        XElement container,
+        List<int> counts
+    )
+    {
+        var children = container.Elements().ToArray();
+        for (var index = 0; index < children.Length; index++)
+        {
+            var child = children[index];
+            if (!IsMathElement(child, "nary") || !IsIntegralNary(child))
+            {
+                CollectActualTopLevelIntegralDifferentialCounts(child, counts);
+                continue;
+            }
+
+            var count = child.Elements()
+                .Where(item => IsMathElement(item, "e"))
+                .Descendants()
+                .Where(item => IsMathElement(item, "t"))
+                .Sum(item => item.Value.Count(character =>
+                    character == WordLinearMathNormalizer.DifferentialD));
+            for (var sibling = index + 1; sibling < children.Length; sibling++)
+            {
+                if (IsMathElement(children[sibling], "nary")
+                    && IsIntegralNary(children[sibling]))
+                {
+                    break;
+                }
+                count += children[sibling].DescendantsAndSelf()
+                    .Where(item => IsMathElement(item, "t"))
+                    .Where(item => !item.Ancestors().Any(ancestor =>
+                        IsMathElement(ancestor, "nary") && IsIntegralNary(ancestor)))
+                    .Sum(item => item.Value.Count(character =>
+                        character == WordLinearMathNormalizer.DifferentialD));
+            }
+            counts.Add(count);
+        }
     }
 
     private static bool TryFindBodySeparator(

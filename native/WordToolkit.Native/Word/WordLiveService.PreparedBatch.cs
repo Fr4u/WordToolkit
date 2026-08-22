@@ -160,11 +160,11 @@ internal sealed partial class WordLiveService
                 var expectedPerOperationEquationCount = beforeEquations + (equationIndexes.Length - reverse);
                 if (perOperationEquationCount != expectedPerOperationEquationCount)
                 {
-                    throw new NativeToolException(
+                    throw WithFailedOperationIndex(new NativeToolException(
                         "EQUATION_INVALID",
                         "Microsoft Word changed the native equation count during isolated batch construction",
                         new { operation_index = index, before = beforeEquations, after = perOperationEquationCount, expected = expectedPerOperationEquationCount }
-                    );
+                    ), index);
                 }
             }
             // Reacquire after Word may expand the original range while building OMaths.
@@ -183,6 +183,8 @@ internal sealed partial class WordLiveService
                         after = afterEquations,
                         expected = equationIndexes.Length,
                         per_operation_counts = perOperationEquationCounts,
+                        failed_operation_index_available = false,
+                        failure_scope = "batch",
                         target_document_mutated = false,
                     }
                 );
@@ -261,6 +263,10 @@ internal sealed partial class WordLiveService
                             : CaptureRequestedFormatting(stagedRange, textOperation),
                         runFormatting
                     );
+                }
+                catch (Exception exception)
+                {
+                    throw WithFailedOperationIndex(exception, index);
                 }
                 finally
                 {
@@ -346,7 +352,7 @@ internal sealed partial class WordLiveService
         {
             var details = new Dictionary<string, object?>
             {
-                ["failed_operation_index"] = index,
+                ["failed_operation_index"] = TryGetFailedOperationIndex(native) ?? index,
                 ["raw_document_content_returned"] = false,
             };
             if (native.Details is not null)
