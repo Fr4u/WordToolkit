@@ -268,3 +268,65 @@ class TestCaseInsensitive:
             )
         )
         assert result["type"] == "replacement"
+
+
+class TestCasefoldExpansion:
+    """Unicode case folding may expand one source character into several match characters."""
+
+    PARA_ID = "00000035"
+
+    @pytest.fixture(autouse=True)
+    def _open(self, tmp_path: Path):
+        path = tmp_path / "casefold-expansion.docx"
+        body = (
+            f'    <w:p w14:paraId="{self.PARA_ID}" w14:textId="77777777">\n'
+            '      <w:r><w:t xml:space="preserve">Die Straße ist lang.</w:t></w:r>\n'
+            "    </w:p>"
+        )
+        _minimal_docx(path, body)
+        server.open_document(str(path))
+
+    def test_ignore_case_maps_expanded_casefold_back_to_original_text(self):
+        """STRASSE matches Straße and the tracked deletion retains the original glyph."""
+        result = _j(server.delete_text(self.PARA_ID, "STRASSE", ignore_case=True))
+
+        assert result["type"] == "deletion"
+        paragraph = _para_xml(self.PARA_ID)
+        deleted_text = "".join(node.text or "" for node in paragraph.iter(f"{W}delText"))
+        assert deleted_text == "Straße"
+
+    def test_partial_casefold_expansion_is_not_a_valid_edit_target(self):
+        """One normalized s must not silently select the complete source ß glyph."""
+        with pytest.raises(ValueError):
+            server.delete_text(
+                self.PARA_ID,
+                "S",
+                context_before="STRAS",
+                ignore_case=True,
+            )
+
+        paragraph = _para_xml(self.PARA_ID)
+        assert not list(paragraph.iter(f"{W}del"))
+        assert "".join(node.text or "" for node in paragraph.iter(f"{W}t")) == (
+            "Die Straße ist lang."
+        )
+
+    def test_replace_maps_expanded_casefold_back_to_original_text(self):
+        """Replacement deletes the complete source glyph sequence and inserts new text."""
+        result = _j(
+            server.replace_text(
+                self.PARA_ID,
+                find="STRASSE",
+                replace="Weg",
+                ignore_case=True,
+            )
+        )
+
+        assert result["type"] == "replacement"
+        paragraph = _para_xml(self.PARA_ID)
+        deleted_text = "".join(node.text or "" for node in paragraph.iter(f"{W}delText"))
+        inserted_text = "".join(
+            node.text or "" for ins in paragraph.iter(f"{W}ins") for node in ins.iter(f"{W}t")
+        )
+        assert deleted_text == "Straße"
+        assert inserted_text == "Weg"

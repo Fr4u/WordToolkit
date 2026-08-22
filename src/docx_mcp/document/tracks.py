@@ -112,7 +112,14 @@ def _norm(text: str, *, ignore_case: bool = False) -> tuple[str, list[int]]:
     # Compose: norm position i → prenorm position prenorm_idx[i] → orig position
     orig_idx = [prenorm_to_orig[j] for j in prenorm_idx]
     if ignore_case:
-        ws_norm = ws_norm.casefold()
+        folded: list[str] = []
+        folded_idx: list[int] = []
+        for char, original_index in zip(ws_norm, orig_idx, strict=True):
+            expansion = char.casefold()
+            folded.append(expansion)
+            folded_idx.extend([original_index] * len(expansion))
+        ws_norm = "".join(folded)
+        orig_idx = folded_idx
     return ws_norm, orig_idx
 
 
@@ -187,9 +194,29 @@ def _find_in_norm(
     norm_find: str,
     norm_before: str,
     norm_after: str,
+    norm_to_orig: list[int],
 ) -> list[tuple[int, int]]:
     """Return all ``(start, end)`` positions of *norm_find* in *norm_text* that
-    satisfy context constraints."""
+    satisfy context constraints without cutting through one source character."""
+
+    def source_aligned(start: int, end: int) -> bool:
+        return (
+            start < end
+            and (start == 0 or norm_to_orig[start - 1] != norm_to_orig[start])
+            and (end == len(norm_to_orig) or norm_to_orig[end - 1] != norm_to_orig[end])
+        )
+
+    def contains_source_aligned(needle: str, start: int, end: int) -> bool:
+        if not needle:
+            return True
+        pos = norm_text.find(needle, start, end)
+        while pos != -1:
+            match_end = pos + len(needle)
+            if source_aligned(pos, match_end):
+                return True
+            pos = norm_text.find(needle, pos + 1, end)
+        return False
+
     results: list[tuple[int, int]] = []
     pos = 0
     flen = len(norm_find)
@@ -198,9 +225,9 @@ def _find_in_norm(
         if idx == -1:
             break
         end = idx + flen
-        before_ok = (not norm_before) or norm_before in norm_text[:idx]
-        after_ok = (not norm_after) or norm_after in norm_text[end:]
-        if before_ok and after_ok:
+        before_ok = contains_source_aligned(norm_before, 0, idx)
+        after_ok = contains_source_aligned(norm_after, end, len(norm_text))
+        if source_aligned(idx, end) and before_ok and after_ok:
             results.append((idx, end))
         pos = idx + 1
     return results
@@ -213,8 +240,8 @@ def _doc_norm_count(doc: etree._Element, norm_find: str, *, ignore_case: bool = 
         slots = _flatten_para(p)
         if not slots:
             continue
-        nt, _ = _norm("".join(s.char for s in slots), ignore_case=ignore_case)
-        if norm_find in nt:
+        nt, nt_to_orig = _norm("".join(s.char for s in slots), ignore_case=ignore_case)
+        if _find_in_norm(nt, norm_find, "", "", nt_to_orig):
             count += 1
     return count
 
@@ -259,25 +286,25 @@ def _resolve(
 
     # Strategy 1: full context
     if norm_before or norm_after:
-        m = _find_in_norm(norm_text, norm_find, norm_before, norm_after)
+        m = _find_in_norm(norm_text, norm_find, norm_before, norm_after, orig_idx)
         if len(m) == 1:
             match = m[0]
 
     # Strategy 2: context_before only
     if match is None and norm_before:
-        m = _find_in_norm(norm_text, norm_find, norm_before, "")
+        m = _find_in_norm(norm_text, norm_find, norm_before, "", orig_idx)
         if len(m) == 1:
             match = m[0]
 
     # Strategy 3: context_after only
     if match is None and norm_after:
-        m = _find_in_norm(norm_text, norm_find, "", norm_after)
+        m = _find_in_norm(norm_text, norm_find, "", norm_after, orig_idx)
         if len(m) == 1:
             match = m[0]
 
     # Strategy 4: unique find
     if match is None:
-        m = _find_in_norm(norm_text, norm_find, "", "")
+        m = _find_in_norm(norm_text, norm_find, "", "", orig_idx)
         if not m:
             raise ValueError(f"Text {find!r} not found in paragraph")
         if len(m) > 1:
