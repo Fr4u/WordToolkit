@@ -290,7 +290,7 @@ public sealed class PackageMergeServiceTests
     public async Task MalformedPermissionRangesHardBlockMergeWithoutTouchingInputs()
     {
         const string invalidPermission =
-            "<w:permStart w:id='7' w:edGrp='everyone' w:colFirst='invalid' w:colLast='2'/>"
+            "<w:permStart w:id='7' w:edGrp='everyone' w:colFirst='2' w:colLast='1'/>"
             + "<w:permEnd w:id='7'/>";
         using var files = CreateFiles(
             "ancestor",

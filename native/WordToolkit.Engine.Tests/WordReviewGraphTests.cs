@@ -207,6 +207,60 @@ public sealed class WordReviewGraphTests
     }
 
     [Fact]
+    public void DiagnosesReversedPermissionColumnBounds()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}" xmlns:w14="{Word2010}"><w:body><w:p w14:paraId="A0000001">
+              <w:permStart w:id="7" w:edGrp="everyone" w:colFirst="2" w:colLast="1"/>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd w:id="7"/>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+        var permission = Assert.Single(graph.Permissions);
+
+        Assert.Equal(WordReviewRangeStatus.Complete, permission.Status);
+        Assert.Equal(2, permission.ColumnFirst);
+        Assert.Equal(1, permission.ColumnLast);
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_COLUMN_RANGE_INVALID"
+        );
+    }
+
+    [Fact]
+    public void DiagnosesNegativePermissionColumnBounds()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}" xmlns:w14="{Word2010}"><w:body><w:p w14:paraId="A0000001">
+              <w:permStart w:id="7" w:edGrp="everyone" w:colFirst="-1" w:colLast="2"/>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd w:id="7"/>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+        var permission = Assert.Single(graph.Permissions);
+
+        Assert.Equal(WordReviewRangeStatus.Complete, permission.Status);
+        Assert.Equal(-1, permission.ColumnFirst);
+        Assert.Equal(2, permission.ColumnLast);
+        Assert.Contains(
+            graph.Issues,
+            issue =>
+                issue.Code == "PERMISSION_COLUMN_RANGE_INVALID"
+                && issue.Message.Contains("non-negative", StringComparison.Ordinal)
+        );
+    }
+
+    [Fact]
     public void EnforcesReviewLimitsAndCapsIssueFlood()
     {
         using var bytes = BuildPackage(

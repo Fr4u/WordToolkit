@@ -1303,7 +1303,7 @@ public sealed class PackagePatchServiceTests
         var beforePath = stem + "-before.docx";
         var afterPath = stem + "-after.docx";
         const string invalidPermission =
-            "<w:permStart w:id='7' w:edGrp='everyone' w:colFirst='invalid' w:colLast='2'/>"
+            "<w:permStart w:id='7' w:edGrp='everyone' w:colFirst='2' w:colLast='1'/>"
             + "<w:permEnd w:id='7'/>";
         WriteDocument(beforePath, beforeText, macro: null, permissionMarkup: invalidPermission);
         WriteDocument(afterPath, afterText, macro: null, permissionMarkup: invalidPermission);

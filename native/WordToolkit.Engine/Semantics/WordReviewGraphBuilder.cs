@@ -1296,12 +1296,17 @@ public sealed class WordReviewGraphBuilder
                 if (
                     rawColumnFirst is not null && columnFirst is null
                     || rawColumnLast is not null && columnLast is null
+                    || columnFirst is < 0
+                    || columnLast is < 0
+                    || columnFirst is { } firstColumn
+                        && columnLast is { } lastColumn
+                        && firstColumn > lastColumn
                 )
                 {
                     state.AddIssue(
                         "PERMISSION_COLUMN_RANGE_INVALID",
                         WordReviewIssueSeverity.Error,
-                        "Table-column permission contains a non-Int32 column value.",
+                        "Table-column permission contains invalid column bounds; values must be non-negative Int32 numbers with colFirst less than or equal to colLast.",
                         first.PartUri,
                         first.Location.StoryId,
                         start.Ordinal,
