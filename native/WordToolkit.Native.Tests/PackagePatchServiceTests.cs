@@ -381,15 +381,28 @@ public sealed class PackagePatchServiceTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
     public async Task MalformedProtectionMetadataHardBlocksPatchAndRollbackWithoutMutation(
-        bool useUnmodeledDocumentProtection
+        int protectionVariant
     )
     {
-        var files = useUnmodeledDocumentProtection
-            ? CreateUnmodeledProtectionPatchFiles("before text", "after text")
-            : CreateMalformedPermissionPatchFiles("before text", "after text");
+        var files = protectionVariant switch
+        {
+            0 => CreateMalformedPermissionPatchFiles("before text", "after text"),
+            1 => CreateUnmodeledProtectionPatchFiles(
+                "before text",
+                "after text",
+                AlternateContentSettingsXml()
+            ),
+            2 => CreateUnmodeledProtectionPatchFiles(
+                "before text",
+                "after text",
+                MixedConformanceProtectionSettingsXml()
+            ),
+            _ => throw new ArgumentOutOfRangeException(nameof(protectionVariant)),
+        };
         try
         {
             var service = Service();
@@ -1327,7 +1340,8 @@ public sealed class PackagePatchServiceTests
 
     private static PatchFiles CreateUnmodeledProtectionPatchFiles(
         string beforeText,
-        string afterText
+        string afterText,
+        string settingsXml
     )
     {
         var stem = Path.Combine(
@@ -1336,7 +1350,6 @@ public sealed class PackagePatchServiceTests
         );
         var beforePath = stem + "-before.docx";
         var afterPath = stem + "-after.docx";
-        var settingsXml = AlternateContentSettingsXml();
         WriteDocument(beforePath, beforeText, macro: null, settingsXml: settingsXml);
         WriteDocument(afterPath, afterText, macro: null, settingsXml: settingsXml);
         return new PatchFiles(stem, beforePath, afterPath);
@@ -1445,6 +1458,12 @@ public sealed class PackagePatchServiceTests
         + "</mc:Choice><mc:Fallback>"
         + "<w:documentProtection w:edit='readOnly' w:enforcement='1'/>"
         + "</mc:Fallback></mc:AlternateContent></w:settings>";
+
+    private static string MixedConformanceProtectionSettingsXml() =>
+        "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:ws='http://purl.oclc.org/ooxml/wordprocessingml/main'>"
+        + "<ws:documentProtection ws:edit='readOnly' ws:enforcement='1'/>"
+        + "</w:settings>";
 
     private static void Write(ZipArchive archive, string name, string value) =>
         Write(archive, name, Encoding.UTF8.GetBytes(value));

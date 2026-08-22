@@ -292,10 +292,11 @@ public sealed class PackageMergeServiceTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
     public async Task MalformedProtectionMetadataHardBlocksMergeWithoutTouchingInputs(
-        bool useUnmodeledDocumentProtection
+        int protectionVariant
     )
     {
         const string invalidPermission =
@@ -308,10 +309,14 @@ public sealed class PackageMergeServiceTests
             "beta",
             "ancestor",
             "right",
-            permissionMarkup: useUnmodeledDocumentProtection ? null : invalidPermission,
-            settingsXml: useUnmodeledDocumentProtection
-                ? AlternateContentSettingsXml()
-                : null
+            permissionMarkup: protectionVariant == 0 ? invalidPermission : null,
+            settingsXml: protectionVariant switch
+            {
+                0 => null,
+                1 => AlternateContentSettingsXml(),
+                2 => MixedConformanceProtectionSettingsXml(),
+                _ => throw new ArgumentOutOfRangeException(nameof(protectionVariant)),
+            }
         );
         var ancestorBytes = File.ReadAllBytes(files.AncestorPath);
         var leftBytes = File.ReadAllBytes(files.LeftPath);
@@ -622,6 +627,12 @@ public sealed class PackageMergeServiceTests
         + "</mc:Choice><mc:Fallback>"
         + "<w:documentProtection w:edit='readOnly' w:enforcement='1'/>"
         + "</mc:Fallback></mc:AlternateContent></w:settings>";
+
+    private static string MixedConformanceProtectionSettingsXml() =>
+        "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:ws='http://purl.oclc.org/ooxml/wordprocessingml/main'>"
+        + "<ws:documentProtection ws:edit='readOnly' ws:enforcement='1'/>"
+        + "</w:settings>";
 
     private static void Write(ZipArchive archive, string name, string value) =>
         Write(archive, name, Encoding.UTF8.GetBytes(value));

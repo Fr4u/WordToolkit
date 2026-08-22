@@ -286,6 +286,163 @@ public sealed class WordPackagePatchPlanTests
         Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MixedConformanceDocumentProtectionIsNonOverridable(bool strictRoot)
+    {
+        var settings = MixedConformanceProtectionSettingsXml(strictRoot);
+        var before = Read(BuildPackage(
+            "before",
+            new Dictionary<string, byte[]>
+            {
+                ["word/settings.xml"] = Utf8(settings),
+            },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+        var after = Read(BuildPackage(
+            "after",
+            new Dictionary<string, byte[]>
+            {
+                ["word/settings.xml"] = Utf8(settings),
+            },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.True(
+            plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
+        );
+        Assert.True(plan.RiskAssessment.Protection.HasMalformedProtectionMetadata);
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Fact]
+    public void InvalidProtectionEnforcementIsNonOverridable()
+    {
+        var settings =
+            "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+            + "<w:documentProtection w:edit='readOnly' w:enforcement='invalid'/>"
+            + "</w:settings>";
+        var before = Read(BuildPackage(
+            "before",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+        var after = Read(BuildPackage(
+            "after",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.True(
+            plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
+        );
+        Assert.Contains(
+            "protection_metadata_malformed",
+            plan.Evaluate(new WordPackagePatchApplyPolicy
+            {
+                AllowProtectedDocumentEdit = true,
+            }).BlockCodes
+        );
+    }
+
+    [Fact]
+    public void OverlongProtectionEditModeIsNonOverridable()
+    {
+        var editMode = new string('x', 65);
+        var settings =
+            "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+            + $"<w:documentProtection w:edit='{editMode}' w:enforcement='1'/>"
+            + "</w:settings>";
+        var before = Read(BuildPackage(
+            "before",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+        var after = Read(BuildPackage(
+            "after",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.True(
+            plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
+        );
+        Assert.Contains(
+            "protection_metadata_malformed",
+            plan.Evaluate(new WordPackagePatchApplyPolicy
+            {
+                AllowProtectedDocumentEdit = true,
+            }).BlockCodes
+        );
+    }
+
+    [Fact]
+    public void UnrelatedSettingsProjectionErrorsDoNotAbortProtectionRiskPlanning()
+    {
+        const string settings =
+            "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+            + "<w:defaultTabStop w:val='720'/><w:defaultTabStop w:val='720'/>"
+            + "</w:settings>";
+        var before = Read(BuildPackage(
+            "before",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+        var after = Read(BuildPackage(
+            "after",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.False(
+            plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
+        );
+        Assert.False(plan.RiskAssessment.Protection.AuthorizationRequired);
+        Assert.True(plan.Evaluate().CanApply);
+    }
+
     [Fact]
     public void ProtectedNoOpDoesNotDemandMeaninglessAuthorization()
     {
@@ -836,6 +993,17 @@ public sealed class WordPackagePatchPlanTests
             ? "<mc:Fallback><w:documentProtection w:edit='readOnly' w:enforcement='1'/></mc:Fallback>"
             : string.Empty)
         + "</mc:AlternateContent></w:settings>";
+
+    private static string MixedConformanceProtectionSettingsXml(bool strictRoot) =>
+        strictRoot
+            ? "<ws:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+                + "xmlns:ws='http://purl.oclc.org/ooxml/wordprocessingml/main'>"
+                + "<w:documentProtection w:edit='readOnly' w:enforcement='1'/>"
+                + "</ws:settings>"
+            : "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+                + "xmlns:ws='http://purl.oclc.org/ooxml/wordprocessingml/main'>"
+                + "<ws:documentProtection ws:edit='readOnly' ws:enforcement='1'/>"
+                + "</w:settings>";
 
     private static IReadOnlyDictionary<string, string> SettingsContentTypeOverride() =>
         new Dictionary<string, string>

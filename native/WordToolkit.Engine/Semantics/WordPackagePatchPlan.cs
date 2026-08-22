@@ -557,20 +557,6 @@ public static class WordPackagePatchRiskAnalyzer
             document.MainPartUri,
             cancellationToken
         );
-        WordSettingsGraph? settings = null;
-        try
-        {
-            settings = new WordSettingsGraphBuilder().Build(
-                package,
-                document,
-                cancellationToken
-            );
-        }
-        catch (WordSettingsProjectionException)
-            when (documentProtectionMetadata.Unmodeled)
-        {
-            // Ambiguous protection placement is already a non-overridable hard block.
-        }
         var review = new WordReviewGraphBuilder().Build(
             package,
             document,
@@ -593,8 +579,8 @@ public static class WordPackagePatchRiskAnalyzer
             );
         }
         return new ProtectionEvidence(
-            settings?.DocumentProtection?.IsEnforced == true,
-            settings?.DocumentProtection?.EditMode,
+            documentProtectionMetadata.Enforced,
+            documentProtectionMetadata.EditMode,
             documentProtectionMetadata.Fingerprint,
             documentProtectionMetadata.Unmodeled,
             review.Permissions.Count,
@@ -641,10 +627,47 @@ public static class WordPackagePatchRiskAnalyzer
         ).ToArray();
         if (elements.Length == 0)
         {
-            return new DocumentProtectionMetadataEvidence(false, null);
+            return new DocumentProtectionMetadataEvidence(false, null, false, null);
         }
         var unmodeled = elements.Length != 1
-            || elements[0].ParentOrdinal != source.Root.Ordinal;
+            || elements[0].ParentOrdinal != source.Root.Ordinal
+            || elements[0].NamespaceUri != source.Root.NamespaceUri
+            || source.Root.LocalName != "settings"
+            || source.Root.NamespaceUri is not
+                "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                and not "http://purl.oclc.org/ooxml/wordprocessingml/main";
+        var enforced = false;
+        string? editMode = null;
+        if (!unmodeled)
+        {
+            var element = elements[0];
+            var misplacedProtectionAttribute = element.Attributes.Any(attribute =>
+                attribute.LocalName is "enforcement" or "edit"
+                && attribute.NamespaceUri != element.NamespaceUri
+            );
+            var rawEnforcement = element.Attributes.FirstOrDefault(attribute =>
+                attribute.LocalName == "enforcement"
+                && attribute.NamespaceUri == element.NamespaceUri
+            )?.Value;
+            var parsedEnforcement = ParseOnOff(rawEnforcement);
+            editMode = element.Attributes.FirstOrDefault(attribute =>
+                attribute.LocalName == "edit"
+                && attribute.NamespaceUri == element.NamespaceUri
+            )?.Value;
+            if (
+                misplacedProtectionAttribute
+                || parsedEnforcement is null
+                || editMode?.Length > 64
+            )
+            {
+                unmodeled = true;
+                editMode = null;
+            }
+            else
+            {
+                enforced = parsedEnforcement.Value;
+            }
+        }
         var fingerprintBytes = elements.Length == 1
             ? source.SourceBytes.Span.Slice(
                 elements[0].FullSpan.ByteOffset,
@@ -655,8 +678,20 @@ public static class WordPackagePatchRiskAnalyzer
                 System.Security.Cryptography.SHA256.HashData(fingerprintBytes)
             )
             .ToLowerInvariant();
-        return new DocumentProtectionMetadataEvidence(unmodeled, fingerprint);
+        return new DocumentProtectionMetadataEvidence(
+            unmodeled,
+            fingerprint,
+            enforced,
+            editMode
+        );
     }
+
+    private static bool? ParseOnOff(string? value) => value?.ToLowerInvariant() switch
+    {
+        null or "false" or "0" or "off" => false,
+        "true" or "1" or "on" => true,
+        _ => null,
+    };
 
     private sealed record ProtectionEvidence(
         bool DocumentProtectionEnforced,
@@ -671,7 +706,9 @@ public static class WordPackagePatchRiskAnalyzer
 
     private sealed record DocumentProtectionMetadataEvidence(
         bool Unmodeled,
-        string? Fingerprint
+        string? Fingerprint,
+        bool Enforced = false,
+        string? EditMode = null
     );
 
     public static bool HasDigitalSignatures(OpcPackageSnapshot package) =>
