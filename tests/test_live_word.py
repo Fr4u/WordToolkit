@@ -2734,7 +2734,7 @@ def test_live_word_mixed_batch_rolls_back_after_partial_word_failure(live_bridge
         return original_add(equation_range)
 
     document.OMaths.Add = fail_second_add
-    with pytest.raises(WordToolkitError):
+    with pytest.raises(WordToolkitError) as error:
         bridge.apply_operations(
             "owner",
             connected["live_document_id"],
@@ -2751,6 +2751,9 @@ def test_live_word_mixed_batch_rolls_back_after_partial_word_failure(live_bridge
         )
 
     assert add_calls == 2
+    assert error.value.code is ErrorCode.EXTERNAL_TOOL_FAILED
+    assert error.value.details is not None
+    assert error.value.details["failed_operation_index"] == 1
     assert document.undo_calls == 1
     assert application.UndoRecord.started == application.UndoRecord.ended == 1
     assert application.ScreenUpdating is True
@@ -2784,8 +2787,31 @@ def test_live_word_mixed_batch_reports_failed_equation_index_and_rolls_back(live
     assert bridge.inspect("owner", connected["live_document_id"])["live_version"] == 0
 
 
+@pytest.mark.parametrize(
+    ("equation", "expected_code"),
+    [
+        (
+            {
+                "type": "equation",
+                "value": "I=1/3 (x^2+1)^(3/2)+C",
+                "input_format": "unicodemath",
+            },
+            ErrorCode.EQUATION_INVALID,
+        ),
+        (
+            {
+                "type": "equation",
+                "value": [],
+                "input_format": "latex",
+            },
+            ErrorCode.INVALID_INPUT,
+        ),
+    ],
+)
 def test_live_word_mixed_batch_reports_preflight_equation_index_without_attaching(
     live_bridge,
+    equation,
+    expected_code,
 ) -> None:
     bridge, application, document = live_bridge
     connected = bridge.connect("owner", use_active=True)
@@ -2797,17 +2823,13 @@ def test_live_word_mixed_batch_reports_preflight_equation_index_without_attachin
             connected["live_document_id"],
             operations=[
                 {"type": "text", "text": "before", "as_new_paragraph": True},
-                {
-                    "type": "equation",
-                    "value": "I=1/3 (x^2+1)^(3/2)+C",
-                    "input_format": "unicodemath",
-                },
+                equation,
                 {"type": "text", "text": "after", "as_new_paragraph": True},
             ],
             expected_version=0,
         )
 
-    assert error.value.code is ErrorCode.EQUATION_INVALID
+    assert error.value.code is expected_code
     assert error.value.details is not None
     assert error.value.details["failed_operation_index"] == 1
     assert bridge.backend.attach_calls == before_attach_calls

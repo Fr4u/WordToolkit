@@ -6741,8 +6741,6 @@ class LiveWordBridge:
                         verify_readback_default=verify_readback,
                     )
                 except WordToolkitError as exc:
-                    if exc.code is not ErrorCode.EQUATION_INVALID:
-                        raise
                     details = dict(exc.details or {})
                     details["failed_operation_index"] = index
                     raise WordToolkitError(
@@ -6837,9 +6835,9 @@ class LiveWordBridge:
                 target_range.Text = payload
 
                 for index, prepared_operation in enumerate(prepared):
-                    failed_operation_index = index
                     if not isinstance(prepared_operation, PreparedLiveTextOperation):
                         continue
+                    failed_operation_index = index
                     relative_start, relative_end = segments[index]
                     inserted = document.Range(
                         insertion_start + relative_start,
@@ -6877,6 +6875,7 @@ class LiveWordBridge:
                             len(prepared_operation.runs) if prepared_operation.runs else 1
                         ),
                     }
+                    failed_operation_index = None
 
                 equation_positions = [
                     index
@@ -6925,6 +6924,7 @@ class LiveWordBridge:
                         },
                     }
                     failed_equation = None
+                    failed_operation_index = None
 
                 after_equations = int(document.OMaths.Count)
                 if after_equations != before_equations + equation_count:
@@ -6941,6 +6941,7 @@ class LiveWordBridge:
                         },
                     )
                 for index, result_item in enumerate(operation_results):
+                    failed_operation_index = index
                     tracked = tracked_ranges[index]
                     if result_item is None or tracked is None:
                         raise WordToolkitError(
@@ -6956,6 +6957,7 @@ class LiveWordBridge:
                         result_item["equation"]["range"] = range_data
                     else:
                         result_item["range"] = range_data
+                    failed_operation_index = None
                 last_range = tracked_ranges[-1]
 
             record.version += len(prepared)
@@ -6982,17 +6984,17 @@ class LiveWordBridge:
         try:
             result = self._execute(operation)
         except WordToolkitError as exc:
-            if exc.code is ErrorCode.EQUATION_INVALID:
-                details = dict(exc.details or {})
-                if aggregate_batch_failure:
-                    details.update(
-                        {
-                            "failed_operation_index_available": False,
-                            "failure_scope": "batch",
-                        }
-                    )
-                elif failed_operation_index is not None:
-                    details["failed_operation_index"] = failed_operation_index
+            details = dict(exc.details or {})
+            if aggregate_batch_failure:
+                details.update(
+                    {
+                        "failed_operation_index_available": False,
+                        "failure_scope": "batch",
+                    }
+                )
+                exc = WordToolkitError(exc.code, exc.message, details, exc.retryable)
+            elif failed_operation_index is not None:
+                details["failed_operation_index"] = failed_operation_index
                 exc = WordToolkitError(exc.code, exc.message, details, exc.retryable)
             self._record_equation_learning(
                 [failed_equation] if failed_equation is not None else [],
