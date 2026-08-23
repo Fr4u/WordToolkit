@@ -146,7 +146,10 @@ public sealed class TransformWordPackageOperation
                 prepared.Mutation.HasChanges,
                 cancellationToken
             );
-            var protectionBlocks = ProtectionBlockCodes(protection);
+            var protectionBlocks = ProtectionBlockCodes(
+                protection,
+                prepared.Mutation.HasChanges
+            );
             if (protectionBlocks.Count != 0)
             {
                 throw new WordToolkitOperationException(
@@ -551,9 +554,14 @@ public sealed class TransformWordPackageOperation
         );
 
     private static IReadOnlyList<string> ProtectionBlockCodes(
-        WordPackageProtectionRiskAssessment protection
+        WordPackageProtectionRiskAssessment protection,
+        bool hasChanges
     )
     {
+        if (!hasChanges)
+        {
+            return Array.Empty<string>();
+        }
         if (protection.HasMalformedProtectionMetadata)
         {
             return ["protection_metadata_malformed"];

@@ -481,7 +481,7 @@ public sealed class TransformWordPackageOperationTests
                 input,
                 DocumentXml("<w:p><w:r><w:t>clean</w:t></w:r></w:p>"),
                 settingsXml: SettingsXml(
-                    "<w:documentProtection w:edit=\"comments\"/>"
+                    "<w:documentProtection w:edit=\"none\"/>"
                 )
             );
             var before = new OpcPackageReader().Read(input);
@@ -496,6 +496,45 @@ public sealed class TransformWordPackageOperationTests
 
             Assert.False(result.Changed);
             Assert.True(result.Protection.BaseDocumentProtectionEnforced);
+            Assert.Equal("none", result.Protection.BaseDocumentProtectionEditMode);
+            Assert.False(result.Protection.AuthorizationRequired);
+            Assert.Equal(before.Fingerprint, result.ResultPackageFingerprint);
+            Assert.Equal(before.Fingerprint, new OpcPackageReader().Read(output).Fingerprint);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MalformedProtectionNoOpCloneDoesNotRequireAPlan()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var input = Path.Combine(directory, "malformed-clean.docx");
+            var output = Path.Combine(directory, "malformed-clone.docx");
+            CreatePackage(
+                input,
+                DocumentXml("<w:p><w:r><w:t>clean</w:t></w:r></w:p>"),
+                settingsXml: SettingsXml(
+                    "<w:documentProtection w:edit=\"none\" w:bogus=\"x\"/>"
+                )
+            );
+            var before = new OpcPackageReader().Read(input);
+
+            var result = new TransformWordPackageOperation().Execute(
+                new TransformWordPackageRequest(
+                    input,
+                    output,
+                    WordPackageTransformKind.AcceptAllTrackedChanges
+                )
+            );
+
+            Assert.False(result.Changed);
+            Assert.Null(result.Protection.BaseDocumentProtectionEditMode);
+            Assert.True(result.Protection.HasMalformedProtectionMetadata);
             Assert.False(result.Protection.AuthorizationRequired);
             Assert.Equal(before.Fingerprint, result.ResultPackageFingerprint);
             Assert.Equal(before.Fingerprint, new OpcPackageReader().Read(output).Fingerprint);

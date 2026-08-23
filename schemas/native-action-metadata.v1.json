@@ -402,6 +402,7 @@
               },
               "base_document_protection_edit_mode": {
                 "enum": [
+                  "none",
                   "readOnly",
                   "comments",
                   "trackedChanges",
@@ -413,6 +414,7 @@
               },
               "result_document_protection_edit_mode": {
                 "enum": [
+                  "none",
                   "readOnly",
                   "comments",
                   "trackedChanges",
@@ -428,17 +430,17 @@
               "base_permission_range_count": {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 10000
+                "maximum": 250000
               },
               "result_permission_range_count": {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 10000
+                "maximum": 250000
               },
               "malformed_permission_range_count": {
                 "type": "integer",
                 "minimum": 0,
-                "maximum": 20000
+                "maximum": 500000
               },
               "permission_issues_truncated": {
                 "type": "boolean"

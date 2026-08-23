@@ -283,6 +283,21 @@ public sealed class TransformPackageCliTests
             output["properties"]!["protection"]!["additionalProperties"]!
                 .GetValue<bool>()
         );
+        var protection = output["properties"]!["protection"]!["properties"]!;
+        Assert.Contains(
+            "none",
+            protection["base_document_protection_edit_mode"]!["enum"]!
+                .AsArray()
+                .Select(item => item!.GetValue<string>())
+        );
+        Assert.Equal(
+            250_000,
+            protection["base_permission_range_count"]!["maximum"]!.GetValue<int>()
+        );
+        Assert.Equal(
+            500_000,
+            protection["malformed_permission_range_count"]!["maximum"]!.GetValue<int>()
+        );
     }
 
     private static async Task<JsonElement> CallMcpAsync(
