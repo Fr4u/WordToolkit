@@ -188,6 +188,148 @@ public sealed class NoteWordPackageOperationTests
         }
     }
 
+    [Fact]
+    public void ProtectedNoteRepairRequiresExactTokenAndDenialIsByteExact()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "protected-notes.docx");
+            File.WriteAllBytes(
+                path,
+                BuildPackage(
+                    includeContentfulOrphan: false,
+                    protectionXml: "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\"/>"
+                )
+            );
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var operation = new NoteWordPackageOperation(new PassingValidator());
+            var definition = Assert.Single(operation.Inspect(
+                new NoteInspectionRequest(path, before.Fingerprint)
+            ).Definitions);
+            var plan = operation.Plan(new NoteRepairPlanRequest(
+                path,
+                before.Fingerprint,
+                "remove_empty_orphan_definition",
+                definition.Id,
+                definition.Fingerprint
+            ));
+
+            Assert.False(plan.CanApply);
+            Assert.True(plan.Protection.AuthorizationRequired);
+            Assert.False(plan.Protection.HasMalformedProtectionMetadata);
+            Assert.Equal(plan.PlanId, plan.ProtectionAuthorizationId);
+            Assert.Equal(["protected_edit_authorization"], plan.RequiredAuthorizations);
+            Assert.Contains(
+                "protected_document_edit_not_authorized",
+                plan.ApplyBlockedReasons
+            );
+            var beforeBytes = File.ReadAllBytes(path);
+
+            var denied = Assert.Throws<WordToolkitOperationException>(() =>
+                operation.Apply(new NoteRepairApplyRequest(
+                    path,
+                    before.Fingerprint,
+                    plan.PlanId,
+                    plan.RepairKind,
+                    definition.Id,
+                    definition.Fingerprint,
+                    KeepBackup: true,
+                    ProtectedEditAuthorization: "wnrplan_wrong"
+                ))
+            );
+
+            Assert.Equal("EDIT_POLICY_BLOCKED", denied.Code);
+            var details = Assert.IsType<NoteRepairEditPolicyBlockDetails>(denied.Details);
+            Assert.Equal(plan.PlanId, details.PlanId);
+            Assert.Equal(
+                ["protected_document_edit_not_authorized"],
+                details.BlockCodes
+            );
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.Single(Directory.GetFiles(directory));
+
+            var applied = operation.Apply(new NoteRepairApplyRequest(
+                path,
+                before.Fingerprint,
+                plan.PlanId,
+                plan.RepairKind,
+                definition.Id,
+                definition.Fingerprint,
+                KeepBackup: false,
+                ProtectedEditAuthorization: plan.ProtectionAuthorizationId
+            ));
+
+            Assert.True(applied.Applied);
+            Assert.Equal(["protected_edit_authorization"], applied.ExplicitAuthorizations);
+            Assert.Equal(plan.ResultPackageFingerprint, reader.Read(path).Fingerprint);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MalformedNoteProtectionCannotBeOverriddenOrExposeToken()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "malformed-notes.docx");
+            File.WriteAllBytes(
+                path,
+                BuildPackage(
+                    includeContentfulOrphan: false,
+                    protectionXml: "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\" w:bogus=\"x\"/>"
+                )
+            );
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var operation = new NoteWordPackageOperation(new PassingValidator());
+            var definition = Assert.Single(operation.Inspect(
+                new NoteInspectionRequest(path, before.Fingerprint)
+            ).Definitions);
+            var plan = operation.Plan(new NoteRepairPlanRequest(
+                path,
+                before.Fingerprint,
+                "remove_empty_orphan_definition",
+                definition.Id,
+                definition.Fingerprint
+            ));
+
+            Assert.True(plan.Protection.HasMalformedProtectionMetadata);
+            Assert.Null(plan.ProtectionAuthorizationId);
+            Assert.Empty(plan.RequiredAuthorizations);
+            Assert.Contains("protection_metadata_malformed", plan.ApplyBlockedReasons);
+            var beforeBytes = File.ReadAllBytes(path);
+
+            var denied = Assert.Throws<WordToolkitOperationException>(() =>
+                operation.Apply(new NoteRepairApplyRequest(
+                    path,
+                    before.Fingerprint,
+                    plan.PlanId,
+                    plan.RepairKind,
+                    definition.Id,
+                    definition.Fingerprint,
+                    KeepBackup: true,
+                    ProtectedEditAuthorization: plan.PlanId
+                ))
+            );
+
+            Assert.Equal("EDIT_POLICY_BLOCKED", denied.Code);
+            var details = Assert.IsType<NoteRepairEditPolicyBlockDetails>(denied.Details);
+            Assert.Equal(["protection_metadata_malformed"], details.BlockCodes);
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.Single(Directory.GetFiles(directory));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static string CreateTemporaryDirectory()
     {
         var path = Path.Combine(
@@ -198,7 +340,10 @@ public sealed class NoteWordPackageOperationTests
         return path;
     }
 
-    private static byte[] BuildPackage(bool includeContentfulOrphan)
+    private static byte[] BuildPackage(
+        bool includeContentfulOrphan,
+        string? protectionXml = null
+    )
     {
         using var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
@@ -206,12 +351,13 @@ public sealed class NoteWordPackageOperationTests
             Add(
                 archive,
                 "[Content_Types].xml",
-                """
+                $"""
                 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
                   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
                   <Default Extension="xml" ContentType="application/xml"/>
                   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
                   <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
+                  {(protectionXml is null ? string.Empty : "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>")}
                 </Types>
                 """
             );
@@ -231,12 +377,16 @@ public sealed class NoteWordPackageOperationTests
                 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Main</w:t></w:r></w:p></w:body></w:document>
                 """
             );
+            var settingsRelationship = protectionXml is null
+                ? string.Empty
+                : "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>";
             Add(
                 archive,
                 "word/_rels/document.xml.rels",
-                """
+                $"""
                 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
                   <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
+                  {settingsRelationship}
                 </Relationships>
                 """
             );
@@ -248,6 +398,14 @@ public sealed class NoteWordPackageOperationTests
                 "word/footnotes.xml",
                 $"<w:footnotes xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:footnote w:id=\"4\"><w:p><w:r><w:footnoteRef/></w:r></w:p></w:footnote>{contentful}</w:footnotes>"
             );
+            if (protectionXml is not null)
+            {
+                Add(
+                    archive,
+                    "word/settings.xml",
+                    $"<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">{protectionXml}</w:settings>"
+                );
+            }
         }
         return stream.ToArray();
     }

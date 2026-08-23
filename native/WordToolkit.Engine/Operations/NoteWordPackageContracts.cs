@@ -40,7 +40,13 @@ public sealed record NoteRepairApplyRequest(
     string RepairKind,
     string DefinitionId,
     string ExpectedDefinitionFingerprint,
-    bool KeepBackup = true
+    bool KeepBackup = true,
+    string? ProtectedEditAuthorization = null
+);
+
+public sealed record NoteRepairEditPolicyBlockDetails(
+    string PlanId,
+    IReadOnlyList<string> BlockCodes
 );
 
 public sealed record NoteInspectionDefinition(
@@ -156,6 +162,9 @@ public sealed record NoteRepairPlanResult(
     WordNoteRepairValidation EngineValidation,
     WordPackageCandidateValidationReport CandidateValidation,
     IReadOnlyList<string> SafetyRules,
+    WordPackageProtectionRiskAssessment Protection,
+    string? ProtectionAuthorizationId,
+    IReadOnlyList<string> RequiredAuthorizations,
     IReadOnlyList<WordNoteRepairPartChange>? ChangedParts,
     bool RawXmlReturned,
     bool MutationPerformed,
@@ -177,6 +186,7 @@ public sealed record NoteRepairApplyResult(
     int DiagnosticCount,
     bool MicrosoftSchemaValid,
     bool MicrosoftSchemaNoNewErrors,
+    IReadOnlyCollection<string> ExplicitAuthorizations,
     bool RawXmlReturned,
     bool MutationPerformed,
     bool WordOpened

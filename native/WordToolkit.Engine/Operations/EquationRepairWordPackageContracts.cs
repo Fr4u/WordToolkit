@@ -43,7 +43,13 @@ public sealed record EquationRepairApplyRequest(
     string ExpectedPackageFingerprint,
     string ExpectedPlanId,
     IReadOnlyList<EquationRepairCommandRequest> Commands,
-    bool KeepBackup = true
+    bool KeepBackup = true,
+    string? ProtectedEditAuthorization = null
+);
+
+public sealed record EquationRepairEditPolicyBlockDetails(
+    string PlanId,
+    IReadOnlyList<string> BlockCodes
 );
 
 public sealed record EquationRepairInspectionCandidate(
@@ -127,7 +133,10 @@ public sealed record EquationRepairPlanResult(
     bool SensitiveEquationTextReturned,
     bool RawOmmlReturned,
     bool MutationPerformed,
-    bool WordOpened
+    bool WordOpened,
+    WordPackageProtectionRiskAssessment Protection,
+    string? ProtectionAuthorizationId,
+    IReadOnlyList<string> RequiredAuthorizations
 );
 
 public sealed record EquationRepairApplyResult(
@@ -149,5 +158,6 @@ public sealed record EquationRepairApplyResult(
     bool SensitiveEquationTextReturned,
     bool RawOmmlReturned,
     bool MutationPerformed,
-    bool WordOpened
+    bool WordOpened,
+    IReadOnlyList<string> ExplicitAuthorizations
 );

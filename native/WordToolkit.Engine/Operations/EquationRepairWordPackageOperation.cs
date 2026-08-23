@@ -184,6 +184,21 @@ public sealed class EquationRepairWordPackageOperation
                     "The request does not reproduce the reviewed OfficeMath repair plan ID"
                 );
             }
+            var protectionBlocks = ProtectionBlockCodes(
+                context,
+                request.ProtectedEditAuthorization
+            );
+            if (protectionBlocks.Count != 0)
+            {
+                throw new WordToolkitOperationException(
+                    "EDIT_POLICY_BLOCKED",
+                    "OfficeMath repair is blocked by document protection or permission metadata",
+                    details: new EquationRepairEditPolicyBlockDetails(
+                        context.Plan.PlanId,
+                        protectionBlocks
+                    )
+                );
+            }
             if (context.HasDigitalSignatures)
             {
                 throw new WordToolkitOperationException(
@@ -212,7 +227,6 @@ public sealed class EquationRepairWordPackageOperation
                     "The exact OfficeMath repair candidate does not reduce Microsoft Open XML schema errors"
                 );
             }
-
             var result = _writer.Write(
                 context.Path,
                 context.Plan.CreateMutation(context.Package),
@@ -242,7 +256,10 @@ public sealed class EquationRepairWordPackageOperation
                 SensitiveEquationTextReturned: false,
                 RawOmmlReturned: false,
                 MutationPerformed: true,
-                WordOpened: false
+                WordOpened: false,
+                ExplicitAuthorizations: context.Protection.AuthorizationRequired
+                    ? ["protected_edit_authorization"]
+                    : Array.Empty<string>()
             );
         }
         catch (OperationCanceledException)
@@ -278,13 +295,24 @@ public sealed class EquationRepairWordPackageOperation
         );
         var candidate = MaterializeCandidate(package, plan, cancellationToken);
         var validation = ValidateExactCandidate(package, candidate, cancellationToken);
+        var projector = new WordSemanticProjector();
+        var semantic = projector.Project(package, cancellationToken);
+        var candidateSemantic = projector.Project(candidate, cancellationToken);
         return new PlanContext(
             path,
             package,
             candidate,
             plan,
             WordPackagePatchRiskAnalyzer.HasDigitalSignatures(package),
-            validation
+            validation,
+            WordPackagePatchRiskAnalyzer.AssessProtection(
+                package,
+                semantic,
+                candidate,
+                candidateSemantic,
+                plan.HasChanges,
+                cancellationToken
+            )
         );
     }
 
@@ -369,6 +397,14 @@ public sealed class EquationRepairWordPackageOperation
         {
             blocked.Add("digital_signature_present");
         }
+        if (context.Protection.HasMalformedProtectionMetadata)
+        {
+            blocked.Add("protection_metadata_malformed");
+        }
+        else if (context.Protection.AuthorizationRequired)
+        {
+            blocked.Add("protected_document_edit_not_authorized");
+        }
         if (!context.Plan.Validation.Passed)
         {
             blocked.Add("engine_validation_failed");
@@ -388,6 +424,11 @@ public sealed class EquationRepairWordPackageOperation
                 blocked.Add("microsoft_schema_errors_not_reduced");
             }
         }
+        var requiredAuthorizations = context.Plan.HasChanges
+            && context.Protection.AuthorizationRequired
+            && !context.Protection.HasMalformedProtectionMetadata
+                ? new[] { "protected_edit_authorization" }
+                : Array.Empty<string>();
         return new EquationRepairPlanResult(
             EquationRepairWordPackageContract.PlanContract,
             Path.GetFileName(context.Path),
@@ -424,7 +465,12 @@ public sealed class EquationRepairWordPackageOperation
             SensitiveEquationTextReturned: false,
             RawOmmlReturned: false,
             MutationPerformed: false,
-            WordOpened: false
+            WordOpened: false,
+            Protection: context.Protection,
+            ProtectionAuthorizationId: requiredAuthorizations.Length == 0
+                ? null
+                : context.Plan.PlanId,
+            RequiredAuthorizations: requiredAuthorizations
         );
     }
 
@@ -848,6 +894,28 @@ public sealed class EquationRepairWordPackageOperation
         OpcPackageSnapshot Candidate,
         WordEquationRepairPlan Plan,
         bool HasDigitalSignatures,
-        WordPackageCandidateValidationReport Validation
+        WordPackageCandidateValidationReport Validation,
+        WordPackageProtectionRiskAssessment Protection
     );
+
+    private static IReadOnlyList<string> ProtectionBlockCodes(
+        PlanContext context,
+        string? authorization
+    )
+    {
+        if (!context.Plan.HasChanges)
+        {
+            return Array.Empty<string>();
+        }
+        if (context.Protection.HasMalformedProtectionMetadata)
+        {
+            return ["protection_metadata_malformed"];
+        }
+        if (context.Protection.AuthorizationRequired
+            && !string.Equals(authorization, context.Plan.PlanId, StringComparison.Ordinal))
+        {
+            return ["protected_document_edit_not_authorized"];
+        }
+        return Array.Empty<string>();
+    }
 }

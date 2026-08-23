@@ -194,7 +194,7 @@ internal static class CommentBodyPackageCli
         "IO_ERROR" => 74,
         "SIGNED_PACKAGE" or "VALIDATOR_REQUIRED" or "OOXML_SCHEMA_INVALID"
             or "VALIDATION_FAILED" or "UNSAFE_EDIT" or "RECOVERY_REQUIRED"
-            or "RESULT_MISMATCH" => 78,
+            or "RESULT_MISMATCH" or "EDIT_POLICY_BLOCKED" => 78,
         _ => 70,
     };
 

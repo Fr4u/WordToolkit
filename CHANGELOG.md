@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Extended the saved-package protection policy to reviewed CommentBody, NoteRepair,
+  EquationRepair and RelationshipRepair mutation paths. Non-noop protected edits
+  require the exact plan-bound `protected_edit_authorization`; malformed or
+  unmodeled protection metadata is non-overridable and denial happens before the
+  atomic writer. Protected Transform changes fail closed and route callers to the
+  reviewed generic patch workflow. This is an editing-policy gate, not password,
+  identity or encryption proof. Numbering, Style and other typed mutators remain outside.
+
 - Made generic saved-package patch, three-way merge and patch rollback fail closed
   around Word editing restrictions. Their reviewed risk plans now project enforced
   `w:documentProtection`, exact protection-metadata changes and complete or malformed

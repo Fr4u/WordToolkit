@@ -191,6 +191,167 @@ public sealed class EquationRepairWordPackageOperationTests
     }
 
     [Fact]
+    public void ProtectedRepairRequiresExactPlanAuthorizationAndDenialIsByteExact()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "protected-equations.docx");
+            File.WriteAllBytes(
+                path,
+                BuildPackage(
+                    "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\"/>"
+                )
+            );
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var operation = new EquationRepairWordPackageOperation(
+                new ImprovingValidator()
+            );
+            var candidate = Assert.Single(
+                operation.Inspect(new EquationRepairInspectionRequest(
+                    path,
+                    before.Fingerprint,
+                    MaxItems: 1
+                )).Candidates
+            );
+            var commands = new[]
+            {
+                new EquationRepairCommandRequest(
+                    candidate.RepairKind,
+                    candidate.Id,
+                    candidate.Fingerprint
+                ),
+            };
+            var plan = operation.Plan(new EquationRepairPlanRequest(
+                path,
+                before.Fingerprint,
+                commands
+            ));
+
+            Assert.False(plan.CanApply);
+            Assert.True(plan.Protection.AuthorizationRequired);
+            Assert.False(plan.Protection.HasMalformedProtectionMetadata);
+            Assert.Equal(plan.PlanId, plan.ProtectionAuthorizationId);
+            Assert.Equal(["protected_edit_authorization"], plan.RequiredAuthorizations);
+            Assert.Contains(
+                "protected_document_edit_not_authorized",
+                plan.ApplyBlockedReasons
+            );
+            var beforeBytes = File.ReadAllBytes(path);
+
+            var denied = Assert.Throws<WordToolkitOperationException>(() =>
+                operation.Apply(new EquationRepairApplyRequest(
+                    path,
+                    before.Fingerprint,
+                    plan.PlanId,
+                    commands,
+                    KeepBackup: true,
+                    ProtectedEditAuthorization: "werplan_wrong"
+                ))
+            );
+
+            Assert.Equal("EDIT_POLICY_BLOCKED", denied.Code);
+            var details = Assert.IsType<EquationRepairEditPolicyBlockDetails>(
+                denied.Details
+            );
+            Assert.Equal(plan.PlanId, details.PlanId);
+            Assert.Equal(
+                ["protected_document_edit_not_authorized"],
+                details.BlockCodes
+            );
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.Single(Directory.GetFiles(directory));
+
+            var applied = operation.Apply(new EquationRepairApplyRequest(
+                path,
+                before.Fingerprint,
+                plan.PlanId,
+                commands,
+                KeepBackup: false,
+                ProtectedEditAuthorization: plan.ProtectionAuthorizationId
+            ));
+
+            Assert.True(applied.Applied);
+            Assert.Equal(["protected_edit_authorization"], applied.ExplicitAuthorizations);
+            Assert.Equal(plan.ResultPackageFingerprint, reader.Read(path).Fingerprint);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MalformedProtectionCannotBeOverriddenAndDoesNotLeakAuthorization()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "malformed-protection.docx");
+            File.WriteAllBytes(
+                path,
+                BuildPackage(
+                    "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\" w:bogus=\"x\"/>"
+                )
+            );
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var operation = new EquationRepairWordPackageOperation(
+                new ImprovingValidator()
+            );
+            var candidate = Assert.Single(
+                operation.Inspect(new EquationRepairInspectionRequest(
+                    path,
+                    before.Fingerprint,
+                    MaxItems: 1
+                )).Candidates
+            );
+            var commands = new[]
+            {
+                new EquationRepairCommandRequest(
+                    candidate.RepairKind,
+                    candidate.Id,
+                    candidate.Fingerprint
+                ),
+            };
+            var plan = operation.Plan(new EquationRepairPlanRequest(
+                path,
+                before.Fingerprint,
+                commands
+            ));
+
+            Assert.True(plan.Protection.HasMalformedProtectionMetadata);
+            Assert.Null(plan.ProtectionAuthorizationId);
+            Assert.Empty(plan.RequiredAuthorizations);
+            Assert.Contains("protection_metadata_malformed", plan.ApplyBlockedReasons);
+            var beforeBytes = File.ReadAllBytes(path);
+
+            var denied = Assert.Throws<WordToolkitOperationException>(() =>
+                operation.Apply(new EquationRepairApplyRequest(
+                    path,
+                    before.Fingerprint,
+                    plan.PlanId,
+                    commands,
+                    ProtectedEditAuthorization: plan.PlanId
+                ))
+            );
+
+            Assert.Equal("EDIT_POLICY_BLOCKED", denied.Code);
+            var details = Assert.IsType<EquationRepairEditPolicyBlockDetails>(
+                denied.Details
+            );
+            Assert.Equal(["protection_metadata_malformed"], details.BlockCodes);
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.Single(Directory.GetFiles(directory));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void StrictJsonRejectsUnknownAndDuplicateFieldsBeforeFilesystemAccess()
     {
         var unknown = Assert.Throws<WordToolkitOperationException>(() =>
@@ -221,7 +382,7 @@ public sealed class EquationRepairWordPackageOperationTests
         return path;
     }
 
-    private static byte[] BuildPackage()
+    private static byte[] BuildPackage(string? protectionXml = null)
     {
         using var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
@@ -229,11 +390,12 @@ public sealed class EquationRepairWordPackageOperationTests
             Add(
                 archive,
                 "[Content_Types].xml",
-                """
+                $"""
                 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
                   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
                   <Default Extension="xml" ContentType="application/xml"/>
                   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                  {(protectionXml is null ? string.Empty : "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>")}
                 </Types>
                 """
             );
@@ -260,6 +422,23 @@ public sealed class EquationRepairWordPackageOperationTests
                 </w:document>
                 """
             );
+            if (protectionXml is not null)
+            {
+                Add(
+                    archive,
+                    "word/_rels/document.xml.rels",
+                    """
+                    <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                      <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
+                    </Relationships>
+                    """
+                );
+                Add(
+                    archive,
+                    "word/settings.xml",
+                    $"<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">{protectionXml}</w:settings>"
+                );
+            }
         }
         return stream.ToArray();
     }

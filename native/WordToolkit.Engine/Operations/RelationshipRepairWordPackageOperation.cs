@@ -171,6 +171,18 @@ public sealed class RelationshipRepairWordPackageOperation
                     "The request does not reproduce the reviewed relationship repair plan ID"
                 );
             }
+            var policyBlocks = ProtectionBlockCodes(context, request.ProtectedEditAuthorization);
+            if (policyBlocks.Count != 0)
+            {
+                throw new WordToolkitOperationException(
+                    "EDIT_POLICY_BLOCKED",
+                    "The relationship repair requires authorization or failed a non-overridable protection check",
+                    details: new RelationshipRepairEditPolicyBlockDetails(
+                        context.Plan.PlanId,
+                        policyBlocks
+                    )
+                );
+            }
             if (context.HasDigitalSignatures)
             {
                 throw new WordToolkitOperationException(
@@ -238,6 +250,9 @@ public sealed class RelationshipRepairWordPackageOperation
                 DiagnosticCount: result.Diagnostics.Count,
                 MicrosoftSchemaValid: context.Validation.CandidateValid,
                 MicrosoftSchemaNoNewErrors: context.Validation.NoNewErrors,
+                ExplicitAuthorizations: context.Protection.AuthorizationRequired
+                    ? ["protected_edit_authorization"]
+                    : Array.Empty<string>(),
                 ExternalTargetsReturned: false,
                 RawXmlReturned: false,
                 MutationPerformed: true,
@@ -287,6 +302,17 @@ public sealed class RelationshipRepairWordPackageOperation
         var candidate = MaterializeCandidate(package, plan, cancellationToken);
         var validation = ValidateExactCandidate(package, candidate, plan, cancellationToken);
         var requiresExternal = RequiresExternalAuthorization(package, plan.Actions);
+        var projector = new WordSemanticProjector();
+        var semantic = projector.Project(package, cancellationToken);
+        var candidateSemantic = projector.Project(candidate, cancellationToken);
+        var protection = WordPackagePatchRiskAnalyzer.AssessProtection(
+            package,
+            semantic,
+            candidate,
+            candidateSemantic,
+            plan.HasChanges,
+            cancellationToken
+        );
         return new PlanContext(
             path,
             package,
@@ -294,7 +320,8 @@ public sealed class RelationshipRepairWordPackageOperation
             plan,
             WordPackagePatchRiskAnalyzer.HasDigitalSignatures(package),
             requiresExternal,
-            validation
+            validation,
+            protection
         );
     }
 
@@ -395,6 +422,12 @@ public sealed class RelationshipRepairWordPackageOperation
         {
             blocked.Add("microsoft_schema_validation_failed");
         }
+        blocked.AddRange(ProtectionBlockCodes(context, authorization: null));
+        var requiredAuthorizations = context.Plan.HasChanges
+            && context.Protection.AuthorizationRequired
+            && !context.Protection.HasMalformedProtectionMetadata
+                ? new[] { "protected_edit_authorization" }
+                : Array.Empty<string>();
         return new RelationshipRepairPlanResult(
             RelationshipRepairWordPackageContract.PlanContract,
             Path.GetFileName(context.Path),
@@ -411,6 +444,9 @@ public sealed class RelationshipRepairWordPackageOperation
             CanApply: blocked.Count == 0,
             ApplyBlocked: blocked.Count != 0,
             ApplyBlockedReasons: blocked,
+            Protection: context.Protection,
+            ProtectionAuthorizationId: requiredAuthorizations.Length == 0 ? null : context.Plan.PlanId,
+            RequiredAuthorizations: requiredAuthorizations,
             EngineValidation: context.Plan.Validation,
             CandidateValidation: includeDetails
                 ? context.Validation
@@ -839,6 +875,27 @@ public sealed class RelationshipRepairWordPackageOperation
         Exception? innerException = null
     ) => new("INVALID_INPUT", message, innerException: innerException);
 
+    private static IReadOnlyList<string> ProtectionBlockCodes(
+        PlanContext context,
+        string? authorization
+    )
+    {
+        if (!context.Plan.HasChanges)
+        {
+            return Array.Empty<string>();
+        }
+        if (context.Protection.HasMalformedProtectionMetadata)
+        {
+            return ["protection_metadata_malformed"];
+        }
+        if (context.Protection.AuthorizationRequired
+            && !string.Equals(authorization, context.Plan.PlanId, StringComparison.Ordinal))
+        {
+            return ["protected_document_edit_not_authorized"];
+        }
+        return Array.Empty<string>();
+    }
+
     private sealed record PlanContext(
         string Path,
         OpcPackageSnapshot Package,
@@ -846,6 +903,7 @@ public sealed class RelationshipRepairWordPackageOperation
         WordRelationshipRepairPlan Plan,
         bool HasDigitalSignatures,
         bool RequiresExternalAuthorization,
-        WordPackageCandidateValidationReport Validation
+        WordPackageCandidateValidationReport Validation,
+        WordPackageProtectionRiskAssessment Protection
     );
 }

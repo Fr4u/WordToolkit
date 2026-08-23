@@ -9,6 +9,48 @@ namespace WordToolkit.Engine.Tests;
 public sealed class RelationshipRepairWordPackageOperationTests
 {
     [Fact]
+    public void ApplyJsonAcceptsPlanBoundProtectionAuthorization()
+    {
+        var request = RelationshipRepairOperationJson.ParseApplyRequest("""
+            {
+              "local_path":"input.docx",
+              "expected_package_fingerprint":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "expected_plan_id":"wrrplan_test",
+              "commands":[{"kind":"remove_orphan_relationship_part","relationship_part_uri":"/x","expected_entry_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}],
+              "protected_edit_authorization":"wrrplan_test"
+            }
+            """);
+
+        Assert.Equal("wrrplan_test", request.ProtectedEditAuthorization);
+    }
+
+    [Fact]
+    public void ProtectedChangeRequiresExactTokenAndDenialIsByteExact()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "wordtoolkit-rel-protected-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "input.docx");
+        try
+        {
+            File.WriteAllBytes(path, BuildProtectedPackage());
+            var operation = new RelationshipRepairWordPackageOperation(new PassingValidator());
+            var package = new OpcPackageReader().Read(path);
+            var item = Assert.Single(operation.Inspect(new RelationshipInspectionRequest(path, package.Fingerprint)).Relationships);
+            var command = new RelationshipRepairCommandRequest("remove_unreferenced_relationship", item.SourcePartUri, item.RelationshipId, item.Fingerprint, null, null);
+            var plan = operation.Plan(new RelationshipRepairPlanRequest(path, package.Fingerprint, [command]));
+            Assert.NotNull(plan.ProtectionAuthorizationId);
+            var before = File.ReadAllBytes(path);
+            var denied = Assert.Throws<WordToolkitOperationException>(() => operation.Apply(new RelationshipRepairApplyRequest(path, package.Fingerprint, plan.PlanId, [command], AllowExternalRelationshipRemoval: true, ProtectedEditAuthorization: "wrong")));
+            Assert.Equal("EDIT_POLICY_BLOCKED", denied.Code);
+            Assert.Equal(before, File.ReadAllBytes(path));
+            Assert.Empty(Directory.GetFiles(directory, "*.bak"));
+            var applied = operation.Apply(new RelationshipRepairApplyRequest(path, package.Fingerprint, plan.PlanId, [command], AllowExternalRelationshipRemoval: true, ProtectedEditAuthorization: plan.ProtectionAuthorizationId));
+            Assert.True(applied.Applied);
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+
+    [Fact]
     public void InspectsPlansAndAtomicallyAppliesReviewedBatchWithoutTargetDisclosure()
     {
         var directory = Path.Combine(
@@ -214,6 +256,28 @@ public sealed class RelationshipRepairWordPackageOperationTests
                 """);
         }
         return stream.ToArray();
+    }
+
+    private static byte[] BuildProtectedPackage()
+    {
+        using var input = new MemoryStream();
+        input.Write(BuildPackage());
+        input.Position = 0;
+        using (var archive = new ZipArchive(input, ZipArchiveMode.Update, leaveOpen: true))
+        {
+            var rels = archive.GetEntry("word/_rels/document.xml.rels")!;
+            string relText;
+            using (var reader = new StreamReader(rels.Open(), Encoding.UTF8, leaveOpen: false)) relText = reader.ReadToEnd();
+            relText = relText.Replace("</Relationships>", "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/></Relationships>", StringComparison.Ordinal);
+            rels.Delete(); Add(archive, "word/_rels/document.xml.rels", relText);
+            var types = archive.GetEntry("[Content_Types].xml")!;
+            string typeText;
+            using (var reader = new StreamReader(types.Open(), Encoding.UTF8, leaveOpen: false)) typeText = reader.ReadToEnd();
+            typeText = typeText.Replace("</Types>", "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/></Types>", StringComparison.Ordinal);
+            types.Delete(); Add(archive, "[Content_Types].xml", typeText);
+            Add(archive, "word/settings.xml", "<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\"/></w:settings>");
+        }
+        return input.ToArray();
     }
 
     private static void Add(ZipArchive archive, string name, string content)

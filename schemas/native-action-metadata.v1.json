@@ -302,9 +302,12 @@
           "base_package_fingerprint",
           "result_package_fingerprint",
           "changed",
+          "changed_part_count",
+          "changed_entry_names",
           "remaining_revision_count",
           "structurally_valid",
           "digital_signatures_present",
+          "protection",
           "raw_xml_returned",
           "word_opened"
         ],
@@ -335,6 +338,41 @@
           "changed": {
             "type": "boolean"
           },
+          "changed_part_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "changed_entry_names": {
+            "type": "array",
+            "maxItems": 10000,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "maxLength": 1024
+            }
+          },
+          "match_offset": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "matched_text_node_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "submitted_revision_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "changed_revision_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "removed_move_marker_count": {
+            "type": "integer",
+            "minimum": 0
+          },
           "remaining_revision_count": {
             "type": "integer"
           },
@@ -344,6 +382,83 @@
           "digital_signatures_present": {
             "type": "boolean"
           },
+          "protection": {
+            "type": "object",
+            "required": [
+              "base_document_protection_enforced",
+              "result_document_protection_enforced",
+              "document_protection_metadata_changed",
+              "unmodeled_document_protection_metadata",
+              "base_permission_range_count",
+              "result_permission_range_count",
+              "malformed_permission_range_count",
+              "permission_issues_truncated",
+              "permission_issue_codes",
+              "authorization_required"
+            ],
+            "properties": {
+              "base_document_protection_enforced": {
+                "type": "boolean"
+              },
+              "base_document_protection_edit_mode": {
+                "enum": [
+                  "readOnly",
+                  "comments",
+                  "trackedChanges",
+                  "forms"
+                ]
+              },
+              "result_document_protection_enforced": {
+                "type": "boolean"
+              },
+              "result_document_protection_edit_mode": {
+                "enum": [
+                  "readOnly",
+                  "comments",
+                  "trackedChanges",
+                  "forms"
+                ]
+              },
+              "document_protection_metadata_changed": {
+                "type": "boolean"
+              },
+              "unmodeled_document_protection_metadata": {
+                "type": "boolean"
+              },
+              "base_permission_range_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "result_permission_range_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "malformed_permission_range_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 20000
+              },
+              "permission_issues_truncated": {
+                "type": "boolean"
+              },
+              "permission_issue_codes": {
+                "type": "array",
+                "maxItems": 10000,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^PERMISSION_[A-Z0-9_]+$",
+                  "maxLength": 128
+                }
+              },
+              "authorization_required": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
           "raw_xml_returned": {
             "const": false
           },
@@ -351,7 +466,7 @@
             "const": false
           }
         },
-        "additionalProperties": true
+        "additionalProperties": false
       }
     },
     {

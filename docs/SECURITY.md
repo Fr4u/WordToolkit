@@ -193,8 +193,16 @@ including protection inside `mc:AlternateContent`, and orphaned, duplicated, rev
 otherwise malformed permission ranges are non-overridable. Results expose only modes,
 counts and bounded issue codes, not cryptographic verifier material. Word document
 protection is an editing restriction, not encryption, password verification or proof of
-the caller's identity. Other saved-package mutation families do not yet share this gate;
-deployments requiring universal enforcement must deny those operations separately.
+the caller's identity.
+
+The same fail-closed, plan-bound gate covers reviewed CommentBody, NoteRepair,
+EquationRepair and RelationshipRepair saved-package paths. Protected Transform changes
+fail closed and direct callers to the reviewed generic patch workflow. Denied operations do not
+invoke the atomic writer and expose only typed block details, never protection hashes,
+salts, XML or authorization tokens. This still does not validate a password or identify
+the Word user. Numbering, style, equation-paragraph rewrite and other typed mutators
+remain outside the gate; deployments requiring universal enforcement must deny those
+operations separately.
 
 The in-memory session registry makes this release a single-instance service. Do not run multiple replicas without a shared encrypted object store, distributed locks and shared metadata. The supplied hosting profiles deliberately use one instance.
 

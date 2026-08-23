@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using WordToolkit.Engine.Operations;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Native.Protocol;
 using WordToolkit.Native.Word;
@@ -120,6 +121,44 @@ public sealed class NotePackageCliTests
         using var json = JsonDocument.Parse(error.ToString());
         Assert.Equal("INVALID_INPUT", json.RootElement.GetProperty("error")
             .GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public void CatalogPublishesClosedPlanBoundProtectionContract()
+    {
+        var catalog = ToolCatalog.LoadNativeWordTools();
+        var plan = catalog.InspectAction(NoteWordPackageContract.PlanOperationName)[
+            "tool"
+        ]!.AsObject();
+        var apply = catalog.InspectAction(NoteWordPackageContract.ApplyOperationName)[
+            "tool"
+        ]!.AsObject();
+        var planData = plan["outputSchema"]!["properties"]!["data"]!;
+
+        Assert.Contains(
+            "protection",
+            planData["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.Contains(
+            "required_authorizations",
+            planData["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.DoesNotContain(
+            "protection_authorization_id",
+            planData["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.Equal(
+            "^wnrplan_[A-Za-z0-9_-]+$",
+            apply["inputSchema"]!["properties"]!["protected_edit_authorization"]![
+                "pattern"
+            ]!.GetValue<string>()
+        );
+        Assert.Contains(
+            "explicit_authorizations",
+            apply["outputSchema"]!["properties"]!["data"]!["required"]!
+                .AsArray()
+                .Select(item => item!.GetValue<string>())
+        );
     }
 
     [Theory]

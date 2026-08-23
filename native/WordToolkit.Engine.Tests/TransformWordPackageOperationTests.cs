@@ -375,23 +375,159 @@ public sealed class TransformWordPackageOperationTests
         }
     }
 
+    [Fact]
+    public void ProtectedContentTransformFailsClosedWithoutWritingOutput()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var input = Path.Combine(directory, "protected.docx");
+            var output = Path.Combine(directory, "blocked-output.docx");
+            CreatePackage(
+                input,
+                DocumentXml("<w:p><w:r><w:t>target</w:t></w:r></w:p>"),
+                settingsXml: SettingsXml(
+                    "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\"/>"
+                )
+            );
+            var beforeBytes = File.ReadAllBytes(input);
+
+            var error = Assert.Throws<WordToolkitOperationException>(() =>
+                new TransformWordPackageOperation().Execute(
+                    new TransformWordPackageRequest(
+                        input,
+                        output,
+                        WordPackageTransformKind.ReplaceFirstTextOccurrence,
+                        "target",
+                        "changed"
+                    )
+                )
+            );
+
+            Assert.Equal("EDIT_POLICY_BLOCKED", error.Code);
+            var details = Assert.IsType<TransformWordPackageProtectionBlockDetails>(
+                error.Details
+            );
+            Assert.Equal("replace_first_text_occurrence", details.Operation);
+            Assert.Equal(["protected_document_edit_requires_plan"], details.BlockCodes);
+            Assert.True(details.Protection.BaseDocumentProtectionEnforced);
+            Assert.Equal("readOnly", details.Protection.BaseDocumentProtectionEditMode);
+            Assert.True(details.Protection.AuthorizationRequired);
+            var serialized = WordToolkitOperationJson.Serialize(details);
+            Assert.DoesNotContain("cryptPassword", serialized, StringComparison.Ordinal);
+            Assert.DoesNotContain("saltValue", serialized, StringComparison.Ordinal);
+            Assert.Equal(beforeBytes, File.ReadAllBytes(input));
+            Assert.False(File.Exists(output));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MalformedProtectionTransformIsNonOverridable()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var input = Path.Combine(directory, "malformed.docx");
+            var output = Path.Combine(directory, "blocked-output.docx");
+            CreatePackage(
+                input,
+                DocumentXml("<w:p><w:r><w:t>target</w:t></w:r></w:p>"),
+                settingsXml: SettingsXml(
+                    "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\" w:bogus=\"x\"/>"
+                )
+            );
+            var beforeBytes = File.ReadAllBytes(input);
+
+            var error = Assert.Throws<WordToolkitOperationException>(() =>
+                new TransformWordPackageOperation().Execute(
+                    new TransformWordPackageRequest(
+                        input,
+                        output,
+                        WordPackageTransformKind.ReplaceFirstTextOccurrence,
+                        "target",
+                        "changed"
+                    )
+                )
+            );
+
+            Assert.Equal("EDIT_POLICY_BLOCKED", error.Code);
+            var details = Assert.IsType<TransformWordPackageProtectionBlockDetails>(
+                error.Details
+            );
+            Assert.Equal(["protection_metadata_malformed"], details.BlockCodes);
+            Assert.True(details.Protection.HasMalformedProtectionMetadata);
+            Assert.Equal(beforeBytes, File.ReadAllBytes(input));
+            Assert.False(File.Exists(output));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ProtectedNoOpClonePreservesProtectionWithoutRequiringAPlan()
+    {
+        var directory = CreateTemporaryDirectory();
+        try
+        {
+            var input = Path.Combine(directory, "protected-clean.docx");
+            var output = Path.Combine(directory, "protected-clone.docx");
+            CreatePackage(
+                input,
+                DocumentXml("<w:p><w:r><w:t>clean</w:t></w:r></w:p>"),
+                settingsXml: SettingsXml(
+                    "<w:documentProtection w:edit=\"comments\"/>"
+                )
+            );
+            var before = new OpcPackageReader().Read(input);
+
+            var result = new TransformWordPackageOperation().Execute(
+                new TransformWordPackageRequest(
+                    input,
+                    output,
+                    WordPackageTransformKind.AcceptAllTrackedChanges
+                )
+            );
+
+            Assert.False(result.Changed);
+            Assert.True(result.Protection.BaseDocumentProtectionEnforced);
+            Assert.False(result.Protection.AuthorizationRequired);
+            Assert.Equal(before.Fingerprint, result.ResultPackageFingerprint);
+            Assert.Equal(before.Fingerprint, new OpcPackageReader().Read(output).Fingerprint);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static void CreatePackage(
         string path,
         string documentXml,
-        IReadOnlyDictionary<string, byte[]>? extraEntries = null
+        IReadOnlyDictionary<string, byte[]>? extraEntries = null,
+        string? settingsXml = null
     )
     {
+        var settingsOverride = settingsXml is null
+            ? string.Empty
+            : "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\" />";
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
         WriteEntry(
             archive,
             "[Content_Types].xml",
-            """
+            $"""
             <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
               <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" />
               <Default Extension="xml" ContentType="application/xml" />
               <Default Extension="bin" ContentType="application/octet-stream" />
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml" />
+              {settingsOverride}
             </Types>
             """
         );
@@ -405,6 +541,19 @@ public sealed class TransformWordPackageOperationTests
             """
         );
         WriteEntry(archive, "word/document.xml", documentXml);
+        if (settingsXml is not null)
+        {
+            WriteEntry(
+                archive,
+                "word/_rels/document.xml.rels",
+                """
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml" />
+                </Relationships>
+                """
+            );
+            WriteEntry(archive, "word/settings.xml", settingsXml);
+        }
         foreach (var (name, content) in extraEntries ?? new Dictionary<string, byte[]>())
         {
             WriteEntry(archive, name, content);
@@ -413,6 +562,9 @@ public sealed class TransformWordPackageOperationTests
 
     private static string DocumentXml(string body) =>
         $"<w:document xmlns:w='{WordNamespace}'><w:body>{body}</w:body></w:document>";
+
+    private static string SettingsXml(string body) =>
+        $"<w:settings xmlns:w='{WordNamespace}'>{body}</w:settings>";
 
     private static string PartXml(OpcPackageSnapshot package) => Encoding.UTF8.GetString(
         package.Parts["/word/document.xml"].Entry.Content.Span

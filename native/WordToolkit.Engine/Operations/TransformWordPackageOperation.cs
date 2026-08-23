@@ -72,8 +72,15 @@ public sealed record TransformWordPackageResult(
     int RemainingRevisionCount,
     bool StructurallyValid,
     bool DigitalSignaturesPresent,
+    WordPackageProtectionRiskAssessment Protection,
     bool RawXmlReturned,
     bool WordOpened
+);
+
+public sealed record TransformWordPackageProtectionBlockDetails(
+    string Operation,
+    IReadOnlyList<string> BlockCodes,
+    WordPackageProtectionRiskAssessment Protection
 );
 
 /// <summary>
@@ -131,13 +138,34 @@ public sealed class TransformWordPackageOperation
                 request.Kind,
                 cancellationToken
             );
+            var protection = WordPackagePatchRiskAnalyzer.AssessProtection(
+                package,
+                prepared.SourceSemantic,
+                candidate.Package,
+                candidate.Semantic,
+                prepared.Mutation.HasChanges,
+                cancellationToken
+            );
+            var protectionBlocks = ProtectionBlockCodes(protection);
+            if (protectionBlocks.Count != 0)
+            {
+                throw new WordToolkitOperationException(
+                    "EDIT_POLICY_BLOCKED",
+                    "The package transform is blocked by Word editing protection",
+                    details: new TransformWordPackageProtectionBlockDetails(
+                        TransformWordPackageContract.Name(request.Kind),
+                        protectionBlocks,
+                        protection
+                    )
+                );
+            }
 
             var write = _writer.Write(
                 outputPath,
                 prepared.Mutation,
                 new OpcAtomicWriteOptions
                 {
-                    ExpectedResultFingerprint = candidate.Fingerprint,
+                    ExpectedResultFingerprint = candidate.Package.Fingerprint,
                     RequireNewDestination = true,
                     KeepBackup = false,
                 }
@@ -159,8 +187,9 @@ public sealed class TransformWordPackageOperation
                 prepared.ChangedRevisionCount,
                 prepared.RemovedMoveMarkerCount,
                 prepared.RemainingRevisionCount,
-                candidate.IsStructurallyValid,
+                candidate.Package.IsStructurallyValid,
                 DigitalSignaturesPresent: false,
+                protection,
                 RawXmlReturned: false,
                 WordOpened: false
             );
@@ -291,7 +320,8 @@ public sealed class TransformWordPackageOperation
                 ExpectedParagraphPartUri: paragraph.SourcePartUri,
                 ExpectedParagraphElementOrdinal: paragraph.SourceElementOrdinal,
                 ExpectedParagraphText: paragraphText.Remove(matchOffset, findText.Length)
-                    .Insert(matchOffset, replaceText)
+                    .Insert(matchOffset, replaceText),
+                SourceSemantic: semantic
             );
         }
 
@@ -372,7 +402,8 @@ public sealed class TransformWordPackageOperation
                 RemainingRevisionCount: 0,
                 ExpectedParagraphPartUri: null,
                 ExpectedParagraphElementOrdinal: null,
-                ExpectedParagraphText: null
+                ExpectedParagraphText: null,
+                SourceSemantic: semantic
             );
         }
         if (graph.Revisions.Count > TransformWordPackageContract.MaximumReviewDecisions)
@@ -418,11 +449,12 @@ public sealed class TransformWordPackageOperation
             RemainingRevisionCount: 0,
             ExpectedParagraphPartUri: null,
             ExpectedParagraphElementOrdinal: null,
-            ExpectedParagraphText: null
+            ExpectedParagraphText: null,
+            SourceSemantic: semantic
         );
     }
 
-    private OpcPackageSnapshot ValidateCandidate(
+    private ValidatedTransformCandidate ValidateCandidate(
         OpcPackageSnapshot package,
         PreparedTransform prepared,
         WordPackageTransformKind kind,
@@ -464,7 +496,7 @@ public sealed class TransformWordPackageOperation
                     "The candidate paragraph does not match the planned replacement"
                 );
             }
-            return candidate;
+            return new ValidatedTransformCandidate(candidate, semantic);
         }
 
         var review = new WordReviewGraphBuilder().Build(
@@ -483,7 +515,7 @@ public sealed class TransformWordPackageOperation
                 "The candidate package still contains tracked revisions"
             );
         }
-        return candidate;
+        return new ValidatedTransformCandidate(candidate, semantic);
     }
 
     private static IReadOnlyList<WordSemanticNode> ParagraphDescendants(
@@ -517,6 +549,21 @@ public sealed class TransformWordPackageOperation
             node.SourcePath.Contains("/w:t[", StringComparison.Ordinal)
             || node.SourcePath.Contains("/w:delText[", StringComparison.Ordinal)
         );
+
+    private static IReadOnlyList<string> ProtectionBlockCodes(
+        WordPackageProtectionRiskAssessment protection
+    )
+    {
+        if (protection.HasMalformedProtectionMetadata)
+        {
+            return ["protection_metadata_malformed"];
+        }
+        if (protection.AuthorizationRequired)
+        {
+            return ["protected_document_edit_requires_plan"];
+        }
+        return Array.Empty<string>();
+    }
 
     private static (string InputPath, string OutputPath) ValidateAndResolve(
         TransformWordPackageRequest request
@@ -751,6 +798,12 @@ public sealed class TransformWordPackageOperation
         int RemainingRevisionCount,
         string? ExpectedParagraphPartUri,
         int? ExpectedParagraphElementOrdinal,
-        string? ExpectedParagraphText
+        string? ExpectedParagraphText,
+        WordSemanticDocument SourceSemantic
+    );
+
+    private sealed record ValidatedTransformCandidate(
+        OpcPackageSnapshot Package,
+        WordSemanticDocument Semantic
     );
 }

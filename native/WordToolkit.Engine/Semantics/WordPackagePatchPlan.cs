@@ -5,6 +5,8 @@ using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Xml;
 
+using System.Text.Json.Serialization;
+
 namespace WordToolkit.Engine.Semantics;
 
 public enum WordPackagePatchRiskSeverity
@@ -36,12 +38,15 @@ public sealed record WordPackageProtectionRiskAssessment(
     bool AuthorizationRequired
 )
 {
+    [JsonIgnore]
     public bool PermissionRangesPresent =>
         BasePermissionRangeCount != 0 || ResultPermissionRangeCount != 0;
 
+    [JsonIgnore]
     public bool HasMalformedPermissionMetadata =>
         MalformedPermissionRangeCount != 0 || PermissionIssuesTruncated;
 
+    [JsonIgnore]
     public bool HasMalformedProtectionMetadata =>
         UnmodeledDocumentProtectionMetadata || HasMalformedPermissionMetadata;
 }
@@ -354,57 +359,13 @@ public static class WordPackagePatchRiskAnalyzer
         var externalRemoved = beforeExternal.Except(afterExternal, StringComparer.Ordinal).Count();
         var baselineErrors = StructuralErrors(before);
         var candidateErrors = StructuralErrors(after);
-        var beforeProtection = ProtectionEvidenceFor(
+        var protection = AssessProtection(
             before,
             beforeDocument,
-            cancellationToken
-        );
-        var afterProtection = ProtectionEvidenceFor(
             after,
             afterDocument,
+            hasChanges: !patch.IsNoOp,
             cancellationToken
-        );
-        var permissionIssueCodes = beforeProtection.PermissionIssueCodes
-            .Concat(afterProtection.PermissionIssueCodes)
-            .Distinct(StringComparer.Ordinal)
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-        var malformedPermissionRangeCount = checked(
-            beforeProtection.MalformedPermissionRangeCount
-            + afterProtection.MalformedPermissionRangeCount
-        );
-        var permissionIssuesTruncated = beforeProtection.PermissionIssuesTruncated
-            || afterProtection.PermissionIssuesTruncated;
-        var unmodeledDocumentProtectionMetadata =
-            beforeProtection.UnmodeledDocumentProtectionMetadata
-            || afterProtection.UnmodeledDocumentProtectionMetadata;
-        var protectionMetadataChanged = !string.Equals(
-            beforeProtection.DocumentProtectionFingerprint,
-            afterProtection.DocumentProtectionFingerprint,
-            StringComparison.Ordinal
-        );
-        var protectionAuthorizationRequired = !patch.IsNoOp
-            && (
-                beforeProtection.DocumentProtectionEnforced
-                || afterProtection.DocumentProtectionEnforced
-                || beforeProtection.PermissionRangeCount != 0
-                || afterProtection.PermissionRangeCount != 0
-                || protectionMetadataChanged
-                || unmodeledDocumentProtectionMetadata
-            );
-        var protection = new WordPackageProtectionRiskAssessment(
-            beforeProtection.DocumentProtectionEnforced,
-            beforeProtection.DocumentProtectionEditMode,
-            afterProtection.DocumentProtectionEnforced,
-            afterProtection.DocumentProtectionEditMode,
-            protectionMetadataChanged,
-            unmodeledDocumentProtectionMetadata,
-            beforeProtection.PermissionRangeCount,
-            afterProtection.PermissionRangeCount,
-            malformedPermissionRangeCount,
-            permissionIssuesTruncated,
-            new ReadOnlyCollection<string>(permissionIssueCodes),
-            protectionAuthorizationRequired
         );
         var baselineErrorCounts = baselineErrors.GroupBy(
             value => value,
@@ -545,6 +506,97 @@ public static class WordPackagePatchRiskAnalyzer
             newErrors.Count,
             protection,
             new ReadOnlyCollection<WordPackagePatchRiskItem>(items)
+        );
+    }
+
+    /// <summary>
+    /// Projects the bounded Word editing-protection risk shared by generic patch
+    /// workflows and typed saved-package mutators. The result intentionally
+    /// contains no protection hash, salt, password material or caller identity.
+    /// </summary>
+    public static WordPackageProtectionRiskAssessment AssessProtection(
+        OpcPackageSnapshot before,
+        WordSemanticDocument beforeDocument,
+        OpcPackageSnapshot after,
+        WordSemanticDocument afterDocument,
+        bool hasChanges,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(beforeDocument);
+        ArgumentNullException.ThrowIfNull(after);
+        ArgumentNullException.ThrowIfNull(afterDocument);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (
+            !string.Equals(
+                before.Fingerprint,
+                beforeDocument.PackageFingerprint,
+                StringComparison.Ordinal
+            )
+            || !string.Equals(
+                after.Fingerprint,
+                afterDocument.PackageFingerprint,
+                StringComparison.Ordinal
+            )
+        )
+        {
+            throw new WordSemanticPreconditionException(
+                "Protection risk analysis requires semantic projections from the exact package snapshots."
+            );
+        }
+
+        var beforeProtection = ProtectionEvidenceFor(
+            before,
+            beforeDocument,
+            cancellationToken
+        );
+        var afterProtection = ProtectionEvidenceFor(
+            after,
+            afterDocument,
+            cancellationToken
+        );
+        var permissionIssueCodes = beforeProtection.PermissionIssueCodes
+            .Concat(afterProtection.PermissionIssueCodes)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var malformedPermissionRangeCount = checked(
+            beforeProtection.MalformedPermissionRangeCount
+            + afterProtection.MalformedPermissionRangeCount
+        );
+        var permissionIssuesTruncated = beforeProtection.PermissionIssuesTruncated
+            || afterProtection.PermissionIssuesTruncated;
+        var unmodeledDocumentProtectionMetadata =
+            beforeProtection.UnmodeledDocumentProtectionMetadata
+            || afterProtection.UnmodeledDocumentProtectionMetadata;
+        var protectionMetadataChanged = !string.Equals(
+            beforeProtection.DocumentProtectionFingerprint,
+            afterProtection.DocumentProtectionFingerprint,
+            StringComparison.Ordinal
+        );
+        var authorizationRequired = hasChanges
+            && (
+                beforeProtection.DocumentProtectionEnforced
+                || afterProtection.DocumentProtectionEnforced
+                || beforeProtection.PermissionRangeCount != 0
+                || afterProtection.PermissionRangeCount != 0
+                || protectionMetadataChanged
+                || unmodeledDocumentProtectionMetadata
+            );
+        return new WordPackageProtectionRiskAssessment(
+            beforeProtection.DocumentProtectionEnforced,
+            beforeProtection.DocumentProtectionEditMode,
+            afterProtection.DocumentProtectionEnforced,
+            afterProtection.DocumentProtectionEditMode,
+            protectionMetadataChanged,
+            unmodeledDocumentProtectionMetadata,
+            beforeProtection.PermissionRangeCount,
+            afterProtection.PermissionRangeCount,
+            malformedPermissionRangeCount,
+            permissionIssuesTruncated,
+            new ReadOnlyCollection<string>(permissionIssueCodes),
+            authorizationRequired
         );
     }
 

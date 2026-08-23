@@ -55,7 +55,8 @@ public static class RelationshipRepairOperationJson
             "expected_plan_id",
             "commands",
             "allow_external_relationship_removal",
-            "keep_backup"
+            "keep_backup",
+            "protected_edit_authorization"
         );
         return new RelationshipRepairApplyRequest(
             RequiredString(root, "local_path"),
@@ -63,7 +64,8 @@ public static class RelationshipRepairOperationJson
             RequiredString(root, "expected_plan_id"),
             Commands(root),
             OptionalBoolean(root, "allow_external_relationship_removal") ?? false,
-            OptionalBoolean(root, "keep_backup") ?? true
+            OptionalBoolean(root, "keep_backup") ?? true,
+            OptionalString(root, "protected_edit_authorization")
         );
     }
 

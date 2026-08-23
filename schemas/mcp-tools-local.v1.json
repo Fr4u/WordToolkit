@@ -4545,7 +4545,7 @@
     {
       "name": "transform_ooxml_package",
       "title": "Transform a Word OOXML package",
-      "description": "Create a new DOCX, DOCM, DOTX, or DOTM by applying one bounded, lossless high-level transform without opening Word: replace the first paragraph-local text occurrence, accept all tracked changes, or reject all tracked changes. The operation never overwrites a file, blocks signed packages, preserves untouched parts and unknown XML, validates the exact candidate before an atomic write, and fails closed when review semantics are unsupported.",
+      "description": "Create a new DOCX, DOCM, DOTX, or DOTM by applying one bounded, lossless high-level transform without opening Word: replace the first paragraph-local text occurrence, accept all tracked changes, or reject all tracked changes. The operation never overwrites a file, blocks signed packages, preserves untouched parts and unknown XML, validates the exact candidate before an atomic write, and fails closed when review semantics are unsupported. A non-no-op transform of a package governed by Word editing protection is blocked with EDIT_POLICY_BLOCKED; malformed protection metadata is non-overridable. Use the reviewed patch plan/apply workflow when an explicitly authorized protected mutation is required. A no-op clone preserves protection without requiring authorization.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -4633,9 +4633,12 @@
             "base_package_fingerprint",
             "result_package_fingerprint",
             "changed",
+            "changed_part_count",
+            "changed_entry_names",
             "remaining_revision_count",
             "structurally_valid",
             "digital_signatures_present",
+            "protection",
             "raw_xml_returned",
             "word_opened"
         ],
@@ -4666,6 +4669,21 @@
             "changed": {
                 "type": "boolean"
             },
+            "changed_part_count": {
+                "type": "integer",
+                "minimum": 0
+            },
+            "changed_entry_names": {
+                "type": "array",
+                "maxItems": 10000,
+                "uniqueItems": true,
+                "items": {"type": "string", "maxLength": 1024}
+            },
+            "match_offset": {"type": "integer", "minimum": 0},
+            "matched_text_node_count": {"type": "integer", "minimum": 1},
+            "submitted_revision_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+            "changed_revision_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+            "removed_move_marker_count": {"type": "integer", "minimum": 0},
             "remaining_revision_count": {
                 "type": "integer"
             },
@@ -4675,6 +4693,25 @@
             "digital_signatures_present": {
                 "type": "boolean"
             },
+            "protection": {
+                "type": "object",
+                "required": ["base_document_protection_enforced", "result_document_protection_enforced", "document_protection_metadata_changed", "unmodeled_document_protection_metadata", "base_permission_range_count", "result_permission_range_count", "malformed_permission_range_count", "permission_issues_truncated", "permission_issue_codes", "authorization_required"],
+                "properties": {
+                    "base_document_protection_enforced": {"type": "boolean"},
+                    "base_document_protection_edit_mode": {"enum": ["readOnly", "comments", "trackedChanges", "forms"]},
+                    "result_document_protection_enforced": {"type": "boolean"},
+                    "result_document_protection_edit_mode": {"enum": ["readOnly", "comments", "trackedChanges", "forms"]},
+                    "document_protection_metadata_changed": {"type": "boolean"},
+                    "unmodeled_document_protection_metadata": {"type": "boolean"},
+                    "base_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                    "result_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                    "malformed_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 20000},
+                    "permission_issues_truncated": {"type": "boolean"},
+                    "permission_issue_codes": {"type": "array", "maxItems": 10000, "uniqueItems": true, "items": {"type": "string", "pattern": "^PERMISSION_[A-Z0-9_]+$", "maxLength": 128}},
+                    "authorization_required": {"type": "boolean"}
+                },
+                "additionalProperties": false
+            },
             "raw_xml_returned": {
                 "const": false
             },
@@ -4682,7 +4719,7 @@
                 "const": false
             }
         },
-        "additionalProperties": true
+        "additionalProperties": false
     }
   },
     {
@@ -11287,7 +11324,7 @@
     {
       "name": "plan_ooxml_note_repair",
       "title": "Plan guarded footnote or endnote repair",
-      "description": "Plan removal of one fingerprinted empty orphan or one canonically identical redundant duplicate note definition. The engine never invents note content or special-note types; it reparses the exact candidate, preserves every reference and numbering policy, forbids new note issues, checks unplanned entries and proves an exact inverse.",
+      "description": "Plan removal of one fingerprinted empty orphan or one canonically identical redundant duplicate note definition. The engine never invents note content or special-note types; it reparses the exact candidate, preserves every reference and numbering policy, forbids new note issues, checks unplanned entries and proves an exact inverse. A protected edit returns a plan-bound protection_authorization_id; malformed protection metadata is non-overridable and password material is never returned.",
       "operationVersion": "1.0",
       "permissions": {"filesystem": "read_local_word_package", "network": "none", "microsoft_word": "none"},
       "reversibility": {"applicable": false, "reason": "planning_only"},
@@ -11311,7 +11348,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "repair_kind", "plan_id", "base_package_fingerprint", "result_package_fingerprint", "definition_id", "definition_fingerprint", "note_kind", "part_uri", "changed_part_count", "total_byte_delta", "has_changes", "can_apply", "apply_blocked", "apply_blocked_reasons", "engine_validation", "candidate_validation", "safety_rules", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "required": ["operation_contract", "file_name", "repair_kind", "plan_id", "base_package_fingerprint", "result_package_fingerprint", "definition_id", "definition_fingerprint", "note_kind", "part_uri", "changed_part_count", "total_byte_delta", "has_changes", "can_apply", "apply_blocked", "apply_blocked_reasons", "engine_validation", "candidate_validation", "safety_rules", "protection", "required_authorizations", "raw_xml_returned", "mutation_performed", "word_opened"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.plan_ooxml_note_repair/1.0"},
               "file_name": {"type": "string", "maxLength": 512},
@@ -11329,10 +11366,31 @@
               "has_changes": {"const": true},
               "can_apply": {"type": "boolean"},
               "apply_blocked": {"type": "boolean"},
-              "apply_blocked_reasons": {"type": "array", "maxItems": 3, "uniqueItems": true, "items": {"enum": ["digital_signature_present", "engine_validation_failed", "schema_validator_unavailable", "microsoft_schema_validation_failed"]}},
+              "apply_blocked_reasons": {"type": "array", "maxItems": 6, "uniqueItems": true, "items": {"enum": ["digital_signature_present", "engine_validation_failed", "schema_validator_unavailable", "microsoft_schema_validation_failed", "protected_document_edit_not_authorized", "protection_metadata_malformed"]}},
               "engine_validation": {"type": "object", "required": ["candidate_package_structurally_valid", "candidate_note_graph_complete", "target_definition_removed", "untargeted_definitions_preserved", "reference_markup_preserved", "special_reference_markup_preserved", "numbering_policies_preserved", "no_new_note_issues", "unplanned_entries_preserved", "exact_inverse_verified", "before_note_issue_count", "after_note_issue_count", "before_note_error_count", "after_note_error_count", "passed"], "properties": {"candidate_package_structurally_valid": {"type": "boolean"}, "candidate_note_graph_complete": {"type": "boolean"}, "target_definition_removed": {"type": "boolean"}, "untargeted_definitions_preserved": {"type": "boolean"}, "reference_markup_preserved": {"type": "boolean"}, "special_reference_markup_preserved": {"type": "boolean"}, "numbering_policies_preserved": {"type": "boolean"}, "no_new_note_issues": {"type": "boolean"}, "unplanned_entries_preserved": {"type": "boolean"}, "exact_inverse_verified": {"type": "boolean"}, "before_note_issue_count": {"type": "integer", "minimum": 0}, "after_note_issue_count": {"type": "integer", "minimum": 0}, "before_note_error_count": {"type": "integer", "minimum": 0}, "after_note_error_count": {"type": "integer", "minimum": 0}, "passed": {"type": "boolean"}}, "additionalProperties": false},
               "candidate_validation": {"type": "object", "required": ["performed", "valid", "no_new_errors", "error_count", "baseline_error_count", "candidate_error_count", "errors_truncated", "issues"], "properties": {"performed": {"type": "boolean"}, "valid": {"type": "boolean"}, "no_new_errors": {"type": "boolean"}, "error_count": {"type": "integer", "minimum": 0}, "baseline_error_count": {"type": "integer", "minimum": 0}, "candidate_error_count": {"type": "integer", "minimum": 0}, "errors_truncated": {"type": "boolean"}, "not_performed_reason": {"type": "string", "maxLength": 128}, "issues": {"type": "array", "maxItems": 200, "items": {"type": "object"}}}, "additionalProperties": false},
               "safety_rules": {"type": "array", "minItems": 6, "maxItems": 6, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
+              "protection": {
+                "type": "object",
+                "required": ["base_document_protection_enforced", "result_document_protection_enforced", "document_protection_metadata_changed", "unmodeled_document_protection_metadata", "base_permission_range_count", "result_permission_range_count", "malformed_permission_range_count", "permission_issues_truncated", "permission_issue_codes", "authorization_required"],
+                "properties": {
+                  "base_document_protection_enforced": {"type": "boolean"},
+                  "base_document_protection_edit_mode": {"enum": ["readOnly", "comments", "trackedChanges", "forms"]},
+                  "result_document_protection_enforced": {"type": "boolean"},
+                  "result_document_protection_edit_mode": {"enum": ["readOnly", "comments", "trackedChanges", "forms"]},
+                  "document_protection_metadata_changed": {"type": "boolean"},
+                  "unmodeled_document_protection_metadata": {"type": "boolean"},
+                  "base_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "result_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "malformed_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 20000},
+                  "permission_issues_truncated": {"type": "boolean"},
+                  "permission_issue_codes": {"type": "array", "maxItems": 10000, "uniqueItems": true, "items": {"type": "string", "pattern": "^PERMISSION_[A-Z0-9_]+$", "maxLength": 128}},
+                  "authorization_required": {"type": "boolean"}
+                },
+                "additionalProperties": false
+              },
+              "protection_authorization_id": {"type": "string", "pattern": "^wnrplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "required_authorizations": {"type": "array", "maxItems": 1, "uniqueItems": true, "items": {"const": "protected_edit_authorization"}},
               "changed_parts": {"type": ["array", "null"], "maxItems": 1, "items": {"type": "object", "required": ["part_uri", "before_sha256", "after_sha256", "before_bytes", "after_bytes"], "additionalProperties": false, "properties": {"part_uri": {"type": "string", "maxLength": 2048}, "before_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "after_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "before_bytes": {"type": "integer", "minimum": 0}, "after_bytes": {"type": "integer", "minimum": 0}}}},
               "raw_xml_returned": {"const": false},
               "mutation_performed": {"const": false},
@@ -11348,7 +11406,7 @@
     {
       "name": "apply_ooxml_note_repair",
       "title": "Apply reviewed footnote or endnote repair",
-      "description": "Rebuild and atomically apply the exact reviewed note-definition removal to the fingerprinted package. The action rejects plan drift, source drift, signatures, missing Microsoft schema validation and new schema errors, and retains a sibling backup by default.",
+      "description": "Rebuild and atomically apply the exact reviewed note-definition removal to the fingerprinted package. Protected edits require the exact protection_authorization_id from the same plan as protected_edit_authorization; malformed protection metadata cannot be overridden. The action rejects plan drift, source drift, signatures, missing Microsoft schema validation and new schema errors, and retains a sibling backup by default.",
       "operationVersion": "1.0",
       "permissions": {"filesystem": "read_write_input_package_and_optional_sibling_backup", "network": "none", "microsoft_word": "none"},
       "reversibility": {"applicable": true, "mechanism": "atomic_sibling_backup", "default": "retained"},
@@ -11361,7 +11419,8 @@
           "repair_kind": {"enum": ["remove_empty_orphan_definition", "remove_redundant_duplicate_definition"]},
           "definition_id": {"type": "string", "pattern": "^wnd_[0-9a-f]{24}$"},
           "expected_definition_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
-          "keep_backup": {"type": "boolean", "default": true}
+          "keep_backup": {"type": "boolean", "default": true},
+          "protected_edit_authorization": {"type": "string", "pattern": "^wnrplan_[A-Za-z0-9_-]+$", "maxLength": 128}
         },
         "required": ["local_path", "expected_package_fingerprint", "expected_plan_id", "repair_kind", "definition_id", "expected_definition_fingerprint"],
         "additionalProperties": false
@@ -11373,7 +11432,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "repair_kind", "plan_id", "applied", "definition_id", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "required": ["operation_contract", "file_name", "repair_kind", "plan_id", "applied", "definition_id", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "explicit_authorizations", "raw_xml_returned", "mutation_performed", "word_opened"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.apply_ooxml_note_repair/1.0"},
               "file_name": {"type": "string", "maxLength": 512},
@@ -11389,6 +11448,7 @@
               "diagnostic_count": {"type": "integer", "minimum": 0},
               "microsoft_schema_valid": {"type": "boolean"},
               "microsoft_schema_no_new_errors": {"const": true},
+              "explicit_authorizations": {"type": "array", "maxItems": 1, "uniqueItems": true, "items": {"const": "protected_edit_authorization"}},
               "raw_xml_returned": {"const": false},
               "mutation_performed": {"const": true},
               "word_opened": {"const": false}
@@ -11506,7 +11566,7 @@
     {
       "name": "plan_ooxml_equation_repair",
       "title": "Plan guarded OfficeMath duplicate repair",
-      "description": "Plan a batch of at most 32 fingerprinted removals of complete groups of later canonically identical OMML property containers or properties. The candidate is reprojected, normalized math semantics and every unplanned entry are preserved, no equation issue may be added, and an exact inverse is proved. Apply remains blocked unless Microsoft schema errors decrease.",
+      "description": "Plan a batch of at most 32 fingerprinted removals of complete groups of later canonically identical OMML property containers or properties. The candidate is reprojected, normalized math semantics and every unplanned entry are preserved, no equation issue may be added, and an exact inverse is proved. Apply remains blocked unless Microsoft schema errors decrease. A protected non-no-op returns a plan-bound protection_authorization_id; malformed protection metadata is non-overridable and password material is never returned.",
       "operationVersion": "1.0",
       "permissions": {"filesystem": "read_local_word_package", "network": "none", "microsoft_word": "none"},
       "reversibility": {"applicable": false, "reason": "planning_only"},
@@ -11542,7 +11602,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "plan_id", "base_package_fingerprint", "result_package_fingerprint", "command_count", "candidate_count", "removed_group_member_count", "removed_xml_element_count", "changed_part_count", "total_byte_delta", "has_changes", "can_apply", "apply_blocked", "apply_blocked_reasons", "engine_validation", "candidate_validation", "microsoft_schema_errors_reduced", "safety_rules", "sensitive_equation_text_returned", "raw_omml_returned", "mutation_performed", "word_opened"],
+            "required": ["operation_contract", "file_name", "plan_id", "base_package_fingerprint", "result_package_fingerprint", "command_count", "candidate_count", "removed_group_member_count", "removed_xml_element_count", "changed_part_count", "total_byte_delta", "has_changes", "can_apply", "apply_blocked", "apply_blocked_reasons", "protection", "required_authorizations", "engine_validation", "candidate_validation", "microsoft_schema_errors_reduced", "safety_rules", "sensitive_equation_text_returned", "raw_omml_returned", "mutation_performed", "word_opened"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.plan_ooxml_equation_repair/1.0"},
               "file_name": {"type": "string", "maxLength": 512},
@@ -11558,7 +11618,28 @@
               "has_changes": {"const": true},
               "can_apply": {"type": "boolean"},
               "apply_blocked": {"type": "boolean"},
-              "apply_blocked_reasons": {"type": "array", "maxItems": 5, "uniqueItems": true, "items": {"enum": ["digital_signature_present", "engine_validation_failed", "schema_validator_unavailable", "microsoft_schema_validation_failed", "microsoft_schema_errors_not_reduced"]}},
+              "apply_blocked_reasons": {"type": "array", "maxItems": 7, "uniqueItems": true, "items": {"enum": ["digital_signature_present", "engine_validation_failed", "schema_validator_unavailable", "microsoft_schema_validation_failed", "microsoft_schema_errors_not_reduced", "protected_document_edit_not_authorized", "protection_metadata_malformed"]}},
+              "protection": {
+                "type": "object",
+                "required": ["base_document_protection_enforced", "result_document_protection_enforced", "document_protection_metadata_changed", "unmodeled_document_protection_metadata", "base_permission_range_count", "result_permission_range_count", "malformed_permission_range_count", "permission_issues_truncated", "permission_issue_codes", "authorization_required"],
+                "properties": {
+                  "base_document_protection_enforced": {"type": "boolean"},
+                  "base_document_protection_edit_mode": {"enum": ["readOnly", "comments", "trackedChanges", "forms"]},
+                  "result_document_protection_enforced": {"type": "boolean"},
+                  "result_document_protection_edit_mode": {"enum": ["readOnly", "comments", "trackedChanges", "forms"]},
+                  "document_protection_metadata_changed": {"type": "boolean"},
+                  "unmodeled_document_protection_metadata": {"type": "boolean"},
+                  "base_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "result_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "malformed_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 20000},
+                  "permission_issues_truncated": {"type": "boolean"},
+                  "permission_issue_codes": {"type": "array", "maxItems": 10000, "uniqueItems": true, "items": {"type": "string", "pattern": "^PERMISSION_[A-Z0-9_]+$", "maxLength": 128}},
+                  "authorization_required": {"type": "boolean"}
+                },
+                "additionalProperties": false
+              },
+              "protection_authorization_id": {"type": "string", "pattern": "^werplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "required_authorizations": {"type": "array", "maxItems": 1, "uniqueItems": true, "items": {"const": "protected_edit_authorization"}},
               "engine_validation": {
                 "type": "object",
                 "required": ["candidate_package_structurally_valid", "candidate_equation_graph_complete", "selected_duplicate_groups_removed", "expected_element_count_removed", "normalized_math_semantics_preserved", "no_new_equation_issues", "unplanned_entries_preserved", "exact_inverse_verified", "removed_element_count", "before_equation_issue_count", "after_equation_issue_count", "before_equation_error_count", "after_equation_error_count", "passed"],
@@ -11615,7 +11696,7 @@
     {
       "name": "apply_ooxml_equation_repair",
       "title": "Apply reviewed OfficeMath duplicate repair",
-      "description": "Rebuild and atomically apply the exact reviewed OfficeMath duplicate-removal batch. The action rejects source or plan drift, signatures, missing validation, new schema errors and any candidate that fails to reduce Microsoft Open XML schema errors; a sibling backup is retained by default.",
+      "description": "Rebuild and atomically apply the exact reviewed OfficeMath duplicate-removal batch. Protected non-no-op edits require the exact protection_authorization_id from the same plan as protected_edit_authorization; malformed protection metadata cannot be overridden. The action rejects source or plan drift, signatures, missing validation, new schema errors and any candidate that fails to reduce Microsoft Open XML schema errors; a sibling backup is retained by default.",
       "operationVersion": "1.0",
       "permissions": {"filesystem": "read_write_input_package_and_optional_sibling_backup", "network": "none", "microsoft_word": "none"},
       "reversibility": {"applicable": true, "mechanism": "atomic_sibling_backup", "default": "retained"},
@@ -11640,7 +11721,8 @@
               "additionalProperties": false
             }
           },
-          "keep_backup": {"type": "boolean", "default": true}
+          "keep_backup": {"type": "boolean", "default": true},
+          "protected_edit_authorization": {"type": "string", "pattern": "^werplan_[A-Za-z0-9_-]+$", "maxLength": 128}
         },
         "required": ["local_path", "expected_package_fingerprint", "expected_plan_id", "commands"],
         "additionalProperties": false
@@ -11652,7 +11734,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "plan_id", "applied", "candidate_count", "removed_group_member_count", "removed_xml_element_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "diagnostic_count", "microsoft_schema_no_new_errors", "microsoft_schema_errors_reduced", "sensitive_equation_text_returned", "raw_omml_returned", "mutation_performed", "word_opened"],
+            "required": ["operation_contract", "file_name", "plan_id", "applied", "candidate_count", "removed_group_member_count", "removed_xml_element_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "diagnostic_count", "microsoft_schema_no_new_errors", "microsoft_schema_errors_reduced", "explicit_authorizations", "sensitive_equation_text_returned", "raw_omml_returned", "mutation_performed", "word_opened"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.apply_ooxml_equation_repair/1.0"},
               "file_name": {"type": "string", "maxLength": 512},
@@ -11669,6 +11751,7 @@
               "diagnostic_count": {"type": "integer", "minimum": 0},
               "microsoft_schema_no_new_errors": {"const": true},
               "microsoft_schema_errors_reduced": {"const": true},
+              "explicit_authorizations": {"type": "array", "maxItems": 1, "uniqueItems": true, "items": {"const": "protected_edit_authorization"}},
               "sensitive_equation_text_returned": {"const": false},
               "raw_omml_returned": {"const": false},
               "mutation_performed": {"const": true},
@@ -11788,7 +11871,7 @@
     {
       "name": "plan_ooxml_relationship_repair",
       "title": "Plan guarded Word OPC relationship repair",
-      "description": "Plan one atomic batch that removes only fingerprinted unreferenced explicit relationships or whole orphan relationship parts. The candidate is reparsed and must preserve semantic projection, every unplanned entry, all unplanned relationships, structural-error monotonicity and package reachability; relationship deletion never cascades to target-part deletion. The plan returns no external targets or raw XML.",
+      "description": "Plan one atomic batch that removes only fingerprinted unreferenced explicit relationships or whole orphan relationship parts. The candidate is reparsed and must preserve semantic projection, every unplanned entry, all unplanned relationships, structural-error monotonicity and package reachability; relationship deletion never cascades to target-part deletion. A protected non-no-op returns a plan-bound protection_authorization_id; malformed protection metadata is non-overridable and password material is never returned. The plan returns no external targets or raw XML.",
       "operationVersion": "1.0",
       "permissions": {
         "filesystem": "read_local_word_package",
@@ -11841,7 +11924,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "repair_kind", "plan_id", "base_package_fingerprint", "result_package_fingerprint", "command_count", "removed_relationship_count", "changed_entry_count", "total_byte_delta", "requires_external_relationship_authorization", "has_changes", "can_apply", "apply_blocked", "apply_blocked_reasons", "engine_validation", "candidate_validation", "safety_rules", "external_targets_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "required": ["operation_contract", "file_name", "repair_kind", "plan_id", "base_package_fingerprint", "result_package_fingerprint", "command_count", "removed_relationship_count", "changed_entry_count", "total_byte_delta", "requires_external_relationship_authorization", "has_changes", "can_apply", "apply_blocked", "apply_blocked_reasons", "protection", "required_authorizations", "engine_validation", "candidate_validation", "safety_rules", "external_targets_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.plan_ooxml_relationship_repair/1.0"},
               "file_name": {"type": "string", "maxLength": 512},
@@ -11857,7 +11940,28 @@
               "has_changes": {"const": true},
               "can_apply": {"type": "boolean"},
               "apply_blocked": {"type": "boolean"},
-              "apply_blocked_reasons": {"type": "array", "maxItems": 5, "uniqueItems": true, "items": {"enum": ["digital_signature_present", "external_relationship_removal_requires_apply_authorization", "engine_validation_failed", "schema_validator_unavailable", "microsoft_schema_validation_failed"]}},
+              "apply_blocked_reasons": {"type": "array", "maxItems": 7, "uniqueItems": true, "items": {"enum": ["digital_signature_present", "external_relationship_removal_requires_apply_authorization", "engine_validation_failed", "schema_validator_unavailable", "microsoft_schema_validation_failed", "protected_document_edit_not_authorized", "protection_metadata_malformed"]}},
+              "protection": {
+                "type": "object",
+                "required": ["base_document_protection_enforced", "result_document_protection_enforced", "document_protection_metadata_changed", "unmodeled_document_protection_metadata", "base_permission_range_count", "result_permission_range_count", "malformed_permission_range_count", "permission_issues_truncated", "permission_issue_codes", "authorization_required"],
+                "properties": {
+                  "base_document_protection_enforced": {"type": "boolean"},
+                  "base_document_protection_edit_mode": {"enum": ["readOnly", "comments", "trackedChanges", "forms"]},
+                  "result_document_protection_enforced": {"type": "boolean"},
+                  "result_document_protection_edit_mode": {"enum": ["readOnly", "comments", "trackedChanges", "forms"]},
+                  "document_protection_metadata_changed": {"type": "boolean"},
+                  "unmodeled_document_protection_metadata": {"type": "boolean"},
+                  "base_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "result_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "malformed_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 20000},
+                  "permission_issues_truncated": {"type": "boolean"},
+                  "permission_issue_codes": {"type": "array", "maxItems": 10000, "uniqueItems": true, "items": {"type": "string", "pattern": "^PERMISSION_[A-Z0-9_]+$", "maxLength": 128}},
+                  "authorization_required": {"type": "boolean"}
+                },
+                "additionalProperties": false
+              },
+              "protection_authorization_id": {"type": "string", "pattern": "^wrrplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "required_authorizations": {"type": "array", "maxItems": 1, "uniqueItems": true, "items": {"const": "protected_edit_authorization"}},
               "engine_validation": {"type": "object", "required": ["candidate_reparsed", "semantic_projection_preserved", "unplanned_entries_preserved", "intended_relationships_removed", "no_unexpected_relationship_changes", "no_new_structural_errors", "no_new_unreachable_parts", "exact_inverse_verified", "before_relationship_count", "after_relationship_count", "before_structural_error_count", "after_structural_error_count", "before_unreachable_part_count", "after_unreachable_part_count", "passed"], "properties": {"candidate_reparsed": {"type": "boolean"}, "semantic_projection_preserved": {"type": "boolean"}, "unplanned_entries_preserved": {"type": "boolean"}, "intended_relationships_removed": {"type": "boolean"}, "no_unexpected_relationship_changes": {"type": "boolean"}, "no_new_structural_errors": {"type": "boolean"}, "no_new_unreachable_parts": {"type": "boolean"}, "exact_inverse_verified": {"type": "boolean"}, "before_relationship_count": {"type": "integer", "minimum": 0}, "after_relationship_count": {"type": "integer", "minimum": 0}, "before_structural_error_count": {"type": "integer", "minimum": 0}, "after_structural_error_count": {"type": "integer", "minimum": 0}, "before_unreachable_part_count": {"type": "integer", "minimum": 0}, "after_unreachable_part_count": {"type": "integer", "minimum": 0}, "passed": {"type": "boolean"}}, "additionalProperties": false},
               "candidate_validation": {"type": "object", "required": ["performed", "valid", "no_new_errors", "error_count", "baseline_error_count", "candidate_error_count", "errors_truncated", "issues"], "properties": {"performed": {"type": "boolean"}, "valid": {"type": "boolean"}, "no_new_errors": {"type": "boolean"}, "error_count": {"type": "integer", "minimum": 0}, "baseline_error_count": {"type": "integer", "minimum": 0}, "candidate_error_count": {"type": "integer", "minimum": 0}, "errors_truncated": {"type": "boolean"}, "not_performed_reason": {"type": "string", "maxLength": 128}, "issues": {"type": "array", "maxItems": 200, "items": {"type": "object"}}}, "additionalProperties": false},
               "safety_rules": {"type": "array", "minItems": 8, "maxItems": 8, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
@@ -11878,7 +11982,7 @@
     {
       "name": "apply_ooxml_relationship_repair",
       "title": "Apply reviewed Word OPC relationship repair",
-      "description": "Rebuild and atomically apply the exact reviewed relationship repair batch to the fingerprinted source package. The action rejects plan drift, concurrent changes, signatures, missing Microsoft schema validation, new schema errors and unauthorized removal of external relationships. It keeps a sibling backup by default and returns no target values or raw XML.",
+      "description": "Rebuild and atomically apply the exact reviewed relationship repair batch to the fingerprinted source package. Protected non-no-op edits require the exact protection_authorization_id from the same plan as protected_edit_authorization; malformed protection metadata cannot be overridden. This authorization remains separate from allow_external_relationship_removal. The action rejects plan drift, concurrent changes, signatures, missing Microsoft schema validation, new schema errors and unauthorized removal of external relationships. It keeps a sibling backup by default and returns no target values or raw XML.",
       "operationVersion": "1.0",
       "permissions": {
         "filesystem": "read_write_input_package_and_optional_sibling_backup",
@@ -11902,7 +12006,8 @@
           "expected_plan_id": {"type": "string", "pattern": "^wrrplan_[A-Za-z0-9_-]+$", "maxLength": 128},
           "commands": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"$ref": "#/$defs/command"}},
           "allow_external_relationship_removal": {"type": "boolean", "default": false},
-          "keep_backup": {"type": "boolean", "default": true}
+          "keep_backup": {"type": "boolean", "default": true},
+          "protected_edit_authorization": {"type": "string", "pattern": "^wrrplan_[A-Za-z0-9_-]+$", "maxLength": 128}
         },
         "required": ["local_path", "expected_package_fingerprint", "expected_plan_id", "commands"],
         "additionalProperties": false
@@ -11914,7 +12019,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "repair_kind", "plan_id", "applied", "command_count", "removed_relationship_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "external_targets_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "required": ["operation_contract", "file_name", "repair_kind", "plan_id", "applied", "command_count", "removed_relationship_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "explicit_authorizations", "external_targets_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.apply_ooxml_relationship_repair/1.0"},
               "file_name": {"type": "string", "maxLength": 512},
@@ -11931,6 +12036,7 @@
               "diagnostic_count": {"type": "integer", "minimum": 0},
               "microsoft_schema_valid": {"type": "boolean"},
               "microsoft_schema_no_new_errors": {"const": true},
+              "explicit_authorizations": {"type": "array", "maxItems": 1, "uniqueItems": true, "items": {"const": "protected_edit_authorization"}},
               "external_targets_returned": {"const": false},
               "raw_xml_returned": {"const": false},
               "mutation_performed": {"const": true},
@@ -16920,7 +17026,7 @@
     {
       "name": "plan_ooxml_comment_body_edits",
       "title": "Plan body-only Word comment edits",
-      "description": "Resolve an exact bounded comment body text replacement inside comments selected by stable semantic comment IDs. Matches may span adjacent Word runs in one ordinary direct comment paragraph but never cross paragraphs, table cells, tabs, breaks, fields, content controls or rich structures. The candidate is projected, review metadata and non-selected comments are checked as invariants, Microsoft Open XML schema validation is run, no comment text or raw XML is returned, the package is not changed, and Word is never opened.",
+      "description": "Resolve an exact bounded comment body text replacement inside comments selected by stable semantic comment IDs. Matches may span adjacent Word runs in one ordinary direct comment paragraph but never cross paragraphs, table cells, tabs, breaks, fields, content controls or rich structures. The candidate is projected, review metadata and non-selected comments are checked as invariants, Microsoft Open XML schema validation is run, and Word editing-protection risk is evaluated without returning password material. A protected non-no-op returns a plan-bound protection_authorization_id; malformed protection metadata is non-overridable. No comment text or raw XML is returned, the package is not changed, and Word is never opened.",
       "operationVersion": "1.0",
       "permissions": {
         "filesystem": "read_input_package",
@@ -16992,7 +17098,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "plan_id", "base_package_fingerprint", "result_package_fingerprint", "submitted_command_count", "comment_count", "matched_occurrence_count", "text_node_operation_count", "changed_text_node_operation_count", "changed_part_count", "total_xml_byte_delta", "has_changes", "can_apply", "apply_blocked", "apply_blocked_reasons", "candidate_validation", "raw_text_returned", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
+            "required": ["operation_contract", "file_name", "plan_id", "base_package_fingerprint", "result_package_fingerprint", "submitted_command_count", "comment_count", "matched_occurrence_count", "text_node_operation_count", "changed_text_node_operation_count", "changed_part_count", "total_xml_byte_delta", "has_changes", "can_apply", "apply_blocked", "apply_blocked_reasons", "protection", "required_authorizations", "candidate_validation", "raw_text_returned", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.plan_ooxml_comment_body_edits/1.0"},
               "file_name": {"type": "string", "maxLength": 512},
@@ -17003,13 +17109,34 @@
               "comment_count": {"type": "integer", "minimum": 1, "maximum": 200},
               "matched_occurrence_count": {"type": "integer", "minimum": 1},
               "text_node_operation_count": {"type": "integer", "minimum": 1, "maximum": 2000},
-              "changed_text_node_operation_count": {"type": "integer", "minimum": 1, "maximum": 2000},
-              "changed_part_count": {"type": "integer", "minimum": 1, "maximum": 8},
+              "changed_text_node_operation_count": {"type": "integer", "minimum": 0, "maximum": 2000},
+              "changed_part_count": {"type": "integer", "minimum": 0, "maximum": 8},
               "total_xml_byte_delta": {"type": "integer"},
-              "has_changes": {"const": true},
+              "has_changes": {"type": "boolean"},
               "can_apply": {"type": "boolean"},
               "apply_blocked": {"type": "boolean"},
-              "apply_blocked_reasons": {"type": "array", "maxItems": 2, "uniqueItems": true, "items": {"enum": ["digital_signature_present", "schema_validator_unavailable", "microsoft_schema_validation_failed"]}},
+              "apply_blocked_reasons": {"type": "array", "maxItems": 5, "uniqueItems": true, "items": {"enum": ["digital_signature_present", "schema_validator_unavailable", "microsoft_schema_validation_failed", "protected_document_edit_not_authorized", "protection_metadata_malformed"]}},
+              "protection": {
+                "type": "object",
+                "required": ["base_document_protection_enforced", "result_document_protection_enforced", "document_protection_metadata_changed", "unmodeled_document_protection_metadata", "base_permission_range_count", "result_permission_range_count", "malformed_permission_range_count", "permission_issues_truncated", "permission_issue_codes", "authorization_required"],
+                "properties": {
+                  "base_document_protection_enforced": {"type": "boolean"},
+                  "base_document_protection_edit_mode": {"enum": ["readOnly", "comments", "trackedChanges", "forms"]},
+                  "result_document_protection_enforced": {"type": "boolean"},
+                  "result_document_protection_edit_mode": {"enum": ["readOnly", "comments", "trackedChanges", "forms"]},
+                  "document_protection_metadata_changed": {"type": "boolean"},
+                  "unmodeled_document_protection_metadata": {"type": "boolean"},
+                  "base_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "result_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 10000},
+                  "malformed_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 20000},
+                  "permission_issues_truncated": {"type": "boolean"},
+                  "permission_issue_codes": {"type": "array", "maxItems": 10000, "uniqueItems": true, "items": {"type": "string", "pattern": "^PERMISSION_[A-Z0-9_]+$", "maxLength": 128}},
+                  "authorization_required": {"type": "boolean"}
+                },
+                "additionalProperties": false
+              },
+              "protection_authorization_id": {"type": "string", "pattern": "^wcbplan_[A-Za-z0-9_-]+$", "maxLength": 128},
+              "required_authorizations": {"type": "array", "maxItems": 1, "uniqueItems": true, "items": {"const": "protected_edit_authorization"}},
               "candidate_validation": {
                 "type": "object",
                 "required": ["performed", "valid", "no_new_errors", "error_count", "baseline_error_count", "candidate_error_count", "errors_truncated", "issues"],
@@ -17071,7 +17198,7 @@
     {
       "name": "apply_ooxml_comment_body_edits",
       "title": "Apply reviewed body-only Word comment edits",
-      "description": "Rebuild and atomically apply an exact reviewed comment body plan to one fingerprinted saved Word package. The operation rejects selection drift, unexpected match counts, concurrent changes, digital signatures, review-metadata changes and new Microsoft Open XML schema errors; it can retain a sibling recovery backup, returns no comment text or raw XML, and never opens Word.",
+      "description": "Rebuild and atomically apply an exact reviewed comment body plan to one fingerprinted saved Word package. Protected non-no-op edits require the exact protection_authorization_id from the same plan as protected_edit_authorization; malformed protection metadata cannot be overridden. The operation rejects selection drift, unexpected match counts, concurrent changes, digital signatures, review-metadata changes and new Microsoft Open XML schema errors; an exact no-op writes no file or backup. It can retain a sibling recovery backup, returns no comment text or raw XML, and never opens Word.",
       "operationVersion": "1.0",
       "permissions": {
         "filesystem": "read_write_input_package_and_optional_sibling_backup",
@@ -17106,7 +17233,8 @@
           "expected_package_fingerprint": {"type": "string", "pattern": "^[A-Fa-f0-9]{64}$"},
           "expected_plan_id": {"type": "string", "pattern": "^wcbplan_[A-Za-z0-9_-]+$", "maxLength": 128},
           "commands": {"type": "array", "minItems": 1, "maxItems": 200, "items": {"$ref": "#/$defs/command"}},
-          "keep_backup": {"type": "boolean", "default": true}
+          "keep_backup": {"type": "boolean", "default": true},
+          "protected_edit_authorization": {"type": "string", "pattern": "^wcbplan_[A-Za-z0-9_-]+$", "maxLength": 128}
         },
         "required": ["local_path", "expected_package_fingerprint", "expected_plan_id", "commands"],
         "additionalProperties": false
@@ -17118,26 +17246,27 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "plan_id", "applied", "no_op", "comment_count", "text_node_operation_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "raw_text_returned", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
+            "required": ["operation_contract", "file_name", "plan_id", "applied", "no_op", "comment_count", "text_node_operation_count", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "explicit_authorizations", "raw_text_returned", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.apply_ooxml_comment_body_edits/1.0"},
               "file_name": {"type": "string", "maxLength": 512},
               "plan_id": {"type": "string", "pattern": "^wcbplan_[A-Za-z0-9_-]+$", "maxLength": 128},
-              "applied": {"const": true},
-              "no_op": {"const": false},
+              "applied": {"type": "boolean"},
+              "no_op": {"type": "boolean"},
               "comment_count": {"type": "integer", "minimum": 1, "maximum": 200},
               "text_node_operation_count": {"type": "integer", "minimum": 1, "maximum": 2000},
               "previous_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
               "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
               "predicted_package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
               "backup_path": {"type": ["string", "null"]},
-              "changed_entry_names": {"type": "array", "minItems": 1, "maxItems": 8, "uniqueItems": true, "items": {"type": "string", "maxLength": 1024}},
+              "changed_entry_names": {"type": "array", "maxItems": 8, "uniqueItems": true, "items": {"type": "string", "maxLength": 1024}},
               "diagnostic_count": {"type": "integer", "minimum": 0},
               "microsoft_schema_valid": {"type": "boolean"},
               "microsoft_schema_no_new_errors": {"type": "boolean"},
+              "explicit_authorizations": {"type": "array", "maxItems": 1, "uniqueItems": true, "items": {"const": "protected_edit_authorization"}},
               "raw_text_returned": {"const": false},
               "raw_xml_returned": {"const": false},
-              "mutation_performed": {"const": true},
+              "mutation_performed": {"type": "boolean"},
               "word_opened": {"const": false},
               "runtime": {"const": "dotnet-native"},
               "python_used": {"const": false},

@@ -98,6 +98,46 @@ public sealed class CommentBodyWordPackageOperation
                     "Commands do not reproduce the reviewed comment body edit plan ID"
                 );
             }
+            var policyBlocks = ProtectionBlockCodes(
+                context,
+                request.ProtectedEditAuthorization
+            );
+            if (policyBlocks.Count != 0)
+            {
+                throw new WordToolkitOperationException(
+                    "EDIT_POLICY_BLOCKED",
+                    "The comment body edit requires authorization or failed a non-overridable protection check",
+                    details: new CommentBodyEditPolicyBlockDetails(
+                        context.PlanId,
+                        policyBlocks
+                    )
+                );
+            }
+            if (!context.Plan.HasChanges)
+            {
+                return new CommentBodyEditApplyResult(
+                    CommentBodyWordPackageContract.ApplyContract,
+                    Path.GetFileName(context.Path),
+                    context.PlanId,
+                    Applied: false,
+                    NoOp: true,
+                    CommentCount: context.Edits.Count,
+                    TextNodeOperationCount: context.Plan.OperationCount,
+                    PreviousPackageFingerprint: null,
+                    PackageFingerprint: context.Package.Fingerprint,
+                    PredictedPackageFingerprint: context.Plan.ResultPackageFingerprint,
+                    BackupPath: null,
+                    ChangedEntryNames: Array.Empty<string>(),
+                    DiagnosticCount: null,
+                    MicrosoftSchemaValid: context.Validation.CandidateValid,
+                    MicrosoftSchemaNoNewErrors: context.Validation.NoNewErrors,
+                    ExplicitAuthorizations: Array.Empty<string>(),
+                    RawTextReturned: false,
+                    RawXmlReturned: false,
+                    MutationPerformed: false,
+                    WordOpened: false
+                );
+            }
             if (context.HasDigitalSignatures)
             {
                 throw new WordToolkitOperationException(
@@ -156,6 +196,9 @@ public sealed class CommentBodyWordPackageOperation
                 DiagnosticCount: result.Diagnostics.Count,
                 MicrosoftSchemaValid: context.Validation.CandidateValid,
                 MicrosoftSchemaNoNewErrors: context.Validation.NoNewErrors,
+                ExplicitAuthorizations: context.Protection.AuthorizationRequired
+                    ? ["protected_edit_authorization"]
+                    : Array.Empty<string>(),
                 RawTextReturned: false,
                 RawXmlReturned: false,
                 MutationPerformed: true,
@@ -272,15 +315,25 @@ public sealed class CommentBodyWordPackageOperation
             resolved.Edits,
             cancellationToken
         );
+        var planId = CreatePlanId(plan.PlanId, resolved.IntentFields);
+        var protection = WordPackagePatchRiskAnalyzer.AssessProtection(
+            package,
+            semantic,
+            candidate.Package,
+            candidate.Semantic,
+            plan.HasChanges,
+            cancellationToken
+        );
         return new PlanContext(
             path,
             package,
             plan,
-            CreatePlanId(plan.PlanId, resolved.IntentFields),
+            planId,
             commandSnapshot.Count,
             candidate.Edits,
             WordPackagePatchRiskAnalyzer.HasDigitalSignatures(package),
-            candidate.Validation
+            candidate.Validation,
+            protection
         );
     }
 
@@ -346,7 +399,9 @@ public sealed class CommentBodyWordPackageOperation
                 WordPackageCandidateValidationReport.NotPerformed(
                     "schema_validator_unavailable"
                 ),
-                verifiedEdits
+                verifiedEdits,
+                candidateSnapshot,
+                candidateSemantic
             );
         }
         baseline.Position = 0;
@@ -357,7 +412,9 @@ public sealed class CommentBodyWordPackageOperation
                 BoundValidation(
                     _candidateValidator.Validate(baseline, candidate, cancellationToken)
                 ),
-                verifiedEdits
+                verifiedEdits,
+                candidateSnapshot,
+                candidateSemantic
             );
         }
         catch (OperationCanceledException)
@@ -587,20 +644,35 @@ public sealed class CommentBodyWordPackageOperation
             )).ToArray();
             if (nodeChanges.Length == 0)
             {
-                throw Invalid("The comment body command does not change any text");
-            }
-            foreach (var change in nodeChanges)
-            {
+                var noOpNode = body.Segments[segmentMatches[0].SegmentIndex].Nodes[0];
+                var noOpValue = noOpNode.Text ?? string.Empty;
                 textCommands.Add(
                     new WordTextReplacementCommand(
-                        change.Node.Id,
-                        change.After,
-                        change.Before
+                        noOpNode.Id,
+                        noOpValue,
+                        noOpValue
                     )
                 );
                 checked
                 {
-                    totalReplacementCharacters += change.After.Length;
+                    totalReplacementCharacters += noOpValue.Length;
+                }
+            }
+            else
+            {
+                foreach (var change in nodeChanges)
+                {
+                    textCommands.Add(
+                        new WordTextReplacementCommand(
+                            change.Node.Id,
+                            change.After,
+                            change.Before
+                        )
+                    );
+                    checked
+                    {
+                        totalReplacementCharacters += change.After.Length;
+                    }
                 }
             }
             if (
@@ -1002,6 +1074,12 @@ public sealed class CommentBodyWordPackageOperation
         {
             blockedReasons.Add("microsoft_schema_validation_failed");
         }
+        blockedReasons.AddRange(ProtectionBlockCodes(context, authorization: null));
+        var requiredAuthorizations = context.Plan.HasChanges
+            && context.Protection.AuthorizationRequired
+            && !context.Protection.HasMalformedProtectionMetadata
+                ? new[] { "protected_edit_authorization" }
+                : Array.Empty<string>();
         return new CommentBodyEditPlanResult(
             CommentBodyWordPackageContract.PlanContract,
             Path.GetFileName(context.Path),
@@ -1019,6 +1097,11 @@ public sealed class CommentBodyWordPackageOperation
             CanApply: blockedReasons.Count == 0,
             ApplyBlocked: blockedReasons.Count != 0,
             ApplyBlockedReasons: blockedReasons,
+            Protection: context.Protection,
+            ProtectionAuthorizationId: requiredAuthorizations.Length == 0
+                ? null
+                : context.PlanId,
+            RequiredAuthorizations: requiredAuthorizations,
             CandidateValidation: ProjectValidation(context.Validation, includeDetails),
             CommentEdits: includeDetails
                 ? context.Edits.Select(edit => new CommentBodyEditDetail(
@@ -1278,6 +1361,29 @@ public sealed class CommentBodyWordPackageOperation
             char.IsAsciiLetterOrDigit(character) || character is '_' or '-'
         );
 
+    private static IReadOnlyList<string> ProtectionBlockCodes(
+        PlanContext context,
+        string? authorization
+    )
+    {
+        if (!context.Plan.HasChanges)
+        {
+            return Array.Empty<string>();
+        }
+        if (context.Protection.HasMalformedProtectionMetadata)
+        {
+            return ["protection_metadata_malformed"];
+        }
+        if (
+            context.Protection.AuthorizationRequired
+            && !string.Equals(authorization, context.PlanId, StringComparison.Ordinal)
+        )
+        {
+            return ["protected_document_edit_not_authorized"];
+        }
+        return Array.Empty<string>();
+    }
+
     private static bool IsCommentId(string value) =>
         !string.IsNullOrWhiteSpace(value)
         && value.Length is >= 5 and <= 128
@@ -1494,12 +1600,15 @@ public sealed class CommentBodyWordPackageOperation
         int SubmittedCommandCount,
         IReadOnlyList<ResolvedCommentEdit> Edits,
         bool HasDigitalSignatures,
-        WordPackageCandidateValidationReport Validation
+        WordPackageCandidateValidationReport Validation,
+        WordPackageProtectionRiskAssessment Protection
     );
 
     private sealed record CandidateOutcome(
         WordPackageCandidateValidationReport Validation,
-        IReadOnlyList<ResolvedCommentEdit> Edits
+        IReadOnlyList<ResolvedCommentEdit> Edits,
+        OpcPackageSnapshot Package,
+        WordSemanticDocument Semantic
     );
 
     private sealed class CommentBodySourceCache

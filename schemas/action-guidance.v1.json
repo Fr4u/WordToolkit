@@ -309,7 +309,9 @@
         "explicit existing local_path",
         "explicit new output path; never overwrite"
       ],
-      "acquisition_steps": [],
+      "acquisition_steps": [
+        "Protected non-no-op transforms fail closed; use the reviewed generic patch plan/apply workflow when an authorized protected mutation is required"
+      ],
       "bindings": {
         "local_path": {
           "source": "external_input"
@@ -340,9 +342,12 @@
           "base_package_fingerprint",
           "result_package_fingerprint",
           "changed",
+          "changed_part_count",
+          "changed_entry_names",
           "remaining_revision_count",
           "structurally_valid",
           "digital_signatures_present",
+          "protection",
           "raw_xml_returned",
           "word_opened"
         ],
@@ -2200,7 +2205,9 @@
         "exact plan ID and identical commands from preceding plan"
       ],
       "acquisition_steps": [
-        "review plan and block reasons before apply"
+        "review plan and block reasons before apply",
+        "Pass the original package fingerprint, unchanged target fields and exact plan_id from plan_ooxml_note_repair",
+        "If the plan returns protection_authorization_id, pass that exact value as protected_edit_authorization"
       ],
       "bindings": {
         "local_path": {
@@ -2259,7 +2266,7 @@
         }
       },
       "recipe_ids": [
-        "native.default"
+        "package.plan_apply"
       ]
     },
     {
@@ -2366,7 +2373,9 @@
         "exact plan ID and identical commands from preceding plan"
       ],
       "acquisition_steps": [
-        "review plan and block reasons before apply"
+        "review plan and block reasons before apply",
+        "Pass identical commands, original package fingerprint and exact plan_id from plan_ooxml_equation_repair",
+        "If the plan returns protection_authorization_id, pass that exact value as protected_edit_authorization"
       ],
       "bindings": {
         "local_path": {
@@ -2417,7 +2426,7 @@
         }
       },
       "recipe_ids": [
-        "native.default"
+        "package.plan_apply"
       ]
     },
     {
@@ -2524,7 +2533,10 @@
         "exact plan ID and identical commands from preceding plan"
       ],
       "acquisition_steps": [
-        "review plan and block reasons before apply"
+        "review plan and block reasons before apply",
+        "Pass identical commands, original package fingerprint and exact plan_id from plan_ooxml_relationship_repair",
+        "If the plan returns protection_authorization_id, pass that exact value as protected_edit_authorization",
+        "Keep allow_external_relationship_removal separate from protected_edit_authorization"
       ],
       "bindings": {
         "local_path": {
@@ -2575,7 +2587,7 @@
         }
       },
       "recipe_ids": [
-        "native.default"
+        "package.plan_apply"
       ]
     },
     {
@@ -3837,7 +3849,9 @@
         "exact plan ID and identical commands from preceding plan"
       ],
       "acquisition_steps": [
-        "review plan and block reasons before apply"
+        "review plan and block reasons before apply",
+        "Pass identical commands, original package_fingerprint and plan_id from plan_ooxml_comment_body_edits",
+        "If the plan returns protection_authorization_id, pass that exact value as protected_edit_authorization"
       ],
       "bindings": {
         "local_path": {
@@ -3888,7 +3902,7 @@
         }
       },
       "recipe_ids": [
-        "native.default"
+        "package.plan_apply"
       ]
     },
     {

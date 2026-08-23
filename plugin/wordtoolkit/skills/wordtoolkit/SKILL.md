@@ -5,6 +5,13 @@ description: Control real Microsoft Word and inspect, index, query, edit, compar
 
 # WordToolkit
 
+Saved-package CommentBody, NoteRepair, EquationRepair and RelationshipRepair workflows
+use the same plan-bound protection gate. Pass only the exact reviewed token; malformed
+or unmodeled protection cannot be overridden and denial performs no write. Protected
+Transform changes must use the reviewed generic patch workflow. This token is not
+password or identity proof. Numbering, style and other typed mutators remain outside the
+shared gate.
+
 Use the small core catalog directly. Rare actions are lazy: search by capability
 with `search_wordtoolkit_actions`, inspect only the chosen action, then execute
 it. If the exact action name is already known, skip search. Keep
@@ -768,9 +775,13 @@ turn a graph warning into a mutation by hand:
 2. Build one `plan_ooxml_equation_repair` batch with at most 32 exact candidates. Copy
    each `repair_kind`, `candidate_id` and `expected_candidate_fingerprint` unchanged.
 3. Review `werplan_`, removed group/XML element counts, normalized-math proof, issue
-   reduction, exact inverse, Microsoft baseline/candidate counts and block reasons.
+   reduction, exact inverse, Microsoft baseline/candidate counts and block reasons. If
+   `protection_authorization_id` is present, retain it unchanged; malformed protection
+   metadata is a non-overridable block.
 4. Call `apply_ooxml_equation_repair` with the unchanged batch, original fingerprint and
-   exact plan ID. Keep the sibling backup unless the user explicitly accepts its removal.
+   exact plan ID. For a protected edit, pass that exact plan token as
+   `protected_edit_authorization`. Keep the sibling backup unless the user explicitly
+   accepts its removal.
 
 This path removes only complete groups of later canonically identical duplicate OMML
 property containers or properties. Apply requires Microsoft schema errors to decrease.
@@ -936,9 +947,11 @@ ID and never synthesize missing note content. Use this strict lazy workflow:
 3. Review `wnrplan_`, the byte delta, engine proof, Microsoft schema comparison and block
    reasons. The plan must preserve every ordinary/special reference, numbering policy and
    untargeted definition, add no note issues, preserve every unplanned entry and prove an
-   exact inverse.
+   exact inverse. If `protection_authorization_id` is present, retain it unchanged;
+   malformed protection metadata is a non-overridable block.
 4. Call `apply_ooxml_note_repair` with the original package fingerprint, exact plan ID and
-   unchanged target fields. Keep the recovery backup by default.
+   unchanged target fields. For a protected edit, pass that exact plan token as
+   `protected_edit_authorization`. Keep the recovery backup by default.
 
 Contentful/complex orphans, non-equivalent duplicates, missing definitions, missing
 special definitions, invalid numbering properties and ambiguous note relationships are
@@ -963,8 +976,11 @@ unreferenced-looking relationship may be deleted. Use this strict lazy workflow:
    Microsoft schema comparison and block reasons. A relationship deletion never deletes
    its target part. A new unreachable part, changed semantic projection, changed
    unplanned entry, unplanned relationship delta or failed exact inverse blocks the plan.
+   If `protection_authorization_id` is present, retain it unchanged; malformed protection
+   metadata is a non-overridable block.
 4. Call `apply_ooxml_relationship_repair` with identical commands, the original package
-   fingerprint and exact plan ID. Keep the recovery backup by default. Set
+   fingerprint and exact plan ID. For a protected edit, pass that exact plan token as
+   `protected_edit_authorization`. Keep the recovery backup by default. Set
    `allow_external_relationship_removal=true` only when the user explicitly approved the
    reviewed removal of an external relationship.
 
@@ -984,9 +1000,12 @@ stable `comment_id`, then use this body-only workflow:
    `comment_id`, bounded `find_text`, replacement, and exact `expected_match_count`.
    Add `expected_body_sha256` when it was returned by an earlier reviewed plan.
 2. Review the deterministic plan ID, comment/match/text-node counts, candidate validation
-   and block reasons. Leave details off unless hashes or changed-part evidence are needed.
+   and block reasons. If `protection_authorization_id` is present, retain it unchanged;
+   malformed protection metadata is a non-overridable block. Leave details off unless
+   hashes or changed-part evidence are needed.
 3. Call `apply_ooxml_comment_body_edits` with identical commands, the original package
-   fingerprint and exact plan ID. Keep the recovery backup by default.
+   fingerprint and exact plan ID. For a protected edit, pass that exact plan token as
+   `protected_edit_authorization`. Keep the recovery backup by default.
 
 This operation can match across adjacent Word runs in the same ordinary direct comment
 paragraph, but never across paragraph/table-cell, tab, break, field, content-control or
