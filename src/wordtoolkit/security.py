@@ -48,7 +48,7 @@ def _open_windows_shared_source(source_path: Path) -> BinaryIO:
     import msvcrt
     from ctypes import wintypes
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
     create_file = kernel32.CreateFileW
     create_file.argtypes = [
         wintypes.LPCWSTR,
@@ -74,13 +74,15 @@ def _open_windows_shared_source(source_path: Path) -> BinaryIO:
         None,
     )
     if handle == invalid_handle:
-        error_code = ctypes.get_last_error()
+        error_code = ctypes.get_last_error()  # type: ignore[attr-defined]
         error = _WindowsFileOpenError(error_code, "CreateFileW failed")
         error.winerror = error_code
         raise error
 
     try:
-        fd = msvcrt.open_osfhandle(handle, os.O_RDONLY | getattr(os, "O_BINARY", 0))
+        fd = msvcrt.open_osfhandle(  # type: ignore[attr-defined]
+            handle, os.O_RDONLY | getattr(os, "O_BINARY", 0)
+        )
     except (OSError, ValueError):
         close_handle(handle)
         raise
