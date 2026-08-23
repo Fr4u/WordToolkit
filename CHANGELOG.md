@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- Hardened the maintained Python OOXML adapter against source and extraction
+  races. Validation and extraction now consume one bounded private snapshot
+  proven stable by two SHA-256 passes over one open handle, so package limits,
+  structural checks, CRC/XML reads and the optional Microsoft validator cannot
+  observe different file versions. Extraction rejects symlink/reparse
+  components and existing targets, creates files without following links, and
+  publishes a private staging directory only after the complete archive passes;
+  failures leave no partial final output.
+
+- Bound the README's latest-release version, native action count, public MCP
+  surface, asset URL, size and SHA-256 to a checked-in immutable release
+  manifest through a regression test. The published-artifact section now
+  describes the actual `v0.61.0` release instead of stale `v0.60.1`
+  qualification data, without falsely coupling future unreleased code versions
+  to the latest published artifact.
+
 ## 0.61.0 - 2026-08-23
 
 - Published the native local MCP v2 contract and kept local v1 as a historical

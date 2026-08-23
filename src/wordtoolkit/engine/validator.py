@@ -12,7 +12,12 @@ from lxml import etree
 
 from ..config import Settings
 from ..math.omml import M, parse_omml
-from ..security import REL_NS, SafePackageInspector, parse_xml_bytes, resolve_internal_target
+from ..security import (
+    REL_NS,
+    SafePackageInspector,
+    parse_xml_bytes,
+    resolve_internal_target,
+)
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 W14 = "{http://schemas.microsoft.com/office/word/2010/wordml}"
@@ -44,28 +49,31 @@ class OoxmlValidator:
 
     def validate(self, path: Path) -> dict:
         issues: list[ValidationIssue] = []
-        package_report = self.package_inspector.inspect(path)
-        with zipfile.ZipFile(path) as archive:
-            bad_crc = archive.testzip()
-            if bad_crc:
-                issues.append(ValidationIssue("error", "ZIP_CRC", "CRC failure", bad_crc))
-            names = {name.casefold(): name for name in archive.namelist()}
-            roots: dict[str, etree._Element] = {}
-            for name in archive.namelist():
-                if PurePosixPath(name).suffix.lower() != ".xml" and not name.endswith(".rels"):
-                    continue
-                try:
-                    roots[name] = parse_xml_bytes(archive.read(name), part=name)
-                except Exception as exc:
-                    issues.append(ValidationIssue("error", "XML_INVALID", str(exc), name))
-            self._validate_content_types(roots, names, issues)
-            self._validate_relationships(roots, names, issues)
-            self._validate_para_ids(roots, issues)
-            self._validate_notes(roots, "footnote", issues)
-            self._validate_notes(roots, "endnote", issues)
-            self._validate_math(roots, issues)
-            self._validate_orphaned_parts(roots, set(archive.namelist()), issues)
-        official = self._official_openxml_validation(path)
+        # Every pass, including the optional external validator, consumes one
+        # bounded private snapshot. Reading ``path`` again would permit a
+        # concurrent replacement to mix two package versions.
+        with self.package_inspector.inspect_stable(path) as (snapshot, package_report):
+            with zipfile.ZipFile(snapshot) as archive:
+                bad_crc = archive.testzip()
+                if bad_crc:
+                    issues.append(ValidationIssue("error", "ZIP_CRC", "CRC failure", bad_crc))
+                names = {name.casefold(): name for name in archive.namelist()}
+                roots: dict[str, etree._Element] = {}
+                for name in archive.namelist():
+                    if PurePosixPath(name).suffix.lower() != ".xml" and not name.endswith(".rels"):
+                        continue
+                    try:
+                        roots[name] = parse_xml_bytes(archive.read(name), part=name)
+                    except Exception as exc:
+                        issues.append(ValidationIssue("error", "XML_INVALID", str(exc), name))
+                self._validate_content_types(roots, names, issues)
+                self._validate_relationships(roots, names, issues)
+                self._validate_para_ids(roots, issues)
+                self._validate_notes(roots, "footnote", issues)
+                self._validate_notes(roots, "endnote", issues)
+                self._validate_math(roots, issues)
+                self._validate_orphaned_parts(roots, set(archive.namelist()), issues)
+            official = self._official_openxml_validation(snapshot)
         structural_valid = not any(issue.severity == "error" for issue in issues)
         structural_errors = sum(issue.severity == "error" for issue in issues)
         official_errors = int(
