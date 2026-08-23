@@ -21,6 +21,8 @@ public sealed class WordReviewGraphTests
         "http://schemas.microsoft.com/office/word/2018/wordml/cex";
     private const string Math =
         "http://schemas.openxmlformats.org/officeDocument/2006/math";
+    private const string MathStrict =
+        "http://purl.oclc.org/ooxml/officeDocument/math";
 
     [Fact]
     public void LinksCommentsThreadsPeopleRevisionsMovesAndPermissions()
@@ -558,6 +560,106 @@ public sealed class WordReviewGraphTests
         Assert.Contains(
             graph.Issues,
             issue => issue.Code == "PERMISSION_MARKER_PARENT_INVALID"
+        );
+    }
+
+    [Theory]
+    [InlineData(Word, "w", WordStrict, "ws")]
+    [InlineData(WordStrict, "ws", Word, "w")]
+    public void PermissionWordParentsMustMatchTheStoryConformanceNamespace(
+        string storyNamespace,
+        string storyPrefix,
+        string parentNamespace,
+        string parentPrefix
+    )
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <{storyPrefix}:document xmlns:{storyPrefix}="{storyNamespace}" xmlns:{parentPrefix}="{parentNamespace}">
+              <{storyPrefix}:body><{parentPrefix}:p>
+                <{storyPrefix}:permStart {storyPrefix}:id="7"/>
+                <{storyPrefix}:permEnd {storyPrefix}:id="7"/>
+              </{parentPrefix}:p></{storyPrefix}:body>
+            </{storyPrefix}:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.DoesNotContain(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_MARKER_NAMESPACE_INVALID"
+        );
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_MARKER_PARENT_INVALID"
+        );
+        Assert.Equal(
+            WordReviewRangeStatus.Complete,
+            Assert.Single(graph.Permissions).Status
+        );
+    }
+
+    [Theory]
+    [InlineData(Word, "w", MathStrict)]
+    [InlineData(WordStrict, "ws", Math)]
+    public void PermissionMathParentsMustMatchTheStoryConformanceNamespace(
+        string storyNamespace,
+        string storyPrefix,
+        string mathNamespace
+    )
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <{storyPrefix}:document xmlns:{storyPrefix}="{storyNamespace}" xmlns:m="{mathNamespace}">
+              <{storyPrefix}:body><{storyPrefix}:p><m:oMath>
+                <{storyPrefix}:permStart {storyPrefix}:id="7"/>
+                <{storyPrefix}:permEnd {storyPrefix}:id="7"/>
+              </m:oMath></{storyPrefix}:p></{storyPrefix}:body>
+            </{storyPrefix}:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_MARKER_PARENT_INVALID"
+        );
+    }
+
+    [Theory]
+    [InlineData(Word, "w", Math)]
+    [InlineData(WordStrict, "ws", MathStrict)]
+    public void PermissionMathParentsAcceptTheStoryConformanceNamespace(
+        string storyNamespace,
+        string storyPrefix,
+        string mathNamespace
+    )
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <{storyPrefix}:document xmlns:{storyPrefix}="{storyNamespace}" xmlns:m="{mathNamespace}">
+              <{storyPrefix}:body><{storyPrefix}:p><m:oMath>
+                <{storyPrefix}:permStart {storyPrefix}:id="7"/>
+                <{storyPrefix}:permEnd {storyPrefix}:id="7"/>
+              </m:oMath></{storyPrefix}:p></{storyPrefix}:body>
+            </{storyPrefix}:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.DoesNotContain(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_MARKER_PARENT_INVALID"
+        );
+        Assert.Equal(
+            WordReviewRangeStatus.Complete,
+            Assert.Single(graph.Permissions).Status
         );
     }
 

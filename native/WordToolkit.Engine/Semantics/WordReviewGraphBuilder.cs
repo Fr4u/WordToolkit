@@ -990,6 +990,7 @@ public sealed class WordReviewGraphBuilder
         ValidatePermissionMarkerParent(
             partUri,
             element,
+            storyNamespace,
             location,
             ordinal,
             state
@@ -2084,24 +2085,34 @@ public sealed class WordReviewGraphBuilder
     private static void ValidatePermissionMarkerParent(
         string partUri,
         XElement element,
+        XNamespace storyNamespace,
         StoryLocation location,
         int ordinal,
         BuildState state
     )
     {
         var parent = element.Parent;
+        var storyNamespaceName = storyNamespace.NamespaceName;
+        var expectedMathNamespace = storyNamespaceName switch
+        {
+            WordTransitionalNamespace => MathTransitionalNamespace,
+            WordStrictNamespace => MathStrictNamespace,
+            _ => null,
+        };
         var valid = parent is not null
             && (
-                IsWordNamespace(parent.Name.NamespaceName)
+                (
+                    parent.Name.NamespaceName == storyNamespaceName
                     && WordPermissionMarkerParentNames.Contains(parent.Name.LocalName)
-                || (
-                    parent.Name.NamespaceName is
-                        MathTransitionalNamespace
-                        or MathStrictNamespace
                 )
+                || (
+                    parent.Name.NamespaceName == expectedMathNamespace
                     && MathPermissionMarkerParentNames.Contains(parent.Name.LocalName)
-                || parent.Name.NamespaceName == Word2010Namespace
+                )
+                || (
+                    parent.Name.NamespaceName == Word2010Namespace
                     && (parent.Name.LocalName is "conflictDel" or "conflictIns")
+                )
             );
         if (valid)
         {
@@ -2110,7 +2121,7 @@ public sealed class WordReviewGraphBuilder
         state.AddIssue(
             "PERMISSION_MARKER_PARENT_INVALID",
             WordReviewIssueSeverity.Error,
-            "Permission-range marker parent does not permit permission range markup.",
+            "Permission-range marker parent does not permit permission range markup in the story's conformance namespace.",
             partUri,
             location.StoryId,
             ordinal

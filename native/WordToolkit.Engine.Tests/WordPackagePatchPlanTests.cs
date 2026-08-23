@@ -505,6 +505,38 @@ public sealed class WordPackagePatchPlanTests
     }
 
     [Fact]
+    public void MixedConformancePermissionParentsAreNonOverridable()
+    {
+        var before = Read(BuildPackage(
+            "unused",
+            documentXml: MixedConformancePermissionParentDocumentXml("before")
+        ));
+        var after = Read(BuildPackage(
+            "unused",
+            documentXml: MixedConformancePermissionParentDocumentXml("after")
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.Contains(
+            "PERMISSION_MARKER_PARENT_INVALID",
+            plan.RiskAssessment.Protection.PermissionIssueCodes
+        );
+        Assert.Equal(2, plan.RiskAssessment.Protection.MalformedPermissionRangeCount);
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Fact]
     public void CountsEveryMalformedCompletePermissionRange()
     {
         var before = Read(BuildPackage(
@@ -1872,6 +1904,13 @@ public sealed class WordPackagePatchPlanTests
         "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
         + $"<w:body><w:p><w:r><w:t>{text}<w:permStart w:id='7'/>"
         + "<w:permEnd w:id='7'/></w:t></w:r></w:p></w:body></w:document>";
+
+    private static string MixedConformancePermissionParentDocumentXml(string text) =>
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:ws='http://purl.oclc.org/ooxml/wordprocessingml/main'>"
+        + "<w:body><ws:p><w:permStart w:id='7'/>"
+        + $"<w:r><w:t>{text}</w:t></w:r><w:permEnd w:id='7'/>"
+        + "</ws:p></w:body></w:document>";
 
     private static string MultipleMalformedPermissionRangesDocumentXml(string text) =>
         "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
