@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.61.1 - 2026-08-23
+
+- Synchronized the native assembly, MCP server and Codex plugin at `0.61.1`,
+  and updated the legacy local-plugin smoke harness to the current 104-tool
+  Python surface. The native plugin remains intentionally smaller at 15 public
+  MCP tools with 151 lazily exposed actions.
+
 - Added attributable failure diagnostics to maintained Python catalog-backed
   Word member batches. Runtime, target-resolution and result-projection failures
   now report a zero-based `failed_operation_index`; transaction-wide activation,

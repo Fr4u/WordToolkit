@@ -93,8 +93,8 @@ async def smoke_test(plugin: Path) -> dict[str, object]:
         "visual_audit": preview["data"]["visual_audit"]["passed"],
         "draft_version": draft_version,
     }
-    if result["tools"] != 103:
-        raise RuntimeError(f"Expected 103 tools, received {result['tools']}")
+    if result["tools"] != 104:
+        raise RuntimeError(f"Expected 104 tools, received {result['tools']}")
     if not result["validation_valid"] or not result["validator_valid"]:
         raise RuntimeError("Generated DOCX failed structural or Open XML SDK validation")
     if not result["preview_pages"] or not result["visual_audit"]:
