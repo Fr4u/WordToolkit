@@ -119,9 +119,9 @@ async def test_live_word_tools_exist_only_on_local_stdio(tmp_path: Path) -> None
         assert "expected_version" in schema["required"], name
         assert schema["properties"]["expected_version"]["type"] == "integer", name
         assert schema["properties"]["expected_version"]["minimum"] == 0, name
-    assert "expected_version" not in mapping[
-        "execute_live_word_member_operations"
-    ].inputSchema.get("required", [])
+    assert "expected_version" not in mapping["execute_live_word_member_operations"].inputSchema.get(
+        "required", []
+    )
 
     live_batch_schema = mapping["apply_live_word_operations"].inputSchema
     Draft202012Validator.check_schema(live_batch_schema)
