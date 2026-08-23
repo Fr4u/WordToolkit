@@ -22,12 +22,13 @@ This directory documents the current contracts and their limits. The repository 
 - [Active content graph](ACTIVE-CONTENT-GRAPH.md)
 - [OfficeMath repair research](RESEARCH-OFFICEMATH-REPAIR-2026.md)
 - [Word render execution research](RESEARCH-WORD-RENDER-EXECUTION-2026.md)
+- [Guarded live SmartArt creation research](RESEARCH-SMARTART-CREATION-2026.md)
 
 ## How to read validation claims
 
 Package inspection and Open XML validation establish structural evidence only. Engine and Python tests establish behavior covered by those tests. LibreOffice output is a separate backend result. Microsoft Word layout, field refresh, equation normalization, COM behavior and version-specific compatibility require a real Word run on a declared build. If that evidence is absent, the claim is unverified.
 
-The public work currently tracked in [draft PR #3](https://github.com/Fr4u/WordToolkit/pull/3) is not a completion certificate for the broader document-engine objective.
+The current development line is not a completion certificate for the broader document-engine objective.
 # Release qualification
 
 - [WordToolkit 0.60.1 qualification](RELEASE-QUALIFICATION-0.60.1.md)

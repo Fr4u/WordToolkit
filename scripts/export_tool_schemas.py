@@ -214,6 +214,10 @@ narrow live mutation path for node text. Tokens bind one node to the complete
 Word-executed SmartArt structure and text context; apply performs exact readback in one
 Undo record and rolls back if Word changes structure, an untargeted node or the requested
 text. Node creation/deletion/reordering and layout/style/color mutation remain unsupported.
+`inspect_live_word_smartart_layouts` adds a bounded paged layout catalog with opaque
+document-version-bound tokens; `insert_live_word_smartart` consumes one such token and
+one range/selection token for guarded inline insertion with count/readback verification,
+one Undo record and rollback.
 `insert_live_word_caption`, `insert_live_word_table_of_figures` and
 `insert_live_word_table_of_contents` are guarded live Word mutations. The first two
 resolve localized built-in or exact existing custom caption labels. The contents action

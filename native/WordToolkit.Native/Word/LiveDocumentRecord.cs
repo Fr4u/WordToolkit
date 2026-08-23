@@ -68,3 +68,11 @@ internal sealed record SmartArtTextEditGrant(
     string NodeTextHash,
     IReadOnlyList<string> BaselineNodeTextHashes
 );
+
+internal sealed record SmartArtLayoutGrant(
+    string Token,
+    string DocumentId,
+    long Version,
+    int LayoutIndex,
+    string LayoutId
+);

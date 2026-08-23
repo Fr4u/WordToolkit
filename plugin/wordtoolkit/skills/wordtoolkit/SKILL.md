@@ -14,6 +14,12 @@ Transform changes must use the reviewed generic patch workflow. This token is no
 password or identity proof. Other typed mutators and the legacy Python publication path
 remain outside universal enforcement.
 
+For SmartArt, use `inspect_live_word_smartart_layouts` first and bind its fresh
+`smartart_layout_token` to the connected document version. Then acquire exactly one
+selection or range token and call `insert_live_word_smartart`; it is inline-only,
+uses one guarded Undo record, and must pass native count/readback verification.
+Never reuse a layout token after the document version changes or pass raw COM/XML.
+
 Use the small core catalog directly. Rare actions are lazy: search by capability
 with `search_wordtoolkit_actions`, inspect only the chosen action, then execute
 it. If the exact action name is already known, skip search. Keep

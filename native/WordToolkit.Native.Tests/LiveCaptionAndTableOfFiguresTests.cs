@@ -984,6 +984,7 @@ public sealed class CaptionFakeApplication
         Selection = new CaptionFakeSelection(ActiveDocument.Range(8, 16));
         UndoRecord = new CaptionFakeUndoRecord(ActiveDocument);
         CaptionLabels = new CaptionFakeCaptionLabels();
+        SmartArtLayouts = new CaptionFakeSmartArtLayouts();
     }
 
     public CaptionFakeDocument ActiveDocument { get; set; }
@@ -992,6 +993,7 @@ public sealed class CaptionFakeApplication
     public CaptionFakeWindow ActiveWindow { get; } = new();
     public CaptionFakeUndoRecord UndoRecord { get; }
     public CaptionFakeCaptionLabels CaptionLabels { get; }
+    public CaptionFakeSmartArtLayouts SmartArtLayouts { get; }
     public bool ScreenUpdating { get; set; } = true;
 }
 
@@ -1009,6 +1011,7 @@ public sealed class CaptionFakeDocument
 {
     private readonly CaptionFakeApplication _application;
     private int _undoFieldCount;
+    private int _undoInlineShapeCount;
     private const string Body = "Document body with one selected object and enough context for hashing.\r";
 
     public CaptionFakeDocument(CaptionFakeApplication application)
@@ -1019,6 +1022,7 @@ public sealed class CaptionFakeDocument
         TablesOfFigures = new CaptionFakeTablesOfFigures(this);
         TablesOfAuthorities = new CaptionFakeReferenceTables(this);
         Indexes = new CaptionFakeIndexes(this);
+        InlineShapes = new CaptionFakeInlineShapes(this);
     }
 
     public string Name => "Captions.docx";
@@ -1039,7 +1043,7 @@ public sealed class CaptionFakeDocument
     public CaptionFakeCountCollection OMaths { get; } = new(0);
     public CaptionFakeCountCollection Tables { get; } = new(1);
     public CaptionFakeBookmarks Bookmarks { get; } = new();
-    public CaptionFakeCountCollection InlineShapes { get; } = new(1);
+    public CaptionFakeInlineShapes InlineShapes { get; }
     public CaptionFakeCountCollection Shapes { get; } = new(0);
     public CaptionFakeCountCollection Comments { get; } = new(0);
     public CaptionFakeCountCollection Footnotes { get; } = new(0);
@@ -1053,6 +1057,8 @@ public sealed class CaptionFakeDocument
         TablesOfFigures.RollbackFingerprint,
         TablesOfAuthorities.RollbackFingerprint,
         Indexes.RollbackFingerprint
+        ,
+        InlineShapes.Count
     );
     public bool SuppressCaptionField { get; set; }
     public string LastCaptionLabel { get; private set; } = "";
@@ -1086,6 +1092,7 @@ public sealed class CaptionFakeDocument
     public void BeginUndoSnapshot()
     {
         _undoFieldCount = Fields.Count;
+        _undoInlineShapeCount = InlineShapes.Count;
         TablesOfContents.CaptureUndoSnapshot();
         TablesOfFigures.CaptureUndoSnapshot();
         TablesOfAuthorities.CaptureUndoSnapshot();
@@ -1103,6 +1110,7 @@ public sealed class CaptionFakeDocument
         TablesOfFigures.RestoreUndoSnapshot();
         TablesOfAuthorities.RestoreUndoSnapshot();
         Indexes.RestoreUndoSnapshot();
+        InlineShapes.Trim(_undoInlineShapeCount);
         UndoCount++;
         return true;
     }
@@ -1723,6 +1731,84 @@ public sealed class CaptionFakeUndoRecord
     }
 
     public void EndCustomRecord() => EndCount++;
+}
+
+public sealed class CaptionFakeSmartArtLayouts
+{
+    private readonly CaptionFakeSmartArtLayout[] _items =
+    [
+        new("urn:wordtoolkit:smartart:basic-process", "Basic Process", "Process", "A bounded process layout"),
+        new("urn:wordtoolkit:smartart:basic-cycle", "Basic Cycle", "Cycle", "A bounded cycle layout"),
+    ];
+
+    public int Count => _items.Length;
+
+    public CaptionFakeSmartArtLayout Item(int index) =>
+        index >= 1 && index <= _items.Length
+            ? _items[index - 1]
+            : throw new IndexOutOfRangeException();
+}
+
+public sealed record CaptionFakeSmartArtLayout(
+    string Id,
+    string Name,
+    string Category,
+    string Description
+);
+
+public sealed class CaptionFakeInlineShapes
+{
+    private readonly CaptionFakeDocument _document;
+    private readonly List<CaptionFakeInlineSmartArt> _items = [];
+
+    public CaptionFakeInlineShapes(CaptionFakeDocument document) => _document = document;
+
+    public int Count => 1 + _items.Count;
+    public bool ReturnWrongLayout { get; set; }
+
+    public CaptionFakeInlineSmartArt AddSmartArt(
+        CaptionFakeSmartArtLayout layout,
+        CaptionFakeRange range
+    )
+    {
+        var inserted = new CaptionFakeInlineSmartArt(
+            ReturnWrongLayout
+                ? new CaptionFakeSmartArtLayout(
+                    "urn:wordtoolkit:smartart:wrong",
+                    "Wrong",
+                    "Wrong",
+                    "Synthetic mismatch"
+                )
+                : layout,
+            _document.Range(range.Start, range.Start + 1)
+        );
+        _items.Add(inserted);
+        return inserted;
+    }
+
+    public void Trim(int count)
+    {
+        var dynamicCount = Math.Max(0, count - 1);
+        if (_items.Count > dynamicCount)
+        {
+            _items.RemoveRange(dynamicCount, _items.Count - dynamicCount);
+        }
+    }
+}
+
+public sealed class CaptionFakeInlineSmartArt(
+    CaptionFakeSmartArtLayout layout,
+    CaptionFakeRange range
+)
+{
+    public int HasSmartArt => -1;
+    public CaptionFakeRange Range { get; } = range;
+    public CaptionFakeSmartArt SmartArt { get; } = new(layout);
+}
+
+public sealed class CaptionFakeSmartArt(CaptionFakeSmartArtLayout layout)
+{
+    public CaptionFakeSmartArtLayout Layout { get; } = layout;
 }
 
 public sealed class CaptionFakeCountCollection

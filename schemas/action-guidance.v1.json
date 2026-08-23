@@ -3495,7 +3495,9 @@
       "prerequisites": [
         "explicit existing local_path"
       ],
-      "acquisition_steps": [],
+      "acquisition_steps": [
+        "Use view=comments to obtain comments[].comment_id before planning comment-body edits"
+      ],
       "bindings": {
         "local_path": {
           "source": "external_input"
@@ -4515,6 +4517,99 @@
       ]
     },
     {
+      "name": "inspect_live_word_smartart_layouts",
+      "prerequisites": [],
+      "acquisition_steps": [
+        "Bind smartart_layout_token and layout_id from layouts[] for the same live_document_id/live_version; tokens expire with version"
+      ],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "inspect_live_word_smartart_layouts",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "live.lifecycle"
+      ]
+    },
+    {
+      "name": "insert_live_word_smartart",
+      "prerequisites": [
+        "fresh expected_version from live response",
+        "Use only inline insertion and treat layout tokens as one-time/version-bound"
+      ],
+      "acquisition_steps": [
+        "Bind smartart_layout_token from inspect_live_word_smartart_layouts and exactly one fresh range_token from find_live_word_text or selection_token from get_live_word_selection"
+      ],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        },
+        "smartart_layout_token": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_smartart",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          },
+          "smartart_layout_token": "<bind:smartart_layout_token>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "ok",
+          "data"
+        ],
+        "predicates": [
+          "ok is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        },
+        "ROLLBACK_FAILED": {
+          "next_action": "disconnect_live_word_document",
+          "bindings": {
+            "live_document_id": "live_document_id"
+          }
+        }
+      },
+      "recipe_ids": [
+        "live.transactional"
+      ]
+    },
+    {
       "name": "inspect_live_word_equation_learning",
       "prerequisites": [],
       "acquisition_steps": [],
@@ -4685,7 +4780,9 @@
       "prerequisites": [
         "fresh expected_version from live response"
       ],
-      "acquisition_steps": [],
+      "acquisition_steps": [
+        "Bind result_id only from the preceding preflight or inspect response; never invent a member result ID"
+      ],
       "bindings": {
         "live_document_id": {
           "source": "external_input"
@@ -4725,7 +4822,7 @@
         }
       },
       "recipe_ids": [
-        "native.default"
+        "live.member_executor"
       ]
     },
     {
@@ -6399,7 +6496,8 @@
       "name": "save_live_word_document",
       "prerequisites": [
         "live_document_id acquired from a lifecycle action",
-        "fresh expected_version from live response"
+        "fresh expected_version from live response",
+        "Treat save as persistence only: it does not mutate document content or increment live_version"
       ],
       "acquisition_steps": [],
       "bindings": {
@@ -6435,7 +6533,7 @@
         }
       },
       "recipe_ids": [
-        "native.default"
+        "live.lifecycle"
       ]
     },
     {

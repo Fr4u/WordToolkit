@@ -1,6 +1,6 @@
 # AI interoperability contract
 
-The current native metadata contract covers all 149 actions; remaining 0 are still uncovered.
+The current native metadata contract covers all 151 actions; remaining 0 are still uncovered.
 
 ## First-call guidance
 
@@ -8,7 +8,7 @@ Every native action has a generated guidance record: search when the capability 
 unknown, inspect the exact action, bind prerequisites and acquire missing identifiers,
 versions or fingerprints, use the minimal template example, execute, then verify the
 declared success paths. Recovery mappings describe refresh/re-plan steps and explicit
-rollback or quarantine stops. The 149/149 parity is enforced by
+rollback or quarantine stops. The 151/151 parity is enforced by
 `scripts/generate_action_guidance.py --check` and `tests/test_action_guidance_contract.py`.
 
 ## Scope
@@ -174,7 +174,7 @@ The response identifies:
 - `protocols.mcp`: MCP protocol version retained from that same schema;
 - `compatibility_policy`: the source schema's declared compatibility rule;
 - `source.schema_sha256`: exact embedded local schema bytes;
-- `source.native_action_contract_sha256`: canonical native 149-action subset, core
+- `source.native_action_contract_sha256`: canonical native 151-action subset, core
   exposure registry and header;
 - `source.capability_schema_sha256`: normative capability JSON Schema bytes.
 
@@ -223,7 +223,7 @@ coverage gaps visible.
 
 The manifest does not return full input schemas. After selecting one operation, call
 `inspect_wordtoolkit_action`; execute only after validating its schema and effect hints.
-This keeps discovery bounded instead of paying for all 149 schemas.
+This keeps discovery bounded instead of paying for all 151 schemas.
 
 `inspect_wordtoolkit_action` also returns the deterministic `guidance` record from
 `action-guidance.v1.json`: prerequisites, acquisition steps, a minimal gateway example,
@@ -233,7 +233,7 @@ invent fingerprints, versions, plans or tokens, and preserve exact plan/apply ar
 ## Metadata coverage is evidence, not decoration
 
 `metadata_coverage` counts canonical fields actually present in the embedded source.
-All 149 operations have input schemas and MCP effect annotations. Extension catalog,
+All 151 operations have input schemas and MCP effect annotations. Extension catalog,
 high-level content-free document analysis, the explicit LibreOffice identity probe,
 observability and OOXML-encryption/signature/numbering inspection, semantic query,
 typed heading-outline and mathematical-role inspection, semantic HTML/SVG rendering, Word-authoritative
@@ -241,12 +241,12 @@ fixed PDF/PNG rendering, semantic-style
 plan/apply, comment-body plan/apply, equation-paragraph inspect/plan/apply and the
 safe formatter plan/apply plus the Word-executed drawing-layout and version-profile inspectors,
 isolated feature-behavior probes and guarded
-SmartArt text prepare/apply pair, native caption/table-of-figures/table-of-contents
+SmartArt layout inspection/insertion and text prepare/apply pair, native caption/table-of-figures/table-of-contents
 insertion, native authority-citation marking/table-of-authorities insertion, native
 index-entry/index insertion, guarded reference-table update and the saved-package
 patch rollback plan/apply pair, numbering-repair plan/apply pair, relationship inspection/repair trio, deterministic template-style alignment inspect/plan/apply trio and Flat OPC conversion have explicit
 output-schema, permission, reversibility and
-per-operation-version metadata; all 149 operations are covered and remaining 0 are
+per-operation-version metadata; all 151 operations are covered and remaining 0 are
 uncovered. This metadata does not erase the boundary around ManualFix, SmartArt and
 feature-behavior probes: an AI planner must still inspect the chosen operation and
 obtain explicit user approval for risky mutations, and must not infer unsupported

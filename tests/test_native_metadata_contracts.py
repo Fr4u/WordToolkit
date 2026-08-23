@@ -15,8 +15,8 @@ def test_all_native_actions_have_metadata_without_catalog_drift() -> None:
     catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v1.json").read_text())
     actions = catalog["native_runtime"]["actions"]
     tools = {tool["name"]: tool for tool in catalog["tools"]}
-    assert len(actions) == 149
-    assert len(tools) == 214
+    assert len(actions) == 151
+    assert len(tools) == 216
     for action in actions:
         name = action if isinstance(action, str) else action["name"]
         tool = tools[name]

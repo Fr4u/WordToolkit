@@ -80,6 +80,7 @@ internal sealed partial class WordLiveService : IToolHandler
     private readonly ConcurrentDictionary<string, EquationGrant> _equationGrants = new();
     private readonly ConcurrentDictionary<string, SmartArtTextEditGrant> _smartArtTextEditGrants =
         new();
+    private readonly ConcurrentDictionary<string, SmartArtLayoutGrant> _smartArtLayoutGrants = new();
     private readonly byte[] _smartArtFingerprintKey = RandomNumberGenerator.GetBytes(32);
     private readonly ConcurrentDictionary<string, CachedSemanticIndex> _semanticIndexes = new();
     private readonly object _semanticIndexGate = new();
@@ -553,6 +554,8 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "inspect_live_word_smartart_layouts" => InspectSmartArtLayoutsAsync(arguments, cancellationToken),
+            "insert_live_word_smartart" => InsertSmartArtAsync(arguments, cancellationToken),
             "inspect_live_word_equation_learning" => InspectEquationLearning(),
             "inspect_live_word_structure_learning" => InspectStructureLearning(),
             "inspect_live_word_object_model_types" => InspectObjectModelTypesAsync(
@@ -4128,6 +4131,7 @@ internal sealed partial class WordLiveService : IToolHandler
         _undoGrants.Clear();
         _rangeGrants.Clear();
         _smartArtTextEditGrants.Clear();
+        _smartArtLayoutGrants.Clear();
         _reviewGrants.Clear();
         return result;
     }
@@ -5485,6 +5489,7 @@ internal sealed partial class WordLiveService : IToolHandler
         }
         InvalidateEquationGrants(documentId);
         InvalidateReviewGrants(documentId);
+        InvalidateSmartArtLayoutGrants(documentId);
     }
 
     private void InvalidateEquationGrants(string documentId)

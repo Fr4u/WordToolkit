@@ -12,8 +12,8 @@ GATEWAY_CONST = re.compile(r'private const string \w+Name = "(?P<name>[a-z0-9_]+
 def test_every_native_action_has_a_dispatch_case() -> None:
     catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v1.json").read_text(encoding="utf-8"))
     actions = catalog["native_runtime"]["actions"]
-    assert len(actions) == 149
-    assert len(set(actions)) == 149
+    assert len(actions) == 151
+    assert len(set(actions)) == 151
 
     sources = [ROOT / "native" / "WordToolkit.Native" / "Word" / "WordLiveService.cs"]
     dispatch = []
@@ -24,7 +24,7 @@ def test_every_native_action_has_a_dispatch_case() -> None:
     missing = sorted(set(actions) - set(dispatch))
     assert not duplicates, f"duplicate dispatcher cases: {duplicates}"
     assert not missing, f"native actions without dispatcher cases: {missing}"
-    assert len(dispatch) == 149, f"expected 149 dispatcher cases, got {len(dispatch)}"
+    assert len(dispatch) == 151, f"expected 151 dispatcher cases, got {len(dispatch)}"
 
     handler_sources = sorted(
         (ROOT / "native" / "WordToolkit.Native" / "Word").glob("WordLiveService*.cs")
