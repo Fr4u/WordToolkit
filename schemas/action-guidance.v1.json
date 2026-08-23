@@ -1096,7 +1096,6 @@
           "applied",
           "no_op",
           "package_fingerprint",
-          "backup_path",
           "changed_entry_names"
         ],
         "predicates": [
@@ -1274,10 +1273,8 @@
         "required_paths": [
           "merge_id",
           "merge_apply_plan_id",
-          "risk",
           "hard_block_codes",
-          "required_authorizations",
-          "protection_authorization_id"
+          "required_authorizations"
         ],
         "predicates": []
       },

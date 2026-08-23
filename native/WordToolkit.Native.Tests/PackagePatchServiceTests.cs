@@ -38,6 +38,16 @@ public sealed class PackagePatchServiceTests
             "^wtrollback_[A-Za-z0-9_-]+$",
             plan["outputSchema"]!["properties"]!["data"]!["properties"]!["protection_authorization_id"]!["pattern"]!.GetValue<string>()
         );
+        Assert.DoesNotContain(
+            "protection_authorization_id",
+            plan["outputSchema"]!["properties"]!["data"]!["required"]!.AsArray()
+                .Select(item => item!.GetValue<string>())
+        );
+        Assert.DoesNotContain(
+            "backup_path",
+            apply["outputSchema"]!["properties"]!["data"]!["required"]!.AsArray()
+                .Select(item => item!.GetValue<string>())
+        );
         Assert.Equal(
             "wordtoolkit.plan_ooxml_patch_rollback/1.0",
             plan["outputSchema"]!["properties"]!["data"]!["properties"]!["operation_contract"]!["const"]!.GetValue<string>()
@@ -84,6 +94,10 @@ public sealed class PackagePatchServiceTests
         );
         Assert.DoesNotContain(
             "plan_id",
+            applyOutput["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.DoesNotContain(
+            "backup_path",
             applyOutput["required"]!.AsArray().Select(item => item!.GetValue<string>())
         );
         Assert.Equal(

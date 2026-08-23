@@ -2062,7 +2062,10 @@ public sealed class WordReviewGraphBuilder
         if (
             !element.Attributes().Any(attribute =>
                 !attribute.IsNamespaceDeclaration
-                && attribute.Name.Namespace == element.Name.Namespace
+                && (
+                    attribute.Name.Namespace == element.Name.Namespace
+                    || attribute.Name.Namespace == XNamespace.None
+                )
                 && !PermissionAttributeNames.Contains(attribute.Name.LocalName)
             )
         )

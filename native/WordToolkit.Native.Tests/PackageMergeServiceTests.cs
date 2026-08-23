@@ -23,8 +23,12 @@ public sealed class PackageMergeServiceTests
             "merge_apply_plan_id",
             output["required"]!.AsArray().Select(item => item!.GetValue<string>())
         );
-        Assert.Contains(
+        Assert.DoesNotContain(
             "protection_authorization_id",
+            output["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.DoesNotContain(
+            "risk",
             output["required"]!.AsArray().Select(item => item!.GetValue<string>())
         );
         Assert.Equal(

@@ -8370,7 +8370,6 @@
             "applied",
             "no_op",
             "package_fingerprint",
-            "backup_path",
             "changed_entry_names"
         ],
         "properties": {
@@ -8759,7 +8758,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "patch_file_name", "source_patch_id", "reverse_patch_id", "rollback_plan_id", "rolled_back", "no_op", "package_fingerprint", "backup_path", "changed_entry_names", "explicit_authorizations", "raw_payloads_returned", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
+            "required": ["operation_contract", "file_name", "patch_file_name", "source_patch_id", "reverse_patch_id", "rollback_plan_id", "rolled_back", "no_op", "package_fingerprint", "changed_entry_names", "explicit_authorizations", "raw_payloads_returned", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.apply_ooxml_patch_rollback/1.0"},
               "file_name": {"type": "string", "maxLength": 512},
@@ -8915,10 +8914,8 @@
         "required": [
             "merge_id",
             "merge_apply_plan_id",
-            "risk",
             "hard_block_codes",
-            "required_authorizations",
-            "protection_authorization_id"
+            "required_authorizations"
         ],
         "properties": {
             "merge_id": {
@@ -9687,7 +9684,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "target_file_name", "template_file_name", "plan_id", "applied", "candidate_count", "aligned_style_count", "added_style_count", "replaced_style_count", "previous_target_package_fingerprint", "template_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "backup_path", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "localized_name_matching_used", "template_attached", "template_mutation_performed", "document_text_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "required": ["operation_contract", "target_file_name", "template_file_name", "plan_id", "applied", "candidate_count", "aligned_style_count", "added_style_count", "replaced_style_count", "previous_target_package_fingerprint", "template_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "localized_name_matching_used", "template_attached", "template_mutation_performed", "document_text_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.apply_ooxml_template_style_alignment/1.0"},
               "target_file_name": {"type": "string", "maxLength": 512},
@@ -10199,7 +10196,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "repair_kind", "scope", "plan_id", "applied", "no_op", "affected_paragraph_count", "source_number_id", "new_number_id", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "backup_path", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "paragraph_text_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "required": ["operation_contract", "file_name", "repair_kind", "scope", "plan_id", "applied", "no_op", "affected_paragraph_count", "source_number_id", "new_number_id", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "paragraph_text_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.apply_ooxml_numbering_repair/1.0"},
               "file_name": {"type": "string", "maxLength": 512},
@@ -10497,7 +10494,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "rebuild_kind", "plan_id", "applied", "no_op", "command_count", "target_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "backup_path", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "paragraph_text_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "required": ["operation_contract", "file_name", "rebuild_kind", "plan_id", "applied", "no_op", "command_count", "target_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "paragraph_text_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.apply_ooxml_numbering_rebuild/1.0"}, "file_name": {"type": "string", "maxLength": 512}, "rebuild_kind": {"const": "semantic_numbering_reconstruction"},
               "plan_id": {"type": "string", "pattern": "^wnrbplan_[A-Za-z0-9_-]+$", "maxLength": 128}, "applied": {"const": true}, "no_op": {"const": false}, "command_count": {"type": "integer", "minimum": 1, "maximum": 32}, "target_count": {"type": "integer", "minimum": 1, "maximum": 10000},
@@ -11376,7 +11373,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "repair_kind", "plan_id", "applied", "definition_id", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "backup_path", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "required": ["operation_contract", "file_name", "repair_kind", "plan_id", "applied", "definition_id", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "raw_xml_returned", "mutation_performed", "word_opened"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.apply_ooxml_note_repair/1.0"},
               "file_name": {"type": "string", "maxLength": 512},
@@ -11655,7 +11652,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "plan_id", "applied", "candidate_count", "removed_group_member_count", "removed_xml_element_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "backup_path", "changed_entry_names", "diagnostic_count", "microsoft_schema_no_new_errors", "microsoft_schema_errors_reduced", "sensitive_equation_text_returned", "raw_omml_returned", "mutation_performed", "word_opened"],
+            "required": ["operation_contract", "file_name", "plan_id", "applied", "candidate_count", "removed_group_member_count", "removed_xml_element_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "diagnostic_count", "microsoft_schema_no_new_errors", "microsoft_schema_errors_reduced", "sensitive_equation_text_returned", "raw_omml_returned", "mutation_performed", "word_opened"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.apply_ooxml_equation_repair/1.0"},
               "file_name": {"type": "string", "maxLength": 512},
@@ -11917,7 +11914,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "repair_kind", "plan_id", "applied", "command_count", "removed_relationship_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "backup_path", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "external_targets_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "required": ["operation_contract", "file_name", "repair_kind", "plan_id", "applied", "command_count", "removed_relationship_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "external_targets_returned", "raw_xml_returned", "mutation_performed", "word_opened"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.apply_ooxml_relationship_repair/1.0"},
               "file_name": {"type": "string", "maxLength": 512},
@@ -16638,7 +16635,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "plan_id", "applied", "no_op", "package_fingerprint", "backup_path", "changed_entry_names", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "raw_xml_returned", "mutation_performed", "word_opened"],
+            "required": ["operation_contract", "file_name", "plan_id", "applied", "no_op", "package_fingerprint", "changed_entry_names", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "raw_xml_returned", "mutation_performed", "word_opened"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.apply_ooxml_semantic_edits/1.0"},
               "file_name": {"type": "string", "maxLength": 512},
@@ -16884,7 +16881,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "plan_id", "applied", "no_op", "paragraph_count", "equation_anchor_count", "text_node_operation_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "backup_path", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "exact_equation_bytes_preserved", "paragraph_structure_preserved", "exact_inverse_verified", "raw_text_returned", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
+            "required": ["operation_contract", "file_name", "plan_id", "applied", "no_op", "paragraph_count", "equation_anchor_count", "text_node_operation_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "exact_equation_bytes_preserved", "paragraph_structure_preserved", "exact_inverse_verified", "raw_text_returned", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.apply_ooxml_equation_paragraph_rewrites/1.0"},
               "file_name": {"type": "string", "maxLength": 512},
@@ -17121,7 +17118,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "file_name", "plan_id", "applied", "no_op", "comment_count", "text_node_operation_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "backup_path", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "raw_text_returned", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
+            "required": ["operation_contract", "file_name", "plan_id", "applied", "no_op", "comment_count", "text_node_operation_count", "previous_package_fingerprint", "package_fingerprint", "predicted_package_fingerprint", "changed_entry_names", "diagnostic_count", "microsoft_schema_valid", "microsoft_schema_no_new_errors", "raw_text_returned", "raw_xml_returned", "mutation_performed", "word_opened", "runtime", "python_used", "performance"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.apply_ooxml_comment_body_edits/1.0"},
               "file_name": {"type": "string", "maxLength": 512},

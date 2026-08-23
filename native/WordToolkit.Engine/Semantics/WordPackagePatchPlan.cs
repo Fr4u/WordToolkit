@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Text;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Xml;
@@ -666,10 +667,6 @@ public static class WordPackagePatchRiskAnalyzer
         if (!unmodeled)
         {
             var element = elements[0];
-            var misplacedProtectionAttribute = element.Attributes.Any(attribute =>
-                attribute.LocalName is "enforcement" or "edit"
-                && attribute.NamespaceUri != element.NamespaceUri
-            );
             var rawEnforcement = element.Attributes.FirstOrDefault(attribute =>
                 attribute.LocalName == "enforcement"
                 && attribute.NamespaceUri == element.NamespaceUri
@@ -680,7 +677,8 @@ public static class WordPackagePatchRiskAnalyzer
                 && attribute.NamespaceUri == element.NamespaceUri
             )?.Value;
             if (
-                misplacedProtectionAttribute
+                !HasModeledDocumentProtectionContent(element)
+                || !HasModeledDocumentProtectionAttributes(element)
                 || parsedEnforcement is null
                 || editMode?.Length > 64
                 || !IsDocumentProtectionEditMode(editMode)
@@ -714,6 +712,128 @@ public static class WordPackagePatchRiskAnalyzer
             editMode
         );
     }
+
+    private static bool HasModeledDocumentProtectionContent(
+        XmlSourceElement element
+    ) => element.Children.Count == 0
+        && !element.HasLexicalMarkupInContent
+        && string.IsNullOrWhiteSpace(element.Value);
+
+    private static bool HasModeledDocumentProtectionAttributes(
+        XmlSourceElement element
+    )
+    {
+        const string xmlNamespaceDeclaration = "http://www.w3.org/2000/xmlns/";
+        foreach (var attribute in element.Attributes)
+        {
+            if (attribute.NamespaceUri == xmlNamespaceDeclaration)
+            {
+                continue;
+            }
+            if (attribute.NamespaceUri != element.NamespaceUri)
+            {
+                if (
+                    attribute.NamespaceUri.Length == 0
+                    || DocumentProtectionAttributeNames.Contains(attribute.LocalName)
+                )
+                {
+                    return false;
+                }
+                continue;
+            }
+            if (
+                !DocumentProtectionAttributeNames.Contains(attribute.LocalName)
+                || !IsValidDocumentProtectionAttribute(
+                    attribute.LocalName,
+                    attribute.Value
+                )
+            )
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool IsValidDocumentProtectionAttribute(
+        string localName,
+        string value
+    ) => localName switch
+    {
+        "edit" => value.Length <= 64 && IsDocumentProtectionEditMode(value),
+        "enforcement" or "formatting" => ParseOnOff(value) is not null,
+        "cryptProviderType" => value is "rsaAES" or "rsaFull" or "custom",
+        "cryptAlgorithmClass" => value is "hash" or "custom",
+        "cryptAlgorithmType" => value is "typeAny" or "custom",
+        "cryptAlgorithmSid" => value.Trim() is "1" or "2" or "3" or "4" or "12" or "13" or "14",
+        "cryptSpinCount" => TryParseBoundedUInt32(value, 5_000_000),
+        "spinCount" => TryParseNonNegativeInt32(value),
+        "algIdExt" or "cryptProviderTypeExt" => IsLongHexNumber(value),
+        "hash" or "salt" or "hashValue" or "saltValue" => IsBoundedBase64(value),
+        "algorithmName" => value.Length <= 256,
+        "cryptProvider" or "algIdExtSource" or "cryptProviderTypeExtSource" => value.Length <= 2_048,
+        _ => false,
+    };
+
+    private static bool TryParseBoundedUInt32(string value, uint maximum) =>
+        uint.TryParse(
+            value.Trim(),
+            NumberStyles.None,
+            CultureInfo.InvariantCulture,
+            out var parsed
+        ) && parsed <= maximum;
+
+    private static bool TryParseNonNegativeInt32(string value) =>
+        int.TryParse(
+            value.Trim(),
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out var parsed
+        ) && parsed >= 0;
+
+    private static bool IsLongHexNumber(string value) => value.Length == 8
+        && value.All(character =>
+            character is >= '0' and <= '9'
+                or >= 'a' and <= 'f'
+                or >= 'A' and <= 'F'
+        );
+
+    private static bool IsBoundedBase64(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length > 8_192)
+        {
+            return false;
+        }
+        return Convert.TryFromBase64String(
+            value,
+            new byte[value.Length],
+            out _
+        );
+    }
+
+    private static readonly IReadOnlySet<string> DocumentProtectionAttributeNames =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "algIdExt",
+            "algIdExtSource",
+            "algorithmName",
+            "cryptAlgorithmClass",
+            "cryptAlgorithmSid",
+            "cryptAlgorithmType",
+            "cryptProvider",
+            "cryptProviderType",
+            "cryptProviderTypeExt",
+            "cryptProviderTypeExtSource",
+            "cryptSpinCount",
+            "edit",
+            "enforcement",
+            "formatting",
+            "hash",
+            "hashValue",
+            "salt",
+            "saltValue",
+            "spinCount",
+        };
 
     private static bool? ParseOnOff(string? value) => value switch
     {

@@ -1032,7 +1032,6 @@
           "applied",
           "no_op",
           "package_fingerprint",
-          "backup_path",
           "changed_entry_names"
         ],
         "properties": {
@@ -1084,10 +1083,8 @@
         "required": [
           "merge_id",
           "merge_apply_plan_id",
-          "risk",
           "hard_block_codes",
-          "required_authorizations",
-          "protection_authorization_id"
+          "required_authorizations"
         ],
         "properties": {
           "merge_id": {

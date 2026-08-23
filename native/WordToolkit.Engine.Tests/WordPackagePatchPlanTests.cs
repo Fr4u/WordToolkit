@@ -334,6 +334,68 @@ public sealed class WordPackagePatchPlanTests
         Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
     }
 
+    [Fact]
+    public void UnqualifiedPermissionAttributesAreNonOverridable()
+    {
+        var before = Read(BuildPackage(
+            "unused",
+            documentXml: UnqualifiedPermissionAttributeDocumentXml("before")
+        ));
+        var after = Read(BuildPackage(
+            "unused",
+            documentXml: UnqualifiedPermissionAttributeDocumentXml("after")
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.Contains(
+            "PERMISSION_ATTRIBUTE_UNKNOWN",
+            plan.RiskAssessment.Protection.PermissionIssueCodes
+        );
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Fact]
+    public void UnqualifiedKnownPermissionAttributesAreNonOverridable()
+    {
+        var before = Read(BuildPackage(
+            "unused",
+            documentXml: UnqualifiedKnownPermissionAttributeDocumentXml("before")
+        ));
+        var after = Read(BuildPackage(
+            "unused",
+            documentXml: UnqualifiedKnownPermissionAttributeDocumentXml("after")
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.Contains(
+            "PERMISSION_ATTRIBUTE_NAMESPACE_INVALID",
+            plan.RiskAssessment.Protection.PermissionIssueCodes
+        );
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -513,6 +575,132 @@ public sealed class WordPackagePatchPlanTests
         });
         Assert.False(decision.CanApply);
         Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Theory]
+    [InlineData("w:formatting='bogus'")]
+    [InlineData("w:cryptSpinCount='-1'")]
+    [InlineData("w:cryptSpinCount='5000001'")]
+    [InlineData("w:cryptAlgorithmSid='11'")]
+    [InlineData("w:hash='not-base64'")]
+    [InlineData("w:algIdExt='00'")]
+    [InlineData("w:bogus='x'")]
+    [InlineData("bogus='x'")]
+    public void MalformedProtectionAttributesAreNonOverridable(string attribute)
+    {
+        var settings =
+            "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+            + $"<w:documentProtection w:edit='readOnly' w:enforcement='1' {attribute}/>"
+            + "</w:settings>";
+        var before = Read(BuildPackage(
+            "before",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+        var after = Read(BuildPackage(
+            "after",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.True(
+            plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
+        );
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Fact]
+    public void ProtectionElementContentIsNonOverridable()
+    {
+        const string settings =
+            "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+            + "<w:documentProtection w:edit='readOnly' w:enforcement='1'><w:r/></w:documentProtection>"
+            + "</w:settings>";
+        var before = Read(BuildPackage(
+            "before",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+        var after = Read(BuildPackage(
+            "after",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.True(
+            plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
+        );
+        Assert.Contains(
+            "protection_metadata_malformed",
+            plan.Evaluate(new WordPackagePatchApplyPolicy
+            {
+                AllowProtectedDocumentEdit = true,
+            }).BlockCodes
+        );
+    }
+
+    [Fact]
+    public void ValidProtectionAttributesRemainModeled()
+    {
+        const string settings =
+            "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+            + "<w:documentProtection w:edit='readOnly' w:enforcement='1' w:formatting='on' "
+            + "w:cryptProviderType='rsaAES' w:cryptAlgorithmClass='hash' w:cryptAlgorithmType='typeAny' "
+            + "w:cryptAlgorithmSid='14' w:cryptSpinCount='5000000' w:cryptProvider='provider' "
+            + "w:algIdExt='00112233' w:algIdExtSource='source' w:cryptProviderTypeExt='AABBCCDD' "
+            + "w:cryptProviderTypeExtSource='source' w:hash='YWJj' w:salt='ZA==' "
+            + "w:algorithmName='SHA-512' w:hashValue='YWJj' w:saltValue='ZA==' w:spinCount='100000'/>"
+            + "</w:settings>";
+        var before = Read(BuildPackage(
+            "before",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+        var after = Read(BuildPackage(
+            "after",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.False(
+            plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
+        );
+        Assert.True(plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        }).CanApply);
     }
 
     [Theory]
@@ -1427,6 +1615,18 @@ public sealed class WordPackagePatchPlanTests
         "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
         + "<w:body><w:p><w:permStart w:id='7' w:bogus='x'/>"
         + $"<w:r><w:t>{text}</w:t></w:r><w:permEnd w:id='7'/>"
+        + "</w:p></w:body></w:document>";
+
+    private static string UnqualifiedPermissionAttributeDocumentXml(string text) =>
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+        + "<w:body><w:p><w:permStart w:id='7' bogus='x'/>"
+        + $"<w:r><w:t>{text}</w:t></w:r><w:permEnd w:id='7'/>"
+        + "</w:p></w:body></w:document>";
+
+    private static string UnqualifiedKnownPermissionAttributeDocumentXml(string text) =>
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+        + "<w:body><w:p><w:permStart id='7' edGrp='everyone'/>"
+        + $"<w:r><w:t>{text}</w:t></w:r><w:permEnd id='7'/>"
         + "</w:p></w:body></w:document>";
 
     private static string SettingsXml(string? editMode, bool enforced) =>
