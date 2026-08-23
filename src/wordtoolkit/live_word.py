@@ -2153,37 +2153,61 @@ class LiveWordBridge:
             returned_results: list[dict[str, Any]] = []
 
             def apply_all() -> None:
-                for item in prepared:
-                    if item.target_kind == "document":
-                        target = document
-                    elif item.target_kind == "document_content":
-                        target = document.Content
-                    elif item.target_kind in {"selection", "selection_range"}:
-                        self._require_active(application, document)
-                        target = (
-                            application.Selection
-                            if item.target_kind == "selection"
-                            else application.Selection.Range
+                for index, item in enumerate(prepared):
+                    try:
+                        if item.target_kind == "document":
+                            target = document
+                        elif item.target_kind == "document_content":
+                            target = document.Content
+                        elif item.target_kind in {"selection", "selection_range"}:
+                            self._require_active(application, document)
+                            target = (
+                                application.Selection
+                                if item.target_kind == "selection"
+                                else application.Selection.Range
+                            )
+                        else:
+                            target = raw_results[item.target_result_id]
+                        value = self._invoke_member_operation(
+                            item,
+                            target,
+                            raw_results,
                         )
-                    else:
-                        target = raw_results[item.target_result_id]
-                    value = self._invoke_member_operation(
-                        item,
-                        target,
-                        raw_results,
-                    )
-                    if item.result_id:
-                        raw_results[item.result_id] = value
-                        returned_results.append(
+                        if item.result_id:
+                            raw_results[item.result_id] = value
+                            returned_results.append(
+                                {
+                                    "operation_id": item.operation_id,
+                                    "result_id": item.result_id,
+                                    **self._member_result_payload(
+                                        value,
+                                        str(item.profile["signature"]["return_type"]),
+                                    ),
+                                }
+                            )
+                    except WordToolkitError as exc:
+                        details = dict(exc.details or {})
+                        details.pop("failed_operation_index_available", None)
+                        details.pop("failure_scope", None)
+                        details["failed_operation_index"] = index
+                        raise WordToolkitError(
+                            exc.code,
+                            exc.message,
+                            details,
+                            exc.retryable,
+                        ) from exc
+                    except Exception as exc:
+                        raise WordToolkitError(
+                            ErrorCode.EXTERNAL_TOOL_FAILED,
+                            "A catalog-backed member operation failed",
                             {
                                 "operation_id": item.operation_id,
-                                "result_id": item.result_id,
-                                **self._member_result_payload(
-                                    value,
-                                    str(item.profile["signature"]["return_type"]),
-                                ),
-                            }
-                        )
+                                "capability_id": item.capability_id,
+                                "failed_operation_index": index,
+                                "exception": type(exc).__name__,
+                            },
+                            retryable=True,
+                        ) from exc
 
             if mutating:
                 with (
@@ -2220,7 +2244,24 @@ class LiveWordBridge:
                 },
             }
 
-        return cast(dict[str, Any], self._execute(operation))
+        try:
+            return cast(dict[str, Any], self._execute(operation))
+        except WordToolkitError as exc:
+            details = dict(exc.details or {})
+            if "failed_operation_index" in details:
+                raise
+            details.update(
+                {
+                    "failed_operation_index_available": False,
+                    "failure_scope": "batch",
+                }
+            )
+            raise WordToolkitError(
+                exc.code,
+                exc.message,
+                details,
+                exc.retryable,
+            ) from exc
 
     def selection(self, owner: str, document_id: str, *, max_chars: int = 10_000) -> dict[str, Any]:
         record = self._record(owner, document_id)
