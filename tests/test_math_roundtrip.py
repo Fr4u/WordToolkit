@@ -310,3 +310,293 @@ def test_mismatched_unicodemath_integral_bounds_fail(source: str) -> None:
         MathEngine().parse(source, "unicodemath")
 
     assert error.value.code is ErrorCode.EQUATION_INVALID
+
+
+@pytest.mark.parametrize(
+    "source,offset,character,codepoint",
+    [
+        ("x§y", 1, "§", "U+00A7"),
+        ("💣+1", 0, "💣", "U+1F4A3"),
+        ("α🙂β", 1, "🙂", "U+1F642"),
+        ("x+1€", 3, "€", "U+20AC"),
+        ("  x\u200by", 3, "\u200b", "U+200B"),
+    ],
+)
+def test_unicodemath_rejects_every_unmatched_non_whitespace_character(
+    source: str, offset: int, character: str, codepoint: str
+) -> None:
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse(source, "unicodemath")
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+    assert error.value.details == {
+        "offset": offset,
+        "character": character,
+        "codepoint": codepoint,
+    }
+
+
+def test_unicodemath_scanner_allows_whitespace_between_tokens() -> None:
+    math = MathEngine()
+    compact = math.parse("x+1", "unicodemath")
+    spaced = math.parse(" \t x \r\n + \n 1  ", "unicodemath")
+
+    assert spaced == compact
+
+
+def test_unicodemath_matrix_cells_cannot_hide_unsupported_characters() -> None:
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse("matrix(x&y§z)", "unicodemath")
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+    assert error.value.details == {"offset": 1, "character": "§", "codepoint": "U+00A7"}
+
+
+@pytest.mark.parametrize(
+    "source,details",
+    [
+        (
+            '<math xmlns="http://www.w3.org/1998/Math/MathML"><mystery><mi>x</mi></mystery></math>',
+            {"element": "mystery"},
+        ),
+        (
+            '<math xmlns="http://www.w3.org/1998/Math/MathML"><mystery/></math>',
+            {"element": "mystery"},
+        ),
+    ],
+)
+def test_mathml_rejects_unknown_elements_instead_of_discarding_them(
+    source: str, details: dict[str, str]
+) -> None:
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse(source, "mathml")
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+    assert error.value.details == details
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "<math><mi>x</mi></math>",
+        '<evil:math xmlns:evil="urn:evil"><evil:mi>x</evil:mi></evil:math>',
+        '<math xmlns="http://www.w3.org/1998/Math/MathML"><evil:mi xmlns:evil="urn:evil">x</evil:mi></math>',
+    ],
+)
+def test_mathml_rejects_missing_or_foreign_element_namespaces(source: str) -> None:
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse(source, "mathml")
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+
+
+@pytest.mark.parametrize(
+    "source,element,expected,actual",
+    [
+        (
+            '<math xmlns="http://www.w3.org/1998/Math/MathML"><mfrac><mi>a</mi><mi>b</mi><mi>discarded</mi></mfrac></math>',
+            "mfrac",
+            2,
+            3,
+        ),
+        (
+            '<math xmlns="http://www.w3.org/1998/Math/MathML"><msubsup><mi>x</mi><mn>1</mn></msubsup></math>',
+            "msubsup",
+            3,
+            2,
+        ),
+    ],
+)
+def test_mathml_rejects_missing_or_extra_operands(
+    source: str, element: str, expected: int, actual: int
+) -> None:
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse(source, "mathml")
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+    assert error.value.details == {"element": element, "expected": expected, "actual": actual}
+
+
+def test_mathml_semantics_allows_one_presentation_branch_and_ignores_annotations() -> None:
+    source = """<math xmlns="http://www.w3.org/1998/Math/MathML">
+      <semantics>
+        <mi>x</mi>
+        <annotation encoding="application/x-tex">x</annotation>
+        <annotation-xml encoding="application/xml"><foreign xmlns="urn:foreign"/></annotation-xml>
+      </semantics>
+    </math>"""
+
+    assert MathEngine().parse(source, "mathml").to_dict() == {"kind": "identifier", "value": "x"}
+
+
+def test_mathml_semantics_rejects_multiple_presentation_branches() -> None:
+    source = """<math xmlns="http://www.w3.org/1998/Math/MathML">
+      <semantics><mi>x</mi><mi>silently-discarded</mi></semantics>
+    </math>"""
+
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse(source, "mathml")
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+    assert error.value.details == {"actual": 2}
+
+
+def test_mathml_semantics_preserves_siblings_at_the_math_root() -> None:
+    source = """<math xmlns="http://www.w3.org/1998/Math/MathML">
+      <semantics><mi>x</mi></semantics><mi>silently-discarded</mi>
+    </math>"""
+
+    parsed = MathEngine().parse(source, "mathml")
+
+    assert parsed.to_dict() == {
+        "kind": "row",
+        "children": [
+            {"kind": "identifier", "value": "x"},
+            {"kind": "identifier", "value": "silently-discarded"},
+        ],
+    }
+
+
+def test_nested_mathml_semantics_still_requires_one_presentation_branch() -> None:
+    source = """<math xmlns="http://www.w3.org/1998/Math/MathML">
+      <mrow><semantics><mi>x</mi><mi>silently-discarded</mi></semantics></mrow>
+    </math>"""
+
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse(source, "mathml")
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+    assert error.value.details == {"actual": 2}
+
+
+def test_mathml_table_rejects_non_row_children() -> None:
+    source = """<math xmlns="http://www.w3.org/1998/Math/MathML">
+      <mtable><mi>silently-discarded</mi></mtable>
+    </math>"""
+
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse(source, "mathml")
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+    assert error.value.details == {"element": "mi"}
+
+
+@pytest.mark.parametrize(
+    "source,message",
+    [
+        (
+            '<math xmlns="http://www.w3.org/1998/Math/MathML"><mtable/></math>',
+            "Empty MathML tables are not representable",
+        ),
+        (
+            '<math xmlns="http://www.w3.org/1998/Math/MathML"><mtable><mtr/></mtable></math>',
+            "Empty MathML table rows are not representable",
+        ),
+    ],
+)
+def test_mathml_rejects_table_shapes_the_ast_cannot_preserve(source: str, message: str) -> None:
+    with pytest.raises(WordToolkitError, match=message) as error:
+        MathEngine().parse(source, "mathml")
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+
+
+def test_mathml_rejects_labeled_rows_instead_of_dropping_the_label() -> None:
+    source = """<math xmlns="http://www.w3.org/1998/Math/MathML">
+      <mtable><mlabeledtr><mtd><mi>L</mi></mtd><mtd><mi>x</mi></mtd></mlabeledtr></mtable>
+    </math>"""
+
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse(source, "mathml")
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+    assert error.value.details == {"element": "mlabeledtr"}
+
+
+@pytest.mark.parametrize(
+    "source,kind",
+    [
+        ('<math xmlns="http://www.w3.org/1998/Math/MathML"><msqrt/></math>', "radical"),
+        (
+            '<math xmlns="http://www.w3.org/1998/Math/MathML"><menclose notation="box"/></math>',
+            "enclosure",
+        ),
+    ],
+)
+def test_mathml_inferred_row_elements_allow_empty_content(source: str, kind: str) -> None:
+    parsed = MathEngine().parse(source, "mathml")
+
+    assert parsed.kind == kind
+    assert parsed.children[0].kind == "row"
+    assert not parsed.children[0].children
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        '<math xmlns="http://www.w3.org/1998/Math/MathML"><mo>[</mo><mi>a</mi><mo>,</mo><mi>b</mi><mo>)</mo></math>',
+        '<math xmlns="http://www.w3.org/1998/Math/MathML"><mo>(</mo><mi>x</mi><mo>]</mo></math>',
+    ],
+)
+def test_mathml_half_open_or_unmatched_fences_preserve_every_visible_token(source: str) -> None:
+    math = MathEngine()
+    canonical = math.parse(source, "mathml")
+    omml = math.convert(canonical.to_dict(), "ast", "omml")
+
+    assert math.compare(canonical.to_dict(), "ast", omml, "omml").equivalent
+
+
+@pytest.mark.parametrize("input_format", ["latex", "unicodemath", "mathml", "omml"])
+def test_string_equation_formats_reject_empty_input_consistently(input_format: str) -> None:
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse(" \r\n\t ", input_format)
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+    assert error.value.details == {"input_format": input_format}
+
+
+@pytest.mark.parametrize("input_format", ["latex", "unicodemath", "mathml", "omml"])
+def test_string_equation_formats_reject_oversized_input_before_parsing(input_format: str) -> None:
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse("x" * 100_001, input_format)
+
+    assert error.value.code is ErrorCode.LIMIT_EXCEEDED
+    assert error.value.details == {
+        "input_format": input_format,
+        "characters": 100_001,
+        "maximum_characters": 100_000,
+    }
+
+
+def test_mathml_rejects_excessive_nesting_with_a_bounded_error() -> None:
+    source = (
+        '<math xmlns="http://www.w3.org/1998/Math/MathML">'
+        + "<mrow>" * 129
+        + "<mi>x</mi>"
+        + "</mrow>" * 129
+        + "</math>"
+    )
+
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse(source, "mathml")
+
+    assert error.value.code is ErrorCode.LIMIT_EXCEEDED
+    assert error.value.details == {
+        "input_format": "mathml",
+        "maximum_nesting_depth": 128,
+    }
+
+
+def test_ast_rejects_excessive_nesting_with_a_bounded_error() -> None:
+    source: dict[str, object] = {"kind": "identifier", "value": "x"}
+    for _ in range(2_000):
+        source = {"kind": "radical", "children": [source]}
+
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse(source, "ast")
+
+    assert error.value.code is ErrorCode.LIMIT_EXCEEDED
+    assert error.value.details == {
+        "input_format": "ast",
+        "maximum_nesting_depth": 128,
+    }

@@ -72,16 +72,61 @@ TOKEN_RE = re.compile(
 )
 
 
+def _tokenize_unicode_math(source: str) -> list[str]:
+    tokens: list[str] = []
+    position = 0
+    for match in TOKEN_RE.finditer(source):
+        gap = source[position : match.start()]
+        unsupported = next(
+            (
+                (position + index, character)
+                for index, character in enumerate(gap)
+                if not character.isspace()
+            ),
+            None,
+        )
+        if unsupported is not None:
+            offset, character = unsupported
+            raise WordToolkitError(
+                ErrorCode.EQUATION_INVALID,
+                "UnicodeMath contains an unsupported character",
+                {
+                    "offset": offset,
+                    "character": character,
+                    "codepoint": f"U+{ord(character):04X}",
+                },
+            )
+        tokens.append(match.group(0))
+        position = match.end()
+    trailing = source[position:]
+    unsupported = next(
+        (
+            (position + index, character)
+            for index, character in enumerate(trailing)
+            if not character.isspace()
+        ),
+        None,
+    )
+    if unsupported is not None:
+        offset, character = unsupported
+        raise WordToolkitError(
+            ErrorCode.EQUATION_INVALID,
+            "UnicodeMath contains an unsupported character",
+            {
+                "offset": offset,
+                "character": character,
+                "codepoint": f"U+{ord(character):04X}",
+            },
+        )
+    return tokens
+
+
 def parse_unicode_math(source: str) -> EquationNode:
     stripped = source.strip()
     matrix = _parse_matrix_form(stripped)
     if matrix is not None:
         return matrix
-    tokens = TOKEN_RE.findall(stripped)
-    if "".join(tokens).replace("\\", "") == "" and stripped:
-        raise WordToolkitError(
-            ErrorCode.EQUATION_INVALID, "UnicodeMath expression could not be tokenized"
-        )
+    tokens = _tokenize_unicode_math(source)
     parser = _Parser(tokens)
     node = parser.expression(stop=set())
     if parser.peek() is not None:
