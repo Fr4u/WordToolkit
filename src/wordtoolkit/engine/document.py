@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import copy
 import hashlib
 import os
@@ -167,10 +168,16 @@ class WordDocumentEngine:
         return engine
 
     def open(self) -> dict:
-        self.inspection = self.package_inspector.inspect(self.path).to_dict()
-        self.initial_hashes = package_hashes(self.path)
-        self.document = DocxDocument(str(self.path))
-        info = self.document.open()
+        try:
+            with self.package_inspector.inspect_stable(self.path) as (snapshot, inspection):
+                self.inspection = inspection.to_dict()
+                self.initial_hashes = package_hashes(snapshot)
+                self.document = DocxDocument(str(self.path))
+                info = self.document.open(package_path=snapshot)
+        except BaseException:
+            with contextlib.suppress(Exception):
+                self.close()
+            raise
         normalizations = self._ensure_paragraph_ids()
         self.cumulative_modified_parts = set(self.doc._modified)
         return {

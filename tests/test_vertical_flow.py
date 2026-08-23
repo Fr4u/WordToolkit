@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import shutil
 import zipfile
+from contextlib import contextmanager
 
 import pytest
 from lxml import etree
 
+from docx_mcp.document import DocxDocument
 from docx_mcp.document.base import W14, W
 from wordtoolkit.config import Settings
 from wordtoolkit.engine import DocumentRenderer, OoxmlValidator, WordDocumentEngine
 from wordtoolkit.engine.renderer import _find_executable
+from wordtoolkit.engine.validator import package_hashes
 
 
 def settings(tmp_path):
@@ -45,6 +49,71 @@ def test_create_edit_equation_validate_reopen(tmp_path) -> None:
         ns = {"m": "http://schemas.openxmlformats.org/officeDocument/2006/math"}
         assert len(xml.xpath("//m:oMathPara/m:oMath", namespaces=ns)) == 1
     reopened.close()
+
+
+def test_open_uses_one_snapshot_when_source_is_replaced(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = settings(tmp_path)
+    source = tmp_path / "source.docx"
+    replacement = tmp_path / "replacement.docx"
+
+    original = WordDocumentEngine.create(source, config)
+    anchor = next(original.doc._require("word/document.xml").iter(f"{W}p")).get(f"{W14}paraId")
+    original.call("insert_paragraph", anchor, "version A", "Normal")
+    original.save_version(source)
+    original.close()
+    expected_hashes = package_hashes(source)
+
+    changed = WordDocumentEngine.create(replacement, config)
+    anchor = next(changed.doc._require("word/document.xml").iter(f"{W}p")).get(f"{W14}paraId")
+    changed.call("insert_paragraph", anchor, "version B", "Normal")
+    changed.save_version(replacement)
+    changed.close()
+
+    engine = WordDocumentEngine(source, config)
+    inspect_stable = engine.package_inspector.inspect_stable
+
+    @contextmanager
+    def replace_after_snapshot(path):
+        with inspect_stable(path) as stable:
+            shutil.copyfile(replacement, source)
+            yield stable
+
+    monkeypatch.setattr(engine.package_inspector, "inspect_stable", replace_after_snapshot)
+    engine.open()
+
+    document_text = "".join(engine.doc._require("word/document.xml").itertext())
+    assert "version A" in document_text
+    assert "version B" not in document_text
+    assert engine.initial_hashes == expected_hashes
+    engine.close()
+
+
+def test_failed_open_removes_partial_document_workspace(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = settings(tmp_path)
+    source = tmp_path / "source.docx"
+    WordDocumentEngine.create(source, config).close()
+    open_document = DocxDocument.open
+    captured_workdir = None
+
+    def fail_after_extract(document, **kwargs):
+        nonlocal captured_workdir
+        open_document(document, **kwargs)
+        captured_workdir = document.workdir
+        raise KeyboardInterrupt("fail after extraction")
+
+    monkeypatch.setattr(DocxDocument, "open", fail_after_extract)
+    engine = WordDocumentEngine(source, config)
+
+    with pytest.raises(KeyboardInterrupt, match="fail after extraction"):
+        engine.open()
+
+    assert captured_workdir is not None
+    assert not captured_workdir.exists()
+    assert engine.document is None
 
 
 def test_insert_equation_returns_the_inserted_equation_when_anchored_in_the_middle(

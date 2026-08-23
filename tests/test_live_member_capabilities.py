@@ -344,3 +344,25 @@ def test_virtual_tools_support_enum_constants_and_omitted_optional_indexes() -> 
             ],
         )
     assert omitted_required_position.value.code is ErrorCode.INVALID_INPUT
+
+
+def test_read_virtual_tools_require_result_id_but_writes_may_omit_it() -> None:
+    registry = build_member_capability_registry(_catalog())
+    profiles = {
+        (item["type"]["name"], item["member"]["name"], item["member"]["kind"]): item
+        for item in registry["profiles"]
+    }
+    read_tool = profiles[("Range", "Text", "property_get")]["virtual_tool"]
+    write_tool = profiles[("Range", "Text", "property_put")]["virtual_tool"]
+
+    read_operation = {
+        "capability_id": read_tool["tool_id"],
+        "target": {"kind": "document_content"},
+    }
+    write_operation = {
+        "capability_id": write_tool["tool_id"],
+        "target": {"kind": "document_content"},
+        "arguments": ["Changed\r"],
+    }
+    assert not Draft202012Validator(read_tool["input_schema"]).is_valid(read_operation)
+    assert Draft202012Validator(write_tool["input_schema"]).is_valid(write_operation)

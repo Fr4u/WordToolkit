@@ -580,6 +580,8 @@ def _virtual_tool_definition(
         required = ["capability_id", "target"]
         if minimum_arguments:
             required.append("arguments")
+        if execution == "read_allowed" and not _void_com_type(return_type):
+            required.append("result_id")
         input_schema = {
             "type": "object",
             "additionalProperties": False,
