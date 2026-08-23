@@ -95,6 +95,18 @@ public sealed class StyleWordPackageOperation
                     "Commands do not reproduce the reviewed semantic edit plan ID"
                 );
             }
+            var protectionBlocks = ProtectionBlockCodes(
+                context,
+                request.ProtectedEditAuthorization
+            );
+            if (protectionBlocks.Count != 0)
+            {
+                throw new WordToolkitOperationException(
+                    "EDIT_POLICY_BLOCKED",
+                    "Semantic style editing is blocked by document protection or permission metadata",
+                    details: new StyleEditPolicyBlockDetails(context.PlanId, protectionBlocks)
+                );
+            }
             if (context.HasDigitalSignatures)
             {
                 throw new WordToolkitOperationException(
@@ -145,7 +157,10 @@ public sealed class StyleWordPackageOperation
                     MicrosoftSchemaNoNewErrors: context.Validation.NoNewErrors,
                     RawXmlReturned: false,
                     MutationPerformed: false,
-                    WordOpened: false
+                    WordOpened: false,
+                    ExplicitAuthorizations: context.Protection.AuthorizationRequired
+                        ? ["protected_edit_authorization"]
+                        : Array.Empty<string>()
                 );
             }
 
@@ -177,7 +192,10 @@ public sealed class StyleWordPackageOperation
                 MicrosoftSchemaNoNewErrors: context.Validation.NoNewErrors,
                 RawXmlReturned: false,
                 MutationPerformed: true,
-                WordOpened: false
+                WordOpened: false,
+                ExplicitAuthorizations: context.Protection.AuthorizationRequired
+                    ? ["protected_edit_authorization"]
+                    : Array.Empty<string>()
             );
         }
         catch (OperationCanceledException)
@@ -262,6 +280,13 @@ public sealed class StyleWordPackageOperation
         }
 
         var validation = ValidateExactCandidate(package, plan, cancellationToken);
+        var projector = new WordSemanticProjector();
+        var semanticForProtection = projector.Project(package, cancellationToken);
+        using var protectionCandidateStream = new MemoryStream();
+        _serializer.Write(protectionCandidateStream, plan.CreateMutation(package));
+        protectionCandidateStream.Position = 0;
+        var protectionCandidate = _reader.Read(protectionCandidateStream, cancellationToken);
+        var candidateSemanticForProtection = projector.Project(protectionCandidate, cancellationToken);
         return new PlanContext(
             path,
             package,
@@ -270,7 +295,15 @@ public sealed class StyleWordPackageOperation
             commandSnapshot.Count,
             parsed.SelectorResolutions,
             WordPackagePatchRiskAnalyzer.HasDigitalSignatures(package),
-            validation
+            validation,
+            WordPackagePatchRiskAnalyzer.AssessProtection(
+                package,
+                semanticForProtection,
+                protectionCandidate,
+                candidateSemanticForProtection,
+                plan.HasChanges,
+                cancellationToken
+            )
         );
     }
 
@@ -358,6 +391,19 @@ public sealed class StyleWordPackageOperation
         {
             blockedReasons.Add("microsoft_schema_validation_failed");
         }
+        if (context.Plan.HasChanges && context.Protection.HasMalformedProtectionMetadata)
+        {
+            blockedReasons.Add("protection_metadata_malformed");
+        }
+        else if (context.Plan.HasChanges && context.Protection.AuthorizationRequired)
+        {
+            blockedReasons.Add("protected_document_edit_not_authorized");
+        }
+        var requiredAuthorizations = context.Plan.HasChanges
+            && context.Protection.AuthorizationRequired
+            && !context.Protection.HasMalformedProtectionMetadata
+            ? (IReadOnlyList<string>)["protected_edit_authorization"]
+            : Array.Empty<string>();
 
         return new StyleEditPlanResult(
             StyleWordPackageContract.PlanContract,
@@ -441,7 +487,10 @@ public sealed class StyleWordPackageOperation
                 : null,
             RawXmlReturned: false,
             MutationPerformed: false,
-            WordOpened: false
+            WordOpened: false,
+            Protection: context.Protection,
+            ProtectionAuthorizationId: requiredAuthorizations.Count == 0 ? null : context.PlanId,
+            RequiredAuthorizations: requiredAuthorizations
         );
     }
 
@@ -1410,8 +1459,30 @@ public sealed class StyleWordPackageOperation
         int SubmittedCommandCount,
         IReadOnlyList<StyleEditSelectorResolution> SelectorResolutions,
         bool HasDigitalSignatures,
-        WordPackageCandidateValidationReport Validation
+        WordPackageCandidateValidationReport Validation,
+        WordPackageProtectionRiskAssessment Protection
     );
+
+    private static IReadOnlyList<string> ProtectionBlockCodes(
+        PlanContext context,
+        string? authorization
+    )
+    {
+        if (!context.Plan.HasChanges)
+        {
+            return Array.Empty<string>();
+        }
+        if (context.Protection.HasMalformedProtectionMetadata)
+        {
+            return ["protection_metadata_malformed"];
+        }
+        if (context.Protection.AuthorizationRequired
+            && !string.Equals(authorization, context.PlanId, StringComparison.Ordinal))
+        {
+            return ["protected_document_edit_not_authorized"];
+        }
+        return Array.Empty<string>();
+    }
 
     private sealed record ResolvedCommands(
         IReadOnlyList<WordStyleDefinitionCommand> DefinitionCommands,

@@ -237,6 +237,94 @@ public sealed class TemplateStyleAlignmentWordPackageOperationTests
     }
 
     [Fact]
+    public void ProtectedTargetRequiresExactAuthorizationAndMalformedIsByteExact()
+    {
+        using var fixture = new Fixture();
+        var templatePath = fixture.Write("template.docx", BuildPackage(
+            Style("Normal", string.Empty),
+            Style("Focus", "<w:rPr><w:b/></w:rPr>")
+        ));
+        var reader = new OpcPackageReader();
+        var template = reader.Read(templatePath);
+        foreach (var malformed in new[] { false, true })
+        {
+            var protection = malformed
+                ? "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\" w:bogus=\"x\"/>"
+                : "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\"/>";
+            var targetPath = fixture.Write(
+                malformed ? "malformed.docx" : "protected.docx",
+                BuildPackage(
+                    [
+                        Style("Normal", string.Empty),
+                        Style("Focus", "<w:rPr><w:b w:val=\"0\"/></w:rPr>"),
+                    ],
+                    mainContentType: null,
+                    includeSignatureMarker: false,
+                    protectionXml: protection
+                )
+            );
+            var target = reader.Read(targetPath);
+            var operation = new TemplateStyleAlignmentWordPackageOperation(
+                new PassingValidator()
+            );
+            var candidate = Assert.Single(operation.Inspect(Request(
+                targetPath,
+                templatePath,
+                target,
+                template
+            )).Candidates, item => item.StyleId == "Focus");
+            var commands = Commands(candidate);
+            var plan = operation.Plan(new TemplateStyleAlignmentPlanRequest(
+                targetPath,
+                templatePath,
+                target.Fingerprint,
+                template.Fingerprint,
+                commands
+            ));
+            var targetBytes = File.ReadAllBytes(targetPath);
+
+            var denied = Assert.Throws<WordToolkitOperationException>(() => operation.Apply(
+                new TemplateStyleAlignmentApplyRequest(
+                    targetPath,
+                    templatePath,
+                    target.Fingerprint,
+                    template.Fingerprint,
+                    plan.PlanId,
+                    commands,
+                    KeepBackup: false,
+                    ProtectedEditAuthorization: "wrong"
+                )
+            ));
+            Assert.Equal("EDIT_POLICY_BLOCKED", denied.Code);
+            Assert.Equal(targetBytes, File.ReadAllBytes(targetPath));
+
+            if (malformed)
+            {
+                Assert.True(plan.Protection.HasMalformedProtectionMetadata);
+                Assert.Null(plan.ProtectionAuthorizationId);
+                Assert.Contains("protection_metadata_malformed", plan.ApplyBlockedReasons);
+                continue;
+            }
+
+            Assert.True(plan.Protection.AuthorizationRequired);
+            Assert.Equal(plan.PlanId, plan.ProtectionAuthorizationId);
+            var applied = operation.Apply(new TemplateStyleAlignmentApplyRequest(
+                targetPath,
+                templatePath,
+                target.Fingerprint,
+                template.Fingerprint,
+                plan.PlanId,
+                commands,
+                KeepBackup: false,
+                ProtectedEditAuthorization: plan.ProtectionAuthorizationId
+            ));
+            Assert.True(applied.Applied);
+            Assert.False(applied.NoOp);
+            Assert.Equal(["protected_edit_authorization"], applied.ExplicitAuthorizations);
+        }
+    }
+
+    [Fact]
     public void JsonRejectsUnknownAndDuplicateFields()
     {
         const string fingerprint =
@@ -307,7 +395,8 @@ public sealed class TemplateStyleAlignmentWordPackageOperationTests
     private static byte[] BuildPackage(
         IReadOnlyList<string> styles,
         string? mainContentType,
-        bool includeSignatureMarker
+        bool includeSignatureMarker,
+        string? protectionXml = null
     )
     {
         mainContentType ??=
@@ -315,11 +404,19 @@ public sealed class TemplateStyleAlignmentWordPackageOperationTests
         using var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
         {
-            Add(archive, "[Content_Types].xml", $"<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Default Extension=\"sig\" ContentType=\"application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"{mainContentType}\"/><Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/></Types>");
+            Add(archive, "[Content_Types].xml", $"<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Default Extension=\"sig\" ContentType=\"application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"{mainContentType}\"/><Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/>{(protectionXml is null ? string.Empty : "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>")}</Types>");
             Add(archive, "_rels/.rels", "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rDoc\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/></Relationships>");
-            Add(archive, "word/_rels/document.xml.rels", "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rStyles\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/></Relationships>");
+            Add(archive, "word/_rels/document.xml.rels", $"<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rStyles\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>{(protectionXml is null ? string.Empty : "<Relationship Id=\"rSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>")}</Relationships>");
             Add(archive, "word/document.xml", $"<w:document xmlns:w=\"{WordNamespace}\"><w:body><w:p><w:pPr><w:pStyle w:val=\"Normal\"/></w:pPr><w:r><w:t>content</w:t></w:r></w:p><w:sectPr/></w:body></w:document>");
             Add(archive, "word/styles.xml", $"<w:styles xmlns:w=\"{WordNamespace}\">{string.Concat(styles)}</w:styles>");
+            if (protectionXml is not null)
+            {
+                Add(
+                    archive,
+                    "word/settings.xml",
+                    $"<w:settings xmlns:w=\"{WordNamespace}\">{protectionXml}</w:settings>"
+                );
+            }
             if (includeSignatureMarker)
             {
                 Add(archive, "_xmlsignatures/sig1.sig", "signature-marker");

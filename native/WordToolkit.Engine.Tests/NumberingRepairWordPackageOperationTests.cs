@@ -164,7 +164,91 @@ public sealed class NumberingRepairWordPackageOperationTests
         }
     }
 
-    private static byte[] BuildPackage()
+    [Fact]
+    public void ProtectedRepairRequiresExactAuthorizationAndMalformedIsByteExact()
+    {
+        var dir = Path.Combine(
+            Path.GetTempPath(),
+            "wt-num-" + Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(dir);
+        try
+        {
+            foreach (var malformed in new[] { false, true })
+            {
+                var path = Path.Combine(dir, malformed ? "bad.docx" : "good.docx");
+                File.WriteAllBytes(
+                    path,
+                    BuildPackage(
+                        malformed
+                            ? "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\" w:bogus=\"x\"/>"
+                            : "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\"/>"
+                    )
+                );
+                var reader = new OpcPackageReader();
+                var before = reader.Read(path);
+                var semantic = new WordSemanticProjector().Project(before);
+                var target = semantic.Nodes.Where(node =>
+                    node.Kind == WordSemanticNodeKind.Paragraph
+                ).ElementAt(1);
+                var operation = new NumberingRepairWordPackageOperation(
+                    new PassingValidator()
+                );
+                var plan = operation.Plan(new NumberingRepairPlanRequest(
+                    path,
+                    before.Fingerprint,
+                    target.Id.Value,
+                    5,
+                    0,
+                    4
+                ));
+                var bytes = File.ReadAllBytes(path);
+                var denied = Assert.Throws<WordToolkitOperationException>(() =>
+                    operation.Apply(new NumberingRepairApplyRequest(
+                        path,
+                        before.Fingerprint,
+                        plan.PlanId,
+                        target.Id.Value,
+                        5,
+                        0,
+                        4,
+                        ProtectedEditAuthorization: "wrong"
+                    ))
+                );
+                Assert.Equal("EDIT_POLICY_BLOCKED", denied.Code);
+                Assert.Equal(bytes, File.ReadAllBytes(path));
+
+                if (malformed)
+                {
+                    Assert.Contains(
+                        "protection_metadata_malformed",
+                        plan.ApplyBlockedReasons
+                    );
+                    continue;
+                }
+
+                Assert.Equal(plan.PlanId, plan.ProtectionAuthorizationId);
+                var applied = operation.Apply(new NumberingRepairApplyRequest(
+                    path,
+                    before.Fingerprint,
+                    plan.PlanId,
+                    target.Id.Value,
+                    5,
+                    0,
+                    4,
+                    KeepBackup: false,
+                    ProtectedEditAuthorization: plan.PlanId
+                ));
+                Assert.True(applied.Applied);
+            }
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    private static byte[] BuildPackage(string? protectionXml = null)
     {
         using var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
@@ -173,7 +257,7 @@ public sealed class NumberingRepairWordPackageOperationTests
                 archive,
                 "[Content_Types].xml",
                 """
-                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/></Types>
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/><Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/></Types>
                 """
             );
             Add(
@@ -197,8 +281,8 @@ public sealed class NumberingRepairWordPackageOperationTests
             Add(
                 archive,
                 "word/_rels/document.xml.rels",
-                """
-                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/></Relationships>
+                $"""
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>{(protectionXml is null ? string.Empty : "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>")}</Relationships>
                 """
             );
             Add(
@@ -208,6 +292,10 @@ public sealed class NumberingRepairWordPackageOperationTests
                 <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl></w:abstractNum><w:num w:numId="5"><w:abstractNumId w:val="1"/></w:num></w:numbering>
                 """
             );
+            if (protectionXml is not null)
+            {
+                Add(archive, "word/settings.xml", $"<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">{protectionXml}</w:settings>");
+            }
         }
         return stream.ToArray();
     }

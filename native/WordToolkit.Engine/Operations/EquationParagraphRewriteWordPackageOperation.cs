@@ -190,6 +190,21 @@ public sealed class EquationParagraphRewriteWordPackageOperation
                     "Commands do not reproduce the reviewed equation paragraph plan ID"
                 );
             }
+            var protectionBlocks = ProtectionBlockCodes(
+                context,
+                request.ProtectedEditAuthorization
+            );
+            if (protectionBlocks.Count != 0)
+            {
+                throw new WordToolkitOperationException(
+                    "EDIT_POLICY_BLOCKED",
+                    "Equation paragraph rewrite is blocked by document protection or permission metadata",
+                    details: new EquationParagraphRewriteEditPolicyBlockDetails(
+                        context.PlanId,
+                        protectionBlocks
+                    )
+                );
+            }
             EnsureApplicable(context);
 
             if (!context.Plan.HasChanges)
@@ -219,7 +234,8 @@ public sealed class EquationParagraphRewriteWordPackageOperation
                     RawTextReturned: false,
                     RawXmlReturned: false,
                     MutationPerformed: false,
-                    WordOpened: false
+                    WordOpened: false,
+                    ExplicitAuthorizations: ExplicitAuthorizations(context)
                 );
             }
 
@@ -259,7 +275,8 @@ public sealed class EquationParagraphRewriteWordPackageOperation
                 RawTextReturned: false,
                 RawXmlReturned: false,
                 MutationPerformed: true,
-                WordOpened: false
+                WordOpened: false,
+                ExplicitAuthorizations: ExplicitAuthorizations(context)
             );
         }
         catch (OperationCanceledException)
@@ -378,6 +395,10 @@ public sealed class EquationParagraphRewriteWordPackageOperation
             resolved.Rewrites,
             cancellationToken
         );
+        var candidateSemantic = new WordSemanticProjector().Project(
+            outcome.Candidate,
+            cancellationToken
+        );
         return new PlanContext(
             loaded.Path,
             loaded.Package,
@@ -389,7 +410,15 @@ public sealed class EquationParagraphRewriteWordPackageOperation
             outcome.Validation,
             outcome.ExactEquationBytesPreserved,
             outcome.ParagraphStructurePreserved,
-            outcome.ExactInverseVerified
+            outcome.ExactInverseVerified,
+            WordPackagePatchRiskAnalyzer.AssessProtection(
+                loaded.Package,
+                loaded.Semantic,
+                outcome.Candidate,
+                candidateSemantic,
+                plan.HasChanges,
+                cancellationToken
+            )
         );
     }
 
@@ -487,6 +516,7 @@ public sealed class EquationParagraphRewriteWordPackageOperation
         }
         return new CandidateOutcome(
             validation,
+            candidateSnapshot,
             verified,
             ExactEquationBytesPreserved: true,
             ParagraphStructurePreserved: true,
@@ -826,7 +856,18 @@ public sealed class EquationParagraphRewriteWordPackageOperation
             RawTextReturned: false,
             RawXmlReturned: false,
             MutationPerformed: false,
-            WordOpened: false
+            WordOpened: false,
+            Protection: context.Protection,
+            ProtectionAuthorizationId: context.Plan.HasChanges
+                && context.Protection.AuthorizationRequired
+                && !context.Protection.HasMalformedProtectionMetadata
+                     ? context.PlanId
+                     : null,
+            RequiredAuthorizations: context.Plan.HasChanges
+                && context.Protection.AuthorizationRequired
+                && !context.Protection.HasMalformedProtectionMetadata
+                     ? ["protected_edit_authorization"]
+                     : Array.Empty<string>()
         );
     }
 
@@ -836,6 +877,14 @@ public sealed class EquationParagraphRewriteWordPackageOperation
         if (context.HasDigitalSignatures)
         {
             blocked.Add("digital_signature_present");
+        }
+        if (context.Plan.HasChanges && context.Protection.HasMalformedProtectionMetadata)
+        {
+            blocked.Add("protection_metadata_malformed");
+        }
+        else if (context.Plan.HasChanges && context.Protection.AuthorizationRequired)
+        {
+            blocked.Add("protected_document_edit_not_authorized");
         }
         if (!context.Validation.Performed)
         {
@@ -858,6 +907,32 @@ public sealed class EquationParagraphRewriteWordPackageOperation
             blocked.Add("exact_inverse_unverified");
         }
         return blocked;
+    }
+
+    private static IReadOnlyList<string> ExplicitAuthorizations(PlanContext context) =>
+        context.Plan.HasChanges && context.Protection.AuthorizationRequired
+            ? ["protected_edit_authorization"]
+            : Array.Empty<string>();
+
+    private static IReadOnlyList<string> ProtectionBlockCodes(
+        PlanContext context,
+        string? authorization
+    )
+    {
+        if (!context.Plan.HasChanges)
+        {
+            return Array.Empty<string>();
+        }
+        if (context.Protection.HasMalformedProtectionMetadata)
+        {
+            return ["protection_metadata_malformed"];
+        }
+        if (context.Protection.AuthorizationRequired
+            && !string.Equals(authorization, context.PlanId, StringComparison.Ordinal))
+        {
+            return ["protected_document_edit_not_authorized"];
+        }
+        return Array.Empty<string>();
     }
 
     private static void EnsureApplicable(PlanContext context)
@@ -1419,11 +1494,13 @@ public sealed class EquationParagraphRewriteWordPackageOperation
         WordPackageCandidateValidationReport Validation,
         bool ExactEquationBytesPreserved,
         bool ParagraphStructurePreserved,
-        bool ExactInverseVerified
+        bool ExactInverseVerified,
+        WordPackageProtectionRiskAssessment Protection
     );
 
     private sealed record CandidateOutcome(
         WordPackageCandidateValidationReport Validation,
+        OpcPackageSnapshot Candidate,
         IReadOnlyList<ResolvedRewrite> Rewrites,
         bool ExactEquationBytesPreserved,
         bool ParagraphStructurePreserved,

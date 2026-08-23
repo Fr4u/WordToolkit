@@ -188,7 +188,7 @@ internal static class NumberingRebuildPackageCli
         "VERSION_CONFLICT" or "PLAN_MISMATCH" or "TRANSACTION_LIMIT" => 75,
         "ACCESS_DENIED" => 77,
         "IO_ERROR" => 74,
-        "VALIDATOR_REQUIRED" or "OOXML_SCHEMA_INVALID" or "VALIDATION_FAILED"
+        "EDIT_POLICY_BLOCKED" or "SIGNED_PACKAGE" or "VALIDATOR_REQUIRED" or "OOXML_SCHEMA_INVALID" or "VALIDATION_FAILED"
             or "UNSAFE_REBUILD" or "RECOVERY_REQUIRED" => 78,
         _ => 70,
     };

@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
 using WordToolkit.Engine.Operations;
 using WordToolkit.Engine.Packaging;
 
@@ -92,6 +94,66 @@ public sealed class FlatOpcWordPackageOperationTests
                 Directory.EnumerateFiles(directory).Select(Path.GetFileName),
                 name => name!.Contains(".wordtoolkit-", StringComparison.Ordinal)
             );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ProtectedPackageRoundTripPreservesProtectionMetadata()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var input = Path.Combine(directory, "protected.docx");
+            var flat = Path.Combine(directory, "protected.xml");
+            var output = Path.Combine(directory, "protected-roundtrip.docx");
+            using (var source = FlatOpcPackageCodecTests.BuildWordPackage())
+            using (var file = File.Create(input))
+            {
+                source.CopyTo(file);
+            }
+            using (var document = WordprocessingDocument.Open(input, true))
+            {
+                var settingsPart = document.MainDocumentPart!.AddNewPart<DocumentSettingsPart>();
+                settingsPart.Settings = new Settings(
+                    new DocumentProtection
+                    {
+                        Edit = DocumentProtectionValues.ReadOnly,
+                        Enforcement = true,
+                        Formatting = false,
+                    }
+                );
+                settingsPart.Settings.Save();
+            }
+            var inputHash = Hash(input);
+            var operation = new FlatOpcWordPackageOperation();
+
+            var exported = operation.Execute(new FlatOpcWordPackageRequest(
+                input,
+                flat,
+                FlatOpcConversionDirection.ToFlatOpc
+            ));
+            var imported = operation.Execute(new FlatOpcWordPackageRequest(
+                flat,
+                output,
+                FlatOpcConversionDirection.FromFlatOpc
+            ));
+
+            using var roundTrip = WordprocessingDocument.Open(output, false);
+            var protection = roundTrip.MainDocumentPart!
+                .DocumentSettingsPart!
+                .Settings!
+                .GetFirstChild<DocumentProtection>();
+            Assert.NotNull(protection);
+            Assert.Equal(DocumentProtectionValues.ReadOnly, protection.Edit!.Value);
+            Assert.True(protection.Enforcement!.Value);
+            Assert.False(protection.Formatting!.Value);
+            Assert.True(exported.PackageSemanticallyEquivalent);
+            Assert.True(imported.PackageSemanticallyEquivalent);
+            Assert.Equal(inputHash, Hash(input));
         }
         finally
         {

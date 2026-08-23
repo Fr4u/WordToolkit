@@ -148,6 +148,84 @@ public sealed class EquationParagraphRewritePackageCliTests
         Assert.DoesNotContain("raw_xml", catalog.InspectAction(
             EquationParagraphRewriteWordPackageContract.PlanOperationName
         )["tool"]!["inputSchema"]!.ToJsonString(), StringComparison.Ordinal);
+        var applySchema = catalog.InspectAction(
+            EquationParagraphRewriteWordPackageContract.ApplyOperationName
+        )["tool"]!;
+        Assert.Equal(
+            "^weprplan_[A-Za-z0-9_-]+$",
+            applySchema["inputSchema"]!["properties"]!["protected_edit_authorization"]!["pattern"]!.GetValue<string>()
+        );
+        Assert.Contains(
+            "explicit_authorizations",
+            applySchema["outputSchema"]!["properties"]!["data"]!["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+    }
+
+    [Fact]
+    public void CatalogPublishesClosedProtectionContractsForTypedPackageMutators()
+    {
+        var catalog = ToolCatalog.LoadNativeWordTools();
+        var actions = new[]
+        {
+            (NumberingRepairWordPackageContract.PlanOperationName, NumberingRepairWordPackageContract.ApplyOperationName, "^wnrplan_[A-Za-z0-9_-]+$"),
+            (NumberingRebuildWordPackageContract.PlanOperationName, NumberingRebuildWordPackageContract.ApplyOperationName, "^wnrbplan_[A-Za-z0-9_-]+$"),
+            (StyleWordPackageContract.PlanOperationName, StyleWordPackageContract.ApplyOperationName, "^wseplan_[A-Za-z0-9_-]+$"),
+            (TemplateStyleAlignmentWordPackageContract.PlanOperationName, TemplateStyleAlignmentWordPackageContract.ApplyOperationName, "^wtsaplan_[A-Za-z0-9_-]+$"),
+            (EquationParagraphRewriteWordPackageContract.PlanOperationName, EquationParagraphRewriteWordPackageContract.ApplyOperationName, "^weprplan_[A-Za-z0-9_-]+$"),
+        };
+
+        foreach (var (planName, applyName, planPattern) in actions)
+        {
+            var planOutput = catalog.InspectAction(planName)["tool"]!["outputSchema"]!;
+            var planData = planOutput["properties"]!["data"]!;
+            var required = planData["required"]!.AsArray()
+                .Select(item => item!.GetValue<string>())
+                .ToArray();
+            Assert.Contains("protection", required);
+            Assert.Contains("required_authorizations", required);
+            Assert.DoesNotContain("protection_authorization_id", required);
+            Assert.Equal(
+                planPattern,
+                planData["properties"]!["protection_authorization_id"]!["pattern"]!
+                    .GetValue<string>()
+            );
+            var protection = planData["properties"]!["protection"]!;
+            if (protection["$ref"] is not null)
+            {
+                protection = planOutput["$defs"]!["protection"]!;
+            }
+            Assert.False(protection["additionalProperties"]!.GetValue<bool>());
+            Assert.Equal(
+                250_000,
+                protection["properties"]!["base_permission_range_count"]!["maximum"]!
+                    .GetValue<int>()
+            );
+            Assert.Equal(
+                500_000,
+                protection["properties"]!["malformed_permission_range_count"]!["maximum"]!
+                    .GetValue<int>()
+            );
+            Assert.Contains(
+                "readOnly",
+                protection["properties"]!["base_document_protection_edit_mode"]!["enum"]!
+                    .AsArray()
+                    .Select(item => item!.GetValue<string>())
+            );
+
+            var apply = catalog.InspectAction(applyName)["tool"]!;
+            Assert.Equal(
+                planPattern,
+                apply["inputSchema"]!["properties"]!["protected_edit_authorization"]![
+                    "pattern"
+                ]!.GetValue<string>()
+            );
+            Assert.Contains(
+                "explicit_authorizations",
+                apply["outputSchema"]!["properties"]!["data"]!["required"]!
+                    .AsArray()
+                    .Select(item => item!.GetValue<string>())
+            );
+        }
     }
 
     [Fact]

@@ -35,7 +35,13 @@ public sealed record NumberingRepairApplyRequest(
     int ExpectedNumberId,
     int ExpectedLevelIndex,
     int StartValue,
-    bool KeepBackup = true
+    bool KeepBackup = true,
+    string? ProtectedEditAuthorization = null
+);
+
+public sealed record NumberingRepairEditPolicyBlockDetails(
+    string PlanId,
+    IReadOnlyList<string> BlockCodes
 );
 
 public sealed record NumberingRepairParagraphDetail(
@@ -91,7 +97,10 @@ public sealed record NumberingRepairPlanResult(
     bool ParagraphTextReturned,
     bool RawXmlReturned,
     bool MutationPerformed,
-    bool WordOpened
+    bool WordOpened,
+    WordPackageProtectionRiskAssessment Protection,
+    string? ProtectionAuthorizationId,
+    IReadOnlyList<string> RequiredAuthorizations
 );
 
 public sealed record NumberingRepairApplyResult(
@@ -116,5 +125,6 @@ public sealed record NumberingRepairApplyResult(
     bool ParagraphTextReturned,
     bool RawXmlReturned,
     bool MutationPerformed,
-    bool WordOpened
+    bool WordOpened,
+    IReadOnlyList<string> ExplicitAuthorizations
 );

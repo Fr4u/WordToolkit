@@ -198,19 +198,172 @@ public sealed class NumberingRebuildWordPackageOperationTests
         }
     }
 
-    private static byte[] BuildPackage()
+    [Fact]
+    public void ProtectedRebuildRequiresExactAuthorizationAndMalformedIsByteExact()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-numbering-rebuild-protection-" + Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            foreach (var malformed in new[] { false, true })
+            {
+                var path = Path.Combine(directory, malformed ? "malformed.docx" : "protected.docx");
+                var protection = malformed
+                    ? "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\" w:bogus=\"x\"/>"
+                    : "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\"/>";
+                File.WriteAllBytes(path, BuildPackage(protection));
+                var reader = new OpcPackageReader();
+                var package = reader.Read(path);
+                var semantic = new WordSemanticProjector().Project(package);
+                var paragraphs = semantic.Nodes.Where(node =>
+                    node.Kind == WordSemanticNodeKind.Paragraph
+                ).ToArray();
+                var operation = new NumberingRebuildWordPackageOperation(
+                    new PassingValidator()
+                );
+                var inspection = operation.Inspect(new NumberingRebuildInspectRequest(
+                    path,
+                    package.Fingerprint,
+                    paragraphs.Select(paragraph => paragraph.Id.Value).ToArray()
+                ));
+                var command = new WordNumberingRebuildCommand(
+                    "protected-list",
+                    WordNumberingRebuildMultiLevelKind.SingleLevel,
+                    false,
+                    [new WordNumberingRebuildLevel(
+                        0,
+                        1,
+                        WordNumberingRebuildFormat.Decimal,
+                        "%1."
+                    )],
+                    paragraphs.Select((paragraph, index) => new WordNumberingRebuildTarget(
+                        paragraph.Id,
+                        inspection.Candidates[index].CandidateFingerprint,
+                        0
+                    )).ToArray()
+                );
+                var plan = operation.Plan(new NumberingRebuildPlanRequest(
+                    path,
+                    package.Fingerprint,
+                    [command]
+                ));
+                var beforeBytes = File.ReadAllBytes(path);
+
+                var denied = Assert.Throws<WordToolkitOperationException>(() =>
+                    operation.Apply(new NumberingRebuildApplyRequest(
+                        path,
+                        package.Fingerprint,
+                        plan.PlanId,
+                        [command],
+                        KeepBackup: false,
+                        ProtectedEditAuthorization: "wrong"
+                    ))
+                );
+                Assert.Equal("EDIT_POLICY_BLOCKED", denied.Code);
+                Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+
+                if (malformed)
+                {
+                    Assert.True(plan.Protection.HasMalformedProtectionMetadata);
+                    Assert.Null(plan.ProtectionAuthorizationId);
+                    Assert.Contains("protection_metadata_malformed", plan.ApplyBlockedReasons);
+                    continue;
+                }
+
+                Assert.True(plan.Protection.AuthorizationRequired);
+                Assert.Equal(plan.PlanId, plan.ProtectionAuthorizationId);
+                var applied = operation.Apply(new NumberingRebuildApplyRequest(
+                    path,
+                    package.Fingerprint,
+                    plan.PlanId,
+                    [command],
+                    KeepBackup: false,
+                    ProtectedEditAuthorization: plan.ProtectionAuthorizationId
+                ));
+                Assert.True(applied.Applied);
+                Assert.Equal(["protected_edit_authorization"], applied.ExplicitAuthorizations);
+            }
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void SignedPackageIsRejectedBeforeAPlanOrPublication()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-numbering-rebuild-signed-" + Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "signed.docx");
+        try
+        {
+            File.WriteAllBytes(path, BuildPackage(includeSignatureMarker: true));
+            var package = new OpcPackageReader().Read(path);
+            var semantic = new WordSemanticProjector().Project(package);
+            var paragraph = semantic.Nodes.First(node =>
+                node.Kind == WordSemanticNodeKind.Paragraph
+            );
+            var operation = new NumberingRebuildWordPackageOperation(new PassingValidator());
+            var inspected = operation.Inspect(new NumberingRebuildInspectRequest(
+                path,
+                package.Fingerprint,
+                [paragraph.Id.Value]
+            )).Candidates.Single();
+            var command = new WordNumberingRebuildCommand(
+                "signed",
+                WordNumberingRebuildMultiLevelKind.SingleLevel,
+                false,
+                [new WordNumberingRebuildLevel(0, 1, WordNumberingRebuildFormat.Decimal, "%1.")],
+                [new WordNumberingRebuildTarget(paragraph.Id, inspected.CandidateFingerprint, 0)]
+            );
+            var before = File.ReadAllBytes(path);
+            var error = Assert.Throws<WordToolkitOperationException>(() => operation.Plan(
+                new NumberingRebuildPlanRequest(path, package.Fingerprint, [command])
+            ));
+            Assert.Equal("SIGNED_PACKAGE", error.Code);
+            Assert.Equal(before, File.ReadAllBytes(path));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static byte[] BuildPackage(
+        string? protectionXml = null,
+        bool includeSignatureMarker = false
+    )
     {
         using var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
         {
             Add(archive, "[Content_Types].xml",
-                "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/></Types>");
+                $"<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Default Extension=\"sig\" ContentType=\"application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/>{(protectionXml is null ? string.Empty : "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>")}</Types>");
             Add(archive, "_rels/.rels",
                 "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/></Relationships>");
             Add(archive, "word/document.xml",
                 "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:t>one</w:t></w:r></w:p><w:p><w:r><w:t>two</w:t></w:r></w:p></w:body></w:document>");
             Add(archive, "word/_rels/document.xml.rels",
-                "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"/>");
+                $"<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">{(protectionXml is null ? string.Empty : "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>")}</Relationships>");
+            if (protectionXml is not null)
+            {
+                Add(
+                    archive,
+                    "word/settings.xml",
+                    $"<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">{protectionXml}</w:settings>"
+                );
+            }
+            if (includeSignatureMarker)
+            {
+                Add(archive, "_xmlsignatures/sig1.sig", "signature-marker");
+            }
         }
         return stream.ToArray();
     }

@@ -38,8 +38,11 @@ public sealed record NumberingRebuildApplyRequest(
     string ExpectedPackageFingerprint,
     string ExpectedPlanId,
     IReadOnlyList<WordNumberingRebuildCommand> Commands,
-    bool KeepBackup = true
+    bool KeepBackup = true,
+    string? ProtectedEditAuthorization = null
 );
+
+public sealed record NumberingRebuildEditPolicyBlockDetails(string PlanId, IReadOnlyList<string> BlockCodes);
 
 public sealed record NumberingRebuildCandidateDetail(
     string ParagraphNodeId,
@@ -133,7 +136,10 @@ public sealed record NumberingRebuildPlanResult(
     bool ParagraphTextReturned,
     bool RawXmlReturned,
     bool MutationPerformed,
-    bool WordOpened
+    bool WordOpened,
+    WordPackageProtectionRiskAssessment Protection,
+    string? ProtectionAuthorizationId,
+    IReadOnlyList<string> RequiredAuthorizations
 );
 
 public sealed record NumberingRebuildApplyResult(
@@ -156,5 +162,6 @@ public sealed record NumberingRebuildApplyResult(
     bool ParagraphTextReturned,
     bool RawXmlReturned,
     bool MutationPerformed,
-    bool WordOpened
+    bool WordOpened,
+    IReadOnlyList<string> ExplicitAuthorizations
 );

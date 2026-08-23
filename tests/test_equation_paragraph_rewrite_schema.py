@@ -27,6 +27,21 @@ def _runtime() -> dict[str, Any]:
     }
 
 
+def _unprotected() -> dict[str, Any]:
+    return {
+        "base_document_protection_enforced": False,
+        "result_document_protection_enforced": False,
+        "document_protection_metadata_changed": False,
+        "unmodeled_document_protection_metadata": False,
+        "base_permission_range_count": 0,
+        "result_permission_range_count": 0,
+        "malformed_permission_range_count": 0,
+        "permission_issues_truncated": False,
+        "permission_issue_codes": [],
+        "authorization_required": False,
+    }
+
+
 def test_equation_paragraph_contracts_are_closed_versioned_and_lazy() -> None:
     tools = _tools()
     assert set(tools) == set(NAMES)
@@ -155,6 +170,8 @@ def test_success_envelopes_expose_proof_without_echoing_text_or_xml() -> None:
             "raw_xml_returned": False,
             "mutation_performed": False,
             "word_opened": False,
+            "protection": _unprotected(),
+            "required_authorizations": [],
             **_runtime(),
         },
     }
@@ -184,6 +201,7 @@ def test_success_envelopes_expose_proof_without_echoing_text_or_xml() -> None:
             "raw_xml_returned": False,
             "mutation_performed": True,
             "word_opened": False,
+            "explicit_authorizations": [],
             **_runtime(),
         },
     }

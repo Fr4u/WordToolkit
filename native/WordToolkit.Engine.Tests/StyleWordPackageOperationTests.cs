@@ -346,6 +346,123 @@ public sealed class StyleWordPackageOperationTests
     }
 
     [Fact]
+    public void ProtectedStyleEditRequiresExactAuthorizationAndMalformedNoOpWritesNothing()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "protected.docx");
+            CreatePackage(
+                path,
+                protectionXml: "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\"/>"
+            );
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var operation = new StyleWordPackageOperation(
+                new MicrosoftOpenXmlPackageValidator()
+            );
+            var commands = new StyleEditCommand[]
+            {
+                new RenameStyleEditCommand("Definition", "Protected rename"),
+            };
+            var plan = operation.Plan(new StyleEditPlanRequest(
+                path,
+                before.Fingerprint,
+                commands
+            ));
+            var beforeBytes = File.ReadAllBytes(path);
+            Assert.True(plan.Protection.AuthorizationRequired);
+            Assert.Equal(plan.PlanId, plan.ProtectionAuthorizationId);
+
+            var denied = Assert.Throws<WordToolkitOperationException>(() => operation.Apply(
+                new StyleEditApplyRequest(
+                    path,
+                    before.Fingerprint,
+                    plan.PlanId,
+                    commands,
+                    KeepBackup: false,
+                    ProtectedEditAuthorization: "wrong"
+                )
+            ));
+            Assert.Equal("EDIT_POLICY_BLOCKED", denied.Code);
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+
+            var applied = operation.Apply(new StyleEditApplyRequest(
+                path,
+                before.Fingerprint,
+                plan.PlanId,
+                commands,
+                KeepBackup: false,
+                ProtectedEditAuthorization: plan.ProtectionAuthorizationId
+            ));
+            Assert.True(applied.Applied);
+            Assert.Equal(["protected_edit_authorization"], applied.ExplicitAuthorizations);
+
+            var malformedPath = Path.Combine(directory, "malformed.docx");
+            CreatePackage(
+                malformedPath,
+                protectionXml: "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\" w:bogus=\"x\"/>"
+            );
+            var malformed = reader.Read(malformedPath);
+            var malformedOperation = new StyleWordPackageOperation(
+                new MicrosoftOpenXmlPackageValidator()
+            );
+            var malformedPlan = malformedOperation.Plan(new StyleEditPlanRequest(
+                malformedPath,
+                malformed.Fingerprint,
+                commands
+            ));
+            var malformedBytes = File.ReadAllBytes(malformedPath);
+            Assert.True(malformedPlan.Protection.HasMalformedProtectionMetadata);
+            Assert.Null(malformedPlan.ProtectionAuthorizationId);
+            var blocked = Assert.Throws<WordToolkitOperationException>(() =>
+                malformedOperation.Apply(new StyleEditApplyRequest(
+                    malformedPath,
+                    malformed.Fingerprint,
+                    malformedPlan.PlanId,
+                    commands,
+                    KeepBackup: false,
+                    ProtectedEditAuthorization: malformedPlan.PlanId
+                ))
+            );
+            Assert.Equal("EDIT_POLICY_BLOCKED", blocked.Code);
+            Assert.Equal(malformedBytes, File.ReadAllBytes(malformedPath));
+
+            var paragraph = new WordSemanticProjector().Project(malformed).Nodes.Single(node =>
+                node.Kind == WordSemanticNodeKind.Paragraph
+            );
+            var noOpCommands = new StyleEditCommand[]
+            {
+                new SetStyleEditCommand(
+                    paragraph.Id.Value,
+                    "OldPara",
+                    ExpectedStyleId: "OldPara"
+                ),
+            };
+            var noOpPlan = malformedOperation.Plan(new StyleEditPlanRequest(
+                malformedPath,
+                malformed.Fingerprint,
+                noOpCommands
+            ));
+            Assert.False(noOpPlan.HasChanges);
+            var noOp = malformedOperation.Apply(new StyleEditApplyRequest(
+                malformedPath,
+                malformed.Fingerprint,
+                noOpPlan.PlanId,
+                noOpCommands,
+                KeepBackup: true
+            ));
+            Assert.True(noOp.NoOp);
+            Assert.Null(noOp.BackupPath);
+            Assert.Equal(malformedBytes, File.ReadAllBytes(malformedPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void MicrosoftValidatorReportsOnlyNewCandidateErrors()
     {
         var directory = TemporaryDirectory();
@@ -539,7 +656,8 @@ public sealed class StyleWordPackageOperationTests
     private static void CreatePackage(
         string path,
         byte[]? opaque = null,
-        string? documentBody = null
+        string? documentBody = null,
+        string? protectionXml = null
     )
     {
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
@@ -554,6 +672,7 @@ public sealed class StyleWordPackageOperationTests
               {{(opaque is null ? string.Empty : "<Default Extension=\"bin\" ContentType=\"application/octet-stream\"/>")}}
               <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
               <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+              {{(protectionXml is null ? string.Empty : "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>")}}
             </Types>
             """
         );
@@ -587,12 +706,21 @@ public sealed class StyleWordPackageOperationTests
         WriteEntry(
             archive,
             "word/_rels/document.xml.rels",
-            """
+            $"""
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
               <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+              {(protectionXml is null ? string.Empty : "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>")}
             </Relationships>
             """
         );
+        if (protectionXml is not null)
+        {
+            WriteEntry(
+                archive,
+                "word/settings.xml",
+                $"<w:settings xmlns:w=\"{WordNamespace}\">{protectionXml}</w:settings>"
+            );
+        }
         if (opaque is not null)
         {
             WriteEntry(archive, "custom/opaque.bin", opaque);

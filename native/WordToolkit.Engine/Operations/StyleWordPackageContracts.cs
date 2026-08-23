@@ -111,7 +111,13 @@ public sealed record StyleEditApplyRequest(
     string ExpectedPackageFingerprint,
     string ExpectedPlanId,
     IReadOnlyList<StyleEditCommand> Commands,
-    bool KeepBackup = true
+    bool KeepBackup = true,
+    string? ProtectedEditAuthorization = null
+);
+
+public sealed record StyleEditPolicyBlockDetails(
+    string PlanId,
+    IReadOnlyList<string> BlockCodes
 );
 
 public sealed record StyleEditSelectorResolution(
@@ -184,7 +190,10 @@ public sealed record StyleEditPlanResult(
     IReadOnlyList<StyleEditSelectorResolution>? SelectorResolutions,
     bool RawXmlReturned,
     bool MutationPerformed,
-    bool WordOpened
+    bool WordOpened,
+    WordPackageProtectionRiskAssessment Protection,
+    string? ProtectionAuthorizationId,
+    IReadOnlyList<string> RequiredAuthorizations
 );
 
 public sealed record StyleEditApplyResult(
@@ -204,5 +213,6 @@ public sealed record StyleEditApplyResult(
     bool MicrosoftSchemaNoNewErrors,
     bool RawXmlReturned,
     bool MutationPerformed,
-    bool WordOpened
+    bool WordOpened,
+    IReadOnlyList<string> ExplicitAuthorizations
 );

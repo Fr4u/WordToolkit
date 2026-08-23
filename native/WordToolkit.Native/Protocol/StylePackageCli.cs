@@ -210,7 +210,7 @@ internal static class StylePackageCli
             or "SELECTION_LIMIT" or "TRANSACTION_LIMIT" => 75,
         "ACCESS_DENIED" => 77,
         "IO_ERROR" => 74,
-        "SIGNED_PACKAGE" or "VALIDATOR_REQUIRED" or "OOXML_SCHEMA_INVALID"
+        "EDIT_POLICY_BLOCKED" or "SIGNED_PACKAGE" or "VALIDATOR_REQUIRED" or "OOXML_SCHEMA_INVALID"
             or "VALIDATION_FAILED" or "UNSAFE_EDIT" or "RECOVERY_REQUIRED" => 78,
         _ => 70,
     };

@@ -439,6 +439,72 @@ public sealed class EquationParagraphRewriteWordPackageOperationTests
         }
     }
 
+    [Fact]
+    public void ProtectedRewriteRequiresPlanBoundAuthorizationAndMalformedProtectionIsByteExactNoOp()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "protected.docx");
+            CreateProtectedPackage(path, "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\"/>");
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var candidate = new WordEquationParagraphRewriteCatalogBuilder().Build(
+                before, new WordSemanticProjector().Project(before)).Candidates.First();
+            var command = new RewriteEquationParagraphTextCommand(candidate.Id, candidate.Fingerprint, ["changed", " after"]);
+            var operation = new EquationParagraphRewriteWordPackageOperation(new MicrosoftOpenXmlPackageValidator());
+            var plan = operation.Plan(new EquationParagraphRewritePlanRequest(path, before.Fingerprint, [command]));
+            Assert.True(plan.Protection.AuthorizationRequired);
+            Assert.Equal(plan.PlanId, plan.ProtectionAuthorizationId);
+            var denied = Assert.Throws<WordToolkitOperationException>(() => operation.Apply(
+                new EquationParagraphRewriteApplyRequest(path, before.Fingerprint, plan.PlanId, [command], false, "wrong")));
+            Assert.Equal("EDIT_POLICY_BLOCKED", denied.Code);
+            Assert.Equal(before.Fingerprint, reader.Read(path).Fingerprint);
+            var applied = operation.Apply(new EquationParagraphRewriteApplyRequest(
+                path, before.Fingerprint, plan.PlanId, [command], false, plan.ProtectionAuthorizationId));
+            Assert.True(applied.Applied);
+            Assert.Equal(["protected_edit_authorization"], applied.ExplicitAuthorizations);
+
+            var malformed = Path.Combine(directory, "malformed.docx");
+            CreateProtectedPackage(malformed, "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\" w:bogus=\"x\"/>");
+            var malformedBefore = File.ReadAllBytes(malformed);
+            var malformedPackage = reader.Read(malformed);
+            var malformedCandidate = new WordEquationParagraphRewriteCatalogBuilder().Build(
+                malformedPackage, new WordSemanticProjector().Project(malformedPackage)).Candidates.First();
+            var malformedCommand = new RewriteEquationParagraphTextCommand(malformedCandidate.Id, malformedCandidate.Fingerprint, ["x", "y"]);
+            var malformedPlan = operation.Plan(new EquationParagraphRewritePlanRequest(malformed, malformedPackage.Fingerprint, [malformedCommand]));
+            Assert.True(malformedPlan.Protection.HasMalformedProtectionMetadata);
+            var malformedError = Assert.Throws<WordToolkitOperationException>(() => operation.Apply(
+                new EquationParagraphRewriteApplyRequest(malformed, malformedPackage.Fingerprint, malformedPlan.PlanId, [malformedCommand], false, malformedPlan.ProtectionAuthorizationId)));
+            Assert.Equal("EDIT_POLICY_BLOCKED", malformedError.Code);
+            Assert.Equal(malformedBefore, File.ReadAllBytes(malformed));
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+
+    [Fact]
+    public void ProtectedNoOpDoesNotRequireAuthorizationOrWriteBackup()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "noop.docx");
+            CreateProtectedPackage(path, "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\"/>");
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var candidate = new WordEquationParagraphRewriteCatalogBuilder().Build(before, new WordSemanticProjector().Project(before)).Candidates.First();
+            var command = new RewriteEquationParagraphTextCommand(candidate.Id, candidate.Fingerprint, candidate.TextSlots.Select(slot => slot.Text).ToArray());
+            var operation = new EquationParagraphRewriteWordPackageOperation(new MicrosoftOpenXmlPackageValidator());
+            var plan = operation.Plan(new EquationParagraphRewritePlanRequest(path, before.Fingerprint, [command]));
+            Assert.False(plan.HasChanges);
+            var result = operation.Apply(new EquationParagraphRewriteApplyRequest(path, before.Fingerprint, plan.PlanId, [command], true));
+            Assert.True(result.NoOp);
+            Assert.Null(result.BackupPath);
+            Assert.Equal(before.Fingerprint, reader.Read(path).Fingerprint);
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+
     private static void CreatePackage(string path, string? firstParagraph = null)
     {
         firstParagraph ??=
@@ -483,6 +549,55 @@ public sealed class EquationParagraphRewriteWordPackageOperationTests
             """
         );
         WriteEntry(archive, "custom/opaque.bin", Encoding.UTF8.GetBytes("opaque"));
+    }
+
+    private static void CreateProtectedPackage(string path, string protection)
+    {
+        CreatePackage(path);
+        var temp = path + ".tmp";
+        using (var source = ZipFile.OpenRead(path))
+        using (var target = ZipFile.Open(temp, ZipArchiveMode.Create))
+        {
+            foreach (var entry in source.Entries)
+            {
+                var output = target.CreateEntry(entry.FullName);
+                using var input = entry.Open();
+                using var memory = new MemoryStream();
+                input.CopyTo(memory);
+                if (entry.FullName == "[Content_Types].xml")
+                {
+                    var xml = Encoding.UTF8.GetString(memory.ToArray());
+                    xml = xml.Replace(
+                        "</Types>",
+                        "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/></Types>",
+                        StringComparison.Ordinal
+                    );
+                    using var writer = new StreamWriter(output.Open(), new UTF8Encoding(false), leaveOpen: false);
+                    writer.Write(xml);
+                }
+                else
+                {
+                    using var destination = output.Open();
+                    memory.Position = 0;
+                    memory.CopyTo(destination);
+                }
+            }
+            WriteEntry(
+                target,
+                "word/_rels/document.xml.rels",
+                $"""
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
+                </Relationships>
+                """
+            );
+            WriteEntry(
+                target,
+                "word/settings.xml",
+                $"""<w:settings xmlns:w="{Word}">{protection}</w:settings>"""
+            );
+        }
+        File.Move(temp, path, true);
     }
 
     private static void CreateMultiMathPackage(

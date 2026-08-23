@@ -40,14 +40,16 @@ public static class StyleEditOperationJson
             "expected_package_fingerprint",
             "expected_plan_id",
             "commands",
-            "keep_backup"
+            "keep_backup",
+            "protected_edit_authorization"
         );
         return new StyleEditApplyRequest(
             RequiredString(root, "local_path"),
             RequiredString(root, "expected_package_fingerprint"),
             RequiredString(root, "expected_plan_id"),
             Commands(root),
-            OptionalBoolean(root, "keep_backup") ?? true
+            OptionalBoolean(root, "keep_backup") ?? true,
+            OptionalString(root, "protected_edit_authorization")
         );
     }
 
