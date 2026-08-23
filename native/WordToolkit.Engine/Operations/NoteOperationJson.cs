@@ -60,7 +60,8 @@ public static class NoteOperationJson
             "repair_kind",
             "definition_id",
             "expected_definition_fingerprint",
-            "keep_backup"
+            "keep_backup",
+            "protected_edit_authorization"
         );
         return new NoteRepairApplyRequest(
             RequiredString(root, "local_path"),
@@ -69,7 +70,8 @@ public static class NoteOperationJson
             RequiredString(root, "repair_kind"),
             RequiredString(root, "definition_id"),
             RequiredString(root, "expected_definition_fingerprint"),
-            OptionalBoolean(root, "keep_backup") ?? true
+            OptionalBoolean(root, "keep_backup") ?? true,
+            OptionalString(root, "protected_edit_authorization")
         );
     }
 
@@ -185,6 +187,13 @@ public static class NoteOperationJson
             JsonValueKind.False => false,
             _ => throw Invalid($"{property} must be a boolean"),
         };
+    }
+
+    private static string? OptionalString(IReadOnlyDictionary<string, JsonElement> item, string property)
+    {
+        if (!item.TryGetValue(property, out var value)) return null;
+        if (value.ValueKind != JsonValueKind.String) throw Invalid($"{property} must be a string");
+        return value.GetString();
     }
 
     private static WordToolkitOperationException Invalid(

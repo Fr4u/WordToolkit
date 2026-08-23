@@ -190,7 +190,7 @@ internal static class RelationshipRepairPackageCli
         "IO_ERROR" => 74,
         "SIGNED_PACKAGE" or "VALIDATOR_REQUIRED" or "OOXML_SCHEMA_INVALID"
             or "VALIDATION_FAILED" or "UNSAFE_REPAIR" or "RECOVERY_REQUIRED"
-            or "EXTERNAL_RELATIONSHIP_AUTHORIZATION_REQUIRED" => 78,
+            or "EXTERNAL_RELATIONSHIP_AUTHORIZATION_REQUIRED" or "EDIT_POLICY_BLOCKED" => 78,
         _ => 70,
     };
 

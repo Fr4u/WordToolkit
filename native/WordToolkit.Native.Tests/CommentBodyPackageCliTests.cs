@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using WordToolkit.Engine.Operations;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Semantics;
@@ -136,6 +137,37 @@ public sealed class CommentBodyPackageCliTests
             catalog.InspectAction(CommentBodyWordPackageContract.ApplyOperationName)
                 .ToJsonString(),
             StringComparison.Ordinal
+        );
+        var plan = catalog.InspectAction(
+            CommentBodyWordPackageContract.PlanOperationName
+        )["tool"]!.AsObject();
+        var apply = catalog.InspectAction(
+            CommentBodyWordPackageContract.ApplyOperationName
+        )["tool"]!.AsObject();
+        var planData = plan["outputSchema"]!["properties"]!["data"]!;
+        Assert.Equal(
+            "^wcbplan_[A-Za-z0-9_-]+$",
+            planData["properties"]!["protection_authorization_id"]!["pattern"]!
+                .GetValue<string>()
+        );
+        Assert.DoesNotContain(
+            "protection_authorization_id",
+            planData["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.Contains(
+            "protection",
+            planData["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.Equal(
+            "^wcbplan_[A-Za-z0-9_-]+$",
+            apply["inputSchema"]!["properties"]!["protected_edit_authorization"]!["pattern"]!
+                .GetValue<string>()
+        );
+        Assert.Contains(
+            "explicit_authorizations",
+            apply["outputSchema"]!["properties"]!["data"]!["required"]!
+                .AsArray()
+                .Select(item => item!.GetValue<string>())
         );
     }
 

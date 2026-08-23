@@ -105,7 +105,7 @@ internal static class TransformPackageCli
         "VERSION_CONFLICT" => 73,
         "IO_ERROR" => 74,
         "ACCESS_DENIED" => 77,
-        "SIGNED_PACKAGE" or "UNSUPPORTED_DOCUMENT" => 78,
+        "SIGNED_PACKAGE" or "UNSUPPORTED_DOCUMENT" or "EDIT_POLICY_BLOCKED" => 78,
         "VALIDATION_FAILED" or "RESULT_MISMATCH" => 70,
         _ => 70,
     };

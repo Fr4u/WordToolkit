@@ -94,10 +94,12 @@ internal sealed partial class WordLiveService
         }
         catch (WordToolkitOperationException exception)
         {
+            var details = exception.Details
+                ?? (exception.Reason is null ? null : new { reason = exception.Reason });
             throw new NativeToolException(
                 exception.Code,
                 exception.Message,
-                exception.Reason is null ? null : new { reason = exception.Reason },
+                details,
                 exception.Retryable
             );
         }

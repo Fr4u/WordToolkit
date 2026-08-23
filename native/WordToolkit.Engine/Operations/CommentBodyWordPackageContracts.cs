@@ -1,4 +1,5 @@
 using WordToolkit.Engine.Validation;
+using WordToolkit.Engine.Semantics;
 
 namespace WordToolkit.Engine.Operations;
 
@@ -40,7 +41,13 @@ public sealed record CommentBodyEditApplyRequest(
     string ExpectedPackageFingerprint,
     string ExpectedPlanId,
     IReadOnlyList<ReplaceCommentBodyTextCommand> Commands,
-    bool KeepBackup = true
+    bool KeepBackup = true,
+    string? ProtectedEditAuthorization = null
+);
+
+public sealed record CommentBodyEditPolicyBlockDetails(
+    string PlanId,
+    IReadOnlyList<string> BlockCodes
 );
 
 public sealed record CommentBodyEditDetail(
@@ -80,6 +87,9 @@ public sealed record CommentBodyEditPlanResult(
     bool CanApply,
     bool ApplyBlocked,
     IReadOnlyList<string> ApplyBlockedReasons,
+    WordPackageProtectionRiskAssessment Protection,
+    string? ProtectionAuthorizationId,
+    IReadOnlyList<string> RequiredAuthorizations,
     WordPackageCandidateValidationReport CandidateValidation,
     IReadOnlyList<CommentBodyEditDetail>? CommentEdits,
     IReadOnlyList<CommentBodyEditChangedPart>? ChangedParts,
@@ -105,6 +115,7 @@ public sealed record CommentBodyEditApplyResult(
     int? DiagnosticCount,
     bool MicrosoftSchemaValid,
     bool MicrosoftSchemaNoNewErrors,
+    IReadOnlyList<string> ExplicitAuthorizations,
     bool RawTextReturned,
     bool RawXmlReturned,
     bool MutationPerformed,

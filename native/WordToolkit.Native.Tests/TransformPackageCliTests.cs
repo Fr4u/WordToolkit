@@ -257,6 +257,49 @@ public sealed class TransformPackageCliTests
         Assert.Equal(0, host.InvocationCount);
     }
 
+    [Fact]
+    public void CatalogPublishesClosedTransformResultAndProtectionEvidence()
+    {
+        var tool = ToolCatalog.LoadNativeWordTools()
+            .InspectAction(TransformWordPackageContract.OperationName)["tool"]!
+            .AsObject();
+        var output = tool["outputSchema"]!.AsObject();
+
+        Assert.False(output["additionalProperties"]!.GetValue<bool>());
+        Assert.Contains(
+            "protection",
+            output["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.Contains(
+            "changed_entry_names",
+            output["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.Equal(
+            "boolean",
+            output["properties"]!["protection"]!["properties"]!["authorization_required"]!["type"]!
+                .GetValue<string>()
+        );
+        Assert.False(
+            output["properties"]!["protection"]!["additionalProperties"]!
+                .GetValue<bool>()
+        );
+        var protection = output["properties"]!["protection"]!["properties"]!;
+        Assert.Contains(
+            "none",
+            protection["base_document_protection_edit_mode"]!["enum"]!
+                .AsArray()
+                .Select(item => item!.GetValue<string>())
+        );
+        Assert.Equal(
+            250_000,
+            protection["base_permission_range_count"]!["maximum"]!.GetValue<int>()
+        );
+        Assert.Equal(
+            500_000,
+            protection["malformed_permission_range_count"]!["maximum"]!.GetValue<int>()
+        );
+    }
+
     private static async Task<JsonElement> CallMcpAsync(
         NoInvokeHost host,
         JsonObject arguments

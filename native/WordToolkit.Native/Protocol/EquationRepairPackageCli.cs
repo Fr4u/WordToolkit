@@ -188,7 +188,8 @@ internal static class EquationRepairPackageCli
         "ACCESS_DENIED" => 77,
         "IO_ERROR" => 74,
         "SIGNED_PACKAGE" or "VALIDATOR_REQUIRED" or "OOXML_SCHEMA_INVALID"
-            or "VALIDATION_FAILED" or "UNSAFE_REPAIR" or "RECOVERY_REQUIRED" => 78,
+            or "VALIDATION_FAILED" or "UNSAFE_REPAIR" or "EDIT_POLICY_BLOCKED"
+            or "RECOVERY_REQUIRED" => 78,
         _ => 70,
     };
 

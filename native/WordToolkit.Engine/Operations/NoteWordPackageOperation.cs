@@ -205,6 +205,21 @@ public sealed class NoteWordPackageOperation
                     "The request does not reproduce the reviewed note repair plan ID"
                 );
             }
+            var protectionBlocks = ProtectionBlockCodes(
+                context,
+                request.ProtectedEditAuthorization
+            );
+            if (protectionBlocks.Count != 0)
+            {
+                throw new WordToolkitOperationException(
+                    "EDIT_POLICY_BLOCKED",
+                    "The reviewed note repair is blocked by Word editing protection",
+                    details: new NoteRepairEditPolicyBlockDetails(
+                        context.Plan.PlanId,
+                        protectionBlocks
+                    )
+                );
+            }
             if (context.HasDigitalSignatures)
             {
                 throw new WordToolkitOperationException(
@@ -236,6 +251,14 @@ public sealed class NoteWordPackageOperation
                 );
             }
 
+            if (!context.Plan.HasChanges)
+            {
+                throw new WordToolkitOperationException(
+                    "NO_CHANGES",
+                    "The reviewed note repair does not contain a package mutation"
+                );
+            }
+
             var result = _writer.Write(
                 context.Path,
                 context.Plan.CreateMutation(context.Package),
@@ -261,6 +284,9 @@ public sealed class NoteWordPackageOperation
                 result.Diagnostics.Count,
                 context.Validation.CandidateValid,
                 context.Validation.NoNewErrors,
+                context.Protection.AuthorizationRequired
+                    ? ["protected_edit_authorization"]
+                    : Array.Empty<string>(),
                 RawXmlReturned: false,
                 MutationPerformed: true,
                 WordOpened: false
@@ -297,13 +323,25 @@ public sealed class NoteWordPackageOperation
         var plan = new WordNoteRepairPlanner().Plan(package, command, cancellationToken);
         var candidate = MaterializeCandidate(package, plan, cancellationToken);
         var validation = ValidateExactCandidate(package, candidate, cancellationToken);
+        var projector = new WordSemanticProjector();
+        var semantic = projector.Project(package, cancellationToken);
+        var candidateSemantic = projector.Project(candidate, cancellationToken);
+        var protection = WordPackagePatchRiskAnalyzer.AssessProtection(
+            package,
+            semantic,
+            candidate,
+            candidateSemantic,
+            plan.HasChanges,
+            cancellationToken
+        );
         return new PlanContext(
             path,
             package,
             candidate,
             plan,
             WordPackagePatchRiskAnalyzer.HasDigitalSignatures(package),
-            validation
+            validation,
+            protection
         );
     }
 
@@ -397,6 +435,12 @@ public sealed class NoteWordPackageOperation
         {
             blocked.Add("microsoft_schema_validation_failed");
         }
+        blocked.AddRange(ProtectionBlockCodes(context, null));
+        var requiredAuthorizations = context.Plan.HasChanges
+            && context.Protection.AuthorizationRequired
+            && !context.Protection.HasMalformedProtectionMetadata
+                ? new[] { "protected_edit_authorization" }
+                : Array.Empty<string>();
         return new NoteRepairPlanResult(
             NoteWordPackageContract.PlanContract,
             Path.GetFileName(context.Path),
@@ -424,12 +468,38 @@ public sealed class NoteWordPackageOperation
                         || context.Validation.Issues.Count != 0,
                     Issues = Array.Empty<WordPackageValidationIssue>(),
                 },
-            context.Plan.SafetyRules,
-            includeDetails ? context.Plan.ChangedParts : null,
+            SafetyRules: context.Plan.SafetyRules,
+            Protection: context.Protection,
+            ProtectionAuthorizationId: requiredAuthorizations.Length == 0
+                ? null
+                : context.Plan.PlanId,
+            RequiredAuthorizations: requiredAuthorizations,
+            ChangedParts: includeDetails ? context.Plan.ChangedParts : null,
             RawXmlReturned: false,
             MutationPerformed: false,
             WordOpened: false
         );
+    }
+
+    private static IReadOnlyList<string> ProtectionBlockCodes(
+        PlanContext context,
+        string? authorization
+    )
+    {
+        if (!context.Plan.HasChanges)
+        {
+            return Array.Empty<string>();
+        }
+        if (context.Protection.HasMalformedProtectionMetadata)
+        {
+            return ["protection_metadata_malformed"];
+        }
+        if (context.Protection.AuthorizationRequired
+            && !string.Equals(authorization, context.Plan.PlanId, StringComparison.Ordinal))
+        {
+            return ["protected_document_edit_not_authorized"];
+        }
+        return Array.Empty<string>();
     }
 
     private static WordNoteRepairCommand ParseCommand(
@@ -838,6 +908,7 @@ public sealed class NoteWordPackageOperation
         OpcPackageSnapshot Candidate,
         WordNoteRepairPlan Plan,
         bool HasDigitalSignatures,
-        WordPackageCandidateValidationReport Validation
+        WordPackageCandidateValidationReport Validation,
+        WordPackageProtectionRiskAssessment Protection
     );
 }

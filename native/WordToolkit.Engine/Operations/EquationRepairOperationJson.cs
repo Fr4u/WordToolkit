@@ -54,14 +54,16 @@ public static class EquationRepairOperationJson
             "expected_package_fingerprint",
             "expected_plan_id",
             "commands",
-            "keep_backup"
+            "keep_backup",
+            "protected_edit_authorization"
         );
         return new EquationRepairApplyRequest(
             RequiredString(root, "local_path"),
             RequiredString(root, "expected_package_fingerprint"),
             RequiredString(root, "expected_plan_id"),
             Commands(root),
-            OptionalBoolean(root, "keep_backup") ?? true
+            OptionalBoolean(root, "keep_backup") ?? true,
+            OptionalString(root, "protected_edit_authorization")
         );
     }
 
@@ -173,6 +175,18 @@ public static class EquationRepairOperationJson
     ) => item.TryGetValue(property, out var value)
         ? value
         : throw Invalid($"Missing required field '{property}'");
+
+    private static string? OptionalString(
+        IReadOnlyDictionary<string, JsonElement> item,
+        string property
+    )
+    {
+        if (!item.TryGetValue(property, out var value)) return null;
+        if (value.ValueKind == JsonValueKind.Null) return null;
+        if (value.ValueKind != JsonValueKind.String)
+            throw Invalid($"{property} must be a string or null");
+        return value.GetString();
+    }
 
     private static string RequiredString(
         IReadOnlyDictionary<string, JsonElement> item,

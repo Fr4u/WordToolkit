@@ -48,7 +48,13 @@ public sealed record RelationshipRepairApplyRequest(
     string ExpectedPlanId,
     IReadOnlyList<RelationshipRepairCommandRequest> Commands,
     bool AllowExternalRelationshipRemoval = false,
-    bool KeepBackup = true
+    bool KeepBackup = true,
+    string? ProtectedEditAuthorization = null
+);
+
+public sealed record RelationshipRepairEditPolicyBlockDetails(
+    string PlanId,
+    IReadOnlyList<string> BlockCodes
 );
 
 public sealed record RelationshipInspectionItem(
@@ -112,6 +118,9 @@ public sealed record RelationshipRepairPlanResult(
     bool CanApply,
     bool ApplyBlocked,
     IReadOnlyList<string> ApplyBlockedReasons,
+    WordPackageProtectionRiskAssessment Protection,
+    string? ProtectionAuthorizationId,
+    IReadOnlyList<string> RequiredAuthorizations,
     WordRelationshipRepairValidation EngineValidation,
     WordPackageCandidateValidationReport CandidateValidation,
     IReadOnlyList<string> SafetyRules,
@@ -139,6 +148,7 @@ public sealed record RelationshipRepairApplyResult(
     int DiagnosticCount,
     bool MicrosoftSchemaValid,
     bool MicrosoftSchemaNoNewErrors,
+    IReadOnlyList<string> ExplicitAuthorizations,
     bool ExternalTargetsReturned,
     bool RawXmlReturned,
     bool MutationPerformed,

@@ -367,23 +367,226 @@ public sealed class CommentBodyWordPackageOperationTests
         }
     }
 
+    [Fact]
+    public void ProtectedCommentEditRequiresExactPlanBoundAuthorization()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "protected.docx");
+            CreatePackage(path, settingsXml: SettingsXml(
+                "<w:documentProtection w:edit=\"comments\" w:enforcement=\"1\"/>"
+            ));
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var semantic = new WordSemanticProjector().Project(before);
+            var comment = new WordReviewGraphBuilder().Build(before, semantic)
+                .Comments.Single(item => item.OoxmlId == "0");
+            var command = new ReplaceCommentBodyTextCommand(
+                comment.Id,
+                "split target",
+                "authorized replacement"
+            );
+            var operation = new CommentBodyWordPackageOperation(
+                new MicrosoftOpenXmlPackageValidator()
+            );
+
+            var plan = operation.Plan(
+                new CommentBodyEditPlanRequest(path, before.Fingerprint, [command])
+            );
+
+            Assert.False(plan.CanApply);
+            Assert.True(plan.ApplyBlocked);
+            Assert.True(plan.Protection.BaseDocumentProtectionEnforced);
+            Assert.Equal("comments", plan.Protection.BaseDocumentProtectionEditMode);
+            Assert.True(plan.Protection.AuthorizationRequired);
+            Assert.False(plan.Protection.HasMalformedProtectionMetadata);
+            Assert.Equal(plan.PlanId, plan.ProtectionAuthorizationId);
+            Assert.Equal(["protected_edit_authorization"], plan.RequiredAuthorizations);
+            Assert.Contains(
+                "protected_document_edit_not_authorized",
+                plan.ApplyBlockedReasons
+            );
+            var serializedPlan = WordToolkitOperationJson.Serialize(plan);
+            Assert.DoesNotContain("cryptPassword", serializedPlan, StringComparison.Ordinal);
+            Assert.DoesNotContain("saltValue", serializedPlan, StringComparison.Ordinal);
+
+            var beforeBytes = File.ReadAllBytes(path);
+            var denied = Assert.Throws<WordToolkitOperationException>(() =>
+                operation.Apply(new CommentBodyEditApplyRequest(
+                    path,
+                    before.Fingerprint,
+                    plan.PlanId,
+                    [command],
+                    KeepBackup: true,
+                    ProtectedEditAuthorization: "wcbplan_wrong"
+                ))
+            );
+            Assert.Equal("EDIT_POLICY_BLOCKED", denied.Code);
+            var details = Assert.IsType<CommentBodyEditPolicyBlockDetails>(denied.Details);
+            Assert.Equal(plan.PlanId, details.PlanId);
+            Assert.Equal(
+                ["protected_document_edit_not_authorized"],
+                details.BlockCodes
+            );
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.Single(Directory.GetFiles(directory));
+
+            var applied = operation.Apply(new CommentBodyEditApplyRequest(
+                path,
+                before.Fingerprint,
+                plan.PlanId,
+                [command],
+                KeepBackup: false,
+                ProtectedEditAuthorization: plan.ProtectionAuthorizationId
+            ));
+
+            Assert.True(applied.Applied);
+            Assert.False(applied.NoOp);
+            Assert.Equal(["protected_edit_authorization"], applied.ExplicitAuthorizations);
+            Assert.NotEqual(before.Fingerprint, reader.Read(path).Fingerprint);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void MalformedProtectionMetadataCannotBeOverriddenAndDoesNotWrite()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "malformed-protection.docx");
+            CreatePackage(path, settingsXml: SettingsXml(
+                "<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\" w:bogus=\"x\"/>"
+            ));
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var semantic = new WordSemanticProjector().Project(before);
+            var comment = new WordReviewGraphBuilder().Build(before, semantic)
+                .Comments.Single(item => item.OoxmlId == "0");
+            var command = new ReplaceCommentBodyTextCommand(
+                comment.Id,
+                "split target",
+                "blocked replacement"
+            );
+            var operation = new CommentBodyWordPackageOperation(
+                new MicrosoftOpenXmlPackageValidator()
+            );
+            var plan = operation.Plan(
+                new CommentBodyEditPlanRequest(path, before.Fingerprint, [command])
+            );
+
+            Assert.True(plan.Protection.HasMalformedProtectionMetadata);
+            Assert.Null(plan.ProtectionAuthorizationId);
+            Assert.Empty(plan.RequiredAuthorizations);
+            Assert.Contains("protection_metadata_malformed", plan.ApplyBlockedReasons);
+            var beforeBytes = File.ReadAllBytes(path);
+
+            var denied = Assert.Throws<WordToolkitOperationException>(() =>
+                operation.Apply(new CommentBodyEditApplyRequest(
+                    path,
+                    before.Fingerprint,
+                    plan.PlanId,
+                    [command],
+                    ProtectedEditAuthorization: plan.PlanId
+                ))
+            );
+
+            Assert.Equal("EDIT_POLICY_BLOCKED", denied.Code);
+            var details = Assert.IsType<CommentBodyEditPolicyBlockDetails>(denied.Details);
+            Assert.Equal(["protection_metadata_malformed"], details.BlockCodes);
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.Single(Directory.GetFiles(directory));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ProtectedNoOpDoesNotRequireAuthorizationOrWriteBackup()
+    {
+        var directory = TemporaryDirectory();
+        try
+        {
+            var path = Path.Combine(directory, "protected-no-op.docx");
+            CreatePackage(path, settingsXml: SettingsXml(
+                "<w:documentProtection w:edit=\"readOnly\"/>"
+            ));
+            var reader = new OpcPackageReader();
+            var before = reader.Read(path);
+            var semantic = new WordSemanticProjector().Project(before);
+            var comment = new WordReviewGraphBuilder().Build(before, semantic)
+                .Comments.Single(item => item.OoxmlId == "1");
+            var command = new ReplaceCommentBodyTextCommand(
+                comment.Id,
+                "reply unchanged",
+                "reply unchanged"
+            );
+            var operation = new CommentBodyWordPackageOperation(
+                new MicrosoftOpenXmlPackageValidator()
+            );
+            var plan = operation.Plan(
+                new CommentBodyEditPlanRequest(path, before.Fingerprint, [command])
+            );
+
+            Assert.False(plan.HasChanges);
+            Assert.True(plan.CanApply);
+            Assert.False(plan.Protection.AuthorizationRequired);
+            Assert.Null(plan.ProtectionAuthorizationId);
+            var beforeBytes = File.ReadAllBytes(path);
+
+            var result = operation.Apply(new CommentBodyEditApplyRequest(
+                path,
+                before.Fingerprint,
+                plan.PlanId,
+                [command],
+                KeepBackup: true
+            ));
+
+            Assert.False(result.Applied);
+            Assert.True(result.NoOp);
+            Assert.False(result.MutationPerformed);
+            Assert.Null(result.BackupPath);
+            Assert.Empty(result.ChangedEntryNames);
+            Assert.Empty(result.ExplicitAuthorizations);
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.Single(Directory.GetFiles(directory));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private static void CreatePackage(
         string path,
         bool duplicateCommentId = false,
         bool trackedCommentText = false,
-        string? rootCommentBodyXml = null
+        string? rootCommentBodyXml = null,
+        string? settingsXml = null
     )
     {
         rootCommentBodyXml ??=
             $"<w:p w14:paraId=\"C0000001\">{(trackedCommentText ? "<w:ins w:id=\"9\" w:author=\"Alice\">" : string.Empty)}"
             + "<w:r><w:t>prefix split tar</w:t></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>get suffix</w:t></w:r>"
             + $"{(trackedCommentText ? "</w:ins>" : string.Empty)}</w:p>";
+        var settingsOverride = settingsXml is null
+            ? string.Empty
+            : "<Override PartName=\"/word/settings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml\"/>";
+        var settingsRelationship = settingsXml is null
+            ? string.Empty
+            : "<Relationship Id=\"rIdSettings\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings\" Target=\"settings.xml\"/>";
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
         WriteEntry(
             archive,
             "[Content_Types].xml",
-            """
+            $"""
             <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
               <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
               <Default Extension="xml" ContentType="application/xml"/>
@@ -394,6 +597,7 @@ public sealed class CommentBodyWordPackageOperationTests
               <Override PartName="/word/commentsIds.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.commentsIds+xml"/>
               <Override PartName="/word/commentsExtensible.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtensible+xml"/>
               <Override PartName="/word/people.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.people+xml"/>
+              {settingsOverride}
             </Types>
             """
         );
@@ -452,18 +656,26 @@ public sealed class CommentBodyWordPackageOperationTests
         WriteEntry(
             archive,
             "word/_rels/document.xml.rels",
-            """
+            $"""
             <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
               <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
               <Relationship Id="rIdCommentsEx" Type="http://schemas.microsoft.com/office/2011/relationships/commentsExtended" Target="commentsExtended.xml"/>
               <Relationship Id="rIdCommentsIds" Type="http://schemas.microsoft.com/office/2016/09/relationships/commentsIds" Target="commentsIds.xml"/>
               <Relationship Id="rIdCommentsExtensible" Type="http://schemas.microsoft.com/office/2018/08/relationships/commentsExtensible" Target="commentsExtensible.xml"/>
               <Relationship Id="rIdPeople" Type="http://schemas.microsoft.com/office/2011/relationships/people" Target="people.xml"/>
+              {settingsRelationship}
             </Relationships>
             """
         );
+        if (settingsXml is not null)
+        {
+            WriteEntry(archive, "word/settings.xml", settingsXml);
+        }
         WriteEntry(archive, "custom/opaque.bin", Encoding.UTF8.GetBytes("opaque"));
     }
+
+    private static string SettingsXml(string body) =>
+        $"<w:settings xmlns:w=\"{Word}\">{body}</w:settings>";
 
     private static void WriteEntry(ZipArchive archive, string name, string content) =>
         WriteEntry(archive, name, Encoding.UTF8.GetBytes(content));
