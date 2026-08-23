@@ -587,11 +587,13 @@ public sealed class WordPackagePatchPlanTests
     [InlineData("w:bogus='x'")]
     [InlineData("bogus='x'")]
     [InlineData("w14:algorithmName='SHA-512'")]
+    [InlineData("x:bogus='value'")]
     public void MalformedProtectionAttributesAreNonOverridable(string attribute)
     {
         var settings =
             "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
-            + "xmlns:w14='http://schemas.microsoft.com/office/word/2010/wordml'>"
+            + "xmlns:w14='http://schemas.microsoft.com/office/word/2010/wordml' "
+            + "xmlns:x='urn:test'>"
             + $"<w:documentProtection w:edit='readOnly' w:enforcement='1' {attribute}/>"
             + "</w:settings>";
         var before = Read(BuildPackage(
@@ -625,12 +627,15 @@ public sealed class WordPackagePatchPlanTests
         Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
     }
 
-    [Fact]
-    public void ProtectionElementContentIsNonOverridable()
+    [Theory]
+    [InlineData("<w:r/>")]
+    [InlineData("<![CDATA[]]>")]
+    [InlineData("not-empty")]
+    public void ProtectionElementContentIsNonOverridable(string content)
     {
-        const string settings =
+        var settings =
             "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
-            + "<w:documentProtection w:edit='readOnly' w:enforcement='1'><w:r/></w:documentProtection>"
+            + $"<w:documentProtection w:edit='readOnly' w:enforcement='1'>{content}</w:documentProtection>"
             + "</w:settings>";
         var before = Read(BuildPackage(
             "before",
@@ -662,6 +667,46 @@ public sealed class WordPackagePatchPlanTests
                 AllowProtectedDocumentEdit = true,
             }).BlockCodes
         );
+    }
+
+    [Fact]
+    public void ProtectionCommentsAndProcessingInstructionsRemainModeled()
+    {
+        const string settings =
+            "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+            + "<w:documentProtection w:edit='readOnly' w:enforcement='1'>"
+            + "<!-- harmless --><?wordtoolkit preserve?>"
+            + "</w:documentProtection>"
+            + "</w:settings>";
+        var before = Read(BuildPackage(
+            "before",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+        var after = Read(BuildPackage(
+            "after",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.False(
+            plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
+        );
+        Assert.True(plan.RiskAssessment.Protection.AuthorizationRequired);
+        Assert.False(plan.Evaluate().CanApply);
+        Assert.True(plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        }).CanApply);
     }
 
     [Fact]

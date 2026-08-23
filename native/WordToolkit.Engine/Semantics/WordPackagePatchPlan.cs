@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text;
+using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Xml;
 
@@ -681,7 +682,7 @@ public static class WordPackagePatchRiskAnalyzer
                 && attribute.NamespaceUri == element.NamespaceUri
             )?.Value;
             if (
-                !HasModeledDocumentProtectionContent(element)
+                !HasModeledDocumentProtectionContent(source, element)
                 || !HasModeledDocumentProtectionAttributes(element)
                 || parsedEnforcement is null
                 || editMode?.Length > 64
@@ -718,10 +719,33 @@ public static class WordPackagePatchRiskAnalyzer
     }
 
     private static bool HasModeledDocumentProtectionContent(
+        LosslessXmlDocument source,
         XmlSourceElement element
-    ) => element.Children.Count == 0
-        && !element.HasLexicalMarkupInContent
-        && string.IsNullOrWhiteSpace(element.Value);
+    )
+    {
+        if (
+            element.Children.Count != 0
+            || !string.IsNullOrWhiteSpace(element.Value)
+        )
+        {
+            return false;
+        }
+        var parsedElement = source.ParsedDocument.Root?
+            .Elements()
+            .SingleOrDefault(candidate =>
+                candidate.Name.LocalName == element.LocalName
+                && candidate.Name.NamespaceName == element.NamespaceUri
+            );
+        return parsedElement is not null
+            && parsedElement.Nodes().All(node => node switch
+            {
+                XComment => true,
+                XProcessingInstruction => true,
+                XCData => false,
+                XText text => string.IsNullOrWhiteSpace(text.Value),
+                _ => false,
+            });
+    }
 
     private static bool HasModeledDocumentProtectionAttributes(
         XmlSourceElement element
@@ -736,14 +760,10 @@ public static class WordPackagePatchRiskAnalyzer
             }
             if (attribute.NamespaceUri != element.NamespaceUri)
             {
-                if (
-                    attribute.NamespaceUri.Length == 0
-                    || DocumentProtectionAttributeNames.Contains(attribute.LocalName)
-                )
-                {
-                    return false;
-                }
-                continue;
+                // Foreign attributes are safe only after resolving the effective
+                // Markup Compatibility context. This bounded protection scan does
+                // not model that context, so it must fail closed.
+                return false;
             }
             if (
                 !DocumentProtectionAttributeNames.Contains(attribute.LocalName)
