@@ -1,4 +1,5 @@
 using WordToolkit.Engine.Validation;
+using WordToolkit.Engine.Semantics;
 
 namespace WordToolkit.Engine.Operations;
 
@@ -55,7 +56,13 @@ public sealed record EquationParagraphRewriteApplyRequest(
     string ExpectedPackageFingerprint,
     string ExpectedPlanId,
     IReadOnlyList<RewriteEquationParagraphTextCommand> Commands,
-    bool KeepBackup = true
+    bool KeepBackup = true,
+    string? ProtectedEditAuthorization = null
+);
+
+public sealed record EquationParagraphRewriteEditPolicyBlockDetails(
+    string PlanId,
+    IReadOnlyList<string> BlockCodes
 );
 
 public sealed record EquationParagraphRewriteSlotInspection(
@@ -151,7 +158,10 @@ public sealed record EquationParagraphRewritePlanResult(
     bool RawTextReturned,
     bool RawXmlReturned,
     bool MutationPerformed,
-    bool WordOpened
+    bool WordOpened,
+    WordPackageProtectionRiskAssessment Protection,
+    string? ProtectionAuthorizationId,
+    IReadOnlyList<string> RequiredAuthorizations
 );
 
 public sealed record EquationParagraphRewriteApplyResult(
@@ -177,5 +187,6 @@ public sealed record EquationParagraphRewriteApplyResult(
     bool RawTextReturned,
     bool RawXmlReturned,
     bool MutationPerformed,
-    bool WordOpened
+    bool WordOpened,
+    IReadOnlyList<string> ExplicitAuthorizations
 );

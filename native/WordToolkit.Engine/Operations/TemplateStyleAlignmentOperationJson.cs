@@ -47,7 +47,7 @@ public static class TemplateStyleAlignmentOperationJson
         RequireOnly(root, "target_path", "template_path",
             "expected_target_package_fingerprint",
             "expected_template_package_fingerprint", "expected_plan_id", "commands",
-            "keep_backup");
+            "keep_backup", "protected_edit_authorization");
         return new TemplateStyleAlignmentApplyRequest(
             RequiredString(root, "target_path", "request"),
             RequiredString(root, "template_path", "request"),
@@ -55,7 +55,8 @@ public static class TemplateStyleAlignmentOperationJson
             RequiredString(root, "expected_template_package_fingerprint", "request"),
             RequiredString(root, "expected_plan_id", "request"),
             Commands(Required(root, "commands", "request")),
-            OptionalBoolean(root, "keep_backup") ?? true
+            OptionalBoolean(root, "keep_backup") ?? true,
+            OptionalString(root, "protected_edit_authorization")
         );
     }
 
@@ -191,6 +192,16 @@ public static class TemplateStyleAlignmentOperationJson
             JsonValueKind.False => false,
             _ => throw Invalid($"{field} must be a boolean"),
         };
+    }
+
+    private static string? OptionalString(
+        IReadOnlyDictionary<string, JsonElement> value,
+        string field
+    )
+    {
+        if (!value.TryGetValue(field, out var element)) return null;
+        if (element.ValueKind != JsonValueKind.String) throw Invalid($"{field} must be a string");
+        return element.GetString();
     }
 
     private static WordToolkitOperationException Invalid(

@@ -78,3 +78,24 @@ def test_plan_apply_guidance_requires_plan_recovery():
         "next_action": "plan_ooxml_text_edits",
         "bindings": {"expected_plan_id": "plan_id"},
     }
+
+
+def test_protected_typed_mutator_guidance_binds_optional_plan_token():
+    guide = load(ROOT / "schemas/action-guidance.v1.json")
+    actions = {item["name"]: item for item in guide["actions"]}
+    names = {
+        "apply_ooxml_numbering_repair",
+        "apply_ooxml_numbering_rebuild",
+        "apply_ooxml_semantic_edits",
+        "apply_ooxml_template_style_alignment",
+        "apply_ooxml_equation_paragraph_rewrites",
+    }
+    for name in names:
+        action = actions[name]
+        assert action["bindings"]["protected_edit_authorization"] == {
+            "source": "plan_response.protection_authorization_id"
+        }
+        assert action["example"]["arguments"]["protected_edit_authorization"] == (
+            "<bind:protected_edit_authorization>"
+        )
+        assert action["recovery"]["EDIT_POLICY_BLOCKED"]["next_action"].startswith("plan_ooxml_")

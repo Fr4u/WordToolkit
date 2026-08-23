@@ -172,6 +172,15 @@ public sealed class TemplateStyleAlignmentWordPackageOperation
                     "The request does not reproduce the reviewed template style-alignment plan ID"
                 );
             }
+            var protectionBlocks = ProtectionBlockCodes(context, request.ProtectedEditAuthorization);
+            if (protectionBlocks.Count != 0)
+            {
+                throw new WordToolkitOperationException(
+                    "EDIT_POLICY_BLOCKED",
+                    "Template style alignment is blocked by document protection or permission metadata",
+                    details: new TemplateStyleAlignmentEditPolicyBlockDetails(context.Plan.PlanId, protectionBlocks)
+                );
+            }
             if (context.TargetHasDigitalSignatures)
             {
                 throw new WordToolkitOperationException(
@@ -191,6 +200,23 @@ public sealed class TemplateStyleAlignmentWordPackageOperation
                 throw ValidationFailure(
                     context.Validation,
                     "The exact template style-alignment candidate introduces Microsoft Open XML schema errors"
+                );
+            }
+            if (!context.Plan.HasChanges)
+            {
+                return new TemplateStyleAlignmentApplyResult(
+                    TemplateStyleAlignmentWordPackageContract.ApplyContract,
+                    Path.GetFileName(context.TargetPath), Path.GetFileName(context.TemplatePath),
+                    context.Plan.PlanId, Applied: false, NoOp: true,
+                    context.Plan.Candidates.Count,
+                    context.Plan.AlignedStyleIds.Count,
+                    context.Plan.Validation.AddedStyleCount,
+                    context.Plan.Validation.ReplacedStyleCount,
+                    context.Target.Fingerprint, context.Template.Fingerprint,
+                    context.Target.Fingerprint, context.Target.Fingerprint, null,
+                    Array.Empty<string>(), 0, context.Validation.CandidateValid,
+                    context.Validation.NoNewErrors, false, false, false, false, false, false, false,
+                    Array.Empty<string>()
                 );
             }
             var currentTemplate = _reader.Read(context.TemplatePath, cancellationToken);
@@ -222,6 +248,7 @@ public sealed class TemplateStyleAlignmentWordPackageOperation
                 Path.GetFileName(context.TemplatePath),
                 context.Plan.PlanId,
                 Applied: true,
+                NoOp: false,
                 context.Plan.Candidates.Count,
                 context.Plan.AlignedStyleIds.Count,
                 context.Plan.Validation.AddedStyleCount,
@@ -241,7 +268,9 @@ public sealed class TemplateStyleAlignmentWordPackageOperation
                 DocumentTextReturned: false,
                 RawXmlReturned: false,
                 MutationPerformed: true,
-                WordOpened: false
+                WordOpened: false,
+                ExplicitAuthorizations: context.Protection.AuthorizationRequired
+                    ? ["protected_edit_authorization"] : Array.Empty<string>()
             );
         }
         catch (OperationCanceledException)
@@ -283,6 +312,9 @@ public sealed class TemplateStyleAlignmentWordPackageOperation
         );
         var candidate = MaterializeCandidate(input.Target, plan, cancellationToken);
         var validation = ValidateExactCandidate(input.Target, candidate, cancellationToken);
+        var projector = new WordSemanticProjector();
+        var targetSemantic = projector.Project(input.Target, cancellationToken);
+        var candidateSemantic = projector.Project(candidate, cancellationToken);
         return new PlanContext(
             input.TargetPath,
             input.TemplatePath,
@@ -291,7 +323,11 @@ public sealed class TemplateStyleAlignmentWordPackageOperation
             candidate,
             plan,
             WordPackagePatchRiskAnalyzer.HasDigitalSignatures(input.Target),
-            validation
+            validation,
+            WordPackagePatchRiskAnalyzer.AssessProtection(
+                input.Target, targetSemantic, candidate, candidateSemantic,
+                plan.HasChanges, cancellationToken
+            )
         );
     }
 
@@ -423,6 +459,14 @@ public sealed class TemplateStyleAlignmentWordPackageOperation
         {
             blocked.Add("microsoft_schema_validation_failed");
         }
+        if (context.Plan.HasChanges && context.Protection.HasMalformedProtectionMetadata)
+            blocked.Add("protection_metadata_malformed");
+        else if (context.Plan.HasChanges && context.Protection.AuthorizationRequired)
+            blocked.Add("protected_document_edit_not_authorized");
+        var requiredAuthorizations = context.Plan.HasChanges
+            && context.Protection.AuthorizationRequired
+            && !context.Protection.HasMalformedProtectionMetadata
+            ? (IReadOnlyList<string>)["protected_edit_authorization"] : Array.Empty<string>();
         return new TemplateStyleAlignmentPlanResult(
             TemplateStyleAlignmentWordPackageContract.PlanContract,
             Path.GetFileName(context.TargetPath),
@@ -459,7 +503,10 @@ public sealed class TemplateStyleAlignmentWordPackageOperation
             DocumentTextReturned: false,
             RawXmlReturned: false,
             MutationPerformed: false,
-            WordOpened: false
+            WordOpened: false,
+            Protection: context.Protection,
+            ProtectionAuthorizationId: requiredAuthorizations.Count == 0 ? null : context.Plan.PlanId,
+            RequiredAuthorizations: requiredAuthorizations
         );
     }
 
@@ -866,6 +913,21 @@ public sealed class TemplateStyleAlignmentWordPackageOperation
         OpcPackageSnapshot Candidate,
         WordTemplateStyleAlignmentPlan Plan,
         bool TargetHasDigitalSignatures,
-        WordPackageCandidateValidationReport Validation
+        WordPackageCandidateValidationReport Validation,
+        WordPackageProtectionRiskAssessment Protection
     );
+
+    private static IReadOnlyList<string> ProtectionBlockCodes(PlanContext context, string? authorization)
+    {
+        if (!context.Plan.HasChanges) return Array.Empty<string>();
+        if (context.Protection.HasMalformedProtectionMetadata) return ["protection_metadata_malformed"];
+        if (context.Protection.AuthorizationRequired
+            && !string.Equals(
+                authorization,
+                context.Plan.PlanId,
+                StringComparison.Ordinal
+            ))
+            return ["protected_document_edit_not_authorized"];
+        return Array.Empty<string>();
+    }
 }

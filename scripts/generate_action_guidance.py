@@ -114,6 +114,9 @@ def main() -> None:
         prereq.extend(ov.get("prerequisites", []))
         acquire.extend(ov.get("acquisition_steps", []))
         bindings.update(ov.get("bindings", {}))
+        for field in ov.get("bindings", {}):
+            if field in all_props and field not in ex:
+                ex[field] = f"<bind:{field}>"
         out = tool.get("outputSchema", {})
         required_out = list(out.get("required", []))
         predicates = [

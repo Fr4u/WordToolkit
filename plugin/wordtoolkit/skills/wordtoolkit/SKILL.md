@@ -5,12 +5,14 @@ description: Control real Microsoft Word and inspect, index, query, edit, compar
 
 # WordToolkit
 
-Saved-package CommentBody, NoteRepair, EquationRepair and RelationshipRepair workflows
+Saved-package CommentBody, NoteRepair, EquationRepair, RelationshipRepair,
+NumberingRepair, NumberingRebuild, semantic Style, TemplateStyleAlignment and
+equation-paragraph rewrite workflows
 use the same plan-bound protection gate. Pass only the exact reviewed token; malformed
 or unmodeled protection cannot be overridden and denial performs no write. Protected
 Transform changes must use the reviewed generic patch workflow. This token is not
-password or identity proof. Numbering, style and other typed mutators remain outside the
-shared gate.
+password or identity proof. Other typed mutators and the legacy Python publication path
+remain outside universal enforcement.
 
 Use the small core catalog directly. Rare actions are lazy: search by capability
 with `search_wordtoolkit_actions`, inspect only the chosen action, then execute
@@ -298,8 +300,9 @@ never edit `numbering.xml` or paragraph `numPr` through generic XML/text operati
    details are requested, honor `affected_paragraph_details_truncated`; a 200-item page is
    not the entire tail when that flag is true.
 4. Call `apply_ooxml_numbering_repair` with identical intent, the original fingerprint
-   and exact plan ID. Keep the sibling recovery backup unless the user explicitly accepts
-   its removal.
+   and exact plan ID. If the plan returns `protection_authorization_id`, pass that exact
+   value as `protected_edit_authorization`; a token from another plan is invalid. Keep the
+   sibling recovery backup unless the user explicitly accepts its removal.
 
 The operation has fixed scope `remaining_instance_in_story`: it clones one existing
 numbering instance and reassigns only the selected and later uses in that story. It does
@@ -332,8 +335,9 @@ Do not misuse the tail-restart action and never ask the model to write `numberin
    Microsoft validation, exact-inverse proof, `can_apply` and every block reason. Leave
    details off unless the changed-entry or target evidence is needed.
 5. Call `apply_ooxml_numbering_rebuild` with identical commands, the original package
-   fingerprint and exact plan ID. Keep the sibling recovery backup by default and
-   reinspect the resulting package fingerprint before any dependent operation.
+   fingerprint and exact plan ID. If the plan returns `protection_authorization_id`, pass
+   that exact value as `protected_edit_authorization`. Keep the sibling recovery backup by
+   default and reinspect the resulting package fingerprint before any dependent operation.
 
 The deterministic public formats are `decimal`, `decimal_zero`, `upper_roman`,
 `lower_roman`, `upper_letter`, `lower_letter`, `bullet` and `none`. Reconstruction creates
@@ -1034,7 +1038,9 @@ the OfficeMath object through this separate token-lean workflow:
 5. Review `weprplan_`, changed counts, exact-equation-byte, paragraph-structure and exact-
    inverse proof plus Microsoft schema validation. Then call
    `apply_ooxml_equation_paragraph_rewrites` with identical commands, original package
-   fingerprint and exact plan ID. Keep the sibling recovery backup by default.
+   fingerprint and exact plan ID. If the plan returns `protection_authorization_id`, pass
+   that exact value as `protected_edit_authorization`. Keep the sibling recovery backup by
+   default.
 
 This operation keeps every direct `m:oMath` or `m:oMathPara` byte-identical and never
 returns OMML, LaTeX or equation text. It preserves paragraph/run objects and their
@@ -1092,7 +1098,8 @@ For a saved-package style definition or assignment, use this strict lazy workflo
    `can_apply`, and block reasons. Request details only to diagnose a block or audit one
    definition operation.
 5. Call `apply_ooxml_semantic_edits` with the identical commands, original fingerprint,
-   and exact plan ID. Keep the recovery backup by default.
+   and exact plan ID. If the plan returns `protection_authorization_id`, pass that exact
+   value as `protected_edit_authorization`. Keep the recovery backup by default.
 
 `set_style_where` rejects zero matches and any result above `max_matches`; its exact
 selector intent, not JSON property order, is bound into the reviewed plan ID. It cannot
@@ -1142,7 +1149,9 @@ or an attached-template relationship:
    counts, changed-part count, `engine_validation`, `candidate_validation`, `can_apply`,
    and every `apply_blocked_reason`.
 5. Only after approval, call `apply_ooxml_template_style_alignment` with identical paths,
-   fingerprints and commands plus the exact reviewed plan ID. Keep the sibling recovery
+   fingerprints and commands plus the exact reviewed plan ID. If the plan returns
+   `protection_authorization_id`, pass that exact value as
+   `protected_edit_authorization`. Keep the sibling recovery
    backup by default. Reinspect the target fingerprint after apply. The template fingerprint
    must remain the original value.
 

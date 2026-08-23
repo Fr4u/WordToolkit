@@ -1,11 +1,12 @@
 # WordToolkit Native
 
-Saved-package protection policy covers reviewed CommentBody, NoteRepair, EquationRepair
-and RelationshipRepair plans. Protected non-no-op changes require the exact plan token;
+Saved-package protection policy covers reviewed CommentBody, NoteRepair, EquationRepair,
+RelationshipRepair, NumberingRepair, NumberingRebuild, semantic Style,
+TemplateStyleAlignment and equation-paragraph rewrite plans. Protected non-no-op changes require the exact plan token;
 malformed protection is non-overridable and denial happens before any write. Protected
 Transform changes fail closed and route to the reviewed generic patch workflow.
-Numbering, style and other typed mutators remain outside this gate. The token is not a
-password or caller-identity proof.
+Other typed mutators and the legacy Python publication path do not yet provide universal
+enforcement. The token is not a password or caller-identity proof.
 
 > **Status:** `main` contains the `0.60.7` live-equation COM-ownership line; [`v0.60.1`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.60.1) remains the latest tagged release. The project is not presented as a complete LaTeX engine, Word-compatibility layer, or pixel-equivalent renderer across Word versions.
 

@@ -581,7 +581,7 @@ public sealed class McpServerTests
             node => node?["name"]?.GetValue<string>() == "apply_ooxml_semantic_edits"
         );
         Assert.True(
-            planTool.GetRawText().Length < 9_000,
+            planTool.GetRawText().Length < 10_500,
             $"Plan semantic edit action is too large: {planTool.GetRawText().Length} characters"
         );
         Assert.True(

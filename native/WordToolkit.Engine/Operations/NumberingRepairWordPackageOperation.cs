@@ -92,6 +92,15 @@ public sealed class NumberingRepairWordPackageOperation
                     "The request does not reproduce the reviewed numbering repair plan ID"
                 );
             }
+            var protectionBlocks = ProtectionBlockCodes(context, request.ProtectedEditAuthorization);
+            if (protectionBlocks.Count != 0)
+            {
+                throw new WordToolkitOperationException(
+                    "EDIT_POLICY_BLOCKED",
+                    "Numbering repair is blocked by document protection or permission metadata",
+                    details: new NumberingRepairEditPolicyBlockDetails(context.Plan.PlanId, protectionBlocks)
+                );
+            }
             if (context.HasDigitalSignatures)
             {
                 throw new WordToolkitOperationException(
@@ -121,6 +130,19 @@ public sealed class NumberingRepairWordPackageOperation
                         issues
                     )
                 );
+            }
+
+            if (!context.Plan.HasChanges)
+            {
+                return new NumberingRepairApplyResult(
+                    NumberingRepairWordPackageContract.ApplyContract,
+                    Path.GetFileName(context.Path), "restart_numbering_sequence",
+                    "remaining_instance_in_story", context.Plan.PlanId,
+                    false, true, 0, context.Plan.SourceNumberId, context.Plan.NewNumberId,
+                    context.Package.Fingerprint, context.Package.Fingerprint,
+                    context.Plan.ResultPackageFingerprint, null, Array.Empty<string>(), 0,
+                    context.Validation.CandidateValid, context.Validation.NoNewErrors,
+                    false, false, false, false, Array.Empty<string>());
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -156,7 +178,9 @@ public sealed class NumberingRepairWordPackageOperation
                 ParagraphTextReturned: false,
                 RawXmlReturned: false,
                 MutationPerformed: true,
-                WordOpened: false
+                WordOpened: false,
+                ExplicitAuthorizations: context.Protection.AuthorizationRequired
+                    ? ["protected_edit_authorization"] : Array.Empty<string>()
             );
         }
         catch (OperationCanceledException)
@@ -243,12 +267,21 @@ public sealed class NumberingRepairWordPackageOperation
             cancellationToken
         );
         var validation = ValidateExactCandidate(package, plan, cancellationToken);
+        using var candidateStream = new MemoryStream();
+        _serializer.Write(candidateStream, plan.CreateMutation(package));
+        candidateStream.Position = 0;
+        var candidate = _reader.Read(candidateStream, cancellationToken);
+        var projector = new WordSemanticProjector();
+        var projectedSemantic = projector.Project(package, cancellationToken);
+        var candidateSemantic = projector.Project(candidate, cancellationToken);
         return new PlanContext(
             path,
             package,
             plan,
             WordPackagePatchRiskAnalyzer.HasDigitalSignatures(package),
-            validation
+            validation,
+            WordPackagePatchRiskAnalyzer.AssessProtection(
+                package, projectedSemantic, candidate, candidateSemantic, plan.HasChanges, cancellationToken)
         );
     }
 
@@ -320,6 +353,10 @@ public sealed class NumberingRepairWordPackageOperation
         {
             blocked.Add("digital_signature_present");
         }
+        if (context.Plan.HasChanges && context.Protection.HasMalformedProtectionMetadata)
+            blocked.Add("protection_metadata_malformed");
+        else if (context.Plan.HasChanges && context.Protection.AuthorizationRequired)
+            blocked.Add("protected_document_edit_not_authorized");
         if (!context.Plan.Validation.Passed)
         {
             blocked.Add("engine_validation_failed");
@@ -398,7 +435,18 @@ public sealed class NumberingRepairWordPackageOperation
             ParagraphTextReturned: false,
             RawXmlReturned: false,
             MutationPerformed: false,
-            WordOpened: false
+            WordOpened: false,
+            Protection: context.Protection,
+            ProtectionAuthorizationId: context.Plan.HasChanges
+                && context.Protection.AuthorizationRequired
+                && !context.Protection.HasMalformedProtectionMetadata
+                    ? context.Plan.PlanId
+                    : null,
+            RequiredAuthorizations: context.Plan.HasChanges
+                && context.Protection.AuthorizationRequired
+                && !context.Protection.HasMalformedProtectionMetadata
+                    ? ["protected_edit_authorization"]
+                    : Array.Empty<string>()
         );
     }
 
@@ -677,6 +725,21 @@ public sealed class NumberingRepairWordPackageOperation
         OpcPackageSnapshot Package,
         WordNumberingSequenceRepairPlan Plan,
         bool HasDigitalSignatures,
-        WordPackageCandidateValidationReport Validation
+        WordPackageCandidateValidationReport Validation,
+        WordPackageProtectionRiskAssessment Protection
     );
+
+    private static IReadOnlyList<string> ProtectionBlockCodes(PlanContext context, string? authorization)
+    {
+        if (!context.Plan.HasChanges) return Array.Empty<string>();
+        if (context.Protection.HasMalformedProtectionMetadata) return ["protection_metadata_malformed"];
+        if (context.Protection.AuthorizationRequired
+            && !string.Equals(
+                authorization,
+                context.Plan.PlanId,
+                StringComparison.Ordinal
+            ))
+            return ["protected_document_edit_not_authorized"];
+        return Array.Empty<string>();
+    }
 }

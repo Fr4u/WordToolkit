@@ -51,7 +51,13 @@ public sealed record TemplateStyleAlignmentApplyRequest(
     string ExpectedTemplatePackageFingerprint,
     string ExpectedPlanId,
     IReadOnlyList<TemplateStyleAlignmentCommandRequest> Commands,
-    bool KeepBackup = true
+    bool KeepBackup = true,
+    string? ProtectedEditAuthorization = null
+);
+
+public sealed record TemplateStyleAlignmentEditPolicyBlockDetails(
+    string PlanId,
+    IReadOnlyList<string> BlockCodes
 );
 
 public sealed record TemplateStyleAlignmentInspectionCandidate(
@@ -140,7 +146,10 @@ public sealed record TemplateStyleAlignmentPlanResult(
     bool DocumentTextReturned,
     bool RawXmlReturned,
     bool MutationPerformed,
-    bool WordOpened
+    bool WordOpened,
+    WordPackageProtectionRiskAssessment Protection,
+    string? ProtectionAuthorizationId,
+    IReadOnlyList<string> RequiredAuthorizations
 );
 
 public sealed record TemplateStyleAlignmentApplyResult(
@@ -149,6 +158,7 @@ public sealed record TemplateStyleAlignmentApplyResult(
     string TemplateFileName,
     string PlanId,
     bool Applied,
+    bool NoOp,
     int CandidateCount,
     int AlignedStyleCount,
     int AddedStyleCount,
@@ -168,5 +178,6 @@ public sealed record TemplateStyleAlignmentApplyResult(
     bool DocumentTextReturned,
     bool RawXmlReturned,
     bool MutationPerformed,
-    bool WordOpened
+    bool WordOpened,
+    IReadOnlyList<string> ExplicitAuthorizations
 );

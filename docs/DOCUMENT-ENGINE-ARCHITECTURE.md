@@ -392,6 +392,12 @@ and declares when its 200-item detail page is truncated. A guarded real-Word ora
 matches the engine's `1., 7., 8., 9.` labels without resaving the package. See
 `docs/RESEARCH-WORD-NUMBERING-REPAIR-2026.md`.
 
+Numbering repair and semantic numbering rebuild both project baseline/candidate document
+protection through `WordPackagePatchRiskAnalyzer`. A changed plan over an enforced
+document or a complete permission range discloses one plan-bound authorization ID;
+apply accepts only that exact ID. Unmodeled protection and malformed permission ranges
+are non-overridable, and a denied or true no-op operation never invokes the writer.
+
 `WordThemeGraphBuilder` is the first DrawingML dependency adapter. It follows only the
 main document's exact transitional or strict theme relationship, validates the theme
 content type and `a:theme` root, then preserves a typed view of all twelve color slots,
@@ -735,6 +741,12 @@ backup by default. It never attaches, rewrites or publishes the template and nev
 Word. Fuzzy role inference, target-only deletion, attached-template relationships, theme
 replacement, numbering rebuild, content restyling and cross-version visual equivalence
 are deliberately outside this slice.
+
+Template style alignment and semantic style edits use the same baseline/candidate
+protection projection as the generic patch path. Their reviewed plan carries only bounded
+mode/count/issue evidence and, when required, one authorization ID. Apply rebuilds the
+plan and rejects missing, stale or cross-plan authorization before any atomic write;
+malformed or unmodeled protection cannot be overridden.
 
 The generic package-patch slice now carries exact saved-package changes across process
 and machine boundaries. `OpcPackagePatchBuilder` compares two immutable snapshots and
@@ -1495,6 +1507,11 @@ candidate invariants, exact inverse verification and atomic apply. Direct .NET,
 `equation-paragraph-rewrite-package` CLI and three lazy MCP actions use this one Engine
 path. Native supplies only Microsoft Open XML SDK validation and bounded runtime timing;
 neither the CLI nor MCP adapter may open Word or learn OMML/equation text.
+
+The plan also projects exact baseline/candidate protection risk. Protected changes need
+the exact disclosed `weprplan_` authorization, while malformed or unmodeled protection
+blocks without invoking the writer. A byte-identical rewrite remains a true no-op and
+does not require authorization.
 
 The sixth seam is `PatchRollbackWordPackageOperation`. It reads the reviewed original
 `.wtpatch`, derives its reverse internally, rebuilds the semantic/risk/type/schema proof,
