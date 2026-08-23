@@ -7,6 +7,13 @@ start Word explicitly through native COM. Document open, close and application
 quit are available only through dedicated bounded lifecycle tools with strict
 path, save-policy and confirmation checks.
 
+The local v2 contract requires the current `expected_version` for every
+unconditional Word Live write, including persistence through
+`save_live_word_document`. Omission fails with `INVALID_INPUT` before COM is
+attached; a stale value fails with `VERSION_CONFLICT`. The generic member
+executor remains conditional: a read-only batch may omit the version, while a
+batch containing any mutating capability must provide it.
+
 ## Tools
 
 | Tool | Purpose |

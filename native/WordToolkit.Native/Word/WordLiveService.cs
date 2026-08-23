@@ -4612,7 +4612,15 @@ internal sealed partial class WordLiveService : IToolHandler
 
     private static void CheckVersion(LiveDocumentRecord record, long? expectedVersion)
     {
-        if (expectedVersion is not null && expectedVersion.Value != record.Version)
+        if (expectedVersion is null)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "expected_version is required for every Word Live write",
+                new { field = "expected_version" }
+            );
+        }
+        if (expectedVersion.Value != record.Version)
         {
             throw new NativeToolException(
                 "VERSION_CONFLICT",

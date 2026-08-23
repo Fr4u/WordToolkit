@@ -1321,6 +1321,24 @@ def test_live_word_inserts_text_in_same_document_and_checks_version(live_bridge)
     bridge, _application, document = live_bridge
     connected = bridge.connect("owner", use_active=True)
     document_id = connected["live_document_id"]
+    before_attach = bridge.backend.attach_calls
+    before_text = document.text
+
+    for invalid_version in (None, True, -1, 0.5, "0"):
+        with pytest.raises(WordToolkitError) as missing:
+            bridge.insert_text(
+                "owner",
+                document_id,
+                text="unversioned edit",
+                target="document_end",
+                as_new_paragraph=True,
+                style="",
+                expected_version=invalid_version,
+            )
+        assert missing.value.code is ErrorCode.INVALID_INPUT
+        assert missing.value.details == {"field": "expected_version"}
+    assert bridge.backend.attach_calls == before_attach
+    assert document.text == before_text
 
     inserted = bridge.insert_text(
         "owner",
@@ -3297,6 +3315,36 @@ def test_catalog_member_operations_execute_in_one_undo_record(live_bridge) -> No
     assert result["execution"]["single_undo_record"] is True
     assert application.UndoRecord.started == application.UndoRecord.ended == 1
     assert document.text == "Changed\r"
+
+
+def test_catalog_member_read_can_omit_expected_version(live_bridge) -> None:
+    bridge, _application, _document = live_bridge
+    catalog = _catalog_for_member_execution()
+    bridge.object_model.write(catalog)
+    registry = build_member_capability_registry(catalog)
+    text_getter = next(
+        item
+        for item in registry["profiles"]
+        if item["member"]["name"] == "Text" and item["member"]["kind"] == "property_get"
+    )
+    connected = bridge.connect("owner", use_active=True)
+
+    result = bridge.execute_member_operations(
+        "owner",
+        connected["live_document_id"],
+        operations=[
+            {
+                "operation_id": "read_content",
+                "capability_id": text_getter["capability_id"],
+                "target": {"kind": "document_content"},
+                "result_id": "content",
+            }
+        ],
+    )
+
+    assert result["mutating"] is False
+    assert result["live_version"] == 0
+    assert result["results"][0]["value"] == "Existing paragraph\r"
 
 
 def test_indexed_property_adapter_uses_catalog_dispid(live_bridge) -> None:

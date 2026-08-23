@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CATALOG = ROOT / "schemas/mcp-tools-local.v1.json"
+CATALOG = ROOT / "schemas/mcp-tools-local.v2.json"
 DELTA = ROOT / "schemas/native-action-metadata.v1.json"
 FIELDS = ("operationVersion", "permissions", "reversibility", "outputSchema")
 

@@ -17,10 +17,10 @@ public sealed class CapabilityManifestTests
         var first = firstCatalog.GetCapabilities(null, 0, 12);
         var second = secondCatalog.GetCapabilities(null, 0, 12);
 
-        Assert.Equal("1.0.0", firstCatalog.SchemaVersion);
+        Assert.Equal("2.0.0", firstCatalog.SchemaVersion);
         Assert.Equal("2025-06-18", firstCatalog.McpProtocolVersion);
         Assert.Equal("local_stdio", firstCatalog.Transport);
-        Assert.Contains("Additive changes within v1", firstCatalog.CompatibilityPolicy);
+        Assert.Contains("Additive changes within v2", firstCatalog.CompatibilityPolicy);
         Assert.Equal(64, firstCatalog.SourceSchemaSha256.Length);
         Assert.Equal(64, firstCatalog.CapabilitySchemaSha256.Length);
         Assert.Equal(
@@ -47,7 +47,7 @@ public sealed class CapabilityManifestTests
         var manifest = catalog.GetCapabilities(null, 0, 12);
 
         Assert.Equal("wordtoolkit.capabilities/1.0", manifest["contract_schema"]!.GetValue<string>());
-        Assert.Equal("1.0.0", manifest["contract_schema_version"]!.GetValue<string>());
+        Assert.Equal("2.0.0", manifest["contract_schema_version"]!.GetValue<string>());
         Assert.Equal(151, manifest["operation_count"]!.GetValue<int>());
         Assert.Equal(15, manifest["exposed_mcp_tool_count"]!.GetValue<int>());
         Assert.Equal(12, manifest["operations"]!.AsArray().Count);
@@ -269,7 +269,7 @@ public sealed class CapabilityManifestTests
     {
         var repositoryRoot = FindRepositoryRoot();
         var schemaJson = File.ReadAllText(
-            Path.Combine(repositoryRoot, "schemas", "mcp-tools-local.v1.json")
+            Path.Combine(repositoryRoot, "schemas", "mcp-tools-local.v2.json")
         );
         var capabilitySchemaJson = File.ReadAllText(
             Path.Combine(

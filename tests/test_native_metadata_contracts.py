@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_all_native_actions_have_metadata_without_catalog_drift() -> None:
-    catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v1.json").read_text())
+    catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v2.json").read_text())
     actions = catalog["native_runtime"]["actions"]
     tools = {tool["name"]: tool for tool in catalog["tools"]}
     assert len(actions) == 151
@@ -30,7 +30,7 @@ def test_all_native_actions_have_metadata_without_catalog_drift() -> None:
 
 
 def test_nullable_backup_paths_are_optional_on_the_wire() -> None:
-    catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v1.json").read_text())
+    catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v2.json").read_text())
     for tool in catalog["tools"]:
         pending = [tool.get("outputSchema", {})]
         while pending:
@@ -49,7 +49,7 @@ def test_nullable_backup_paths_are_optional_on_the_wire() -> None:
 
 def test_metadata_proposals_cover_exact_uncovered_set() -> None:
     uncovered = json.loads((ROOT / "schemas" / "native-action-metadata.v1.json").read_text())
-    catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v1.json").read_text())
+    catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v2.json").read_text())
     names = {tool["name"] for tool in catalog["tools"]}
     assert len(uncovered["actions"]) == 89
     assert len({item["name"] for item in uncovered["actions"]}) == 89
@@ -57,7 +57,7 @@ def test_metadata_proposals_cover_exact_uncovered_set() -> None:
 
 
 def test_known_encoding_repairs_are_explicit_and_no_replacement_chars_remain() -> None:
-    text = (ROOT / "schemas" / "mcp-tools-local.v1.json").read_text(encoding="utf-8")
+    text = (ROOT / "schemas" / "mcp-tools-local.v2.json").read_text(encoding="utf-8")
     assert "�" not in text
     catalog = json.loads(text)
     tools = {tool["name"]: tool for tool in catalog["tools"]}
@@ -102,8 +102,8 @@ def test_apply_repairs_missing_and_changed_fields_without_catalog_reserializatio
             ROOT / "schemas" / "native-action-metadata.v1.json",
             root / "schemas" / "native-action-metadata.v1.json",
         )
-        catalog_path = root / "schemas" / "mcp-tools-local.v1.json"
-        catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v1.json").read_text())
+        catalog_path = root / "schemas" / "mcp-tools-local.v2.json"
+        catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v2.json").read_text())
         delta = json.loads((ROOT / "schemas" / "native-action-metadata.v1.json").read_text())
         names = {item["name"] for item in delta["actions"]}
         targets = [tool for tool in catalog["tools"] if tool["name"] in names]

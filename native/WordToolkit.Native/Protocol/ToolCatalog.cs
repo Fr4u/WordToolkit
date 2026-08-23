@@ -55,7 +55,7 @@ internal sealed partial class ToolCatalog
 
     public static ToolCatalog LoadNativeWordTools()
     {
-        const string suffix = "Schemas.mcp-tools-local.v1.json";
+        const string suffix = "Schemas.mcp-tools-local.v2.json";
         var assembly = Assembly.GetExecutingAssembly();
         var resourceName = assembly
             .GetManifestResourceNames()
