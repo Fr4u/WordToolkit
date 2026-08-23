@@ -671,7 +671,11 @@ public static class WordPackagePatchRiskAnalyzer
                 attribute.LocalName == "enforcement"
                 && attribute.NamespaceUri == element.NamespaceUri
             )?.Value;
-            var parsedEnforcement = ParseOnOff(rawEnforcement);
+            // Word enforces documentProtection when enforcement is omitted,
+            // despite the default described by the base OOXML standard.
+            var parsedEnforcement = rawEnforcement is null
+                ? true
+                : ParseOnOff(rawEnforcement);
             editMode = element.Attributes.FirstOrDefault(attribute =>
                 attribute.LocalName == "edit"
                 && attribute.NamespaceUri == element.NamespaceUri
@@ -837,7 +841,7 @@ public static class WordPackagePatchRiskAnalyzer
 
     private static bool? ParseOnOff(string? value) => value switch
     {
-        null or "false" or "0" or "off" => false,
+        "false" or "0" or "off" => false,
         "true" or "1" or "on" => true,
         _ => null,
     };

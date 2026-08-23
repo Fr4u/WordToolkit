@@ -586,10 +586,12 @@ public sealed class WordPackagePatchPlanTests
     [InlineData("w:algIdExt='00'")]
     [InlineData("w:bogus='x'")]
     [InlineData("bogus='x'")]
+    [InlineData("w14:algorithmName='SHA-512'")]
     public void MalformedProtectionAttributesAreNonOverridable(string attribute)
     {
         var settings =
-            "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+            "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+            + "xmlns:w14='http://schemas.microsoft.com/office/word/2010/wordml'>"
             + $"<w:documentProtection w:edit='readOnly' w:enforcement='1' {attribute}/>"
             + "</w:settings>";
         var before = Read(BuildPackage(
@@ -697,6 +699,42 @@ public sealed class WordPackagePatchPlanTests
         Assert.False(
             plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
         );
+        Assert.True(plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        }).CanApply);
+    }
+
+    [Fact]
+    public void MissingProtectionEnforcementUsesWordEnforcedBehavior()
+    {
+        const string settings =
+            "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+            + "<w:documentProtection w:edit='readOnly'/>"
+            + "</w:settings>";
+        var before = Read(BuildPackage(
+            "before",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+        var after = Read(BuildPackage(
+            "after",
+            new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(settings) },
+            SettingsContentTypeOverride(),
+            SettingsRelationships()
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.True(plan.RiskAssessment.Protection.BaseDocumentProtectionEnforced);
+        Assert.True(plan.RiskAssessment.Protection.AuthorizationRequired);
+        Assert.False(plan.Evaluate().CanApply);
         Assert.True(plan.Evaluate(new WordPackagePatchApplyPolicy
         {
             AllowProtectedDocumentEdit = true,
