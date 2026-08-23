@@ -82,6 +82,10 @@ internal sealed partial class WordLiveService
                 package_fingerprint = context.Package.Fingerprint,
                 backup_path = (string?)null,
                 changed_entry_names = Array.Empty<string>(),
+                protection = ProtectionResponse(context.Protection),
+                protection_authorization_id = (string?)null,
+                required_authorizations = Array.Empty<string>(),
+                apply_blocked_reasons = Array.Empty<string>(),
                 runtime = "dotnet-native",
                 python_used = false,
                 word_opened = false,
@@ -92,6 +96,41 @@ internal sealed partial class WordLiveService
             };
         }
 
+        // Protection is assessed only after the no-op fast path.  This keeps a
+        // reviewed no-op genuinely write-free while forcing every real edit
+        // through the same fail-closed protection contract as package patches.
+        var protection = context.Protection;
+        if (protection.HasMalformedProtectionMetadata)
+        {
+            throw new NativeToolException(
+                "EDIT_POLICY_BLOCKED",
+                "The review decision is blocked because document protection metadata is malformed",
+                new
+                {
+                    plan_id = context.Plan.PlanId,
+                    block_codes = new[] { "protection_metadata_malformed" },
+                }
+            );
+        }
+        if (protection.AuthorizationRequired)
+        {
+            var authorization = arguments.String(
+                "protected_edit_authorization",
+                string.Empty
+            );
+            if (!string.Equals(authorization, expectedPlanId, StringComparison.Ordinal))
+            {
+                throw new NativeToolException(
+                    "EDIT_POLICY_BLOCKED",
+                    "The review decision requires the exact plan-bound protected_edit_authorization",
+                    new
+                    {
+                        plan_id = context.Plan.PlanId,
+                        block_codes = new[] { "protected_document_edit_not_authorized" },
+                    }
+                );
+            }
+        }
         var mutation = context.Plan.CreateMutation(context.Package);
         var result = new OpcAtomicPackageWriter().Write(
             path,
@@ -120,6 +159,16 @@ internal sealed partial class WordLiveService
             diagnostic_count = result.Diagnostics.Count,
             microsoft_schema_valid = context.Validation.CandidateValid,
             microsoft_schema_no_new_errors = context.Validation.NoNewErrors,
+            protection = ProtectionResponse(context.Protection),
+            protection_authorization_id = context.Protection.AuthorizationRequired
+                && !context.Protection.HasMalformedProtectionMetadata
+                ? context.Plan.PlanId
+                : null,
+            required_authorizations = context.Protection.AuthorizationRequired
+                && !context.Protection.HasMalformedProtectionMetadata
+                ? new[] { "protected_edit_authorization" }
+                : Array.Empty<string>(),
+            apply_blocked_reasons = Array.Empty<string>(),
             runtime = "dotnet-native",
             python_used = false,
             word_opened = false,
@@ -150,6 +199,14 @@ internal sealed partial class WordLiveService
         {
             blockedReasons.Add("microsoft_schema_validation_failed");
         }
+        if (context.Protection.HasMalformedProtectionMetadata)
+        {
+            blockedReasons.Add("protection_metadata_malformed");
+        }
+        else if (context.Protection.AuthorizationRequired)
+        {
+            blockedReasons.Add("protected_document_edit_not_authorized");
+        }
         return new
         {
             file_name = Path.GetFileName(path),
@@ -177,6 +234,17 @@ internal sealed partial class WordLiveService
             has_changes = context.Plan.HasChanges,
             apply_blocked = blockedReasons.Count != 0,
             apply_blocked_reasons = blockedReasons,
+            protection = ProtectionResponse(context.Protection),
+            protection_authorization_id = context.Plan.HasChanges
+                && context.Protection.AuthorizationRequired
+                && !context.Protection.HasMalformedProtectionMetadata
+                ? context.Plan.PlanId
+                : null,
+            required_authorizations = context.Plan.HasChanges
+                && context.Protection.AuthorizationRequired
+                && !context.Protection.HasMalformedProtectionMetadata
+                ? new[] { "protected_edit_authorization" }
+                : Array.Empty<string>(),
             candidate_validation = new
             {
                 performed = context.Validation.Performed,
@@ -277,14 +345,19 @@ internal sealed partial class WordLiveService
                 ? CandidateSchemaValidation.NotPerformed("review_plan_blocked")
                 : !plan.HasChanges
                     ? CandidateSchemaValidation.NotPerformed("no_changes")
-                    : ValidateReviewCandidate(package, plan, cancellationToken);
+                : ValidateReviewCandidate(package, plan, cancellationToken);
+        var protection = plan.HasChanges && plan.CanApply
+            ? ReviewProtection(package, semantic, plan, cancellationToken)
+            : EmptyProtection();
         return new PackageReviewPlanContext(
             package,
+            semantic,
             graph,
             plan,
             selection,
             hasSignatures,
-            validation
+            validation,
+            protection
         );
     }
 
@@ -596,13 +669,57 @@ internal sealed partial class WordLiveService
         return value;
     }
 
+    private static WordPackageProtectionRiskAssessment ReviewProtection(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semantic,
+        WordReviewMutationPlan plan,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using var candidateStream = new MemoryStream();
+        new OpcPackageSerializer().Write(
+            candidateStream,
+            plan.CreateMutation(package)
+        );
+        candidateStream.Position = 0;
+        var candidate = new OpcPackageReader().Read(candidateStream, cancellationToken);
+        var candidateSemantic = new WordSemanticProjector().Project(candidate, cancellationToken);
+        return WordPackagePatchRiskAnalyzer.AssessProtection(
+            package,
+            semantic,
+            candidate,
+            candidateSemantic,
+            hasChanges: true,
+            cancellationToken
+        );
+    }
+
+    private static WordPackageProtectionRiskAssessment EmptyProtection() =>
+        new(
+            false,
+            null,
+            false,
+            null,
+            false,
+            false,
+            0,
+            0,
+            0,
+            false,
+            Array.Empty<string>(),
+            false
+        );
+
     private sealed record PackageReviewPlanContext(
         OpcPackageSnapshot Package,
+        WordSemanticDocument Semantic,
         WordReviewGraph Graph,
         WordReviewMutationPlan Plan,
         ReviewSelection Selection,
         bool HasDigitalSignatures,
-        CandidateSchemaValidation Validation
+        CandidateSchemaValidation Validation,
+        WordPackageProtectionRiskAssessment Protection
     );
 
     private sealed record ReviewSelection(

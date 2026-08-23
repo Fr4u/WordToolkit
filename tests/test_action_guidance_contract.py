@@ -89,6 +89,8 @@ def test_protected_typed_mutator_guidance_binds_optional_plan_token():
         "apply_ooxml_semantic_edits",
         "apply_ooxml_template_style_alignment",
         "apply_ooxml_equation_paragraph_rewrites",
+        "apply_ooxml_text_edits",
+        "apply_ooxml_review_decisions",
     }
     for name in names:
         action = actions[name]

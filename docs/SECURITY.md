@@ -195,7 +195,8 @@ counts and bounded issue codes, not cryptographic verifier material. Word docume
 protection is an editing restriction, not encryption, password verification or proof of
 the caller's identity.
 
-The same fail-closed, plan-bound gate covers reviewed CommentBody, NoteRepair,
+The same fail-closed, plan-bound gate covers reviewed semantic text edits,
+tracked-revision decisions, CommentBody, NoteRepair,
 EquationRepair, RelationshipRepair, NumberingRepair, NumberingRebuild, semantic Style,
 TemplateStyleAlignment and equation-paragraph rewrite saved-package paths. Protected Transform changes
 fail closed and direct callers to the reviewed generic patch workflow. Denied operations do not

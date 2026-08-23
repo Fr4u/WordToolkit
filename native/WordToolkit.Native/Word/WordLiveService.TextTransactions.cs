@@ -17,6 +17,7 @@ internal sealed partial class WordLiveService
         var path = ResolveInspectablePackagePath(arguments);
         var context = BuildPackageTextPlan(path, arguments, cancellationToken);
         var includeDetails = arguments.Boolean("include_details", false);
+        var blockedReasons = PackageTextBlockedReasons(context);
         return new
         {
             file_name = Path.GetFileName(path),
@@ -28,10 +29,20 @@ internal sealed partial class WordLiveService
             changed_part_count = context.Plan.ChangedPartCount,
             total_xml_byte_delta = context.Plan.TotalXmlByteDelta,
             has_changes = context.Plan.HasChanges,
-            apply_blocked = context.HasDigitalSignatures,
-            apply_blocked_reason = context.HasDigitalSignatures
-                ? "digital_signature_present"
+            apply_blocked = blockedReasons.Count != 0,
+            apply_blocked_reason = blockedReasons.FirstOrDefault(),
+            apply_blocked_reasons = blockedReasons,
+            protection = ProtectionResponse(context.Protection),
+            protection_authorization_id = context.Plan.HasChanges
+                && context.Protection.AuthorizationRequired
+                && !context.Protection.HasMalformedProtectionMetadata
+                ? context.Plan.PlanId
                 : null,
+            required_authorizations = context.Plan.HasChanges
+                && context.Protection.AuthorizationRequired
+                && !context.Protection.HasMalformedProtectionMetadata
+                ? new[] { "protected_edit_authorization" }
+                : Array.Empty<string>(),
             operations = includeDetails
                 ? context.Plan.Operations.Select(operation => new
                 {
@@ -95,6 +106,41 @@ internal sealed partial class WordLiveService
             );
         }
 
+        // Protection is evaluated from the exact candidate produced by this
+        // reviewed plan.  Do this before constructing or handing the mutation
+        // to the atomic writer; a protected package must never reach the write
+        // path without the plan-bound authorization token.
+        if (context.Plan.HasChanges && context.Protection.HasMalformedProtectionMetadata)
+        {
+            throw new NativeToolException(
+                "EDIT_POLICY_BLOCKED",
+                "The semantic text edit is blocked because document protection metadata is malformed",
+                new
+                {
+                    plan_id = context.Plan.PlanId,
+                    block_codes = new[] { "protection_metadata_malformed" },
+                }
+            );
+        }
+
+        if (context.Plan.HasChanges && context.Protection.AuthorizationRequired
+            && !string.Equals(
+                OptionalString(arguments, "protected_edit_authorization"),
+                context.Plan.PlanId,
+                StringComparison.Ordinal
+            ))
+        {
+            throw new NativeToolException(
+                "EDIT_POLICY_BLOCKED",
+                "The semantic text edit requires the exact plan-bound protected_edit_authorization",
+                new
+                {
+                    plan_id = context.Plan.PlanId,
+                    block_codes = new[] { "protected_document_edit_not_authorized" },
+                }
+            );
+        }
+
         if (!context.Plan.HasChanges)
         {
             return new
@@ -106,6 +152,10 @@ internal sealed partial class WordLiveService
                 package_fingerprint = context.Package.Fingerprint,
                 backup_path = (string?)null,
                 changed_entry_names = Array.Empty<string>(),
+                protection = ProtectionResponse(context.Protection),
+                protection_authorization_id = (string?)null,
+                required_authorizations = Array.Empty<string>(),
+                apply_blocked_reasons = Array.Empty<string>(),
                 runtime = "dotnet-native",
                 python_used = false,
                 performance = new
@@ -138,6 +188,16 @@ internal sealed partial class WordLiveService
             backup_path = result.BackupPath,
             changed_entry_names = result.ChangedEntryNames,
             diagnostic_count = result.Diagnostics.Count,
+            protection = ProtectionResponse(context.Protection),
+            protection_authorization_id = context.Protection.AuthorizationRequired
+                && !context.Protection.HasMalformedProtectionMetadata
+                ? context.Plan.PlanId
+                : null,
+            required_authorizations = context.Protection.AuthorizationRequired
+                && !context.Protection.HasMalformedProtectionMetadata
+                ? new[] { "protected_edit_authorization" }
+                : Array.Empty<string>(),
+            apply_blocked_reasons = Array.Empty<string>(),
             runtime = "dotnet-native",
             python_used = false,
             performance = new
@@ -177,11 +237,41 @@ internal sealed partial class WordLiveService
         var plan = new WordSemanticTransactionPlanner(
             new WordSemanticTransactionOptions { MaxCommands = 200 }
         ).PlanTextReplacements(package, semantic, commands, cancellationToken);
+        var candidate = MaterializeCandidate(package, plan, cancellationToken);
+        var candidateSemantic = new WordSemanticProjector().Project(
+            candidate,
+            cancellationToken
+        );
+        var protection = WordPackagePatchRiskAnalyzer.AssessProtection(
+            package,
+            semantic,
+            candidate,
+            candidateSemantic,
+            plan.HasChanges,
+            cancellationToken
+        );
         return new PackageTextPlanContext(
             package,
             plan,
-            HasDigitalSignatures(package)
+            HasDigitalSignatures(package),
+            protection
         );
+    }
+
+    private static OpcPackageSnapshot MaterializeCandidate(
+        OpcPackageSnapshot package,
+        WordSemanticTransactionPlan plan,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using var stream = new MemoryStream();
+        new OpcPackageSerializer().Write(
+            stream,
+            plan.CreateMutation(package)
+        );
+        stream.Position = 0;
+        return new OpcPackageReader().Read(stream, cancellationToken);
     }
 
     private static IReadOnlyList<WordTextReplacementCommand>
@@ -286,6 +376,48 @@ internal sealed partial class WordLiveService
 
     private static bool HasDigitalSignatures(OpcPackageSnapshot package) =>
         WordPackagePatchRiskAnalyzer.HasDigitalSignatures(package);
+
+    private static IReadOnlyList<string> PackageTextBlockedReasons(
+        PackageTextPlanContext context
+    )
+    {
+        if (!context.Plan.HasChanges)
+        {
+            return Array.Empty<string>();
+        }
+        var reasons = new List<string>(2);
+        if (context.HasDigitalSignatures)
+        {
+            reasons.Add("digital_signature_present");
+        }
+        if (context.Protection.HasMalformedProtectionMetadata)
+        {
+            reasons.Add("protection_metadata_malformed");
+        }
+        else if (context.Protection.AuthorizationRequired)
+        {
+            reasons.Add("protected_document_edit_not_authorized");
+        }
+        return reasons;
+    }
+
+    private static object ProtectionResponse(
+        WordPackageProtectionRiskAssessment risk
+    ) => new
+    {
+        base_document_protection_enforced = risk.BaseDocumentProtectionEnforced,
+        base_document_protection_edit_mode = risk.BaseDocumentProtectionEditMode,
+        result_document_protection_enforced = risk.ResultDocumentProtectionEnforced,
+        result_document_protection_edit_mode = risk.ResultDocumentProtectionEditMode,
+        document_protection_metadata_changed = risk.DocumentProtectionMetadataChanged,
+        unmodeled_document_protection_metadata = risk.UnmodeledDocumentProtectionMetadata,
+        base_permission_range_count = risk.BasePermissionRangeCount,
+        result_permission_range_count = risk.ResultPermissionRangeCount,
+        malformed_permission_range_count = risk.MalformedPermissionRangeCount,
+        permission_issues_truncated = risk.PermissionIssuesTruncated,
+        permission_issue_codes = risk.PermissionIssueCodes,
+        authorization_required = risk.AuthorizationRequired,
+    };
 
     private static Task<object> ExecutePackageTextAction(Func<object> action)
     {
@@ -433,6 +565,7 @@ internal sealed partial class WordLiveService
     private sealed record PackageTextPlanContext(
         OpcPackageSnapshot Package,
         WordSemanticTransactionPlan Plan,
-        bool HasDigitalSignatures
+        bool HasDigitalSignatures,
+        WordPackageProtectionRiskAssessment Protection
     );
 }

@@ -1,6 +1,7 @@
 # WordToolkit Native
 
-Saved-package protection policy covers reviewed CommentBody, NoteRepair, EquationRepair,
+Saved-package protection policy covers reviewed semantic text edits, tracked-revision
+decisions, CommentBody, NoteRepair, EquationRepair,
 RelationshipRepair, NumberingRepair, NumberingRebuild, semantic Style,
 TemplateStyleAlignment and equation-paragraph rewrite plans. Protected non-no-op changes require the exact plan token;
 malformed protection is non-overridable and denial happens before any write. Protected
