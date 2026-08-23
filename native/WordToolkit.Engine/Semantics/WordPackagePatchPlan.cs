@@ -631,11 +631,30 @@ public static class WordPackagePatchRiskAnalyzer
         {
             return new DocumentProtectionMetadataEvidence(true, null);
         }
+        if (!package.Parts.TryGetValue(mainPartUri, out var mainPart))
+        {
+            return new DocumentProtectionMetadataEvidence(true, source.SourceSha256);
+        }
+        LosslessXmlDocument mainSource;
+        try
+        {
+            mainSource = LosslessXmlDocument.Parse(
+                mainPart.Entry.Content,
+                cancellationToken: cancellationToken
+            );
+        }
+        catch (LosslessXmlException)
+        {
+            return new DocumentProtectionMetadataEvidence(true, source.SourceSha256);
+        }
+        var expectedWordNamespace = relationships[0].Type == transitionalSettingsRelationship
+            ? WordPackageConformance.TransitionalWordNamespace
+            : WordPackageConformance.StrictWordNamespace;
         if (
             source.Root.LocalName != "settings"
-            || source.Root.NamespaceUri is not
-                "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-                and not "http://purl.oclc.org/ooxml/wordprocessingml/main"
+            || source.Root.NamespaceUri != expectedWordNamespace
+            || !WordPackageConformance.HasWordDocumentRoot(mainSource)
+            || mainSource.Root.NamespaceUri != expectedWordNamespace
         )
         {
             return new DocumentProtectionMetadataEvidence(true, source.SourceSha256);

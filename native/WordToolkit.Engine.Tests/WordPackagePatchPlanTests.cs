@@ -113,6 +113,62 @@ public sealed class WordPackagePatchPlanTests
         }).CanApply);
     }
 
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void ProtectionSettingsConformanceMustMatchDocumentAndRelationship(
+        bool strictDocument,
+        bool strictSettings,
+        bool strictRelationship
+    )
+    {
+        var before = Read(BuildConformanceProtectedPackage(
+            "before",
+            strictDocument,
+            strictSettings,
+            strictRelationship
+        ));
+        var after = Read(BuildConformanceProtectedPackage(
+            "after",
+            strictDocument,
+            strictSettings,
+            strictRelationship
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+        var expectedUnmodeled = strictDocument != strictSettings
+            || strictSettings != strictRelationship;
+
+        Assert.Equal(
+            expectedUnmodeled,
+            plan.RiskAssessment.Protection.UnmodeledDocumentProtectionMetadata
+        );
+        Assert.Equal(
+            expectedUnmodeled,
+            plan.RiskAssessment.Protection.HasMalformedProtectionMetadata
+        );
+        Assert.Equal(!expectedUnmodeled, decision.CanApply);
+        Assert.Equal(
+            expectedUnmodeled,
+            decision.BlockCodes.Contains("protection_metadata_malformed")
+        );
+    }
+
     [Fact]
     public void TransitionalSmartTagPermissionRangesRemainAuthorizable()
     {
@@ -1341,7 +1397,9 @@ public sealed class WordPackagePatchPlanTests
             "same",
             new Dictionary<string, byte[]> { ["word/settings.xml"] = Utf8(strict) },
             SettingsContentTypeOverride(),
-            SettingsRelationships()
+            SettingsRelationships(strict: true),
+            documentXml: ConformanceDocumentXml("same", strict: true),
+            strictOfficeDocumentRelationship: true
         ));
 
         var plan = new WordPackagePatchPlanner().Plan(
@@ -1788,7 +1846,8 @@ public sealed class WordPackagePatchPlanTests
         IReadOnlyDictionary<string, string>? overrides = null,
         string? documentRelationships = null,
         bool includeBinaryDefault = true,
-        string? documentXml = null
+        string? documentXml = null,
+        bool strictOfficeDocumentRelationship = false
     )
     {
         var stream = new MemoryStream();
@@ -1802,7 +1861,11 @@ public sealed class WordPackagePatchPlanTests
                 overrides,
                 includeBinaryDefault
             ));
-            Write(archive, "_rels/.rels", RootRelationships());
+            Write(
+                archive,
+                "_rels/.rels",
+                RootRelationships(strictOfficeDocumentRelationship)
+            );
             Write(archive, "word/document.xml", documentXml ?? DocumentXml(text));
             if (documentRelationships is not null)
             {
@@ -1835,6 +1898,25 @@ public sealed class WordPackagePatchPlanTests
         SettingsRelationships()
     );
 
+    private static MemoryStream BuildConformanceProtectedPackage(
+        string text,
+        bool strictDocument,
+        bool strictSettings,
+        bool strictRelationship
+    ) => BuildPackage(
+        text,
+        new Dictionary<string, byte[]>
+        {
+            ["word/settings.xml"] = Utf8(
+                ConformanceProtectionSettingsXml(strictSettings)
+            ),
+        },
+        SettingsContentTypeOverride(),
+        SettingsRelationships(strictRelationship),
+        documentXml: ConformanceDocumentXml(text, strictDocument),
+        strictOfficeDocumentRelationship: strictDocument
+    );
+
     private static void Write(ZipArchive archive, string name, string value) =>
         Write(archive, name, Utf8(value));
 
@@ -1854,6 +1936,15 @@ public sealed class WordPackagePatchPlanTests
     private static string DocumentXml(string text) =>
         "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
         + $"<w:body><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:body></w:document>";
+
+    private static string ConformanceDocumentXml(string text, bool strict)
+    {
+        var wordNamespace = strict
+            ? "http://purl.oclc.org/ooxml/wordprocessingml/main"
+            : "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        return $"<w:document xmlns:w='{wordNamespace}'>"
+            + $"<w:body><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:body></w:document>";
+    }
 
     private static string PermissionDocumentXml(string text, bool includeEnd) =>
         "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
@@ -1964,6 +2055,16 @@ public sealed class WordPackagePatchPlanTests
             : $"<w:documentProtection w:edit='{editMode}' w:enforcement='{(enforced ? 1 : 0)}'/>")
         + "</w:settings>";
 
+    private static string ConformanceProtectionSettingsXml(bool strict)
+    {
+        var wordNamespace = strict
+            ? "http://purl.oclc.org/ooxml/wordprocessingml/main"
+            : "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        return $"<w:settings xmlns:w='{wordNamespace}'>"
+            + "<w:documentProtection w:edit='readOnly' w:enforcement='1'/>"
+            + "</w:settings>";
+    }
+
     private static string AlternateContentSettingsXml(bool includeFallback) =>
         "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
         + "xmlns:w14='http://schemas.microsoft.com/office/word/2010/wordml' "
@@ -2001,9 +2102,9 @@ public sealed class WordPackagePatchPlanTests
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.commentsExtended+xml",
         };
 
-    private static string RootRelationships() =>
+    private static string RootRelationships(bool strict = false) =>
         "<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'>"
-        + "<Relationship Id='rId1' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument' Target='word/document.xml'/>"
+        + $"<Relationship Id='rId1' Type='{(strict ? "http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument" : "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument")}' Target='word/document.xml'/>"
         + "</Relationships>";
 
     private static string DocumentRelationships(string target) =>
@@ -2011,9 +2112,9 @@ public sealed class WordPackagePatchPlanTests
         + $"<Relationship Id='rIdExternal' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink' Target='{target}' TargetMode='External'/>"
         + "</Relationships>";
 
-    private static string SettingsRelationships() =>
+    private static string SettingsRelationships(bool strict = false) =>
         "<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'>"
-        + "<Relationship Id='rIdSettings' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings' Target='settings.xml'/>"
+        + $"<Relationship Id='rIdSettings' Type='{(strict ? "http://purl.oclc.org/ooxml/officeDocument/relationships/settings" : "http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings")}' Target='settings.xml'/>"
         + "</Relationships>";
 
     private static string CommentsExtendedRelationships() =>
