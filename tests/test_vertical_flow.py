@@ -1,18 +1,22 @@
 from __future__ import annotations
 
+import os
 import shutil
 import zipfile
 from contextlib import contextmanager
+from pathlib import Path
 
 import pytest
 from lxml import etree
 
+import wordtoolkit.engine.document as document_module
 from docx_mcp.document import DocxDocument
 from docx_mcp.document.base import W14, W
 from wordtoolkit.config import Settings
 from wordtoolkit.engine import DocumentRenderer, OoxmlValidator, WordDocumentEngine
 from wordtoolkit.engine.renderer import _find_executable
 from wordtoolkit.engine.validator import package_hashes
+from wordtoolkit.errors import ErrorCode, WordToolkitError
 
 
 def settings(tmp_path):
@@ -114,6 +118,141 @@ def test_failed_open_removes_partial_document_workspace(
     assert captured_workdir is not None
     assert not captured_workdir.exists()
     assert engine.document is None
+
+
+def test_failed_save_version_does_not_replace_existing_output(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = settings(tmp_path)
+    source = tmp_path / "source.docx"
+    output = tmp_path / "published.docx"
+    engine = WordDocumentEngine.create(source, config)
+    output.write_bytes(b"existing artifact")
+
+    def fail_after_partial_write(path, *, backup):
+        assert backup is False
+        Path(path).write_bytes(b"partial artifact")
+        raise OSError("simulated write failure")
+
+    monkeypatch.setattr(engine.doc, "save", fail_after_partial_write)
+
+    with pytest.raises(OSError, match="simulated write failure"):
+        engine.save_version(output)
+
+    assert output.read_bytes() == b"existing artifact"
+    assert list(tmp_path.glob(".published.*.docx")) == []
+    engine.close()
+
+
+def test_failed_snapshot_does_not_replace_existing_output(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = settings(tmp_path)
+    source = tmp_path / "source.docx"
+    output = tmp_path / "checkpoint.docx"
+    engine = WordDocumentEngine.create(source, config)
+    anchor = next(engine.doc._require("word/document.xml").iter(f"{W}p")).get(f"{W14}paraId")
+    engine.call("insert_paragraph", anchor, "dirty snapshot", "Normal")
+    output.write_bytes(b"existing checkpoint")
+
+    def fail_serialization(*args, **kwargs):
+        raise ValueError("simulated serialization failure")
+
+    monkeypatch.setattr(etree, "tostring", fail_serialization)
+
+    with pytest.raises(ValueError, match="simulated serialization failure"):
+        engine.snapshot(output)
+
+    assert output.read_bytes() == b"existing checkpoint"
+    assert list(tmp_path.glob(".checkpoint.*.docx")) == []
+    engine.close()
+
+
+def test_failed_atomic_replace_preserves_output_and_retry_publishes_changes(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = settings(tmp_path)
+    source = tmp_path / "source.docx"
+    output = tmp_path / "published.docx"
+    engine = WordDocumentEngine.create(source, config)
+    anchor = next(engine.doc._require("word/document.xml").iter(f"{W}p")).get(f"{W14}paraId")
+    engine.call("insert_paragraph", anchor, "publish after retry", "Normal")
+    output.write_bytes(b"existing artifact")
+    replace = document_module.os.replace
+
+    def fail_replace(source_path, output_path):
+        raise PermissionError("simulated locked destination")
+
+    monkeypatch.setattr(document_module.os, "replace", fail_replace)
+    with pytest.raises(PermissionError, match="simulated locked destination"):
+        engine.save_version(output)
+
+    assert output.read_bytes() == b"existing artifact"
+    assert list(tmp_path.glob(".published.*.docx")) == []
+
+    monkeypatch.setattr(document_module.os, "replace", replace)
+    retried = engine.save_version(output)
+
+    assert retried["validation"]["valid"]
+    with zipfile.ZipFile(output) as archive:
+        assert b"publish after retry" in archive.read("word/document.xml")
+    engine.close()
+
+
+def test_failed_validation_preserves_output_and_retry_publishes_changes(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = settings(tmp_path)
+    source = tmp_path / "source.docx"
+    output = tmp_path / "published.docx"
+    engine = WordDocumentEngine.create(source, config)
+    anchor = next(engine.doc._require("word/document.xml").iter(f"{W}p")).get(f"{W14}paraId")
+    engine.call("insert_paragraph", anchor, "validate after retry", "Normal")
+    output.write_bytes(b"existing artifact")
+    validate = engine.validator.validate
+    monkeypatch.setattr(
+        engine.validator,
+        "validate",
+        lambda _path: {"valid": False, "issues": [{"code": "SIMULATED"}]},
+    )
+
+    with pytest.raises(WordToolkitError, match="failed structural validation"):
+        engine.save_version(output)
+
+    assert output.read_bytes() == b"existing artifact"
+    assert list(tmp_path.glob(".published.*.docx")) == []
+
+    monkeypatch.setattr(engine.validator, "validate", validate)
+    retried = engine.save_version(output)
+
+    assert retried["validation"]["valid"]
+    with zipfile.ZipFile(output) as archive:
+        assert b"validate after retry" in archive.read("word/document.xml")
+    engine.close()
+
+
+def test_atomic_package_publication_rejects_symlink_output(tmp_path) -> None:
+    config = settings(tmp_path)
+    source = tmp_path / "source.docx"
+    outside = tmp_path / "outside.docx"
+    output = tmp_path / "linked.docx"
+    engine = WordDocumentEngine.create(source, config)
+    outside.write_bytes(b"outside sentinel")
+    try:
+        output.symlink_to(outside)
+    except OSError as exc:
+        if os.name == "nt" and getattr(exc, "winerror", None) == 1314:
+            engine.close()
+            pytest.skip("Windows runtime cannot create a file symlink for this test")
+        raise
+
+    with pytest.raises(WordToolkitError) as error:
+        engine.snapshot(output)
+
+    assert error.value.code == ErrorCode.UNSAFE_PATH
+    assert outside.read_bytes() == b"outside sentinel"
+    assert output.is_symlink()
+    engine.close()
 
 
 def test_insert_equation_returns_the_inserted_equation_when_anchored_in_the_middle(
