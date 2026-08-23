@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Stopped the maintained Python equation converter from silently degrading
+  boxed formulas and multiple integrals. LaTeX `\boxed{...}`, UnicodeMath
+  `▭(...)`, MathML `menclose notation="box"` and OMML `m:borderBox` now share
+  one semantic enclosure node and emit a real OfficeMath border box instead of
+  square delimiters. The converter now preserves `∫`, `∬`, `∭`, `⨌`, `∮`,
+  `∯` and `∰` as n-ary operators across LaTeX, UnicodeMath, MathML and OMML,
+  groups balanced MathML fence operators, preserves a source `m:box` on direct
+  OMML round trips, and rejects malformed box containers, unsupported
+  enclosure notations and unknown UnicodeMath commands instead of returning a
+  plausible but semantically different equation.
+
 - Made installed-Word member discovery compact by default. Capability searches
   now return stable IDs, signature counts, target roots and safety policy without
   repeating full JSON schemas across pages; callers request `detail="full"`

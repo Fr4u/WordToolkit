@@ -21,6 +21,17 @@ def _child(element: etree._Element, local: str) -> etree._Element | None:
     return next((x for x in element if isinstance(x.tag, str) and _local(x) == local), None)
 
 
+def _required_single_child(element: etree._Element, local: str) -> etree._Element:
+    children = [child for child in element if isinstance(child.tag, str) and _local(child) == local]
+    if len(children) != 1:
+        raise WordToolkitError(
+            ErrorCode.EQUATION_INVALID,
+            "OMML equation object requires exactly one child container",
+            {"element": _local(element), "child": local, "count": len(children)},
+        )
+    return children[0]
+
+
 def _contents(element: etree._Element | None) -> EquationNode:
     if element is None:
         return EMPTY
@@ -116,6 +127,15 @@ def _parse_node(element: etree._Element) -> EquationNode:
         return EquationNode.make(
             "delimiter", children=(_contents(_child(element, "e")),), begin=begin, end=end
         )
+    if tag in {"box", "borderBox"}:
+        body = _contents(_required_single_child(element, "e"))
+        attrs = {"notation": "box"}
+        if tag == "box":
+            # m:box is an OfficeMath grouping object, not a visible border box.
+            # Preserve its source family for exact OMML roundtrips while the
+            # less expressive LaTeX/UnicodeMath exports use the shared box glyph.
+            attrs["omml_kind"] = "box"
+        return EquationNode.make("enclosure", children=(body,), **attrs)
     if tag == "m":
         rows: list[EquationNode] = []
         for matrix_row in element:
@@ -263,8 +283,23 @@ def _append(parent: etree._Element, node: EquationNode) -> None:
         _container(function, "e", c[1])
         return
     if node.kind == "enclosure":
-        delimiter = EquationNode.make("delimiter", children=c, begin="[", end="]")
-        _append(parent, delimiter)
+        notation = node.attr("notation", "box")
+        if notation != "box":
+            raise WordToolkitError(
+                ErrorCode.EQUATION_INVALID,
+                "OMML export does not support this enclosure notation",
+                {"notation": notation},
+            )
+        omml_kind = node.attr("omml_kind", "borderBox")
+        if omml_kind not in {"box", "borderBox"}:
+            raise WordToolkitError(
+                ErrorCode.EQUATION_INVALID,
+                "OMML export does not support this enclosure object family",
+                {"omml_kind": omml_kind},
+            )
+        box = etree.SubElement(parent, f"{M}{omml_kind}")
+        etree.SubElement(box, f"{M}{omml_kind}Pr")
+        _container(box, "e", c[0])
         return
     if node.kind == "cell" and c:
         _append(parent, c[0])

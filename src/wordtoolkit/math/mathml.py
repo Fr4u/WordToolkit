@@ -10,6 +10,7 @@ from .ast import EMPTY, EquationNode, row
 
 FUNCTION_NAMES = {"sin", "cos", "tan", "cot", "sec", "csc", "log", "ln", "exp", "min", "max"}
 FENCE_PAIRS = {"(": ")", "[": "]", "{": "}", "|": "|", "‖": "‖"}
+NARY_SYMBOLS = {"∑", "∏", "∫", "∬", "∭", "⨌", "∮", "∯", "∰", "⋃", "⋂"}
 
 
 def _local(element: etree._Element) -> str:
@@ -22,6 +23,38 @@ def _elements(element: etree._Element) -> list[etree._Element]:
 
 def _text(element: etree._Element) -> str:
     return "".join(element.itertext()).strip()
+
+
+def _group_fenced_sequences(nodes: list[EquationNode]) -> list[EquationNode]:
+    """Turn balanced MathML fence operators into delimiter AST nodes."""
+    frames: list[tuple[EquationNode | None, list[EquationNode]]] = [(None, [])]
+    closing = set(FENCE_PAIRS.values())
+    for node in nodes:
+        value = node.value if node.kind == "operator" else ""
+        opener = frames[-1][0]
+        expected = FENCE_PAIRS.get(opener.value) if opener is not None else None
+        if value and value == expected:
+            assert opener is not None
+            _, contents = frames.pop()
+            frames[-1][1].append(
+                EquationNode.make(
+                    "delimiter",
+                    children=(row(*contents),),
+                    begin=opener.value,
+                    end=value,
+                )
+            )
+        elif value in FENCE_PAIRS and (value not in {"|", "‖"} or value != expected):
+            frames.append((node, []))
+        elif value in closing:
+            frames[-1][1].append(node)
+        else:
+            frames[-1][1].append(node)
+    while len(frames) > 1:
+        opener, contents = frames.pop()
+        if opener is not None:
+            frames[-1][1].extend((opener, *contents))
+    return frames[0][1]
 
 
 def parse_mathml(source: str) -> EquationNode:
@@ -45,6 +78,8 @@ def _parse_sequence(children: list[etree._Element]) -> EquationNode:
     while index < len(children):
         element = children[index]
         node = _parse_node(element)
+        if node.kind in {"identifier", "operator"} and node.value in NARY_SYMBOLS:
+            node = EquationNode.make("nary", node.value, (EMPTY, EMPTY, EMPTY))
         if (
             node.kind == "nary"
             and node.children
@@ -76,18 +111,7 @@ def _parse_sequence(children: list[etree._Element]) -> EquationNode:
             continue
         combined.append(node)
         index += 1
-    if (
-        len(combined) >= 3
-        and combined[0].value in FENCE_PAIRS
-        and combined[-1].value == FENCE_PAIRS[combined[0].value]
-    ):
-        return EquationNode.make(
-            "delimiter",
-            children=(row(*combined[1:-1]),),
-            begin=combined[0].value,
-            end=combined[-1].value,
-        )
-    return row(*combined)
+    return row(*_group_fenced_sequences(combined))
 
 
 def _parse_node(element: etree._Element) -> EquationNode:
@@ -113,17 +137,20 @@ def _parse_node(element: etree._Element) -> EquationNode:
             "fraction", children=(_parse_node(children[0]), _parse_node(children[1]))
         )
     if tag == "msup" and len(children) >= 2:
-        return EquationNode.make(
-            "superscript", children=(_parse_node(children[0]), _parse_node(children[1]))
-        )
+        base, sup = _parse_node(children[0]), _parse_node(children[1])
+        if base.value in NARY_SYMBOLS:
+            return EquationNode.make("nary", base.value, (EMPTY, EMPTY, sup))
+        return EquationNode.make("superscript", children=(base, sup))
     if tag == "msub" and len(children) >= 2:
         base, sub = _parse_node(children[0]), _parse_node(children[1])
         if base.value == "lim":
             return EquationNode.make("limit_lower", children=(base, sub))
+        if base.value in NARY_SYMBOLS:
+            return EquationNode.make("nary", base.value, (EMPTY, sub, EMPTY))
         return EquationNode.make("subscript", children=(base, sub))
     if tag == "msubsup" and len(children) >= 3:
         base, sub, sup = (_parse_node(x) for x in children[:3])
-        if base.value in {"∑", "∏", "∫", "⋃", "⋂"}:
+        if base.value in NARY_SYMBOLS:
             return EquationNode.make("nary", base.value, (EMPTY, sub, sup))
         return EquationNode.make("sub_sup", children=(base, sub, sup))
     if tag == "msqrt":
@@ -141,7 +168,7 @@ def _parse_node(element: etree._Element) -> EquationNode:
             if tag != "munder" and len(children) > upper_index
             else EMPTY
         )
-        if base.value in {"∑", "∏", "∫", "⋃", "⋂"}:
+        if base.value in NARY_SYMBOLS:
             return EquationNode.make("nary", base.value, (EMPTY, lower, upper))
         if base.value == "lim" and tag == "munder":
             return EquationNode.make("limit_lower", children=(base, lower))

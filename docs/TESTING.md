@@ -83,7 +83,7 @@ detail tests reject absolute paths and payload text.
   limits. Native tests prove exact filters, independent metadata/source opt-ins, zero
   COM calls, default and complete envelope bounds, and non-disclosure of Custom XML,
   visible bound values and raw XML.
-- Round-trip: LaTeX/UnicodeMath/MathML/AST → OMML → DOCX → reopened OMML with semantic AST comparison.
+- Round-trip: LaTeX/UnicodeMath/MathML/AST → OMML → DOCX → reopened OMML with semantic AST comparison. The matrix includes real `m:borderBox` output for boxed formulas, nested and empty boxes, exact direct-OMML preservation of `m:box`, and bounded/multiple/contour integral families through `∫`, `∬`, `∭`, `⨌`, `∮`, `∯` and `∰`.
 - Integration: create/open/edit/save, package validation, Streamable HTTP initialization and bearer rejection.
 - Regression: the broad bundled corpus catches parser crashes, byte drift and open graph
   endpoints. A separate versioned semantic golden corpus fixes exact typed expectations

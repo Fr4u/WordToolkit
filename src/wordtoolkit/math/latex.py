@@ -114,9 +114,26 @@ def to_latex(node: EquationNode) -> str:
             else f"\\sqrt[{to_latex(c[1])}]{{{to_latex(c[0])}}}"
         )
     if node.kind == "nary":
-        op = {"∑": "sum", "∏": "prod", "∫": "int", "⋃": "bigcup", "⋂": "bigcap"}.get(
-            node.value, node.value
-        )
+        operators = {
+            "∑": "sum",
+            "∏": "prod",
+            "∫": "int",
+            "∬": "iint",
+            "∭": "iiint",
+            "⨌": "iiiint",
+            "∮": "oint",
+            "∯": "oiint",
+            "∰": "oiiint",
+            "⋃": "bigcup",
+            "⋂": "bigcap",
+        }
+        op = operators.get(node.value)
+        if op is None:
+            raise WordToolkitError(
+                ErrorCode.EQUATION_INVALID,
+                "Equation contains an unsupported n-ary operator",
+                {"operator": node.value},
+            )
         lower = f"_{{{to_latex(c[1])}}}" if c[1].children or c[1].value else ""
         upper = f"^{{{to_latex(c[2])}}}" if c[2].children or c[2].value else ""
         body = to_latex(c[0])
@@ -141,4 +158,13 @@ def to_latex(node: EquationNode) -> str:
         return f"{base}_{{{to_latex(c[1])}}}"
     if node.kind == "function":
         return f"\\operatorname{{{to_latex(c[0])}}}\\left({to_latex(c[1])}\\right)"
+    if node.kind == "enclosure":
+        notation = node.attr("notation", "box")
+        if notation == "box":
+            return f"\\boxed{{{to_latex(c[0])}}}"
+        raise WordToolkitError(
+            ErrorCode.EQUATION_INVALID,
+            "LaTeX export does not support this enclosure notation",
+            {"notation": notation},
+        )
     return node.value

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from wordtoolkit.errors import ErrorCode, WordToolkitError
 from wordtoolkit.math import MathEngine
 
 
@@ -120,3 +121,192 @@ def test_omml_export_formats_are_semantically_reparseable(
         "exported": exported,
         "comparison": comparison,
     }
+
+
+@pytest.mark.parametrize(
+    "source,source_format",
+    [
+        (r"\boxed{x+1}", "latex"),
+        ("▭((x)/(y))", "unicodemath"),
+        (
+            '<math xmlns="http://www.w3.org/1998/Math/MathML"><menclose notation="box"><mi>x</mi></menclose></math>',
+            "mathml",
+        ),
+    ],
+)
+def test_boxed_formula_uses_border_box_and_roundtrips_all_formats(
+    source: str, source_format: str
+) -> None:
+    math = MathEngine()
+    canonical = math.parse(source, source_format)
+    omml = math.convert(canonical.to_dict(), "ast", "omml")
+
+    assert "<m:borderBox>" in omml
+    assert "<m:borderBoxPr/>" in omml
+    assert "<m:d>" not in omml
+    assert math.compare(canonical.to_dict(), "ast", omml, "omml").equivalent
+
+    for output_format in ("latex", "unicodemath", "mathml"):
+        exported = math.convert(canonical.to_dict(), "ast", output_format)
+        assert math.compare(canonical.to_dict(), "ast", exported, output_format).equivalent
+
+
+def test_border_box_omml_parses_as_boxed_formula() -> None:
+    source = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+      <m:borderBox><m:borderBoxPr/><m:e><m:r><m:t>x</m:t></m:r></m:e></m:borderBox>
+    </m:oMath>"""
+    math = MathEngine()
+
+    ast = math.parse(source, "omml")
+
+    assert ast.kind == "enclosure"
+    assert ast.attr("notation") == "box"
+    assert math.convert(ast.to_dict(), "ast", "latex") == r"\boxed{x}"
+    assert math.convert(ast.to_dict(), "ast", "unicodemath") == "▭(x)"
+
+
+def test_plain_omml_box_preserves_its_object_family_on_omml_roundtrip() -> None:
+    source = """<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+      <m:box><m:boxPr/><m:e><m:r><m:t>x</m:t></m:r></m:e></m:box>
+    </m:oMath>"""
+    math = MathEngine()
+
+    ast = math.parse(source, "omml")
+    exported = math.convert(ast.to_dict(), "ast", "omml")
+
+    assert ast.attr("omml_kind") == "box"
+    assert "<m:box>" in exported
+    assert "<m:boxPr/>" in exported
+    assert "<m:borderBox>" not in exported
+    assert math.compare(source, "omml", exported, "omml").equivalent
+    assert math.convert(ast.to_dict(), "ast", "unicodemath") == "▭(x)"
+
+
+@pytest.mark.parametrize(
+    "source,count",
+    [
+        (
+            '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:borderBox/></m:oMath>',
+            0,
+        ),
+        (
+            '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:borderBox><m:e/><m:e/></m:borderBox></m:oMath>',
+            2,
+        ),
+    ],
+)
+def test_malformed_omml_box_rejects_missing_or_duplicate_body(source: str, count: int) -> None:
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse(source, "omml")
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+    assert error.value.details == {"element": "borderBox", "child": "e", "count": count}
+
+
+def test_nested_and_empty_boxes_preserve_their_structure() -> None:
+    math = MathEngine()
+    nested = math.parse("▭(▭(x))", "unicodemath")
+    nested_omml = math.convert(nested.to_dict(), "ast", "omml")
+    empty = math.parse("▭()", "unicodemath")
+
+    assert nested_omml.count("<m:borderBox>") == 2
+    assert math.compare(nested.to_dict(), "ast", nested_omml, "omml").equivalent
+    assert math.convert(empty.to_dict(), "ast", "latex") == r"\boxed{}"
+    assert math.compare(empty.to_dict(), "ast", "▭()", "unicodemath").equivalent
+
+
+@pytest.mark.parametrize("output_format", ["omml", "latex", "unicodemath"])
+def test_unsupported_enclosure_notation_fails_instead_of_becoming_brackets(
+    output_format: str,
+) -> None:
+    ast = {
+        "kind": "enclosure",
+        "children": [{"kind": "identifier", "value": "x"}],
+        "attrs": {"notation": "circle"},
+    }
+
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().convert(ast, "ast", output_format)
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+    assert error.value.details == {"notation": "circle"}
+
+
+@pytest.mark.parametrize(
+    "source,command,symbol",
+    [
+        (r"\int_0^1 x", r"\int", "∫"),
+        (r"\iint_D f(x,y)", r"\iint", "∬"),
+        (r"\iiint_V f(x,y,z)", r"\iiint", "∭"),
+        (r"\iiiint_W x", r"\iiiint", "⨌"),
+        (r"\oint_C f(z)", r"\oint", "∮"),
+        (r"\oiint_S x", r"\oiint", "∯"),
+        (r"\oiiint_V x", r"\oiiint", "∰"),
+    ],
+)
+def test_integral_families_remain_nary_across_every_format(
+    source: str, command: str, symbol: str
+) -> None:
+    math = MathEngine()
+    canonical = math.parse(source, "latex")
+    exported_latex = math.convert(canonical.to_dict(), "ast", "latex")
+    exported_unicode = math.convert(canonical.to_dict(), "ast", "unicodemath")
+    exported_omml = math.convert(canonical.to_dict(), "ast", "omml")
+
+    assert command in exported_latex
+    assert exported_unicode.startswith(symbol)
+    assert "<m:nary>" in exported_omml
+    assert f'm:val="{symbol}"' in exported_omml
+    for exported, output_format in (
+        (exported_latex, "latex"),
+        (exported_unicode, "unicodemath"),
+        (exported_omml, "omml"),
+    ):
+        assert math.compare(canonical.to_dict(), "ast", exported, output_format).equivalent
+
+
+def test_nary_omml_keeps_lower_upper_and_body_in_their_own_containers() -> None:
+    math = MathEngine()
+    omml = math.convert(r"\iiint_a^b x", "latex", "omml")
+    parsed = math.parse(omml, "omml")
+
+    assert omml.count("<m:sub>") == 1
+    assert omml.count("<m:sup>") == 1
+    assert omml.count("<m:e>") == 1
+    assert parsed.kind == "nary"
+    assert parsed.value == "∭"
+    assert parsed.children[0].value == "x"
+    assert parsed.children[1].value == "a"
+    assert parsed.children[2].value == "b"
+
+
+def test_explicit_unicodemath_multiple_integral_command_is_supported() -> None:
+    math = MathEngine()
+    parsed = math.parse(r"\iiint_(V) x", "unicodemath")
+
+    assert parsed.kind == "nary"
+    assert parsed.value == "∭"
+    assert math.convert(parsed.to_dict(), "ast", "unicodemath") == "∭_(V) x"
+
+
+def test_unicodemath_box_requires_a_parenthesized_body() -> None:
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse("▭x", "unicodemath")
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+
+
+@pytest.mark.parametrize("source", [r"\boxed{x}", r"\unknown(x)"])
+def test_unknown_unicodemath_commands_fail_instead_of_becoming_identifiers(source: str) -> None:
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse(source, "unicodemath")
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID
+
+
+@pytest.mark.parametrize("source", ["∭_(a]^(b) f", "∫_(a)^(b] f"])
+def test_mismatched_unicodemath_integral_bounds_fail(source: str) -> None:
+    with pytest.raises(WordToolkitError) as error:
+        MathEngine().parse(source, "unicodemath")
+
+    assert error.value.code is ErrorCode.EQUATION_INVALID

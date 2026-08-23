@@ -55,6 +55,31 @@ def test_create_edit_equation_validate_reopen(tmp_path) -> None:
     reopened.close()
 
 
+def test_boxed_equation_is_saved_as_valid_border_box_and_reopens(tmp_path) -> None:
+    config = settings(tmp_path)
+    source = tmp_path / "boxed-source.docx"
+    output = tmp_path / "boxed-output.docx"
+    engine = WordDocumentEngine.create(source, config)
+    anchor = next(engine.doc._require("word/document.xml").iter(f"{W}p")).get(f"{W14}paraId")
+    paragraph = engine.call("insert_paragraph", anchor, "Boxed formula:", "Normal")
+    engine.insert_equation(paragraph["para_id"], r"\boxed{\frac{x+1}{2}}", "latex", display=True)
+
+    result = engine.save_version(output)
+
+    assert result["validation"]["valid"]
+    assert result["round_trip_preservation"]["preserved"]
+    engine.close()
+    reopened = WordDocumentEngine(output, config)
+    reopened.open()
+    assert reopened.validate_equations()["valid"]
+    with zipfile.ZipFile(output) as archive:
+        xml = etree.fromstring(archive.read("word/document.xml"))
+        ns = {"m": "http://schemas.openxmlformats.org/officeDocument/2006/math"}
+        assert len(xml.xpath("//m:borderBox/m:e", namespaces=ns)) == 1
+        assert not xml.xpath("//m:d", namespaces=ns)
+    reopened.close()
+
+
 def test_open_uses_one_snapshot_when_source_is_replaced(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
