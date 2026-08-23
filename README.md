@@ -9,7 +9,7 @@ Transform changes fail closed and route to the reviewed generic patch workflow.
 Other typed mutators and the legacy Python publication path do not yet provide universal
 enforcement. The token is not a password or caller-identity proof.
 
-> **Status:** `main` contains the `0.61.1` release line; [`v0.61.0`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.61.0) remains the current tagged release until the `0.61.1` artifact is published and independently recorded. The project is not presented as a complete LaTeX engine, Word-compatibility layer, or pixel-equivalent renderer across Word versions.
+> **Status:** [`v0.61.1`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.61.1) is the current tagged release. Its native Windows x64 artifact was qualified from the exact tagged commit and independently recorded below. The project is not presented as a complete LaTeX engine, Word-compatibility layer, or pixel-equivalent renderer across Word versions.
 
 ## Current authoring boundary
 
@@ -1441,23 +1441,23 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-Release `v0.61.0` contains the qualified native runtime (`0.61.0+codex.20260823092637`), with runtime guidance covering 151/151 actions and 15 public MCP tools. The release also includes the machine-readable archive checksum and the independently verified native artifact described below.
+Release `v0.61.1` contains the qualified native runtime (`0.61.1+codex.20260823155411`), with runtime guidance covering 151/151 actions and 15 public MCP tools. The release also includes the machine-readable archive checksum and the independently verified native artifact described below.
 
 Version:
 
 ```text
-0.61.0+codex.20260823092637
+0.61.1+codex.20260823155411
 ```
 
 Windows x64 ZIP:
 
-Asset: `WordToolkit-0.61.0+codex.20260823092637-native-win-x64.zip`
+Asset: `WordToolkit-0.61.1+codex.20260823155411-native-win-x64.zip`
 
-[WordToolkit 0.61.0 native plugin for Windows x64](https://github.com/Fr4u/WordToolkit/releases/download/v0.61.0/WordToolkit-0.61.0%2Bcodex.20260823092637-native-win-x64.zip)
+[WordToolkit 0.61.1 native plugin for Windows x64](https://github.com/Fr4u/WordToolkit/releases/download/v0.61.1/WordToolkit-0.61.1%2Bcodex.20260823155411-native-win-x64.zip)
 
-Size: `38,361,009 bytes`
+Size: `38,362,714 bytes`
 
-SHA-256: `02bb56d038ed413a7abea6f5c0b3f4f0b2cf99628712ac8083fc564daf00d3a0`
+SHA-256: `edcd02ede5735aeeb0e3a3ff20652c9ddb5a5b2645becd5aa90337e2a28ec83c`
 
 Live demonstration document:
 

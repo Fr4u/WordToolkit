@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "tag": "v0.61.1",
+  "published_at": "2026-08-23T14:20:24Z",
+  "source_commit": "b9904d452c8b8f41d4e3b7b02c5bc2c0bb109a58",
+  "release_url": "https://github.com/Fr4u/WordToolkit/releases/tag/v0.61.1",
+  "runtime_version": "0.61.1+codex.20260823155411",
+  "native_action_count": 151,
+  "public_mcp_tool_count": 15,
+  "asset": {
+    "name": "WordToolkit-0.61.1+codex.20260823155411-native-win-x64.zip",
+    "url": "https://github.com/Fr4u/WordToolkit/releases/download/v0.61.1/WordToolkit-0.61.1%2Bcodex.20260823155411-native-win-x64.zip",
+    "size_bytes": 38362714,
+    "sha256": "edcd02ede5735aeeb0e3a3ff20652c9ddb5a5b2645becd5aa90337e2a28ec83c"
+  },
+  "ci": {
+    "workflow_url": "https://github.com/Fr4u/WordToolkit/actions/runs/32644610632",
+    "codeql_url": "https://github.com/Fr4u/WordToolkit/actions/runs/32644610642"
+  }
+}
