@@ -252,8 +252,8 @@ async def run(plugin: Path, source: Path, output: Path) -> dict[str, Any]:
     async with stdio_client(parameters) as (read, write), ClientSession(read, write) as session:
         initialized = await session.initialize()
         tools = await session.list_tools()
-        if len(tools.tools) != 103:
-            raise AssertionError(f"Expected 103 MCP tools, received {len(tools.tools)}")
+        if len(tools.tools) != 104:
+            raise AssertionError(f"Expected 104 MCP tools, received {len(tools.tools)}")
 
         opened = await call_ok(
             session,

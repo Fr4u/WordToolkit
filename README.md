@@ -9,7 +9,7 @@ Transform changes fail closed and route to the reviewed generic patch workflow.
 Other typed mutators and the legacy Python publication path do not yet provide universal
 enforcement. The token is not a password or caller-identity proof.
 
-> **Status:** `main` contains the qualified `0.61.0` line; [`v0.61.0`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.61.0) is the current tagged release. The project is not presented as a complete LaTeX engine, Word-compatibility layer, or pixel-equivalent renderer across Word versions.
+> **Status:** `main` contains the `0.61.1` release line; [`v0.61.0`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.61.0) remains the current tagged release until the `0.61.1` artifact is published and independently recorded. The project is not presented as a complete LaTeX engine, Word-compatibility layer, or pixel-equivalent renderer across Word versions.
 
 ## Current authoring boundary
 
