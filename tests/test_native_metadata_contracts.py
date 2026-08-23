@@ -41,13 +41,9 @@ def test_nullable_backup_paths_are_optional_on_the_wire() -> None:
             backup = properties.get("backup_path")
             if isinstance(backup, dict) and "null" in backup.get("type", []):
                 assert "backup_path" not in schema.get("required", []), tool["name"]
+            pending.extend(value for value in properties.values() if isinstance(value, dict))
             pending.extend(
-                value for value in properties.values() if isinstance(value, dict)
-            )
-            pending.extend(
-                value
-                for value in schema.get("$defs", {}).values()
-                if isinstance(value, dict)
+                value for value in schema.get("$defs", {}).values() if isinstance(value, dict)
             )
 
 
