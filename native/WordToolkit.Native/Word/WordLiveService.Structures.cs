@@ -446,7 +446,10 @@ internal sealed partial class WordLiveService
                     var end = SafeInt(() => (int)range.End, -1);
                     var raw = SafeString(() => (string?)range.Text);
                     var visibleLength = raw.Trim('\r', '\n', '\a', '\v').Length;
-                    var style = SafeString(() => Convert.ToString(range.Style, CultureInfo.InvariantCulture));
+                    // Range.Style is a VARIANT and Word commonly returns a Style RCW,
+                    // not a scalar string. Resolve its public name through the shared
+                    // COM-safe reader so diagnostics never publish System.__ComObject.
+                    var style = ReadStyleIdentity(range);
                     var outline = SafeInt(() => (int)paragraph.OutlineLevel, 10);
                     var heading = outline is >= 1 and <= 9;
                     if (heading)

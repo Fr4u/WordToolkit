@@ -24,6 +24,8 @@ path, save-policy and confirmation checks.
 | `probe_live_word_feature_behaviors` | After explicit confirmation, test OMath, content-control, SmartArt and custom-Undo behavior in isolated unsaved scratch documents with mandatory cleanup proof. |
 | `prepare_live_word_smartart_text_edits` | Resolve one exact SmartArt root and issue one-time tokens bound to the complete node structure and text context. |
 | `apply_live_word_smartart_text_edits` | Replace up to 32 token-verified single-line SmartArt node texts in one Undo record with exact readback and rollback. |
+| `inspect_live_word_smartart_layouts` | Read a bounded, paged catalog of layouts exposed by the connected Word process; returns opaque version-bound layout tokens, never raw COM or XML. |
+| `insert_live_word_smartart` | Insert one inline native SmartArt object using a fresh layout token and exactly one range or selection token, with one Undo record, count/readback verification and rollback. |
 | `inspect_live_word_equation_learning` | Inspect privacy-preserving aggregate native-equation outcomes. |
 | `inspect_live_word_structure_learning` | Inspect aggregate native-type scan evidence and the adaptive rescan policy. |
 | `inspect_live_word_object_model_types` | Query a paged catalog of types in the installed Word COM type library. |
@@ -68,7 +70,7 @@ path, save-policy and confirmation checks.
 | `apply_live_word_operations` | Append up to 200 interleaved text/equation operations through one COM attachment, one payload and one Undo transaction. |
 | `validate_live_word_document` | Validate a temporary copy of the already-saved DOCX. |
 | `export_live_word_pdf` | Export the current live document through Word's native PDF renderer. |
-| `save_live_word_document` | Call `Document.Save()` on the same existing path. |
+| `save_live_word_document` | Call `Document.Save()` on the same existing path. Persistence is not a content mutation, so this action does not increment `live_version`. |
 | `close_live_word_document` | Close one connected document using an explicit save/discard policy. |
 | `quit_word_application` | Quit Word only with explicit confirmation and a save/discard-all policy. |
 | `disconnect_live_word_document` | Release only the WordToolkit handle. |

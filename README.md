@@ -39,7 +39,7 @@ separate evidence.
 - [Security policy](docs/SECURITY.md) — active-content, external-link and trust boundaries.
 - [AI interoperability](docs/AI-INTEROPERABILITY.md) — bounded model-facing contracts.
 
-The native catalog has 149/149 first-call guidance records. Clients should search when
+The native catalog has 151/151 first-call guidance records. Clients should search when
 the capability is unknown, inspect the exact action, bind prerequisites, execute, and
 verify success or follow the declared recovery mapping. This adds no public tools.
 
@@ -131,6 +131,16 @@ exact target readback plus unchanged untargeted nodes. It does not create, delet
 reorder or restyle SmartArt. A real Word proof shows synchronized DiagramML data and
 persisted drawing parts; see
 [Guarded live SmartArt text editing](docs/RESEARCH-SMARTART-TEXT-EDITING-2026.md).
+
+The dedicated `inspect_live_word_smartart_layouts` action exposes a bounded, paged
+catalog of layouts from the connected Word process. `insert_live_word_smartart`
+consumes a fresh catalog token plus one exact range or selection token and inserts
+one inline native SmartArt object in a single guarded Undo transaction. The response
+reports before/after inline counts, exact ranges and readback verification; raw COM
+objects and XML never cross the contract. Layout tokens are scoped to the connected
+document version and must be reacquired after any edit. The exact API basis, guarded
+contract, Word `16.0.20326` proof, and remaining limits are recorded in
+[Guarded live SmartArt creation research](docs/RESEARCH-SMARTART-CREATION-2026.md).
 
 The live `insert_live_word_caption`, `insert_live_word_table_of_figures`,
 `insert_live_word_table_of_contents`, `mark_live_word_authority_citation`,
@@ -239,7 +249,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 149-action schema set into model context. The normative shape is
+not flatten the 151-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and

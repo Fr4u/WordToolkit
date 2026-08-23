@@ -885,23 +885,62 @@ internal sealed partial class WordLiveService
         return values;
     }
 
-    private static string ReadStyleIdentity(dynamic range)
+    internal static string ReadStyleIdentity(object rangeObject)
     {
-        dynamic style = range.Style;
+        object? styleObject = null;
         try
         {
-            return (string?)style.NameLocal ?? "";
-        }
-        catch
-        {
+            dynamic range = rangeObject;
+            styleObject = range.Style;
+            if (styleObject is null)
+            {
+                return "";
+            }
+
+            dynamic style = styleObject;
             try
             {
-                return (string?)style.Name ?? "";
+                var nameLocal = Convert.ToString(style.NameLocal, CultureInfo.InvariantCulture);
+                if (!string.IsNullOrEmpty(nameLocal))
+                {
+                    return nameLocal;
+                }
             }
             catch
             {
-                return Convert.ToString((object?)style, CultureInfo.InvariantCulture) ?? "";
+                // Older/fake Word surfaces may omit NameLocal; try Name next.
             }
+
+            try
+            {
+                var name = Convert.ToString(style.Name, CultureInfo.InvariantCulture);
+                if (!string.IsNullOrEmpty(name))
+                {
+                    return name;
+                }
+            }
+            catch
+            {
+                // A scalar style value has neither NameLocal nor Name.
+            }
+
+            if (Marshal.IsComObject(styleObject))
+            {
+                return "";
+            }
+
+            var scalar = Convert.ToString(styleObject, CultureInfo.InvariantCulture) ?? "";
+            return string.Equals(scalar, "System.__ComObject", StringComparison.Ordinal)
+                ? ""
+                : scalar;
+        }
+        catch
+        {
+            return "";
+        }
+        finally
+        {
+            FinalReleaseBatchComObject(styleObject);
         }
     }
 

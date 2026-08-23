@@ -7,6 +7,23 @@ namespace WordToolkit.Native.Tests;
 public sealed class PreparedBatchErrorProjectionTests
 {
     [Fact]
+    public void StyleIdentityUsesThePublicStyleNameInsteadOfAComWrapperTypeName()
+    {
+        Assert.Equal(
+            "Heading 1",
+            WordLiveService.ReadStyleIdentity(
+                new PublicFakeStyleRange(new PublicFakeWordStyle())
+            )
+        );
+        Assert.Equal(
+            "",
+            WordLiveService.ReadStyleIdentity(
+                new PublicFakeStyleRange("System.__ComObject")
+            )
+        );
+    }
+
+    [Fact]
     public void Projects_zero_based_failed_index_without_returning_operation_content()
     {
         var original = new NativeToolException(
@@ -79,4 +96,16 @@ public sealed class PreparedBatchErrorProjectionTests
 
         Assert.Null(WordLiveService.TryGetFailedOperationIndex(error));
     }
+}
+
+public sealed class PublicFakeStyleRange(object style)
+{
+    public object Style { get; } = style;
+}
+
+public sealed class PublicFakeWordStyle
+{
+    public string NameLocal => "Heading 1";
+
+    public override string ToString() => "System.__ComObject";
 }

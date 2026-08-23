@@ -15,7 +15,7 @@ def test_guidance_contract_and_determinism(tmp_path):
     schema = load(ROOT / "schemas/mcp-tools-local.v1.json")
     guide = load(ROOT / "schemas/action-guidance.v1.json")
     tools = {x["name"]: x for x in schema["tools"]}
-    assert len(guide["actions"]) == 149 and {x["name"] for x in guide["actions"]} == set(
+    assert len(guide["actions"]) == 151 and {x["name"] for x in guide["actions"]} == set(
         schema["native_runtime"]["actions"]
     )
     for g in guide["actions"]:

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added dedicated guarded SmartArt live actions. `inspect_live_word_smartart_layouts`
+  returns a bounded paged catalog with opaque document-version-bound layout tokens;
+  `insert_live_word_smartart` consumes one fresh token and exactly one range/selection
+  token to create one inline native SmartArt object. The insert path uses one Word Undo
+  record, verifies inline counts and readback, rolls back on mismatch, and never returns
+  raw COM objects or XML. Guidance now requires reacquisition after a version change.
+
 - Extended the saved-package protection policy to reviewed CommentBody, NoteRepair,
   EquationRepair, RelationshipRepair, NumberingRepair, NumberingRebuild, semantic Style,
   TemplateStyleAlignment and equation-paragraph rewrite mutation paths. Non-noop protected edits
