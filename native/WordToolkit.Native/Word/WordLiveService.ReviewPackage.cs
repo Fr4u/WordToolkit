@@ -372,6 +372,28 @@ internal sealed partial class WordLiveService
         );
         var commentIds = comments.Select(comment => comment.Id)
             .ToHashSet(StringComparer.Ordinal);
+        Dictionary<string, int>? commentOoxmlIdCounts = null;
+        bool CommentIdEditable(WordCommentDefinition comment)
+        {
+            if (
+                comment.SemanticNodeId is null
+                || !comment.IsEffectiveByOoxmlId
+                || string.IsNullOrWhiteSpace(comment.OoxmlId)
+            )
+            {
+                return false;
+            }
+            commentOoxmlIdCounts ??= graph.Comments
+                .Where(candidate => !string.IsNullOrWhiteSpace(candidate.OoxmlId))
+                .GroupBy(candidate => candidate.OoxmlId!, StringComparer.Ordinal)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.Count(),
+                    StringComparer.Ordinal
+                );
+            return commentOoxmlIdCounts.TryGetValue(comment.OoxmlId, out var count)
+                && count == 1;
+        }
         var revisions = graph.Revisions.Where(revision =>
             (revisionId is null || revision.Id == revisionId)
             && (storyKind is null
@@ -394,6 +416,7 @@ internal sealed partial class WordLiveService
                 maximum,
                 comment => CommentItem(
                     comment,
+                    CommentIdEditable(comment),
                     detail,
                     includeSensitive,
                     includeSource,
@@ -573,6 +596,7 @@ internal sealed partial class WordLiveService
 
     private static object CommentItem(
         WordCommentDefinition comment,
+        bool commentIdEditable,
         string detail,
         bool includeSensitive,
         bool includeSource,
@@ -588,6 +612,10 @@ internal sealed partial class WordLiveService
         {
             comment_id = comment.Id,
             effective_by_ooxml_id = comment.IsEffectiveByOoxmlId,
+            comment_id_editable = commentIdEditable,
+            comment_id_stability = commentIdEditable
+                ? "ooxml_id_bound"
+                : "synthetic_uneditable",
             reply = comment.IsReply,
             done = comment.IsDone,
             thread_depth = comment.ThreadDepth,

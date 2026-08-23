@@ -114,6 +114,36 @@ public sealed class LiveCaptionAndTableOfFiguresTests
     }
 
     [Fact]
+    public async Task InsertsCaptionUsingFreshRangeTokenFromFind()
+    {
+        await using var host = new CaptionFakeHost();
+        var service = new WordLiveService(host);
+        var (documentId, version) = await ConnectAsync(service);
+        var rangeToken = await RangeTokenAsync(service, documentId);
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            live_document_id = documentId,
+            expected_version = version,
+            range_token = rangeToken,
+            caption_kind = "figure",
+            title = "Zakres tokenu",
+            separator = "colon",
+        }));
+
+        var result = await service.CallAsync(
+            "insert_live_word_caption",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(result, JsonDefaults.Compact));
+        Assert.True(json.RootElement.GetProperty("native_verified").GetBoolean());
+        Assert.Equal(version + 1, json.RootElement.GetProperty("live_version").GetInt64());
+        Assert.Equal(1, host.Application.ActiveDocument.Fields.Count);
+        Assert.Equal("Figure", host.Application.ActiveDocument.LastCaptionLabel);
+        Assert.Equal(": Zakres tokenu", host.Application.ActiveDocument.LastCaptionTitle);
+    }
+
+    [Fact]
     public async Task RequiresExactlyOneCaptionTargetTokenBeforeMutation()
     {
         await using var host = new CaptionFakeHost();
@@ -956,6 +986,28 @@ public sealed class LiveCaptionAndTableOfFiguresTests
             .GetProperty("selection_token")
             .GetString()!;
     }
+
+    private static async Task<string> RangeTokenAsync(
+        WordLiveService service,
+        string documentId
+    )
+    {
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            live_document_id = documentId,
+            search_text = "selected object",
+        }));
+        var result = await service.CallAsync(
+            "find_live_word_text",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(result, JsonDefaults.Compact));
+        return json.RootElement
+            .GetProperty("matches")[0]
+            .GetProperty("range_token")
+            .GetString()!;
+    }
 }
 
 internal sealed class CaptionFakeHost : IWordComHost
@@ -1069,6 +1121,12 @@ public sealed class CaptionFakeDocument
     public CaptionFakeRange Range(int start, int end) =>
         new(this, start, end, Body[start..Math.Min(end, Body.Length)]);
 
+    internal (int Start, int End)? Find(string value, int start, int end)
+    {
+        var match = Body.IndexOf(value, Math.Clamp(start, 0, Body.Length), StringComparison.Ordinal);
+        return match < 0 || match >= end ? null : (match, match + value.Length);
+    }
+
     public void Activate() => _application.ActiveDocument = this;
 
     public void Repaginate() => RepaginateCount++;
@@ -1132,14 +1190,16 @@ public sealed class CaptionFakeRange
     public int Start { get; private set; }
     public int End { get; private set; }
     public int StoryType => 1;
-    public string Text { get; }
+    public string Text { get; private set; }
     public CaptionFakeCountCollection Fields { get; }
     public CaptionFakeRange Duplicate => this;
+    public CaptionFakeFind Find => new(_document, this);
 
     public void SetRange(int start, int end)
     {
         Start = start;
         End = end;
+        Text = _document.Range(start, end).Text;
     }
 
     public void InsertCaption(
@@ -1149,6 +1209,38 @@ public sealed class CaptionFakeRange
         int position,
         bool excludeLabel
     ) => _document.InsertCaption(label, title);
+}
+
+public sealed class CaptionFakeFind
+{
+    private readonly CaptionFakeDocument _document;
+    private readonly CaptionFakeRange _range;
+
+    public CaptionFakeFind(CaptionFakeDocument document, CaptionFakeRange range)
+    {
+        _document = document;
+        _range = range;
+    }
+
+    public string Text { get; set; } = "";
+    public bool MatchCase { get; set; }
+    public bool MatchWholeWord { get; set; }
+    public bool MatchWildcards { get; set; }
+    public bool Forward { get; set; }
+    public int Wrap { get; set; }
+    public bool Format { get; set; }
+    public void ClearFormatting() { }
+
+    public bool Execute()
+    {
+        var match = _document.Find(Text, _range.Start, _range.End);
+        if (match is null)
+        {
+            return false;
+        }
+        _range.SetRange(match.Value.Start, match.Value.End);
+        return true;
+    }
 }
 
 public sealed class CaptionFakeSelection

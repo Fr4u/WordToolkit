@@ -892,47 +892,7 @@ internal sealed partial class WordLiveService
         {
             dynamic range = rangeObject;
             styleObject = range.Style;
-            if (styleObject is null)
-            {
-                return "";
-            }
-
-            dynamic style = styleObject;
-            try
-            {
-                var nameLocal = Convert.ToString(style.NameLocal, CultureInfo.InvariantCulture);
-                if (!string.IsNullOrEmpty(nameLocal))
-                {
-                    return nameLocal;
-                }
-            }
-            catch
-            {
-                // Older/fake Word surfaces may omit NameLocal; try Name next.
-            }
-
-            try
-            {
-                var name = Convert.ToString(style.Name, CultureInfo.InvariantCulture);
-                if (!string.IsNullOrEmpty(name))
-                {
-                    return name;
-                }
-            }
-            catch
-            {
-                // A scalar style value has neither NameLocal nor Name.
-            }
-
-            if (Marshal.IsComObject(styleObject))
-            {
-                return "";
-            }
-
-            var scalar = Convert.ToString(styleObject, CultureInfo.InvariantCulture) ?? "";
-            return string.Equals(scalar, "System.__ComObject", StringComparison.Ordinal)
-                ? ""
-                : scalar;
+            return ReadStyleValueIdentity(styleObject);
         }
         catch
         {
@@ -942,6 +902,61 @@ internal sealed partial class WordLiveService
         {
             FinalReleaseBatchComObject(styleObject);
         }
+    }
+
+    internal static string ReadStyleValueIdentity(object? styleObject)
+    {
+        if (styleObject is null)
+        {
+            return "";
+        }
+        if (styleObject is string scalarText)
+        {
+            return string.Equals(
+                scalarText,
+                "System.__ComObject",
+                StringComparison.Ordinal
+            )
+                ? ""
+                : scalarText;
+        }
+
+        dynamic style = styleObject;
+        try
+        {
+            var nameLocal = Convert.ToString(style.NameLocal, CultureInfo.InvariantCulture);
+            if (!string.IsNullOrEmpty(nameLocal))
+            {
+                return nameLocal;
+            }
+        }
+        catch
+        {
+            // Older/fake Word surfaces may omit NameLocal; try Name next.
+        }
+
+        try
+        {
+            var name = Convert.ToString(style.Name, CultureInfo.InvariantCulture);
+            if (!string.IsNullOrEmpty(name))
+            {
+                return name;
+            }
+        }
+        catch
+        {
+            // A scalar style value has neither NameLocal nor Name.
+        }
+
+        if (Marshal.IsComObject(styleObject))
+        {
+            return "";
+        }
+
+        var scalar = Convert.ToString(styleObject, CultureInfo.InvariantCulture) ?? "";
+        return string.Equals(scalar, "System.__ComObject", StringComparison.Ordinal)
+            ? ""
+            : scalar;
     }
 
     private static string FormatInteger(dynamic value) =>

@@ -871,11 +871,33 @@ internal sealed partial class WordLiveService
             }
         }
 
+        void StyleText(string name, Func<object?> read)
+        {
+            object? raw = null;
+            try
+            {
+                raw = read();
+                var value = ReadStyleValueIdentity(raw);
+                if (value.Length > 0)
+                {
+                    properties[name] = value[..Math.Min(value.Length, 512)];
+                }
+            }
+            catch
+            {
+                // Optional native metadata.
+            }
+            finally
+            {
+                FinalReleaseBatchComObject(raw);
+            }
+        }
+
         switch (structure)
         {
             case "paragraphs":
                 Range("range", () => item.Range);
-                Text("style", () => item.Style);
+                StyleText("style", () => item.Style);
                 Integer("outline_level", () => (int)item.OutlineLevel);
                 break;
             case "sections":
@@ -895,7 +917,7 @@ internal sealed partial class WordLiveService
                 Integer("row_count", () => (int)item.Rows.Count);
                 Integer("column_count", () => (int)item.Columns.Count);
                 Integer("nesting_level", () => (int)item.NestingLevel);
-                Text("style", () => item.Style);
+                StyleText("style", () => item.Style);
                 Boolean("allow_autofit", () => (bool)item.AllowAutoFit);
                 break;
             case "equations":
@@ -983,7 +1005,7 @@ internal sealed partial class WordLiveService
             case "list_paragraphs":
                 Range("range", () => item.Range);
                 Integer("list_type", () => (int)item.Range.ListFormat.ListType);
-                Text("style", () => Convert.ToString(item.Style, CultureInfo.InvariantCulture));
+                StyleText("style", () => item.Style);
                 break;
             case "subdocuments":
                 Range("range", () => item.Range);
