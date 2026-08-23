@@ -15,6 +15,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
+from typing import BinaryIO
 from urllib.parse import urlparse
 
 from lxml import etree
@@ -31,6 +32,81 @@ MACRO_CONTENT_TYPES = {
 DENIED_RELATIONSHIP_SCHEMES = {"file", "javascript", "data", "vbscript", "ftp"}
 _SNAPSHOT_CHUNK_BYTES = 1024 * 1024
 _ATOMIC_RENAME_RETRY_DELAYS = (0.01, 0.05, 0.2)
+_WINDOWS_SHARING_ERRORS = {32, 33}
+
+
+class _WindowsFileOpenError(OSError):
+    winerror: int
+
+
+def _is_transient_sharing_error(error: OSError) -> bool:
+    return getattr(error, "winerror", None) in _WINDOWS_SHARING_ERRORS
+
+
+def _open_windows_shared_source(source_path: Path) -> BinaryIO:
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    create_file = kernel32.CreateFileW
+    create_file.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    create_file.restype = wintypes.HANDLE
+    close_handle = kernel32.CloseHandle
+    close_handle.argtypes = [wintypes.HANDLE]
+    close_handle.restype = wintypes.BOOL
+    invalid_handle = wintypes.HANDLE(-1).value
+    handle = create_file(
+        str(source_path),
+        0x80000000,  # GENERIC_READ
+        0x00000001 | 0x00000002 | 0x00000004,  # FILE_SHARE_READ/WRITE/DELETE
+        None,
+        3,  # OPEN_EXISTING
+        0x08000000,  # FILE_FLAG_SEQUENTIAL_SCAN
+        None,
+    )
+    if handle == invalid_handle:
+        error_code = ctypes.get_last_error()
+        error = _WindowsFileOpenError(error_code, "CreateFileW failed")
+        error.winerror = error_code
+        raise error
+
+    try:
+        fd = msvcrt.open_osfhandle(handle, os.O_RDONLY | getattr(os, "O_BINARY", 0))
+    except (OSError, ValueError):
+        close_handle(handle)
+        raise
+    try:
+        return os.fdopen(fd, "rb", closefd=True)
+    except (OSError, ValueError):
+        os.close(fd)
+        raise
+
+
+def _open_shared_source_once(source_path: Path) -> BinaryIO:
+    if os.name == "nt":
+        return _open_windows_shared_source(source_path)
+    return source_path.open("rb")
+
+
+def _open_shared_source(source_path: Path) -> BinaryIO:
+    """Open a source with Word-compatible sharing and bounded lock retries."""
+    for attempt in range(len(_ATOMIC_RENAME_RETRY_DELAYS) + 1):
+        try:
+            return _open_shared_source_once(source_path)
+        except OSError as exc:
+            if not _is_transient_sharing_error(exc) or attempt == len(_ATOMIC_RENAME_RETRY_DELAYS):
+                raise
+            time.sleep(_ATOMIC_RENAME_RETRY_DELAYS[attempt])
+    raise RuntimeError("unreachable")
 
 
 def _file_identity(value: os.stat_result) -> tuple[int, int, int, int]:
@@ -44,7 +120,7 @@ def stable_path_snapshot(source_path: Path, *, max_bytes: int) -> Iterator[Path]
     with tempfile.TemporaryDirectory(prefix="wordtoolkit_snapshot_") as work:
         snapshot_path = Path(work) / f"package{suffix}"
         try:
-            with source_path.open("rb") as source, snapshot_path.open("xb") as snapshot:
+            with _open_shared_source(source_path) as source, snapshot_path.open("xb") as snapshot:
                 os.chmod(snapshot_path, 0o600)
                 before = os.fstat(source.fileno())
                 first_digest = hashlib.sha256()
@@ -76,6 +152,16 @@ def stable_path_snapshot(source_path: Path, *, max_bytes: int) -> Iterator[Path]
         except WordToolkitError:
             raise
         except OSError as exc:
+            if _is_transient_sharing_error(exc):
+                raise WordToolkitError(
+                    ErrorCode.EXTERNAL_TOOL_FAILED,
+                    "Package is temporarily locked by another process",
+                    {
+                        "reason": "sharing_violation",
+                        "attempts": len(_ATOMIC_RENAME_RETRY_DELAYS) + 1,
+                    },
+                    retryable=True,
+                ) from exc
             raise WordToolkitError(
                 ErrorCode.DOCUMENT_NOT_FOUND,
                 "Package could not be read",
