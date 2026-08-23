@@ -141,7 +141,16 @@ async def test_word_live_edits_and_saves_the_same_open_document(
         },
     )
     text_capability = next(
-        item for item in member_capabilities["capabilities"] if item["member"]["name"] == "Text"
+        item for item in member_capabilities["capabilities"] if item["member_name"] == "Text"
+    )
+    member_capability_detail = await _call_ok(
+        server,
+        "inspect_live_word_member_capabilities",
+        {
+            "query": text_capability["capability_id"],
+            "detail": "full",
+            "limit": 1,
+        },
     )
     member_operations = [
         {
@@ -532,6 +541,14 @@ async def test_word_live_edits_and_saves_the_same_open_document(
     assert object_model_members["members"][0]["value"] == 34
     assert member_capabilities["registry"]["stats"]["complete"] is True
     assert member_capabilities["registry"]["stats"]["profile_count"] == 12_167
+    assert member_capabilities["detail"] == "summary"
+    assert "virtual_tool" not in text_capability
+    assert member_capability_detail["detail"] == "full"
+    assert (
+        member_capability_detail["capabilities"][0]["capability_id"]
+        == text_capability["capability_id"]
+    )
+    assert member_capability_detail["capabilities"][0]["virtual_tool"]["input_schema"]
     assert member_preflight["valid"] is True
     assert member_preflight["mutating_count"] == 0
     assert member_read["live_version"] == 0

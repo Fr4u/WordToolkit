@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Made installed-Word member discovery compact by default. Capability searches
+  now return stable IDs, signature counts, target roots and safety policy without
+  repeating full JSON schemas across pages; callers request `detail="full"`
+  for the one selected capability. This removes most of the token payload from
+  AI discovery while preserving exact per-member contracts on demand. This
+  intentionally changes the default response shape; clients that consumed the
+  former full profiles must now request `detail="full"` explicitly.
+
 - Hardened the maintained Python OOXML adapter against source and extraction
   races. Validation and extraction now consume one bounded private snapshot
   proven stable by two SHA-256 passes over one open handle, so package limits,

@@ -390,7 +390,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
 
     @mcp.tool(
         title="Browse individual virtual tools for installed Microsoft Word members",
-        description="Return a bounded page from the derived registry. Every installed Word COM catalog member has one stable capability profile, one unique virtual-tool name, and validated JSON input/output schemas. Query by type, member name, capability ID, or virtual-tool name. Constants, reads, document-scoped edits, events, lifecycle actions and blocked external effects remain distinct, and arbitrary COM paths are never exposed.",
+        description="Search the derived registry without dumping thousands of repeated schemas. The default summary detail returns stable capability IDs, signature counts, target roots and safety policy; after choosing one capability, request detail='full' with its capability ID as query and limit=1 for exact JSON input/output schemas. Query by type, member name, capability ID, or virtual-tool name. Constants, reads, document-scoped edits, events, lifecycle actions and blocked external effects remain distinct, and arbitrary COM paths are never exposed.",
         annotations=LIVE_READ,
     )
     @_safe
@@ -427,6 +427,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
             "write_allowed",
             "blocked",
         ] = "",
+        detail: Literal["summary", "full"] = "summary",
         offset: int = Field(default=0, ge=0, le=1_000_000),
         limit: int = Field(default=100, ge=1, le=200),
         refresh: bool = False,
@@ -439,6 +440,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
             member_kind=member_kind,
             effect=effect,
             execution=execution,
+            detail=detail,
             offset=offset,
             limit=limit,
             refresh=refresh,
