@@ -6,7 +6,9 @@ import hashlib
 import os
 import re
 import shutil
+import tempfile
 import zipfile
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -19,7 +21,7 @@ from ..config import Settings
 from ..errors import ErrorCode, WordToolkitError
 from ..math import MathEngine
 from ..math.omml import M
-from ..security import SafePackageInspector
+from ..security import SafePackageInspector, reject_reparse_ancestors
 from .validator import OoxmlValidator, package_hashes, preservation_report
 
 R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
@@ -65,6 +67,29 @@ RPR_ORDER = (
     "oMath",
     "rPrChange",
 )
+
+
+@contextlib.contextmanager
+def _atomic_package_target(output: Path) -> Iterator[Path]:
+    """Yield a same-directory DOCX staging path and atomically publish it on success."""
+    output = Path(os.path.abspath(output))
+    reject_reparse_ancestors(output, label="Package output path")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    reject_reparse_ancestors(output, label="Package output path")
+    descriptor, raw_staging = tempfile.mkstemp(
+        prefix=f".{output.stem}.", suffix=".docx", dir=output.parent
+    )
+    os.close(descriptor)
+    staging = Path(raw_staging)
+    try:
+        yield staging
+        os.replace(staging, output)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            staging.unlink(missing_ok=True)
+        raise
+
+
 PPR_ORDER = (
     "pStyle",
     "keepNext",
@@ -259,8 +284,10 @@ class WordDocumentEngine:
         """Serialize the current in-memory state without clearing dirty flags or repairing it."""
         if self.doc.workdir is None:
             raise WordToolkitError(ErrorCode.DOCUMENT_NOT_FOUND, "Document is closed")
-        output.parent.mkdir(parents=True, exist_ok=True)
-        with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
+        with (
+            _atomic_package_target(output) as staging,
+            zipfile.ZipFile(staging, "w", zipfile.ZIP_DEFLATED) as archive,
+        ):
             for root, _dirs, files in os.walk(self.doc.workdir):
                 for filename in files:
                     source = Path(root) / filename
@@ -299,22 +326,22 @@ class WordDocumentEngine:
         return clone
 
     def save_version(self, output: Path) -> dict:
-        output.parent.mkdir(parents=True, exist_ok=True)
         pending_modified = set(self.doc._modified)
-        result = self.doc.save(str(output), backup=False)
-        self.cumulative_modified_parts.update(pending_modified)
-        self.cumulative_modified_parts.update(result.get("modified_parts", []))
-        validation = self.validator.validate(output)
-        if not validation["valid"]:
-            raise WordToolkitError(
-                ErrorCode.OOXML_INVALID,
-                "Saved package failed structural validation",
-                {"issues": validation["issues"][:50]},
+        with _atomic_package_target(output) as staging:
+            result = self.doc.save(str(staging), backup=False)
+            self.cumulative_modified_parts.update(pending_modified)
+            self.cumulative_modified_parts.update(result.get("modified_parts", []))
+            validation = self.validator.validate(staging)
+            if not validation["valid"]:
+                raise WordToolkitError(
+                    ErrorCode.OOXML_INVALID,
+                    "Saved package failed structural validation",
+                    {"issues": validation["issues"][:50]},
+                )
+            after = package_hashes(staging)
+            preservation = preservation_report(
+                self.initial_hashes, after, sorted(self.cumulative_modified_parts)
             )
-        after = package_hashes(output)
-        preservation = preservation_report(
-            self.initial_hashes, after, sorted(self.cumulative_modified_parts)
-        )
         return {
             **result,
             "path": str(output),

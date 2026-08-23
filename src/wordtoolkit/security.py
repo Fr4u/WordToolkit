@@ -9,6 +9,7 @@ import shutil
 import socket
 import stat
 import tempfile
+import time
 import zipfile
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -29,6 +30,7 @@ MACRO_CONTENT_TYPES = {
 }
 DENIED_RELATIONSHIP_SCHEMES = {"file", "javascript", "data", "vbscript", "ftp"}
 _SNAPSHOT_CHUNK_BYTES = 1024 * 1024
+_ATOMIC_RENAME_RETRY_DELAYS = (0.01, 0.05, 0.2)
 
 
 def _file_identity(value: os.stat_result) -> tuple[int, int, int, int]:
@@ -160,6 +162,36 @@ def parse_xml_bytes(data: bytes, *, part: str) -> etree._Element:
             ErrorCode.UNSAFE_XML, "DTD and entity declarations are forbidden", {"part": part}
         )
     return root
+
+
+def reject_reparse_ancestors(
+    path: Path,
+    *,
+    error_code: ErrorCode = ErrorCode.UNSAFE_PATH,
+    label: str = "Path",
+) -> None:
+    """Fail closed if any existing path component is a symlink or Windows reparse point."""
+    current = Path(path.anchor) if path.is_absolute() else Path.cwd()
+    for part in path.parts[1:] if path.is_absolute() else path.parts:
+        current /= part
+        try:
+            metadata = current.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise WordToolkitError(
+                error_code,
+                f"{label} cannot be safely inspected",
+                {"component": current.name},
+            ) from exc
+        reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+        file_attributes = getattr(metadata, "st_file_attributes", 0)
+        if stat.S_ISLNK(metadata.st_mode) or file_attributes & reparse_flag:
+            raise WordToolkitError(
+                error_code,
+                f"{label} contains a symbolic or reparse link",
+                {"component": current.name},
+            )
 
 
 def resolve_internal_target(source_part: str, target: str) -> str:
@@ -393,24 +425,39 @@ class SafePackageInspector:
                         ErrorCode.UNSAFE_ARCHIVE,
                         "ZIP extraction failed before publication",
                     ) from exc
-                self._reject_reparse_ancestors(destination)
-                try:
-                    staging.rename(destination)
-                except OSError as exc:
+                self._publish_staging_directory(staging, destination)
+            finally:
+                if staging.exists():
+                    shutil.rmtree(staging, ignore_errors=True)
+            return report
+
+    @classmethod
+    def _publish_staging_directory(cls, staging: Path, destination: Path) -> None:
+        """Publish a new directory, tolerating bounded transient scanner locks."""
+        attempts = len(_ATOMIC_RENAME_RETRY_DELAYS) + 1
+        for attempt in range(attempts):
+            cls._reject_reparse_ancestors(destination)
+            if destination.exists() or destination.is_symlink():
+                raise WordToolkitError(
+                    ErrorCode.UNSAFE_ARCHIVE,
+                    "ZIP extraction destination appeared before publication",
+                )
+            try:
+                staging.rename(destination)
+                return
+            except PermissionError as exc:
+                if attempt == attempts - 1:
                     raise WordToolkitError(
                         ErrorCode.UNSAFE_ARCHIVE,
                         "ZIP extraction result could not be published atomically",
+                        retryable=True,
                     ) from exc
-            finally:
-                if staging.exists():
-                    try:
-                        shutil.rmtree(staging)
-                    except OSError as exc:
-                        raise WordToolkitError(
-                            ErrorCode.UNSAFE_ARCHIVE,
-                            "Private extraction staging cleanup failed",
-                        ) from exc
-            return report
+                time.sleep(_ATOMIC_RENAME_RETRY_DELAYS[attempt])
+            except OSError as exc:
+                raise WordToolkitError(
+                    ErrorCode.UNSAFE_ARCHIVE,
+                    "ZIP extraction result could not be published atomically",
+                ) from exc
 
     @classmethod
     def _create_private_staging(cls, destination: Path) -> Path:
@@ -439,27 +486,11 @@ class SafePackageInspector:
     @staticmethod
     def _reject_reparse_ancestors(path: Path) -> None:
         """Fail closed if any existing component is a symlink/reparse path."""
-        current = Path(path.anchor) if path.is_absolute() else Path.cwd()
-        for part in path.parts[1:] if path.is_absolute() else path.parts:
-            current /= part
-            try:
-                metadata = current.lstat()
-            except FileNotFoundError:
-                continue
-            except OSError as exc:
-                raise WordToolkitError(
-                    ErrorCode.UNSAFE_ARCHIVE,
-                    "Extraction path cannot be safely inspected",
-                    {"component": current.name},
-                ) from exc
-            reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
-            file_attributes = getattr(metadata, "st_file_attributes", 0)
-            if stat.S_ISLNK(metadata.st_mode) or file_attributes & reparse_flag:
-                raise WordToolkitError(
-                    ErrorCode.UNSAFE_ARCHIVE,
-                    "Extraction path contains a symbolic or reparse link",
-                    {"component": current.name},
-                )
+        reject_reparse_ancestors(
+            path,
+            error_code=ErrorCode.UNSAFE_ARCHIVE,
+            label="Extraction path",
+        )
 
 
 def validate_remote_url(

@@ -390,6 +390,78 @@ def test_inspector_extracts_canonical_directory_entries(tmp_path) -> None:
     assert (destination / "custom" / "blob.bin").read_bytes() == b"opaque"
 
 
+def test_extraction_retries_transient_permission_error_during_publication(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package = tmp_path / "extract.docx"
+    minimal_package(package, ("custom/blob.bin", b"opaque"))
+    destination = tmp_path / "extracted"
+    rename = Path.rename
+    attempts = 0
+
+    def transient_rename(path, target):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise PermissionError("simulated transient scanner lock")
+        return rename(path, target)
+
+    monkeypatch.setattr(Path, "rename", transient_rename)
+    SafePackageInspector(config(tmp_path)).extract(package, destination)
+
+    assert attempts == 2
+    assert (destination / "custom" / "blob.bin").read_bytes() == b"opaque"
+
+
+def test_extraction_exhausted_publication_retries_are_retryable_and_clean(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package = tmp_path / "extract.docx"
+    minimal_package(package, ("custom/blob.bin", b"opaque"))
+    destination = tmp_path / "extracted"
+    monkeypatch.setattr(
+        Path,
+        "rename",
+        lambda _path, _target: (_ for _ in ()).throw(PermissionError("persistent lock")),
+    )
+    monkeypatch.setattr("wordtoolkit.security.time.sleep", lambda _delay: None)
+
+    with pytest.raises(WordToolkitError) as error:
+        SafePackageInspector(config(tmp_path)).extract(package, destination)
+
+    assert error.value.code == ErrorCode.UNSAFE_ARCHIVE
+    assert error.value.retryable is True
+    assert not destination.exists()
+    assert not list(tmp_path.glob(".extracted.wordtoolkit-*"))
+
+
+def test_extraction_retry_never_overwrites_destination_that_appears(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package = tmp_path / "extract.docx"
+    minimal_package(package, ("custom/blob.bin", b"opaque"))
+    destination = tmp_path / "extracted"
+    attempts = 0
+
+    def destination_race(_path, target):
+        nonlocal attempts
+        attempts += 1
+        Path(target).mkdir()
+        (Path(target) / "sentinel.bin").write_bytes(b"attacker")
+        raise PermissionError("simulated destination race")
+
+    monkeypatch.setattr(Path, "rename", destination_race)
+    monkeypatch.setattr("wordtoolkit.security.time.sleep", lambda _delay: None)
+
+    with pytest.raises(WordToolkitError, match="appeared before publication"):
+        SafePackageInspector(config(tmp_path)).extract(package, destination)
+
+    assert attempts == 1
+    assert (destination / "sentinel.bin").read_bytes() == b"attacker"
+    assert not (destination / "custom" / "blob.bin").exists()
+    assert not list(tmp_path.glob(".extracted.wordtoolkit-*"))
+
+
 def test_extraction_enforces_cumulative_limit_after_inspection(tmp_path, monkeypatch) -> None:
     package = tmp_path / "changed-after-inspection.docx"
     minimal_package(package, ("custom/a.bin", b"a" * 600), ("custom/b.bin", b"b" * 600))
