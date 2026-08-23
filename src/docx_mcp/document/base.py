@@ -79,9 +79,15 @@ class BaseMixin:
 
     # ── Open / Close ────────────────────────────────────────────────────────
 
-    def open(self) -> dict:
-        """Unpack DOCX and parse XML files. Returns document info."""
-        if not self.source_path.exists():
+    def open(self, *, package_path: str | Path | None = None) -> dict:
+        """Unpack DOCX and parse XML files. Returns document info.
+
+        ``package_path`` lets a caller read from a stable private snapshot while
+        retaining ``source_path`` as the logical document path reported to users
+        and used by later saves.
+        """
+        source_package = Path(package_path).resolve() if package_path else self.source_path
+        if not source_package.exists():
             raise FileNotFoundError(f"File not found: {self.source_path}")
         if self.source_path.suffix.lower() != ".docx":
             raise ValueError(f"Not a .docx file: {self.source_path}")
@@ -93,7 +99,7 @@ class BaseMixin:
         session_tmp.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.workdir = Path(tempfile.mkdtemp(prefix="docx_mcp_", dir=session_tmp))
         try:
-            zf_handle = zipfile.ZipFile(self.source_path, "r")
+            zf_handle = zipfile.ZipFile(source_package, "r")
         except zipfile.BadZipFile as exc:
             shutil.rmtree(self.workdir, ignore_errors=True)
             self.workdir = None
