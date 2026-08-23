@@ -1847,6 +1847,7 @@ class LiveWordBridge:
         member_kind: str = "",
         effect: str = "",
         execution: str = "",
+        detail: str = "summary",
         offset: int = 0,
         limit: int = 100,
         refresh: bool = False,
@@ -1867,6 +1868,12 @@ class LiveWordBridge:
         normalized_type = type_name.strip().casefold()
         normalized_effect = effect.strip().casefold()
         normalized_execution = execution.strip().casefold()
+        if not isinstance(detail, str) or detail not in {"summary", "full"}:
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "detail must be summary or full",
+                {"detail": detail, "allowed": ["summary", "full"]},
+            )
         if normalized_effect and normalized_effect not in VALID_CAPABILITY_EFFECTS:
             raise WordToolkitError(
                 ErrorCode.INVALID_INPUT,
@@ -1904,7 +1911,11 @@ class LiveWordBridge:
             if normalized_execution and str(policy["execution"]) != normalized_execution:
                 continue
             matches.append(profile)
-        page = matches[offset : offset + limit]
+        matched_page = matches[offset : offset + limit]
+        if detail == "full":
+            page = matched_page
+        else:
+            page = [self._member_capability_summary(profile) for profile in matched_page]
         result = self._object_model_common(catalog, source)
         result.update(
             {
@@ -1917,16 +1928,46 @@ class LiveWordBridge:
                 "member_kind": normalized_kind,
                 "effect": normalized_effect,
                 "execution": normalized_execution,
+                "detail": detail,
                 "offset": offset,
                 "limit": limit,
                 "matched_count": len(matches),
                 "returned_count": len(page),
                 "has_more": offset + len(page) < len(matches),
                 "capabilities": page,
+                "full_profile_query": (
+                    "Call this tool with detail='full', query=<capability_id> and limit=1 "
+                    "to retrieve the exact input/output schemas for one selected capability."
+                ),
                 "document_content_returned": False,
             }
         )
         return result
+
+    @staticmethod
+    def _member_capability_summary(profile: dict[str, Any]) -> dict[str, Any]:
+        profile_type = cast(dict[str, Any], profile["type"])
+        member = cast(dict[str, Any], profile["member"])
+        signature = cast(dict[str, Any], profile["signature"])
+        target = cast(dict[str, Any], profile["target"])
+        policy = cast(dict[str, Any], profile["policy"])
+        summary: dict[str, Any] = {
+            "capability_id": profile["capability_id"],
+            "type_name": profile_type["name"],
+            "member_name": member["name"],
+            "member_kind": member["kind"],
+            "parameter_count": signature["parameter_count"],
+            "optional_parameter_count": signature["optional_parameter_count"],
+            "variadic": signature["variadic"],
+            "return_type": signature["return_type"],
+            "allowed_roots": target["allowed_roots"],
+            "effect": policy["effect"],
+            "execution": policy["execution"],
+            "reason": policy["reason"],
+            "mutating": policy["mutating"],
+        }
+        summary["constant"] = profile.get("constant")
+        return summary
 
     def _prepare_member_operations(
         self,

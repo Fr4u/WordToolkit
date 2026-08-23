@@ -347,6 +347,24 @@ def test_live_caption_schema_accepts_exactly_one_target_token() -> None:
     )
 
 
+def test_member_capability_discovery_defaults_to_summary_detail() -> None:
+    catalog = json.loads(
+        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v2.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    tool = next(
+        item for item in catalog["tools"] if item["name"] == "inspect_live_word_member_capabilities"
+    )
+    schema = tool["inputSchema"]
+    detail = schema["properties"]["detail"]
+
+    Draft202012Validator.check_schema(schema)
+    assert detail["default"] == "summary"
+    assert detail["enum"] == ["summary", "full"]
+    assert "detail='full'" in tool["description"]
+
+
 @pytest.mark.asyncio
 async def test_all_required_tools_have_object_schemas_and_annotations(tmp_path) -> None:
     app = build_app(

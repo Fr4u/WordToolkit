@@ -373,12 +373,18 @@ callbacks remain present but non-executable. Lifecycle, macro, DDE, print,
 mail, password, path, web and application-global effects fail closed with an
 explicit reason instead of disappearing from coverage statistics.
 
-`inspect_live_word_member_capabilities` pages this registry without exposing
-12,167 separate MCP tool schemas. `preflight_live_word_member_operations`
-accepts at most 50 operations and 512 KiB, resolves every capability ID,
-checks the allowed document root, validates argument counts and primitive COM
-types, and permits result chaining only when the declared return type matches
-the next target or parameter.
+`inspect_live_word_member_capabilities` searches this registry without exposing
+12,167 separate MCP tools or repeatedly dumping their full schemas. Its default
+`detail="summary"` page returns the stable ID, compact signature, target roots,
+effect, execution policy and member identity. After selecting one member,
+call it with `detail="full"`, the exact capability ID as `query`, and `limit=1`
+to retrieve that member's complete parameters and JSON input/output schemas.
+Do not enumerate the whole registry just to discover one operation. Filter by
+type, member name, effect or execution first. `preflight_live_word_member_operations`
+accepts at most 50 operations and 512 KiB, resolves every capability ID, checks
+the allowed document root, validates argument counts and primitive COM types,
+and permits result chaining only when the declared return type matches the next
+target or parameter.
 
 `execute_live_word_member_operations` repeats preflight against the current
 catalog, resolves the already-connected document inside one COM attachment and

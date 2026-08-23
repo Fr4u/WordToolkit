@@ -3275,6 +3275,78 @@ def _catalog_for_member_execution() -> dict[str, Any]:
     }
 
 
+def test_member_capability_discovery_is_compact_by_default(live_bridge) -> None:
+    bridge, _application, _document = live_bridge
+    catalog = _catalog_for_member_execution()
+    bridge.object_model.write(catalog)
+
+    summary = bridge.inspect_member_capabilities(
+        type_name="Range",
+        query="Text",
+        member_kind="property_get",
+        limit=10,
+    )
+    capability = summary["capabilities"][0]
+
+    assert summary["detail"] == "summary"
+    assert summary["matched_count"] == 1
+    assert summary["returned_count"] == 1
+    assert set(capability) == {
+        "capability_id",
+        "type_name",
+        "member_name",
+        "member_kind",
+        "parameter_count",
+        "optional_parameter_count",
+        "variadic",
+        "return_type",
+        "allowed_roots",
+        "effect",
+        "execution",
+        "reason",
+        "mutating",
+        "constant",
+    }
+    assert capability["type_name"] == "Range"
+    assert capability["member_name"] == "Text"
+    assert capability["member_kind"] == "property_get"
+    assert capability["parameter_count"] == 0
+    assert capability["optional_parameter_count"] == 0
+    assert capability["variadic"] is False
+    assert capability["return_type"] == "BSTR"
+    assert capability["allowed_roots"] == [
+        "document_content",
+        "selection_range",
+        "result",
+    ]
+    assert "virtual_tool" not in capability
+    assert "signature" not in capability
+
+    full = bridge.inspect_member_capabilities(
+        query=capability["capability_id"],
+        detail="full",
+        limit=1,
+    )
+
+    assert full["detail"] == "full"
+    assert full["matched_count"] == 1
+    assert full["capabilities"][0]["capability_id"] == capability["capability_id"]
+    assert full["capabilities"][0]["virtual_tool"]["input_schema"]["type"] == "object"
+    assert full["capabilities"][0]["virtual_tool"]["output_schema"]["type"] == "object"
+
+
+@pytest.mark.parametrize("detail", ["", "compact", "FULL", True, None])
+def test_member_capability_discovery_rejects_unknown_detail(live_bridge, detail) -> None:
+    bridge, _application, _document = live_bridge
+    bridge.object_model.write(_catalog_for_member_execution())
+
+    with pytest.raises(WordToolkitError) as error:
+        bridge.inspect_member_capabilities(detail=detail)
+
+    assert error.value.code is ErrorCode.INVALID_INPUT
+    assert error.value.details["allowed"] == ["summary", "full"]
+
+
 def test_catalog_member_operations_execute_in_one_undo_record(live_bridge) -> None:
     bridge, application, document = live_bridge
     catalog = _catalog_for_member_execution()

@@ -188,6 +188,7 @@ internal sealed partial class WordLiveService
         var memberKind = arguments.String("member_kind").Trim().ToLowerInvariant();
         var effect = arguments.String("effect").Trim().ToLowerInvariant();
         var execution = arguments.String("execution").Trim().ToLowerInvariant();
+        var detail = arguments.String("detail", "summary");
         var offset = BoundedPageInteger(arguments, "offset", 0, 0, 1_000_000);
         var limit = BoundedPageInteger(arguments, "limit", 100, 1, 200);
         var refresh = arguments.Boolean("refresh", false);
@@ -201,6 +202,7 @@ internal sealed partial class WordLiveService
         ValidateCatalogFilter("member_kind", memberKind, ValidMemberKinds);
         ValidateCatalogFilter("effect", effect, ValidCapabilityEffects);
         ValidateCatalogFilter("execution", execution, ValidCapabilityExecutions);
+        ValidateCatalogFilter("detail", detail, ["summary", "full"]);
         var (catalog, source) = await ObjectModelCatalogAsync(
             refresh,
             cancellationToken
@@ -225,7 +227,16 @@ internal sealed partial class WordLiveService
                 }
             )
             .ToArray();
-        var page = matches.Skip(offset).Take(limit).Select(CapabilityPayload).ToArray();
+        var page = matches
+            .Skip(offset)
+            .Take(limit)
+            .Select(
+                item =>
+                    detail == "full"
+                        ? CapabilityPayload(item)
+                        : CapabilitySummaryPayload(item)
+            )
+            .ToArray();
         return new
         {
             schema_version = 2,
@@ -245,12 +256,16 @@ internal sealed partial class WordLiveService
             member_kind = memberKind,
             effect,
             execution,
+            detail,
             offset,
             limit,
             matched_count = matches.Length,
             returned_count = page.Length,
             has_more = offset + page.Length < matches.Length,
             capabilities = page,
+            full_profile_query =
+                "Call this tool with detail='full', query=<capability_id> and limit=1 "
+                + "to retrieve the exact input/output schemas for one selected capability.",
             document_content_returned = false,
             performance = Performance(started),
         };
@@ -368,7 +383,7 @@ internal sealed partial class WordLiveService
         };
     }
 
-    private static object CapabilityPayload(WordMemberCapability capability)
+    internal static object CapabilityPayload(WordMemberCapability capability)
     {
         var execution = capability.Policy.Execution;
         var endpoint = execution is "read_allowed" or "write_allowed"
@@ -439,6 +454,34 @@ internal sealed partial class WordLiveService
                 input_schema = VirtualInputSchema(capability),
                 output_schema = VirtualOutputSchema(capability),
             },
+        };
+    }
+
+    internal static object CapabilitySummaryPayload(WordMemberCapability capability)
+    {
+        return new
+        {
+            capability_id = capability.CapabilityId,
+            type_name = capability.Type.Name,
+            member_name = capability.Member.Name,
+            member_kind = capability.Member.Kind,
+            parameter_count = capability.Member.ParameterCount,
+            optional_parameter_count = capability.Member.OptionalParameterCount,
+            variadic = capability.Member.Variadic,
+            return_type = capability.Member.ReturnType,
+            allowed_roots = capability.AllowedRoots,
+            effect = capability.Policy.Effect,
+            execution = capability.Policy.Execution,
+            reason = capability.Policy.Reason,
+            mutating = capability.Policy.Mutating,
+            constant = capability.Member.Kind == "enum_value"
+                ? new
+                {
+                    type = capability.Type.Name,
+                    storage_type = capability.Member.ConstantType,
+                    value = capability.Member.ConstantValue,
+                }
+                : null,
         };
     }
 
