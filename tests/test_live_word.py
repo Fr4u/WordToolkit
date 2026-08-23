@@ -3153,7 +3153,7 @@ def _catalog_for_member_execution() -> dict[str, Any]:
         },
         "stats": {
             "type_count": 2,
-            "member_count": 4,
+            "member_count": 5,
             "scan_errors": 0,
             "truncated": False,
             "scan_duration_ms": 1.0,
@@ -3165,17 +3165,30 @@ def _catalog_for_member_execution() -> dict[str, Any]:
                 "type_index": 0,
                 "guid": "{RANGE}",
                 "flags": 0,
-                "declared_function_count": 3,
+                "declared_function_count": 4,
                 "declared_variable_count": 0,
                 "implemented_type_count": 0,
                 "implemented_types": [],
-                "member_count": 3,
+                "member_count": 4,
                 "members": [
+                    {
+                        "name": "Duplicate",
+                        "kind": "property_get",
+                        "member_id": 0,
+                        "declaration_index": 0,
+                        "parameters": [],
+                        "parameter_count": 0,
+                        "optional_parameter_count": 0,
+                        "variadic": False,
+                        "return_type": "Range",
+                        "flags": 0,
+                        "flag_names": [],
+                    },
                     {
                         "name": "Text",
                         "kind": "property_get",
                         "member_id": 1,
-                        "declaration_index": 0,
+                        "declaration_index": 1,
                         "parameters": [],
                         "parameter_count": 0,
                         "optional_parameter_count": 0,
@@ -3188,7 +3201,7 @@ def _catalog_for_member_execution() -> dict[str, Any]:
                         "name": "Text",
                         "kind": "property_put",
                         "member_id": 1,
-                        "declaration_index": 1,
+                        "declaration_index": 2,
                         "parameters": [
                             {
                                 "name": "value",
@@ -3209,7 +3222,7 @@ def _catalog_for_member_execution() -> dict[str, Any]:
                         "name": "InsertAfter",
                         "kind": "method",
                         "member_id": 2,
-                        "declaration_index": 2,
+                        "declaration_index": 3,
                         "parameters": [
                             {
                                 "name": "Text",
@@ -3419,6 +3432,81 @@ def test_catalog_member_read_can_omit_expected_version(live_bridge) -> None:
     assert result["results"][0]["value"] == "Existing paragraph\r"
 
 
+def test_catalog_member_batch_can_target_a_prior_raw_result(live_bridge) -> None:
+    bridge, _application, _document = live_bridge
+    catalog = _catalog_for_member_execution()
+    bridge.object_model.write(catalog)
+    registry = build_member_capability_registry(catalog)
+    profiles = {
+        (item["member"]["name"], item["member"]["kind"]): item for item in registry["profiles"]
+    }
+    connected = bridge.connect("owner", use_active=True)
+
+    result = bridge.execute_member_operations(
+        "owner",
+        connected["live_document_id"],
+        operations=[
+            {
+                "operation_id": "duplicate_content_range",
+                "capability_id": profiles[("Duplicate", "property_get")]["capability_id"],
+                "target": {"kind": "document_content"},
+                "result_id": "range_result",
+            },
+            {
+                "operation_id": "read_duplicate_text",
+                "capability_id": profiles[("Text", "property_get")]["capability_id"],
+                "target": {"kind": "result", "result_id": "range_result"},
+                "result_id": "text_result",
+            },
+        ],
+    )
+
+    assert result["executed_count"] == 2
+    assert result["live_version"] == 0
+    assert [item["result_id"] for item in result["results"]] == [
+        "range_result",
+        "text_result",
+    ]
+    assert result["results"][0]["kind"] == "com_object"
+    assert result["results"][0]["value_returned"] is False
+    assert result["results"][1]["value"] == "Existing paragraph\r"
+
+
+def test_catalog_member_batch_rejects_unknown_target_result_before_attach(live_bridge) -> None:
+    bridge, _application, _document = live_bridge
+    catalog = _catalog_for_member_execution()
+    bridge.object_model.write(catalog)
+    registry = build_member_capability_registry(catalog)
+    text_getter = next(
+        item
+        for item in registry["profiles"]
+        if item["member"]["name"] == "Text" and item["member"]["kind"] == "property_get"
+    )
+    connected = bridge.connect("owner", use_active=True)
+    before_attach_calls = bridge.backend.attach_calls
+
+    with pytest.raises(WordToolkitError) as error:
+        bridge.execute_member_operations(
+            "owner",
+            connected["live_document_id"],
+            operations=[
+                {
+                    "operation_id": "invalid_result_target",
+                    "capability_id": text_getter["capability_id"],
+                    "target": {"kind": "result", "result_id": "missing_result"},
+                    "result_id": "text_result",
+                }
+            ],
+        )
+
+    assert error.value.code is ErrorCode.INVALID_INPUT
+    assert error.value.details["position"] == 1
+    assert "failed_operation_index" not in error.value.details
+    assert "failed_operation_index_available" not in error.value.details
+    assert "failure_scope" not in error.value.details
+    assert bridge.backend.attach_calls == before_attach_calls
+
+
 def test_indexed_property_adapter_uses_catalog_dispid(live_bridge) -> None:
     bridge, _application, document = live_bridge
     catalog = _catalog_for_member_execution()
@@ -3468,8 +3556,100 @@ def test_catalog_member_operation_rolls_back_and_preserves_version(live_bridge) 
         )
 
     assert error.value.code is ErrorCode.EXTERNAL_TOOL_FAILED
+    assert error.value.details["failed_operation_index"] == 0
     assert document.undo_calls == 1
     assert application.UndoRecord.started == application.UndoRecord.ended == 1
+    assert bridge.inspect("owner", connected["live_document_id"])["live_version"] == 0
+
+
+def test_catalog_member_batch_reports_failed_operation_index_and_stops(live_bridge) -> None:
+    bridge, application, document = live_bridge
+    catalog = _catalog_for_member_execution()
+    bridge.object_model.write(catalog)
+    registry = build_member_capability_registry(catalog)
+    profiles = {
+        (item["member"]["name"], item["member"]["kind"]): item for item in registry["profiles"]
+    }
+    connected = bridge.connect("owner", use_active=True)
+    original_text = document.text
+
+    with pytest.raises(WordToolkitError) as error:
+        bridge.execute_member_operations(
+            "owner",
+            connected["live_document_id"],
+            operations=[
+                {
+                    "operation_id": "mutate_first",
+                    "capability_id": profiles[("Text", "property_put")]["capability_id"],
+                    "target": {"kind": "document_content"},
+                    "arguments": ["Changed once\r"],
+                },
+                {
+                    "operation_id": "fail_second",
+                    "capability_id": profiles[("InsertAfter", "method")]["capability_id"],
+                    "target": {"kind": "document_content"},
+                    "arguments": ["Rejected"],
+                },
+                {
+                    "operation_id": "must_not_run",
+                    "capability_id": profiles[("Text", "property_put")]["capability_id"],
+                    "target": {"kind": "document_content"},
+                    "arguments": ["Unreachable\r"],
+                },
+            ],
+            expected_version=0,
+        )
+
+    assert error.value.code is ErrorCode.EXTERNAL_TOOL_FAILED
+    assert error.value.details["failed_operation_index"] == 1
+    assert "failed_operation_index_available" not in error.value.details
+    assert "failure_scope" not in error.value.details
+    assert document.text_write_count == 1
+    assert document.text == original_text
+    assert document.undo_calls == 1
+    assert application.UndoRecord.started == application.UndoRecord.ended == 1
+    assert bridge.inspect("owner", connected["live_document_id"])["live_version"] == 0
+
+
+def test_catalog_member_batch_marks_undo_finalization_failure_as_aggregate(
+    live_bridge,
+) -> None:
+    bridge, application, document = live_bridge
+    catalog = _catalog_for_member_execution()
+    bridge.object_model.write(catalog)
+    registry = build_member_capability_registry(catalog)
+    text_setter = next(
+        item
+        for item in registry["profiles"]
+        if item["member"]["name"] == "Text" and item["member"]["kind"] == "property_put"
+    )
+    connected = bridge.connect("owner", use_active=True)
+    original_text = document.text
+    application.UndoRecord.fail_end_once = True
+
+    with pytest.raises(WordToolkitError) as error:
+        bridge.execute_member_operations(
+            "owner",
+            connected["live_document_id"],
+            operations=[
+                {
+                    "operation_id": "mutate_before_undo_failure",
+                    "capability_id": text_setter["capability_id"],
+                    "target": {"kind": "document_content"},
+                    "arguments": ["Changed then rolled back\r"],
+                }
+            ],
+            expected_version=0,
+        )
+
+    assert error.value.code is ErrorCode.EXTERNAL_TOOL_FAILED
+    assert "failed_operation_index" not in error.value.details
+    assert error.value.details["failed_operation_index_available"] is False
+    assert error.value.details["failure_scope"] == "batch"
+    assert document.text == original_text
+    assert document.undo_calls == 1
+    assert application.UndoRecord.started == 1
+    assert application.UndoRecord.ended == 2
     assert bridge.inspect("owner", connected["live_document_id"])["live_version"] == 0
 
 

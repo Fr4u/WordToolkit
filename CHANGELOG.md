@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added attributable failure diagnostics to maintained Python catalog-backed
+  Word member batches. Runtime, target-resolution and result-projection failures
+  now report a zero-based `failed_operation_index`; transaction-wide activation,
+  attachment or Undo-finalization failures explicitly report
+  `failed_operation_index_available=false` and `failure_scope="batch"`. Failed
+  mutating batches still roll back and leave the live document version unchanged.
+
 - Made the maintained Python equation parsers fail closed instead of silently
   changing input. UnicodeMath tokenization now proves that every non-whitespace
   character was consumed and reports the exact unsupported code point and
