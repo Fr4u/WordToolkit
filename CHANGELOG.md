@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Made the maintained Python equation parsers fail closed instead of silently
+  changing input. UnicodeMath tokenization now proves that every non-whitespace
+  character was consumed and reports the exact unsupported code point and
+  offset. Presentation MathML now requires the MathML namespace, rejects
+  unknown elements, foreign parsed elements, invalid fixed arity, table shapes
+  not representable by the canonical AST and ambiguous `semantics` branches
+  instead of dropping markup or operands. All string equation formats reject
+  empty input, share the native runtime's 100,000-character ceiling before
+  parser allocation and return a bounded error above 128 nesting levels instead
+  of leaking a runtime recursion failure.
+
 - Stopped the maintained Python equation converter from silently degrading
   boxed formulas and multiple integrals. LaTeX `\boxed{...}`, UnicodeMath
   `▭(...)`, MathML `menclose notation="box"` and OMML `m:borderBox` now share

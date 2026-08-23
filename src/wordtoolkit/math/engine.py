@@ -3,8 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from ..errors import ErrorCode, WordToolkitError
 from .ast import EquationNode
 from .latex import parse_latex, to_latex
+from .limits import MAX_EQUATION_NESTING_DEPTH, MAX_EQUATION_SOURCE_CHARACTERS
 from .mathml import parse_mathml, to_mathml
 from .omml import omml_string, parse_omml, to_omml
 from .unicode_math import parse_unicode_math, to_unicode_math
@@ -45,6 +47,12 @@ class SemanticComparison:
 
 class MathEngine:
     def parse(self, value: str | dict[str, Any], input_format: EquationFormat) -> EquationNode:
+        try:
+            return self._parse(value, input_format)
+        except RecursionError as exc:
+            raise self._nesting_error(input_format) from exc
+
+    def _parse(self, value: str | dict[str, Any], input_format: EquationFormat) -> EquationNode:
         if input_format == "ast":
             if not isinstance(value, dict):
                 raise ValueError("AST input must be an object")
@@ -52,6 +60,22 @@ class MathEngine:
         else:
             if not isinstance(value, str):
                 raise ValueError(f"{input_format} input must be a string")
+            if not value.strip():
+                raise WordToolkitError(
+                    ErrorCode.EQUATION_INVALID,
+                    "Equation input is empty",
+                    {"input_format": input_format},
+                )
+            if len(value) > MAX_EQUATION_SOURCE_CHARACTERS:
+                raise WordToolkitError(
+                    ErrorCode.LIMIT_EXCEEDED,
+                    "Equation input exceeds 100,000 characters",
+                    {
+                        "input_format": input_format,
+                        "characters": len(value),
+                        "maximum_characters": MAX_EQUATION_SOURCE_CHARACTERS,
+                    },
+                )
             parsers = {
                 "latex": parse_latex,
                 "unicodemath": parse_unicode_math,
@@ -59,7 +83,7 @@ class MathEngine:
                 "omml": parse_omml,
             }
             node = parsers[input_format](value)
-        return self.canonicalize(node)
+        return self._canonicalize(node, depth=1, input_format=input_format)
 
     def convert(
         self,
@@ -101,6 +125,16 @@ class MathEngine:
         )
 
     def canonicalize(self, node: EquationNode) -> EquationNode:
+        try:
+            return self._canonicalize(node, depth=1, input_format="ast")
+        except RecursionError as exc:
+            raise self._nesting_error("ast") from exc
+
+    def _canonicalize(
+        self, node: EquationNode, *, depth: int, input_format: EquationFormat
+    ) -> EquationNode:
+        if depth > MAX_EQUATION_NESTING_DEPTH:
+            raise self._nesting_error(input_format)
         if node.kind not in ARITY:
             raise ValueError(f"Unsupported equation AST kind: {node.kind}")
         minimum, maximum = ARITY[node.kind]
@@ -111,7 +145,10 @@ class MathEngine:
             )
         if len(node.value) > 100_000:
             raise ValueError("Equation AST node value exceeds the limit")
-        children = tuple(self.canonicalize(child) for child in node.children)
+        children = tuple(
+            self._canonicalize(child, depth=depth + 1, input_format=input_format)
+            for child in node.children
+        )
         value = node.value
         if node.kind == "operator" and value == "−":
             value = "-"
@@ -154,4 +191,15 @@ class MathEngine:
             value.strip() if node.kind != "text" else value,
             children,
             tuple(sorted(node.attrs)),
+        )
+
+    @staticmethod
+    def _nesting_error(input_format: EquationFormat) -> WordToolkitError:
+        return WordToolkitError(
+            ErrorCode.LIMIT_EXCEEDED,
+            "Equation nesting exceeds 128 levels",
+            {
+                "input_format": input_format,
+                "maximum_nesting_depth": MAX_EQUATION_NESTING_DEPTH,
+            },
         )

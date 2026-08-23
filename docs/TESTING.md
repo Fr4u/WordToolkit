@@ -84,6 +84,7 @@ detail tests reject absolute paths and payload text.
   COM calls, default and complete envelope bounds, and non-disclosure of Custom XML,
   visible bound values and raw XML.
 - Round-trip: LaTeX/UnicodeMath/MathML/AST → OMML → DOCX → reopened OMML with semantic AST comparison. The matrix includes real `m:borderBox` output for boxed formulas, nested and empty boxes, exact direct-OMML preservation of `m:box`, and bounded/multiple/contour integral families through `∫`, `∬`, `∭`, `⨌`, `∮`, `∯` and `∰`.
+- Fail-closed equation parsing: unmatched UnicodeMath characters at the beginning, middle and end of otherwise valid expressions report exact offsets; whitespace remains valid between tokens. MathML regressions reject unknown or foreign-namespace elements, missing/extra fixed operands, invalid table children and hidden additional `semantics` branches while permitting inert foreign payloads only inside ignored annotation containers. Every string format rejects empty input and values above 100,000 characters before parsing; adversarial MathML and AST fixtures prove that excessive nesting returns `LIMIT_EXCEEDED` instead of a raw recursion failure.
 - Integration: create/open/edit/save, package validation, Streamable HTTP initialization and bearer rejection.
 - Regression: the broad bundled corpus catches parser crashes, byte drift and open graph
   endpoints. A separate versioned semantic golden corpus fixes exact typed expectations

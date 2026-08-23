@@ -7,10 +7,44 @@ from lxml import etree
 from ..errors import ErrorCode, WordToolkitError
 from ..security import parse_xml_bytes
 from .ast import EMPTY, EquationNode, row
+from .limits import MAX_EQUATION_NESTING_DEPTH
 
 FUNCTION_NAMES = {"sin", "cos", "tan", "cot", "sec", "csc", "log", "ln", "exp", "min", "max"}
 FENCE_PAIRS = {"(": ")", "[": "]", "{": "}", "|": "|", "‖": "‖"}
 NARY_SYMBOLS = {"∑", "∏", "∫", "∬", "∭", "⨌", "∮", "∯", "∰", "⋃", "⋂"}
+MATHML_NS = "http://www.w3.org/1998/Math/MathML"
+SUPPORTED_MATHML_TAGS = {
+    "math",
+    "mrow",
+    "mstyle",
+    "mpadded",
+    "mphantom",
+    "semantics",
+    "annotation",
+    "annotation-xml",
+    "mi",
+    "mn",
+    "mo",
+    "mtext",
+    "mspace",
+    "none",
+    "maligngroup",
+    "malignmark",
+    "mfrac",
+    "msup",
+    "msub",
+    "msubsup",
+    "msqrt",
+    "mroot",
+    "munderover",
+    "munder",
+    "mover",
+    "mfenced",
+    "mtable",
+    "mtr",
+    "mtd",
+    "menclose",
+}
 
 
 def _local(element: etree._Element) -> str:
@@ -23,6 +57,62 @@ def _elements(element: etree._Element) -> list[etree._Element]:
 
 def _text(element: etree._Element) -> str:
     return "".join(element.itertext()).strip()
+
+
+def _validate_mathml_tree(root: etree._Element) -> None:
+    pending = [(root, 0)]
+    while pending:
+        element, depth = pending.pop()
+        if depth > MAX_EQUATION_NESTING_DEPTH:
+            raise WordToolkitError(
+                ErrorCode.LIMIT_EXCEEDED,
+                "Equation nesting exceeds 128 levels",
+                {
+                    "input_format": "mathml",
+                    "maximum_nesting_depth": MAX_EQUATION_NESTING_DEPTH,
+                },
+            )
+        name = etree.QName(element)
+        if name.namespace != MATHML_NS:
+            raise WordToolkitError(
+                ErrorCode.EQUATION_INVALID,
+                "Presentation MathML contains an element outside the MathML namespace",
+                {"element": name.localname, "namespace": name.namespace or ""},
+            )
+        if name.localname not in SUPPORTED_MATHML_TAGS:
+            raise WordToolkitError(
+                ErrorCode.EQUATION_INVALID,
+                "Presentation MathML contains an unsupported element",
+                {"element": name.localname},
+            )
+        if name.localname not in {"annotation", "annotation-xml"}:
+            pending.extend((child, depth + 1) for child in reversed(_elements(element)))
+
+
+def _require_child_count(
+    element: etree._Element, children: list[etree._Element], expected: int
+) -> None:
+    if len(children) != expected:
+        raise WordToolkitError(
+            ErrorCode.EQUATION_INVALID,
+            "Presentation MathML element has an invalid operand count",
+            {"element": _local(element), "expected": expected, "actual": len(children)},
+        )
+
+
+def _presentation_branch(semantics: etree._Element) -> etree._Element:
+    presentation = [
+        child
+        for child in _elements(semantics)
+        if _local(child) not in {"annotation", "annotation-xml"}
+    ]
+    if len(presentation) != 1:
+        raise WordToolkitError(
+            ErrorCode.EQUATION_INVALID,
+            "MathML semantics requires exactly one presentation branch",
+            {"actual": len(presentation)},
+        )
+    return presentation[0]
 
 
 def _group_fenced_sequences(nodes: list[EquationNode]) -> list[EquationNode]:
@@ -59,17 +149,13 @@ def _group_fenced_sequences(nodes: list[EquationNode]) -> list[EquationNode]:
 
 def parse_mathml(source: str) -> EquationNode:
     root = parse_xml_bytes(source.encode("utf-8"), part="equation.mathml")
-    if _local(root) != "math":
+    if etree.QName(root).namespace != MATHML_NS or _local(root) != "math":
         raise WordToolkitError(
-            ErrorCode.EQUATION_INVALID, "Presentation MathML must have a math root"
+            ErrorCode.EQUATION_INVALID,
+            "Presentation MathML must have a math root in the MathML namespace",
         )
-    children = _elements(root)
-    semantics = next((x for x in children if _local(x) == "semantics"), None)
-    if semantics is not None:
-        children = [
-            x for x in _elements(semantics) if _local(x) not in {"annotation", "annotation-xml"}
-        ][:1]
-    return _parse_sequence(children)
+    _validate_mathml_tree(root)
+    return _parse_sequence(_elements(root))
 
 
 def _parse_sequence(children: list[etree._Element]) -> EquationNode:
@@ -117,49 +203,62 @@ def _parse_sequence(children: list[etree._Element]) -> EquationNode:
 def _parse_node(element: etree._Element) -> EquationNode:
     tag = _local(element)
     children = _elements(element)
-    if tag in {"math", "mrow", "mstyle", "mpadded", "mphantom", "semantics"}:
+    if tag in {"math", "mrow", "mstyle", "mpadded", "mphantom"}:
         return _parse_sequence(
             [x for x in children if _local(x) not in {"annotation", "annotation-xml"}]
         )
+    if tag == "semantics":
+        return _parse_node(_presentation_branch(element))
     if tag == "mi":
+        _require_child_count(element, children, 0)
         return EquationNode.make("identifier", _text(element))
     if tag == "mn":
+        _require_child_count(element, children, 0)
         return EquationNode.make("number", _text(element))
     if tag == "mo":
+        _require_child_count(element, children, 0)
         value = _text(element)
         return EquationNode.make("operator", "" if value in {"\u2061", "\u2062"} else value)
     if tag == "mtext":
+        _require_child_count(element, children, 0)
         return EquationNode.make("text", _text(element))
     if tag in {"mspace", "none", "maligngroup", "malignmark"}:
+        _require_child_count(element, children, 0)
         return EquationNode.make("empty")
-    if tag == "mfrac" and len(children) >= 2:
+    if tag == "mfrac":
+        _require_child_count(element, children, 2)
         return EquationNode.make(
             "fraction", children=(_parse_node(children[0]), _parse_node(children[1]))
         )
-    if tag == "msup" and len(children) >= 2:
+    if tag == "msup":
+        _require_child_count(element, children, 2)
         base, sup = _parse_node(children[0]), _parse_node(children[1])
         if base.value in NARY_SYMBOLS:
             return EquationNode.make("nary", base.value, (EMPTY, EMPTY, sup))
         return EquationNode.make("superscript", children=(base, sup))
-    if tag == "msub" and len(children) >= 2:
+    if tag == "msub":
+        _require_child_count(element, children, 2)
         base, sub = _parse_node(children[0]), _parse_node(children[1])
         if base.value == "lim":
             return EquationNode.make("limit_lower", children=(base, sub))
         if base.value in NARY_SYMBOLS:
             return EquationNode.make("nary", base.value, (EMPTY, sub, EMPTY))
         return EquationNode.make("subscript", children=(base, sub))
-    if tag == "msubsup" and len(children) >= 3:
+    if tag == "msubsup":
+        _require_child_count(element, children, 3)
         base, sub, sup = (_parse_node(x) for x in children[:3])
         if base.value in NARY_SYMBOLS:
             return EquationNode.make("nary", base.value, (EMPTY, sub, sup))
         return EquationNode.make("sub_sup", children=(base, sub, sup))
     if tag == "msqrt":
         return EquationNode.make("radical", children=(_parse_sequence(children),))
-    if tag == "mroot" and len(children) >= 2:
+    if tag == "mroot":
+        _require_child_count(element, children, 2)
         return EquationNode.make(
             "radical", children=(_parse_node(children[0]), _parse_node(children[1]))
         )
-    if tag in {"munderover", "munder", "mover"} and children:
+    if tag in {"munderover", "munder", "mover"}:
+        _require_child_count(element, children, 3 if tag == "munderover" else 2)
         base = _parse_node(children[0])
         lower = _parse_node(children[1]) if tag != "mover" and len(children) > 1 else EMPTY
         upper_index = 2 if tag == "munderover" else 1
@@ -183,14 +282,34 @@ def _parse_node(element: etree._Element) -> EquationNode:
             end=element.get("close", ")"),
         )
     if tag == "mtable":
+        if not children:
+            raise WordToolkitError(
+                ErrorCode.EQUATION_INVALID,
+                "Empty MathML tables are not representable by the equation AST",
+            )
         rows: list[EquationNode] = []
         for tr in children:
-            if _local(tr) not in {"mtr", "mlabeledtr"}:
-                continue
+            if _local(tr) != "mtr":
+                raise WordToolkitError(
+                    ErrorCode.EQUATION_INVALID,
+                    "MathML table contains a non-row element",
+                    {"element": _local(tr)},
+                )
+            row_children = _elements(tr)
+            if not row_children:
+                raise WordToolkitError(
+                    ErrorCode.EQUATION_INVALID,
+                    "Empty MathML table rows are not representable by the equation AST",
+                )
+            if any(_local(item) != "mtd" for item in row_children):
+                raise WordToolkitError(
+                    ErrorCode.EQUATION_INVALID,
+                    "MathML table row contains a non-cell element",
+                    {"element": _local(tr), "child_count": len(row_children)},
+                )
             cells = [
                 EquationNode.make("cell", children=(_parse_sequence(_elements(td)),))
-                for td in _elements(tr)
-                if _local(td) == "mtd"
+                for td in row_children
             ]
             rows.append(EquationNode.make("matrix_row", children=cells))
         if element.get("columnalign") == "left" and all(len(item.children) == 1 for item in rows):
@@ -203,7 +322,11 @@ def _parse_node(element: etree._Element) -> EquationNode:
         return EquationNode.make(
             "enclosure", children=(_parse_sequence(children),), notation=notation
         )
-    return _parse_sequence(children) if children else EquationNode.make("text", _text(element))
+    raise WordToolkitError(
+        ErrorCode.EQUATION_INVALID,
+        "Presentation MathML element is unsupported in this position",
+        {"element": tag},
+    )
 
 
 def to_mathml(node: EquationNode, *, display: bool = False) -> str:
