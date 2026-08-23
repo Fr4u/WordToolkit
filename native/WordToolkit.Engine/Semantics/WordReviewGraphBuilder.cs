@@ -2106,6 +2106,11 @@ public sealed class WordReviewGraphBuilder
                     && WordPermissionMarkerParentNames.Contains(parent.Name.LocalName)
                 )
                 || (
+                    storyNamespaceName == WordTransitionalNamespace
+                    && parent.Name.NamespaceName == WordTransitionalNamespace
+                    && parent.Name.LocalName == "smartTag"
+                )
+                || (
                     parent.Name.NamespaceName == expectedMathNamespace
                     && MathPermissionMarkerParentNames.Contains(parent.Name.LocalName)
                 )

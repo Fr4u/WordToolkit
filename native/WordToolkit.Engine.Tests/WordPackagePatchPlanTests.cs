@@ -114,6 +114,37 @@ public sealed class WordPackagePatchPlanTests
     }
 
     [Fact]
+    public void TransitionalSmartTagPermissionRangesRemainAuthorizable()
+    {
+        var before = Read(BuildPackage(
+            "unused",
+            documentXml: SmartTagPermissionDocumentXml("before")
+        ));
+        var after = Read(BuildPackage(
+            "unused",
+            documentXml: SmartTagPermissionDocumentXml("after")
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.Equal(1, plan.RiskAssessment.Protection.BasePermissionRangeCount);
+        Assert.Equal(0, plan.RiskAssessment.Protection.MalformedPermissionRangeCount);
+        Assert.DoesNotContain(
+            "PERMISSION_MARKER_PARENT_INVALID",
+            plan.RiskAssessment.Protection.PermissionIssueCodes
+        );
+        Assert.True(plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        }).CanApply);
+    }
+
+    [Fact]
     public void MalformedPermissionRangesAreNonOverridable()
     {
         var before = Read(BuildPackage(
@@ -1830,6 +1861,12 @@ public sealed class WordPackagePatchPlanTests
         + $"<w:r><w:t>{text}</w:t></w:r>"
         + (includeEnd ? "<w:permEnd w:id='7'/>" : string.Empty)
         + "</w:p></w:body></w:document>";
+
+    private static string SmartTagPermissionDocumentXml(string text) =>
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+        + "<w:body><w:p><w:smartTag><w:permStart w:id='7'/>"
+        + $"<w:r><w:t>{text}</w:t></w:r><w:permEnd w:id='7'/>"
+        + "</w:smartTag></w:p></w:body></w:document>";
 
     private static string InvalidPermissionDocumentXml(string text) =>
         "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"

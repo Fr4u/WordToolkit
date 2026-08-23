@@ -663,6 +663,39 @@ public sealed class WordReviewGraphTests
         );
     }
 
+    [Theory]
+    [InlineData(Word, "w", false)]
+    [InlineData(WordStrict, "ws", true)]
+    public void PermissionSmartTagParentsAreTransitionalOnly(
+        string storyNamespace,
+        string storyPrefix,
+        bool expectParentIssue
+    )
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <{storyPrefix}:document xmlns:{storyPrefix}="{storyNamespace}">
+              <{storyPrefix}:body><{storyPrefix}:p><{storyPrefix}:smartTag>
+                <{storyPrefix}:permStart {storyPrefix}:id="7"/>
+                <{storyPrefix}:permEnd {storyPrefix}:id="7"/>
+              </{storyPrefix}:smartTag></{storyPrefix}:p></{storyPrefix}:body>
+            </{storyPrefix}:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Equal(
+            expectParentIssue,
+            graph.Issues.Any(issue => issue.Code == "PERMISSION_MARKER_PARENT_INVALID")
+        );
+        Assert.Equal(
+            WordReviewRangeStatus.Complete,
+            Assert.Single(graph.Permissions).Status
+        );
+    }
+
     [Fact]
     public void EnforcesReviewLimitsAndCapsIssueFlood()
     {
