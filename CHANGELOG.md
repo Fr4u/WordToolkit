@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.61.0 - 2026-08-23
+
 - Published the native local MCP v2 contract and kept local v1 as a historical
   artifact. Every unconditional Word Live write now requires a non-negative
   integer `expected_version`; omission and invalid types fail before COM, stale
