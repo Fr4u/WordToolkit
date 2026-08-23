@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import os
 import socket
 import stat
@@ -9,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+import wordtoolkit.security as security
 from docx_mcp.document import DocxDocument
 from wordtoolkit.config import Settings
 from wordtoolkit.engine import OoxmlValidator, WordDocumentEngine
@@ -21,6 +23,7 @@ from wordtoolkit.security import (
     parse_xml_bytes,
     resolve_internal_target,
     safe_join,
+    stable_path_snapshot,
     validate_remote_url,
 )
 from wordtoolkit.sessions import SessionStore
@@ -460,6 +463,129 @@ def test_extraction_retry_never_overwrites_destination_that_appears(
     assert (destination / "sentinel.bin").read_bytes() == b"attacker"
     assert not (destination / "custom" / "blob.bin").exists()
     assert not list(tmp_path.glob(".extracted.wordtoolkit-*"))
+
+
+class _SimulatedSharingViolation(PermissionError):
+    winerror: int
+
+
+def _sharing_violation() -> PermissionError:
+    error = _SimulatedSharingViolation("simulated sharing violation")
+    error.winerror = 32
+    return error
+
+
+def test_stable_snapshot_retries_transient_sharing_violation(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "shared.docx"
+    payload = b"stable-after-retry"
+    path.write_bytes(payload)
+    attempts = 0
+    delays: list[float] = []
+
+    def flaky_open(source_path: Path):
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise _sharing_violation()
+        return source_path.open("rb")
+
+    monkeypatch.setattr(security, "_open_shared_source_once", flaky_open)
+    monkeypatch.setattr(security.time, "sleep", delays.append)
+
+    with stable_path_snapshot(path, max_bytes=1024) as snapshot:
+        assert snapshot.read_bytes() == payload
+
+    assert attempts == 3
+    assert delays == [0.01, 0.05]
+
+
+def test_stable_snapshot_reports_exhausted_sharing_violation_without_path(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "sensitive-name.docx"
+    path.write_bytes(b"locked")
+    attempts = 0
+    delays: list[float] = []
+
+    def locked_open(_source_path: Path):
+        nonlocal attempts
+        attempts += 1
+        raise _sharing_violation()
+
+    monkeypatch.setattr(security, "_open_shared_source_once", locked_open)
+    monkeypatch.setattr(security.time, "sleep", delays.append)
+
+    with pytest.raises(WordToolkitError) as error, stable_path_snapshot(path, max_bytes=1024):
+        pass
+
+    assert attempts == 4
+    assert delays == [0.01, 0.05, 0.2]
+    assert error.value.code == ErrorCode.EXTERNAL_TOOL_FAILED
+    assert error.value.retryable is True
+    assert error.value.details == {"reason": "sharing_violation", "attempts": 4}
+    assert str(path) not in str(error.value.to_dict())
+
+
+def test_stable_snapshot_missing_source_is_not_retried(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "missing.docx"
+    attempts = 0
+    delays: list[float] = []
+
+    def missing_open(_source_path: Path):
+        nonlocal attempts
+        attempts += 1
+        raise FileNotFoundError("simulated missing source")
+
+    monkeypatch.setattr(security, "_open_shared_source_once", missing_open)
+    monkeypatch.setattr(security.time, "sleep", delays.append)
+
+    with pytest.raises(WordToolkitError) as error, stable_path_snapshot(path, max_bytes=1024):
+        pass
+
+    assert attempts == 1
+    assert delays == []
+    assert error.value.code == ErrorCode.DOCUMENT_NOT_FOUND
+    assert error.value.retryable is False
+
+
+@pytest.mark.skipif(os.name != "nt", reason="requires Win32 share-mode handles")
+def test_stable_snapshot_shares_existing_write_and_delete_access(tmp_path) -> None:
+    path = tmp_path / "shared.docx"
+    payload = b"shared-write-handle-payload"
+    path.write_bytes(payload)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateFileW.restype = ctypes.c_void_p
+    kernel32.CreateFileW.argtypes = [
+        ctypes.c_wchar_p,
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.c_void_p,
+    ]
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    handle = kernel32.CreateFileW(
+        str(path),
+        0x40000000 | 0x00010000,  # GENERIC_WRITE | DELETE
+        0x00000001 | 0x00000002 | 0x00000004,  # share read/write/delete
+        None,
+        3,  # OPEN_EXISTING
+        0x00000080,  # FILE_ATTRIBUTE_NORMAL
+        None,
+    )
+    if handle in (None, ctypes.c_void_p(-1).value):
+        error = ctypes.get_last_error()
+        pytest.skip(f"CreateFileW unavailable or denied (WinError {error})")
+    try:
+        with stable_path_snapshot(path, max_bytes=1024) as snapshot:
+            assert snapshot.read_bytes() == payload
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def test_extraction_enforces_cumulative_limit_after_inspection(tmp_path, monkeypatch) -> None:

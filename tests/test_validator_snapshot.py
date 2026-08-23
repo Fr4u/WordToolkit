@@ -57,13 +57,15 @@ def test_capture_rejects_mutation_between_reads(
     source = tmp_path / "source.docx"
     _package(source)
     validator = _validator(tmp_path)
-    original_open = Path.open
+    import wordtoolkit.security as security
+
+    original_open = security._open_shared_source_once
     calls = 0
 
-    def mutating_open(path: Path, *args, **kwargs):
+    def mutating_open(path: Path):
         nonlocal calls
-        handle = original_open(path, *args, **kwargs)
-        if path == source and "rb" in (args[0] if args else kwargs.get("mode", "r")):
+        handle = original_open(path)
+        if path == source:
             original_read = handle.read
 
             def read(*read_args, **read_kwargs):
@@ -77,7 +79,7 @@ def test_capture_rejects_mutation_between_reads(
             handle.read = read
         return handle
 
-    monkeypatch.setattr(Path, "open", mutating_open)
+    monkeypatch.setattr(security, "_open_shared_source_once", mutating_open)
     with pytest.raises(WordToolkitError) as exc:
         validator.validate(source)
     assert exc.value.code == ErrorCode.OOXML_INVALID
