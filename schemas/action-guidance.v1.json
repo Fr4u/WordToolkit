@@ -3667,7 +3667,8 @@
       ],
       "acquisition_steps": [
         "review plan and block reasons before apply",
-        "Pass identical commands, original package_fingerprint and plan_id from plan_ooxml_text_edits"
+        "Pass identical commands, original package_fingerprint and plan_id from plan_ooxml_text_edits",
+        "If the plan returns protection_authorization_id, pass that exact value as protected_edit_authorization"
       ],
       "bindings": {
         "local_path": {
@@ -3681,6 +3682,9 @@
         },
         "commands": {
           "source": "external_input"
+        },
+        "protected_edit_authorization": {
+          "source": "plan_response.protection_authorization_id"
         }
       },
       "example": {
@@ -3691,7 +3695,8 @@
           "local_path": "<bind:local_path>",
           "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
           "expected_plan_id": "<bind:expected_plan_id>",
-          "commands": []
+          "commands": [],
+          "protected_edit_authorization": "<bind:protected_edit_authorization>"
         }
       },
       "success": {
@@ -3709,6 +3714,12 @@
           "next_action": "plan_ooxml_text_edits",
           "bindings": {
             "expected_plan_id": "plan_id"
+          }
+        },
+        "EDIT_POLICY_BLOCKED": {
+          "next_action": "plan_ooxml_text_edits",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
           }
         }
       },
@@ -4180,7 +4191,9 @@
         "exact plan ID and identical commands from preceding plan"
       ],
       "acquisition_steps": [
-        "review plan and block reasons before apply"
+        "review plan and block reasons before apply",
+        "Pass the exact package fingerprint, plan ID and selectors from plan_ooxml_review_decisions",
+        "If the plan returns protection_authorization_id, pass that exact value as protected_edit_authorization"
       ],
       "bindings": {
         "local_path": {
@@ -4194,6 +4207,9 @@
         },
         "decision": {
           "source": "external_input"
+        },
+        "protected_edit_authorization": {
+          "source": "plan_response.protection_authorization_id"
         }
       },
       "example": {
@@ -4204,7 +4220,8 @@
           "local_path": "<bind:local_path>",
           "expected_package_fingerprint": "<bind:expected_package_fingerprint>",
           "expected_plan_id": "<bind:expected_plan_id>",
-          "decision": "<provide:decision>"
+          "decision": "<provide:decision>",
+          "protected_edit_authorization": "<bind:protected_edit_authorization>"
         }
       },
       "success": {
@@ -4223,10 +4240,16 @@
           "bindings": {
             "expected_plan_id": "plan_id"
           }
+        },
+        "EDIT_POLICY_BLOCKED": {
+          "next_action": "plan_ooxml_review_decisions",
+          "bindings": {
+            "expected_package_fingerprint": "package_fingerprint"
+          }
         }
       },
       "recipe_ids": [
-        "native.default"
+        "package.plan_apply"
       ]
     },
     {

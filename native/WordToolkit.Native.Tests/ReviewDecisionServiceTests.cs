@@ -125,6 +125,197 @@ public sealed class ReviewDecisionServiceTests
     }
 
     [Fact]
+    public async Task ProtectedReviewRequiresExactPlanAuthorizationBeforeWriting()
+    {
+        var path = TemporaryCopy("real_tracked_changes.docx");
+        try
+        {
+            RewritePackageEntry(path, "word/settings.xml", value => InsertProtection(value, ""));
+            var before = File.ReadAllBytes(path);
+            var package = new OpcPackageReader().Read(path);
+            var service = new WordLiveService(new NoInvokeHost());
+            using var planArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                decision = "accept",
+                select_all = true,
+            }));
+            var planObject = await service.CallAsync(
+                "plan_ooxml_review_decisions", planArguments.RootElement, CancellationToken.None
+            );
+            using var planJson = JsonDocument.Parse(JsonSerializer.Serialize(planObject));
+            var plan = planJson.RootElement;
+            var planId = plan.GetProperty("plan_id").GetString();
+            Assert.True(plan.GetProperty("protection").GetProperty("authorization_required").GetBoolean());
+            Assert.Equal(planId, plan.GetProperty("protection_authorization_id").GetString());
+            Assert.Contains(
+                plan.GetProperty("apply_blocked_reasons").EnumerateArray(),
+                item => item.GetString() == "protected_document_edit_not_authorized"
+            );
+
+            using var unauthorized = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                expected_plan_id = planId,
+                protected_edit_authorization = "wrplan_wrong",
+                decision = "accept",
+                select_all = true,
+            }));
+            var denied = await Assert.ThrowsAsync<NativeToolException>(() => service.CallAsync(
+                "apply_ooxml_review_decisions", unauthorized.RootElement, CancellationToken.None
+            ));
+            Assert.Equal("EDIT_POLICY_BLOCKED", denied.ErrorCode);
+            Assert.Equal(before, File.ReadAllBytes(path));
+            Assert.Equal(
+                new[] { path },
+                MatchingSiblingArtifacts(path)
+            );
+
+            using var authorized = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                expected_plan_id = planId,
+                protected_edit_authorization = planId,
+                decision = "accept",
+                select_all = true,
+            }));
+            var applied = await service.CallAsync(
+                "apply_ooxml_review_decisions", authorized.RootElement, CancellationToken.None
+            );
+            using var appliedJson = JsonDocument.Parse(JsonSerializer.Serialize(applied));
+            var apply = appliedJson.RootElement;
+            Assert.True(apply.GetProperty("applied").GetBoolean());
+            Assert.Equal(planId, apply.GetProperty("protection_authorization_id").GetString());
+            Assert.NotEmpty(apply.GetProperty("changed_entry_names").EnumerateArray());
+            var after = new OpcPackageReader().Read(path);
+            Assert.NotEqual(package.Fingerprint, after.Fingerprint);
+            Assert.Equal(
+                plan.GetProperty("result_package_fingerprint").GetString(),
+                after.Fingerprint
+            );
+            Assert.Equal(
+                apply.GetProperty("predicted_package_fingerprint").GetString(),
+                after.Fingerprint
+            );
+            var backup = apply.GetProperty("backup_path").GetString();
+            Assert.NotNull(backup);
+            Assert.Equal(before, File.ReadAllBytes(backup!));
+            DeleteIfExists(backup);
+        }
+        finally
+        {
+            DeleteIfExists(path);
+            DeleteIfExists(path + ".wordtoolkit.lock");
+        }
+    }
+
+    [Fact]
+    public async Task MalformedProtectionMetadataFailsClosedWithoutWriting()
+    {
+        var path = TemporaryCopy("real_tracked_changes.docx");
+        try
+        {
+            RewritePackageEntry(path, "word/settings.xml", value => InsertProtection(value, " w:unexpected=\"x\""));
+            var before = File.ReadAllBytes(path);
+            var package = new OpcPackageReader().Read(path);
+            using var planArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                decision = "accept",
+                select_all = true,
+            }));
+            var planObject = await new WordLiveService(new NoInvokeHost()).CallAsync(
+                "plan_ooxml_review_decisions", planArguments.RootElement, CancellationToken.None
+            );
+            using var planJson = JsonDocument.Parse(JsonSerializer.Serialize(planObject));
+            var plan = planJson.RootElement;
+            var planId = plan.GetProperty("plan_id").GetString();
+            Assert.Equal(JsonValueKind.Null, plan.GetProperty("protection_authorization_id").ValueKind);
+            Assert.Contains(
+                plan.GetProperty("apply_blocked_reasons").EnumerateArray(),
+                item => item.GetString() == "protection_metadata_malformed"
+            );
+            var artifactsBeforeApply = MatchingSiblingArtifacts(path);
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                expected_plan_id = planId,
+                protected_edit_authorization = planId,
+                decision = "accept",
+                select_all = true,
+            }));
+            var exception = await Assert.ThrowsAsync<NativeToolException>(() =>
+                new WordLiveService(new NoInvokeHost()).CallAsync(
+                    "apply_ooxml_review_decisions", arguments.RootElement, CancellationToken.None
+                )
+            );
+            Assert.Equal("EDIT_POLICY_BLOCKED", exception.ErrorCode);
+            Assert.Equal(before, File.ReadAllBytes(path));
+            Assert.Equal(artifactsBeforeApply, MatchingSiblingArtifacts(path));
+        }
+        finally
+        {
+            DeleteIfExists(path);
+            DeleteIfExists(path + ".wordtoolkit.lock");
+        }
+    }
+
+    [Fact]
+    public async Task ReviewApplyRejectsPlanAndFingerprintDriftWithoutWriting()
+    {
+        var path = TemporaryCopy("real_tracked_changes.docx");
+        try
+        {
+            var before = File.ReadAllBytes(path);
+            var package = new OpcPackageReader().Read(path);
+            var service = new WordLiveService(new NoInvokeHost());
+            using var mismatchArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                expected_plan_id = "wrplan_AAAAAAAAAAAAAAAAAAAA",
+                decision = "accept",
+                select_all = true,
+            }));
+            var mismatch = await Assert.ThrowsAsync<NativeToolException>(() => service.CallAsync(
+                "apply_ooxml_review_decisions",
+                mismatchArguments.RootElement,
+                CancellationToken.None
+            ));
+            Assert.Equal("PLAN_MISMATCH", mismatch.ErrorCode);
+            Assert.Equal(before, File.ReadAllBytes(path));
+            Assert.Equal(new[] { path }, MatchingSiblingArtifacts(path));
+
+            using var staleArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = new string('0', 64),
+                expected_plan_id = "wrplan_AAAAAAAAAAAAAAAAAAAA",
+                decision = "accept",
+                select_all = true,
+            }));
+            var stale = await Assert.ThrowsAsync<NativeToolException>(() => service.CallAsync(
+                "apply_ooxml_review_decisions",
+                staleArguments.RootElement,
+                CancellationToken.None
+            ));
+            Assert.Equal("VERSION_CONFLICT", stale.ErrorCode);
+            Assert.Equal(before, File.ReadAllBytes(path));
+            Assert.Equal(new[] { path }, MatchingSiblingArtifacts(path));
+        }
+        finally
+        {
+            DeleteIfExists(path);
+            DeleteIfExists(path + ".wordtoolkit.lock");
+        }
+    }
+
+    [Fact]
     public async Task ReportsUnsupportedParagraphMergesWithoutRunningCandidateValidation()
     {
         var path = Fixture("poi_tracked_changes_delins.docx");
@@ -265,7 +456,10 @@ public sealed class ReviewDecisionServiceTests
         using var planJson = JsonDocument.Parse(JsonSerializer.Serialize(planObject));
 
         Assert.True(planJson.RootElement.GetProperty("selected_revision_count").GetInt32() > 0);
-        Assert.DoesNotContain("author", planJson.RootElement.GetRawText(), StringComparison.OrdinalIgnoreCase);
+        var rawPlan = planJson.RootElement.GetRawText();
+        Assert.DoesNotContain("author_fingerprint", rawPlan, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"author\":", rawPlan, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"author_name\":", rawPlan, StringComparison.OrdinalIgnoreCase);
 
         using var unsafeArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
         {
@@ -394,6 +588,44 @@ public sealed class ReviewDecisionServiceTests
         );
     }
 
+    private static void RewritePackageEntry(
+        string path,
+        string entryName,
+        Func<string, string> transform
+    )
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Update);
+        var entry = archive.GetEntry(entryName) ?? throw new InvalidDataException(entryName);
+        string value;
+        using (var reader = new StreamReader(entry.Open(), Encoding.UTF8, true))
+        {
+            value = reader.ReadToEnd();
+        }
+        entry.Delete();
+        var replacement = archive.CreateEntry(entryName);
+        using var writer = new StreamWriter(
+            replacement.Open(),
+            new UTF8Encoding(false),
+            bufferSize: 1024,
+            leaveOpen: false
+        );
+        writer.Write(transform(value));
+    }
+
+    private static string InsertProtection(string value, string extraAttributes)
+    {
+        var rootStart = value.IndexOf("<w:settings", StringComparison.Ordinal);
+        var rootEnd = value.IndexOf('>', rootStart);
+        if (rootStart < 0 || rootEnd < 0)
+        {
+            throw new InvalidDataException("settings root");
+        }
+        return value.Insert(
+            rootEnd + 1,
+            $"<w:documentProtection w:edit=\"readOnly\" w:enforcement=\"1\"{extraAttributes}/>");
+    }
+
     private static void DeleteIfExists(string? path)
     {
         if (path is not null && File.Exists(path))
@@ -401,6 +633,14 @@ public sealed class ReviewDecisionServiceTests
             File.Delete(path);
         }
     }
+
+    private static string[] MatchingSiblingArtifacts(string path) =>
+        Directory.GetFiles(
+                Path.GetDirectoryName(path)!,
+                Path.GetFileName(path) + "*"
+            )
+            .Order(StringComparer.Ordinal)
+            .ToArray();
 
     private static string FindRepositoryRoot()
     {

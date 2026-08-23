@@ -4196,6 +4196,30 @@ public sealed class PackageInspectionServiceTests
             Assert.Equal("PLAN_MISMATCH", exception.ErrorCode);
             Assert.Equal(bytes, File.ReadAllBytes(path));
             Assert.Empty(Directory.GetFiles(directory, "*.bak"));
+
+            using var staleArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = new string('0', 64),
+                expected_plan_id = "wplan_AAAAAAAAAAAAAAAAAAAA",
+                commands = new[]
+                {
+                    new { node_id = text.Id.Value, new_text = "changed" },
+                },
+            }));
+            var stale = await Assert.ThrowsAsync<NativeToolException>(() =>
+                new WordLiveService(new NoInvokeHost()).CallAsync(
+                    "apply_ooxml_text_edits",
+                    staleArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("VERSION_CONFLICT", stale.ErrorCode);
+            Assert.Equal(bytes, File.ReadAllBytes(path));
+            Assert.Equal(
+                new[] { path },
+                Directory.GetFiles(directory).Order(StringComparer.Ordinal).ToArray()
+            );
         }
         finally
         {
@@ -4332,6 +4356,206 @@ public sealed class PackageInspectionServiceTests
             Directory.Delete(directory, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task ProtectedTextEditRequiresExactPlanAuthorizationBeforeWriting()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-protected-text-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "protected.docx");
+            CreatePackage(path, settingsXml: ProtectionSettingsXml());
+            var beforeBytes = File.ReadAllBytes(path);
+            var package = new OpcPackageReader().Read(path);
+            var text = new WordSemanticProjector().Project(package).Nodes.Single(node =>
+                node.Kind == WordSemanticNodeKind.Text && node.Text == "Hello "
+            );
+            var commands = new[] { new { node_id = text.Id.Value, new_text = "changed" } };
+            var service = new WordLiveService(new NoInvokeHost());
+            using var planArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                commands,
+            }));
+            var planObject = await service.CallAsync(
+                "plan_ooxml_text_edits",
+                planArguments.RootElement,
+                CancellationToken.None
+            );
+            using var planJson = JsonDocument.Parse(JsonSerializer.Serialize(planObject));
+            var plan = planJson.RootElement;
+            var planId = plan.GetProperty("plan_id").GetString();
+            Assert.True(plan.GetProperty("protection").GetProperty("authorization_required").GetBoolean());
+            Assert.Equal(planId, plan.GetProperty("protection_authorization_id").GetString());
+            Assert.Contains(
+                plan.GetProperty("apply_blocked_reasons").EnumerateArray(),
+                item => item.GetString() == "protected_document_edit_not_authorized"
+            );
+
+            using var deniedArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                expected_plan_id = planId,
+                protected_edit_authorization = "wplan_wrong",
+                commands,
+            }));
+            var denied = await Assert.ThrowsAsync<NativeToolException>(() => service.CallAsync(
+                "apply_ooxml_text_edits",
+                deniedArguments.RootElement,
+                CancellationToken.None
+            ));
+            Assert.Equal("EDIT_POLICY_BLOCKED", denied.ErrorCode);
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.Equal(
+                new[] { path },
+                Directory.GetFiles(directory).Order(StringComparer.Ordinal).ToArray()
+            );
+
+            using var applyArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                expected_plan_id = planId,
+                protected_edit_authorization = planId,
+                commands,
+            }));
+            var applyObject = await service.CallAsync(
+                "apply_ooxml_text_edits",
+                applyArguments.RootElement,
+                CancellationToken.None
+            );
+            using var applyJson = JsonDocument.Parse(JsonSerializer.Serialize(applyObject));
+            var apply = applyJson.RootElement;
+            Assert.True(apply.GetProperty("applied").GetBoolean());
+            Assert.Equal(planId, apply.GetProperty("protection_authorization_id").GetString());
+            Assert.NotEmpty(apply.GetProperty("changed_entry_names").EnumerateArray());
+            var after = new OpcPackageReader().Read(path);
+            Assert.NotEqual(package.Fingerprint, after.Fingerprint);
+            Assert.Equal(plan.GetProperty("result_package_fingerprint").GetString(), after.Fingerprint);
+            Assert.Equal(apply.GetProperty("predicted_package_fingerprint").GetString(), after.Fingerprint);
+            var backupPath = apply.GetProperty("backup_path").GetString();
+            Assert.NotNull(backupPath);
+            Assert.Equal(beforeBytes, File.ReadAllBytes(backupPath!));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task MalformedProtectionBlocksChangedTextButNotExactNoOp()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(),
+            "wordtoolkit-native-malformed-protection-text-tests",
+            Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "malformed.docx");
+            CreatePackage(path, settingsXml: ProtectionSettingsXml(" w:unexpected=\"x\""));
+            var beforeBytes = File.ReadAllBytes(path);
+            var package = new OpcPackageReader().Read(path);
+            var text = new WordSemanticProjector().Project(package).Nodes.Single(node =>
+                node.Kind == WordSemanticNodeKind.Text && node.Text == "Hello "
+            );
+            var service = new WordLiveService(new NoInvokeHost());
+            var changedCommands = new[] { new { node_id = text.Id.Value, new_text = "changed" } };
+            using var changedPlanArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                commands = changedCommands,
+            }));
+            var changedPlanObject = await service.CallAsync(
+                "plan_ooxml_text_edits",
+                changedPlanArguments.RootElement,
+                CancellationToken.None
+            );
+            using var changedPlanJson = JsonDocument.Parse(JsonSerializer.Serialize(changedPlanObject));
+            var changedPlan = changedPlanJson.RootElement;
+            Assert.Equal(JsonValueKind.Null, changedPlan.GetProperty("protection_authorization_id").ValueKind);
+            Assert.Contains(
+                changedPlan.GetProperty("apply_blocked_reasons").EnumerateArray(),
+                item => item.GetString() == "protection_metadata_malformed"
+            );
+            using var deniedArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                expected_plan_id = changedPlan.GetProperty("plan_id").GetString(),
+                protected_edit_authorization = changedPlan.GetProperty("plan_id").GetString(),
+                commands = changedCommands,
+            }));
+            var denied = await Assert.ThrowsAsync<NativeToolException>(() => service.CallAsync(
+                "apply_ooxml_text_edits",
+                deniedArguments.RootElement,
+                CancellationToken.None
+            ));
+            Assert.Equal("EDIT_POLICY_BLOCKED", denied.ErrorCode);
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.Equal(
+                new[] { path },
+                Directory.GetFiles(directory).Order(StringComparer.Ordinal).ToArray()
+            );
+
+            var noOpCommands = new[] { new { node_id = text.Id.Value, new_text = "Hello " } };
+            using var noOpPlanArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                commands = noOpCommands,
+            }));
+            var noOpPlanObject = await service.CallAsync(
+                "plan_ooxml_text_edits",
+                noOpPlanArguments.RootElement,
+                CancellationToken.None
+            );
+            using var noOpPlanJson = JsonDocument.Parse(JsonSerializer.Serialize(noOpPlanObject));
+            var noOpPlan = noOpPlanJson.RootElement;
+            Assert.False(noOpPlan.GetProperty("has_changes").GetBoolean());
+            Assert.Empty(noOpPlan.GetProperty("apply_blocked_reasons").EnumerateArray());
+            using var noOpApplyArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = package.Fingerprint,
+                expected_plan_id = noOpPlan.GetProperty("plan_id").GetString(),
+                commands = noOpCommands,
+            }));
+            var noOpApplyObject = await service.CallAsync(
+                "apply_ooxml_text_edits",
+                noOpApplyArguments.RootElement,
+                CancellationToken.None
+            );
+            using var noOpApplyJson = JsonDocument.Parse(JsonSerializer.Serialize(noOpApplyObject));
+            Assert.True(noOpApplyJson.RootElement.GetProperty("no_op").GetBoolean());
+            Assert.Equal(beforeBytes, File.ReadAllBytes(path));
+            Assert.Equal(
+                new[] { path },
+                Directory.GetFiles(directory).Order(StringComparer.Ordinal).ToArray()
+            );
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static string ProtectionSettingsXml(string extraAttributes = "") =>
+        $"""
+        <w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+          <w:documentProtection w:edit="readOnly" w:enforcement="1"{extraAttributes}/>
+        </w:settings>
+        """;
 
     private static void CreatePackage(
         string path,

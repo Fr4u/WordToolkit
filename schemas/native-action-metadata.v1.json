@@ -2878,6 +2878,61 @@
               "null"
             ]
           },
+          "apply_blocked_reasons": {
+            "type": "array",
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "digital_signature_present",
+                "protection_metadata_malformed",
+                "protected_document_edit_not_authorized",
+                "schema_validator_unavailable",
+                "microsoft_schema_validation_failed"
+              ]
+            }
+          },
+          "protection": {
+            "type": "object",
+            "required": [
+              "base_document_protection_enforced",
+              "result_document_protection_enforced",
+              "document_protection_metadata_changed",
+              "unmodeled_document_protection_metadata",
+              "base_permission_range_count",
+              "result_permission_range_count",
+              "malformed_permission_range_count",
+              "permission_issues_truncated",
+              "permission_issue_codes",
+              "authorization_required"
+            ],
+            "properties": {
+              "base_document_protection_enforced": {"type": "boolean"},
+              "base_document_protection_edit_mode": {"type": ["string", "null"]},
+              "result_document_protection_enforced": {"type": "boolean"},
+              "result_document_protection_edit_mode": {"type": ["string", "null"]},
+              "document_protection_metadata_changed": {"type": "boolean"},
+              "unmodeled_document_protection_metadata": {"type": "boolean"},
+              "base_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "result_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "malformed_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 500000},
+              "permission_issues_truncated": {"type": "boolean"},
+              "permission_issue_codes": {"type": "array", "maxItems": 10000, "uniqueItems": true, "items": {"type": "string", "pattern": "^PERMISSION_[A-Z0-9_]+$", "maxLength": 128}},
+              "authorization_required": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          },
+          "protection_authorization_id": {
+            "type": ["string", "null"],
+            "pattern": "^wplan_[A-Za-z0-9_-]+$",
+            "maxLength": 128
+          },
+          "required_authorizations": {
+            "type": "array",
+            "maxItems": 1,
+            "uniqueItems": true,
+            "items": {"const": "protected_edit_authorization"}
+          },
           "operations": {
             "type": [
               "array",
@@ -2943,6 +2998,61 @@
           },
           "diagnostic_count": {
             "type": "integer"
+          },
+          "protection": {
+            "type": "object",
+            "required": [
+              "base_document_protection_enforced",
+              "result_document_protection_enforced",
+              "document_protection_metadata_changed",
+              "unmodeled_document_protection_metadata",
+              "base_permission_range_count",
+              "result_permission_range_count",
+              "malformed_permission_range_count",
+              "permission_issues_truncated",
+              "permission_issue_codes",
+              "authorization_required"
+            ],
+            "properties": {
+              "base_document_protection_enforced": {"type": "boolean"},
+              "base_document_protection_edit_mode": {"type": ["string", "null"]},
+              "result_document_protection_enforced": {"type": "boolean"},
+              "result_document_protection_edit_mode": {"type": ["string", "null"]},
+              "document_protection_metadata_changed": {"type": "boolean"},
+              "unmodeled_document_protection_metadata": {"type": "boolean"},
+              "base_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "result_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "malformed_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 500000},
+              "permission_issues_truncated": {"type": "boolean"},
+              "permission_issue_codes": {"type": "array", "maxItems": 10000, "uniqueItems": true, "items": {"type": "string", "pattern": "^PERMISSION_[A-Z0-9_]+$", "maxLength": 128}},
+              "authorization_required": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          },
+          "protection_authorization_id": {
+            "type": ["string", "null"],
+            "pattern": "^wplan_[A-Za-z0-9_-]+$",
+            "maxLength": 128
+          },
+          "required_authorizations": {
+            "type": "array",
+            "maxItems": 1,
+            "uniqueItems": true,
+            "items": {"const": "protected_edit_authorization"}
+          },
+          "apply_blocked_reasons": {
+            "type": "array",
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "digital_signature_present",
+                "protection_metadata_malformed",
+                "protected_document_edit_not_authorized",
+                "schema_validator_unavailable",
+                "microsoft_schema_validation_failed"
+              ]
+            }
           },
           "runtime": {
             "type": "string"
@@ -3026,7 +3136,60 @@
             "type": "boolean"
           },
           "apply_blocked_reasons": {
-            "type": "array"
+            "type": "array",
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "digital_signature_present",
+                "protection_metadata_malformed",
+                "protected_document_edit_not_authorized",
+                "unsupported_or_dependent_revision_structure",
+                "schema_validator_unavailable",
+                "microsoft_schema_validation_failed"
+              ]
+            }
+          },
+          "protection": {
+            "type": "object",
+            "required": [
+              "base_document_protection_enforced",
+              "result_document_protection_enforced",
+              "document_protection_metadata_changed",
+              "unmodeled_document_protection_metadata",
+              "base_permission_range_count",
+              "result_permission_range_count",
+              "malformed_permission_range_count",
+              "permission_issues_truncated",
+              "permission_issue_codes",
+              "authorization_required"
+            ],
+            "properties": {
+              "base_document_protection_enforced": {"type": "boolean"},
+              "base_document_protection_edit_mode": {"type": ["string", "null"]},
+              "result_document_protection_enforced": {"type": "boolean"},
+              "result_document_protection_edit_mode": {"type": ["string", "null"]},
+              "document_protection_metadata_changed": {"type": "boolean"},
+              "unmodeled_document_protection_metadata": {"type": "boolean"},
+              "base_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "result_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "malformed_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 500000},
+              "permission_issues_truncated": {"type": "boolean"},
+              "permission_issue_codes": {"type": "array", "maxItems": 10000, "uniqueItems": true, "items": {"type": "string", "pattern": "^PERMISSION_[A-Z0-9_]+$", "maxLength": 128}},
+              "authorization_required": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          },
+          "protection_authorization_id": {
+            "type": ["string", "null"],
+            "pattern": "^wrplan_[A-Za-z0-9_-]+$",
+            "maxLength": 128
+          },
+          "required_authorizations": {
+            "type": "array",
+            "maxItems": 1,
+            "uniqueItems": true,
+            "items": {"const": "protected_edit_authorization"}
           },
           "candidate_validation": {
             "type": "object"
@@ -3129,6 +3292,61 @@
           },
           "microsoft_schema_no_new_errors": {
             "type": "boolean"
+          },
+          "protection": {
+            "type": "object",
+            "required": [
+              "base_document_protection_enforced",
+              "result_document_protection_enforced",
+              "document_protection_metadata_changed",
+              "unmodeled_document_protection_metadata",
+              "base_permission_range_count",
+              "result_permission_range_count",
+              "malformed_permission_range_count",
+              "permission_issues_truncated",
+              "permission_issue_codes",
+              "authorization_required"
+            ],
+            "properties": {
+              "base_document_protection_enforced": {"type": "boolean"},
+              "base_document_protection_edit_mode": {"type": ["string", "null"]},
+              "result_document_protection_enforced": {"type": "boolean"},
+              "result_document_protection_edit_mode": {"type": ["string", "null"]},
+              "document_protection_metadata_changed": {"type": "boolean"},
+              "unmodeled_document_protection_metadata": {"type": "boolean"},
+              "base_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "result_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+              "malformed_permission_range_count": {"type": "integer", "minimum": 0, "maximum": 500000},
+              "permission_issues_truncated": {"type": "boolean"},
+              "permission_issue_codes": {"type": "array", "maxItems": 10000, "uniqueItems": true, "items": {"type": "string", "pattern": "^PERMISSION_[A-Z0-9_]+$", "maxLength": 128}},
+              "authorization_required": {"type": "boolean"}
+            },
+            "additionalProperties": false
+          },
+          "protection_authorization_id": {
+            "type": ["string", "null"],
+            "pattern": "^wrplan_[A-Za-z0-9_-]+$",
+            "maxLength": 128
+          },
+          "required_authorizations": {
+            "type": "array",
+            "maxItems": 1,
+            "uniqueItems": true,
+            "items": {"const": "protected_edit_authorization"}
+          },
+          "apply_blocked_reasons": {
+            "type": "array",
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "digital_signature_present",
+                "protection_metadata_malformed",
+                "protected_document_edit_not_authorized",
+                "schema_validator_unavailable",
+                "microsoft_schema_validation_failed"
+              ]
+            }
           },
           "runtime": {
             "type": "string"
