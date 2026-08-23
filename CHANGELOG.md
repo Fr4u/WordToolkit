@@ -94,10 +94,15 @@
   documented formatting properties aligned with the fields accepted at runtime.
 
 - Removed four contract dead ends found by an external AI workflow. Native captions now
-  accept exactly one fresh selection or found-range token; table-formula schemas enumerate
+  accept exactly one fresh selection or found-range token, with an end-to-end regression
+  that acquires and consumes the found-range token; table-formula schemas enumerate
   the real typed source contract instead of accepting an opaque object; live structure
-  inspection omits unresolved COM wrappers instead of serializing `System.__ComObject`;
-  and member-operation guidance states that `result_id` is required to publish a result.
+  inspection omits unresolved COM wrappers and the `System.__ComObject` literal left by
+  premature scalar conversion; and member-operation guidance states that `result_id` is
+  required to publish a result. Saved-package comment inspection now distinguishes
+  OOXML-ID-bound editable comment selectors from synthetic uneditable IDs, while a full
+  semantic-inspect to text-plan/apply regression proves that returned child locators are
+  directly consumable.
 
 - Hardened legacy text edits at structural and Unicode boundaries. Failed tracked
   edits that cross a hyperlink now reject before publication instead of removing

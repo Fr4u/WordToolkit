@@ -266,6 +266,49 @@ public sealed class PackageInspectionServiceTests
                 )
             );
             Assert.Equal("VERSION_CONFLICT", staleFingerprint.ErrorCode);
+
+            using var applyArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                expected_package_fingerprint = packageFingerprint,
+                expected_plan_id = planJson.RootElement.GetProperty("plan_id").GetString(),
+                commands = new[]
+                {
+                    new
+                    {
+                        node_id = nodeId,
+                        new_text = "Changed ",
+                        expected_text = "Hello ",
+                    },
+                },
+            }));
+            var applied = await service.CallAsync(
+                "apply_ooxml_text_edits",
+                applyArguments.RootElement,
+                CancellationToken.None
+            );
+            using var appliedJson = JsonDocument.Parse(JsonSerializer.Serialize(applied));
+            Assert.True(appliedJson.RootElement.GetProperty("applied").GetBoolean());
+            Assert.Equal(
+                appliedJson.RootElement.GetProperty("package_fingerprint").GetString(),
+                new OpcPackageReader().Read(path).Fingerprint
+            );
+            using var verifyArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = path,
+                include_text_node_locators = true,
+                max_text_node_locators = 20,
+            }));
+            var verified = await service.CallAsync(
+                "inspect_ooxml_semantics",
+                verifyArguments.RootElement,
+                CancellationToken.None
+            );
+            using var verifiedJson = JsonDocument.Parse(JsonSerializer.Serialize(verified));
+            Assert.Contains(
+                verifiedJson.RootElement.GetProperty("text_node_locators").EnumerateArray(),
+                locator => locator.GetProperty("text_preview").GetString() == "Changed "
+            );
         }
         finally
         {

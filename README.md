@@ -613,7 +613,8 @@ normative contracts are
 `wordtoolkit.apply_ooxml_semantic_edits/1.0`.
 
 Comment-body rewrites have a separate high-level, token-lean boundary. Select one
-comment through `inspect_ooxml_review`, then submit its stable `comment_id`, exact
+comment through `inspect_ooxml_review`, require `comment_id_editable=true` and
+`comment_id_stability=ooxml_id_bound`, then submit its `comment_id`, exact
 `find_text`, replacement and expected match count to
 `wordtoolkit.plan_ooxml_comment_body_edits/1.0`; apply the reviewed plan through
 `wordtoolkit.apply_ooxml_comment_body_edits/1.0` or the non-interactive
@@ -623,6 +624,8 @@ controls or other rich structural boundaries. Only the selected comment's editab
 leaves can change. Plan/apply return counts and hashes rather than comment
 text or XML and prove that anchors, authors, threads, durable IDs, reactions, revisions,
 permissions, unselected comments and unrelated package parts remain unchanged.
+Synthetic IDs remain inspectable but are explicitly marked `synthetic_uneditable`
+instead of failing later as if they were durable mutation handles.
 
 Equation-paragraph prose rewrites have their own higher-level boundary. First query one
 paragraph with an equation descendant, then call

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.IO.Compression;
+using System.Text.RegularExpressions;
 using WordToolkit.Native.Protocol;
 using WordToolkit.Native.Word;
 
@@ -78,6 +80,8 @@ public sealed class ReviewPackageInspectionTests
         var commentId = comment.GetProperty("comment_id").GetString();
 
         Assert.StartsWith("wdc_", commentId, StringComparison.Ordinal);
+        Assert.True(comment.GetProperty("comment_id_editable").GetBoolean());
+        Assert.Equal("ooxml_id_bound", comment.GetProperty("comment_id_stability").GetString());
         Assert.Equal("Jesse Rosenthal", comment.GetProperty("author").GetString());
         Assert.Equal("I left a comment.", comment.GetProperty("text_preview").GetString());
         Assert.Equal(16, comment.GetProperty("text_fingerprint").GetString()!.Length);
@@ -117,6 +121,70 @@ public sealed class ReviewPackageInspectionTests
             anchor.GetProperty("start_node_id").GetString(),
             StringComparison.Ordinal
         );
+    }
+
+    [Fact]
+    public async Task MarksSyntheticCommentIdsUneditableForMissingAndDuplicateOoxmlIds()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "wordtoolkit-review-id-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            foreach (var mode in new[] { "missing", "duplicate" })
+            {
+                var path = Path.Combine(root, mode + ".docx");
+                File.Copy(Fixture("pandoc_comments.docx"), path);
+                RewriteCommentIds(path, mode);
+                using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+                {
+                    local_path = path,
+                    view = "comments",
+                    max_items = 20,
+                }));
+                var result = await new WordLiveService(new NoInvokeHost()).CallAsync(
+                    "inspect_ooxml_review", arguments.RootElement, CancellationToken.None);
+                using var json = JsonDocument.Parse(JsonSerializer.Serialize(result));
+                var comments = json.RootElement.GetProperty("items").EnumerateArray().ToArray();
+                Assert.NotEmpty(comments);
+                Assert.All(comments, item =>
+                    Assert.Equal(JsonValueKind.Null, item.GetProperty("author").ValueKind));
+                Assert.Contains(comments, item =>
+                    !item.GetProperty("comment_id_editable").GetBoolean()
+                    && item.GetProperty("comment_id_stability").GetString() == "synthetic_uneditable");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static void RewriteCommentIds(string path, string mode)
+    {
+        using var archive = ZipFile.Open(path, ZipArchiveMode.Update);
+        var entry = archive.GetEntry("word/comments.xml")
+            ?? throw new InvalidOperationException("Fixture has no comments.xml");
+        string xml;
+        using (var reader = new StreamReader(entry.Open()))
+        {
+            xml = reader.ReadToEnd();
+        }
+        var ids = Regex.Matches(xml, "w:id=\"(?<id>[^\"]+)\"")
+            .Select(match => match.Groups["id"].Value).Distinct().ToArray();
+        Assert.NotEmpty(ids);
+        var rewritten = mode == "missing"
+            ? RemoveFirstCommentId(xml)
+            : Regex.Replace(xml, "w:id=\"[^\"]+\"", $"w:id=\"{ids[0]}\"");
+        entry.Delete();
+        var replacement = archive.CreateEntry("word/comments.xml");
+        using var writer = new StreamWriter(replacement.Open());
+        writer.Write(rewritten);
+    }
+
+    private static string RemoveFirstCommentId(string xml)
+    {
+        var match = Regex.Match(xml, "\\s+w:id=\"[^\"]+\"");
+        return match.Success ? xml.Remove(match.Index, match.Length) : xml;
     }
 
     [Fact]

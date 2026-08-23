@@ -2685,7 +2685,24 @@
             ]
           },
           "items": {
-            "type": "array"
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "comment_id_editable": {
+                  "type": "boolean",
+                  "description": "True only when comment_id is bound to one effective OOXML w:id and is accepted by comment-body mutators."
+                },
+                "comment_id_stability": {
+                  "type": "string",
+                  "enum": [
+                    "ooxml_id_bound",
+                    "synthetic_uneditable"
+                  ]
+                }
+              },
+              "additionalProperties": true
+            }
           },
           "issues": {
             "type": [
