@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Published the immutable `v0.61.1` release manifest and synchronized the
+  repository front page with the independently downloaded GitHub asset's exact
+  version, size and SHA-256.
+
 ## 0.61.1 - 2026-08-23
 
 - Synchronized the native assembly, MCP server and Codex plugin at `0.61.1`,
