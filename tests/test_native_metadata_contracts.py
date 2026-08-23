@@ -29,6 +29,24 @@ def test_all_native_actions_have_metadata_without_catalog_drift() -> None:
             assert tool["annotations"] == action["annotations"]
 
 
+def test_nullable_backup_paths_are_optional_on_the_wire() -> None:
+    catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v1.json").read_text())
+    for tool in catalog["tools"]:
+        pending = [tool.get("outputSchema", {})]
+        while pending:
+            schema = pending.pop()
+            if not isinstance(schema, dict):
+                continue
+            properties = schema.get("properties", {})
+            backup = properties.get("backup_path")
+            if isinstance(backup, dict) and "null" in backup.get("type", []):
+                assert "backup_path" not in schema.get("required", []), tool["name"]
+            pending.extend(value for value in properties.values() if isinstance(value, dict))
+            pending.extend(
+                value for value in schema.get("$defs", {}).values() if isinstance(value, dict)
+            )
+
+
 def test_metadata_proposals_cover_exact_uncovered_set() -> None:
     uncovered = json.loads((ROOT / "schemas" / "native-action-metadata.v1.json").read_text())
     catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v1.json").read_text())

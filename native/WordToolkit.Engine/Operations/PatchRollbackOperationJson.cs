@@ -52,7 +52,8 @@ public static class PatchRollbackOperationJson
             "allow_external_relationship_changes",
             "allow_opaque_binary_changes",
             "allow_new_structural_errors",
-            "keep_backup"
+            "keep_backup",
+            "protected_edit_authorization"
         );
         return new PatchRollbackApplyRequest(
             RequiredString(root, "local_path"),
@@ -65,7 +66,8 @@ public static class PatchRollbackOperationJson
             OptionalBoolean(root, "allow_external_relationship_changes") ?? false,
             OptionalBoolean(root, "allow_opaque_binary_changes") ?? false,
             OptionalBoolean(root, "allow_new_structural_errors") ?? false,
-            OptionalBoolean(root, "keep_backup") ?? true
+            OptionalBoolean(root, "keep_backup") ?? true,
+            OptionalString(root, "protected_edit_authorization")
         );
     }
 

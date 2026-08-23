@@ -9,6 +9,8 @@ public sealed class WordReviewGraphTests
 {
     private const string Word =
         "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    private const string WordStrict =
+        "http://purl.oclc.org/ooxml/wordprocessingml/main";
     private const string Word2010 =
         "http://schemas.microsoft.com/office/word/2010/wordml";
     private const string Word2012 =
@@ -17,6 +19,10 @@ public sealed class WordReviewGraphTests
         "http://schemas.microsoft.com/office/word/2016/wordml/cid";
     private const string Word2018Cex =
         "http://schemas.microsoft.com/office/word/2018/wordml/cex";
+    private const string Math =
+        "http://schemas.openxmlformats.org/officeDocument/2006/math";
+    private const string MathStrict =
+        "http://purl.oclc.org/ooxml/officeDocument/math";
 
     [Fact]
     public void LinksCommentsThreadsPeopleRevisionsMovesAndPermissions()
@@ -177,6 +183,517 @@ public sealed class WordReviewGraphTests
         Assert.Contains("PERMISSION_COLUMN_RANGE_INCOMPLETE", codes);
         Assert.Contains("REVISION_ID_MISSING", codes);
         Assert.True(graph.Issues.Count >= 10);
+    }
+
+    [Fact]
+    public void DiagnosesInvalidPermissionAttributeValues()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}" xmlns:w14="{Word2010}"><w:body><w:p w14:paraId="A0000001">
+              <w:permStart w:id="invalid" w:edGrp="invalid-group" w:colFirst="invalid" w:colLast="2" w:displacedByCustomXml="invalid"/>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd w:id="invalid"/>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+        var permission = Assert.Single(graph.Permissions);
+        var codes = graph.Issues.Select(issue => issue.Code).ToArray();
+
+        Assert.Equal(WordReviewRangeStatus.Complete, permission.Status);
+        Assert.Null(permission.ColumnFirst);
+        Assert.Equal(2, permission.ColumnLast);
+        Assert.Contains("PERMISSION_RANGE_ID_INVALID", codes);
+        Assert.Contains("PERMISSION_COLUMN_RANGE_INVALID", codes);
+        Assert.Contains("PERMISSION_EDITOR_GROUP_INVALID", codes);
+        Assert.Contains("PERMISSION_DISPLACEMENT_INVALID", codes);
+    }
+
+    [Fact]
+    public void DiagnosesReversedPermissionColumnBounds()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}" xmlns:w14="{Word2010}"><w:body><w:p w14:paraId="A0000001">
+              <w:permStart w:id="7" w:edGrp="everyone" w:colFirst="2" w:colLast="1"/>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd w:id="7"/>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+        var permission = Assert.Single(graph.Permissions);
+
+        Assert.Equal(WordReviewRangeStatus.Complete, permission.Status);
+        Assert.Equal(2, permission.ColumnFirst);
+        Assert.Equal(1, permission.ColumnLast);
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_COLUMN_RANGE_INVALID"
+        );
+    }
+
+    [Fact]
+    public void DiagnosesNegativePermissionColumnBounds()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}" xmlns:w14="{Word2010}"><w:body><w:p w14:paraId="A0000001">
+              <w:permStart w:id="7" w:edGrp="everyone" w:colFirst="-1" w:colLast="2"/>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd w:id="7"/>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+        var permission = Assert.Single(graph.Permissions);
+
+        Assert.Equal(WordReviewRangeStatus.Complete, permission.Status);
+        Assert.Equal(-1, permission.ColumnFirst);
+        Assert.Equal(2, permission.ColumnLast);
+        Assert.Contains(
+            graph.Issues,
+            issue =>
+                issue.Code == "PERMISSION_COLUMN_RANGE_INVALID"
+                && issue.Message.Contains("non-negative", StringComparison.Ordinal)
+        );
+    }
+
+    [Fact]
+    public void DiagnosesMixedPermissionAttributeNamespaces()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}" xmlns:ws="{WordStrict}" xmlns:w14="{Word2010}"><w:body><w:p w14:paraId="A0000001">
+              <w:permStart ws:id="7" ws:edGrp="everyone" ws:colFirst="0" ws:colLast="2" ws:displacedByCustomXml="next"/>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd ws:id="7"/>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_ATTRIBUTE_NAMESPACE_INVALID"
+        );
+        Assert.DoesNotContain(graph.Permissions, permission =>
+            permission.Status == WordReviewRangeStatus.Complete
+        );
+    }
+
+    [Fact]
+    public void DiagnosesStrictMarkersWithTransitionalPermissionAttributes()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <ws:document xmlns:w="{Word}" xmlns:ws="{WordStrict}"><ws:body><ws:p>
+              <ws:permStart w:id="7" w:ed="user@example.test"/>
+              <ws:r><ws:t>x</ws:t></ws:r>
+              <ws:permEnd w:id="7"/>
+            </ws:p></ws:body></ws:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_ATTRIBUTE_NAMESPACE_INVALID"
+        );
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DiagnosesPermissionMarkersFromTheOtherStoryNamespace(bool strictStory)
+    {
+        var storyPrefix = strictStory ? "ws" : "w";
+        var markerPrefix = strictStory ? "w" : "ws";
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <{storyPrefix}:document xmlns:w="{Word}" xmlns:ws="{WordStrict}"><{storyPrefix}:body><{storyPrefix}:p>
+              <{markerPrefix}:permStart {markerPrefix}:id="7" {markerPrefix}:edGrp="everyone"/>
+              <{storyPrefix}:r><{storyPrefix}:t>x</{storyPrefix}:t></{storyPrefix}:r>
+              <{markerPrefix}:permEnd {markerPrefix}:id="7"/>
+            </{storyPrefix}:p></{storyPrefix}:body></{storyPrefix}:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Equal(
+            WordReviewRangeStatus.Complete,
+            Assert.Single(graph.Permissions).Status
+        );
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_MARKER_NAMESPACE_INVALID"
+        );
+    }
+
+    [Fact]
+    public void DiagnosesStartOnlyPermissionAttributesOnEndMarkers()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}"><w:body><w:p>
+              <w:permStart w:id="7"/>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd w:id="7" w:ed="user@example.test" w:edGrp="everyone" w:colFirst="0" w:colLast="2"/>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Equal(
+            WordReviewRangeStatus.Complete,
+            Assert.Single(graph.Permissions).Status
+        );
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_ATTRIBUTE_PLACEMENT_INVALID"
+        );
+    }
+
+    [Fact]
+    public void DiagnosesUnknownWordPermissionAttributes()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}"><w:body><w:p>
+              <w:permStart w:id="7" w:bogus="x"/>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd w:id="7"/>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_ATTRIBUTE_UNKNOWN"
+        );
+    }
+
+    [Fact]
+    public void DiagnosesUnqualifiedUnknownPermissionAttributes()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}"><w:body><w:p>
+              <w:permStart w:id="7" bogus="x"/>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd w:id="7"/>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_ATTRIBUTE_UNKNOWN"
+        );
+    }
+
+    [Fact]
+    public void DiagnosesUnqualifiedKnownPermissionAttributes()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}"><w:body><w:p>
+              <w:permStart id="7" edGrp="everyone"/>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd id="7"/>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_ATTRIBUTE_NAMESPACE_INVALID"
+        );
+        Assert.DoesNotContain(graph.Permissions, permission =>
+            permission.Status == WordReviewRangeStatus.Complete
+        );
+    }
+
+    [Fact]
+    public void DiagnosesForeignNamespacePermissionAttributes()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}" xmlns:x="urn:test"><w:body><w:p>
+              <w:permStart w:id="7" x:bogus="value"/>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd w:id="7"/>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_ATTRIBUTE_NAMESPACE_INVALID"
+        );
+    }
+
+    [Theory]
+    [InlineData("<w:r/>", "")]
+    [InlineData("", "text")]
+    [InlineData("<![CDATA[]]>", "")]
+    public void DiagnosesNonemptyPermissionMarkers(
+        string startContent,
+        string endContent
+    )
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}"><w:body><w:p>
+              <w:permStart w:id="7">{startContent}</w:permStart>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd w:id="7">{endContent}</w:permEnd>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_MARKER_CONTENT_INVALID"
+        );
+    }
+
+    [Fact]
+    public void PermissionMarkerCommentsAndProcessingInstructionsRemainNonContent()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}"><w:body><w:p>
+              <w:permStart w:id="7"><!-- preserve --></w:permStart>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd w:id="7"><?wordtoolkit preserve?></w:permEnd>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.DoesNotContain(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_MARKER_CONTENT_INVALID"
+        );
+        Assert.Equal(
+            WordReviewRangeStatus.Complete,
+            Assert.Single(graph.Permissions).Status
+        );
+    }
+
+    [Fact]
+    public void DiagnosesPermissionMarkersInInvalidParents()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}"><w:body><w:p><w:r><w:t>
+              <w:permStart w:id="7"/><w:permEnd w:id="7"/>
+            </w:t></w:r></w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_MARKER_PARENT_INVALID"
+        );
+        Assert.Equal(
+            WordReviewRangeStatus.Complete,
+            Assert.Single(graph.Permissions).Status
+        );
+    }
+
+    [Theory]
+    [InlineData(Math, "bogus")]
+    [InlineData("urn:test", "conflictIns")]
+    public void PermissionParentAllowListRequiresNamespaceAndLocalName(
+        string parentNamespace,
+        string parentLocalName
+    )
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}" xmlns:x="{parentNamespace}"><w:body><w:p>
+              <x:{parentLocalName}><w:permStart w:id="7"/><w:permEnd w:id="7"/></x:{parentLocalName}>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_MARKER_PARENT_INVALID"
+        );
+    }
+
+    [Theory]
+    [InlineData(Word, "w", WordStrict, "ws")]
+    [InlineData(WordStrict, "ws", Word, "w")]
+    public void PermissionWordParentsMustMatchTheStoryConformanceNamespace(
+        string storyNamespace,
+        string storyPrefix,
+        string parentNamespace,
+        string parentPrefix
+    )
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <{storyPrefix}:document xmlns:{storyPrefix}="{storyNamespace}" xmlns:{parentPrefix}="{parentNamespace}">
+              <{storyPrefix}:body><{parentPrefix}:p>
+                <{storyPrefix}:permStart {storyPrefix}:id="7"/>
+                <{storyPrefix}:permEnd {storyPrefix}:id="7"/>
+              </{parentPrefix}:p></{storyPrefix}:body>
+            </{storyPrefix}:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.DoesNotContain(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_MARKER_NAMESPACE_INVALID"
+        );
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_MARKER_PARENT_INVALID"
+        );
+        Assert.Equal(
+            WordReviewRangeStatus.Complete,
+            Assert.Single(graph.Permissions).Status
+        );
+    }
+
+    [Theory]
+    [InlineData(Word, "w", MathStrict)]
+    [InlineData(WordStrict, "ws", Math)]
+    public void PermissionMathParentsMustMatchTheStoryConformanceNamespace(
+        string storyNamespace,
+        string storyPrefix,
+        string mathNamespace
+    )
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <{storyPrefix}:document xmlns:{storyPrefix}="{storyNamespace}" xmlns:m="{mathNamespace}">
+              <{storyPrefix}:body><{storyPrefix}:p><m:oMath>
+                <{storyPrefix}:permStart {storyPrefix}:id="7"/>
+                <{storyPrefix}:permEnd {storyPrefix}:id="7"/>
+              </m:oMath></{storyPrefix}:p></{storyPrefix}:body>
+            </{storyPrefix}:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_MARKER_PARENT_INVALID"
+        );
+    }
+
+    [Theory]
+    [InlineData(Word, "w", Math)]
+    [InlineData(WordStrict, "ws", MathStrict)]
+    public void PermissionMathParentsAcceptTheStoryConformanceNamespace(
+        string storyNamespace,
+        string storyPrefix,
+        string mathNamespace
+    )
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <{storyPrefix}:document xmlns:{storyPrefix}="{storyNamespace}" xmlns:m="{mathNamespace}">
+              <{storyPrefix}:body><{storyPrefix}:p><m:oMath>
+                <{storyPrefix}:permStart {storyPrefix}:id="7"/>
+                <{storyPrefix}:permEnd {storyPrefix}:id="7"/>
+              </m:oMath></{storyPrefix}:p></{storyPrefix}:body>
+            </{storyPrefix}:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.DoesNotContain(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_MARKER_PARENT_INVALID"
+        );
+        Assert.Equal(
+            WordReviewRangeStatus.Complete,
+            Assert.Single(graph.Permissions).Status
+        );
+    }
+
+    [Theory]
+    [InlineData(Word, "w", false)]
+    [InlineData(WordStrict, "ws", true)]
+    public void PermissionSmartTagParentsAreTransitionalOnly(
+        string storyNamespace,
+        string storyPrefix,
+        bool expectParentIssue
+    )
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <{storyPrefix}:document xmlns:{storyPrefix}="{storyNamespace}">
+              <{storyPrefix}:body><{storyPrefix}:p><{storyPrefix}:smartTag>
+                <{storyPrefix}:permStart {storyPrefix}:id="7"/>
+                <{storyPrefix}:permEnd {storyPrefix}:id="7"/>
+              </{storyPrefix}:smartTag></{storyPrefix}:p></{storyPrefix}:body>
+            </{storyPrefix}:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Equal(
+            expectParentIssue,
+            graph.Issues.Any(issue => issue.Code == "PERMISSION_MARKER_PARENT_INVALID")
+        );
+        Assert.Equal(
+            WordReviewRangeStatus.Complete,
+            Assert.Single(graph.Permissions).Status
+        );
     }
 
     [Fact]

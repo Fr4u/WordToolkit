@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using WordToolkit.Engine.Packaging;
 using WordToolkit.Engine.Semantics;
 using WordToolkit.Native.Protocol;
@@ -10,6 +11,51 @@ namespace WordToolkit.Native.Tests;
 
 public sealed class PackageMergeServiceTests
 {
+    [Fact]
+    public void MergeContractPublishesExactProtectedEditTokenRoundTrip()
+    {
+        var catalog = ToolCatalog.LoadNativeWordTools();
+        var plan = catalog.InspectAction("plan_ooxml_merge")["tool"]!.AsObject();
+        var apply = catalog.InspectAction("apply_ooxml_merge")["tool"]!.AsObject();
+        var output = plan["outputSchema"]!;
+
+        Assert.Contains(
+            "merge_apply_plan_id",
+            output["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.DoesNotContain(
+            "protection_authorization_id",
+            output["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.DoesNotContain(
+            "risk",
+            output["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.Equal(
+            "^wtmergeapply_[A-Za-z0-9_-]+$",
+            output["properties"]!["merge_apply_plan_id"]!["pattern"]!.GetValue<string>()
+        );
+        Assert.Equal(
+            "^wtmergeapply_[A-Za-z0-9_-]+$",
+            output["properties"]!["protection_authorization_id"]!["pattern"]!.GetValue<string>()
+        );
+        Assert.NotNull(output["properties"]!["risk"]!["properties"]!["protection"]);
+        var protection = output["properties"]!["risk"]!["properties"]!["protection"]!;
+        Assert.Contains(
+            "unmodeled_document_protection_metadata",
+            protection["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.Equal(
+            "^wtmergeapply_[A-Za-z0-9_-]+$",
+            apply["inputSchema"]!["properties"]!["protected_edit_authorization"]!["pattern"]!.GetValue<string>()
+        );
+        Assert.Contains(
+            "merge_apply_plan_id",
+            apply["outputSchema"]!["required"]!.AsArray()
+                .Select(item => item!.GetValue<string>())
+        );
+    }
+
     [Fact]
     public async Task DisjointTextPlanIsCompactAndApplyCreatesNewMergedDocument()
     {
@@ -193,6 +239,120 @@ public sealed class PackageMergeServiceTests
     }
 
     [Fact]
+    public async Task ProtectedMergeRequiresExactMergePlanAuthorization()
+    {
+        using var files = CreateFiles(
+            "ancestor",
+            "beta",
+            "left",
+            "beta",
+            "ancestor",
+            "right",
+            protectionMode: "readOnly"
+        );
+        var service = Service();
+        var outputPath = files.OutputPath("protected");
+        using var plan = await Plan(service, files, outputPath);
+        var root = plan.RootElement;
+        var authorizationId = root.GetProperty("protection_authorization_id").GetString();
+
+        Assert.False(
+            root.GetProperty("default_policy").GetProperty("can_apply").GetBoolean()
+        );
+        Assert.Equal(
+            root.GetProperty("merge_apply_plan_id").GetString(),
+            authorizationId
+        );
+        Assert.Contains(
+            root.GetProperty("required_authorizations").EnumerateArray(),
+            item => item.GetString() == "protected_edit_authorization"
+        );
+
+        var blocked = await Assert.ThrowsAsync<NativeToolException>(() =>
+            Apply(
+                service,
+                files,
+                root,
+                outputPath,
+                protectedEditAuthorization: "wtmergeapply_wrong"
+            )
+        );
+        Assert.Equal("MERGE_POLICY_BLOCKED", blocked.ErrorCode);
+        Assert.False(File.Exists(outputPath));
+
+        using var applied = await Apply(
+            service,
+            files,
+            root,
+            outputPath,
+            protectedEditAuthorization: authorizationId
+        );
+        Assert.True(applied.RootElement.GetProperty("created").GetBoolean());
+        Assert.Contains(
+            applied.RootElement.GetProperty("explicit_authorizations").EnumerateArray(),
+            item => item.GetString() == "protected_edit_authorization"
+        );
+        Assert.True(File.Exists(outputPath));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task MalformedProtectionMetadataHardBlocksMergeWithoutTouchingInputs(
+        int protectionVariant
+    )
+    {
+        const string invalidPermission =
+            "<w:permStart ws:id='7' ws:edGrp='everyone' ws:colFirst='0' ws:colLast='2'/>"
+            + "<w:permEnd ws:id='7'/>";
+        using var files = CreateFiles(
+            "ancestor",
+            "beta",
+            "left",
+            "beta",
+            "ancestor",
+            "right",
+            permissionMarkup: protectionVariant == 0 ? invalidPermission : null,
+            settingsXml: protectionVariant switch
+            {
+                0 => null,
+                1 => AlternateContentSettingsXml(),
+                2 => MixedConformanceProtectionSettingsXml(),
+                _ => throw new ArgumentOutOfRangeException(nameof(protectionVariant)),
+            }
+        );
+        var ancestorBytes = File.ReadAllBytes(files.AncestorPath);
+        var leftBytes = File.ReadAllBytes(files.LeftPath);
+        var rightBytes = File.ReadAllBytes(files.RightPath);
+        var service = Service();
+        var outputPath = files.OutputPath("malformed-permissions");
+        using var plan = await Plan(service, files, outputPath);
+        var root = plan.RootElement;
+
+        Assert.Contains(
+            root.GetProperty("hard_block_codes").EnumerateArray(),
+            item => item.GetString() == "protection_metadata_malformed"
+        );
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("protection_authorization_id").ValueKind);
+
+        var blocked = await Assert.ThrowsAsync<NativeToolException>(() =>
+            Apply(
+                service,
+                files,
+                root,
+                outputPath,
+                protectedEditAuthorization: root.GetProperty("merge_apply_plan_id").GetString()
+            )
+        );
+        Assert.Equal("MERGE_POLICY_BLOCKED", blocked.ErrorCode);
+        Assert.False(File.Exists(outputPath));
+        Assert.Equal(ancestorBytes, File.ReadAllBytes(files.AncestorPath));
+        Assert.Equal(leftBytes, File.ReadAllBytes(files.LeftPath));
+        Assert.Equal(rightBytes, File.ReadAllBytes(files.RightPath));
+    }
+
+    [Fact]
     public async Task ResultTypeMismatchIsAVisibleNonOverridableHardBlock()
     {
         using var files = CreateFiles("alpha", "beta", "left", "beta", "alpha", "right");
@@ -277,7 +437,8 @@ public sealed class PackageMergeServiceTests
         string outputPath,
         object? resolutions = null,
         bool allowActiveContentChanges = false,
-        bool allowNewStructuralErrors = false
+        bool allowNewStructuralErrors = false,
+        string? protectedEditAuthorization = null
     )
     {
         var arguments = new Dictionary<string, object?>
@@ -294,6 +455,10 @@ public sealed class PackageMergeServiceTests
             ["allow_active_content_changes"] = allowActiveContentChanges,
             ["allow_new_structural_errors"] = allowNewStructuralErrors,
         };
+        if (protectedEditAuthorization is not null)
+        {
+            arguments["protected_edit_authorization"] = protectedEditAuthorization;
+        }
         using var json = JsonDocument.Parse(JsonSerializer.Serialize(arguments));
         var result = await service.CallAsync(
             "apply_ooxml_merge",
@@ -318,7 +483,10 @@ public sealed class PackageMergeServiceTests
         string rightSecond,
         byte[]? ancestorMacro = null,
         byte[]? leftMacro = null,
-        byte[]? rightMacro = null
+        byte[]? rightMacro = null,
+        string? protectionMode = null,
+        string? permissionMarkup = null,
+        string? settingsXml = null
     )
     {
         var stem = Path.Combine(
@@ -331,9 +499,33 @@ public sealed class PackageMergeServiceTests
         var ancestorPath = stem + "-ancestor" + extension;
         var leftPath = stem + "-left" + extension;
         var rightPath = stem + "-right" + extension;
-        WriteDocument(ancestorPath, ancestorFirst, ancestorSecond, ancestorMacro);
-        WriteDocument(leftPath, leftFirst, leftSecond, leftMacro);
-        WriteDocument(rightPath, rightFirst, rightSecond, rightMacro);
+        WriteDocument(
+            ancestorPath,
+            ancestorFirst,
+            ancestorSecond,
+            ancestorMacro,
+            protectionMode: protectionMode,
+            permissionMarkup: permissionMarkup,
+            settingsXml: settingsXml
+        );
+        WriteDocument(
+            leftPath,
+            leftFirst,
+            leftSecond,
+            leftMacro,
+            protectionMode: protectionMode,
+            permissionMarkup: permissionMarkup,
+            settingsXml: settingsXml
+        );
+        WriteDocument(
+            rightPath,
+            rightFirst,
+            rightSecond,
+            rightMacro,
+            protectionMode: protectionMode,
+            permissionMarkup: permissionMarkup,
+            settingsXml: settingsXml
+        );
         return new MergeFiles(stem, ancestorPath, leftPath, rightPath);
     }
 
@@ -342,33 +534,61 @@ public sealed class PackageMergeServiceTests
         string first,
         string second,
         byte[]? macro,
-        bool overwrite = false
+        bool overwrite = false,
+        string? protectionMode = null,
+        string? permissionMarkup = null,
+        string? settingsXml = null
     )
     {
+        var hasSettings = protectionMode is not null || settingsXml is not null;
         using var stream = new FileStream(
             path,
             overwrite ? FileMode.Create : FileMode.CreateNew,
             FileAccess.ReadWrite
         );
         using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
-        Write(archive, "[Content_Types].xml", ContentTypes(macro is not null));
+        Write(
+            archive,
+            "[Content_Types].xml",
+            ContentTypes(macro is not null, hasSettings)
+        );
         Write(archive, "_rels/.rels", RootRelationships());
-        Write(archive, "word/document.xml", DocumentXml(first, second));
+        Write(archive, "word/document.xml", DocumentXml(first, second, permissionMarkup));
+        if (macro is not null || hasSettings)
+        {
+            Write(
+                archive,
+                "word/_rels/document.xml.rels",
+                DocumentRelationships(macro is not null, hasSettings)
+            );
+        }
         if (macro is not null)
         {
-            Write(archive, "word/_rels/document.xml.rels", DocumentRelationships());
             Write(archive, "word/vbaProject.bin", macro);
+        }
+        if (hasSettings)
+        {
+            Write(
+                archive,
+                "word/settings.xml",
+                settingsXml ?? SettingsXml(protectionMode!)
+            );
         }
     }
 
-    private static string DocumentXml(string first, string second) =>
+    private static string DocumentXml(
+        string first,
+        string second,
+        string? permissionMarkup = null
+    ) =>
         "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:ws='http://purl.oclc.org/ooxml/wordprocessingml/main' "
         + "xmlns:w14='http://schemas.microsoft.com/office/word/2010/wordml'>"
-        + $"<w:body><w:p w14:paraId='11111111'><w:r><w:t>{first}</w:t></w:r></w:p>"
+        + $"<w:body><w:p w14:paraId='11111111'>{permissionMarkup}<w:r><w:t>{first}</w:t></w:r></w:p>"
         + $"<w:p w14:paraId='22222222'><w:r><w:t>{second}</w:t></w:r></w:p>"
         + "<w:sectPr/></w:body></w:document>";
 
-    private static string ContentTypes(bool macro) =>
+    private static string ContentTypes(bool macro, bool settings = false) =>
         "<Types xmlns='http://schemas.openxmlformats.org/package/2006/content-types'>"
         + "<Default Extension='rels' ContentType='application/vnd.openxmlformats-package.relationships+xml'/>"
         + "<Default Extension='xml' ContentType='application/xml'/>"
@@ -377,6 +597,9 @@ public sealed class PackageMergeServiceTests
                 + "<Override PartName='/word/document.xml' ContentType='application/vnd.ms-word.document.macroEnabled.main+xml'/>"
                 + "<Override PartName='/word/vbaProject.bin' ContentType='application/vnd.ms-office.vbaProject'/>"
             : "<Override PartName='/word/document.xml' ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'/>")
+        + (settings
+            ? "<Override PartName='/word/settings.xml' ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml'/>"
+            : string.Empty)
         + "</Types>";
 
     private static string RootRelationships() =>
@@ -384,10 +607,36 @@ public sealed class PackageMergeServiceTests
         + "<Relationship Id='rId1' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument' Target='word/document.xml'/>"
         + "</Relationships>";
 
-    private static string DocumentRelationships() =>
+    private static string DocumentRelationships(bool macro = true, bool settings = false) =>
         "<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'>"
-        + "<Relationship Id='rIdVba' Type='http://schemas.microsoft.com/office/2006/relationships/vbaProject' Target='vbaProject.bin'/>"
+        + (macro
+            ? "<Relationship Id='rIdVba' Type='http://schemas.microsoft.com/office/2006/relationships/vbaProject' Target='vbaProject.bin'/>"
+            : string.Empty)
+        + (settings
+            ? "<Relationship Id='rIdSettings' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings' Target='settings.xml'/>"
+            : string.Empty)
         + "</Relationships>";
+
+    private static string SettingsXml(string protectionMode) =>
+        "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+        + $"<w:documentProtection w:edit='{protectionMode}' w:enforcement='1'/>"
+        + "</w:settings>";
+
+    private static string AlternateContentSettingsXml() =>
+        "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:w14='http://schemas.microsoft.com/office/word/2010/wordml' "
+        + "xmlns:mc='http://schemas.openxmlformats.org/markup-compatibility/2006' mc:Ignorable='w14'>"
+        + "<mc:AlternateContent><mc:Choice Requires='w14'>"
+        + "<w:documentProtection w:edit='readOnly' w:enforcement='1'/>"
+        + "</mc:Choice><mc:Fallback>"
+        + "<w:documentProtection w:edit='readOnly' w:enforcement='1'/>"
+        + "</mc:Fallback></mc:AlternateContent></w:settings>";
+
+    private static string MixedConformanceProtectionSettingsXml() =>
+        "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:ws='http://purl.oclc.org/ooxml/wordprocessingml/main'>"
+        + "<ws:documentProtection ws:edit='readOnly' ws:enforcement='1'/>"
+        + "</w:settings>";
 
     private static void Write(ZipArchive archive, string name, string value) =>
         Write(archive, name, Encoding.UTF8.GetBytes(value));

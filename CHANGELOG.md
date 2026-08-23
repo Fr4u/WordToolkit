@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Made generic saved-package patch, three-way merge and patch rollback fail closed
+  around Word editing restrictions. Their reviewed risk plans now project enforced
+  `w:documentProtection`, exact protection-metadata changes and complete or malformed
+  `w:permStart`/`w:permEnd` ranges. A non-no-op protected mutation requires the exact
+  plan-bound `protected_edit_authorization`; a token from another plan is rejected,
+  while unmodeled or ambiguous document-protection placement and malformed permission metadata remain non-overridable. Plans disclose only
+  modes, counts and issue codes, never protection hashes or salts. This is an editing-
+  policy gate, not password validation, user identity or encryption. Added Engine and
+  MCP regressions for all four protection modes, disabled enforcement, complete and
+  malformed permission ranges, no-op behavior, unchanged destinations after denial,
+  and exact patch/merge/rollback authorization binding.
+
 - Hardened file-backed `.wtpatch` reads against concurrent replacement and
   in-place rewriting. Native patch inspection/apply and the shared rollback
   engine now decode one bounded, encrypted stable snapshot captured with

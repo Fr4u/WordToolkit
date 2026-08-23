@@ -169,6 +169,44 @@ public sealed class WordReviewGraphBuilder
         );
     }
 
+    internal WordPermissionEvidence BuildPermissions(
+        OpcPackageSnapshot package,
+        WordSemanticDocument semanticDocument,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        ArgumentNullException.ThrowIfNull(semanticDocument);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (
+            !string.Equals(
+                package.Fingerprint,
+                semanticDocument.PackageFingerprint,
+                StringComparison.Ordinal
+            )
+        )
+        {
+            throw new WordReviewProjectionException(
+                "Permission evidence requires a semantic projection of the same package snapshot."
+            );
+        }
+
+        var state = new BuildState(_options, semanticDocument);
+        foreach (var partUri in semanticDocument.ProjectedPartUris)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var source = state.SourceFor(package, partUri, this, cancellationToken);
+            ParsePermissionMarkup(partUri, source, state, cancellationToken);
+        }
+        FinalizePermissions(state);
+        return new WordPermissionEvidence(
+            state.Permissions,
+            state.Issues,
+            state.IssuesTruncated,
+            state.MalformedPermissionRangeCount()
+        );
+    }
+
     private static OpcPart? RelatedPart(
         OpcPackageSnapshot package,
         string mainPartUri,
@@ -703,7 +741,14 @@ public sealed class WordReviewGraphBuilder
                 }
                 if (localName is "permStart" or "permEnd")
                 {
-                    AddPermissionMarker(partUri, source, element, localName, state);
+                    AddPermissionMarker(
+                        partUri,
+                        source,
+                        element,
+                        localName,
+                        root.Name.Namespace,
+                        state
+                    );
                     continue;
                 }
             }
@@ -804,6 +849,37 @@ public sealed class WordReviewGraphBuilder
         }
     }
 
+    private void ParsePermissionMarkup(
+        string partUri,
+        LosslessXmlDocument source,
+        BuildState state,
+        CancellationToken cancellationToken
+    )
+    {
+        var root = source.ParsedDocument.Root
+            ?? throw new WordReviewProjectionException(
+                $"Projected story part '{partUri}' has no root element."
+            );
+        foreach (var element in root.DescendantsAndSelf().OrderBy(source.GetElementOrdinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (
+                IsWordElement(element)
+                && element.Name.LocalName is "permStart" or "permEnd"
+            )
+            {
+                AddPermissionMarker(
+                    partUri,
+                    source,
+                    element,
+                    element.Name.LocalName,
+                    root.Name.Namespace,
+                    state
+                );
+            }
+        }
+    }
+
     private void AddCommentMarker(
         string partUri,
         LosslessXmlDocument source,
@@ -891,6 +967,7 @@ public sealed class WordReviewGraphBuilder
         LosslessXmlDocument source,
         XElement element,
         string localName,
+        XNamespace storyNamespace,
         BuildState state
     )
     {
@@ -902,13 +979,84 @@ public sealed class WordReviewGraphBuilder
         }
         var ordinal = source.GetElementOrdinal(element);
         var location = LocationFor(partUri, source, element, state);
-        var ooxmlId = WordAttribute(element, "id");
+        ValidatePermissionMarkerNamespace(
+            partUri,
+            element,
+            storyNamespace,
+            location,
+            ordinal,
+            state
+        );
+        ValidatePermissionMarkerParent(
+            partUri,
+            element,
+            storyNamespace,
+            location,
+            ordinal,
+            state
+        );
+        ValidatePermissionMarkerContent(
+            partUri,
+            element,
+            location,
+            ordinal,
+            state
+        );
+        ValidatePermissionAttributeNamespaces(
+            partUri,
+            element,
+            location,
+            ordinal,
+            state
+        );
+        ValidatePermissionAttributePlacement(
+            partUri,
+            element,
+            localName,
+            location,
+            ordinal,
+            state
+        );
+        ValidateUnknownPermissionAttributes(
+            partUri,
+            element,
+            location,
+            ordinal,
+            state
+        );
+        var ooxmlId = PermissionAttribute(element, "id");
         if (string.IsNullOrWhiteSpace(ooxmlId))
         {
             state.AddIssue(
                 "PERMISSION_RANGE_ID_MISSING",
                 WordReviewIssueSeverity.Error,
                 "Permission range marker has no w:id.",
+                partUri,
+                location.StoryId,
+                ordinal
+            );
+        }
+        else if (ParseInteger(ooxmlId) is null)
+        {
+            state.AddIssue(
+                "PERMISSION_RANGE_ID_INVALID",
+                WordReviewIssueSeverity.Error,
+                "Permission range marker w:id is not a valid Int32 value.",
+                partUri,
+                location.StoryId,
+                ordinal
+            );
+        }
+        var displacedByCustomXml = PermissionAttribute(element, "displacedByCustomXml");
+        if (
+            displacedByCustomXml is not null
+            && displacedByCustomXml is not ("next" or "prev")
+        )
+        {
+            state.AddIssue(
+                "PERMISSION_DISPLACEMENT_INVALID",
+                WordReviewIssueSeverity.Error,
+                "Permission range displacement metadata is invalid.",
                 partUri,
                 location.StoryId,
                 ordinal
@@ -1208,6 +1356,18 @@ public sealed class WordReviewGraphBuilder
             var start = starts.FirstOrDefault();
             var end = ends.FirstOrDefault();
             var status = RangeStatus(starts, ends);
+            var editor = start is null ? null : PermissionAttribute(start.Element, "ed");
+            var editorGroup = start is null
+                ? null
+                : PermissionAttribute(start.Element, "edGrp");
+            var rawColumnFirst = start is null
+                ? null
+                : PermissionAttribute(start.Element, "colFirst");
+            var rawColumnLast = start is null
+                ? null
+                : PermissionAttribute(start.Element, "colLast");
+            var columnFirst = ParseInteger(rawColumnFirst);
+            var columnLast = ParseInteger(rawColumnLast);
             var id = StableId(
                 "wdpr_",
                 first.Location.StoryId,
@@ -1221,10 +1381,10 @@ public sealed class WordReviewGraphBuilder
                 first.Location.StoryNode?.Id,
                 first.PartUri,
                 first.OoxmlId,
-                start is null ? null : WordAttribute(start.Element, "ed"),
-                start is null ? null : WordAttribute(start.Element, "edGrp"),
-                start is null ? null : ParseInteger(WordAttribute(start.Element, "colFirst")),
-                start is null ? null : ParseInteger(WordAttribute(start.Element, "colLast")),
+                editor,
+                editorGroup,
+                columnFirst,
+                columnLast,
                 starts.Length,
                 ends.Length,
                 start?.Ordinal,
@@ -1245,14 +1405,47 @@ public sealed class WordReviewGraphBuilder
             }
             if (start is not null)
             {
-                var columnFirst = WordAttribute(start.Element, "colFirst");
-                var columnLast = WordAttribute(start.Element, "colLast");
-                if ((columnFirst is null) != (columnLast is null))
+                if ((rawColumnFirst is null) != (rawColumnLast is null))
                 {
                     state.AddIssue(
                         "PERMISSION_COLUMN_RANGE_INCOMPLETE",
                         WordReviewIssueSeverity.Error,
                         "Table-column permission must define both colFirst and colLast.",
+                        first.PartUri,
+                        first.Location.StoryId,
+                        start.Ordinal,
+                        id
+                    );
+                }
+                if (
+                    rawColumnFirst is not null && columnFirst is null
+                    || rawColumnLast is not null && columnLast is null
+                    || columnFirst is < 0
+                    || columnLast is < 0
+                    || columnFirst is { } firstColumn
+                        && columnLast is { } lastColumn
+                        && firstColumn > lastColumn
+                )
+                {
+                    state.AddIssue(
+                        "PERMISSION_COLUMN_RANGE_INVALID",
+                        WordReviewIssueSeverity.Error,
+                        "Table-column permission contains invalid column bounds; values must be non-negative Int32 numbers with colFirst less than or equal to colLast.",
+                        first.PartUri,
+                        first.Location.StoryId,
+                        start.Ordinal,
+                        id
+                    );
+                }
+                if (
+                    editorGroup is not null
+                    && !IsPermissionEditingGroup(editorGroup)
+                )
+                {
+                    state.AddIssue(
+                        "PERMISSION_EDITOR_GROUP_INVALID",
+                        WordReviewIssueSeverity.Error,
+                        "Permission editor-group metadata is invalid.",
                         first.PartUri,
                         first.Location.StoryId,
                         start.Ordinal,
@@ -1761,6 +1954,277 @@ public sealed class WordReviewGraphBuilder
             ? parsed
             : null;
 
+    private static bool IsPermissionEditingGroup(string value) => value is
+        "none"
+        or "everyone"
+        or "administrators"
+        or "contributors"
+        or "editors"
+        or "owners"
+        or "current";
+
+    private static readonly IReadOnlySet<string> PermissionAttributeNames =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "id",
+            "ed",
+            "edGrp",
+            "colFirst",
+            "colLast",
+            "displacedByCustomXml",
+        };
+
+    private static readonly IReadOnlySet<string> PermissionStartOnlyAttributeNames =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "ed",
+            "edGrp",
+            "colFirst",
+            "colLast",
+        };
+
+    private static readonly IReadOnlySet<string> WordPermissionMarkerParentNames =
+        // Concrete parent element names advertised for permStart/permEnd by the
+        // Open XML SDK 3.5.1 metadata. Strict variants use the same local names.
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "bdo",
+            "body",
+            "comment",
+            "customXml",
+            "del",
+            "dir",
+            "docPartBody",
+            "endnote",
+            "fldSimple",
+            "footnote",
+            "ftr",
+            "hdr",
+            "hyperlink",
+            "ins",
+            "moveFrom",
+            "moveTo",
+            "p",
+            "rt",
+            "rubyBase",
+            "sdtContent",
+            "tbl",
+            "tc",
+            "tr",
+            "txbxContent",
+        };
+
+    private static readonly IReadOnlySet<string> MathPermissionMarkerParentNames =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "deg",
+            "den",
+            "e",
+            "fName",
+            "lim",
+            "num",
+            "oMath",
+            "oMathPara",
+            "sub",
+            "sup",
+        };
+
+    private static string? PermissionAttribute(XElement element, string localName) =>
+        element.Attribute(element.Name.Namespace + localName)?.Value;
+
+    private static void ValidatePermissionMarkerNamespace(
+        string partUri,
+        XElement element,
+        XNamespace storyNamespace,
+        StoryLocation location,
+        int ordinal,
+        BuildState state
+    )
+    {
+        if (element.Name.Namespace == storyNamespace)
+        {
+            return;
+        }
+        state.AddIssue(
+            "PERMISSION_MARKER_NAMESPACE_INVALID",
+            WordReviewIssueSeverity.Error,
+            "Permission-range markers must use the same WordprocessingML namespace as their containing story part.",
+            partUri,
+            location.StoryId,
+            ordinal
+        );
+    }
+
+    private static void ValidatePermissionAttributeNamespaces(
+        string partUri,
+        XElement element,
+        StoryLocation location,
+        int ordinal,
+        BuildState state
+    )
+    {
+        if (
+            !element.Attributes().Any(attribute =>
+                !attribute.IsNamespaceDeclaration
+                && attribute.Name.Namespace != element.Name.Namespace
+            )
+        )
+        {
+            return;
+        }
+        state.AddIssue(
+            "PERMISSION_ATTRIBUTE_NAMESPACE_INVALID",
+            WordReviewIssueSeverity.Error,
+            "Permission-range attributes must use the same WordprocessingML namespace as their marker element.",
+            partUri,
+            location.StoryId,
+            ordinal
+        );
+    }
+
+    private static void ValidatePermissionMarkerParent(
+        string partUri,
+        XElement element,
+        XNamespace storyNamespace,
+        StoryLocation location,
+        int ordinal,
+        BuildState state
+    )
+    {
+        var parent = element.Parent;
+        var storyNamespaceName = storyNamespace.NamespaceName;
+        var expectedMathNamespace = storyNamespaceName switch
+        {
+            WordTransitionalNamespace => MathTransitionalNamespace,
+            WordStrictNamespace => MathStrictNamespace,
+            _ => null,
+        };
+        var valid = parent is not null
+            && (
+                (
+                    parent.Name.NamespaceName == storyNamespaceName
+                    && WordPermissionMarkerParentNames.Contains(parent.Name.LocalName)
+                )
+                || (
+                    storyNamespaceName == WordTransitionalNamespace
+                    && parent.Name.NamespaceName == WordTransitionalNamespace
+                    && parent.Name.LocalName == "smartTag"
+                )
+                || (
+                    parent.Name.NamespaceName == expectedMathNamespace
+                    && MathPermissionMarkerParentNames.Contains(parent.Name.LocalName)
+                )
+                || (
+                    parent.Name.NamespaceName == Word2010Namespace
+                    && (parent.Name.LocalName is "conflictDel" or "conflictIns")
+                )
+            );
+        if (valid)
+        {
+            return;
+        }
+        state.AddIssue(
+            "PERMISSION_MARKER_PARENT_INVALID",
+            WordReviewIssueSeverity.Error,
+            "Permission-range marker parent does not permit permission range markup in the story's conformance namespace.",
+            partUri,
+            location.StoryId,
+            ordinal
+        );
+    }
+
+    private static void ValidatePermissionMarkerContent(
+        string partUri,
+        XElement element,
+        StoryLocation location,
+        int ordinal,
+        BuildState state
+    )
+    {
+        if (
+            !element.Nodes().Any(node => node switch
+            {
+                XComment => false,
+                XProcessingInstruction => false,
+                XCData => true,
+                XText text => !string.IsNullOrWhiteSpace(text.Value),
+                _ => true,
+            })
+        )
+        {
+            return;
+        }
+        state.AddIssue(
+            "PERMISSION_MARKER_CONTENT_INVALID",
+            WordReviewIssueSeverity.Error,
+            "Permission-range markers must have an empty content model.",
+            partUri,
+            location.StoryId,
+            ordinal
+        );
+    }
+
+    private static void ValidatePermissionAttributePlacement(
+        string partUri,
+        XElement element,
+        string localName,
+        StoryLocation location,
+        int ordinal,
+        BuildState state
+    )
+    {
+        if (
+            localName != "permEnd"
+            || !element.Attributes().Any(attribute =>
+                !attribute.IsNamespaceDeclaration
+                && attribute.Name.Namespace == element.Name.Namespace
+                && PermissionStartOnlyAttributeNames.Contains(attribute.Name.LocalName)
+            )
+        )
+        {
+            return;
+        }
+        state.AddIssue(
+            "PERMISSION_ATTRIBUTE_PLACEMENT_INVALID",
+            WordReviewIssueSeverity.Error,
+            "Permission end markers cannot carry editor or table-column attributes reserved for permission start markers.",
+            partUri,
+            location.StoryId,
+            ordinal
+        );
+    }
+
+    private static void ValidateUnknownPermissionAttributes(
+        string partUri,
+        XElement element,
+        StoryLocation location,
+        int ordinal,
+        BuildState state
+    )
+    {
+        if (
+            !element.Attributes().Any(attribute =>
+                !attribute.IsNamespaceDeclaration
+                && (
+                    attribute.Name.Namespace == element.Name.Namespace
+                    || attribute.Name.Namespace == XNamespace.None
+                )
+                && !PermissionAttributeNames.Contains(attribute.Name.LocalName)
+            )
+        )
+        {
+            return;
+        }
+        state.AddIssue(
+            "PERMISSION_ATTRIBUTE_UNKNOWN",
+            WordReviewIssueSeverity.Error,
+            "Permission-range markers contain an unrecognized WordprocessingML attribute.",
+            partUri,
+            location.StoryId,
+            ordinal
+        );
+    }
+
     private static string? WordAttribute(XElement element, string localName) =>
         element.Attribute(element.Name.Namespace + localName)?.Value
         ?? element.Attributes().FirstOrDefault(attribute =>
@@ -2117,6 +2581,12 @@ public sealed class WordReviewGraphBuilder
         internal WordReviewSettingsDefinition? Settings { get; set; }
         internal List<WordReviewIssue> Issues { get; } = new();
         internal bool IssuesTruncated { get; private set; }
+        internal bool PermissionIssueSeen { get; private set; }
+        internal HashSet<string> PermissionIssueSubjectIds { get; } =
+            new(StringComparer.Ordinal);
+        internal HashSet<(string PartUri, string StoryId, int SourceElementOrdinal)>
+            PermissionIssueLocations
+        { get; } = new();
         internal long TotalTextCharacters { get; set; }
 
         internal LosslessXmlDocument SourceFor(
@@ -2151,6 +2621,22 @@ public sealed class WordReviewGraphBuilder
             string? subjectId = null
         )
         {
+            if (code.StartsWith("PERMISSION_", StringComparison.Ordinal))
+            {
+                PermissionIssueSeen = true;
+                if (subjectId is not null)
+                {
+                    PermissionIssueSubjectIds.Add(subjectId);
+                }
+                if (
+                    partUri is not null
+                    && storyId is not null
+                    && sourceElementOrdinal is int ordinal
+                )
+                {
+                    PermissionIssueLocations.Add((partUri, storyId, ordinal));
+                }
+            }
             if (Issues.Count >= Options.MaxIssues)
             {
                 IssuesTruncated = true;
@@ -2167,6 +2653,27 @@ public sealed class WordReviewGraphBuilder
                     subjectId
                 )
             );
+        }
+
+        internal int MalformedPermissionRangeCount()
+        {
+            var count = Permissions.Count(permission =>
+                permission.Status != WordReviewRangeStatus.Complete
+                || PermissionIssueSubjectIds.Contains(permission.Id)
+                || permission.StartElementOrdinal is int startOrdinal
+                    && PermissionIssueLocations.Contains((
+                        permission.PartUri,
+                        permission.StoryId,
+                        startOrdinal
+                    ))
+                || permission.EndElementOrdinal is int endOrdinal
+                    && PermissionIssueLocations.Contains((
+                        permission.PartUri,
+                        permission.StoryId,
+                        endOrdinal
+                    ))
+            );
+            return PermissionIssueSeen ? Math.Max(count, 1) : count;
         }
     }
 
@@ -2186,3 +2693,10 @@ public sealed class WordReviewGraphBuilder
             );
     }
 }
+
+internal sealed record WordPermissionEvidence(
+    IReadOnlyList<WordPermissionRangeDefinition> Permissions,
+    IReadOnlyList<WordReviewIssue> Issues,
+    bool IssuesTruncated,
+    int MalformedPermissionRangeCount
+);

@@ -1,5 +1,9 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Text;
+using System.Xml.Linq;
 using WordToolkit.Engine.Packaging;
+using WordToolkit.Engine.Xml;
 
 namespace WordToolkit.Engine.Semantics;
 
@@ -17,6 +21,31 @@ public sealed record WordPackagePatchRiskItem(
     int AffectedOperationCount = 0
 );
 
+public sealed record WordPackageProtectionRiskAssessment(
+    bool BaseDocumentProtectionEnforced,
+    string? BaseDocumentProtectionEditMode,
+    bool ResultDocumentProtectionEnforced,
+    string? ResultDocumentProtectionEditMode,
+    bool DocumentProtectionMetadataChanged,
+    bool UnmodeledDocumentProtectionMetadata,
+    int BasePermissionRangeCount,
+    int ResultPermissionRangeCount,
+    int MalformedPermissionRangeCount,
+    bool PermissionIssuesTruncated,
+    IReadOnlyList<string> PermissionIssueCodes,
+    bool AuthorizationRequired
+)
+{
+    public bool PermissionRangesPresent =>
+        BasePermissionRangeCount != 0 || ResultPermissionRangeCount != 0;
+
+    public bool HasMalformedPermissionMetadata =>
+        MalformedPermissionRangeCount != 0 || PermissionIssuesTruncated;
+
+    public bool HasMalformedProtectionMetadata =>
+        UnmodeledDocumentProtectionMetadata || HasMalformedPermissionMetadata;
+}
+
 public sealed record WordPackagePatchRiskAssessment(
     bool DigitalSignaturesPresent,
     bool DigitalSignatureMaterialChanged,
@@ -31,6 +60,7 @@ public sealed record WordPackagePatchRiskAssessment(
     int BaselineStructuralErrorCount,
     int CandidateStructuralErrorCount,
     int NewStructuralErrorCount,
+    WordPackageProtectionRiskAssessment Protection,
     IReadOnlyList<WordPackagePatchRiskItem> Items
 )
 {
@@ -55,6 +85,8 @@ public sealed record WordPackagePatchApplyPolicy
     public bool AllowOpaqueBinaryChanges { get; init; }
 
     public bool AllowNewStructuralErrors { get; init; }
+
+    public bool AllowProtectedDocumentEdit { get; init; }
 }
 
 public sealed record WordPackagePatchPolicyDecision(
@@ -123,6 +155,17 @@ public sealed class WordPackagePatchPlan
         {
             blocks.Add("new_structural_errors");
         }
+        if (!Patch.IsNoOp && RiskAssessment.Protection.HasMalformedProtectionMetadata)
+        {
+            blocks.Add("protection_metadata_malformed");
+        }
+        else if (
+            RiskAssessment.Protection.AuthorizationRequired
+            && !policy.AllowProtectedDocumentEdit
+        )
+        {
+            blocks.Add("protected_document_edit_not_authorized");
+        }
         return new WordPackagePatchPolicyDecision(
             blocks.Count == 0,
             new ReadOnlyCollection<string>(blocks)
@@ -188,8 +231,11 @@ public sealed class WordPackagePatchPlanner
         }
         var risk = WordPackagePatchRiskAnalyzer.Assess(
             beforePackage,
+            beforeDocument,
             afterPackage,
-            patch
+            afterDocument,
+            patch,
+            cancellationToken
         );
         return new WordPackagePatchPlan(patch, diff, risk);
     }
@@ -252,13 +298,19 @@ public static class WordPackagePatchRiskAnalyzer
 {
     public static WordPackagePatchRiskAssessment Assess(
         OpcPackageSnapshot before,
+        WordSemanticDocument beforeDocument,
         OpcPackageSnapshot after,
-        OpcPackagePatch patch
+        WordSemanticDocument afterDocument,
+        OpcPackagePatch patch,
+        CancellationToken cancellationToken = default
     )
     {
         ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(beforeDocument);
         ArgumentNullException.ThrowIfNull(after);
+        ArgumentNullException.ThrowIfNull(afterDocument);
         ArgumentNullException.ThrowIfNull(patch);
+        cancellationToken.ThrowIfCancellationRequested();
         if (
             !string.Equals(
                 before.Fingerprint,
@@ -302,6 +354,58 @@ public static class WordPackagePatchRiskAnalyzer
         var externalRemoved = beforeExternal.Except(afterExternal, StringComparer.Ordinal).Count();
         var baselineErrors = StructuralErrors(before);
         var candidateErrors = StructuralErrors(after);
+        var beforeProtection = ProtectionEvidenceFor(
+            before,
+            beforeDocument,
+            cancellationToken
+        );
+        var afterProtection = ProtectionEvidenceFor(
+            after,
+            afterDocument,
+            cancellationToken
+        );
+        var permissionIssueCodes = beforeProtection.PermissionIssueCodes
+            .Concat(afterProtection.PermissionIssueCodes)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var malformedPermissionRangeCount = checked(
+            beforeProtection.MalformedPermissionRangeCount
+            + afterProtection.MalformedPermissionRangeCount
+        );
+        var permissionIssuesTruncated = beforeProtection.PermissionIssuesTruncated
+            || afterProtection.PermissionIssuesTruncated;
+        var unmodeledDocumentProtectionMetadata =
+            beforeProtection.UnmodeledDocumentProtectionMetadata
+            || afterProtection.UnmodeledDocumentProtectionMetadata;
+        var protectionMetadataChanged = !string.Equals(
+            beforeProtection.DocumentProtectionFingerprint,
+            afterProtection.DocumentProtectionFingerprint,
+            StringComparison.Ordinal
+        );
+        var protectionAuthorizationRequired = !patch.IsNoOp
+            && (
+                beforeProtection.DocumentProtectionEnforced
+                || afterProtection.DocumentProtectionEnforced
+                || beforeProtection.PermissionRangeCount != 0
+                || afterProtection.PermissionRangeCount != 0
+                || protectionMetadataChanged
+                || unmodeledDocumentProtectionMetadata
+            );
+        var protection = new WordPackageProtectionRiskAssessment(
+            beforeProtection.DocumentProtectionEnforced,
+            beforeProtection.DocumentProtectionEditMode,
+            afterProtection.DocumentProtectionEnforced,
+            afterProtection.DocumentProtectionEditMode,
+            protectionMetadataChanged,
+            unmodeledDocumentProtectionMetadata,
+            beforeProtection.PermissionRangeCount,
+            afterProtection.PermissionRangeCount,
+            malformedPermissionRangeCount,
+            permissionIssuesTruncated,
+            new ReadOnlyCollection<string>(permissionIssueCodes),
+            protectionAuthorizationRequired
+        );
         var baselineErrorCounts = baselineErrors.GroupBy(
             value => value,
             StringComparer.Ordinal
@@ -407,6 +511,24 @@ public static class WordPackagePatchRiskAnalyzer
                 newErrors.Count
             ));
         }
+        if (protection.HasMalformedProtectionMetadata && !patch.IsNoOp)
+        {
+            items.Add(new WordPackagePatchRiskItem(
+                "protection_metadata_malformed",
+                WordPackagePatchRiskSeverity.Block,
+                "The base or result package contains unmodeled document-protection metadata or incomplete or ambiguous Word permission-range metadata; a generic package mutation cannot determine an authorized edit scope.",
+                patch.OperationCount
+            ));
+        }
+        else if (protection.AuthorizationRequired)
+        {
+            items.Add(new WordPackagePatchRiskItem(
+                "protected_document_edit_requires_authorization",
+                WordPackagePatchRiskSeverity.Block,
+                "The base or result package enforces Word editing protection, contains permission ranges, or changes document-protection metadata. Generic package mutation requires an explicit plan-bound authorization.",
+                patch.OperationCount
+            ));
+        }
         return new WordPackagePatchRiskAssessment(
             signaturePresent,
             signatureChanges != 0,
@@ -421,9 +543,403 @@ public static class WordPackagePatchRiskAnalyzer
             baselineErrors.Count,
             candidateErrors.Count,
             newErrors.Count,
+            protection,
             new ReadOnlyCollection<WordPackagePatchRiskItem>(items)
         );
     }
+
+    private static ProtectionEvidence ProtectionEvidenceFor(
+        OpcPackageSnapshot package,
+        WordSemanticDocument document,
+        CancellationToken cancellationToken
+    )
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var documentProtectionMetadata = DocumentProtectionMetadata(
+            package,
+            document.MainPartUri,
+            cancellationToken
+        );
+        var permissions = new WordReviewGraphBuilder().BuildPermissions(
+            package,
+            document,
+            cancellationToken
+        );
+        var permissionIssueCodes = permissions.Issues
+            .Where(issue => issue.Code.StartsWith("PERMISSION_", StringComparison.Ordinal))
+            .Select(issue => issue.Code)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        return new ProtectionEvidence(
+            documentProtectionMetadata.Enforced,
+            documentProtectionMetadata.EditMode,
+            documentProtectionMetadata.Fingerprint,
+            documentProtectionMetadata.Unmodeled,
+            permissions.Permissions.Count,
+            permissions.MalformedPermissionRangeCount,
+            permissions.IssuesTruncated && permissions.Permissions.Count != 0,
+            permissionIssueCodes
+        );
+    }
+
+    private static DocumentProtectionMetadataEvidence DocumentProtectionMetadata(
+        OpcPackageSnapshot package,
+        string mainPartUri,
+        CancellationToken cancellationToken
+    )
+    {
+        const string transitionalSettingsRelationship =
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings";
+        const string strictSettingsRelationship =
+            "http://purl.oclc.org/ooxml/officeDocument/relationships/settings";
+        const string settingsContentType =
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml";
+        var relationships = package.RelationshipsFrom(mainPartUri)
+            .Where(relationship =>
+                relationship.Type is
+                    transitionalSettingsRelationship
+                    or strictSettingsRelationship
+            )
+            .ToArray();
+        if (relationships.Length == 0)
+        {
+            return new DocumentProtectionMetadataEvidence(false, null);
+        }
+        if (
+            relationships.Length != 1
+            || relationships[0].ResolvedTargetPartUri is not { } partUri
+            || !package.Parts.TryGetValue(partUri, out var part)
+            || !string.Equals(
+                part.ContentType,
+                settingsContentType,
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
+        {
+            return new DocumentProtectionMetadataEvidence(true, null);
+        }
+        LosslessXmlDocument source;
+        try
+        {
+            source = LosslessXmlDocument.Parse(
+                part.Entry.Content,
+                cancellationToken: cancellationToken
+            );
+        }
+        catch (LosslessXmlException)
+        {
+            return new DocumentProtectionMetadataEvidence(true, null);
+        }
+        if (!package.Parts.TryGetValue(mainPartUri, out var mainPart))
+        {
+            return new DocumentProtectionMetadataEvidence(true, source.SourceSha256);
+        }
+        LosslessXmlDocument mainSource;
+        try
+        {
+            mainSource = LosslessXmlDocument.Parse(
+                mainPart.Entry.Content,
+                cancellationToken: cancellationToken
+            );
+        }
+        catch (LosslessXmlException)
+        {
+            return new DocumentProtectionMetadataEvidence(true, source.SourceSha256);
+        }
+        var expectedWordNamespace = relationships[0].Type == transitionalSettingsRelationship
+            ? WordPackageConformance.TransitionalWordNamespace
+            : WordPackageConformance.StrictWordNamespace;
+        if (
+            source.Root.LocalName != "settings"
+            || source.Root.NamespaceUri != expectedWordNamespace
+            || !WordPackageConformance.HasWordDocumentRoot(mainSource)
+            || mainSource.Root.NamespaceUri != expectedWordNamespace
+        )
+        {
+            return new DocumentProtectionMetadataEvidence(true, source.SourceSha256);
+        }
+        var elements = source.Elements.Where(candidate =>
+            candidate.LocalName == "documentProtection"
+        ).ToArray();
+        if (elements.Length == 0)
+        {
+            return new DocumentProtectionMetadataEvidence(false, null, false, null);
+        }
+        var unmodeled = elements.Length != 1
+            || elements[0].ParentOrdinal != source.Root.Ordinal
+            || elements[0].NamespaceUri != source.Root.NamespaceUri
+            || elements[0].NamespaceUri is not
+                "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+                and not "http://purl.oclc.org/ooxml/wordprocessingml/main";
+        var enforced = false;
+        string? editMode = null;
+        if (!unmodeled)
+        {
+            var element = elements[0];
+            var rawEnforcement = element.Attributes.FirstOrDefault(attribute =>
+                attribute.LocalName == "enforcement"
+                && attribute.NamespaceUri == element.NamespaceUri
+            )?.Value;
+            // Word enforces documentProtection when enforcement is omitted,
+            // despite the default described by the base OOXML standard.
+            var parsedEnforcement = rawEnforcement is null
+                ? true
+                : ParseOnOff(rawEnforcement);
+            editMode = element.Attributes.FirstOrDefault(attribute =>
+                attribute.LocalName == "edit"
+                && attribute.NamespaceUri == element.NamespaceUri
+            )?.Value;
+            if (
+                !HasModeledDocumentProtectionContent(source, element)
+                || !HasModeledDocumentProtectionAttributes(element)
+                || parsedEnforcement is null
+                || editMode?.Length > 64
+                || !IsDocumentProtectionEditMode(editMode)
+            )
+            {
+                unmodeled = true;
+                editMode = null;
+            }
+            else
+            {
+                enforced = parsedEnforcement.Value;
+            }
+        }
+        var fingerprint = !unmodeled && elements.Length == 1
+            ? DocumentProtectionFingerprint(source.Root, elements[0])
+            : Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(
+                        elements.Length == 1
+                            ? source.SourceBytes.Span.Slice(
+                                elements[0].FullSpan.ByteOffset,
+                                elements[0].FullSpan.ByteLength
+                            )
+                            : source.SourceBytes.Span
+                    )
+                )
+                .ToLowerInvariant();
+        return new DocumentProtectionMetadataEvidence(
+            unmodeled,
+            fingerprint,
+            enforced,
+            editMode
+        );
+    }
+
+    private static bool HasModeledDocumentProtectionContent(
+        LosslessXmlDocument source,
+        XmlSourceElement element
+    )
+    {
+        if (
+            element.Children.Count != 0
+            || !string.IsNullOrWhiteSpace(element.Value)
+        )
+        {
+            return false;
+        }
+        var parsedElement = source.ParsedDocument.Root?
+            .Elements()
+            .SingleOrDefault(candidate =>
+                candidate.Name.LocalName == element.LocalName
+                && candidate.Name.NamespaceName == element.NamespaceUri
+            );
+        return parsedElement is not null
+            && parsedElement.Nodes().All(node => node switch
+            {
+                XComment => true,
+                XProcessingInstruction => true,
+                XCData => false,
+                XText text => string.IsNullOrWhiteSpace(text.Value),
+                _ => false,
+            });
+    }
+
+    private static bool HasModeledDocumentProtectionAttributes(
+        XmlSourceElement element
+    )
+    {
+        const string xmlNamespaceDeclaration = "http://www.w3.org/2000/xmlns/";
+        foreach (var attribute in element.Attributes)
+        {
+            if (attribute.NamespaceUri == xmlNamespaceDeclaration)
+            {
+                continue;
+            }
+            if (attribute.NamespaceUri != element.NamespaceUri)
+            {
+                // Foreign attributes are safe only after resolving the effective
+                // Markup Compatibility context. This bounded protection scan does
+                // not model that context, so it must fail closed.
+                return false;
+            }
+            if (
+                !DocumentProtectionAttributeNames.Contains(attribute.LocalName)
+                || !IsValidDocumentProtectionAttribute(
+                    attribute.LocalName,
+                    attribute.Value
+                )
+            )
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool IsValidDocumentProtectionAttribute(
+        string localName,
+        string value
+    ) => localName switch
+    {
+        "edit" => value.Length <= 64 && IsDocumentProtectionEditMode(value),
+        "enforcement" or "formatting" => ParseOnOff(value) is not null,
+        "cryptProviderType" => value is "rsaAES" or "rsaFull" or "custom",
+        "cryptAlgorithmClass" => value is "hash" or "custom",
+        "cryptAlgorithmType" => value is "typeAny" or "custom",
+        "cryptAlgorithmSid" => value.Trim() is "1" or "2" or "3" or "4" or "12" or "13" or "14",
+        "cryptSpinCount" => TryParseBoundedUInt32(value, 5_000_000),
+        "spinCount" => TryParseNonNegativeInt32(value),
+        "algIdExt" or "cryptProviderTypeExt" => IsLongHexNumber(value),
+        "hash" or "salt" or "hashValue" or "saltValue" => IsBoundedBase64(value),
+        "algorithmName" => value.Length <= 256,
+        "cryptProvider" or "algIdExtSource" or "cryptProviderTypeExtSource" => value.Length <= 2_048,
+        _ => false,
+    };
+
+    private static bool TryParseBoundedUInt32(string value, uint maximum) =>
+        uint.TryParse(
+            value.Trim(),
+            NumberStyles.None,
+            CultureInfo.InvariantCulture,
+            out var parsed
+        ) && parsed <= maximum;
+
+    private static bool TryParseNonNegativeInt32(string value) =>
+        int.TryParse(
+            value.Trim(),
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out var parsed
+        ) && parsed >= 0;
+
+    private static bool IsLongHexNumber(string value) => value.Length == 8
+        && value.All(character =>
+            character is >= '0' and <= '9'
+                or >= 'a' and <= 'f'
+                or >= 'A' and <= 'F'
+        );
+
+    private static bool IsBoundedBase64(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length > 8_192)
+        {
+            return false;
+        }
+        return Convert.TryFromBase64String(
+            value,
+            new byte[value.Length],
+            out _
+        );
+    }
+
+    private static readonly IReadOnlySet<string> DocumentProtectionAttributeNames =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "algIdExt",
+            "algIdExtSource",
+            "algorithmName",
+            "cryptAlgorithmClass",
+            "cryptAlgorithmSid",
+            "cryptAlgorithmType",
+            "cryptProvider",
+            "cryptProviderType",
+            "cryptProviderTypeExt",
+            "cryptProviderTypeExtSource",
+            "cryptSpinCount",
+            "edit",
+            "enforcement",
+            "formatting",
+            "hash",
+            "hashValue",
+            "salt",
+            "saltValue",
+            "spinCount",
+        };
+
+    private static bool? ParseOnOff(string? value) => value switch
+    {
+        "false" or "0" or "off" => false,
+        "true" or "1" or "on" => true,
+        _ => null,
+    };
+
+    private static bool IsDocumentProtectionEditMode(string? value) => value is
+        null
+        or "none"
+        or "readOnly"
+        or "comments"
+        or "trackedChanges"
+        or "forms";
+
+    private static string DocumentProtectionFingerprint(
+        XmlSourceElement root,
+        XmlSourceElement element
+    )
+    {
+        const string xmlNamespaceDeclaration = "http://www.w3.org/2000/xmlns/";
+        var canonical = new StringBuilder();
+        AppendFingerprintField(canonical, root.NamespaceUri);
+        AppendFingerprintField(canonical, root.LocalName);
+        AppendFingerprintField(canonical, element.NamespaceUri);
+        AppendFingerprintField(canonical, element.LocalName);
+        foreach (
+            var attribute in element.Attributes
+                .Where(attribute =>
+                    attribute.NamespaceUri != xmlNamespaceDeclaration
+                    && attribute.QualifiedName != "xmlns"
+                )
+                .OrderBy(attribute => attribute.NamespaceUri, StringComparer.Ordinal)
+                .ThenBy(attribute => attribute.LocalName, StringComparer.Ordinal)
+        )
+        {
+            AppendFingerprintField(canonical, attribute.NamespaceUri);
+            AppendFingerprintField(canonical, attribute.LocalName);
+            AppendFingerprintField(canonical, attribute.Value);
+        }
+        return Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(
+                    Encoding.UTF8.GetBytes(canonical.ToString())
+                )
+            )
+            .ToLowerInvariant();
+    }
+
+    private static void AppendFingerprintField(StringBuilder builder, string value)
+    {
+        builder.Append(value.Length);
+        builder.Append(':');
+        builder.Append(value);
+    }
+
+    private sealed record ProtectionEvidence(
+        bool DocumentProtectionEnforced,
+        string? DocumentProtectionEditMode,
+        string? DocumentProtectionFingerprint,
+        bool UnmodeledDocumentProtectionMetadata,
+        int PermissionRangeCount,
+        int MalformedPermissionRangeCount,
+        bool PermissionIssuesTruncated,
+        IReadOnlyList<string> PermissionIssueCodes
+    );
+
+    private sealed record DocumentProtectionMetadataEvidence(
+        bool Unmodeled,
+        string? Fingerprint,
+        bool Enforced = false,
+        string? EditMode = null
+    );
 
     public static bool HasDigitalSignatures(OpcPackageSnapshot package) =>
         package.Entries.Any(entry =>

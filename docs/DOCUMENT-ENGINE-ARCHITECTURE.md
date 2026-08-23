@@ -778,7 +778,13 @@ The lazy native path is deliberately split into seven actions:
 
 Signature invalidation, VBA/macro/OLE/embedded/ActiveX material, external relationship
 targets, opaque binaries and newly introduced OPC or Open XML errors are separate policy
-gates with false defaults. There is no blanket `force`. Inherited structural/schema
+gates with false defaults. Enforced document protection, exact protection-element drift
+and complete permission ranges form another independent gate. Plan responses disclose a
+`protection_authorization_id` only when authorization is required and the permission
+metadata is structurally usable; apply accepts that exact plan ID as
+`protected_edit_authorization`. Unmodeled or ambiguous document-protection placement and malformed permission ranges are non-overridable. This is
+an edit-policy decision without password checking or caller-identity proof. There is no
+blanket `force`. Inherited structural/schema
 errors may survive when the candidate adds none; newly introduced errors require their
 specific authorization. The apply-plan ID is bound to the normalized destination path,
 and the candidate's Word main-part content type must match the in-place `.docx`, `.docm`,
@@ -812,7 +818,8 @@ Lazy `plan_ooxml_merge` returns a summary by default and pages conflicts, entry 
 result operations, risks or schema errors on demand. `apply_ooxml_merge` recomputes the
 entire plan from the three fingerprinted inputs and resolutions, requires a normalized-
 output-path-bound `wtmergeapply_` ID, reruns baseline/candidate Open XML validation and
-the independent patch risk gates, enforces the result main-part type against `.docx`,
+the independent patch risk gates, including the exact plan-bound protected-edit
+authorization when required, enforces the result main-part type against `.docx`,
 `.docm`, `.dotx` or `.dotm`, then uses the atomic writer's require-new mode. The output
 is a new file and cannot overwrite anything. Structural/revision-aware semantic merging
 is not yet claimed; those cases remain whole-entry conflicts.

@@ -958,6 +958,14 @@
           "required_authorizations": {
             "type": "array"
           },
+          "protection_authorization_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^wtapply_[A-Za-z0-9_-]+$",
+            "description": "When non-null, pass this exact destination-bound apply-plan ID as protected_edit_authorization."
+          },
           "view": {
             "type": "string"
           },
@@ -1019,11 +1027,43 @@
       "outputSchema": {
         "type": "object",
         "required": [
-          "plan_id"
+          "patch_id",
+          "apply_plan_id",
+          "applied",
+          "no_op",
+          "package_fingerprint",
+          "changed_entry_names"
         ],
         "properties": {
-          "plan_id": {
-            "type": "string"
+          "patch_id": {
+            "type": "string",
+            "pattern": "^wtpatch_[A-Za-z0-9_-]+$"
+          },
+          "apply_plan_id": {
+            "type": "string",
+            "pattern": "^wtapply_[A-Za-z0-9_-]+$"
+          },
+          "applied": {
+            "type": "boolean"
+          },
+          "no_op": {
+            "type": "boolean"
+          },
+          "package_fingerprint": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "backup_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changed_entry_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       }
@@ -1041,11 +1081,85 @@
       "outputSchema": {
         "type": "object",
         "required": [
-          "merge_id"
+          "merge_id",
+          "merge_apply_plan_id",
+          "hard_block_codes",
+          "required_authorizations"
         ],
         "properties": {
           "merge_id": {
             "type": "string"
+          },
+          "merge_apply_plan_id": {
+            "type": "string",
+            "pattern": "^wtmergeapply_[A-Za-z0-9_-]+$"
+          },
+          "risk": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "protection": {
+                "type": "object",
+                "required": [
+                  "base_document_protection_enforced",
+                  "result_document_protection_enforced",
+                  "document_protection_metadata_changed",
+                  "unmodeled_document_protection_metadata",
+                  "base_permission_range_count",
+                  "result_permission_range_count",
+                  "malformed_permission_range_count",
+                  "permission_issues_truncated",
+                  "permission_issue_codes",
+                  "authorization_required"
+                ],
+                "properties": {
+                  "base_document_protection_enforced": {"type": "boolean"},
+                  "base_document_protection_edit_mode": {"type": ["string", "null"], "maxLength": 64},
+                  "result_document_protection_enforced": {"type": "boolean"},
+                  "result_document_protection_edit_mode": {"type": ["string", "null"], "maxLength": 64},
+                  "document_protection_metadata_changed": {"type": "boolean"},
+                  "unmodeled_document_protection_metadata": {"type": "boolean"},
+                  "base_permission_range_count": {"type": "integer", "minimum": 0},
+                  "result_permission_range_count": {"type": "integer", "minimum": 0},
+                  "malformed_permission_range_count": {"type": "integer", "minimum": 0},
+                  "permission_issues_truncated": {"type": "boolean"},
+                  "permission_issue_codes": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "maxLength": 128}},
+                  "authorization_required": {"type": "boolean"}
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "hard_block_codes": {
+            "type": "array",
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": {"type": "string", "maxLength": 128}
+          },
+          "required_authorizations": {
+            "type": "array",
+            "maxItems": 6,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "allow_digital_signature_invalidation",
+                "allow_active_content_changes",
+                "allow_external_relationship_changes",
+                "allow_opaque_binary_changes",
+                "allow_new_structural_errors",
+                "protected_edit_authorization"
+              ]
+            }
+          },
+          "protection_authorization_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^wtmergeapply_[A-Za-z0-9_-]+$",
+            "description": "When non-null, pass this exact merge apply-plan ID as protected_edit_authorization."
           }
         }
       }
@@ -1063,11 +1177,29 @@
       "outputSchema": {
         "type": "object",
         "required": [
-          "merge_id"
+          "merge_id",
+          "merge_apply_plan_id",
+          "created",
+          "overwritten",
+          "package_fingerprint"
         ],
         "properties": {
           "merge_id": {
             "type": "string"
+          },
+          "merge_apply_plan_id": {
+            "type": "string",
+            "pattern": "^wtmergeapply_[A-Za-z0-9_-]+$"
+          },
+          "created": {
+            "type": "boolean"
+          },
+          "overwritten": {
+            "type": "boolean"
+          },
+          "package_fingerprint": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
           }
         }
       }

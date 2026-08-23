@@ -31,6 +31,24 @@ public sealed class PackagePatchServiceTests
             apply["inputSchema"]!["properties"]!["expected_rollback_plan_id"]!["pattern"]!.GetValue<string>()
         );
         Assert.Equal(
+            "^wtrollback_[A-Za-z0-9_-]+$",
+            apply["inputSchema"]!["properties"]!["protected_edit_authorization"]!["pattern"]!.GetValue<string>()
+        );
+        Assert.Equal(
+            "^wtrollback_[A-Za-z0-9_-]+$",
+            plan["outputSchema"]!["properties"]!["data"]!["properties"]!["protection_authorization_id"]!["pattern"]!.GetValue<string>()
+        );
+        Assert.DoesNotContain(
+            "protection_authorization_id",
+            plan["outputSchema"]!["properties"]!["data"]!["required"]!.AsArray()
+                .Select(item => item!.GetValue<string>())
+        );
+        Assert.DoesNotContain(
+            "backup_path",
+            apply["outputSchema"]!["properties"]!["data"]!["required"]!.AsArray()
+                .Select(item => item!.GetValue<string>())
+        );
+        Assert.Equal(
             "wordtoolkit.plan_ooxml_patch_rollback/1.0",
             plan["outputSchema"]!["properties"]!["data"]!["properties"]!["operation_contract"]!["const"]!.GetValue<string>()
         );
@@ -38,10 +56,53 @@ public sealed class PackagePatchServiceTests
             "wordtoolkit.apply_ooxml_patch_rollback/1.0",
             apply["outputSchema"]!["properties"]!["data"]!["properties"]!["operation_contract"]!["const"]!.GetValue<string>()
         );
+        var protection = plan["outputSchema"]!["$defs"]!["risk"]!["properties"]!["protection"]!;
+        Assert.Contains(
+            "unmodeled_document_protection_metadata",
+            protection["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.Equal(
+            "boolean",
+            protection["properties"]!["unmodeled_document_protection_metadata"]!["type"]!.GetValue<string>()
+        );
         Assert.False(plan["reversibility"]!["applicable"]!.GetValue<bool>());
         Assert.Equal(
             "reverse_patch_with_destination_bound_plan_and_atomic_redo_backup",
             apply["reversibility"]!["mechanism"]!.GetValue<string>()
+        );
+    }
+
+    [Fact]
+    public void PatchApplyContractPublishesExactProtectedEditTokenRoundTrip()
+    {
+        var catalog = ToolCatalog.LoadNativeWordTools();
+        var plan = catalog.InspectAction("plan_ooxml_patch_apply")["tool"]!.AsObject();
+        var apply = catalog.InspectAction("apply_ooxml_patch")["tool"]!.AsObject();
+
+        Assert.Equal(
+            "^wtapply_[A-Za-z0-9_-]+$",
+            plan["outputSchema"]!["properties"]!["protection_authorization_id"]!["pattern"]!.GetValue<string>()
+        );
+        Assert.Equal(
+            "^wtapply_[A-Za-z0-9_-]+$",
+            apply["inputSchema"]!["properties"]!["protected_edit_authorization"]!["pattern"]!.GetValue<string>()
+        );
+        var applyOutput = apply["outputSchema"]!;
+        Assert.Contains(
+            "apply_plan_id",
+            applyOutput["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.DoesNotContain(
+            "plan_id",
+            applyOutput["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.DoesNotContain(
+            "backup_path",
+            applyOutput["required"]!.AsArray().Select(item => item!.GetValue<string>())
+        );
+        Assert.Equal(
+            "^wtapply_[A-Za-z0-9_-]+$",
+            applyOutput["properties"]!["apply_plan_id"]!["pattern"]!.GetValue<string>()
         );
     }
 
@@ -219,6 +280,255 @@ public sealed class PackagePatchServiceTests
                 new OpcPackageReader().Read(backupPath!).Fingerprint
             );
             files.Track(backupPath!);
+        }
+        finally
+        {
+            files.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task ProtectedPatchAndRollbackRequireExactPlanBoundAuthorization()
+    {
+        var files = CreateProtectedPatchFiles("before text", "after text", "readOnly");
+        try
+        {
+            var service = Service();
+            var plan = await Plan(service, files);
+            var artifact = files.NewArtifactPath("protected");
+            using var created = await CreateArtifact(service, files, plan, artifact);
+            var applyPlan = await PlanApply(service, files.BeforePath, artifact, plan);
+            var originalBytes = File.ReadAllBytes(files.BeforePath);
+
+            Assert.False(applyPlan.CanApply);
+            Assert.Equal(applyPlan.ApplyPlanId, applyPlan.ProtectionAuthorizationId);
+            Assert.Contains(
+                "protected_edit_authorization",
+                applyPlan.RequiredAuthorizations
+            );
+
+            using var wrongAuthorization = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = files.BeforePath,
+                patch_path = artifact,
+                expected_package_fingerprint = plan.BeforeFingerprint,
+                expected_patch_id = plan.PatchId,
+                expected_apply_plan_id = applyPlan.ApplyPlanId,
+                protected_edit_authorization = "wtapply_wrong",
+                keep_backup = false,
+            }));
+            var blocked = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "apply_ooxml_patch",
+                    wrongAuthorization.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("PATCH_POLICY_BLOCKED", blocked.ErrorCode);
+            Assert.Equal(originalBytes, File.ReadAllBytes(files.BeforePath));
+
+            using var authorization = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = files.BeforePath,
+                patch_path = artifact,
+                expected_package_fingerprint = plan.BeforeFingerprint,
+                expected_patch_id = plan.PatchId,
+                expected_apply_plan_id = applyPlan.ApplyPlanId,
+                protected_edit_authorization = applyPlan.ProtectionAuthorizationId,
+                keep_backup = false,
+            }));
+            var applied = await service.CallAsync(
+                "apply_ooxml_patch",
+                authorization.RootElement,
+                CancellationToken.None
+            );
+            using var appliedJson = ToJson(applied);
+            Assert.Contains(
+                "protected_edit_authorization",
+                appliedJson.RootElement.GetProperty("explicit_authorizations")
+                    .EnumerateArray()
+                    .Select(item => item.GetString())
+            );
+
+            var rollbackPlan = await PlanRollback(
+                service,
+                files.BeforePath,
+                artifact,
+                plan
+            );
+            Assert.False(rollbackPlan.CanRollback);
+            Assert.Equal(
+                rollbackPlan.RollbackPlanId,
+                rollbackPlan.ProtectionAuthorizationId
+            );
+            Assert.Contains(
+                "protected_edit_authorization",
+                rollbackPlan.RequiredAuthorizations
+            );
+
+            using var rollbackAuthorization = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = files.BeforePath,
+                patch_path = artifact,
+                expected_package_fingerprint = plan.AfterFingerprint,
+                expected_patch_id = plan.PatchId,
+                expected_rollback_plan_id = rollbackPlan.RollbackPlanId,
+                protected_edit_authorization = rollbackPlan.ProtectionAuthorizationId,
+                keep_backup = false,
+            }));
+            var rolledBack = await service.CallAsync(
+                "apply_ooxml_patch_rollback",
+                rollbackAuthorization.RootElement,
+                CancellationToken.None
+            );
+            using var rollbackJson = ToJson(rolledBack);
+            Assert.True(rollbackJson.RootElement.GetProperty("rolled_back").GetBoolean());
+            Assert.Equal(
+                plan.BeforeFingerprint,
+                new OpcPackageReader().Read(files.BeforePath).Fingerprint
+            );
+        }
+        finally
+        {
+            files.Dispose();
+        }
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task MalformedProtectionMetadataHardBlocksPatchAndRollbackWithoutMutation(
+        int protectionVariant
+    )
+    {
+        var files = protectionVariant switch
+        {
+            0 => CreateMalformedPermissionPatchFiles("before text", "after text"),
+            1 => CreateUnmodeledProtectionPatchFiles(
+                "before text",
+                "after text",
+                AlternateContentSettingsXml()
+            ),
+            2 => CreateUnmodeledProtectionPatchFiles(
+                "before text",
+                "after text",
+                MixedConformanceProtectionSettingsXml()
+            ),
+            _ => throw new ArgumentOutOfRangeException(nameof(protectionVariant)),
+        };
+        try
+        {
+            var service = Service();
+            var plan = await Plan(service, files);
+            var artifact = files.NewArtifactPath("malformed-permissions");
+            using var created = await CreateArtifact(service, files, plan, artifact);
+            var artifactBytes = File.ReadAllBytes(artifact);
+            var beforeBytes = File.ReadAllBytes(files.BeforePath);
+            var applyPlan = await PlanApply(service, files.BeforePath, artifact, plan);
+
+            Assert.False(applyPlan.CanApply);
+            Assert.Null(applyPlan.ProtectionAuthorizationId);
+            Assert.Contains("protection_metadata_malformed", applyPlan.HardBlockCodes);
+
+            using var applyArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = files.BeforePath,
+                patch_path = artifact,
+                expected_package_fingerprint = plan.BeforeFingerprint,
+                expected_patch_id = plan.PatchId,
+                expected_apply_plan_id = applyPlan.ApplyPlanId,
+                protected_edit_authorization = applyPlan.ApplyPlanId,
+                keep_backup = false,
+            }));
+            var blockedApply = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "apply_ooxml_patch",
+                    applyArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("PATCH_POLICY_BLOCKED", blockedApply.ErrorCode);
+            Assert.Equal(beforeBytes, File.ReadAllBytes(files.BeforePath));
+            Assert.Equal(artifactBytes, File.ReadAllBytes(artifact));
+
+            File.WriteAllBytes(files.BeforePath, File.ReadAllBytes(files.AfterPath));
+            var resultBytes = File.ReadAllBytes(files.BeforePath);
+            var rollbackPlan = await PlanRollback(
+                service,
+                files.BeforePath,
+                artifact,
+                plan
+            );
+            Assert.False(rollbackPlan.CanRollback);
+            Assert.Null(rollbackPlan.ProtectionAuthorizationId);
+            Assert.Contains("protection_metadata_malformed", rollbackPlan.HardBlockCodes);
+
+            using var rollbackArguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = files.BeforePath,
+                patch_path = artifact,
+                expected_package_fingerprint = plan.AfterFingerprint,
+                expected_patch_id = plan.PatchId,
+                expected_rollback_plan_id = rollbackPlan.RollbackPlanId,
+                protected_edit_authorization = rollbackPlan.RollbackPlanId,
+                keep_backup = false,
+            }));
+            var blockedRollback = await Assert.ThrowsAsync<NativeToolException>(() =>
+                service.CallAsync(
+                    "apply_ooxml_patch_rollback",
+                    rollbackArguments.RootElement,
+                    CancellationToken.None
+                )
+            );
+            Assert.Equal("PATCH_POLICY_BLOCKED", blockedRollback.ErrorCode);
+            Assert.Equal(resultBytes, File.ReadAllBytes(files.BeforePath));
+            Assert.Equal(artifactBytes, File.ReadAllBytes(artifact));
+        }
+        finally
+        {
+            files.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task ProtectedNoOpPatchNeedsNoAuthorizationAndPerformsNoWrite()
+    {
+        var files = CreateProtectedPatchFiles("same text", "same text", "comments");
+        try
+        {
+            var service = Service();
+            var plan = await Plan(service, files);
+            var artifact = files.NewArtifactPath("protected-noop");
+            using var created = await CreateArtifact(service, files, plan, artifact);
+            var beforeBytes = File.ReadAllBytes(files.BeforePath);
+            var applyPlan = await PlanApply(service, files.BeforePath, artifact, plan);
+
+            Assert.True(applyPlan.CanApply);
+            Assert.Null(applyPlan.ProtectionAuthorizationId);
+            Assert.DoesNotContain(
+                "protected_edit_authorization",
+                applyPlan.RequiredAuthorizations
+            );
+
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                local_path = files.BeforePath,
+                patch_path = artifact,
+                expected_package_fingerprint = plan.BeforeFingerprint,
+                expected_patch_id = plan.PatchId,
+                expected_apply_plan_id = applyPlan.ApplyPlanId,
+                keep_backup = true,
+            }));
+            var applied = await service.CallAsync(
+                "apply_ooxml_patch",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            using var json = ToJson(applied);
+            Assert.False(json.RootElement.GetProperty("applied").GetBoolean());
+            Assert.Equal(JsonValueKind.Null, json.RootElement.GetProperty("backup_path").ValueKind);
+            Assert.Equal(beforeBytes, File.ReadAllBytes(files.BeforePath));
         }
         finally
         {
@@ -906,7 +1216,10 @@ public sealed class PackagePatchServiceTests
             root.GetProperty("hard_block_codes")
                 .EnumerateArray()
                 .Select(item => item.GetString()!)
-                .ToArray()
+                .ToArray(),
+            root.GetProperty("protection_authorization_id").ValueKind == JsonValueKind.Null
+                ? null
+                : root.GetProperty("protection_authorization_id").GetString()
         );
     }
 
@@ -970,6 +1283,10 @@ public sealed class PackagePatchServiceTests
                 .EnumerateArray()
                 .Select(item => item.GetString()!)
                 .ToArray(),
+            root.TryGetProperty("protection_authorization_id", out var authorization)
+                && authorization.ValueKind != JsonValueKind.Null
+                    ? authorization.GetString()
+                    : null,
             serialized.Length,
             serialized.Contains("before text", StringComparison.Ordinal)
                 || serialized.Contains("after text", StringComparison.Ordinal)
@@ -999,6 +1316,59 @@ public sealed class PackagePatchServiceTests
         return new PatchFiles(stem, beforePath, afterPath);
     }
 
+    private static PatchFiles CreateProtectedPatchFiles(
+        string beforeText,
+        string afterText,
+        string protectionMode
+    )
+    {
+        var stem = Path.Combine(
+            Path.GetTempPath(),
+            $"wordtoolkit-patch-service-{Guid.NewGuid():N}"
+        );
+        var beforePath = stem + "-before.docx";
+        var afterPath = stem + "-after.docx";
+        WriteDocument(beforePath, beforeText, macro: null, protectionMode);
+        WriteDocument(afterPath, afterText, macro: null, protectionMode);
+        return new PatchFiles(stem, beforePath, afterPath);
+    }
+
+    private static PatchFiles CreateMalformedPermissionPatchFiles(
+        string beforeText,
+        string afterText
+    )
+    {
+        var stem = Path.Combine(
+            Path.GetTempPath(),
+            $"wordtoolkit-patch-service-{Guid.NewGuid():N}"
+        );
+        var beforePath = stem + "-before.docx";
+        var afterPath = stem + "-after.docx";
+        const string invalidPermission =
+            "<w:permStart ws:id='7' ws:edGrp='everyone' ws:colFirst='0' ws:colLast='2'/>"
+            + "<w:permEnd ws:id='7'/>";
+        WriteDocument(beforePath, beforeText, macro: null, permissionMarkup: invalidPermission);
+        WriteDocument(afterPath, afterText, macro: null, permissionMarkup: invalidPermission);
+        return new PatchFiles(stem, beforePath, afterPath);
+    }
+
+    private static PatchFiles CreateUnmodeledProtectionPatchFiles(
+        string beforeText,
+        string afterText,
+        string settingsXml
+    )
+    {
+        var stem = Path.Combine(
+            Path.GetTempPath(),
+            $"wordtoolkit-patch-service-{Guid.NewGuid():N}"
+        );
+        var beforePath = stem + "-before.docx";
+        var afterPath = stem + "-after.docx";
+        WriteDocument(beforePath, beforeText, macro: null, settingsXml: settingsXml);
+        WriteDocument(afterPath, afterText, macro: null, settingsXml: settingsXml);
+        return new PatchFiles(stem, beforePath, afterPath);
+    }
+
     private static PatchFiles CreateCrossFormatPatchFiles()
     {
         var stem = Path.Combine(
@@ -1012,21 +1382,48 @@ public sealed class PackagePatchServiceTests
         return new PatchFiles(stem, beforePath, afterPath);
     }
 
-    private static void WriteDocument(string path, string text, byte[]? macro)
+    private static void WriteDocument(
+        string path,
+        string text,
+        byte[]? macro,
+        string? protectionMode = null,
+        string? permissionMarkup = null,
+        string? settingsXml = null
+    )
     {
+        var hasSettings = protectionMode is not null || settingsXml is not null;
         using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Create);
-        Write(archive, "[Content_Types].xml", ContentTypes(macro is not null));
+        Write(
+            archive,
+            "[Content_Types].xml",
+            ContentTypes(macro is not null, hasSettings)
+        );
         Write(archive, "_rels/.rels", RootRelationships());
-        Write(archive, "word/document.xml", DocumentXml(text));
+        Write(archive, "word/document.xml", DocumentXml(text, permissionMarkup));
+        if (macro is not null || hasSettings)
+        {
+            Write(
+                archive,
+                "word/_rels/document.xml.rels",
+                DocumentRelationships(macro is not null, hasSettings)
+            );
+        }
         if (macro is not null)
         {
-            Write(archive, "word/_rels/document.xml.rels", DocumentRelationships());
             Write(archive, "word/vbaProject.bin", macro);
+        }
+        if (hasSettings)
+        {
+            Write(
+                archive,
+                "word/settings.xml",
+                settingsXml ?? SettingsXml(protectionMode!)
+            );
         }
     }
 
-    private static string ContentTypes(bool macro) =>
+    private static string ContentTypes(bool macro, bool settings = false) =>
         "<Types xmlns='http://schemas.openxmlformats.org/package/2006/content-types'>"
         + "<Default Extension='rels' ContentType='application/vnd.openxmlformats-package.relationships+xml'/>"
         + "<Default Extension='xml' ContentType='application/xml'/>"
@@ -1035,11 +1432,15 @@ public sealed class PackagePatchServiceTests
                 + "<Override PartName='/word/document.xml' ContentType='application/vnd.ms-word.document.macroEnabled.main+xml'/>"
                 + "<Override PartName='/word/vbaProject.bin' ContentType='application/vnd.ms-office.vbaProject'/>"
             : "<Override PartName='/word/document.xml' ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'/>")
+        + (settings
+            ? "<Override PartName='/word/settings.xml' ContentType='application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml'/>"
+            : string.Empty)
         + "</Types>";
 
-    private static string DocumentXml(string text) =>
-        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
-        + $"<w:body><w:p><w:r><w:t>{text}</w:t></w:r></w:p><w:sectPr/></w:body>"
+    private static string DocumentXml(string text, string? permissionMarkup = null) =>
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:ws='http://purl.oclc.org/ooxml/wordprocessingml/main'>"
+        + $"<w:body><w:p>{permissionMarkup}<w:r><w:t>{text}</w:t></w:r></w:p><w:sectPr/></w:body>"
         + "</w:document>";
 
     private static string RootRelationships() =>
@@ -1047,10 +1448,36 @@ public sealed class PackagePatchServiceTests
         + "<Relationship Id='rId1' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument' Target='word/document.xml'/>"
         + "</Relationships>";
 
-    private static string DocumentRelationships() =>
+    private static string DocumentRelationships(bool macro = true, bool settings = false) =>
         "<Relationships xmlns='http://schemas.openxmlformats.org/package/2006/relationships'>"
-        + "<Relationship Id='rIdVba' Type='http://schemas.microsoft.com/office/2006/relationships/vbaProject' Target='vbaProject.bin'/>"
+        + (macro
+            ? "<Relationship Id='rIdVba' Type='http://schemas.microsoft.com/office/2006/relationships/vbaProject' Target='vbaProject.bin'/>"
+            : string.Empty)
+        + (settings
+            ? "<Relationship Id='rIdSettings' Type='http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings' Target='settings.xml'/>"
+            : string.Empty)
         + "</Relationships>";
+
+    private static string SettingsXml(string protectionMode) =>
+        "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+        + $"<w:documentProtection w:edit='{protectionMode}' w:enforcement='1'/>"
+        + "</w:settings>";
+
+    private static string AlternateContentSettingsXml() =>
+        "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:w14='http://schemas.microsoft.com/office/word/2010/wordml' "
+        + "xmlns:mc='http://schemas.openxmlformats.org/markup-compatibility/2006' mc:Ignorable='w14'>"
+        + "<mc:AlternateContent><mc:Choice Requires='w14'>"
+        + "<w:documentProtection w:edit='readOnly' w:enforcement='1'/>"
+        + "</mc:Choice><mc:Fallback>"
+        + "<w:documentProtection w:edit='readOnly' w:enforcement='1'/>"
+        + "</mc:Fallback></mc:AlternateContent></w:settings>";
+
+    private static string MixedConformanceProtectionSettingsXml() =>
+        "<w:settings xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:ws='http://purl.oclc.org/ooxml/wordprocessingml/main'>"
+        + "<ws:documentProtection ws:edit='readOnly' ws:enforcement='1'/>"
+        + "</w:settings>";
 
     private static void Write(ZipArchive archive, string name, string value) =>
         Write(archive, name, Encoding.UTF8.GetBytes(value));
@@ -1072,7 +1499,8 @@ public sealed class PackagePatchServiceTests
         string ApplyPlanId,
         bool CanApply,
         IReadOnlyList<string> RequiredAuthorizations,
-        IReadOnlyList<string> HardBlockCodes
+        IReadOnlyList<string> HardBlockCodes,
+        string? ProtectionAuthorizationId
     );
 
     private sealed record PatchRollbackPlanResult(
@@ -1081,6 +1509,7 @@ public sealed class PackagePatchServiceTests
         bool CanRollback,
         IReadOnlyList<string> RequiredAuthorizations,
         IReadOnlyList<string> HardBlockCodes,
+        string? ProtectionAuthorizationId,
         int SerializedLength,
         bool ContainsFixtureText
     );

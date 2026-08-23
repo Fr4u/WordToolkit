@@ -101,7 +101,7 @@ public sealed class PatchRollbackWordPackageOperation
                 );
             }
 
-            var policy = Policy(request);
+            var policy = Policy(request, context.RollbackPlanId);
             var blocks = BlockCodes(context, policy);
             if (blocks.Count != 0)
             {
@@ -368,6 +368,10 @@ public sealed class PatchRollbackWordPackageOperation
                 SchemaValidationHasNewErrors(context.Validation),
                 hasChanges: !context.ReversePatch.IsNoOp
             ),
+            context.Plan.RiskAssessment.Protection.AuthorizationRequired
+                && !context.Plan.RiskAssessment.Protection.HasMalformedProtectionMetadata
+                    ? context.RollbackPlanId
+                    : null,
             request.View,
             page.FilteredCount,
             request.Offset,
@@ -477,7 +481,21 @@ public sealed class PatchRollbackWordPackageOperation
         risk.InfrastructureOperationCount,
         risk.BaselineStructuralErrorCount,
         risk.CandidateStructuralErrorCount,
-        risk.NewStructuralErrorCount
+        risk.NewStructuralErrorCount,
+        new PatchRollbackProtectionRiskSummary(
+            risk.Protection.BaseDocumentProtectionEnforced,
+            risk.Protection.BaseDocumentProtectionEditMode,
+            risk.Protection.ResultDocumentProtectionEnforced,
+            risk.Protection.ResultDocumentProtectionEditMode,
+            risk.Protection.DocumentProtectionMetadataChanged,
+            risk.Protection.UnmodeledDocumentProtectionMetadata,
+            risk.Protection.BasePermissionRangeCount,
+            risk.Protection.ResultPermissionRangeCount,
+            risk.Protection.MalformedPermissionRangeCount,
+            risk.Protection.PermissionIssuesTruncated,
+            risk.Protection.PermissionIssueCodes,
+            risk.Protection.AuthorizationRequired
+        )
     );
 
     private static PatchRollbackSchemaValidationSummary ValidationSummary(
@@ -494,7 +512,8 @@ public sealed class PatchRollbackWordPackageOperation
     );
 
     private static WordPackagePatchApplyPolicy Policy(
-        PatchRollbackApplyRequest request
+        PatchRollbackApplyRequest request,
+        string expectedProtectionAuthorization
     ) => new()
     {
         AllowDigitalSignatureInvalidation =
@@ -504,6 +523,11 @@ public sealed class PatchRollbackWordPackageOperation
             request.AllowExternalRelationshipChanges,
         AllowOpaqueBinaryChanges = request.AllowOpaqueBinaryChanges,
         AllowNewStructuralErrors = request.AllowNewStructuralErrors,
+        AllowProtectedDocumentEdit = string.Equals(
+            request.ProtectedEditAuthorization,
+            expectedProtectionAuthorization,
+            StringComparison.Ordinal
+        ),
     };
 
     private static IReadOnlyList<string> BlockCodes(
@@ -533,6 +557,10 @@ public sealed class PatchRollbackWordPackageOperation
             return context.FormatHardBlockCodes;
         }
         var blocks = new List<string>(context.FormatHardBlockCodes);
+        if (context.Plan.RiskAssessment.Protection.HasMalformedProtectionMetadata)
+        {
+            blocks.Add("protection_metadata_malformed");
+        }
         if (!context.Validation.Performed)
         {
             blocks.Add("openxml_validation_not_performed");
@@ -609,6 +637,14 @@ public sealed class PatchRollbackWordPackageOperation
         {
             result.Add("allow_new_structural_errors");
         }
+        if (
+            hasChanges
+            && risk.Protection.AuthorizationRequired
+            && !risk.Protection.HasMalformedProtectionMetadata
+        )
+        {
+            result.Add("protected_edit_authorization");
+        }
         return result;
     }
 
@@ -636,6 +672,10 @@ public sealed class PatchRollbackWordPackageOperation
         if (policy.AllowNewStructuralErrors)
         {
             result.Add("allow_new_structural_errors");
+        }
+        if (policy.AllowProtectedDocumentEdit)
+        {
+            result.Add("protected_edit_authorization");
         }
         return result;
     }
