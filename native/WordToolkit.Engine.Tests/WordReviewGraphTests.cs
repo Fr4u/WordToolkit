@@ -435,12 +435,12 @@ public sealed class WordReviewGraphTests
     }
 
     [Fact]
-    public void PreservesExtensionNamespacePermissionAttributesAsOpaqueMetadata()
+    public void DiagnosesForeignNamespacePermissionAttributes()
     {
         using var bytes = BuildPackage(
             documentXml: $"""
-            <w:document xmlns:w="{Word}" xmlns:w14="{Word2010}"><w:body><w:p>
-              <w:permStart w:id="7" w14:opaque="x"/>
+            <w:document xmlns:w="{Word}" xmlns:x="urn:test"><w:body><w:p>
+              <w:permStart w:id="7" x:bogus="value"/>
               <w:r><w:t>x</w:t></w:r>
               <w:permEnd w:id="7"/>
             </w:p></w:body></w:document>
@@ -450,9 +450,59 @@ public sealed class WordReviewGraphTests
         var document = new WordSemanticProjector().Project(package);
         var graph = new WordReviewGraphBuilder().Build(package, document);
 
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_ATTRIBUTE_NAMESPACE_INVALID"
+        );
+    }
+
+    [Theory]
+    [InlineData("<w:r/>", "")]
+    [InlineData("", "text")]
+    [InlineData("<![CDATA[]]>", "")]
+    public void DiagnosesNonemptyPermissionMarkers(
+        string startContent,
+        string endContent
+    )
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}"><w:body><w:p>
+              <w:permStart w:id="7">{startContent}</w:permStart>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd w:id="7">{endContent}</w:permEnd>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
+        Assert.Contains(
+            graph.Issues,
+            issue => issue.Code == "PERMISSION_MARKER_CONTENT_INVALID"
+        );
+    }
+
+    [Fact]
+    public void PermissionMarkerCommentsAndProcessingInstructionsRemainNonContent()
+    {
+        using var bytes = BuildPackage(
+            documentXml: $"""
+            <w:document xmlns:w="{Word}"><w:body><w:p>
+              <w:permStart w:id="7"><!-- preserve --></w:permStart>
+              <w:r><w:t>x</w:t></w:r>
+              <w:permEnd w:id="7"><?wordtoolkit preserve?></w:permEnd>
+            </w:p></w:body></w:document>
+            """
+        );
+        var package = new OpcPackageReader().Read(bytes);
+        var document = new WordSemanticProjector().Project(package);
+        var graph = new WordReviewGraphBuilder().Build(package, document);
+
         Assert.DoesNotContain(
             graph.Issues,
-            issue => issue.Code == "PERMISSION_ATTRIBUTE_UNKNOWN"
+            issue => issue.Code == "PERMISSION_MARKER_CONTENT_INVALID"
         );
         Assert.Equal(
             WordReviewRangeStatus.Complete,

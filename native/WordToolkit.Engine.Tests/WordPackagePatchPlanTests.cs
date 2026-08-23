@@ -396,6 +396,82 @@ public sealed class WordPackagePatchPlanTests
         Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
     }
 
+    [Fact]
+    public void ForeignPermissionAttributesAreNonOverridable()
+    {
+        var before = Read(BuildPackage(
+            "unused",
+            documentXml: ForeignPermissionAttributeDocumentXml("before")
+        ));
+        var after = Read(BuildPackage(
+            "unused",
+            documentXml: ForeignPermissionAttributeDocumentXml("after")
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.Contains(
+            "PERMISSION_ATTRIBUTE_NAMESPACE_INVALID",
+            plan.RiskAssessment.Protection.PermissionIssueCodes
+        );
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Theory]
+    [InlineData("<w:r/>", "")]
+    [InlineData("", "text")]
+    [InlineData("<![CDATA[]]>", "")]
+    public void NonemptyPermissionMarkersAreNonOverridable(
+        string startContent,
+        string endContent
+    )
+    {
+        var before = Read(BuildPackage(
+            "unused",
+            documentXml: NonemptyPermissionDocumentXml(
+                "before",
+                startContent,
+                endContent
+            )
+        ));
+        var after = Read(BuildPackage(
+            "unused",
+            documentXml: NonemptyPermissionDocumentXml(
+                "after",
+                startContent,
+                endContent
+            )
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.Contains(
+            "PERMISSION_MARKER_CONTENT_INVALID",
+            plan.RiskAssessment.Protection.PermissionIssueCodes
+        );
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -1710,6 +1786,24 @@ public sealed class WordPackagePatchPlanTests
         "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
         + "<w:body><w:p><w:permStart id='7' edGrp='everyone'/>"
         + $"<w:r><w:t>{text}</w:t></w:r><w:permEnd id='7'/>"
+        + "</w:p></w:body></w:document>";
+
+    private static string ForeignPermissionAttributeDocumentXml(string text) =>
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:x='urn:test'>"
+        + "<w:body><w:p><w:permStart w:id='7' x:bogus='value'/>"
+        + $"<w:r><w:t>{text}</w:t></w:r><w:permEnd w:id='7'/>"
+        + "</w:p></w:body></w:document>";
+
+    private static string NonemptyPermissionDocumentXml(
+        string text,
+        string startContent,
+        string endContent
+    ) =>
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+        + $"<w:body><w:p><w:permStart w:id='7'>{startContent}</w:permStart>"
+        + $"<w:r><w:t>{text}</w:t></w:r>"
+        + $"<w:permEnd w:id='7'>{endContent}</w:permEnd>"
         + "</w:p></w:body></w:document>";
 
     private static string SettingsXml(string? editMode, bool enforced) =>

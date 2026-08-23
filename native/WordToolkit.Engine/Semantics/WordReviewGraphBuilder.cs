@@ -986,6 +986,13 @@ public sealed class WordReviewGraphBuilder
             ordinal,
             state
         );
+        ValidatePermissionMarkerContent(
+            partUri,
+            element,
+            location,
+            ordinal,
+            state
+        );
         ValidatePermissionAttributeNamespaces(
             partUri,
             element,
@@ -2004,7 +2011,6 @@ public sealed class WordReviewGraphBuilder
         if (
             !element.Attributes().Any(attribute =>
                 !attribute.IsNamespaceDeclaration
-                && PermissionAttributeNames.Contains(attribute.Name.LocalName)
                 && attribute.Name.Namespace != element.Name.Namespace
             )
         )
@@ -2015,6 +2021,37 @@ public sealed class WordReviewGraphBuilder
             "PERMISSION_ATTRIBUTE_NAMESPACE_INVALID",
             WordReviewIssueSeverity.Error,
             "Permission-range attributes must use the same WordprocessingML namespace as their marker element.",
+            partUri,
+            location.StoryId,
+            ordinal
+        );
+    }
+
+    private static void ValidatePermissionMarkerContent(
+        string partUri,
+        XElement element,
+        StoryLocation location,
+        int ordinal,
+        BuildState state
+    )
+    {
+        if (
+            !element.Nodes().Any(node => node switch
+            {
+                XComment => false,
+                XProcessingInstruction => false,
+                XCData => true,
+                XText text => !string.IsNullOrWhiteSpace(text.Value),
+                _ => true,
+            })
+        )
+        {
+            return;
+        }
+        state.AddIssue(
+            "PERMISSION_MARKER_CONTENT_INVALID",
+            WordReviewIssueSeverity.Error,
+            "Permission-range markers must have an empty content model.",
             partUri,
             location.StoryId,
             ordinal
