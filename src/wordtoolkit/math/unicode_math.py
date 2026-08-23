@@ -34,12 +34,41 @@ GREEK = {
     "Psi": "Ψ",
     "Omega": "Ω",
 }
-SYMBOLS = {"sum": "∑", "prod": "∏", "int": "∫", "infty": "∞", "partial": "∂", "nabla": "∇"}
+SYMBOLS = {
+    "sum": "∑",
+    "prod": "∏",
+    "int": "∫",
+    "iint": "∬",
+    "iiint": "∭",
+    "iiiint": "⨌",
+    "oint": "∮",
+    "oiint": "∯",
+    "oiiint": "∰",
+    "bigcup": "⋃",
+    "bigcap": "⋂",
+    "infty": "∞",
+    "partial": "∂",
+    "nabla": "∇",
+}
+NARY_SYMBOLS = {"∑", "∏", "∫", "∬", "∭", "⨌", "∮", "∯", "∰", "⋃", "⋂"}
+NARY_COMMANDS = {
+    "\\sum",
+    "\\prod",
+    "\\int",
+    "\\iint",
+    "\\iiint",
+    "\\iiiint",
+    "\\oint",
+    "\\oiint",
+    "\\oiiint",
+    "\\bigcup",
+    "\\bigcap",
+}
 FUNCTIONS = {"sin", "cos", "tan", "cot", "sec", "csc", "log", "ln", "exp", "min", "max"}
 ACCENTS = {"vec": "→", "hat": "^", "bar": "¯", "tilde": "~", "dot": "˙", "ddot": "¨"}
 TOKEN_RE = re.compile(
     r'"(?:[^"\\]|\\.)*"|\\[A-Za-z]+|[A-Za-z][A-Za-z0-9]*|\d+(?:[.,]\d+)?|'
-    r"[α-ωΑ-Ω∞∑∏∫√∂∇→↦¯˙¨±∓]|<=|>=|!=|:=|[+\-−*/×·=<>^_(),;:@&|~\[\]{}]"
+    r"[α-ωΑ-Ω∞∑∏∫∬∭∮∯∰⨌⋃⋂√∂∇→↦¯˙¨±∓▭‖]|<=|>=|!=|:=|[+\-−*/×·=<>^_(),;:@&|~\[\]{}]"
 )
 
 
@@ -124,12 +153,15 @@ class _Parser:
                 "×": 3,
                 "·": 3,
                 "/": 3,
+                ",": 0,
+                ";": 0,
+                ":": 0,
             }.get(token)
             if precedence is None:
                 if token in {"^", "_"}:
                     left = self._script(left)
                     continue
-                if token in {",", ";", ":", "@", "&", ")", "]", "}"}:
+                if token in {"@", "&", ")", "]", "}"}:
                     break
                 right = self.primary(stop)
                 left = row(left, right)
@@ -158,11 +190,15 @@ class _Parser:
 
     def primary(self, stop: set[str], *, consume_scripts: bool = True) -> EquationNode:
         token = self.take()
-        if token in {"(", "[", "{"}:
-            close = {"(": ")", "[": "]", "{": "}"}[token]
-            body = self.expression({close})
-            if self.take() != close:
-                raise WordToolkitError(ErrorCode.EQUATION_INVALID, "Mismatched delimiter")
+        if token in {"(", "[", "{", "|", "‖"}:
+            close = {"(": ")", "[": "]", "{": "}", "|": "|", "‖": "‖"}[token]
+            if self.peek() == close:
+                self.take()
+                body = EMPTY
+            else:
+                body = self.expression({close})
+                if self.take() != close:
+                    raise WordToolkitError(ErrorCode.EQUATION_INVALID, "Mismatched delimiter")
             node = EquationNode.make("delimiter", children=(body,), begin=token, end=close)
         elif token in {"√", "\\sqrt", "sqrt"}:
             if self.peek() == "(" or self.peek() == "{":
@@ -182,7 +218,7 @@ class _Parser:
                 )
             else:
                 node = EquationNode.make("radical", children=(self.primary(stop),))
-        elif token in {"∑", "∏", "∫", "\\sum", "\\prod", "\\int"}:
+        elif token in NARY_SYMBOLS or token in NARY_COMMANDS:
             symbol = SYMBOLS.get(token.lstrip("\\"), token)
             lower, upper = EMPTY, EMPTY
             while self.peek() in {"_", "^"}:
@@ -194,6 +230,15 @@ class _Parser:
                 self.primary(stop) if self.peek() not in stop and self.peek() is not None else EMPTY
             )
             node = EquationNode.make("nary", symbol, (body, lower, upper))
+        elif token == "▭":
+            if self.peek() not in {"(", "{"}:
+                raise WordToolkitError(
+                    ErrorCode.EQUATION_INVALID,
+                    "UnicodeMath boxed formula requires a parenthesized body",
+                )
+            body = self.primary(stop, consume_scripts=False)
+            body = body.children[0] if body.kind == "delimiter" else body
+            node = EquationNode.make("enclosure", children=(body,), notation="box")
         elif token in {"lim", "\\lim"}:
             base = EquationNode.make("identifier", "lim")
             if self.peek() == "_":
@@ -222,7 +267,13 @@ class _Parser:
             node = EquationNode.make("text", token[1:-1].replace(r"\"", '"'))
         elif token.startswith("\\"):
             name = token[1:]
-            symbol_value = GREEK.get(name, SYMBOLS.get(name, name))
+            symbol_value = GREEK.get(name, SYMBOLS.get(name))
+            if symbol_value is None:
+                raise WordToolkitError(
+                    ErrorCode.EQUATION_INVALID,
+                    "Unsupported UnicodeMath command",
+                    {"command": token},
+                )
             node = EquationNode.make("identifier", symbol_value)
         elif re.fullmatch(r"\d+(?:[.,]\d+)?", token):
             node = EquationNode.make("number", token)
@@ -338,4 +389,13 @@ def to_unicode_math(node: EquationNode) -> str:
         return f"{to_unicode_math(c[0])}_({to_unicode_math(c[1])})"
     if node.kind == "function":
         return f"{to_unicode_math(c[0])}({to_unicode_math(c[1])})"
+    if node.kind == "enclosure":
+        notation = node.attr("notation", "box")
+        if notation == "box":
+            return f"▭({to_unicode_math(c[0])})"
+        raise WordToolkitError(
+            ErrorCode.EQUATION_INVALID,
+            "UnicodeMath export does not support this enclosure notation",
+            {"notation": notation},
+        )
     return node.value
