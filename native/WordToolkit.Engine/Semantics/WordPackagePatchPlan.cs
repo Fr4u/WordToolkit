@@ -571,23 +571,13 @@ public static class WordPackagePatchRiskAnalyzer
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToArray();
-        var malformedPermissionRangeCount = permissions.Permissions.Count(permission =>
-            permission.Status != WordReviewRangeStatus.Complete
-        );
-        if (permissionIssueCodes.Length != 0)
-        {
-            malformedPermissionRangeCount = Math.Max(
-                malformedPermissionRangeCount,
-                1
-            );
-        }
         return new ProtectionEvidence(
             documentProtectionMetadata.Enforced,
             documentProtectionMetadata.EditMode,
             documentProtectionMetadata.Fingerprint,
             documentProtectionMetadata.Unmodeled,
             permissions.Permissions.Count,
-            malformedPermissionRangeCount,
+            permissions.MalformedPermissionRangeCount,
             permissions.IssuesTruncated && permissions.Permissions.Count != 0,
             permissionIssueCodes
         );

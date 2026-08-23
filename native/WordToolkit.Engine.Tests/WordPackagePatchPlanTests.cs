@@ -472,6 +472,68 @@ public sealed class WordPackagePatchPlanTests
         Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
     }
 
+    [Fact]
+    public void PermissionMarkersInInvalidParentsAreNonOverridable()
+    {
+        var before = Read(BuildPackage(
+            "unused",
+            documentXml: InvalidPermissionParentDocumentXml("before")
+        ));
+        var after = Read(BuildPackage(
+            "unused",
+            documentXml: InvalidPermissionParentDocumentXml("after")
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+        var decision = plan.Evaluate(new WordPackagePatchApplyPolicy
+        {
+            AllowProtectedDocumentEdit = true,
+        });
+
+        Assert.Contains(
+            "PERMISSION_MARKER_PARENT_INVALID",
+            plan.RiskAssessment.Protection.PermissionIssueCodes
+        );
+        Assert.Equal(2, plan.RiskAssessment.Protection.MalformedPermissionRangeCount);
+        Assert.False(decision.CanApply);
+        Assert.Contains("protection_metadata_malformed", decision.BlockCodes);
+    }
+
+    [Fact]
+    public void CountsEveryMalformedCompletePermissionRange()
+    {
+        var before = Read(BuildPackage(
+            "unused",
+            documentXml: MultipleMalformedPermissionRangesDocumentXml("before")
+        ));
+        var after = Read(BuildPackage(
+            "unused",
+            documentXml: MultipleMalformedPermissionRangesDocumentXml("after")
+        ));
+
+        var plan = new WordPackagePatchPlanner().Plan(
+            before.Package,
+            before.Document,
+            after.Package,
+            after.Document
+        );
+
+        Assert.Equal(4, plan.RiskAssessment.Protection.MalformedPermissionRangeCount);
+        Assert.Contains(
+            "PERMISSION_ATTRIBUTE_UNKNOWN",
+            plan.RiskAssessment.Protection.PermissionIssueCodes
+        );
+        Assert.Contains(
+            "PERMISSION_ATTRIBUTE_NAMESPACE_INVALID",
+            plan.RiskAssessment.Protection.PermissionIssueCodes
+        );
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -1804,6 +1866,19 @@ public sealed class WordPackagePatchPlanTests
         + $"<w:body><w:p><w:permStart w:id='7'>{startContent}</w:permStart>"
         + $"<w:r><w:t>{text}</w:t></w:r>"
         + $"<w:permEnd w:id='7'>{endContent}</w:permEnd>"
+        + "</w:p></w:body></w:document>";
+
+    private static string InvalidPermissionParentDocumentXml(string text) =>
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+        + $"<w:body><w:p><w:r><w:t>{text}<w:permStart w:id='7'/>"
+        + "<w:permEnd w:id='7'/></w:t></w:r></w:p></w:body></w:document>";
+
+    private static string MultipleMalformedPermissionRangesDocumentXml(string text) =>
+        "<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main' "
+        + "xmlns:x='urn:test'>"
+        + "<w:body><w:p><w:permStart w:id='7' w:bogus='one'/>"
+        + "<w:permEnd w:id='7'/><w:permStart w:id='8' x:bogus='two'/>"
+        + $"<w:r><w:t>{text}</w:t></w:r><w:permEnd w:id='8'/>"
         + "</w:p></w:body></w:document>";
 
     private static string SettingsXml(string? editMode, bool enforced) =>

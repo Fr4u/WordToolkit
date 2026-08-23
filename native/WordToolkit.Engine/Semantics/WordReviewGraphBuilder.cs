@@ -202,7 +202,8 @@ public sealed class WordReviewGraphBuilder
         return new WordPermissionEvidence(
             state.Permissions,
             state.Issues,
-            state.IssuesTruncated
+            state.IssuesTruncated,
+            state.MalformedPermissionRangeCount()
         );
     }
 
@@ -982,6 +983,13 @@ public sealed class WordReviewGraphBuilder
             partUri,
             element,
             storyNamespace,
+            location,
+            ordinal,
+            state
+        );
+        ValidatePermissionMarkerParent(
+            partUri,
+            element,
             location,
             ordinal,
             state
@@ -1974,6 +1982,52 @@ public sealed class WordReviewGraphBuilder
             "colLast",
         };
 
+    private static readonly IReadOnlySet<string> WordPermissionMarkerParentNames =
+        // Concrete parent element names advertised for permStart/permEnd by the
+        // Open XML SDK 3.5.1 metadata. Strict variants use the same local names.
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "bdo",
+            "body",
+            "comment",
+            "customXml",
+            "del",
+            "dir",
+            "docPartBody",
+            "endnote",
+            "fldSimple",
+            "footnote",
+            "ftr",
+            "hdr",
+            "hyperlink",
+            "ins",
+            "moveFrom",
+            "moveTo",
+            "p",
+            "rt",
+            "rubyBase",
+            "sdtContent",
+            "tbl",
+            "tc",
+            "tr",
+            "txbxContent",
+        };
+
+    private static readonly IReadOnlySet<string> MathPermissionMarkerParentNames =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "deg",
+            "den",
+            "e",
+            "fName",
+            "lim",
+            "num",
+            "oMath",
+            "oMathPara",
+            "sub",
+            "sup",
+        };
+
     private static string? PermissionAttribute(XElement element, string localName) =>
         element.Attribute(element.Name.Namespace + localName)?.Value;
 
@@ -2021,6 +2075,42 @@ public sealed class WordReviewGraphBuilder
             "PERMISSION_ATTRIBUTE_NAMESPACE_INVALID",
             WordReviewIssueSeverity.Error,
             "Permission-range attributes must use the same WordprocessingML namespace as their marker element.",
+            partUri,
+            location.StoryId,
+            ordinal
+        );
+    }
+
+    private static void ValidatePermissionMarkerParent(
+        string partUri,
+        XElement element,
+        StoryLocation location,
+        int ordinal,
+        BuildState state
+    )
+    {
+        var parent = element.Parent;
+        var valid = parent is not null
+            && (
+                IsWordNamespace(parent.Name.NamespaceName)
+                    && WordPermissionMarkerParentNames.Contains(parent.Name.LocalName)
+                || (
+                    parent.Name.NamespaceName is
+                        MathTransitionalNamespace
+                        or MathStrictNamespace
+                )
+                    && MathPermissionMarkerParentNames.Contains(parent.Name.LocalName)
+                || parent.Name.NamespaceName == Word2010Namespace
+                    && (parent.Name.LocalName is "conflictDel" or "conflictIns")
+            );
+        if (valid)
+        {
+            return;
+        }
+        state.AddIssue(
+            "PERMISSION_MARKER_PARENT_INVALID",
+            WordReviewIssueSeverity.Error,
+            "Permission-range marker parent does not permit permission range markup.",
             partUri,
             location.StoryId,
             ordinal
@@ -2475,6 +2565,12 @@ public sealed class WordReviewGraphBuilder
         internal WordReviewSettingsDefinition? Settings { get; set; }
         internal List<WordReviewIssue> Issues { get; } = new();
         internal bool IssuesTruncated { get; private set; }
+        internal bool PermissionIssueSeen { get; private set; }
+        internal HashSet<string> PermissionIssueSubjectIds { get; } =
+            new(StringComparer.Ordinal);
+        internal HashSet<(string PartUri, string StoryId, int SourceElementOrdinal)>
+            PermissionIssueLocations
+        { get; } = new();
         internal long TotalTextCharacters { get; set; }
 
         internal LosslessXmlDocument SourceFor(
@@ -2509,6 +2605,22 @@ public sealed class WordReviewGraphBuilder
             string? subjectId = null
         )
         {
+            if (code.StartsWith("PERMISSION_", StringComparison.Ordinal))
+            {
+                PermissionIssueSeen = true;
+                if (subjectId is not null)
+                {
+                    PermissionIssueSubjectIds.Add(subjectId);
+                }
+                if (
+                    partUri is not null
+                    && storyId is not null
+                    && sourceElementOrdinal is int ordinal
+                )
+                {
+                    PermissionIssueLocations.Add((partUri, storyId, ordinal));
+                }
+            }
             if (Issues.Count >= Options.MaxIssues)
             {
                 IssuesTruncated = true;
@@ -2525,6 +2637,27 @@ public sealed class WordReviewGraphBuilder
                     subjectId
                 )
             );
+        }
+
+        internal int MalformedPermissionRangeCount()
+        {
+            var count = Permissions.Count(permission =>
+                permission.Status != WordReviewRangeStatus.Complete
+                || PermissionIssueSubjectIds.Contains(permission.Id)
+                || permission.StartElementOrdinal is int startOrdinal
+                    && PermissionIssueLocations.Contains((
+                        permission.PartUri,
+                        permission.StoryId,
+                        startOrdinal
+                    ))
+                || permission.EndElementOrdinal is int endOrdinal
+                    && PermissionIssueLocations.Contains((
+                        permission.PartUri,
+                        permission.StoryId,
+                        endOrdinal
+                    ))
+            );
+            return PermissionIssueSeen ? Math.Max(count, 1) : count;
         }
     }
 
@@ -2548,5 +2681,6 @@ public sealed class WordReviewGraphBuilder
 internal sealed record WordPermissionEvidence(
     IReadOnlyList<WordPermissionRangeDefinition> Permissions,
     IReadOnlyList<WordReviewIssue> Issues,
-    bool IssuesTruncated
+    bool IssuesTruncated,
+    int MalformedPermissionRangeCount
 );
