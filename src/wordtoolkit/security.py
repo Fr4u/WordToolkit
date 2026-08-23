@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import ipaddress
 import os
 import re
+import shutil
 import socket
 import stat
+import tempfile
 import zipfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
@@ -22,6 +28,72 @@ MACRO_CONTENT_TYPES = {
     "application/vnd.ms-office.vbaProject",
 }
 DENIED_RELATIONSHIP_SCHEMES = {"file", "javascript", "data", "vbscript", "ftp"}
+_SNAPSHOT_CHUNK_BYTES = 1024 * 1024
+
+
+def _file_identity(value: os.stat_result) -> tuple[int, int, int, int]:
+    return (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns)
+
+
+@contextmanager
+def stable_path_snapshot(source_path: Path, *, max_bytes: int) -> Iterator[Path]:
+    """Yield one bounded private copy after two matching reads of one source handle."""
+    suffix = source_path.suffix.lower() or ".bin"
+    with tempfile.TemporaryDirectory(prefix="wordtoolkit_snapshot_") as work:
+        snapshot_path = Path(work) / f"package{suffix}"
+        try:
+            with source_path.open("rb") as source, snapshot_path.open("xb") as snapshot:
+                os.chmod(snapshot_path, 0o600)
+                before = os.fstat(source.fileno())
+                first_digest = hashlib.sha256()
+                first_size = 0
+                while chunk := source.read(min(_SNAPSHOT_CHUNK_BYTES, max_bytes - first_size + 1)):
+                    first_size += len(chunk)
+                    if first_size > max_bytes:
+                        raise WordToolkitError(
+                            ErrorCode.LIMIT_EXCEEDED,
+                            "Compressed file exceeds upload limit",
+                        )
+                    first_digest.update(chunk)
+                    snapshot.write(chunk)
+                between = os.fstat(source.fileno())
+
+                source.seek(0)
+                second_digest = hashlib.sha256()
+                second_size = 0
+                while chunk := source.read(min(_SNAPSHOT_CHUNK_BYTES, max_bytes - second_size + 1)):
+                    second_size += len(chunk)
+                    if second_size > max_bytes:
+                        raise WordToolkitError(
+                            ErrorCode.LIMIT_EXCEEDED,
+                            "Compressed file exceeds upload limit",
+                        )
+                    second_digest.update(chunk)
+                after = os.fstat(source.fileno())
+                path_state = source_path.stat()
+        except WordToolkitError:
+            raise
+        except OSError as exc:
+            raise WordToolkitError(
+                ErrorCode.DOCUMENT_NOT_FOUND,
+                "Package could not be read",
+            ) from exc
+
+        stable = (
+            _file_identity(before)
+            == _file_identity(between)
+            == _file_identity(after)
+            == _file_identity(path_state)
+            and first_size == second_size
+            and hmac.compare_digest(first_digest.digest(), second_digest.digest())
+        )
+        if not stable:
+            raise WordToolkitError(
+                ErrorCode.OOXML_INVALID,
+                "Package changed while a stable snapshot was being captured",
+                retryable=True,
+            )
+        yield snapshot_path
 
 
 @dataclass(slots=True)
@@ -118,8 +190,22 @@ class SafePackageInspector:
     def __init__(self, settings: Settings):
         self.settings = settings
 
-    def inspect(self, path: Path) -> PackageInspection:
+    @contextmanager
+    def inspect_stable(self, path: Path) -> Iterator[tuple[Path, PackageInspection]]:
+        """Yield one inspected snapshot for additional reads in the same operation."""
         if path.suffix.lower() in {".docm", ".dotm"}:
+            raise WordToolkitError(
+                ErrorCode.UNSUPPORTED_FORMAT, "Macro-enabled Word files are rejected"
+            )
+        with stable_path_snapshot(path, max_bytes=self.settings.max_upload_bytes) as snapshot:
+            yield snapshot, self._inspect_snapshot(snapshot, source_suffix=path.suffix.lower())
+
+    def inspect(self, path: Path) -> PackageInspection:
+        with self.inspect_stable(path) as (_, report):
+            return report
+
+    def _inspect_snapshot(self, path: Path, *, source_suffix: str) -> PackageInspection:
+        if source_suffix in {".docm", ".dotm"}:
             raise WordToolkitError(
                 ErrorCode.UNSUPPORTED_FORMAT, "Macro-enabled Word files are rejected"
             )
@@ -250,29 +336,130 @@ class SafePackageInspector:
                 report.warnings.append(f"Missing relationship target: {rels_name} -> {target}")
 
     def extract(self, package: Path, destination: Path) -> PackageInspection:
-        report = self.inspect(package)
-        destination.mkdir(parents=True, exist_ok=False)
-        root = destination.resolve()
-        with zipfile.ZipFile(package) as archive:
-            remaining = self.settings.max_uncompressed_bytes
-            for info in archive.infolist():
-                rel = _safe_member_name(info.filename)
-                target = (destination / Path(*rel.parts)).resolve()
-                if not target.is_relative_to(root):
-                    raise WordToolkitError(ErrorCode.UNSAFE_ARCHIVE, "ZIP extraction escaped root")
-                if info.is_dir():
-                    target.mkdir(parents=True, exist_ok=True)
-                    continue
-                target.parent.mkdir(parents=True, exist_ok=True)
-                with archive.open(info) as source, target.open("wb") as output:
-                    while chunk := source.read(min(1024 * 1024, remaining + 1)):
-                        remaining -= len(chunk)
-                        if remaining < 0:
-                            raise WordToolkitError(
-                                ErrorCode.UNSAFE_ARCHIVE, "Extraction limit exceeded"
-                            )
-                        output.write(chunk)
-        return report
+        self._reject_reparse_ancestors(destination)
+        if destination.exists() or destination.is_symlink():
+            raise WordToolkitError(
+                ErrorCode.UNSAFE_ARCHIVE,
+                "ZIP extraction destination must not exist",
+            )
+        with self.inspect_stable(package) as (snapshot, report):
+            staging = self._create_private_staging(destination)
+            try:
+                try:
+                    with zipfile.ZipFile(snapshot) as archive:
+                        remaining = self.settings.max_uncompressed_bytes
+                        for info in archive.infolist():
+                            rel = _safe_member_name(info.filename)
+                            target = staging.joinpath(*rel.parts)
+                            if info.is_dir():
+                                self._reject_reparse_ancestors(target)
+                                target.mkdir(parents=True, exist_ok=True)
+                                self._reject_reparse_ancestors(target)
+                                continue
+                            self._reject_reparse_ancestors(target.parent)
+                            target.parent.mkdir(parents=True, exist_ok=True)
+                            self._reject_reparse_ancestors(target.parent)
+                            # O_EXCL prevents following an attacker-created replacement
+                            # file. O_NOFOLLOW is available on POSIX; component checks
+                            # above provide the Windows fallback for reparse paths.
+                            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                            flags |= getattr(os, "O_NOFOLLOW", 0)
+                            try:
+                                output_fd = os.open(target, flags, 0o600)
+                            except OSError as exc:
+                                raise WordToolkitError(
+                                    ErrorCode.UNSAFE_ARCHIVE,
+                                    "ZIP extraction target is not a new regular path",
+                                    {"entry": rel.as_posix()},
+                                ) from exc
+                            with (
+                                archive.open(info) as source,
+                                os.fdopen(output_fd, "wb") as output,
+                            ):
+                                while chunk := source.read(
+                                    min(_SNAPSHOT_CHUNK_BYTES, remaining + 1)
+                                ):
+                                    remaining -= len(chunk)
+                                    if remaining < 0:
+                                        raise WordToolkitError(
+                                            ErrorCode.UNSAFE_ARCHIVE,
+                                            "Extraction limit exceeded",
+                                        )
+                                    output.write(chunk)
+                except WordToolkitError:
+                    raise
+                except (OSError, RuntimeError, zipfile.BadZipFile) as exc:
+                    raise WordToolkitError(
+                        ErrorCode.UNSAFE_ARCHIVE,
+                        "ZIP extraction failed before publication",
+                    ) from exc
+                self._reject_reparse_ancestors(destination)
+                try:
+                    staging.rename(destination)
+                except OSError as exc:
+                    raise WordToolkitError(
+                        ErrorCode.UNSAFE_ARCHIVE,
+                        "ZIP extraction result could not be published atomically",
+                    ) from exc
+            finally:
+                if staging.exists():
+                    try:
+                        shutil.rmtree(staging)
+                    except OSError as exc:
+                        raise WordToolkitError(
+                            ErrorCode.UNSAFE_ARCHIVE,
+                            "Private extraction staging cleanup failed",
+                        ) from exc
+            return report
+
+    @classmethod
+    def _create_private_staging(cls, destination: Path) -> Path:
+        staging: Path | None = None
+        try:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            cls._reject_reparse_ancestors(destination.parent)
+            staging = Path(
+                tempfile.mkdtemp(
+                    prefix=f".{destination.name}.wordtoolkit-",
+                    dir=destination.parent,
+                )
+            )
+            os.chmod(staging, 0o700)
+            return staging
+        except WordToolkitError:
+            raise
+        except OSError as exc:
+            if staging is not None:
+                shutil.rmtree(staging, ignore_errors=True)
+            raise WordToolkitError(
+                ErrorCode.UNSAFE_ARCHIVE,
+                "Private extraction staging could not be created",
+            ) from exc
+
+    @staticmethod
+    def _reject_reparse_ancestors(path: Path) -> None:
+        """Fail closed if any existing component is a symlink/reparse path."""
+        current = Path(path.anchor) if path.is_absolute() else Path.cwd()
+        for part in path.parts[1:] if path.is_absolute() else path.parts:
+            current /= part
+            try:
+                metadata = current.lstat()
+            except FileNotFoundError:
+                continue
+            except OSError as exc:
+                raise WordToolkitError(
+                    ErrorCode.UNSAFE_ARCHIVE,
+                    "Extraction path cannot be safely inspected",
+                    {"component": current.name},
+                ) from exc
+            reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+            file_attributes = getattr(metadata, "st_file_attributes", 0)
+            if stat.S_ISLNK(metadata.st_mode) or file_attributes & reparse_flag:
+                raise WordToolkitError(
+                    ErrorCode.UNSAFE_ARCHIVE,
+                    "Extraction path contains a symbolic or reparse link",
+                    {"component": current.name},
+                )
 
 
 def validate_remote_url(

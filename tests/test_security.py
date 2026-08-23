@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
 import socket
 import stat
+import subprocess
 import zipfile
 from pathlib import Path
 
@@ -392,13 +394,115 @@ def test_extraction_enforces_cumulative_limit_after_inspection(tmp_path, monkeyp
     package = tmp_path / "changed-after-inspection.docx"
     minimal_package(package, ("custom/a.bin", b"a" * 600), ("custom/b.bin", b"b" * 600))
     inspector = SafePackageInspector(config(tmp_path, max_uncompressed_bytes=1024))
-    monkeypatch.setattr(inspector, "inspect", lambda _package: PackageInspection(entries=5))
+    monkeypatch.setattr(
+        inspector,
+        "_inspect_snapshot",
+        lambda _package, *, source_suffix: PackageInspection(entries=5),
+    )
 
+    destination = tmp_path / "extracted"
     with pytest.raises(WordToolkitError) as error:
-        inspector.extract(package, tmp_path / "extracted")
+        inspector.extract(package, destination)
 
     assert error.value.code == ErrorCode.UNSAFE_ARCHIVE
     assert error.value.message == "Extraction limit exceeded"
+    assert not destination.exists()
+    assert not list(tmp_path.glob(".extracted.wordtoolkit-*"))
+
+
+def test_extraction_uses_one_snapshot_after_source_replacement(tmp_path, monkeypatch) -> None:
+    package = tmp_path / "source.docx"
+    replacement = tmp_path / "replacement.docx"
+    minimal_package(package, ("custom/original.bin", b"original"))
+    minimal_package(replacement, ("custom/replacement.bin", b"replacement"))
+    inspector = SafePackageInspector(config(tmp_path))
+    original_inspect = inspector._inspect_snapshot
+
+    def replace_after_inspection(snapshot, *, source_suffix):
+        report = original_inspect(snapshot, source_suffix=source_suffix)
+        package.write_bytes(replacement.read_bytes())
+        return report
+
+    monkeypatch.setattr(inspector, "_inspect_snapshot", replace_after_inspection)
+    destination = tmp_path / "extracted"
+    inspector.extract(package, destination)
+
+    assert (destination / "custom" / "original.bin").read_bytes() == b"original"
+    assert not (destination / "custom" / "replacement.bin").exists()
+
+
+def test_extraction_rejects_preexisting_symlink_parent(tmp_path) -> None:
+    package = tmp_path / "package.docx"
+    minimal_package(package, ("custom/payload.bin", b"secret"))
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    parent = tmp_path / "staging"
+    try:
+        parent.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        if os.name != "nt" or getattr(exc, "winerror", None) != 1314:
+            raise
+        command = os.environ.get("COMSPEC", r"C:\Windows\System32\cmd.exe")
+        created = subprocess.run(
+            [command, "/d", "/c", "mklink", "/J", str(parent), str(outside)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if created.returncode != 0:
+            pytest.skip("Windows runtime cannot create a symlink or junction for this test")
+
+    with pytest.raises(WordToolkitError) as error:
+        SafePackageInspector(config(tmp_path)).extract(package, parent / "output")
+
+    assert error.value.code == ErrorCode.UNSAFE_ARCHIVE
+    assert not (outside / "output" / "custom" / "payload.bin").exists()
+
+
+def test_extraction_never_overwrites_existing_destination(tmp_path) -> None:
+    package = tmp_path / "package.docx"
+    minimal_package(package, ("custom/payload.bin", b"secret"))
+    destination = tmp_path / "existing"
+    destination.mkdir()
+    sentinel = destination / "keep.bin"
+    sentinel.write_bytes(b"keep")
+
+    with pytest.raises(WordToolkitError) as error:
+        SafePackageInspector(config(tmp_path)).extract(package, destination)
+
+    assert error.value.code == ErrorCode.UNSAFE_ARCHIVE
+    assert sentinel.read_bytes() == b"keep"
+    assert not (destination / "custom" / "payload.bin").exists()
+
+
+def test_extraction_fails_closed_on_file_directory_collision(tmp_path) -> None:
+    package = tmp_path / "collision.docx"
+    minimal_package(
+        package,
+        ("custom", b"file"),
+        ("custom/payload.bin", b"secret"),
+    )
+    destination = tmp_path / "extracted"
+
+    with pytest.raises(WordToolkitError) as error:
+        SafePackageInspector(config(tmp_path)).extract(package, destination)
+
+    assert error.value.code == ErrorCode.UNSAFE_ARCHIVE
+    assert not destination.exists()
+    assert not list(tmp_path.glob(".extracted.wordtoolkit-*"))
+
+
+def test_extraction_normalizes_invalid_destination_parent(tmp_path) -> None:
+    package = tmp_path / "package.docx"
+    minimal_package(package, ("custom/payload.bin", b"secret"))
+    parent = tmp_path / "parent"
+    parent.write_bytes(b"not a directory")
+
+    with pytest.raises(WordToolkitError) as error:
+        SafePackageInspector(config(tmp_path)).extract(package, parent / "output")
+
+    assert error.value.code == ErrorCode.UNSAFE_ARCHIVE
+    assert parent.read_bytes() == b"not a directory"
 
 
 @pytest.mark.parametrize("host", ["localhost", "127.0.0.1", "::1"])

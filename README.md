@@ -1441,19 +1441,23 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-Release `v0.60.1` contains the qualified24 runtime (`0.60.1+codex.20260821204944`). Artifact/source/cache parity passed for 199 files and 91,106,085 expanded bytes, and runtime guidance covers 149/149 actions. Q24 inherits q17 live-full evidence (59/59 exercised actions, 15 public MCP tools, 149 catalog actions, combined real-Word tests 5/5, final Word process count 0); its delta is limited to non-following Windows reparse-point detection.
+Release `v0.61.0` contains the qualified native runtime (`0.61.0+codex.20260823092637`), with runtime guidance covering 151/151 actions and 15 public MCP tools. The release also includes the machine-readable archive checksum and the independently verified native artifact described below.
 
 Version:
 
 ```text
-0.60.1+codex.20260821204944
+0.61.0+codex.20260823092637
 ```
 
 Windows x64 ZIP:
 
-[WordToolkit 0.60.1 native plugin for Windows x64](https://github.com/Fr4u/WordToolkit/releases/download/v0.60.1/qualified24-a.zip)
+Asset: `WordToolkit-0.61.0+codex.20260823092637-native-win-x64.zip`
 
-SHA-256: `6c2773874f1e2b6bccd6e4457de783a99d3f87d92c57c9b1a7212826d005c25a`
+[WordToolkit 0.61.0 native plugin for Windows x64](https://github.com/Fr4u/WordToolkit/releases/download/v0.61.0/WordToolkit-0.61.0%2Bcodex.20260823092637-native-win-x64.zip)
+
+Size: `38,361,009 bytes`
+
+SHA-256: `02bb56d038ed413a7abea6f5c0b3f4f0b2cf99628712ac8083fc564daf00d3a0`
 
 Live demonstration document:
 
