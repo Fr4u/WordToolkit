@@ -137,6 +137,58 @@ public sealed class WordLifecycleServiceTests
     }
 
     [Fact]
+    public async Task MissingLiveWriteVersionFailsBeforeComAttachment()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"wordtoolkit-version-gate-{Guid.NewGuid():N}"
+        );
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, "versioned.docx");
+        await File.WriteAllTextAsync(path, "fake Word input for COM contract test");
+        try
+        {
+            await using var host = new LifecycleFakeHost();
+            var service = new WordLiveService(host);
+            using var openArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new { file_path = path })
+            );
+            var opened = await service.CallAsync(
+                "open_live_word_document",
+                openArguments.RootElement,
+                CancellationToken.None
+            );
+            using var openedJson = JsonDocument.Parse(
+                JsonSerializer.Serialize(opened, JsonDefaults.Compact)
+            );
+            var documentId = openedJson.RootElement
+                .GetProperty("live_document_id")
+                .GetString()!;
+            var callsBeforeRejectedWrite = host.CallCount;
+            using var saveArguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(new { live_document_id = documentId })
+            );
+
+            var error = await Assert.ThrowsAsync<NativeToolException>(
+                () =>
+                    service.CallAsync(
+                        "save_live_word_document",
+                        saveArguments.RootElement,
+                        CancellationToken.None
+                    )
+            );
+
+            Assert.Equal("INVALID_INPUT", error.ErrorCode);
+            Assert.Contains("expected_version", error.Message, StringComparison.Ordinal);
+            Assert.Equal(callsBeforeRejectedWrite, host.CallCount);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task HybridPublicationRequiresExactValidatedFingerprintAndOpensNewIdentity()
     {
         var root = Path.Combine(
@@ -259,6 +311,7 @@ internal sealed class LifecycleFakeHost : IWordComHost
 {
     public LifecycleFakeApplication Application { get; } = new();
     public bool LaunchIfMissing { get; private set; }
+    public int CallCount { get; private set; }
 
     public Task<T> InvokeAsync<T>(
         Func<dynamic, T> operation,
@@ -267,6 +320,7 @@ internal sealed class LifecycleFakeHost : IWordComHost
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
+        CallCount++;
         LaunchIfMissing = launchIfMissing;
         return Task.FromResult(operation(Application));
     }

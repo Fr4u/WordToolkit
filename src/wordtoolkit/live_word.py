@@ -960,7 +960,23 @@ class LiveWordBridge:
 
     @staticmethod
     def _check_version(record: LiveWordRecord, expected_version: int | None) -> None:
-        if expected_version is not None and record.version != expected_version:
+        if expected_version is None:
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "expected_version is required for every Word Live write",
+                {"field": "expected_version"},
+            )
+        if (
+            isinstance(expected_version, bool)
+            or not isinstance(expected_version, int)
+            or expected_version < 0
+        ):
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "expected_version must be a non-negative integer",
+                {"field": "expected_version"},
+            )
+        if record.version != expected_version:
             raise WordToolkitError(
                 ErrorCode.VERSION_CONFLICT,
                 "The Word Live handle changed before the mutation",
@@ -2083,11 +2099,13 @@ class LiveWordBridge:
                 ErrorCode.INVALID_INPUT,
                 "expected_version is required for mutating Word member operations",
             )
-        self._check_version(record, expected_version)
+        if expected_version is not None:
+            self._check_version(record, expected_version)
 
         def operation(application: Any) -> dict[str, Any]:
             document = self._resolve_document(application, record)
-            self._check_version(record, expected_version)
+            if expected_version is not None:
+                self._check_version(record, expected_version)
             if activate:
                 document.Activate()
             raw_results: dict[str, Any] = {}
@@ -4286,6 +4304,7 @@ class LiveWordBridge:
             raise WordToolkitError(ErrorCode.INVALID_INPUT, "Text must not be empty")
         normalized_formatting = self._normalize_text_formatting(formatting)
         record = self._record(owner, document_id)
+        self._check_version(record, expected_version)
 
         def operation(application: Any) -> dict[str, Any]:
             self._check_version(record, expected_version)
@@ -4352,6 +4371,7 @@ class LiveWordBridge:
                 "Provide a style or at least one formatting field",
             )
         record = self._record(owner, document_id)
+        self._check_version(record, expected_version)
 
         def operation(application: Any) -> dict[str, Any]:
             self._check_version(record, expected_version)
@@ -4813,6 +4833,7 @@ class LiveWordBridge:
         row_count = len(prepared_rows)
         tsv = "\r".join("\t".join(row) for row in prepared_rows)
         record = self._record(owner, document_id)
+        self._check_version(record, expected_version)
 
         def operation(application: Any) -> dict[str, Any]:
             self._check_version(record, expected_version)
@@ -4930,6 +4951,7 @@ class LiveWordBridge:
         started_at = time.perf_counter()
         prepared = self._prepare_table_formulas(formulas)
         record = self._record(owner, document_id)
+        self._check_version(record, expected_version)
 
         def operation(application: Any) -> dict[str, Any]:
             self._check_version(record, expected_version)
@@ -5201,6 +5223,7 @@ class LiveWordBridge:
             )
         started_at = time.perf_counter()
         record = self._record(owner, document_id)
+        self._check_version(record, expected_version)
 
         def operation(application: Any) -> dict[str, Any]:
             self._check_version(record, expected_version)
@@ -5392,6 +5415,7 @@ class LiveWordBridge:
         normalized_formatting = self._normalize_text_formatting(formatting)
         payload_text = "\r".join(prepared_items)
         record = self._record(owner, document_id)
+        self._check_version(record, expected_version)
 
         def operation(application: Any) -> dict[str, Any]:
             self._check_version(record, expected_version)
@@ -5713,6 +5737,7 @@ class LiveWordBridge:
     ) -> dict[str, Any]:
         prepared = self._prepare_bookmarks(bookmarks)
         record = self._record(owner, document_id)
+        self._check_version(record, expected_version)
 
         def operation(application: Any) -> dict[str, Any]:
             self._check_version(record, expected_version)
@@ -6271,6 +6296,7 @@ class LiveWordBridge:
     ) -> dict[str, Any]:
         prepared = self._prepare_fields(fields)
         record = self._record(owner, document_id)
+        self._check_version(record, expected_version)
 
         def operation(application: Any) -> dict[str, Any]:
             self._check_version(record, expected_version)
@@ -6409,6 +6435,7 @@ class LiveWordBridge:
         expected_version: int | None = None,
     ) -> dict[str, Any]:
         record = self._record(owner, document_id)
+        self._check_version(record, expected_version)
         prepared = self._prepare_equation(
             value,
             input_format,
@@ -6536,6 +6563,7 @@ class LiveWordBridge:
             )
 
         record = self._record(owner, document_id)
+        self._check_version(record, expected_version)
         failed_equation: PreparedLiveEquation | None = None
 
         def operation(application: Any) -> dict[str, Any]:
@@ -6768,6 +6796,7 @@ class LiveWordBridge:
             )
 
         record = self._record(owner, document_id)
+        self._check_version(record, expected_version)
         prepared_equations = [
             item.equation for item in prepared if isinstance(item, PreparedLiveEquationOperation)
         ]
@@ -7132,6 +7161,7 @@ class LiveWordBridge:
         expected_version: int | None,
     ) -> dict[str, Any]:
         record = self._record(owner, document_id)
+        self._check_version(record, expected_version)
 
         def operation(application: Any) -> dict[str, Any]:
             self._check_version(record, expected_version)

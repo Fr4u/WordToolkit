@@ -125,7 +125,7 @@ async def main() -> None:
         "w", encoding="utf-8", newline="\n"
     ) as handle:
         handle.write(json.dumps(draft_contract, indent=2, ensure_ascii=False) + "\n")
-    native_schema = json.loads((schema_dir / "mcp-tools-local.v1.json").read_text(encoding="utf-8"))
+    native_schema = json.loads((schema_dir / "mcp-tools-local.v2.json").read_text(encoding="utf-8"))
     native_action_count = len(native_schema["native_runtime"]["actions"])
     native_core_count = len(native_schema["native_runtime"]["core_actions"])
     native_gateway_count = len(PUBLIC_GATEWAY_NAMES)
@@ -133,7 +133,7 @@ async def main() -> None:
     lines = [
         "# MCP tool catalog",
         "",
-        "The current remote Python service source of truth is `schemas/mcp-tools.v2.json`; `schemas/mcp-tools.v1.json` remains the immutable historical contract. The provider-neutral heterogeneous mutation contract, including executable input/success/error examples, is generated as `schemas/draft-operations.v1.json`. The native Windows plugin has a separate, deliberately hand-reviewed source in `schemas/mcp-tools-local.v1.json`; `WordToolkit.Native.Tests` validates that catalog and this exporter never overwrites it. Every exported remote tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.",
+        "The current remote Python service source of truth is `schemas/mcp-tools.v2.json`; `schemas/mcp-tools.v1.json` remains the immutable historical contract. The provider-neutral heterogeneous mutation contract, including executable input/success/error examples, is generated as `schemas/draft-operations.v1.json`. The native Windows plugin has a separate, deliberately hand-reviewed source in `schemas/mcp-tools-local.v2.json`; `schemas/mcp-tools-local.v1.json` remains the historical local contract. `WordToolkit.Native.Tests` validates the current catalog and this exporter never overwrites it. Every exported remote tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.",
         "",
     ]
     lines.extend(

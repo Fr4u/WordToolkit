@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = ROOT / "schemas/mcp-tools-local.v1.json"
+SCHEMA = ROOT / "schemas/mcp-tools-local.v2.json"
 OUT = ROOT / "schemas/action-guidance.v1.json"
 OVERRIDES = ROOT / "schemas/action-guidance-overrides.v1.json"
 

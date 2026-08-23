@@ -199,9 +199,9 @@ $normalizedInputDirectory = Join-Path `
     $root `
     "native\WordToolkit.Native\obj\wordtoolkit-package-inputs"
 New-Item -ItemType Directory -Path $normalizedInputDirectory -Force | Out-Null
-$normalizedSchema = Join-Path $normalizedInputDirectory "mcp-tools-local.v1.json"
+$normalizedSchema = Join-Path $normalizedInputDirectory "mcp-tools-local.v2.json"
 Write-CanonicalUtf8Text `
-    -Source (Join-Path $root "schemas\mcp-tools-local.v1.json") `
+    -Source (Join-Path $root "schemas\mcp-tools-local.v2.json") `
     -Destination $normalizedSchema
 
 $runtime = Join-Path $resolvedOutput "runtime\win-x64"

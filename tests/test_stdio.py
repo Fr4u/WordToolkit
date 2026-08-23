@@ -57,6 +57,23 @@ LIVE_TOOLS = {
     "save_live_word_document",
     "disconnect_live_word_document",
 }
+PYTHON_LIVE_VERSIONED_WRITES = {
+    "replace_live_word_text",
+    "manage_live_word_review",
+    "undo_live_word_operation",
+    "insert_live_word_text",
+    "format_live_word_selection",
+    "insert_live_word_table",
+    "insert_live_word_table_formulas",
+    "update_live_word_table_fields",
+    "insert_live_word_list",
+    "insert_live_word_bookmarks",
+    "insert_live_word_fields",
+    "insert_live_word_equation",
+    "insert_live_word_equations_batch",
+    "apply_live_word_operations",
+    "save_live_word_document",
+}
 
 
 @pytest.mark.asyncio
@@ -97,6 +114,14 @@ async def test_live_word_tools_exist_only_on_local_stdio(tmp_path: Path) -> None
     assert mapping["insert_live_word_equation"].annotations.destructiveHint is True
     assert mapping["preflight_live_word_equations"].annotations.readOnlyHint is True
     assert mapping["apply_live_word_operations"].annotations.destructiveHint is True
+    for name in PYTHON_LIVE_VERSIONED_WRITES:
+        schema = mapping[name].inputSchema
+        assert "expected_version" in schema["required"], name
+        assert schema["properties"]["expected_version"]["type"] == "integer", name
+        assert schema["properties"]["expected_version"]["minimum"] == 0, name
+    assert "expected_version" not in mapping["execute_live_word_member_operations"].inputSchema.get(
+        "required", []
+    )
 
     live_batch_schema = mapping["apply_live_word_operations"].inputSchema
     Draft202012Validator.check_schema(live_batch_schema)

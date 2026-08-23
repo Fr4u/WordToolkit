@@ -15,7 +15,7 @@ NAMES = (
 
 
 def _tools() -> dict[str, dict[str, Any]]:
-    catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v1.json").read_text())
+    catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v2.json").read_text())
     return {tool["name"]: tool for tool in catalog["tools"] if tool["name"] in NAMES}
 
 

@@ -1103,12 +1103,18 @@ internal sealed partial class WordLiveService
                 "expected_version is required for mutating Word member operations"
             );
         }
-        CheckVersion(record, expectedVersion);
+        if (expectedVersion is not null)
+        {
+            CheckVersion(record, expectedVersion);
+        }
         return await _host.InvokeAsync(
             application =>
             {
                 dynamic document = ResolveDocument(application, record);
-                CheckVersion(record, expectedVersion);
+                if (expectedVersion is not null)
+                {
+                    CheckVersion(record, expectedVersion);
+                }
                 if (mutating)
                 {
                     RequireEditable(document);

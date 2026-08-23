@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Published the native local MCP v2 contract and kept local v1 as a historical
+  artifact. Every unconditional Word Live write now requires a non-negative
+  integer `expected_version`; omission and invalid types fail before COM, stale
+  versions remain `VERSION_CONFLICT`, and the version is checked again inside
+  the COM callback. The generic member executor intentionally permits omission
+  only for a batch proven read-only. This closes the previous fail-open path for
+  text, formatting, tables, lists, fields, equations, images, comments, notes,
+  headers, footers and same-path persistence.
+
 - Added dedicated guarded SmartArt live actions. `inspect_live_word_smartart_layouts`
   returns a bounded paged catalog with opaque document-version-bound layout tokens;
   `insert_live_word_smartart` consumes one fresh token and exactly one range/selection

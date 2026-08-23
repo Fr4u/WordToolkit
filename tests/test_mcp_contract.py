@@ -119,10 +119,74 @@ DRAFT_MUTATION_TOOLS = {
     "generate_preview",
 }
 
+LIVE_WORD_VERSIONED_WRITES = {
+    "replace_live_word_text",
+    "manage_live_word_review",
+    "undo_live_word_operation",
+    "insert_live_word_text",
+    "format_live_word_selection",
+    "insert_live_word_table",
+    "insert_live_word_table_formulas",
+    "update_live_word_table_fields",
+    "insert_live_word_list",
+    "insert_live_word_bookmarks",
+    "insert_live_word_fields",
+    "insert_live_word_caption",
+    "insert_live_word_table_of_figures",
+    "insert_live_word_table_of_contents",
+    "mark_live_word_authority_citation",
+    "insert_live_word_table_of_authorities",
+    "mark_live_word_index_entry",
+    "insert_live_word_index",
+    "update_live_word_reference_tables",
+    "insert_live_word_image",
+    "insert_live_word_comment",
+    "insert_live_word_note",
+    "set_live_word_header_footer",
+    "insert_live_word_smartart",
+    "apply_live_word_smartart_text_edits",
+    "insert_live_word_equation",
+    "insert_live_word_equations_batch",
+    "update_live_word_equation",
+    "apply_live_word_operations",
+    "save_live_word_document",
+    "close_live_word_document",
+}
+
+
+def test_local_v2_requires_versions_for_all_unconditional_live_writes() -> None:
+    catalog = json.loads(
+        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v2.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    tools = {item["name"]: item for item in catalog["tools"]}
+    native_actions = set(catalog["native_runtime"]["actions"])
+    native_versioned_actions = {
+        name
+        for name, tool in tools.items()
+        if name in native_actions
+        and "expected_version" in tool["inputSchema"].get("properties", {})
+    }
+
+    assert catalog["schema_version"] == "2.0.0"
+    assert native_versioned_actions == LIVE_WORD_VERSIONED_WRITES | {
+        "execute_live_word_member_operations"
+    }
+    for name in LIVE_WORD_VERSIONED_WRITES:
+        schema = tools[name]["inputSchema"]
+        assert "expected_version" in schema["required"], name
+        version = schema["properties"]["expected_version"]
+        assert version["type"] == "integer", name
+        assert version["minimum"] == 0, name
+
+    conditional = tools["execute_live_word_member_operations"]["inputSchema"]
+    assert "expected_version" not in conditional.get("required", [])
+
 
 def test_live_table_formula_items_have_explicit_runtime_contract() -> None:
     catalog = json.loads(
-        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v1.json").read_text(
+        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v2.json").read_text(
             encoding="utf-8"
         )
     )
@@ -151,7 +215,7 @@ def test_live_table_formula_items_have_explicit_runtime_contract() -> None:
 
 def test_live_formatting_contract_is_typed_and_alias_safe() -> None:
     catalog = json.loads(
-        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v1.json").read_text(
+        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v2.json").read_text(
             encoding="utf-8"
         )
     )
@@ -194,7 +258,7 @@ def test_live_formatting_contract_is_typed_and_alias_safe() -> None:
 
 def test_live_mixed_formatting_contract_matches_extended_runtime_fields() -> None:
     catalog = json.loads(
-        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v1.json").read_text(
+        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v2.json").read_text(
             encoding="utf-8"
         )
     )
@@ -245,7 +309,7 @@ def test_live_mixed_formatting_contract_matches_extended_runtime_fields() -> Non
 
 def test_live_table_formula_batch_bounds_are_published() -> None:
     catalog = json.loads(
-        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v1.json").read_text(
+        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v2.json").read_text(
             encoding="utf-8"
         )
     )
@@ -265,7 +329,7 @@ def test_live_table_formula_batch_bounds_are_published() -> None:
 
 def test_live_caption_schema_accepts_exactly_one_target_token() -> None:
     catalog = json.loads(
-        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v1.json").read_text(
+        (Path(__file__).parents[1] / "schemas" / "mcp-tools-local.v2.json").read_text(
             encoding="utf-8"
         )
     )

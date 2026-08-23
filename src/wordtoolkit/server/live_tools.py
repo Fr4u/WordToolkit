@@ -30,6 +30,7 @@ LIVE_HANDLE = ToolAnnotations(
     idempotentHint=True,
     openWorldHint=True,
 )
+LIVE_VERSION = Annotated[int, Field(strict=True, ge=0)]
 
 
 class LiveRunFormatting(BaseModel):
@@ -545,7 +546,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         track_changes: Literal["preserve", "enable", "disable"] = "preserve",
         max_replacements: int = Field(default=1_000, ge=1, le=5_000),
         optimize_screen_updates: bool = True,
-        expected_version: int | None = None,
+        expected_version: LIVE_VERSION = Field(),
     ) -> dict:
         subject = current_subject()
         require_scope("documents:write")
@@ -618,7 +619,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         resolved: bool = True,
         tracking_enabled: bool | None = None,
         optimize_screen_updates: bool = True,
-        expected_version: int | None = None,
+        expected_version: LIVE_VERSION = Field(),
     ) -> dict:
         subject = current_subject()
         require_scope("documents:write")
@@ -695,7 +696,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
     async def undo_live_word_operation(
         live_document_id: str,
         undo_token: str = Field(max_length=128),
-        expected_version: int | None = None,
+        expected_version: LIVE_VERSION = Field(),
     ) -> dict:
         subject = current_subject()
         require_scope("documents:write")
@@ -724,7 +725,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         selection_token: str = Field(default="", max_length=128),
         replace_selection: bool = False,
         activate: bool = True,
-        expected_version: int | None = None,
+        expected_version: LIVE_VERSION = Field(),
     ) -> dict:
         subject = current_subject()
         require_scope("documents:write")
@@ -756,7 +757,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         style: str = Field(default="", max_length=128),
         formatting: dict | None = None,
         optimize_screen_updates: bool = True,
-        expected_version: int | None = None,
+        expected_version: LIVE_VERSION = Field(),
     ) -> dict:
         subject = current_subject()
         require_scope("documents:write")
@@ -790,7 +791,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         alignment: Literal["left", "center", "right"] = "left",
         activate: bool = True,
         optimize_screen_updates: bool = True,
-        expected_version: int | None = None,
+        expected_version: LIVE_VERSION = Field(),
     ) -> dict:
         subject = current_subject()
         require_scope("documents:write")
@@ -839,7 +840,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         activate: bool = True,
         optimize_screen_updates: bool = True,
         force_update: bool = False,
-        expected_version: int | None = None,
+        expected_version: LIVE_VERSION = Field(),
     ) -> dict:
         subject = current_subject()
         require_scope("documents:write")
@@ -867,7 +868,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         table_index: int = Field(ge=1, le=10_000),
         activate: bool = True,
         optimize_screen_updates: bool = True,
-        expected_version: int | None = None,
+        expected_version: LIVE_VERSION = Field(),
     ) -> dict:
         subject = current_subject()
         require_scope("documents:write")
@@ -899,7 +900,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         formatting: dict | None = None,
         activate: bool = True,
         optimize_screen_updates: bool = True,
-        expected_version: int | None = None,
+        expected_version: LIVE_VERSION = Field(),
     ) -> dict:
         subject = current_subject()
         require_scope("documents:write")
@@ -948,7 +949,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         replace_selection: bool = False,
         activate: bool = True,
         optimize_screen_updates: bool = True,
-        expected_version: int | None = None,
+        expected_version: LIVE_VERSION = Field(),
     ) -> dict:
         subject = current_subject()
         require_scope("documents:write")
@@ -991,7 +992,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         replace_selection: bool = False,
         activate: bool = True,
         optimize_screen_updates: bool = True,
-        expected_version: int | None = None,
+        expected_version: LIVE_VERSION = Field(),
     ) -> dict:
         subject = current_subject()
         require_scope("documents:write")
@@ -1024,7 +1025,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         selection_token: str = Field(default="", max_length=128),
         replace_selection: bool = False,
         activate: bool = True,
-        expected_version: int | None = None,
+        expected_version: LIVE_VERSION = Field(),
     ) -> dict:
         subject = current_subject()
         require_scope("documents:write")
@@ -1053,7 +1054,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         live_document_id: str,
         equations: list[dict],
         activate: bool = True,
-        expected_version: int | None = None,
+        expected_version: LIVE_VERSION = Field(),
         verify_readback: bool = False,
     ) -> dict:
         subject = current_subject()
@@ -1092,7 +1093,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         live_document_id: str,
         operations: list[LiveWordOperation] = Field(min_length=1, max_length=200),
         activate: bool = True,
-        expected_version: int | None = None,
+        expected_version: LIVE_VERSION = Field(),
         verify_readback: bool = False,
         optimize_screen_updates: bool = True,
     ) -> dict:
@@ -1130,7 +1131,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
     @_safe
     async def save_live_word_document(
         live_document_id: str,
-        expected_version: int | None = None,
+        expected_version: LIVE_VERSION = Field(),
     ) -> dict:
         subject = current_subject()
         require_scope("documents:write")

@@ -52,7 +52,7 @@ def test_plugin_manifest_matches_native_catalog() -> None:
         )
     )
     source_catalog = json.loads(
-        (ROOT / "schemas" / "mcp-tools-local.v1.json").read_text(encoding="utf-8")
+        (ROOT / "schemas" / "mcp-tools-local.v2.json").read_text(encoding="utf-8")
     )
     runtime = source_catalog["native_runtime"]
     action_count = len(runtime["actions"])

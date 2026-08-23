@@ -10,7 +10,7 @@ GATEWAY_CONST = re.compile(r'private const string \w+Name = "(?P<name>[a-z0-9_]+
 
 
 def test_every_native_action_has_a_dispatch_case() -> None:
-    catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v1.json").read_text(encoding="utf-8"))
+    catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v2.json").read_text(encoding="utf-8"))
     actions = catalog["native_runtime"]["actions"]
     assert len(actions) == 151
     assert len(set(actions)) == 151
@@ -35,7 +35,7 @@ def test_every_native_action_has_a_dispatch_case() -> None:
 
 
 def test_public_tool_split_is_11_core_plus_4_gateways() -> None:
-    catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v1.json").read_text(encoding="utf-8"))
+    catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v2.json").read_text(encoding="utf-8"))
     core = set(catalog["native_runtime"]["core_actions"])
     tool_catalog = (
         ROOT / "native" / "WordToolkit.Native" / "Protocol" / "ToolCatalog.cs"
