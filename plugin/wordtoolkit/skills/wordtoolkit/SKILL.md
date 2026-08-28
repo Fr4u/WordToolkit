@@ -26,6 +26,12 @@ it. If the exact action name is already known, skip search. Keep
 `response_mode=compact`; request `full` only when omitted details are required
 for the next operation.
 
+`search_wordtoolkit_actions` includes the full schema and first-call guidance for the
+single top match by default. This is a one-call search-plus-schema workflow; other hits
+remain uninspected. Exact normalized action names and the shortest ordered name-token
+match outrank descriptions across both core and lazy actions. Use a known exact action
+name directly instead of searching a vague paraphrase.
+
 When runtime/schema compatibility, supported operation discovery, effect hints or
 hard limits matter, call `get_wordtoolkit_capabilities` first. Filter and page its
 bounded summaries; do not fetch all action schemas. This call opens no Word instance,
@@ -37,8 +43,10 @@ If a client must validate the response shape, request
 ## Mandatory first-call guidance
 
 For an action whose exact name is unknown, search with `search_wordtoolkit_actions`.
-Then call `inspect_wordtoolkit_action` for the exact selected action before executing it.
-Inspection returns that action's input schema and generated first-call guidance. Bind
+The default response already includes the top match's complete inspected schema and
+first-call guidance, so execute that match without a redundant inspect call. Call
+`inspect_wordtoolkit_action` only for another returned match or after explicitly setting
+`include_top_schema=false`. Bind
 its `prerequisites`, `acquisition_steps`, `bindings`, and template `example` from
 actual earlier responses; never infer arguments or preconditions from a search result,
 schema hash, or guessed action name. After execution, use the returned `success`
@@ -80,6 +88,25 @@ and changes no document state. Local JSONL segments are verified outside MCP wit
   syntax is unfamiliar or the batch is risky. Equation preflight defaults to exact native
   Word execution in one disposable scratch document. Use `validation_mode=conversion_only`
   only for a cheap syntax plan; its `valid` is deliberately null and is not insertion proof.
+- Before a risky mixed batch, call lazy `preflight_live_word_operations` with the exact
+  connected `live_document_id`, current `expected_version` and the operations array that
+  will be passed unchanged to `apply_live_word_operations`. This target-bound path uses the
+  same Flat OPC clone, paragraph boundaries, formatting, OMath BuildUp and readback as apply,
+  then proves cleanup without publishing or advancing the live version. A scratch-only
+  equation preflight is no substitute for this document-specific proof.
+- Equation preflight returns every attributable failure in input order. Use stable
+  `equation_id`, `diagnostic` and `suggestion_code` to repair only invalid items, then
+  rerun the complete final set once; do not repeatedly preflight the whole set after
+  changing one formula blindly.
+- For a long tool call, include a unique string or integer `_meta.progressToken` in the MCP
+  request params. WordToolkit emits bounded, strictly increasing `notifications/progress`
+  heartbeats and stops them before the final response; the MCP tool timeout is 600 seconds.
+  Native equation preflight uses a dedicated worker Word process with 20 seconds per
+  equation and 120 seconds total by default, reporting exact index/progress on timeout.
+- For long `apply_live_word_operations`, provide a unique `idempotency_key`; retain its
+  `operation_id` and use `get_live_word_operation_status` or replay the exact same request
+  if the caller stops waiting. Receipts are process-local (256 entries, one-hour TTL), not
+  crash-durable; never submit a new request with a different key while one is pending.
 - Do not inspect an advanced action already inspected in the current turn.
 - Do not request full responses for confirmation; compact mutation responses
   already include version, counts, native verification, and document state.
@@ -229,6 +256,12 @@ staged, verified and published in one no-clobber transaction. Treat
 record as the evidence. Do not call the result pixel-equivalent across other Word
 builds, fonts, printers or operating systems. On `ROLLBACK_FAILED`, treat every
 reported public path as unverified and do not continue from that output directory.
+When the document is already connected or has unsaved edits, do not call the saved-package
+renderer. Use lazy `export_live_word_artifacts` with the current `expected_version`, an
+existing output directory and a new artifact stem. It exports the current live state to a
+private Word PDF without saving or reopening the DOCX, optionally derives all PNG pages
+through explicit Poppler binaries, verifies the live document stayed unchanged and publishes
+the PDF/PNGs/manifest in one create-new transaction.
 For two or more queries over the same unchanged package, first execute lazy
 `manage_ooxml_semantic_index` with `operation=create`. Reuse its
 `semantic_index_id` and exact `package_fingerprint` in every
@@ -1185,6 +1218,29 @@ validation are hard blocks.
 7. Finish with `disconnect_live_word_document`. Close or quit only when the
    user explicitly asks; those actions require their guarded policies.
 
+`create_live_word_document` with `lifecycle="scratch"` creates an invisible,
+unsaved document, rejects `output_path`, and marks the handle for automatic close
+without saving on disconnect. Persistent documents do not auto-close.
+
+When the requested deliverable is a new document containing equations only, prefer core
+`create_live_word_equation_document`. Supply the complete equation set, one new absolute
+DOCX path and an `idempotency_key`. The action preflights before file creation, publishes
+once, saves, validates, Word-renders and inspects the package. Supply explicit Poppler
+paths with `render_output="pdf_and_png_pages"` when page-edge QA is required. A false
+preflight result creates no file; `EQUATION_DOCUMENT_PARTIAL` means the DOCX was already
+preserved and only a later workflow stage failed.
+
+For `insert_live_word_dropdowns`, acquire a fresh range token per target range and
+pass each as `range_token` with the current `expected_version`. Ranges cannot
+overlap. The action creates native dropdown content controls, verifies Word's
+type/count/item readback and uses one guarded Undo record; later mutations invalidate
+the range tokens.
+
+Table formulas also support `function="expression"` for bounded A1-style arithmetic
+over same-table cells. `(B2-A2)*24` is the duration-in-hours example; the tested
+Sunday count is `INT(B3/7)-INT((A3-1)/7)`. Tax/ZUS formulas must use parameter cells
+for thresholds and rates; WordToolkit does not hardcode or certify changing laws.
+
 `apply_live_word_operations` is the default authoring tool. It clones the target's
 read-only Flat OPC into an isolated hidden Word document, then builds and verifies the
 complete requested text, paragraph, style, formatting and native-equation batch there.
@@ -1229,16 +1285,38 @@ paragraph formatting on the parent text operation, not on an inline run.
 Search with two or three capability words such as `image`, `find replace`,
 `table formula`, `review comment`, `header footer`, `equation preflight`,
 `PDF export`, `validate DOCX`, or `close document`. Search returns at most a
-small bounded list. Inspect exactly one schema and execute it; never guess its
-arguments.
+small bounded list plus the top match's schema by default. Execute the top match directly;
+inspect exactly one different match only when the top result is wrong. Never guess arguments.
 
 ## Equations and safety
 
 Equation inputs may be LaTeX, UnicodeMath, Presentation MathML, or OMML.
 Prefer LaTeX for model output. Equations must remain native editable OMath;
 never replace them with screenshots or plain-text approximations.
-LaTeX is a bounded converter contract, not a complete TeX engine. It supports
-`\boxed{...}` and `\implies`; preflight unfamiliar commands before a large batch.
+For a complete TeX or LaTeX document rather than one equation, use lazy
+`compile_tex_document` with one explicit absolute local Tectonic executable, preferably
+its expected SHA-256, and one new PDF output path. This provider uses `--untrusted` and
+defaults to `--only-cached`; set `allow_network_resource_fetch=true` only when the user
+accepts Tectonic downloading missing resources into its external cache. It does not
+search `PATH`, open Word, claim network isolation or bind the resource-bundle hash, and
+it cannot convert arbitrary TeX into editable OfficeMath. Never present its PDF as a
+native-equation fallback. Use the equation actions below for the representable math
+subset and direct `input_format="omml"` for exact Word OfficeMath structures.
+LaTeX is a bounded Word-oriented converter contract, not a complete TeX engine. It
+supports more than 400 one-scalar UTN28/LaTeX aliases plus the major native Word
+structures: fractions/roots, n-ary and contour integrals, matrices/determinants/cases,
+aligned/split/multline arrays, prescripts, over/under structures, common accents,
+phantom/smash geometries, `\boxed{...}`, `\implies`, `\bra`, `\ket`, one- or
+two-argument `\braket`, `\matrixel`, `\expectation`, `\dv` and `\pdv`. Preflight
+unfamiliar commands before a large batch. Packages, user macros and file inclusion are
+not loaded.
+For exact Word structures that do not have a safe linear representation, use one secure
+`input_format="omml"` equation. Direct OMML is inserted inside a Word-owned XML
+template and must pass separate equation-semantic and paragraph-property proof both in
+isolated staging and after publication. The bounded paragraph profile accepts exactly
+one `m:jc` value and verifies `OMath.Justification`; it does not fabricate a combined
+actual hash from the expected input. Do not send a complete DOCX part, relationships, multiple equations,
+active content or raw WordprocessingML. Raw OMML is never returned.
 For an integral, write an explicit differential such as
 `\int f(x)\,\mathrm{d}x`; `\,d x`, `\operatorname{d}x`, and `\dd x` are also
 accepted. Use the exact field name `input_format`, never `source_format`.
@@ -1285,3 +1363,9 @@ schema requires them. Never invent IDs, versions, tokens, paths, styles, or
 capability IDs. Never bypass optimistic version checks. Never invoke raw
 macros, DDE, arbitrary COM member names, or raw Undo. Never overwrite DOCX;
 overwrite PDF only when explicitly requested with `overwrite=true`.
+
+Read `equation_render_qa` after Word PDF/PNG export. Treat
+`RAW_LINEAR_CONTROL_SYNTAX`, `PAGE_EDGE_INK`, and
+`CONTENT_EXCEEDS_USABLE_PAGE_WIDTH` as mandatory review signals, not proof of the exact
+cause. PDF-only output performs structural raw-syntax QA but cannot perform raster-edge
+checks. Always keep subjective visual review as the final acceptance gate.

@@ -5,6 +5,113 @@ namespace WordToolkit.Native.Tests;
 
 public sealed class MathMarkupToUnicodeMathTests
 {
+    [Theory]
+    [InlineData(
+        "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mfrac linethickness=\"0\"><mi>a</mi><mi>b</mi></mfrac></math>",
+        "(a)¦(b)"
+    )]
+    [InlineData(
+        "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mphantom><mi>x</mi></mphantom></math>",
+        "⟡(x)"
+    )]
+    [InlineData(
+        "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><maction><mi>x</mi><mi>y</mi></maction></math>",
+        "x"
+    )]
+    [InlineData(
+        "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><maction selection=\"2\"><mi>x</mi><mi>y</mi></maction></math>",
+        "y"
+    )]
+    [InlineData(
+        "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><menclose notation=\"box\"><mi>x</mi></menclose></math>",
+        "▭(x)"
+    )]
+    [InlineData(
+        "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><menclose notation=\"radical\"><mi>x</mi></menclose></math>",
+        "√(x)"
+    )]
+    [InlineData(
+        "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><munder accentunder=\"true\"><mi>x</mi><mo>_</mo></munder></math>",
+        "x̲"
+    )]
+    public void PreservesAdditionalMathMlCoreStructures(
+        string source,
+        string expected
+    )
+    {
+        Assert.Equal(expected, MathMarkupToUnicodeMath.Convert(source, "mathml"));
+    }
+
+    [Theory]
+    [InlineData(
+        "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><menclose><mi>x</mi></menclose></math>"
+    )]
+    [InlineData(
+        "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mpadded width=\"2em\"><mi>x</mi></mpadded></math>"
+    )]
+    [InlineData(
+        "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mspace width=\"1em\"/></math>"
+    )]
+    [InlineData(
+        "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mtable><mlabeledtr><mtd><mi>1</mi></mtd><mtd><mi>x</mi></mtd></mlabeledtr></mtable></math>"
+    )]
+    public void RejectsMathMlLayoutThatWouldOtherwiseBeSilentlyFlattened(
+        string source
+    )
+    {
+        var error = Assert.Throws<NativeToolException>(() =>
+            MathMarkupToUnicodeMath.Convert(source, "mathml")
+        );
+        Assert.Equal("EQUATION_INVALID", error.ErrorCode);
+    }
+
+    [Fact]
+    public void PreservesMathMlPreAndPostScriptsWithoutEmptyPlaceholders()
+    {
+        const string source =
+            "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mmultiscripts><mi>T</mi><mi>i</mi><mi>j</mi><mprescripts/><mi>k</mi><none/></mmultiscripts></math>";
+
+        Assert.Equal(
+            "_(k)\u2062(T_(i)^(j))",
+            MathMarkupToUnicodeMath.Convert(source, "mathml")
+        );
+    }
+
+    [Theory]
+    [InlineData(
+        "<m:oMath xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\"><m:sPre><m:sub><m:r><m:t>a</m:t></m:r></m:sub><m:sup><m:r><m:t>b</m:t></m:r></m:sup><m:e><m:r><m:t>x</m:t></m:r></m:e></m:sPre></m:oMath>",
+        "_(a)^(b)\u2062x"
+    )]
+    [InlineData(
+        "<m:oMath xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\"><m:groupChr><m:groupChrPr><m:chr m:val=\"⏞\"/><m:pos m:val=\"top\"/></m:groupChrPr><m:e><m:r><m:t>a+b</m:t></m:r></m:e></m:groupChr></m:oMath>",
+        "⏞(a+b)"
+    )]
+    [InlineData(
+        "<m:oMath xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\"><m:phant><m:e><m:r><m:t>x</m:t></m:r></m:e></m:phant></m:oMath>",
+        "⟡(x)"
+    )]
+    public void PreservesAdditionalStandardOmmlObjectFamilies(
+        string source,
+        string expected
+    )
+    {
+        Assert.Equal(expected, MathMarkupToUnicodeMath.Convert(source, "omml"));
+    }
+
+    [Fact]
+    public void ConvertsMathMlStringLiteralToken()
+    {
+        const string source = "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><ms>a\"b</ms></math>";
+        Assert.Equal("\"a\"\"b\"", MathMarkupToUnicodeMath.Convert(source, "mathml"));
+    }
+
+    [Fact]
+    public void ConvertsMathMlMultipleScripts()
+    {
+        const string source = "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mmultiscripts><mi>x</mi><mn>i</mn><mn>2</mn></mmultiscripts></math>";
+        Assert.Equal("x_(i)^(2)", MathMarkupToUnicodeMath.Convert(source, "mathml"));
+    }
+
     [Fact]
     public void ConvertsPresentationMathMlToWordLinearMath()
     {
@@ -68,6 +175,27 @@ public sealed class MathMarkupToUnicodeMathTests
 
         Assert.Equal(
             "(2+3i)^(2)",
+            MathMarkupToUnicodeMath.Convert(source, "omml")
+        );
+    }
+
+    [Fact]
+    public void PreservesAllOmmlDelimiterOperandsAndSeparatorCharacters()
+    {
+        const string source =
+            """
+            <m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+              <m:d>
+                <m:dPr><m:begChr m:val="⟨"/><m:endChr m:val="⟩"/><m:sepChr m:val="∣"/></m:dPr>
+                <m:e><m:r><m:t>φ</m:t></m:r></m:e>
+                <m:e><m:r><m:t>H</m:t></m:r></m:e>
+                <m:e><m:r><m:t>ψ</m:t></m:r></m:e>
+              </m:d>
+            </m:oMath>
+            """;
+
+        Assert.Equal(
+            "⟨φ∣H∣ψ⟩",
             MathMarkupToUnicodeMath.Convert(source, "omml")
         );
     }

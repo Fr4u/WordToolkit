@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -16,12 +17,14 @@ internal sealed class McpServer
         ?? "0.0.0";
     internal const int DefaultMaxMessageCharacters = 8 * 1024 * 1024;
     internal const int MaxConcurrentRequests = 64;
+    private static readonly TimeSpan DefaultProgressInterval = TimeSpan.FromSeconds(5);
     private readonly TextReader _input;
     private readonly TextWriter _output;
     private readonly ToolCatalog _catalog;
     private readonly IToolHandler _handler;
     private readonly WordOperationObservability _observability;
     private readonly int _maxMessageCharacters;
+    private readonly TimeSpan _progressInterval;
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _activeRequests =
         new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _requestGate = new(1, 1);
@@ -33,12 +36,21 @@ internal sealed class McpServer
         ToolCatalog catalog,
         IToolHandler handler,
         int maxMessageCharacters = DefaultMaxMessageCharacters,
-        WordOperationObservability? observability = null
+        WordOperationObservability? observability = null,
+        TimeSpan? progressInterval = null
     )
     {
         if (maxMessageCharacters < 128)
         {
             throw new ArgumentOutOfRangeException(nameof(maxMessageCharacters));
+        }
+        var resolvedProgressInterval = progressInterval ?? DefaultProgressInterval;
+        if (
+            resolvedProgressInterval <= TimeSpan.Zero
+            || resolvedProgressInterval > TimeSpan.FromMinutes(1)
+        )
+        {
+            throw new ArgumentOutOfRangeException(nameof(progressInterval));
         }
         _input = input;
         _output = output;
@@ -46,6 +58,7 @@ internal sealed class McpServer
         _handler = handler;
         _observability = observability ?? WordOperationObservability.Disabled;
         _maxMessageCharacters = maxMessageCharacters;
+        _progressInterval = resolvedProgressInterval;
     }
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
@@ -222,8 +235,8 @@ internal sealed class McpServer
                         ["version"] = ServerVersion,
                     },
                     ["instructions"] =
-                        "Token-lean native Word bridge. Use core tools directly; inspect and "
-                        + "execute one advanced action lazily when needed.",
+                        "Token-lean native Word bridge. Use core tools directly; search returns "
+                        + "the top advanced action schema by default, then execute it without redundant inspection.",
                 }
             ),
             "ping" => RpcResult(id, new JsonObject()),
@@ -307,7 +320,7 @@ internal sealed class McpServer
                 var root = argumentsDocument.RootElement;
                 foreach (var property in root.EnumerateObject())
                 {
-                    if (property.Name is not ("query" or "max_results"))
+                    if (property.Name is not ("query" or "max_results" or "include_top_schema"))
                     {
                         throw new NativeToolException(
                             "INVALID_INPUT",
@@ -324,11 +337,27 @@ internal sealed class McpServer
                     && maxNode.TryGetInt32(out var requestedMaximum)
                         ? requestedMaximum
                         : 8;
+                var includeTopSchema = true;
+                if (root.TryGetProperty("include_top_schema", out var includeNode))
+                {
+                    if (
+                        includeNode.ValueKind is not (
+                            JsonValueKind.True or JsonValueKind.False
+                        )
+                    )
+                    {
+                        throw new NativeToolException(
+                            "INVALID_INPUT",
+                            "include_top_schema must be a boolean"
+                        );
+                    }
+                    includeTopSchema = includeNode.GetBoolean();
+                }
                 var response = RpcResult(
                     id,
                     ToolResult(
                         ok: true,
-                        _catalog.SearchActions(query, maxResults),
+                        _catalog.SearchActions(query, maxResults, includeTopSchema),
                         error: null
                     )
                 );
@@ -408,11 +437,57 @@ internal sealed class McpServer
                 );
             }
 
-            var data = await _handler.CallAsync(
-                actionName,
-                actionArguments,
-                cancellationToken
-            );
+            var progress = CreateProgressState(parameterObject);
+            CancellationTokenSource? progressCancellation = null;
+            Task progressLoop = Task.CompletedTask;
+            if (progress is not null)
+            {
+                await WriteProgressAsync(
+                    progress,
+                    DescribeProgressStart(actionName, actionArguments)
+                );
+                progressCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken
+                );
+                progressLoop = RunProgressLoopAsync(
+                    progress,
+                    actionName,
+                    progressCancellation.Token
+                );
+            }
+
+            object data;
+            using var progressScope = progress is null
+                ? null
+                : ToolProgressContext.Push(message => WriteProgressAsync(progress, message));
+            try
+            {
+                data = await _handler.CallAsync(
+                    actionName,
+                    actionArguments,
+                    cancellationToken
+                );
+            }
+            finally
+            {
+                if (progressCancellation is not null)
+                {
+                    progressCancellation.Cancel();
+                    try
+                    {
+                        await progressLoop;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // The request response remains authoritative.
+                    }
+                    progressCancellation.Dispose();
+                }
+            }
+            if (progress is not null)
+            {
+                await WriteProgressAsync(progress, $"{actionName} completed");
+            }
             var responseData = fullResponse
                 ? JsonSerializer.SerializeToNode(data, JsonDefaults.Compact)
                 : ToolResponseCompactor.Compact(actionName, data);
@@ -491,6 +566,92 @@ internal sealed class McpServer
             );
         }
         return _observability.Begin(descriptor);
+    }
+
+    private ProgressState? CreateProgressState(
+        JsonObject? parameters
+    )
+    {
+        var token = (parameters?["_meta"] as JsonObject)?["progressToken"];
+        if (
+            token is not JsonValue
+            || token.GetValueKind() is not (JsonValueKind.String or JsonValueKind.Number)
+        )
+        {
+            return null;
+        }
+        return new ProgressState(token.DeepClone());
+    }
+
+    private async Task RunProgressLoopAsync(
+        ProgressState state,
+        string actionName,
+        CancellationToken cancellationToken
+    )
+    {
+        using var timer = new PeriodicTimer(_progressInterval);
+        var started = Stopwatch.GetTimestamp();
+        while (await timer.WaitForNextTickAsync(cancellationToken))
+        {
+            var elapsed = Math.Max(0, (int)Stopwatch.GetElapsedTime(started).TotalSeconds);
+            await WriteProgressAsync(
+                state,
+                $"{actionName} is still running ({elapsed}s elapsed)"
+            );
+        }
+    }
+
+    private async Task WriteProgressAsync(ProgressState state, string message)
+    {
+        await state.Gate.WaitAsync();
+        try
+        {
+            var value = ++state.Value;
+            await WriteResponseAsync(
+                new JsonObject
+                {
+                    ["jsonrpc"] = "2.0",
+                    ["method"] = "notifications/progress",
+                    ["params"] = new JsonObject
+                    {
+                        ["progressToken"] = state.Token.DeepClone(),
+                        ["progress"] = value,
+                        ["message"] = message[..Math.Min(message.Length, 256)],
+                    },
+                }
+            );
+        }
+        finally
+        {
+            state.Gate.Release();
+        }
+    }
+
+    private static string DescribeProgressStart(string actionName, JsonElement arguments)
+    {
+        if (
+            arguments.ValueKind == JsonValueKind.Object
+            && arguments.TryGetProperty("operations", out var operations)
+            && operations.ValueKind == JsonValueKind.Array
+        )
+        {
+            var equations = operations.EnumerateArray().Count(item =>
+                item.ValueKind == JsonValueKind.Object
+                && item.TryGetProperty("type", out var type)
+                && type.ValueKind == JsonValueKind.String
+                && string.Equals(type.GetString(), "equation", StringComparison.Ordinal)
+            );
+            return $"Starting {actionName}: {operations.GetArrayLength()} operations, {equations} equations";
+        }
+        if (
+            arguments.ValueKind == JsonValueKind.Object
+            && arguments.TryGetProperty("equations", out var equationItems)
+            && equationItems.ValueKind == JsonValueKind.Array
+        )
+        {
+            return $"Starting {actionName}: {equationItems.GetArrayLength()} equations";
+        }
+        return $"Starting {actionName}";
     }
 
     private static JsonObject ToolResult(bool ok, object? data, object? error)
@@ -577,6 +738,13 @@ internal sealed class McpServer
     }
 
     private sealed record BoundedLine(string? Line, bool LimitExceeded);
+
+    private sealed class ProgressState(JsonNode token)
+    {
+        public JsonNode Token { get; } = token;
+        public SemaphoreSlim Gate { get; } = new(1, 1);
+        public long Value;
+    }
 
     private sealed class BoundedLineReader
     {

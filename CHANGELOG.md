@@ -2,6 +2,134 @@
 
 ## Unreleased
 
+## 0.61.2 - 2026-08-28
+
+- Added `compile_tex_document`, a separate complete-document TeX/LaTeX execution
+  path through one explicit local Tectonic binary. It invokes `--untrusted` in private
+  temporary storage, defaults to `--only-cached`, pins and rechecks the
+  executable SHA-256, bounds source/output/diagnostics/time, kills the process tree
+  on timeout and publishes one new PDF without opening Word. Explicit resource fetch is
+  separately disclosed, can mutate the external provider cache and does not bind its
+  bundle hash. The result explicitly
+  denies TeX-to-OMML conversion and editable OfficeMath because arbitrary TeX layout
+  has no bijective OfficeMath representation.
+
+- Extended direct OMML preservation to include one validated `m:oMathParaPr/m:jc` in
+  secure parsing and publication. Equation semantics and paragraph properties have
+  separate expected/actual hashes, while the actual Word justification is verified
+  through `OMath.Justification`; no combined actual hash is copied from the plan. The maintained Python OMML compatibility
+  path now accepts Strict OfficeMath and models bar, group-character, phantom and
+  prescript objects; unknown elements fail closed instead of being silently flattened.
+
+- Expanded the native Word equation surface to more than 400 unique one-scalar
+  UTN28/LaTeX aliases and added tested structural mappings for prescripts,
+  multiscripts, over/under annotations and stretchy braces, split/multline arrays,
+  `\root ...\of`, fourfold and contour integrals, common accents, Dirac notation,
+  and all seven UTN28 phantom/smash geometries. A fail-closed negative atlas rejects
+  malformed delimiters, unsafe XML, unsupported packages/layout and mixed namespaces.
+
+- Replaced the lossy live `OMML -> UnicodeMath -> BuildUp` path with direct OMML
+  publication. One secure Transitional or Strict equation is inserted through a
+  Word-owned placeholder `WordOpenXML` template; exact equation count/placement,
+  a content-free mathematical semantic SHA-256 and ordinary bounded readback are
+  verified in isolated staging and again after guarded `FormattedText` publication.
+  Word-injected run/font defaults are normalized out; raw OMML is never returned.
+
+- Added a 60-family real Microsoft Word atlas spanning LaTeX, UnicodeMath,
+  Presentation MathML and direct OMML. The acceptance creates native editable OMath,
+  verifies every item, publishes the complete batch, saves a DOCX, validates it,
+  renders PDF/PNG pages and rejects raw-control/clipping risks while proving no
+  worker-owned WINWORD process leaked.
+
+- Native equation preflight now returns every attributable conversion/Word failure in
+  one ordered response. Each item carries a stable content-bound `weq_` ID, bounded
+  structural diagnostic and allowlisted suggestion code; infrastructure timeout and
+  cleanup still fail the action immediately. The isolated worker preserves
+  `stage=conversion` and sets both item and aggregate `conversion_valid=false` when
+  source conversion failed before Word execution.
+
+- Extended safe equation readback normalization for Word's invisible multiplication,
+  redundant single-symbol accent grouping and coefficient movement into a fraction
+  numerator. `\widehat` maps to the native hat path. Real Word acceptance covers styled
+  `hat`/`widehat`, vector function application, cross product, adjacent `μ₀ε₀`, a
+  coefficient times a derivative fraction and the magnetic wave equation without
+  disabling semantic/style verification.
+
+- Search ranking is exact-name and ordered-name-token first across core and lazy
+  actions. Added the core `create_live_word_equation_document` workflow for one-call
+  preflight/create/publish/save/render/validate/package inspection of a new equation-only
+  DOCX.
+
+- Word fixed-layout exports now return bounded equation render QA. Structural scans flag
+  raw `eqarray(...)` runs that lack native equation-array/matrix markup; PNG scans flag
+  page-edge ink and near-full-page content width while still requiring human visual QA.
+
+- Prepared the `0.61.2` native line with 157 actions. Added
+  `preflight_live_word_operations`, which runs the exact mixed operation array
+  against an isolated Flat OPC clone of the connected target document with the
+  same parsing, formatting, paragraph-boundary, OMath and cleanup path as apply,
+  but never publishes or advances `live_version`.
+
+- Replaced the uninterruptible batch equation preflight with a native helper
+  process that owns a separate hidden Word instance. It validates equations in
+  input order, reports exact equation progress, enforces 20-second per-item and
+  120-second total defaults outside the blocked COM call, and terminates only
+  the PID/start-time-verified worker-owned Word process on timeout. Timeout
+  diagnostics include zero-based `equation_index` and `completed_count`.
+
+- Added idempotent live-batch receipts. `apply_live_word_operations` accepts a
+  caller `idempotency_key` or derives a deterministic operation ID, finishes an
+  already-started transaction after client cancellation, and replays the exact
+  result without duplicate publication. The new core
+  `get_live_word_operation_status` action returns bounded pending/succeeded/
+  failed proof without document content. The process-local store is limited to
+  256 entries and retains terminal receipts for one hour.
+
+- Made one-call action discovery the default: `search_wordtoolkit_actions`
+  includes the top match's full schema and guidance unless the caller explicitly
+  sets `include_top_schema=false`.
+
+- Added bounded equation mismatch diagnostics. Failed native readback now reports
+  the mismatch kind, first differing canonical position and token kinds, bounded
+  expected/actual OfficeMath family counts and differential placement evidence.
+  Batch projection preserves this allowlisted diagnostic together with
+  `failed_operation_index` while still dropping formula text and raw OMML.
+
+- Added MCP `notifications/progress` for requests carrying
+  `_meta.progressToken`. Progress values increase strictly, include a bounded
+  action/count start message, emit five-second heartbeats and stop before the
+  final response; the hard timeout and cancellation behavior remain enforced. Handler
+  progress and heartbeat numbering now share one per-request serialization gate, so
+  concurrent writers cannot emit `3` before `2`.
+
+- Added `export_live_word_artifacts` for connected documents, including unsaved
+  edits. It exports a private Word PDF without saving or reopening the DOCX,
+  optionally derives verified PNG pages through explicit Poppler binaries, proves
+  the live document state stayed unchanged and publishes PDF/PNG/manifest outputs
+  in one create-new transaction. Saved-package renderer sharing failures now point
+  to this live path instead of masquerading as package corruption.
+
+- Added fixed native mappings for common physics notation: `\bra`, `\ket`,
+  one- or two-argument `\braket`, `\matrixel`, `\expectation`, `\dv` and
+  `\pdv`. These remain a closed tested dialect, not arbitrary TeX package loading.
+
+- Fixed TeX punctuation grouping for decimal commas. Inputs such as `3{,}14`
+  now become native Word linear math `3,14` instead of the invalid visible
+  group `3(,)14`; unit and matrix cases are covered by converter tests and an
+  opt-in real-Word BuildUp/readback acceptance.
+
+- Removed request-sized quadratic COM work from complex mixed staging. The
+  batch no longer reads the whole OMath collection after every equation, and a
+  styled equation rebinds through its proven leading collection position rather
+  than rescanning every earlier equation. Atomic publication, final equation
+  counts and semantic/style readback remain mandatory. Compact responses now
+  report batch complexity and fixed batch-boundary count reads.
+
+- Made fixed-layout QA self-describing. Word PDF/Poppler PNG responses and
+  manifests now warn that subjective visual review remains required, that one
+  Word build does not prove cross-build pixel equivalence and, for PDF-only
+  output, that page geometry was not independently inspected.
+
 - Published the immutable `v0.61.1` release manifest and synchronized the
   repository front page with the independently downloaded GitHub asset's exact
   version, size and SHA-256.

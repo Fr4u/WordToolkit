@@ -10,12 +10,38 @@ internal sealed partial class WordLiveService
     private async Task<object> PreflightEquationsAsync(
         JsonElement arguments,
         CancellationToken cancellationToken
+    ) => await PreflightEquationsCoreAsync(
+        arguments,
+        cancellationToken,
+        forceInProcess: false
+    );
+
+    internal async Task<object> PreflightEquationsInProcessAsync(
+        JsonElement arguments,
+        CancellationToken cancellationToken
+    ) => await PreflightEquationsCoreAsync(
+        arguments,
+        cancellationToken,
+        forceInProcess: true
+    );
+
+    private async Task<object> PreflightEquationsCoreAsync(
+        JsonElement arguments,
+        CancellationToken cancellationToken,
+        bool forceInProcess
     )
     {
         RequireObject(arguments, "equation preflight arguments");
         foreach (var property in arguments.EnumerateObject())
         {
-            if (property.Name is not ("equations" or "validation_mode"))
+            if (
+                property.Name is not (
+                    "equations"
+                    or "validation_mode"
+                    or "per_equation_timeout_seconds"
+                    or "total_timeout_seconds"
+                )
+            )
             {
                 throw new NativeToolException(
                     "INVALID_INPUT",
@@ -41,57 +67,167 @@ internal sealed partial class WordLiveService
                 "validation_mode must be 'native' or 'conversion_only'"
             );
         }
+        var requestedPerEquationTimeout = arguments.NullableInt64(
+            "per_equation_timeout_seconds"
+        ) ?? EquationPreflightProcessRunner.DefaultPerEquationTimeoutSeconds;
+        var requestedTotalTimeout = arguments.NullableInt64(
+            "total_timeout_seconds"
+        ) ?? EquationPreflightProcessRunner.DefaultTotalTimeoutSeconds;
+        if (requestedPerEquationTimeout is < 5 or > 60)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "per_equation_timeout_seconds must be between 5 and 60"
+            );
+        }
+        if (
+            requestedTotalTimeout is < 10 or > 150
+            || requestedTotalTimeout < requestedPerEquationTimeout
+        )
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "total_timeout_seconds must be between 10 and 150 and not less than the per-equation timeout"
+            );
+        }
+        var perEquationTimeoutSeconds = (int)requestedPerEquationTimeout;
+        var totalTimeoutSeconds = (int)requestedTotalTimeout;
 
-        var prepared = equations.EnumerateArray()
-            .Select(EquationOperationFromArguments)
+        var equationInputs = equations.EnumerateArray()
+            .Select(equation => equation.Clone())
             .ToArray();
+        var equationIds = equationInputs
+            .Select(EquationPreflightIdentity.FromInput)
+            .ToArray();
+        if (
+            validationMode == "native"
+            && !forceInProcess
+            && _host is WordComHost
+        )
+        {
+            return await EquationPreflightProcessRunner.RunAsync(
+                arguments,
+                equationInputs.Length,
+                perEquationTimeoutSeconds,
+                totalTimeoutSeconds,
+                cancellationToken
+            );
+        }
         if (validationMode == "conversion_only")
         {
-            var conversionResults = prepared
-                .Select(
-                    (operation, index) => EquationPreflightItem(
-                        index,
-                        operation,
-                        built: null
-                    )
-                )
-                .ToArray();
-            return new
-            {
-                valid = (bool?)null,
-                conversion_valid = true,
-                native_execution_verified = false,
-                validation_mode = validationMode,
-                equation_count = conversionResults.Length,
-                equations = conversionResults,
-                mutated_connected_document = false,
-                warnings = new[]
-                {
-                    "Conversion-only mode does not prove Microsoft Word OMath BuildUp or native OMML readback.",
-                },
-                runtime = "dotnet-native",
-                python_used = false,
-            };
+            return ConversionOnlyEquationPreflight(equationInputs, equationIds);
         }
-
+        var prepared = equationInputs
+            .Select((equation, index) =>
+            {
+                var conversionStarted = Stopwatch.GetTimestamp();
+                try
+                {
+                    return EquationOperationFromArguments(equation);
+                }
+                catch (Exception exception)
+                {
+                    throw EquationPreflightFailure(
+                        index,
+                        exception,
+                        Stopwatch.GetElapsedTime(conversionStarted),
+                        "conversion",
+                        equationIds[index]
+                    );
+                }
+            })
+            .ToArray();
         var started = Stopwatch.GetTimestamp();
         return await _host.InvokeAsync<object>(
             application => ExecuteNativeEquationPreflight(
                 application,
                 prepared,
+                equationIds,
                 started
             ),
             cancellationToken
         );
     }
 
+    private static object ConversionOnlyEquationPreflight(
+        IReadOnlyList<JsonElement> equations,
+        IReadOnlyList<string> equationIds
+    )
+    {
+        var results = new object[equations.Count];
+        var validCount = 0;
+        var invalidCount = 0;
+        for (var index = 0; index < equations.Count; index++)
+        {
+            var started = Stopwatch.GetTimestamp();
+            try
+            {
+                var prepared = EquationOperationFromArguments(equations[index]);
+                results[index] = EquationPreflightItem(
+                    index,
+                    prepared,
+                    built: null,
+                    equationIds[index]
+                );
+                validCount++;
+            }
+            catch (Exception exception)
+            {
+                invalidCount++;
+                var failure = EquationPreflightFailure(
+                    index,
+                    exception,
+                    Stopwatch.GetElapsedTime(started),
+                    "conversion",
+                    equationIds[index]
+                );
+                results[index] = new
+                {
+                    index,
+                    equation_id = equationIds[index],
+                    valid = false,
+                    conversion_valid = false,
+                    native_execution_verified = false,
+                    error_code = failure.ErrorCode,
+                    stage = "conversion",
+                    suggestion_code = failure.Message.Contains(
+                        "unsupported",
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                        ? "USE_SUPPORTED_LATEX_OR_UNICODEMATH"
+                        : "FIX_EQUATION_INPUT",
+                    raw_document_content_returned = false,
+                };
+            }
+        }
+        return new
+        {
+            valid = (bool?)null,
+            valid_count = validCount,
+            invalid_count = invalidCount,
+            conversion_valid = invalidCount == 0,
+            native_execution_verified = false,
+            validation_mode = "conversion_only",
+            equation_count = equations.Count,
+            equations = results,
+            mutated_connected_document = false,
+            warnings = new[]
+            {
+                "Conversion-only mode does not prove Microsoft Word OMath BuildUp or native OMML readback.",
+            },
+            runtime = "dotnet-native",
+            python_used = false,
+        };
+    }
+
     private static object ExecuteNativeEquationPreflight(
         dynamic application,
         IReadOnlyList<PreparedEquationOperation> operations,
+        IReadOnlyList<string> equationIds,
         long started
     )
     {
-        var initialDocumentCount = (int)application.Documents.Count;
+        var initialDocumentCount = ReadPreflightDocumentCount(application);
         object? previousActiveDocument = null;
         object? previousActiveWindow = null;
         if (initialDocumentCount > 0)
@@ -101,19 +237,24 @@ internal sealed partial class WordLiveService
         }
 
         object? scratchDocument = null;
+        object? scratchContent = null;
+        object? insertionRange = null;
         BuiltEquationResult?[] built = new BuiltEquationResult?[operations.Count];
         Exception? executionFailure = null;
         Exception? closeFailure = null;
         Exception? restoreFailure = null;
         Exception? verificationFailure = null;
         var scratchClosed = false;
+        var scratchCreated = false;
         try
         {
             scratchDocument = (object)application.Documents.Add(Visible: false);
+            scratchCreated = true;
             dynamic document = scratchDocument;
             document.Activate();
 
             dynamic content = document.Content;
+            scratchContent = (object)content;
             var insertionStart = (int)content.Start;
             var pieces = new List<string>(operations.Count);
             var segments = new (int Start, int End)[operations.Count];
@@ -130,27 +271,56 @@ internal sealed partial class WordLiveService
                 offset += prefix.Length + value.Length;
             }
             dynamic insertion = document.Range(insertionStart, insertionStart);
+            insertionRange = (object)insertion;
             insertion.Text = string.Concat(pieces);
 
-            var before = (int)document.OMaths.Count;
+            dynamic? beforeEquations = null;
+            int before;
+            try
+            {
+                beforeEquations = document.OMaths;
+                before = (int)beforeEquations.Count;
+            }
+            finally
+            {
+                FinalReleaseBatchComObject(beforeEquations);
+            }
             for (var index = operations.Count - 1; index >= 0; index--)
             {
                 var segment = segments[index];
+                var equationStarted = Stopwatch.GetTimestamp();
                 try
                 {
                     built[index] = BuildVerifiedNativeEquation(
                         document,
                         insertionStart + segment.Start,
                         insertionStart + segment.End,
-                        operations[index]
+                        operations[index],
+                        expectedEquationCollectionIndex: 1
                     );
                 }
                 catch (Exception exception)
                 {
-                    throw EquationPreflightFailure(index, exception);
+                    throw EquationPreflightFailure(
+                        index,
+                        exception,
+                        Stopwatch.GetElapsedTime(equationStarted),
+                        "build_verified_native_equation",
+                        equationIds[index]
+                    );
                 }
             }
-            var after = (int)document.OMaths.Count;
+            dynamic? afterEquations = null;
+            int after;
+            try
+            {
+                afterEquations = document.OMaths;
+                after = (int)afterEquations.Count;
+            }
+            finally
+            {
+                FinalReleaseBatchComObject(afterEquations);
+            }
             if (after != before + operations.Count)
             {
                 throw new NativeToolException(
@@ -172,6 +342,10 @@ internal sealed partial class WordLiveService
         }
         finally
         {
+            FinalReleaseBatchComObject(insertionRange);
+            insertionRange = null;
+            FinalReleaseBatchComObject(scratchContent);
+            scratchContent = null;
             if (scratchDocument is not null)
             {
                 try
@@ -198,17 +372,37 @@ internal sealed partial class WordLiveService
             }
             try
             {
-                var finalDocumentCount = (int)application.Documents.Count;
-                var activeDocumentRestored = previousActiveDocument is null
-                    || SameWordComIdentity(
-                        (object)application.ActiveDocument,
-                        previousActiveDocument
-                    );
-                var activeWindowRestored = previousActiveWindow is null
-                    || SameWordComIdentity(
-                        (object)application.ActiveWindow,
-                        previousActiveWindow
-                    );
+                var finalDocumentCount = ReadPreflightDocumentCount(application);
+                object? observedActiveDocument = null;
+                object? observedActiveWindow = null;
+                bool activeDocumentRestored;
+                bool activeWindowRestored;
+                try
+                {
+                    if (previousActiveDocument is not null)
+                    {
+                        observedActiveDocument = (object)application.ActiveDocument;
+                    }
+                    if (previousActiveWindow is not null)
+                    {
+                        observedActiveWindow = (object)application.ActiveWindow;
+                    }
+                    activeDocumentRestored = previousActiveDocument is null
+                        || SameWordComIdentity(
+                            observedActiveDocument!,
+                            previousActiveDocument
+                        );
+                    activeWindowRestored = previousActiveWindow is null
+                        || SameWordComIdentity(
+                            observedActiveWindow!,
+                            previousActiveWindow
+                        );
+                }
+                finally
+                {
+                    FinalReleaseBatchComObject(observedActiveWindow);
+                    FinalReleaseBatchComObject(observedActiveDocument);
+                }
                 if (
                     finalDocumentCount != initialDocumentCount
                     || !activeDocumentRestored
@@ -224,13 +418,26 @@ internal sealed partial class WordLiveService
             {
                 verificationFailure = exception;
             }
+            foreach (var result in built)
+            {
+                if (result is not null)
+                {
+                    FinalReleaseBatchComObject(result.Equation);
+                }
+            }
+            FinalReleaseBatchComObject(scratchDocument);
+            scratchDocument = null;
+            FinalReleaseBatchComObject(previousActiveWindow);
+            previousActiveWindow = null;
+            FinalReleaseBatchComObject(previousActiveDocument);
+            previousActiveDocument = null;
         }
 
         if (
             closeFailure is not null
             || restoreFailure is not null
             || verificationFailure is not null
-            || scratchDocument is not null && !scratchClosed
+            || scratchCreated && !scratchClosed
         )
         {
             throw new NativeToolException(
@@ -243,7 +450,7 @@ internal sealed partial class WordLiveService
                         : executionFailure is null
                             ? null
                             : "EXTERNAL_TOOL_FAILED",
-                    scratch_document_created = scratchDocument is not null,
+                    scratch_document_created = scratchCreated,
                     scratch_document_closed = scratchClosed,
                     close_failed = closeFailure is not null,
                     active_state_restore_failed = restoreFailure is not null,
@@ -263,7 +470,8 @@ internal sealed partial class WordLiveService
                 (operation, index) => EquationPreflightItem(
                     index,
                     operation,
-                    built[index]!
+                    built[index]!,
+                    equationIds[index]
                 )
             )
             .ToArray();
@@ -292,7 +500,10 @@ internal sealed partial class WordLiveService
 
     private static NativeToolException EquationPreflightFailure(
         int index,
-        Exception exception
+        Exception exception,
+        TimeSpan elapsed,
+        string stage,
+        string equationId
     )
     {
         var errorCode = exception is NativeToolException nativeFailure
@@ -300,10 +511,15 @@ internal sealed partial class WordLiveService
             : "EQUATION_INVALID";
         return new NativeToolException(
             errorCode,
-            "Microsoft Word rejected an equation during isolated native preflight",
+            stage == "conversion"
+                ? exception.Message
+                : "Microsoft Word rejected an equation during isolated native preflight",
             new
             {
                 equation_index = index,
+                equation_id = equationId,
+                stage,
+                elapsed_milliseconds = Math.Max(0L, (long)elapsed.TotalMilliseconds),
                 original_error_code = exception is NativeToolException original
                     ? original.ErrorCode
                     : "EXTERNAL_TOOL_FAILED",
@@ -316,16 +532,33 @@ internal sealed partial class WordLiveService
         );
     }
 
+    private static int ReadPreflightDocumentCount(dynamic application)
+    {
+        dynamic? documents = null;
+        try
+        {
+            documents = application.Documents;
+            return (int)documents.Count;
+        }
+        finally
+        {
+            FinalReleaseBatchComObject(documents);
+        }
+    }
+
     private static object EquationPreflightItem(
         int index,
         PreparedEquationOperation prepared,
-        BuiltEquationResult? built
+        BuiltEquationResult? built,
+        string equationId
     )
     {
         var readback = built?.Readback;
+        var directOmml = built?.DirectOmml;
         return new
         {
             index,
+            equation_id = equationId,
             valid = built is null ? (bool?)null : true,
             conversion_valid = true,
             native_execution_verified = built is not null,
@@ -336,6 +569,30 @@ internal sealed partial class WordLiveService
             native_readback_required = prepared.ReadbackRequired,
             native_readback_enabled = prepared.VerifyReadback,
             native_readback_verified = readback is not null,
+            direct_omml = prepared.DirectPlan is null
+                ? null
+                : new
+                {
+                    source_validated = true,
+                    native_semantic_verified = directOmml is not null,
+                    namespace_identity = prepared.DirectPlan.NamespaceIdentity,
+                    expected_semantic_sha256 = prepared.DirectPlan.SemanticSha256,
+                    actual_semantic_sha256 = directOmml?.ActualCombinedSemanticSha256,
+                    expected_equation_semantic_sha256 =
+                        directOmml?.ExpectedEquationSemanticSha256,
+                    actual_equation_semantic_sha256 =
+                        directOmml?.ActualEquationSemanticSha256,
+                    expected_paragraph_properties_sha256 =
+                        directOmml?.ExpectedParagraphPropertiesSha256,
+                    actual_paragraph_properties_sha256 =
+                        directOmml?.ActualParagraphPropertiesSha256,
+                    expected_paragraph_justification =
+                        directOmml?.ExpectedParagraphJustification,
+                    actual_paragraph_justification =
+                        directOmml?.ActualParagraphJustification,
+                    element_count = directOmml?.ElementCount,
+                    raw_omml_returned = false,
+                },
             native_style_rewrite_required = prepared.HasFormatting,
             native_style_verified = built?.StyleVerification is not null,
             formatting_region_count = prepared.StyleCounts.Total,

@@ -13,7 +13,7 @@ public sealed class SignatureInspectionTests
     public void CatalogKeepsSignatureInspectionLazyAndPublishesClosedMetadata()
     {
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(151, catalog.ActionCount);
+        Assert.Equal(157, catalog.ActionCount);
         Assert.DoesNotContain(
             catalog.Tools,
             tool => tool!["name"]!.GetValue<string>()

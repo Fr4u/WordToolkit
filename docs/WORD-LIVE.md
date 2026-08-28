@@ -73,8 +73,11 @@ batch containing any mutating capability must provide it.
 | `set_live_word_header_footer` | Set one bounded header/footer variant in one section. |
 | `insert_live_word_equation` | Create, build up and selectively read back one native Word OMath. |
 | `insert_live_word_equations_batch` | Insert up to 100 native equations in one COM attachment, with automatic bounded readback for sensitive structures. |
-| `preflight_live_word_equations` | Convert up to 200 formulas without touching Word; compact mode returns lengths, fingerprints and readback flags only. |
-| `apply_live_word_operations` | Append up to 200 interleaved text/equation operations through one COM attachment, one payload and one Undo transaction. |
+| `create_live_word_equation_document` | Preflight, create, publish, save, Word-render, validate and package-inspect one new equation-only DOCX in one high-level workflow. |
+| `compile_tex_document` | Compile one bounded complete TeX/LaTeX document through an explicit hashable Tectonic provider to a new PDF; no Word or editable-OMath conversion is claimed. |
+| `preflight_live_word_equations` | Verify up to 200 formulas in a dedicated worker-owned Word process and return every failure in input order with stable `weq_` ID, suggestion, hard timeout index and cleanup proof. |
+| `apply_live_word_operations` | Append up to 200 interleaved text/equation operations through one COM attachment, one payload and one Undo transaction, with an idempotent process-local receipt. |
+| `get_live_word_operation_status` | Read the bounded pending/succeeded/failed receipt after the original caller stops waiting; returns no document content. |
 | `validate_live_word_document` | Validate a temporary copy of the already-saved DOCX. |
 | `export_live_word_pdf` | Export the current live document through Word's native PDF renderer. |
 | `save_live_word_document` | Call `Document.Save()` on the same existing path. Persistence is not a content mutation, so this action does not increment `live_version`. |
@@ -513,6 +516,18 @@ transaction and leaves the live version unchanged. An empty table is a
 version-stable no-op. Codes, source values and displayed results are never
 returned.
 
+The table formula path also accepts `function="expression"` for bounded A1-style
+arithmetic over cells in the same rectangular table. `(B2-A2)*24` converts a
+duration from days to hours. The tested Sunday-count example is
+`INT(B3/7)-INT((A3-1)/7)`. Out-of-table or self references and unknown functions are
+rejected; this is not a general Excel formula engine. Tax and ZUS examples can use
+parameter cells and user-supplied rates, but rates are not hardcoded or legal advice.
+
+For `insert_live_word_dropdowns`, acquire a fresh range token for each target range
+and pass it as `range_token` with the current `expected_version`. Ranges must not
+overlap; the batch creates native dropdown content controls, verifies Word's
+type/count/items and commits one Undo record. Later mutations invalidate the tokens.
+
 ## Fast native lists
 
 `insert_live_word_list` accepts up to 1,000 non-empty item strings. It validates
@@ -666,12 +681,23 @@ never exposes a storage path because no file exists.
 formula before it resolves the Word document. Invalid input therefore cannot
 leave a partial heading or explanation behind.
 
-LaTeX input is a documented subset rather than a claim of complete TeX macro
-compatibility. The converter supports the ordinary fractions, roots, limits,
-integrals, differentials, relations used by the live equation path, plus
-`\boxed{...}` and `\implies`. Unsupported commands fail during batch preflight
+LaTeX input is a documented Word-oriented subset rather than a claim of complete,
+programmable TeX macro compatibility. The converter covers more than 400 safe
+one-scalar UTN28/LaTeX aliases plus fractions, indexed roots, limits, simple/multiple/
+contour integrals, differentials, matrices, determinants, cases, aligned/split/multline
+arrays, prescripts, over/under structures, common accents, seven phantom/smash
+geometries, `\boxed{...}` and `\implies`. Unsupported commands fail during batch preflight
 with `failed_operation_index`; they are never discovered after a partial target
 publication.
+
+`input_format="omml"` does not flatten the source through Word linear math. The
+fragment must contain exactly one secure Transitional or Strict `m:oMath` (or one
+`m:oMathPara` containing one equation). WordToolkit creates a placeholder OMath in
+the isolated staging document, replaces it inside Word's own `WordOpenXML` wrapper,
+proves one native equation and exact placement, compares a content-free semantic
+SHA-256 after insertion, and repeats the proof after `Range.FormattedText`
+publication. Word-injected run/font defaults are excluded from the mathematical
+contract; raw OMML and document text are never returned.
 
 The payload text is assigned once. Equation ranges are then converted to native
 OMath from the end of the payload toward the beginning, so Word's build-up of
@@ -687,10 +713,29 @@ This removes repeated COM startup, repaint and viewport costs. Native
 `OMath.BuildUp()` remains a real Word cost and is not hidden by false timing
 claims.
 
+`preflight_live_word_equations` validates the whole submitted set in one worker run.
+Attributable conversion or Word failures become ordered result items with
+`equation_id`, `error_code`, `diagnostic` and `suggestion_code`; they do not abort later
+equations. Worker timeout, loss of the dedicated Word process or unproven cleanup remain
+action-level errors. `create_live_word_equation_document` composes that preflight with
+one native publish/save/render/validate/package-inspect workflow for new equation-only
+DOCX files. Complete TeX documents use the separate `compile_tex_document` action. It
+runs an explicit local Tectonic executable with `--untrusted`, defaults to cache-only
+resources and publishes one new PDF. Explicit resource fetch can populate the provider's
+external cache but does not prove network isolation or bundle provenance. It never opens
+Word and deliberately reports that arbitrary TeX was not converted into editable
+OfficeMath.
+The guarded real-Word atlas currently covers 60 named families across LaTeX,
+UnicodeMath, Presentation MathML and direct OMML, then saves, validates and performs
+PDF/PNG equation render QA. This is execution evidence for those families, not a
+claim that arbitrary TeX packages or unmodeled MathML layout attributes are supported.
+
 Use `preflight_live_word_equations` before large or unfamiliar formula sets.
 Its default compact response returns only input/output lengths, a short linear
-fingerprint, format/display flags and whether native readback is required. It
-never attaches to Word and never changes a document. Request
+fingerprint, format/display flags and whether native readback is required. Native
+mode uses a dedicated worker Word process and never mutates the connected document;
+defaults are 20 seconds per equation and 120 seconds total. Timeout errors include
+the exact zero-based `equation_index` and completed count. Request
 `response_mode="full"` through the lazy execution gateway only when the exact
 Word linear form is needed for diagnosis.
 

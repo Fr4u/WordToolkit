@@ -12,8 +12,8 @@ GATEWAY_CONST = re.compile(r'private const string \w+Name = "(?P<name>[a-z0-9_]+
 def test_every_native_action_has_a_dispatch_case() -> None:
     catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v2.json").read_text(encoding="utf-8"))
     actions = catalog["native_runtime"]["actions"]
-    assert len(actions) == 151
-    assert len(set(actions)) == 151
+    assert len(actions) == 157
+    assert len(set(actions)) == 157
 
     sources = [ROOT / "native" / "WordToolkit.Native" / "Word" / "WordLiveService.cs"]
     dispatch = []
@@ -24,7 +24,7 @@ def test_every_native_action_has_a_dispatch_case() -> None:
     missing = sorted(set(actions) - set(dispatch))
     assert not duplicates, f"duplicate dispatcher cases: {duplicates}"
     assert not missing, f"native actions without dispatcher cases: {missing}"
-    assert len(dispatch) == 151, f"expected 151 dispatcher cases, got {len(dispatch)}"
+    assert len(dispatch) == 157, f"expected 157 dispatcher cases, got {len(dispatch)}"
 
     handler_sources = sorted(
         (ROOT / "native" / "WordToolkit.Native" / "Word").glob("WordLiveService*.cs")
@@ -34,18 +34,18 @@ def test_every_native_action_has_a_dispatch_case() -> None:
     assert "TODO" not in handler_text
 
 
-def test_public_tool_split_is_11_core_plus_4_gateways() -> None:
+def test_public_tool_split_is_13_core_plus_4_gateways() -> None:
     catalog = json.loads((ROOT / "schemas" / "mcp-tools-local.v2.json").read_text(encoding="utf-8"))
     core = set(catalog["native_runtime"]["core_actions"])
     tool_catalog = (
         ROOT / "native" / "WordToolkit.Native" / "Protocol" / "ToolCatalog.cs"
     ).read_text(encoding="utf-8")
     gateways = set(GATEWAY_CONST.findall(tool_catalog))
-    assert len(core) == 11
+    assert len(core) == 13
     assert gateways == {
         "get_wordtoolkit_capabilities",
         "search_wordtoolkit_actions",
         "inspect_wordtoolkit_action",
         "execute_wordtoolkit_action",
     }
-    assert len(core | gateways) == 15
+    assert len(core | gateways) == 17

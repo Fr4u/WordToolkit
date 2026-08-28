@@ -94,20 +94,34 @@ public sealed class RealWordEquationUpdateAcceptanceTests
         }
         finally
         {
-            if (documentId is not null)
+            try
             {
-                using var closed = await Call(
-                    service,
-                    "close_live_word_document",
-                    new
-                    {
-                        live_document_id = documentId,
-                        expected_version = 0,
-                        save_changes = "discard",
-                    }
-                );
+                if (documentId is not null)
+                {
+                    using var closed = await Call(
+                        service,
+                        "close_live_word_document",
+                        new
+                        {
+                            live_document_id = documentId,
+                            expected_version = 0,
+                            save_changes = "discard",
+                        }
+                    );
+                }
             }
-            File.Delete(path);
+            finally
+            {
+                if (host.ApplicationOwnedByRuntime)
+                {
+                    using var quit = await Call(
+                        service,
+                        "quit_word_application",
+                        new { save_changes = "discard_all", confirm = true }
+                    );
+                }
+                File.Delete(path);
+            }
         }
     }
 
@@ -131,6 +145,8 @@ public sealed class RealWordEquationUpdateAcceptanceTests
         var service = new WordLiveService(host);
         string? documentId = null;
         long version = 0;
+        ExceptionDispatchInfo? primaryFailure = null;
+        Exception? cleanupFailure = null;
         try
         {
             using var started = await Call(
@@ -154,24 +170,91 @@ public sealed class RealWordEquationUpdateAcceptanceTests
                                 value = @"\binom{n}{k}",
                                 input_format = "latex",
                                 display = true,
+                                verify_readback = true,
                             },
                             new
                             {
                                 value = @"x_1,\dots,x_n",
                                 input_format = "latex",
                                 display = true,
+                                verify_readback = true,
                             },
                             new
                             {
                                 value = @"\sin^4 x+\cos^2(2x)",
                                 input_format = "latex",
                                 display = true,
+                                verify_readback = true,
                             },
                             new
                             {
                                 value = @"E=mc^2,\text{ energia spoczynkowa}",
                                 input_format = "latex",
                                 display = true,
+                                verify_readback = true,
+                            },
+                            new
+                            {
+                                value = @"x=3{,}14",
+                                input_format = "latex",
+                                display = true,
+                                verify_readback = true,
+                            },
+                            new
+                            {
+                                value = @"E=3{,}14\,\text{J s}",
+                                input_format = "latex",
+                                display = true,
+                                verify_readback = true,
+                            },
+                            new
+                            {
+                                value = @"\bra{\psi}",
+                                input_format = "latex",
+                                display = true,
+                                verify_readback = true,
+                            },
+                            new
+                            {
+                                value = @"\ket{\psi}",
+                                input_format = "latex",
+                                display = true,
+                                verify_readback = true,
+                            },
+                            new
+                            {
+                                value = @"\braket{\phi}{\psi}",
+                                input_format = "latex",
+                                display = true,
+                                verify_readback = true,
+                            },
+                            new
+                            {
+                                value = @"\matrixel{\phi}{H}{\psi}",
+                                input_format = "latex",
+                                display = true,
+                                verify_readback = true,
+                            },
+                            new
+                            {
+                                value = @"\expectation{H}",
+                                input_format = "latex",
+                                display = true,
+                                verify_readback = true,
+                            },
+                            new
+                            {
+                                value = @"\dv{\psi}{t}",
+                                input_format = "latex",
+                                display = true,
+                                verify_readback = true,
+                            },
+                            new
+                            {
+                                value = @"\pdv{\psi}{t}",
+                                input_format = "latex",
+                                display = true,
+                                verify_readback = true,
                             },
                         },
                     }
@@ -193,7 +276,7 @@ public sealed class RealWordEquationUpdateAcceptanceTests
                         .GetBoolean()
                 );
                 Assert.Equal(
-                    4,
+                    13,
                     preflight.RootElement.GetProperty("equation_count").GetInt32()
                 );
                 Assert.All(
@@ -221,6 +304,41 @@ public sealed class RealWordEquationUpdateAcceptanceTests
                     .GetString();
                 version = created.RootElement.GetProperty("live_version").GetInt64();
             }
+            var exactOperations = new object[]
+            {
+                new
+                {
+                    type = "equation",
+                    value = "x+1",
+                    input_format = "latex",
+                    display = true,
+                },
+            };
+            using (var targetBoundPreflight = await Call(
+                service,
+                "preflight_live_word_operations",
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = version,
+                    operations = exactOperations,
+                }
+            ))
+            {
+                Assert.True(targetBoundPreflight.RootElement.GetProperty("valid").GetBoolean());
+                Assert.False(
+                    targetBoundPreflight.RootElement.GetProperty("published").GetBoolean()
+                );
+                Assert.False(
+                    targetBoundPreflight.RootElement
+                        .GetProperty("target_document_mutated")
+                        .GetBoolean()
+                );
+                Assert.Equal(
+                    version,
+                    targetBoundPreflight.RootElement.GetProperty("live_version").GetInt64()
+                );
+            }
             using (var applied = await Call(
                 service,
                 "apply_live_word_operations",
@@ -228,16 +346,7 @@ public sealed class RealWordEquationUpdateAcceptanceTests
                 {
                     live_document_id = documentId,
                     expected_version = version,
-                    operations = new object[]
-                    {
-                        new
-                        {
-                            type = "equation",
-                            value = "x+1",
-                            input_format = "latex",
-                            display = true,
-                        },
-                    },
+                    operations = exactOperations,
                 }
             ))
             {
@@ -249,6 +358,46 @@ public sealed class RealWordEquationUpdateAcceptanceTests
                         .GetProperty("equation_count")
                         .GetInt32()
                 );
+            }
+
+            var liveArtifactDirectory = Path.Combine(
+                Path.GetTempPath(),
+                $"wordtoolkit-real-live-artifacts-{Guid.NewGuid():N}"
+            );
+            Directory.CreateDirectory(liveArtifactDirectory);
+            try
+            {
+                using var exported = await Call(
+                    service,
+                    "export_live_word_artifacts",
+                    new
+                    {
+                        live_document_id = documentId,
+                        expected_version = version,
+                        output_directory = liveArtifactDirectory,
+                        artifact_stem = "live-state",
+                        output = "pdf",
+                    }
+                );
+                Assert.Equal(
+                    version,
+                    exported.RootElement.GetProperty("live_version").GetInt64()
+                );
+                Assert.True(
+                    exported.RootElement
+                        .GetProperty("source_included_unsaved_changes")
+                        .GetBoolean()
+                );
+                Assert.False(exported.RootElement.GetProperty("document_reopened").GetBoolean());
+                Assert.False(exported.RootElement.GetProperty("document_saved").GetBoolean());
+                Assert.True(File.Exists(Path.Combine(liveArtifactDirectory, "live-state.pdf")));
+                Assert.True(
+                    File.Exists(Path.Combine(liveArtifactDirectory, "live-state.render.json"))
+                );
+            }
+            finally
+            {
+                Directory.Delete(liveArtifactDirectory, recursive: true);
             }
 
             string token;
@@ -317,6 +466,10 @@ public sealed class RealWordEquationUpdateAcceptanceTests
             );
             Assert.Equal("VERSION_CONFLICT", stale.ErrorCode);
         }
+        catch (Exception exception)
+        {
+            primaryFailure = ExceptionDispatchInfo.Capture(exception);
+        }
         finally
         {
             if (documentId is not null)
@@ -334,22 +487,52 @@ public sealed class RealWordEquationUpdateAcceptanceTests
                         }
                     );
                 }
-                catch
+                catch (Exception exception)
                 {
-                    using var disconnectedArguments = JsonDocument.Parse(
-                        JsonSerializer.Serialize(
-                            new { live_document_id = documentId },
-                            JsonDefaults.Compact
-                        )
-                    );
-                    _ = await service.CallAsync(
-                        "disconnect_live_word_document",
-                        disconnectedArguments.RootElement,
-                        CancellationToken.None
-                    );
-                    throw;
+                    cleanupFailure = exception;
+                    try
+                    {
+                        using var disconnectedArguments = JsonDocument.Parse(
+                            JsonSerializer.Serialize(
+                                new { live_document_id = documentId },
+                                JsonDefaults.Compact
+                            )
+                        );
+                        _ = await service.CallAsync(
+                            "disconnect_live_word_document",
+                            disconnectedArguments.RootElement,
+                            CancellationToken.None
+                        );
+                    }
+                    catch (Exception disconnectException)
+                    {
+                        cleanupFailure = new AggregateException(
+                            cleanupFailure,
+                            disconnectException
+                        );
+                    }
                 }
             }
+            if (host.ApplicationOwnedByRuntime)
+            {
+                try
+                {
+                    using var quit = await Call(
+                        service,
+                        "quit_word_application",
+                        new { save_changes = "discard_all", confirm = true }
+                    );
+                }
+                catch (Exception exception)
+                {
+                    cleanupFailure ??= exception;
+                }
+            }
+        }
+        primaryFailure?.Throw();
+        if (cleanupFailure is not null)
+        {
+            ExceptionDispatchInfo.Capture(cleanupFailure).Throw();
         }
     }
 

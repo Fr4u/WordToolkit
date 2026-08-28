@@ -25,6 +25,13 @@ internal static class ToolResponseCompactor
         {
             return CompactEquationPreflight(preflight);
         }
+        if (
+            node is JsonObject operationPreflight
+            && toolName == "preflight_live_word_operations"
+        )
+        {
+            return CompactOperationPreflight(operationPreflight);
+        }
         if (node is JsonObject obj && BatchMutationTools.Contains(toolName))
         {
             return CompactBatchMutation(obj);
@@ -41,6 +48,8 @@ internal static class ToolResponseCompactor
         Copy(source, result, "native_execution_verified");
         Copy(source, result, "validation_mode");
         Copy(source, result, "equation_count");
+        Copy(source, result, "valid_count");
+        Copy(source, result, "invalid_count");
         var items = new JsonArray();
         var required = 0;
         var enabled = 0;
@@ -55,6 +64,7 @@ internal static class ToolResponseCompactor
                 }
                 var item = new JsonObject();
                 Copy(equation, item, "index");
+                Copy(equation, item, "equation_id");
                 Copy(equation, item, "valid");
                 Copy(equation, item, "conversion_valid");
                 Copy(equation, item, "native_execution_verified");
@@ -63,14 +73,26 @@ internal static class ToolResponseCompactor
                 Copy(equation, item, "native_readback_required");
                 Copy(equation, item, "native_readback_enabled");
                 Copy(equation, item, "native_readback_verified");
-                var linear = equation["word_linear"]?.GetValue<string>() ?? "";
-                item["word_linear_characters"] = equation["word_linear_characters"]
-                    ?.DeepClone()
-                    ?? JsonValue.Create(linear.Length);
-                item["word_linear_sha256"] = Convert.ToHexString(
-                        SHA256.HashData(Encoding.UTF8.GetBytes(linear))
-                    )
-                    .ToLowerInvariant()[..16];
+                Copy(equation, item, "error_code");
+                Copy(equation, item, "stage");
+                Copy(equation, item, "suggestion_code");
+                Copy(equation, item, "diagnostic");
+                Copy(equation, item, "direct_omml");
+                Copy(equation, item, "expected_semantic_sha256");
+                Copy(equation, item, "actual_semantic_sha256");
+                Copy(equation, item, "hresult");
+                Copy(equation, item, "native_exception_type");
+                if (equation["word_linear"] is JsonValue linearValue)
+                {
+                    var linear = linearValue.GetValue<string>();
+                    item["word_linear_characters"] = equation["word_linear_characters"]
+                        ?.DeepClone()
+                        ?? JsonValue.Create(linear.Length);
+                    item["word_linear_sha256"] = Convert.ToHexString(
+                            SHA256.HashData(Encoding.UTF8.GetBytes(linear))
+                        )
+                        .ToLowerInvariant()[..16];
+                }
                 if (
                     equation["native_readback_required"]?.GetValue<bool>() == true
                 )
@@ -110,6 +132,10 @@ internal static class ToolResponseCompactor
         var result = new JsonObject();
         Copy(source, result, "live_document_id");
         Copy(source, result, "live_version");
+        Copy(source, result, "operation_id");
+        Copy(source, result, "operation_status");
+        Copy(source, result, "receipt_replayed");
+        Copy(source, result, "outcome_known");
         Copy(source, result, "operation_count");
         Copy(source, result, "text_operation_count");
         Copy(source, result, "equation_operation_count");
@@ -145,6 +171,41 @@ internal static class ToolResponseCompactor
         {
             result["document"] = CompactDocument(document);
         }
+        if (source["performance"]?["complexity"] is JsonObject complexity)
+        {
+            result["complexity"] = complexity.DeepClone();
+        }
+        return result;
+    }
+
+    private static JsonObject CompactOperationPreflight(JsonObject source)
+    {
+        var result = new JsonObject();
+        foreach (
+            var key in new[]
+            {
+                "operation_contract",
+                "live_document_id",
+                "live_version",
+                "expected_version",
+                "validation_mode",
+                "valid",
+                "published",
+                "target_document_mutated",
+                "operation_count",
+                "text_operation_count",
+                "equation_operation_count",
+                "valid_equation_count",
+                "invalid_equation_count",
+                "equation_failures",
+                "complexity",
+            }
+        )
+        {
+            Copy(source, result, key);
+        }
+        result["native_verified"] = true;
+        result["operation_proofs_returned"] = false;
         return result;
     }
 

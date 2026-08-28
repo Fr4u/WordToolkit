@@ -61,26 +61,26 @@ def test_plugin_manifest_matches_native_catalog() -> None:
     catalog_names = {tool["name"] for tool in catalog["tools"]}
     expected_public_names = core_names | GATEWAY_NAMES
 
-    assert action_count == 151
-    assert len(core_names) == 11
+    assert action_count == 157
+    assert len(core_names) == 13
     assert len(GATEWAY_NAMES) == 4
     assert len(catalog["tools"]) == len(catalog_names)
     assert catalog_names >= GATEWAY_NAMES
     assert catalog_names >= core_names
     assert catalog_names == expected_public_names
-    assert len(catalog_names) == 15
+    assert len(catalog_names) == 17
 
     short_description = manifest["description"]
     long_description = manifest["interface"]["longDescription"]
     public_surface_sentence = (
-        "The public MCP surface has 15 tools: 11 core actions and 4 capability gateways."
+        "The public MCP surface has 17 tools: 13 core actions and 4 capability gateways."
     )
-    assert "15 public MCP tools" in short_description
-    assert "11 core actions" in short_description
+    assert "17 public MCP tools" in short_description
+    assert "13 core actions" in short_description
     assert "4 capability gateways" in short_description
-    assert "151 native actions" in short_description
+    assert "157 native actions" in short_description
     assert public_surface_sentence in long_description
-    assert "lazily expose 151 native actions" in long_description
+    assert "lazily expose 157 native actions" in long_description
 
 
 def test_plugin_mcp_entrypoint_is_local_native_runtime() -> None:

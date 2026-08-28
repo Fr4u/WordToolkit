@@ -30,14 +30,14 @@ internal sealed class ActionGuidanceCatalog
                 throw new InvalidDataException("Each action guidance entry must be an object with a string name");
             var name = item["name"]!.GetValue<string>();
             if (!expected.Contains(name) || !items.TryAdd(name, item)) throw new InvalidDataException($"Invalid action guidance '{name}'");
-            foreach (var field in new[]{"prerequisites","acquisition_steps","recipe_ids"})
+            foreach (var field in new[] { "prerequisites", "acquisition_steps", "recipe_ids" })
                 if (item[field] is not JsonArray) throw new InvalidDataException($"Action guidance '{name}' field '{field}' must be an array");
-            foreach (var field in new[]{"example","success","recovery"})
+            foreach (var field in new[] { "example", "success", "recovery" })
                 if (item[field] is not JsonObject) throw new InvalidDataException($"Action guidance '{name}' field '{field}' must be an object");
         }
         if (items.Count != expected.Count) throw new InvalidDataException("Action guidance action set mismatch");
         return new ActionGuidanceCatalog(items);
     }
     public JsonObject Get(string name) => _items.TryGetValue(name, out var x) ? x.DeepClone().AsObject() : throw new KeyNotFoundException(name);
-    public bool TryGet(string name, out JsonObject guidance) { if (_items.TryGetValue(name, out var x)) { guidance=x.DeepClone().AsObject(); return true; } guidance=null!; return false; }
+    public bool TryGet(string name, out JsonObject guidance) { if (_items.TryGetValue(name, out var x)) { guidance = x.DeepClone().AsObject(); return true; } guidance = null!; return false; }
 }

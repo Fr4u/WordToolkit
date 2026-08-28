@@ -1,6 +1,6 @@
 # AI interoperability contract
 
-The current native metadata contract covers all 151 actions; remaining 0 are still uncovered.
+The current native metadata contract covers all 157 actions; remaining 0 are still uncovered.
 
 ## First-call guidance
 
@@ -8,7 +8,7 @@ Every native action has a generated guidance record: search when the capability 
 unknown, inspect the exact action, bind prerequisites and acquire missing identifiers,
 versions or fingerprints, use the minimal template example, execute, then verify the
 declared success paths. Recovery mappings describe refresh/re-plan steps and explicit
-rollback or quarantine stops. The 151/151 parity is enforced by
+rollback or quarantine stops. The 157/157 parity is enforced by
 `scripts/generate_action_guidance.py --check` and `tests/test_action_guidance_contract.py`.
 
 ## Scope
@@ -174,7 +174,7 @@ The response identifies:
 - `protocols.mcp`: MCP protocol version retained from that same schema;
 - `compatibility_policy`: the source schema's declared compatibility rule;
 - `source.schema_sha256`: exact embedded local schema bytes;
-- `source.native_action_contract_sha256`: canonical native 151-action subset, core
+- `source.native_action_contract_sha256`: canonical native 157-action subset, core
   exposure registry and header;
 - `source.capability_schema_sha256`: normative capability JSON Schema bytes.
 
@@ -223,7 +223,45 @@ coverage gaps visible.
 
 The manifest does not return full input schemas. After selecting one operation, call
 `inspect_wordtoolkit_action`; execute only after validating its schema and effect hints.
-This keeps discovery bounded instead of paying for all 151 schemas.
+This keeps discovery bounded instead of paying for all 157 schemas.
+
+Search ranking is deterministic and name-first across both core and lazy actions. Exact
+normalized action names win, followed by the shortest ordered name-token coverage and
+then description matches. The default top result already includes its inspected schema
+and first-call guidance.
+
+Equation preflight returns every attributable item in input order instead of throwing
+after the first bad formula. `equation_id` binds value/format/display/readback intent;
+`suggestion_code` is an allowlisted rule backed by the bounded diagnostic, not free-form
+mathematical advice. Infrastructure timeout and cleanup errors remain action-level.
+
+For `input_format="omml"`, the runtime validates exactly one bounded Transitional or
+Strict OfficeMath root and uses direct native publication rather than flattening it to
+linear text. Responses never echo OMML. They expose the full expected contract hash plus
+separate expected/actual equation-semantic and paragraph-property hashes. A combined
+actual hash remains absent when `m:oMathParaPr` is supplied because Word exposes the
+actual justification through `OMath.Justification`, not the equation-range XML; the
+runtime does not copy the expected hash and pretend it was observed. Both subcontracts
+are checked inside isolated staging and again after publication. Word-generated run/font
+defaults are excluded from the mathematical contract, while object hierarchy, arguments,
+property values and text remain bound. The bounded paragraph profile accepts one `m:jc`
+value and verifies its actual Word enumeration readback.
+
+Complete-document TeX is a different capability. `compile_tex_document` accepts one
+bounded source, one explicit absolute local Tectonic executable, an optional expected
+binary SHA-256 and one new PDF path. It runs `--untrusted` in private temporary storage,
+defaults to `--only-cached` and opens no Word document. The output explicitly reports
+`editable_office_math=false` and `tex_to_omml_conversion_performed=false`: successful TeX
+execution is not evidence that arbitrary macros, packages, TikZ or page layout can be
+represented as editable OfficeMath. Explicit `allow_network_resource_fetch=true` lets
+Tectonic populate missing resources in its external cache; the process is not presented
+as network-isolated and the resource bundle is not hash-bound by WordToolkit.
+
+For long `apply_live_word_operations` calls, provide a stable `idempotency_key` and retain
+the returned `operation_id` (a caller key `K` yields `wlop_K`). If the client stops
+waiting, call `get_live_word_operation_status` with that receipt or replay the exact same
+request; do not create a second request with a new key. Receipts are process-local,
+bounded to 256 entries and retained for one hour, so they are not crash-durable.
 
 `inspect_wordtoolkit_action` also returns the deterministic `guidance` record from
 `action-guidance.v1.json`: prerequisites, acquisition steps, a minimal gateway example,
@@ -233,20 +271,20 @@ invent fingerprints, versions, plans or tokens, and preserve exact plan/apply ar
 ## Metadata coverage is evidence, not decoration
 
 `metadata_coverage` counts canonical fields actually present in the embedded source.
-All 151 operations have input schemas and MCP effect annotations. Extension catalog,
+All 157 operations have input schemas and MCP effect annotations. Extension catalog,
 high-level content-free document analysis, the explicit LibreOffice identity probe,
 observability and OOXML-encryption/signature/numbering inspection, semantic query,
 typed heading-outline and mathematical-role inspection, semantic HTML/SVG rendering, Word-authoritative
 fixed PDF/PNG rendering, semantic-style
 plan/apply, comment-body plan/apply, equation-paragraph inspect/plan/apply and the
-safe formatter plan/apply plus the Word-executed drawing-layout and version-profile inspectors,
+safe formatter plan/apply, complete-document Tectonic compilation plus the Word-executed drawing-layout and version-profile inspectors,
 isolated feature-behavior probes and guarded
 SmartArt layout inspection/insertion and text prepare/apply pair, native caption/table-of-figures/table-of-contents
 insertion, native authority-citation marking/table-of-authorities insertion, native
 index-entry/index insertion, guarded reference-table update and the saved-package
 patch rollback plan/apply pair, numbering-repair plan/apply pair, relationship inspection/repair trio, deterministic template-style alignment inspect/plan/apply trio and Flat OPC conversion have explicit
 output-schema, permission, reversibility and
-per-operation-version metadata; all 151 operations are covered and remaining 0 are
+per-operation-version metadata; all 157 operations are covered and remaining 0 are
 uncovered. This metadata does not erase the boundary around ManualFix, SmartArt and
 feature-behavior probes: an AI planner must still inspect the chosen operation and
 obtain explicit user approval for risky mutations, and must not infer unsupported

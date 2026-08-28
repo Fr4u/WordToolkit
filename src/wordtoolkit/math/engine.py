@@ -35,6 +35,8 @@ ARITY: dict[str, tuple[int, int | None]] = {
     "limit_upper": (2, 2),
     "function": (2, 2),
     "enclosure": (1, 1),
+    "phantom": (1, 1),
+    "prescript": (3, 3),
 }
 
 

@@ -72,11 +72,30 @@ public sealed class WordFixedRenderServiceTests
                     .GetProperty("silent_backend_fallback")
                     .GetBoolean()
             );
+            Assert.Contains(
+                "subjective_visual_review_required",
+                result.GetProperty("warnings").EnumerateArray().Select(item => item.GetString())
+            );
+            Assert.Contains(
+                "pdf_geometry_not_inspected",
+                result.GetProperty("warnings").EnumerateArray().Select(item => item.GetString())
+            );
 
             var pdf = Path.Combine(output, "proof.pdf");
             var manifest = Path.Combine(output, "proof.render.json");
             Assert.True(File.Exists(pdf));
             Assert.True(File.Exists(manifest));
+            using (var manifestJson = JsonDocument.Parse(File.ReadAllText(manifest)))
+            {
+                Assert.Contains(
+                    "word_layout_is_not_pixel_equivalence",
+                    manifestJson.RootElement.GetProperty("warnings").EnumerateArray().Select(item => item.GetString())
+                );
+                Assert.Contains(
+                    "pdf_geometry_not_inspected",
+                    manifestJson.RootElement.GetProperty("warnings").EnumerateArray().Select(item => item.GetString())
+                );
+            }
             Assert.True(File.ReadAllBytes(pdf).AsSpan().StartsWith("%PDF-"u8));
             Assert.Equal(before, File.ReadAllBytes(source));
             Assert.Empty(

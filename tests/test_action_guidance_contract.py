@@ -15,7 +15,7 @@ def test_guidance_contract_and_determinism(tmp_path):
     schema = load(ROOT / "schemas/mcp-tools-local.v2.json")
     guide = load(ROOT / "schemas/action-guidance.v1.json")
     tools = {x["name"]: x for x in schema["tools"]}
-    assert len(guide["actions"]) == 151 and {x["name"] for x in guide["actions"]} == set(
+    assert len(guide["actions"]) == 157 and {x["name"] for x in guide["actions"]} == set(
         schema["native_runtime"]["actions"]
     )
     for g in guide["actions"]:
@@ -66,8 +66,12 @@ def test_live_apply_guidance_has_terminal_recovery_paths():
             "next_action": "disconnect_live_word_document",
             "bindings": {"live_document_id": "live_document_id"},
         },
+        "WORD_OPERATION_OUTCOME_UNKNOWN": {
+            "next_action": "get_live_word_operation_status",
+            "bindings": {"operation_id": "operation_id"},
+        },
     }
-    assert len(action["recovery"]) == 3
+    assert len(action["recovery"]) == 4
     assert action["recovery"]["ROLLBACK_FAILED"]["next_action"] != "apply_live_word_operations"
 
 

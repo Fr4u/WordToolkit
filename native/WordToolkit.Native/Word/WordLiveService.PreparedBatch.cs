@@ -136,7 +136,6 @@ internal sealed partial class WordLiveService
             var equationIndexes = Enumerable.Range(0, operations.Count)
                 .Where(index => operations[index] is PreparedEquationOperation)
                 .ToArray();
-            var perOperationEquationCounts = new List<int>();
             var beforeEquations = (int)publicationRange.OMaths.Count;
             for (var reverse = equationIndexes.Length - 1; reverse >= 0; reverse--)
             {
@@ -148,23 +147,13 @@ internal sealed partial class WordLiveService
                         stagingDocument,
                         stagingStart + segment.Start,
                         stagingStart + segment.End,
-                        (PreparedEquationOperation)operations[index]
+                        (PreparedEquationOperation)operations[index],
+                        expectedEquationCollectionIndex: 1
                     );
                 }
                 catch (Exception exception)
                 {
                     throw WithFailedOperationIndex(exception, index);
-                }
-                var perOperationEquationCount = (int)stagingDocument.OMaths.Count;
-                perOperationEquationCounts.Add(perOperationEquationCount);
-                var expectedPerOperationEquationCount = beforeEquations + (equationIndexes.Length - reverse);
-                if (perOperationEquationCount != expectedPerOperationEquationCount)
-                {
-                    throw WithFailedOperationIndex(new NativeToolException(
-                        "EQUATION_INVALID",
-                        "Microsoft Word changed the native equation count during isolated batch construction",
-                        new { operation_index = index, before = beforeEquations, after = perOperationEquationCount, expected = expectedPerOperationEquationCount }
-                    ), index);
                 }
             }
             // Reacquire after Word may expand the original range while building OMaths.
@@ -182,7 +171,6 @@ internal sealed partial class WordLiveService
                         before = beforeEquations,
                         after = afterEquations,
                         expected = equationIndexes.Length,
-                        per_operation_counts = perOperationEquationCounts,
                         failed_operation_index_available = false,
                         failure_scope = "batch",
                         target_document_mutated = false,
@@ -357,14 +345,45 @@ internal sealed partial class WordLiveService
             };
             if (native.Details is not null)
             {
-                using var document = JsonDocument.Parse(JsonSerializer.Serialize(native.Details));
+                using var document = JsonDocument.Parse(
+                    JsonSerializer.Serialize(native.Details, JsonDefaults.Compact)
+                );
                 if (document.RootElement.ValueKind == JsonValueKind.Object)
                 {
                     foreach (var property in document.RootElement.EnumerateObject())
                     {
-                        if (property.Name.Contains("fingerprint", StringComparison.OrdinalIgnoreCase))
+                        if (
+                            property.Name == "diagnostic"
+                            && TryProjectEquationDiagnostic(
+                                property.Value,
+                                out var projectedDiagnostic
+                            )
+                        )
+                        {
+                            details[property.Name] = projectedDiagnostic;
+                        }
+                        else if (property.Name.Contains("fingerprint", StringComparison.OrdinalIgnoreCase)
+                            || property.Name is "expected_differential_count"
+                                or "actual_differential_count" or "expected_integral_differential_count"
+                                or "actual_integral_differential_count" or "differential_placement_verified"
+                                or "nary_count"
+                                or "expected_semantic_sha256"
+                                or "actual_semantic_sha256"
+                                or "expected_paragraph_properties_sha256"
+                                or "actual_paragraph_properties_sha256")
                         {
                             details[property.Name] = property.Value.Clone();
+                        }
+                        else if (
+                            property.Name
+                                is "expected_paragraph_justification"
+                                    or "actual_paragraph_justification"
+                            && property.Value.ValueKind == JsonValueKind.String
+                            && property.Value.GetString()
+                                is "left" or "right" or "center" or "centerGroup"
+                        )
+                        {
+                            details[property.Name] = property.Value.GetString();
                         }
                     }
                 }
@@ -377,6 +396,264 @@ internal sealed partial class WordLiveService
             new { failed_operation_index = index, raw_document_content_returned = false },
             retryable: true
         );
+    }
+
+    private static bool TryProjectEquationDiagnostic(
+        JsonElement value,
+        out object? projected
+    )
+    {
+        projected = null;
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+        var mismatchKind = value.TryGetProperty("mismatch_kind", out var mismatch)
+            && mismatch.ValueKind == JsonValueKind.String
+            ? mismatch.GetString() ?? ""
+            : "";
+        if (
+            mismatchKind is not (
+                "equation_count"
+                or "canonical_structure"
+                or "differential_count"
+                or "differential_placement"
+                or "equation_structure"
+            )
+        )
+        {
+            return false;
+        }
+        var result = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["mismatch_kind"] = mismatchKind,
+        };
+        foreach (
+            var name in new[]
+            {
+                "expected_count",
+                "actual_count",
+                "first_difference_index",
+                "expected_code_point",
+                "actual_code_point",
+            }
+        )
+        {
+            if (
+                value.TryGetProperty(name, out var count)
+                && count.ValueKind == JsonValueKind.Number
+                && count.TryGetInt32(out var parsed)
+                && parsed is >= 0 and <= 100_000
+            )
+            {
+                result[name] = parsed;
+            }
+        }
+        foreach (var name in new[] { "expected_token_kind", "actual_token_kind" })
+        {
+            if (
+                value.TryGetProperty(name, out var token)
+                && token.ValueKind == JsonValueKind.String
+                && token.GetString()
+                    is "end" or "letter" or "digit" or "space" or "operator"
+                        or "differential" or "nary" or "matrix" or "radical"
+            )
+            {
+                result[name] = token.GetString();
+            }
+        }
+        foreach (
+            var name in new[]
+            {
+                "expected_code_point_window",
+                "actual_code_point_window",
+            }
+        )
+        {
+            if (
+                !value.TryGetProperty(name, out var window)
+                || window.ValueKind != JsonValueKind.Array
+                || window.GetArrayLength() > 24
+            )
+            {
+                continue;
+            }
+            var projectedWindow = new List<int>();
+            var valid = true;
+            foreach (var item in window.EnumerateArray())
+            {
+                if (
+                    item.ValueKind != JsonValueKind.Number
+                    || !item.TryGetInt32(out var codePoint)
+                    || codePoint is < 0 or > 0x10FFFF
+                )
+                {
+                    valid = false;
+                    break;
+                }
+                projectedWindow.Add(codePoint);
+            }
+            if (valid)
+            {
+                result[name] = projectedWindow;
+            }
+        }
+        if (
+            value.TryGetProperty("node_path", out var path)
+            && path.ValueKind == JsonValueKind.String
+            && path.GetString() is { Length: > 0 and <= 64 } pathText
+            && pathText.StartsWith("equation", StringComparison.Ordinal)
+            && pathText.All(character =>
+                char.IsAsciiLetterOrDigit(character) || character is '/' or '_'
+            )
+        )
+        {
+            result["node_path"] = pathText;
+        }
+        foreach (var name in new[] { "expected_families", "actual_families" })
+        {
+            if (
+                !value.TryGetProperty(name, out var families)
+                || families.ValueKind != JsonValueKind.Object
+            )
+            {
+                continue;
+            }
+            var projectedFamilies = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (
+                var family in new[]
+                {
+                    "nary",
+                    "fraction",
+                    "superscript",
+                    "subscript",
+                    "radical",
+                    "matrix",
+                }
+            )
+            {
+                if (
+                    families.TryGetProperty(family, out var count)
+                    && count.ValueKind == JsonValueKind.Number
+                    && count.TryGetInt32(out var parsed)
+                    && parsed is >= 0 and <= 100_000
+                )
+                {
+                    projectedFamilies[family] = parsed;
+                }
+            }
+            result[name] = projectedFamilies;
+        }
+        projected = result;
+        return true;
+    }
+
+    internal static object? ProjectSafeErrorDetails(Exception exception)
+    {
+        if (exception is not NativeToolException { Details: not null } native)
+        {
+            return null;
+        }
+        var projected = new Dictionary<string, object?>(StringComparer.Ordinal);
+        using var document = JsonDocument.Parse(
+            JsonSerializer.Serialize(native.Details, JsonDefaults.Compact)
+        );
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+        foreach (var property in document.RootElement.EnumerateObject())
+        {
+            if (
+                property.Name == "diagnostic"
+                && TryProjectEquationDiagnostic(property.Value, out var diagnostic)
+            )
+            {
+                projected[property.Name] = diagnostic;
+            }
+            else if (
+                property.Name == "original_details"
+                && property.Value.ValueKind == JsonValueKind.Object
+            )
+            {
+                foreach (var nested in property.Value.EnumerateObject())
+                {
+                    if (
+                        nested.Name == "diagnostic"
+                        && TryProjectEquationDiagnostic(
+                            nested.Value,
+                            out var nestedDiagnostic
+                        )
+                    )
+                    {
+                        projected["diagnostic"] = nestedDiagnostic;
+                    }
+                    else if (
+                        nested.Name.Contains(
+                            "fingerprint",
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                        || nested.Name is "expected_differential_count"
+                            or "actual_differential_count"
+                            or "expected_integral_differential_count"
+                            or "actual_integral_differential_count"
+                            or "differential_placement_verified"
+                            or "nary_count"
+                            or "expected_semantic_sha256"
+                            or "actual_semantic_sha256"
+                            or "expected_paragraph_properties_sha256"
+                            or "actual_paragraph_properties_sha256"
+                            or "hresult"
+                            or "exception_type"
+                            or "stage"
+                    )
+                    {
+                        projected[nested.Name] = nested.Value.Clone();
+                    }
+                }
+            }
+            else if (
+                property.Name.Contains("fingerprint", StringComparison.OrdinalIgnoreCase)
+                || property.Name
+                    is "failed_operation_index"
+                        or "equation_index"
+                        or "equation_id"
+                        or "stage"
+                        or "elapsed_milliseconds"
+                        or "reported_first_error_index"
+                        or "reported_last_error_index"
+                        or "expected_differential_count"
+                        or "actual_differential_count"
+                        or "expected_integral_differential_count"
+                        or "actual_integral_differential_count"
+                        or "differential_placement_verified"
+                        or "nary_count"
+                        or "operation_phase"
+                        or "hresult"
+                        or "exception_type"
+                        or "native_error_code"
+                        or "expected_semantic_sha256"
+                        or "actual_semantic_sha256"
+                        or "expected_paragraph_properties_sha256"
+                        or "actual_paragraph_properties_sha256"
+            )
+            {
+                projected[property.Name] = property.Value.Clone();
+            }
+            else if (
+                property.Name
+                    is "expected_paragraph_justification"
+                        or "actual_paragraph_justification"
+                && property.Value.ValueKind == JsonValueKind.String
+                && property.Value.GetString()
+                    is "left" or "right" or "center" or "centerGroup"
+            )
+            {
+                projected[property.Name] = property.Value.GetString();
+            }
+        }
+        projected["raw_document_content_returned"] = false;
+        return projected;
     }
 
     private static void CloseStagedPreparedBatch(
@@ -715,6 +992,66 @@ internal sealed partial class WordLiveService
                 );
             }
             EquationReadbackVerification? readback = null;
+            DirectOmmlVerification? directVerification = null;
+            if (operation.DirectPlan is not null)
+            {
+                var actualParagraphJustification = VerifyDirectOmmlParagraphProperties(
+                    equation,
+                    operation.DirectPlan,
+                    applyRequestedValue: false
+                );
+                if (readbackXml.Length == 0)
+                {
+                    readbackXml = ReadDirectOmmlWordOpenXml(
+                        equationRange,
+                        includeParagraphProperties: operation.DirectPlan.ParagraphPropertiesOmml
+                            is not null
+                    );
+                }
+                var parsed = DirectOmmlEquationParser.ParseWordReadback(readbackXml);
+                if (
+                    !string.Equals(
+                        parsed.EquationSemanticSha256,
+                        operation.DirectPlan.EquationSemanticSha256,
+                        StringComparison.Ordinal
+                    )
+                )
+                {
+                    throw new NativeToolException(
+                        "PUBLICATION_INVALID",
+                        "Microsoft Word changed direct OMML during staged publication",
+                        new
+                        {
+                            expected_semantic_sha256 =
+                                operation.DirectPlan.EquationSemanticSha256,
+                            actual_semantic_sha256 = parsed.EquationSemanticSha256,
+                            expected_paragraph_properties_sha256 =
+                                operation.DirectPlan.ParagraphPropertiesSemanticSha256,
+                            actual_paragraph_properties_sha256 =
+                                actualParagraphJustification is null
+                                    ? null
+                                    : operation.DirectPlan.ParagraphPropertiesSemanticSha256,
+                            expected_paragraph_justification =
+                                operation.DirectPlan.ParagraphJustification,
+                            actual_paragraph_justification = actualParagraphJustification,
+                        }
+                    );
+                }
+                directVerification = new DirectOmmlVerification(
+                    operation.DirectPlan.NamespaceIdentity,
+                    operation.DirectPlan.SemanticSha256,
+                    ActualCombinedSemanticSha256: null,
+                    operation.DirectPlan.EquationSemanticSha256,
+                    parsed.EquationSemanticSha256,
+                    operation.DirectPlan.ParagraphPropertiesSemanticSha256,
+                    actualParagraphJustification is null
+                        ? null
+                        : operation.DirectPlan.ParagraphPropertiesSemanticSha256,
+                    operation.DirectPlan.ParagraphJustification,
+                    actualParagraphJustification,
+                    parsed.ElementCount
+                );
+            }
             if (operation.VerifyReadback)
             {
                 if (readbackXml.Length == 0)
@@ -728,7 +1065,8 @@ internal sealed partial class WordLiveService
                 operation,
                 readback,
                 stagedEquation.StyleRewrite,
-                styleVerification
+                styleVerification,
+                directVerification
             );
         }
         finally

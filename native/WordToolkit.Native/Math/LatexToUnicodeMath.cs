@@ -14,8 +14,11 @@ internal static class LatexToUnicodeMath
     private const char EquationArrayMarker = '█';
     private const char CasesMarker = 'Ⓒ';
     private const char BelowMarker = '┬';
+    private const char AboveMarker = '┴';
     private const char CaseColumnSpace = WordMathSpacing.CaseColumn;
     private const char TextBoundarySpace = WordMathSpacing.TextBoundary;
+    private const char InvisibleTimes = '\u2062';
+    private const char MiddleDelimiterMarker = '║';
 
     private static readonly HashSet<char> NaryOperators =
     [
@@ -25,129 +28,26 @@ internal static class LatexToUnicodeMath
         '∫',
         '∬',
         '∭',
+        '⨌',
         '∮',
+        '∱',
+        '∲',
+        '∳',
+        '∯',
+        '∰',
         '⋃',
         '⋂',
+        '⨁',
+        '⨂',
+        '⨀',
+        '⨄',
+        '⨆',
+        '⨅',
+        '⋁',
+        '⋀',
     ];
 
-    private static readonly IReadOnlyDictionary<string, string> Symbols =
-        new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["alpha"] = "α",
-            ["beta"] = "β",
-            ["gamma"] = "γ",
-            ["delta"] = "δ",
-            ["epsilon"] = "ε",
-            ["varepsilon"] = "ϵ",
-            ["zeta"] = "ζ",
-            ["eta"] = "η",
-            ["theta"] = "θ",
-            ["vartheta"] = "ϑ",
-            ["iota"] = "ι",
-            ["kappa"] = "κ",
-            ["lambda"] = "λ",
-            ["mu"] = "μ",
-            ["nu"] = "ν",
-            ["xi"] = "ξ",
-            ["omicron"] = "ο",
-            ["pi"] = "π",
-            ["varpi"] = "ϖ",
-            ["rho"] = "ρ",
-            ["varrho"] = "ϱ",
-            ["sigma"] = "σ",
-            ["varsigma"] = "ς",
-            ["tau"] = "τ",
-            ["upsilon"] = "υ",
-            ["phi"] = "φ",
-            ["varphi"] = "ϕ",
-            ["chi"] = "χ",
-            ["psi"] = "ψ",
-            ["omega"] = "ω",
-            ["Gamma"] = "Γ",
-            ["Delta"] = "Δ",
-            ["Theta"] = "Θ",
-            ["Lambda"] = "Λ",
-            ["Xi"] = "Ξ",
-            ["Pi"] = "Π",
-            ["Sigma"] = "Σ",
-            ["Upsilon"] = "Υ",
-            ["Phi"] = "Φ",
-            ["Psi"] = "Ψ",
-            ["Omega"] = "Ω",
-            ["sum"] = "∑",
-            ["prod"] = "∏",
-            ["coprod"] = "∐",
-            ["int"] = "∫",
-            ["iint"] = "∬",
-            ["iiint"] = "∭",
-            ["oint"] = "∮",
-            ["bigcup"] = "⋃",
-            ["bigcap"] = "⋂",
-            ["infty"] = "∞",
-            ["partial"] = "∂",
-            ["nabla"] = "∇",
-            ["hbar"] = "ℏ",
-            ["ell"] = "ℓ",
-            ["Re"] = "ℜ",
-            ["Im"] = "ℑ",
-            ["aleph"] = "ℵ",
-            ["forall"] = "∀",
-            ["exists"] = "∃",
-            ["nexists"] = "∄",
-            ["in"] = "∈",
-            ["notin"] = "∉",
-            ["ni"] = "∋",
-            ["emptyset"] = "∅",
-            ["varnothing"] = "∅",
-            ["cup"] = "∪",
-            ["cap"] = "∩",
-            ["subset"] = "⊂",
-            ["supset"] = "⊃",
-            ["subseteq"] = "⊆",
-            ["supseteq"] = "⊇",
-            ["land"] = "∧",
-            ["lor"] = "∨",
-            ["neg"] = "¬",
-            ["le"] = "≤",
-            ["leq"] = "≤",
-            ["ge"] = "≥",
-            ["geq"] = "≥",
-            ["ne"] = "≠",
-            ["neq"] = "≠",
-            ["approx"] = "≈",
-            ["sim"] = "∼",
-            ["simeq"] = "≃",
-            ["equiv"] = "≡",
-            ["propto"] = "∝",
-            ["to"] = "→",
-            ["rightarrow"] = "→",
-            ["leftarrow"] = "←",
-            ["leftrightarrow"] = "↔",
-            ["Rightarrow"] = "⇒",
-            ["implies"] = "⇒",
-            ["Leftarrow"] = "⇐",
-            ["Leftrightarrow"] = "⇔",
-            ["mapsto"] = "↦",
-            ["times"] = "×",
-            ["cdot"] = "·",
-            ["bullet"] = "∙",
-            ["div"] = "÷",
-            ["pm"] = "±",
-            ["mp"] = "∓",
-            ["circ"] = "∘",
-            ["degree"] = "°",
-            ["dagger"] = "†",
-            ["ddagger"] = "‡",
-            ["dd"] = WordLinearMathNormalizer.DifferentialD.ToString(),
-            ["dots"] = "…",
-            ["ldots"] = "…",
-            ["cdots"] = "⋯",
-            ["vdots"] = "⋮",
-            ["ddots"] = "⋱",
-            ["angle"] = "∠",
-            ["perp"] = "⊥",
-            ["parallel"] = "∥",
-        };
+
 
     private static readonly HashSet<string> Functions =
     [
@@ -171,6 +71,18 @@ internal static class LatexToUnicodeMath
         "lim",
         "det",
         "gcd",
+        "Pr",
+        "asin",
+        "acos",
+        "atan",
+        "arg",
+        "ker",
+        "dim",
+        "deg",
+        "inf",
+        "sup",
+        "mod",
+        "limsup", "liminf", "hom", "End", "rank", "tr", "sgn", "erf",
     ];
 
     private static readonly HashSet<string> QuotedOperators =
@@ -179,6 +91,11 @@ internal static class LatexToUnicodeMath
         "max",
         "det",
         "gcd",
+        "limsup",
+        "liminf",
+        "inf",
+        "sup",
+        "hom", "End", "rank", "tr", "sgn", "erf",
     ];
 
     private static readonly IReadOnlyDictionary<string, string> Delimiters =
@@ -267,6 +184,7 @@ internal static class LatexToUnicodeMath
         private int _index;
         private int _depth;
         private bool _nextPlainDIsDifferential;
+        private readonly Stack<string> _leftDelimiters = new();
 
         public Parser(string source)
         {
@@ -276,6 +194,13 @@ internal static class LatexToUnicodeMath
         public string ParseAll()
         {
             var value = ParseSequence(null).Trim();
+            if (_leftDelimiters.Count != 0)
+            {
+                throw Invalid(
+                    "A LaTeX \\left delimiter has no matching \\right",
+                    new { unmatched_left_count = _leftDelimiters.Count }
+                );
+            }
             if (_index != _source.Length)
             {
                 throw Invalid("Unexpected trailing LaTeX input", new { index = _index });
@@ -328,6 +253,27 @@ internal static class LatexToUnicodeMath
                             new { index = _index, marker = character.ToString() }
                         );
                     }
+                    if (character == '\\' && TryConsumeCommand("choose"))
+                    {
+                        var numerator = output.ToString().Trim();
+                        if (numerator.Length == 0)
+                        {
+                            throw Invalid(
+                                "\\choose requires a numerator before the command",
+                                new { index = _index - @"\choose".Length }
+                            );
+                        }
+                        SkipWhitespace();
+                        var denominator = ParseSequence(terminator).Trim();
+                        if (denominator.Length == 0)
+                        {
+                            throw Invalid(
+                                "\\choose requires a denominator after the command",
+                                new { index = _index }
+                            );
+                        }
+                        return $"({numerator}¦{denominator})";
+                    }
                     var baseAtom = ParseAtom();
                     if (baseAtom.Length == 0)
                     {
@@ -335,7 +281,21 @@ internal static class LatexToUnicodeMath
                     }
                     var atom = ParseScripts(baseAtom);
                     if (
-                        baseAtom is "lim" or "\"min\"" or "\"max\""
+                        IsUpperStretch(baseAtom)
+                        && atom.StartsWith(baseAtom + "^(", StringComparison.Ordinal)
+                    )
+                    {
+                        atom = baseAtom + AboveMarker + atom[(baseAtom.Length + 1)..];
+                    }
+                    else if (
+                        IsLowerStretch(baseAtom)
+                        && atom.StartsWith(baseAtom + "_(", StringComparison.Ordinal)
+                    )
+                    {
+                        atom = baseAtom + BelowMarker + atom[(baseAtom.Length + 1)..];
+                    }
+                    if (
+                        IsLowerLimitOperator(baseAtom)
                         && atom.Length > baseAtom.Length
                         && atom[baseAtom.Length] == '_'
                     )
@@ -396,7 +356,13 @@ internal static class LatexToUnicodeMath
             {
                 var body = ParseSequence('}');
                 Expect('}');
-                return $"({body.Trim()})";
+                // TeX uses a braced group to keep punctuation attached to a
+                // number (most notably the decimal comma in `3{,}14`).
+                // Braces are syntax here, not visible delimiters; wrapping
+                // this one-character punctuation group in parentheses changes
+                // the equation to `3(,)14`.
+                var trimmed = body.Trim();
+                return trimmed == "," ? trimmed : $"({trimmed})";
             }
             if (character == '\\')
             {
@@ -566,11 +532,112 @@ internal static class LatexToUnicodeMath
                 var denominator = ParseRequiredGroup(command);
                 return $"({numerator.Trim()})/({denominator.Trim()})";
             }
-            if (command == "binom")
+            if (command is "binom" or "dbinom" or "tbinom")
             {
                 var upper = ParseRequiredGroup(command);
                 var lower = ParseRequiredGroup(command);
                 return $"({upper.Trim()}¦{lower.Trim()})";
+            }
+            if (command is "cbrt" or "qdrt")
+            {
+                var body = ParseRequiredGroup(command).Trim();
+                return command == "cbrt" ? $"√(3&{body})" : $"√(4&{body})";
+            }
+            if (command == "root")
+            {
+                SkipWhitespace();
+                var degree = _index < _source.Length && _source[_index] == '{'
+                    ? ParseRequiredGroup(command).Trim()
+                    : ParseUnbracedRootArgument(command);
+                SkipWhitespace();
+                if (!TryConsumeCommand("of"))
+                    throw Invalid("\\root requires \\of");
+                SkipWhitespace();
+                var body = _index < _source.Length && _source[_index] == '{'
+                    ? ParseRequiredGroup(command).Trim()
+                    : ParseUnbracedRootArgument(command);
+                return $"√({degree}&{body})";
+            }
+            if (command is "phantom" or "hphantom" or "vphantom" or "smash" or "hsmash" or "asmash" or "dsmash")
+            {
+                var body = ParseRequiredGroup(command).Trim();
+                // UTN 28 section 3.17 assigns one exact enclosure marker to
+                // each phantom/smash geometry. These are Word UnicodeMath
+                // controls, not visible approximation characters.
+                var marker = command switch
+                {
+                    "phantom" => "⟡",
+                    "hphantom" => "⬄",
+                    "vphantom" => "⇳",
+                    "smash" => "⬍",
+                    "hsmash" => "⬌",
+                    "asmash" => "⬆",
+                    _ => "⬇",
+                };
+                return $"{marker}({body})";
+            }
+            if (command == "middle")
+            {
+                if (_leftDelimiters.Count == 0)
+                {
+                    throw Invalid("\\middle is only valid between matching \\left and \\right delimiters");
+                }
+                SkipWhitespace();
+                return MiddleDelimiterMarker + ParseDelimiter(command);
+            }
+            if (command is "mod" or "bmod" or "pmod")
+            {
+                SkipWhitespace();
+                if (_index >= _source.Length || _source[_index] == '}')
+                {
+                    throw Invalid($"\\{command} requires a modulus");
+                }
+                var body = _index < _source.Length && _source[_index] == '{'
+                    ? ParseRequiredGroup(command).Trim()
+                    : ParseAtom().Trim();
+                return command switch
+                {
+                    "mod" => $" mod {body}",
+                    "bmod" => $" mod {body}",
+                    _ => $"(mod {body})",
+                };
+            }
+            if (command is "overset" or "stackrel" or "underset")
+            {
+                var annotation = ParseRequiredGroup(command).Trim();
+                var body = ParseRequiredGroup(command).Trim();
+                var marker = command == "underset" ? BelowMarker : AboveMarker;
+                return $"{ParenthesizeBase(body)}{marker}({annotation})";
+            }
+            if (
+                command
+                    is "overbrace"
+                        or "underbrace"
+                        or "overparen"
+                        or "underparen"
+                        or "overbracket"
+                        or "underbracket"
+            )
+            {
+                var body = ParseRequiredGroup(command).Trim();
+                var character = command switch
+                {
+                    "overbrace" => '⏞',
+                    "underbrace" => '⏟',
+                    "overparen" => '⏜',
+                    "underparen" => '⏝',
+                    "overbracket" => '⎴',
+                    _ => '⎵',
+                };
+                return $"{character}({body})";
+            }
+            if (command == "substack")
+            {
+                var raw = ReadRequiredRawGroup(command);
+                var rows = SplitTopLevel(raw, rowSeparator: true);
+                if (rows.Count == 0) throw Invalid("\\substack is empty");
+                var converted = rows.Select(row => new Parser(row).ParseAll());
+                return $"{EquationArrayMarker}({string.Join("@", converted)})";
             }
             if (command == "sqrt")
             {
@@ -590,6 +657,48 @@ internal static class LatexToUnicodeMath
             {
                 var body = ParseRequiredGroup(command);
                 return $"▭({body.Trim()})";
+            }
+            if (command is "bra" or "ket" or "expectation")
+            {
+                var body = ParseRequiredGroup(command).Trim();
+                return command switch
+                {
+                    "bra" => $"⟨{body}∣",
+                    "ket" => $"∣{body}⟩",
+                    _ => $"⟨{body}⟩",
+                };
+            }
+            if (command == "braket")
+            {
+                var left = ParseRequiredGroup(command).Trim();
+                SkipWhitespace();
+                if (_index < _source.Length && _source[_index] == '{')
+                {
+                    var right = ParseRequiredGroup(command).Trim();
+                    return $"⟨{left}∣{right}⟩";
+                }
+                return $"⟨{left.Replace("|", "∣", StringComparison.Ordinal)}⟩";
+            }
+            if (command == "matrixel")
+            {
+                var left = ParseRequiredGroup(command).Trim();
+                var @operator = ParseRequiredGroup(command).Trim();
+                var right = ParseRequiredGroup(command).Trim();
+                return $"⟨{left}∣{@operator}∣{right}⟩";
+            }
+            if (command is "dv" or "pdv")
+            {
+                var first = ParseRequiredGroup(command).Trim();
+                SkipWhitespace();
+                var differential = command == "dv"
+                    ? WordLinearMathNormalizer.DifferentialD.ToString()
+                    : "∂";
+                if (_index < _source.Length && _source[_index] == '{')
+                {
+                    var variable = ParseRequiredGroup(command).Trim();
+                    return $"({differential} {first})/({differential} {variable})";
+                }
+                return $"({differential})/({differential} {first})";
             }
             if (command == "text")
             {
@@ -702,21 +811,50 @@ internal static class LatexToUnicodeMath
                 command
                     is "vec"
                     or "hat"
+                    or "widehat"
                     or "bar"
                     or "overline"
                     or "tilde"
                     or "dot"
                     or "ddot"
+                    or "acute" or "grave" or "dddot" or "widetilde" or "underbar"
+                    or "check"
+                    or "breve"
+                    or "underline"
+                    or "overrightarrow"
+                    or "overleftarrow"
             )
             {
                 var body = ParseRequiredGroup(command);
-                var accent = command == "overline" ? "bar" : command;
+                var accent = command switch
+                {
+                    "overline" => "bar",
+                    "widehat" => "hat",
+                    "overrightarrow" => "vec",
+                    "overleftarrow" => "vec",
+                    "widetilde" => "tilde",
+                    "underbar" => "underline",
+                    _ => command,
+                };
                 return ApplyAccent(body.Trim(), accent);
             }
             if (command is "left" or "right")
             {
+                if (command == "right" && _leftDelimiters.Count == 0)
+                {
+                    throw Invalid("A LaTeX \\right delimiter has no matching \\left");
+                }
                 SkipWhitespace();
-                return ParseDelimiter(command);
+                var parsedDelimiter = ParseDelimiter(command);
+                if (command == "left")
+                {
+                    _leftDelimiters.Push(parsedDelimiter);
+                }
+                else
+                {
+                    _leftDelimiters.Pop();
+                }
+                return parsedDelimiter;
             }
             if (command == "begin")
             {
@@ -749,7 +887,7 @@ internal static class LatexToUnicodeMath
                     "\\nolimits cannot be preserved by Word's linear OMath build-up"
                 );
             }
-            if (Symbols.TryGetValue(command, out var symbol))
+            if (LatexSymbolCatalog.Symbols.TryGetValue(command, out var symbol))
             {
                 return symbol;
             }
@@ -825,7 +963,9 @@ internal static class LatexToUnicodeMath
             if (
                 text.Length == 0
                 || text.Any(character =>
-                    !char.IsLetterOrDigit(character) && !char.IsWhiteSpace(character)
+                    !char.IsLetterOrDigit(character)
+                    && !char.IsWhiteSpace(character)
+                    && character is not ('/' or '·' or '⋅' or '.' or ',' or '-' or '%' or '°')
                 )
             )
             {
@@ -851,6 +991,10 @@ internal static class LatexToUnicodeMath
                         or "aligned"
                         or "align"
                         or "gathered"
+                        or "split"
+                        or "multline"
+                        or "equation"
+                        or "smallmatrix"
                     )
             )
             {
@@ -875,7 +1019,19 @@ internal static class LatexToUnicodeMath
             {
                 throw Invalid("LaTeX equation environment is empty", new { environment });
             }
-            if (supported is "aligned" or "align" or "gathered" or "cases")
+            if (supported == "equation")
+            {
+                return new Parser(body).ParseAll();
+            }
+            if (
+                supported
+                    is "aligned"
+                        or "align"
+                        or "gathered"
+                        or "split"
+                        or "multline"
+                        or "cases"
+            )
             {
                 var convertedRows = rows
                     .Select(
@@ -908,6 +1064,7 @@ internal static class LatexToUnicodeMath
             var matrixBody = string.Join("@", convertedMatrixRows);
             return supported switch
             {
+                "smallmatrix" => $"{MatrixMarker}({matrixBody})",
                 "pmatrix" => $"{ParenthesizedMatrixMarker}({matrixBody})",
                 "bmatrix" => $"{BracketedMatrixMarker}({matrixBody})",
                 "vmatrix" => $"{DeterminantMatrixMarker}({matrixBody})",
@@ -930,6 +1087,23 @@ internal static class LatexToUnicodeMath
             var value = ParseSequence('}');
             Expect('}');
             return value;
+        }
+
+        private string ParseUnbracedRootArgument(string command)
+        {
+            if (
+                _index >= _source.Length
+                || _source[_index] == '\\'
+                || char.IsWhiteSpace(_source[_index])
+            )
+            {
+                throw Invalid(
+                    $"\\{command} requires a braced argument when the argument is not one character",
+                    new { index = _index }
+                );
+            }
+            var atom = ParseAtom();
+            return ParseScripts(atom).Trim();
         }
 
         private string ReadRequiredRawGroup(string command)
@@ -1162,6 +1336,21 @@ internal static class LatexToUnicodeMath
         }
         if (
             output.Length > 0
+            && atom.Length > 0
+            && atom[0] is '∂' or '∇'
+            && (atom.Contains("_(", StringComparison.Ordinal)
+                || atom.Contains("^(", StringComparison.Ordinal))
+            && EndsWithScript(output)
+        )
+        {
+            // Word can merge `γ^μ∂_μ` into one malformed sub/superscript
+            // object. U+2062 is the UnicodeMath implicit-times boundary; the
+            // readback verifier deliberately treats it as semantic
+            // juxtaposition, while Word keeps the two scripted factors apart.
+            output.Append(InvisibleTimes);
+        }
+        if (
+            output.Length > 0
             && output[^1] != ' '
             && (
                 StartsWithIdentifier(atom)
@@ -1177,6 +1366,27 @@ internal static class LatexToUnicodeMath
         output.Append(atom);
     }
 
+    private static bool EndsWithScript(StringBuilder value)
+    {
+        if (value.Length < 4 || value[^1] != ')')
+        {
+            return false;
+        }
+        var depth = 1;
+        for (var index = value.Length - 2; index >= 0; index--)
+        {
+            if (value[index] == ')')
+            {
+                depth++;
+            }
+            else if (value[index] == '(' && --depth == 0)
+            {
+                return index > 0 && value[index - 1] is '^' or '_';
+            }
+        }
+        return false;
+    }
+
     private static string ApplyAccent(string body, string accent)
     {
         var mark = accent switch
@@ -1187,6 +1397,12 @@ internal static class LatexToUnicodeMath
             "tilde" => "\u0303",
             "dot" => "\u0307",
             "ddot" => "\u0308",
+            "acute" => "\u0301",
+            "grave" => "\u0300",
+            "dddot" => "\u20DB",
+            "check" => "\u030C",
+            "breve" => "\u0306",
+            "underline" => "\u0332",
             _ => throw Invalid("Unsupported Word accent", new { accent }),
         };
         return $"{ParenthesizeBase(body)}{mark}";
@@ -1209,6 +1425,22 @@ internal static class LatexToUnicodeMath
     {
         return value.Length > 0 && NaryOperators.Contains(value[0]);
     }
+
+    private static bool IsUpperStretch(string value) =>
+        value.Length > 0 && value[0] is '⏜' or '⏞' or '⏠' or '⎴';
+
+    private static bool IsLowerStretch(string value) =>
+        value.Length > 0 && value[0] is '⏝' or '⏟' or '⏡' or '⎵';
+
+    private static bool IsLowerLimitOperator(string value) =>
+        value
+            is "lim"
+                or "\"min\""
+                or "\"max\""
+                or "\"limsup\""
+                or "\"liminf\""
+                or "\"inf\""
+                or "\"sup\"";
 
     private static bool HasTopLevelDivision(string value)
     {

@@ -7,10 +7,12 @@ from ..security import parse_xml_bytes
 from .ast import EMPTY, EquationNode, row
 
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+M_STRICT_NS = "http://purl.oclc.org/ooxml/officeDocument/math"
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 M = f"{{{M_NS}}}"
 W = f"{{{W_NS}}}"
 NSMAP = {"m": M_NS, "w": W_NS}
+M_NAMESPACES = {M_NS, M_STRICT_NS}
 
 
 def _local(element: etree._Element) -> str:
@@ -18,7 +20,30 @@ def _local(element: etree._Element) -> str:
 
 
 def _child(element: etree._Element, local: str) -> etree._Element | None:
-    return next((x for x in element if isinstance(x.tag, str) and _local(x) == local), None)
+    parent_namespace = etree.QName(element).namespace
+    return next(
+        (
+            child
+            for child in element
+            if isinstance(child.tag, str)
+            and _local(child) == local
+            and (
+                parent_namespace not in M_NAMESPACES
+                or etree.QName(child).namespace == parent_namespace
+            )
+        ),
+        None,
+    )
+
+
+def _val(element: etree._Element | None, default: str = "") -> str:
+    if element is None:
+        return default
+    for namespace in M_NAMESPACES:
+        value = element.get(f"{{{namespace}}}val")
+        if value is not None:
+            return value
+    return default
 
 
 def _required_single_child(element: etree._Element, local: str) -> etree._Element:
@@ -40,14 +65,37 @@ def _contents(element: etree._Element | None) -> EquationNode:
 
 def parse_omml(source: str) -> EquationNode:
     root = parse_xml_bytes(source.encode("utf-8"), part="equation.omml")
-    if etree.QName(root).namespace != M_NS or _local(root) not in {"oMath", "oMathPara"}:
+    if etree.QName(root).namespace not in M_NAMESPACES or _local(root) not in {
+        "oMath",
+        "oMathPara",
+    }:
         raise WordToolkitError(
             ErrorCode.EQUATION_INVALID, "OMML root must be m:oMath or m:oMathPara"
         )
     if _local(root) == "oMathPara":
-        omath = _child(root, "oMath")
-        if omath is None:
-            raise WordToolkitError(ErrorCode.EQUATION_INVALID, "m:oMathPara has no m:oMath")
+        root_namespace = etree.QName(root).namespace
+        children = [child for child in root if isinstance(child.tag, str)]
+        maths = [
+            child
+            for child in children
+            if _local(child) == "oMath" and etree.QName(child).namespace == root_namespace
+        ]
+        if len(maths) != 1:
+            raise WordToolkitError(
+                ErrorCode.EQUATION_INVALID,
+                "m:oMathPara requires exactly one m:oMath",
+                {"count": len(maths)},
+            )
+        if any(
+            etree.QName(child).namespace != root_namespace
+            or _local(child) not in {"oMathParaPr", "oMath"}
+            for child in children
+        ):
+            raise WordToolkitError(
+                ErrorCode.EQUATION_INVALID,
+                "m:oMathPara contains an unsupported or mixed-namespace child",
+            )
+        omath = maths[0]
         root = omath
     return _contents(root)
 
@@ -94,7 +142,7 @@ def _parse_node(element: etree._Element) -> EquationNode:
         degree = _contents(_child(element, "deg"))
         body = _contents(_child(element, "e"))
         hidden = any(
-            _local(x) == "degHide" and x.get(f"{M}val", "1") != "0"
+            _local(x) == "degHide" and _val(x, "1") != "0"
             for x in element.iter()
             if isinstance(x.tag, str)
         )
@@ -105,9 +153,7 @@ def _parse_node(element: etree._Element) -> EquationNode:
         char = "∑"
         prop = _child(element, "naryPr")
         if prop is not None:
-            char_el = _child(prop, "chr")
-            if char_el is not None:
-                char = char_el.get(f"{M}val", char)
+            char = _val(_child(prop, "chr"), char)
         return EquationNode.make(
             "nary",
             char,
@@ -122,8 +168,8 @@ def _parse_node(element: etree._Element) -> EquationNode:
         prop = _child(element, "dPr")
         if prop is not None:
             b, e = _child(prop, "begChr"), _child(prop, "endChr")
-            begin = b.get(f"{M}val", begin) if b is not None else begin
-            end = e.get(f"{M}val", end) if e is not None else end
+            begin = _val(b, begin)
+            end = _val(e, end)
         return EquationNode.make(
             "delimiter", children=(_contents(_child(element, "e")),), begin=begin, end=end
         )
@@ -157,9 +203,39 @@ def _parse_node(element: etree._Element) -> EquationNode:
         char = "^"
         prop = _child(element, "accPr")
         char_el = _child(prop, "chr") if prop is not None else None
-        if char_el is not None:
-            char = char_el.get(f"{M}val", char)
+        char = _val(char_el, char)
         return EquationNode.make("accent", char, (_contents(_child(element, "e")),))
+    if tag == "bar":
+        prop = _child(element, "barPr")
+        pos = _child(prop, "pos") if prop is not None else None
+        char = "_" if _val(pos) == "bot" else "¯"
+        return EquationNode.make(
+            "accent",
+            char,
+            (_contents(_child(element, "e")),),
+            omml_kind="bar",
+        )
+    if tag == "groupChr":
+        prop = _child(element, "groupChrPr")
+        char_el = _child(prop, "chr") if prop is not None else None
+        char = _val(char_el)
+        return EquationNode.make(
+            "accent",
+            char,
+            (_contents(_child(element, "e")),),
+            omml_kind="groupChr",
+        )
+    if tag == "phantom":
+        return EquationNode.make("phantom", children=(_contents(_child(element, "e")),))
+    if tag == "sPre":
+        return EquationNode.make(
+            "prescript",
+            children=(
+                _contents(_child(element, "sub")),
+                _contents(_child(element, "sup")),
+                _contents(_child(element, "e")),
+            ),
+        )
     if tag in {"limLow", "limUpp"}:
         return EquationNode.make(
             "limit_lower" if tag == "limLow" else "limit_upper",
@@ -172,7 +248,7 @@ def _parse_node(element: etree._Element) -> EquationNode:
         )
     if tag in {"oMath", "oMathPara", "e", "num", "den", "sub", "sup", "deg", "fName", "lim"}:
         return _contents(element)
-    return _contents(element)
+    raise WordToolkitError(ErrorCode.EQUATION_INVALID, "Unknown OMML element", {"element": tag})
 
 
 def to_omml(node: EquationNode, *, display: bool) -> etree._Element:
@@ -265,10 +341,32 @@ def _append(parent: etree._Element, node: EquationNode) -> None:
             _container(array, "e", equation)
         return
     if node.kind == "accent":
+        if node.attr("omml_kind") == "bar":
+            el = etree.SubElement(parent, f"{M}bar")
+            props = etree.SubElement(el, f"{M}barPr")
+            etree.SubElement(props, f"{M}pos").set(f"{M}val", "bot" if node.value == "_" else "top")
+            _container(el, "e", c[0])
+            return
+        if node.attr("omml_kind") == "groupChr":
+            el = etree.SubElement(parent, f"{M}groupChr")
+            props = etree.SubElement(el, f"{M}groupChrPr")
+            etree.SubElement(props, f"{M}chr").set(f"{M}val", node.value)
+            _container(el, "e", c[0])
+            return
         accent = etree.SubElement(parent, f"{M}acc")
         props = etree.SubElement(accent, f"{M}accPr")
         etree.SubElement(props, f"{M}chr").set(f"{M}val", node.value or "^")
         _container(accent, "e", c[0])
+        return
+    if node.kind == "phantom":
+        el = etree.SubElement(parent, f"{M}phantom")
+        _container(el, "e", c[0])
+        return
+    if node.kind == "prescript":
+        el = etree.SubElement(parent, f"{M}sPre")
+        _container(el, "sub", c[0])
+        _container(el, "sup", c[1])
+        _container(el, "e", c[2])
         return
     if node.kind in {"limit_lower", "limit_upper"}:
         limit = etree.SubElement(

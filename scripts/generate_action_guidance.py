@@ -127,6 +127,8 @@ def main() -> None:
                 "ok",
                 "valid",
                 "can_apply",
+                "succeeded",
+                "published",
                 "version",
                 "package_fingerprint",
                 "output_path",
@@ -134,6 +136,14 @@ def main() -> None:
                 "artifact_hashes",
             }
         ]
+        if name == "compile_tex_document":
+            predicates = [
+                "succeeded is true",
+                "published is true",
+                "pdf_sha256 is present",
+                "editable_office_math is false",
+                "tex_to_omml_conversion_performed is false",
+            ]
         if name.startswith(("plan_ooxml_", "apply_ooxml_")) and "package" in name:
             prereq = ["exact package_fingerprint from the matching inspect/query action"]
         # Recovery guidance is additive: generic safety paths must remain present

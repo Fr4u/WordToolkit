@@ -5,11 +5,163 @@ namespace WordToolkit.Native.Equations;
 internal static class WordLinearMathNormalizer
 {
     internal const char DifferentialD = '\u2146';
+    internal const char InvisibleTimes = '\u2062';
 
     internal static string NormalizeForWord(string value)
     {
-        var normalized = NormalizeDifferentialSpacing(value);
+        var normalized = NormalizePrescriptBoundaries(value);
+        normalized = NormalizeDifferentialSpacing(normalized);
         return GroupIntegralOperands(normalized);
+    }
+
+    private static string NormalizePrescriptBoundaries(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        var output = new StringBuilder(value.Length + 8);
+        for (var index = 0; index < value.Length; index++)
+        {
+            if (
+                value[index] is not ('_' or '^')
+                || !IsPrescriptStart(value, index)
+                || !TryReadPrescript(value, index, out var end, out var scripts)
+            )
+            {
+                output.Append(value[index]);
+                continue;
+            }
+
+            output.Append(scripts);
+            var baseStart = end;
+            while (baseStart < value.Length && char.IsWhiteSpace(value[baseStart]))
+            {
+                baseStart++;
+            }
+            if (
+                baseStart < value.Length
+                && value[baseStart] != InvisibleTimes
+            )
+            {
+                output.Append(InvisibleTimes);
+            }
+            index = baseStart - 1;
+        }
+        return output.ToString();
+    }
+
+    private static bool IsPrescriptStart(string value, int index)
+    {
+        for (var previous = index - 1; previous >= 0; previous--)
+        {
+            if (char.IsWhiteSpace(value[previous]))
+            {
+                continue;
+            }
+            return value[previous]
+                is '(' or '[' or '{' or '=' or '+' or '-' or '*' or '/'
+                    or ',' or ';' or ':' or '&' or '@' or '▒' or '┬' or '┴';
+        }
+        return true;
+    }
+
+    private static bool TryReadPrescript(
+        string value,
+        int start,
+        out int end,
+        out string scripts
+    )
+    {
+        var cursor = start;
+        var output = new StringBuilder();
+        var count = 0;
+        while (cursor < value.Length && value[cursor] is '_' or '^' && count < 2)
+        {
+            var marker = value[cursor++];
+            while (cursor < value.Length && char.IsWhiteSpace(value[cursor]))
+            {
+                cursor++;
+            }
+            if (!TryReadScriptArgument(value, ref cursor, out var argument))
+            {
+                end = start;
+                scripts = "";
+                return false;
+            }
+            output.Append(marker).Append('(').Append(argument).Append(')');
+            count++;
+            while (cursor < value.Length && char.IsWhiteSpace(value[cursor]))
+            {
+                cursor++;
+            }
+        }
+        if (count == 0 || cursor >= value.Length)
+        {
+            end = start;
+            scripts = "";
+            return false;
+        }
+        end = cursor;
+        scripts = output.ToString();
+        return true;
+    }
+
+    private static bool TryReadScriptArgument(
+        string value,
+        ref int cursor,
+        out string argument
+    )
+    {
+        if (cursor >= value.Length)
+        {
+            argument = "";
+            return false;
+        }
+        if (value[cursor] != '(')
+        {
+            var length = char.IsHighSurrogate(value[cursor])
+                && cursor + 1 < value.Length
+                && char.IsLowSurrogate(value[cursor + 1])
+                    ? 2
+                    : 1;
+            argument = value.Substring(cursor, length);
+            cursor += length;
+            return true;
+        }
+        var opening = cursor++;
+        var depth = 1;
+        var inQuotedText = false;
+        while (cursor < value.Length)
+        {
+            var character = value[cursor++];
+            if (character == '"')
+            {
+                if (
+                    inQuotedText
+                    && cursor < value.Length
+                    && value[cursor] == '"'
+                )
+                {
+                    cursor++;
+                    continue;
+                }
+                inQuotedText = !inQuotedText;
+                continue;
+            }
+            if (inQuotedText)
+            {
+                continue;
+            }
+            if (character == '(')
+            {
+                depth++;
+            }
+            else if (character == ')' && --depth == 0)
+            {
+                argument = value[(opening + 1)..(cursor - 1)];
+                return true;
+            }
+        }
+        argument = "";
+        return false;
     }
 
     internal static string NormalizeDifferentialSpacing(string value)
@@ -207,6 +359,14 @@ internal static class WordLinearMathNormalizer
                 depth = Math.Max(0, depth - 1);
                 continue;
             }
+            // UnicodeMath structure separators (eqarray/matrix/cases and
+            // above/below constructs) terminate an ungrouped integral body.
+            // Do not let a differential in the next cell/row get absorbed.
+            if (depth == 0 && IsStructureSeparator(character))
+            {
+                operandEnd = -1;
+                return false;
+            }
             if (character != DifferentialD || depth != 0)
             {
                 continue;
@@ -343,13 +503,23 @@ internal static class WordLinearMathNormalizer
     }
 
     private static bool IsIntegralOperator(char character) =>
-        character is '∫' or '∬' or '∭' or '∮';
+        character is '∫' or '∬' or '∭' or '∮' or '∱' or '∲' or '∳' or '∯' or '∰'
+            // UTN28/UnicodeMath additional contour, surface and volume
+            // integral glyphs. They have one differential unless explicitly
+            // represented by the double/triple glyphs above.
+            or '\u2A0C' or '\u2A0D' or '\u2A0E' or '\u2A0F'
+            or '\u2A10' or '\u2A11' or '\u2A12' or '\u2A13'
+            or '\u2A14' or '\u2A15' or '\u2A16' or '\u2A17'
+            or '\u2A18' or '\u2A19' or '\u2A1A' or '\u2A1B' or '\u2A1C';
 
     private static int DifferentialCount(char integralOperator) =>
         integralOperator switch
         {
             '∬' => 2,
             '∭' => 3,
+            '∯' => 2,
+            '∰' => 3,
+            '\u2A0C' => 4, // quadruple integral
             _ => 1,
         };
 
@@ -358,5 +528,8 @@ internal static class WordLinearMathNormalizer
 
     private static bool IsClosingDelimiter(char character) =>
         character is ')' or ']' or '}' or '〗';
+
+    private static bool IsStructureSeparator(char character) =>
+        character is '&' or '@' or '┴' or '┬';
 
 }

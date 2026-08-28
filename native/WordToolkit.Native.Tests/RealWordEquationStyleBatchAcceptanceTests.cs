@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using System.Diagnostics;
 using System.Text.Json;
 using WordToolkit.Native.Protocol;
 using WordToolkit.Native.Word;
@@ -9,7 +10,7 @@ namespace WordToolkit.Native.Tests;
 public sealed class RealWordEquationStyleBatchAcceptanceTests
 {
     [Fact]
-    public async Task DedicatedWordBatchPreservesFormattedEquationStylesAndOrder()
+    public async Task DedicatedWordBatchHandlesFortyNineOperationsAndPreservesFormattedEquationStyles()
     {
         if (!string.Equals(
                 Environment.GetEnvironmentVariable("WORDTOOLKIT_REAL_WORD_EQUATION_STYLE_BATCH_TEST"),
@@ -53,35 +54,73 @@ public sealed class RealWordEquationStyleBatchAcceptanceTests
                     CancellationToken.None), JsonDefaults.Compact));
             documentId = connected.RootElement.GetProperty("live_document_id").GetString();
             var version = connected.RootElement.GetProperty("live_version").GetInt64();
+            var equationValues = new[]
+            {
+                @"\begin{matrix}1&2\\3&4\end{matrix}",
+                @"\begin{pmatrix}a&b\\c&d\end{pmatrix}",
+                @"\begin{bmatrix}3{,}14&2\\1&0{,}5\end{bmatrix}",
+                @"\begin{vmatrix}p&q\\r&s\end{vmatrix}",
+                @"\begin{Vmatrix}u&v\\w&z\end{Vmatrix}",
+                @"\begin{matrix}\frac{1}{2}&\sqrt{x}\\y^2&z_1\end{matrix}",
+                @"\mathbf{x+\boldsymbol{y}}",
+                @"\boldsymbol{\frac{\alpha+\beta}{\gamma}}",
+            };
+            var operations = new List<object>(49);
+            var equationOffset = 0;
+            for (var operationIndex = 1; operationIndex <= 49; operationIndex++)
+            {
+                if (operationIndex % 6 == 0)
+                {
+                    operations.Add(new
+                    {
+                        type = "equation",
+                        value = equationValues[equationOffset++],
+                        input_format = "latex",
+                        display = true,
+                        verify_readback = true,
+                    });
+                }
+                else
+                {
+                    operations.Add(new
+                    {
+                        type = "text",
+                        text = $"Batch paragraph {operationIndex}",
+                        as_new_paragraph = true,
+                    });
+                }
+            }
+            Assert.Equal(8, equationOffset);
+            var applyStopwatch = Stopwatch.StartNew();
             using var applied = JsonDocument.Parse(JsonSerializer.Serialize(
                 await service.CallAsync("apply_live_word_operations",
                     JsonDocument.Parse(JsonSerializer.Serialize(new
                     {
                         live_document_id = documentId,
                         expected_version = version,
-                        operations = new object[]
-                        {
-                            new { type = "equation", value = "x+y", input_format = "latex", display = true, verify_readback = true },
-                            new { type = "equation", value = @"\mathbf{x+\boldsymbol{y}}", input_format = "latex", display = true, verify_readback = true },
-                            new { type = "equation", value = @"\boldsymbol{\frac{\alpha+\beta}{\gamma}}", input_format = "latex", display = true, verify_readback = true },
-                        }
+                        operations,
                     })).RootElement, CancellationToken.None), JsonDefaults.Compact));
+            applyStopwatch.Stop();
 
             var root = applied.RootElement;
-            Assert.Equal(3, root.GetProperty("operation_count").GetInt32());
-            Assert.Equal(3, root.GetProperty("equation_operation_count").GetInt32());
-            Assert.Equal(3, root.GetProperty("document").GetProperty("equation_count").GetInt32());
+            Assert.Equal(49, root.GetProperty("operation_count").GetInt32());
+            Assert.Equal(8, root.GetProperty("equation_operation_count").GetInt32());
+            Assert.Equal(8, root.GetProperty("document").GetProperty("equation_count").GetInt32());
             var equations = root.GetProperty("operations").EnumerateArray()
-                .Select(x => x.GetProperty("equation")).ToArray();
-            Assert.Equal(3, equations.Length);
-            Assert.All(equations, e => {
+                .Where(item => item.GetProperty("type").GetString() == "equation")
+                .Select(item => item.GetProperty("equation"))
+                .ToArray();
+            Assert.Equal(8, equations.Length);
+            Assert.All(equations, e =>
+            {
                 Assert.True(e.GetProperty("native_verified").GetBoolean());
                 Assert.True(e.GetProperty("readback_verified").GetBoolean());
             });
-            Assert.False(equations[0].GetProperty("native_style_verified").GetBoolean());
-            Assert.True(equations[1].GetProperty("native_style_verified").GetBoolean());
-            Assert.True(equations[2].GetProperty("native_style_verified").GetBoolean());
-            foreach (var equation in equations.Skip(1))
+            Assert.All(equations.Take(6), equation =>
+                Assert.False(equation.GetProperty("native_style_verified").GetBoolean()));
+            Assert.All(equations.Skip(6), equation =>
+                Assert.True(equation.GetProperty("native_style_verified").GetBoolean()));
+            foreach (var equation in equations.Skip(6))
             {
                 var formatting = equation.GetProperty("formatting");
                 Assert.True(formatting.GetProperty("region_count").GetInt32() > 0);
@@ -90,6 +129,22 @@ public sealed class RealWordEquationStyleBatchAcceptanceTests
                     formatting.GetProperty("expected_contract_sha256").GetString(),
                     formatting.GetProperty("actual_contract_sha256").GetString());
             }
+            var complexity = root.GetProperty("performance").GetProperty("complexity");
+            Assert.Equal(49, complexity.GetProperty("operation_count").GetInt32());
+            Assert.Equal(8, complexity.GetProperty("equation_count").GetInt32());
+            Assert.Equal(2, complexity.GetProperty("styled_equation_count").GetInt32());
+            Assert.Equal(
+                61,
+                complexity.GetProperty("estimated_staging_content_com_calls").GetInt32()
+            );
+            Assert.Equal(
+                2,
+                complexity.GetProperty("batch_boundary_equation_count_reads").GetInt32()
+            );
+            Assert.True(
+                applyStopwatch.Elapsed < TimeSpan.FromSeconds(120),
+                $"The 49-operation batch exceeded the 120-second acceptance ceiling: {applyStopwatch.Elapsed}."
+            );
         }
         catch (Exception exception)
         {

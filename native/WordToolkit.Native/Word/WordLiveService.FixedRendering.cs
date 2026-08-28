@@ -90,12 +90,43 @@ internal sealed partial class WordLiveService
         {
             package = new OpcPackageReader().Read(paths.Input, cancellationToken);
         }
-        catch (Exception exception) when (
-            exception is InvalidDataException or IOException or UnauthorizedAccessException
-        )
+        catch (OpcPackageSourceChangedException)
         {
             throw new NativeToolException(
-                exception is UnauthorizedAccessException ? "ACCESS_DENIED" : "INVALID_PACKAGE",
+                "SOURCE_CHANGED",
+                "The fixed render source changed while its stable snapshot was captured",
+                new
+                {
+                    recommended_action =
+                        "wait_for_save_or_connect_live_document_then_export_live_word_artifacts",
+                },
+                retryable: true
+            );
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw new NativeToolException(
+                "ACCESS_DENIED",
+                "The fixed render source cannot be read with the current filesystem access"
+            );
+        }
+        catch (IOException)
+        {
+            throw new NativeToolException(
+                "SOURCE_CHANGED",
+                "The fixed render source is busy or cannot be snapshotted safely; use the connected live-document artifact export when it is open in Word",
+                new
+                {
+                    reason = "source_busy_or_exclusive_share",
+                    recommended_action = "export_live_word_artifacts",
+                },
+                retryable: true
+            );
+        }
+        catch (InvalidDataException)
+        {
+            throw new NativeToolException(
+                "INVALID_PACKAGE",
                 "The fixed render source could not be read as an OPC package"
             );
         }
@@ -129,6 +160,7 @@ internal sealed partial class WordLiveService
         var stagingPdfPath = Path.Combine(stagingDirectory, "source.pdf");
         PopplerRasterizationStagingResult? raster = null;
         PopplerPdfInspection? inspection = null;
+        Exception? primaryFailure = null;
         try
         {
             var word = await _host.InvokeAsync<WordFixedFormatExportObservation>(
@@ -196,6 +228,10 @@ internal sealed partial class WordLiveService
                 ValidateRasterGeometry(word, inspection, raster);
             }
 
+            var equationRenderQa = EquationRenderQa.Analyze(
+                raster,
+                EquationRenderQa.ScanPackage(paths.Input)
+            );
             var prepared = PrepareFixedRenderArtifacts(
                 request,
                 paths,
@@ -205,7 +241,8 @@ internal sealed partial class WordLiveService
                 raster,
                 execution,
                 package.Fingerprint,
-                sourceSha256Before
+                sourceSha256Before,
+                equationRenderQa
             );
             var publisher = new TransactionalRenderArtifactPublisher();
             var published = publisher.PublishCreateNew(
@@ -251,6 +288,7 @@ internal sealed partial class WordLiveService
                         - item.MediaBox.BottomPoints,
                 })
                 .ToArray() ?? [];
+            var warnings = FixedRenderWarnings(request, inspection is not null);
 
             return new
             {
@@ -268,6 +306,8 @@ internal sealed partial class WordLiveService
                 exported_page_count = word.ExportedPageCount,
                 page_geometry_count = pageGeometries.Length,
                 page_geometries = pageGeometries,
+                equation_render_qa = equationRenderQa,
+                warnings,
                 dpi = request.Output is FixedRenderOutputKind.Pdf ? (int?)null : request.Dpi,
                 backend = new
                 {
@@ -325,16 +365,23 @@ internal sealed partial class WordLiveService
         }
         catch (PopplerPdfBackendException exception)
         {
-            throw MapPopplerFailure(exception);
+            primaryFailure = MapPopplerFailure(exception);
+            throw primaryFailure;
         }
         catch (WordToolkitOperationException exception)
         {
-            throw new NativeToolException(
+            primaryFailure = new NativeToolException(
                 exception.Code,
                 exception.Message,
                 exception.Details,
                 exception.Retryable
             );
+            throw primaryFailure;
+        }
+        catch (Exception exception)
+        {
+            primaryFailure = exception;
+            throw;
         }
         finally
         {
@@ -346,6 +393,27 @@ internal sealed partial class WordLiveService
             cleanupFailed |= !TryDeleteRenderDirectory(stagingDirectory);
             if (cleanupFailed && !cancellationToken.IsCancellationRequested)
             {
+                if (primaryFailure is not null)
+                {
+                    throw new NativeToolException(
+                        "ROLLBACK_FAILED",
+                        "Fixed render failed and private staging cleanup could not be proven",
+                        new
+                        {
+                            original_error_code = primaryFailure
+                                is NativeToolException native
+                                    ? native.ErrorCode
+                                    : "EXTERNAL_TOOL_FAILED",
+                            original_error_message = primaryFailure.Message[..Math.Min(
+                                primaryFailure.Message.Length,
+                                256
+                            )],
+                            cleanup_failed = true,
+                            public_artifact_state = "unchanged_or_committed",
+                            raw_document_content_returned = false,
+                        }
+                    );
+                }
                 throw new NativeToolException(
                     "ROLLBACK_FAILED",
                     "Fixed render staging cleanup could not be proven",
@@ -470,7 +538,8 @@ internal sealed partial class WordLiveService
         PopplerRasterizationStagingResult? raster,
         ResolvedRenderExecutionIntent execution,
         string packageFingerprint,
-        string sourceSha256
+        string sourceSha256,
+        object equationRenderQa
     )
     {
         var publications = new List<RenderArtifactPublication>();
@@ -544,11 +613,13 @@ internal sealed partial class WordLiveService
             dpi = raster?.Dpi,
             derived_raster_backend = raster?.Provenance.Backend,
             execution,
+            equation_render_qa = equationRenderQa,
             artifacts = sidecarItems,
             source_mutated = false,
             active_content_executed = false,
             external_resources_loaded = false,
             silent_backend_fallback = false,
+            warnings = FixedRenderWarnings(request, inspection is not null),
         };
         var manifestBytes = Encoding.UTF8.GetBytes(
             WordToolkitOperationJson.Serialize(manifestPayload, indented: true) + "\n"
@@ -620,6 +691,23 @@ internal sealed partial class WordLiveService
                 }
             );
         }
+    }
+
+    private static string[] FixedRenderWarnings(
+        FixedRenderWordPackageRequest request,
+        bool geometryInspected
+    )
+    {
+        var warnings = new List<string>
+        {
+            "subjective_visual_review_required",
+            "word_layout_is_not_pixel_equivalence",
+        };
+        if (request.Output is FixedRenderOutputKind.Pdf && !geometryInspected)
+        {
+            warnings.Add("pdf_geometry_not_inspected");
+        }
+        return warnings.ToArray();
     }
 
     private static PopplerPdfBackend CreatePopplerBackend(

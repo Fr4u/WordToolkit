@@ -150,8 +150,8 @@ public sealed class FlatOpcPackageCliTests
         var inspected = catalog.InspectAction("convert_ooxml_flat_opc");
         var tool = inspected["tool"]!.AsObject();
 
-        Assert.Equal(151, catalog.ActionCount);
-        Assert.Equal(15, catalog.Tools.Count);
+        Assert.Equal(157, catalog.ActionCount);
+        Assert.Equal(17, catalog.Tools.Count);
         Assert.DoesNotContain(
             catalog.Tools,
             node => node!["name"]!.GetValue<string>() == "convert_ooxml_flat_opc"

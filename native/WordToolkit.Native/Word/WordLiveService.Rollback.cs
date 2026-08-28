@@ -40,6 +40,49 @@ internal sealed partial class WordLiveService
         long liveVersion
     )
     {
+        const int maxAttempts = 3;
+        NativeToolException? lastUnstable = null;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                return CaptureLiveRollbackSnapshotOnce(
+                    document, requestedTargetStart, requestedTargetEnd, liveVersion
+                );
+            }
+            catch (NativeToolException exception) when (
+                exception.ErrorCode == "ROLLBACK_SNAPSHOT_UNSTABLE"
+            )
+            {
+                lastUnstable = exception;
+                if (attempt == maxAttempts)
+                {
+                    break;
+                }
+            }
+        }
+        throw new NativeToolException(
+            "ROLLBACK_SNAPSHOT_UNSTABLE",
+            "Microsoft Word did not return a stable semantic Flat OPC projection for the rollback checkpoint",
+            new
+            {
+                attempts = maxAttempts,
+                retry_attempts = maxAttempts - 1,
+                last_error = lastUnstable is null
+                    ? null
+                    : ProjectSafeErrorDetails(lastUnstable),
+                raw_document_content_returned = false,
+            }
+        );
+    }
+
+    private static LiveRollbackSnapshot CaptureLiveRollbackSnapshotOnce(
+        dynamic document,
+        int requestedTargetStart,
+        int requestedTargetEnd,
+        long liveVersion
+    )
+    {
         var strictComReadback = Marshal.IsComObject((object)document);
         dynamic content = document.Content;
         dynamic? targetRange = null;
@@ -522,6 +565,12 @@ internal sealed partial class WordLiveService
         var originalErrorCode = originalException is NativeToolException nativeException
             ? nativeException.ErrorCode
             : "EXTERNAL_TOOL_FAILED";
+        var recoveryError = independentRestoreError
+            ?? independentRestoreVerificationError
+            ?? undoError
+            ?? endRecordError
+            ?? afterUndoVerificationError
+            ?? beforeUndoVerificationError;
         throw new NativeToolException(
             "ROLLBACK_FAILED",
             "Microsoft Word did not prove restoration of the exact pre-transaction state; the live document handle was quarantined",
@@ -531,6 +580,24 @@ internal sealed partial class WordLiveService
                 live_version_before = baseline.LiveVersion,
                 original_error_code = originalErrorCode,
                 original_exception_type = originalException.GetType().Name,
+                root_cause = new
+                {
+                    error_code = originalErrorCode,
+                    exception_type = originalException.GetType().Name,
+                    message = originalException.Message,
+                    details = ProjectSafeErrorDetails(originalException),
+                },
+                recovery_error = recoveryError is null
+                    ? null
+                    : new
+                    {
+                        error_code = recoveryError is NativeToolException recoveryNative
+                            ? recoveryNative.ErrorCode
+                            : "EXTERNAL_TOOL_FAILED",
+                        exception_type = recoveryError.GetType().Name,
+                        message = recoveryError.Message,
+                        details = ProjectSafeErrorDetails(recoveryError),
+                    },
                 undo_record_end_failed = endRecordError is not null,
                 undo_attempted = undoAttempted,
                 undo_returned = undoReturned,
@@ -655,15 +722,14 @@ internal sealed partial class WordLiveService
 
     private static string RollbackStableSemanticSha256(Func<string> readWordOpenXml)
     {
-        string? previous = null;
+        var observedHashes = new HashSet<string>(StringComparer.Ordinal);
         for (var attempt = 0; attempt < 4; attempt++)
         {
             var observed = RollbackSemanticSha256(readWordOpenXml());
-            if (string.Equals(previous, observed, StringComparison.Ordinal))
+            if (!observedHashes.Add(observed))
             {
                 return observed;
             }
-            previous = observed;
         }
         throw new NativeToolException(
             "ROLLBACK_SNAPSHOT_UNSTABLE",
@@ -675,6 +741,10 @@ internal sealed partial class WordLiveService
             }
         );
     }
+
+    internal static string RollbackStableSemanticSha256ForTesting(
+        Func<string> readWordOpenXml
+    ) => RollbackStableSemanticSha256(readWordOpenXml);
 
     private static void AppendCanonicalXmlNode(
         StringBuilder canonical,

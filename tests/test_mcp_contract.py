@@ -127,6 +127,7 @@ LIVE_WORD_VERSIONED_WRITES = {
     "format_live_word_selection",
     "insert_live_word_table",
     "insert_live_word_table_formulas",
+    "insert_live_word_dropdowns",
     "update_live_word_table_fields",
     "insert_live_word_list",
     "insert_live_word_bookmarks",
@@ -153,6 +154,11 @@ LIVE_WORD_VERSIONED_WRITES = {
     "close_live_word_document",
 }
 
+LIVE_WORD_VERSIONED_NONWRITES = {
+    "preflight_live_word_operations",
+    "export_live_word_artifacts",
+}
+
 
 def test_local_v2_requires_versions_for_all_unconditional_live_writes() -> None:
     catalog = json.loads(
@@ -170,10 +176,13 @@ def test_local_v2_requires_versions_for_all_unconditional_live_writes() -> None:
     }
 
     assert catalog["schema_version"] == "2.0.0"
-    assert native_versioned_actions == LIVE_WORD_VERSIONED_WRITES | {
-        "execute_live_word_member_operations"
-    }
-    for name in LIVE_WORD_VERSIONED_WRITES:
+    assert (
+        native_versioned_actions
+        == LIVE_WORD_VERSIONED_WRITES
+        | LIVE_WORD_VERSIONED_NONWRITES
+        | {"execute_live_word_member_operations"}
+    )
+    for name in LIVE_WORD_VERSIONED_WRITES | LIVE_WORD_VERSIONED_NONWRITES:
         schema = tools[name]["inputSchema"]
         assert "expected_version" in schema["required"], name
         version = schema["properties"]["expected_version"]

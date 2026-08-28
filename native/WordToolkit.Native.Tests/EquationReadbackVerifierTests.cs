@@ -1,3 +1,4 @@
+using System.Text.Json;
 using WordToolkit.Native.Equations;
 using WordToolkit.Native.Protocol;
 
@@ -149,6 +150,15 @@ public sealed class EquationReadbackVerifierTests
 
         Assert.Equal("EQUATION_INVALID", error.ErrorCode);
         Assert.Contains("differential placement", error.Message, StringComparison.Ordinal);
+        using var details = JsonDocument.Parse(
+            JsonSerializer.Serialize(error.Details, JsonDefaults.Compact)
+        );
+        var diagnostic = details.RootElement.GetProperty("diagnostic");
+        Assert.Equal("differential_placement", diagnostic.GetProperty("mismatch_kind").GetString());
+        Assert.Equal(
+            "equation/integral_operand",
+            diagnostic.GetProperty("node_path").GetString()
+        );
     }
 
     [Fact]
@@ -162,6 +172,16 @@ public sealed class EquationReadbackVerifierTests
         );
 
         Assert.Equal("EQUATION_INVALID", error.ErrorCode);
+        var serialized = JsonSerializer.Serialize(error.Details, JsonDefaults.Compact);
+        using var details = JsonDocument.Parse(serialized);
+        var diagnostic = details.RootElement.GetProperty("diagnostic");
+        Assert.Equal("canonical_structure", diagnostic.GetProperty("mismatch_kind").GetString());
+        Assert.True(diagnostic.GetProperty("first_difference_index").GetInt32() >= 0);
+        Assert.Equal("letter", diagnostic.GetProperty("expected_token_kind").GetString());
+        Assert.Equal("letter", diagnostic.GetProperty("actual_token_kind").GetString());
+        Assert.True(diagnostic.GetProperty("expected_families").TryGetProperty("nary", out _));
+        Assert.DoesNotContain("<m:", serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("∫_(0)", serialized, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -257,6 +277,103 @@ public sealed class EquationReadbackVerifierTests
         var result = EquationReadbackVerifier.Verify(Wrap(omml), "sin x");
 
         Assert.Equal(result.ExpectedContractSha256, result.ActualContractSha256);
+    }
+
+    [Theory]
+    [InlineData("μ_(0) ϵ_(0)", "μ_(0)⁢ϵ_(0)")]
+    [InlineData("2 (x)/(y)", "2⁢(x)/(y)")]
+    [InlineData("(ⅆψ)/(ⅆt)", "⁢(ⅆψ)/(ⅆt)")]
+    public void TreatsInvisibleTimesAsImplicitMultiplication(string expected, string actual)
+    {
+        Assert.Equal(
+            EquationReadbackVerifier.CanonicalizeForTesting(expected),
+            EquationReadbackVerifier.CanonicalizeForTesting(actual)
+        );
+    }
+
+    [Fact]
+    public void PreservesVisibleCrossProductOperator()
+    {
+        Assert.NotEqual(
+            EquationReadbackVerifier.CanonicalizeForTesting("k×E"),
+            EquationReadbackVerifier.CanonicalizeForTesting("k E")
+        );
+    }
+
+    [Theory]
+    [InlineData("(k)̂", "k̂")]
+    [InlineData("(x)⃗", "x⃗")]
+    public void TreatsSingleSymbolAccentGroupingAsEquivalent(string expected, string actual)
+    {
+        Assert.Equal(
+            EquationReadbackVerifier.CanonicalizeForTesting(expected),
+            EquationReadbackVerifier.CanonicalizeForTesting(actual)
+        );
+    }
+
+    [Theory]
+    [InlineData("μ_(0)ϵ_(0)(x)/(y)", "(μ_(0)ϵ_(0))(x)/(y)")]
+    [InlineData("∇^(2)B-μ_(0)ϵ_(0)(x)/(y)=0", "∇^(2)B-(μ_(0)ϵ_(0))(x)/(y)=0")]
+    public void TreatsRedundantCoefficientGroupingAsEquivalent(string expected, string actual)
+    {
+        Assert.Equal(
+            EquationReadbackVerifier.CanonicalizeForTesting(expected),
+            EquationReadbackVerifier.CanonicalizeForTesting(actual)
+        );
+    }
+
+    [Theory]
+    [InlineData("μ_(0)ϵ_(0)(∂^(2)E)/(∂t^(2))", "(μ_(0)ϵ_(0)(∂^(2)E))/(∂t^(2))")]
+    [InlineData("∇^(2)B-μ_(0)ϵ_(0)(∂^(2)B)/(∂t^(2))=0", "∇^(2)B-(μ_(0)ϵ_(0)(∂^(2)B))/(∂t^(2))=0")]
+    public void TreatsCoefficientOutsideOrInsideFractionNumeratorAsEquivalent(
+        string expected,
+        string actual
+    )
+    {
+        Assert.Equal(
+            EquationReadbackVerifier.CanonicalizeForTesting(expected),
+            EquationReadbackVerifier.CanonicalizeForTesting(actual)
+        );
+    }
+
+    [Theory]
+    [InlineData("x²+y₁", "x^(2)+y_(1)")]
+    [InlineData("x⁻¹+y₍ₙ₎", "x^(-1)+y_((n))")]
+    public void TreatsUnicodeScriptCharactersAsBuiltWordScripts(
+        string unicodeMath,
+        string explicitScripts
+    )
+    {
+        Assert.Equal(
+            EquationReadbackVerifier.CanonicalizeForTesting(explicitScripts),
+            EquationReadbackVerifier.CanonicalizeForTesting(unicodeMath)
+        );
+    }
+
+    [Theory]
+    [InlineData("_(a)^(b)x", "(_(a)^(b)x)")]
+    [InlineData("_(a)^(b)x", "()_(a)^(b)x")]
+    [InlineData("_(k)(T_(i)^(j))", "(_(k)(T_(i)^(j)))")]
+    public void TreatsWordsOuterPrescriptGroupAsStructurallyRedundant(
+        string expected,
+        string actual
+    )
+    {
+        Assert.Equal(
+            EquationReadbackVerifier.CanonicalizeForTesting(expected),
+            EquationReadbackVerifier.CanonicalizeForTesting(actual)
+        );
+    }
+
+    [Theory]
+    [InlineData("(a+b)c", "a+bc")]
+    [InlineData("(ab)^(2)", "ab^(2)")]
+    public void PreservesSemanticallyRequiredGroups(string left, string right)
+    {
+        Assert.NotEqual(
+            EquationReadbackVerifier.CanonicalizeForTesting(left),
+            EquationReadbackVerifier.CanonicalizeForTesting(right)
+        );
     }
 
     [Fact]
@@ -356,6 +473,12 @@ public sealed class EquationReadbackVerifierTests
     [InlineData("(n¦k)", true)]
     [InlineData("x_(1),…,x_(n)", true)]
     [InlineData("(sin x)^(4)", true)]
+    [InlineData("⨌▒f ⅆx ⅆy ⅆz ⅆw", true)]
+    [InlineData("⨂_(i=1)^(n)▒A_i", true)]
+    [InlineData("=┴(!)", true)]
+    [InlineData("⏞(a+b)^(n)", true)]
+    [InlineData("⟡(x)", true)]
+    [InlineData("x̲", true)]
     [InlineData("x\u2003y", true)]
     [InlineData("x\u2005y", true)]
     public void SelectsOnlyStructurallySensitiveEquationsForAutomaticReadback(
