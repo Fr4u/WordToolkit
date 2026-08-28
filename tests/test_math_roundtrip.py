@@ -187,22 +187,20 @@ def test_plain_omml_box_preserves_its_object_family_on_omml_roundtrip() -> None:
     [
         (
             "bar",
-            '<m:barPr><m:pos m:val="bot"/></m:barPr>'
-            '<m:e><m:r><m:t>x</m:t></m:r></m:e>',
+            '<m:barPr><m:pos m:val="bot"/></m:barPr><m:e><m:r><m:t>x</m:t></m:r></m:e>',
             '<m:pos m:val="bot"/>',
         ),
         (
             "groupChr",
-            '<m:groupChrPr><m:chr m:val="⏟"/></m:groupChrPr>'
-            '<m:e><m:r><m:t>x</m:t></m:r></m:e>',
+            '<m:groupChrPr><m:chr m:val="⏟"/></m:groupChrPr><m:e><m:r><m:t>x</m:t></m:r></m:e>',
             '<m:chr m:val="⏟"/>',
         ),
-        ("phantom", '<m:e><m:r><m:t>x</m:t></m:r></m:e>', "<m:phantom>"),
+        ("phantom", "<m:e><m:r><m:t>x</m:t></m:r></m:e>", "<m:phantom>"),
         (
             "sPre",
-            '<m:sub><m:r><m:t>i</m:t></m:r></m:sub>'
-            '<m:sup><m:r><m:t>j</m:t></m:r></m:sup>'
-            '<m:e><m:r><m:t>x</m:t></m:r></m:e>',
+            "<m:sub><m:r><m:t>i</m:t></m:r></m:sub>"
+            "<m:sup><m:r><m:t>j</m:t></m:r></m:sup>"
+            "<m:e><m:r><m:t>x</m:t></m:r></m:e>",
             "<m:sPre>",
         ),
     ],
@@ -224,16 +222,16 @@ def test_strict_omml_new_families_parse_and_export(
     [
         (
             '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">'
-            '<m:phantom><m:e><m:r><m:t>x</m:t></m:r></m:e></m:phantom></m:oMath>',
+            "<m:phantom><m:e><m:r><m:t>x</m:t></m:r></m:e></m:phantom></m:oMath>",
             r"\phantom{x}",
             "⟡(x)",
             "<mphantom>",
         ),
         (
             '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">'
-            '<m:sPre><m:sub><m:r><m:t>i</m:t></m:r></m:sub>'
-            '<m:sup><m:r><m:t>j</m:t></m:r></m:sup>'
-            '<m:e><m:r><m:t>x</m:t></m:r></m:e></m:sPre></m:oMath>',
+            "<m:sPre><m:sub><m:r><m:t>i</m:t></m:r></m:sub>"
+            "<m:sup><m:r><m:t>j</m:t></m:r></m:sup>"
+            "<m:e><m:r><m:t>x</m:t></m:r></m:e></m:sPre></m:oMath>",
             "_{i}^{j}{x}",
             "_(i)^(j)x",
             "<mmultiscripts>",
@@ -252,10 +250,13 @@ def test_office_math_phantom_and_prescript_cross_format_without_flattening(
     assert engine.compare(source, "omml", unicodemath, "unicodemath").equivalent
 
 
-@pytest.mark.parametrize("source", [
-    '<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"/>',
-    '<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:oMath/><m:oMath/></m:oMathPara>',
-])
+@pytest.mark.parametrize(
+    "source",
+    [
+        '<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"/>',
+        '<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:oMath/><m:oMath/></m:oMathPara>',
+    ],
+)
 def test_omathpara_requires_exactly_one_omath(source: str) -> None:
     with pytest.raises(WordToolkitError):
         MathEngine().parse(source, "omml")

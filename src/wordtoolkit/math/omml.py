@@ -65,7 +65,10 @@ def _contents(element: etree._Element | None) -> EquationNode:
 
 def parse_omml(source: str) -> EquationNode:
     root = parse_xml_bytes(source.encode("utf-8"), part="equation.omml")
-    if etree.QName(root).namespace not in M_NAMESPACES or _local(root) not in {"oMath", "oMathPara"}:
+    if etree.QName(root).namespace not in M_NAMESPACES or _local(root) not in {
+        "oMath",
+        "oMathPara",
+    }:
         raise WordToolkitError(
             ErrorCode.EQUATION_INVALID, "OMML root must be m:oMath or m:oMathPara"
         )
@@ -341,9 +344,7 @@ def _append(parent: etree._Element, node: EquationNode) -> None:
         if node.attr("omml_kind") == "bar":
             el = etree.SubElement(parent, f"{M}bar")
             props = etree.SubElement(el, f"{M}barPr")
-            etree.SubElement(props, f"{M}pos").set(
-                f"{M}val", "bot" if node.value == "_" else "top"
-            )
+            etree.SubElement(props, f"{M}pos").set(f"{M}val", "bot" if node.value == "_" else "top")
             _container(el, "e", c[0])
             return
         if node.attr("omml_kind") == "groupChr":

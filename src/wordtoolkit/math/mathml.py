@@ -413,8 +413,7 @@ def _emit(node: EquationNode) -> str:
         return f"<mphantom>{_emit(c[0])}</mphantom>"
     if node.kind == "prescript":
         return (
-            f"<mmultiscripts>{_emit(c[2])}<mprescripts/>"
-            f"{_emit(c[0])}{_emit(c[1])}</mmultiscripts>"
+            f"<mmultiscripts>{_emit(c[2])}<mprescripts/>{_emit(c[0])}{_emit(c[1])}</mmultiscripts>"
         )
     if node.kind == "cell":
         return _emit(c[0])
