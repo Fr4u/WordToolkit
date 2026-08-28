@@ -77,6 +77,7 @@ internal static class EquationPreflightProcessRunner
         var processedCount = 0;
         var validCount = 0;
         var invalidCount = 0;
+        var conversionInvalidCount = 0;
         var workerReady = false;
         var workerFinished = false;
         var cleanupVerified = false;
@@ -237,6 +238,16 @@ internal static class EquationPreflightProcessRunner
                             "retryable",
                             out var retryable
                         ) && retryable.ValueKind == JsonValueKind.True;
+                        var failureStage = root.TryGetProperty("stage", out var stage)
+                            && stage.ValueKind == JsonValueKind.String
+                                ? stage.GetString() ?? "build_verified_native_equation"
+                                : "build_verified_native_equation";
+                        var conversionValid = root.TryGetProperty(
+                            "conversion_valid",
+                            out var conversionValidNode
+                        )
+                            ? conversionValidNode.ValueKind == JsonValueKind.True
+                            : failureStage != "conversion";
                         currentIndex = -1;
                         resultItems[workerFailureIndex] = new JsonObject
                         {
@@ -244,11 +255,10 @@ internal static class EquationPreflightProcessRunner
                             ["equation_id"] = root.TryGetProperty("equation_id", out var equationId)
                                 ? equationId.GetString() : $"eq-{workerFailureIndex:D4}",
                             ["valid"] = false,
-                            ["conversion_valid"] = true,
+                            ["conversion_valid"] = conversionValid,
                             ["native_execution_verified"] = false,
                             ["error_code"] = workerFailureCode,
-                            ["stage"] = root.TryGetProperty("stage", out var stage)
-                                ? stage.GetString() : "build_verified_native_equation",
+                            ["stage"] = failureStage,
                             ["suggestion_code"] = root.TryGetProperty("suggestion_code", out var suggestion)
                                 ? suggestion.GetString() : "RUN_CONVERSION_ONLY_FOR_SYNTAX_DIAGNOSIS",
                             ["diagnostic"] = root.TryGetProperty("diagnostic", out var diagnostic)
@@ -286,6 +296,10 @@ internal static class EquationPreflightProcessRunner
                         };
                         processedCount++;
                         invalidCount++;
+                        if (!conversionValid)
+                        {
+                            conversionInvalidCount++;
+                        }
                         workerFailureCode = null;
                         stageStarted = Stopwatch.GetTimestamp();
                         await ToolProgressContext.ReportAsync(
@@ -414,7 +428,7 @@ internal static class EquationPreflightProcessRunner
                 valid = invalidCount == 0,
                 valid_count = validCount,
                 invalid_count = invalidCount,
-                conversion_valid = true,
+                conversion_valid = conversionInvalidCount == 0,
                 native_execution_verified = invalidCount == 0,
                 validation_mode = "native",
                 equation_count = equationCount,

@@ -209,6 +209,8 @@ internal static class EquationPreflightWorkerCli
                         exception.Message,
                         diagnosticNode as JsonObject
                     );
+                    var failureStage = safeDetailsNode?["stage"]?.GetValue<string>()
+                        ?? "build_verified_native_equation";
                     await WriteEventAsync(
                         output,
                         new JsonObject
@@ -224,7 +226,8 @@ internal static class EquationPreflightWorkerCli
                             ["retryable"] = exception is NativeToolException retryable
                                 && retryable.Retryable,
                             ["exception_type"] = exception.GetType().Name,
-                            ["stage"] = "build_verified_native_equation",
+                            ["stage"] = failureStage,
+                            ["conversion_valid"] = failureStage != "conversion",
                             ["suggestion_code"] = suggestionCode,
                             ["diagnostic"] = diagnosticNode?.DeepClone(),
                             ["expected_semantic_sha256"] = safeDetailsNode?

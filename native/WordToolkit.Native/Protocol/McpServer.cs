@@ -603,20 +603,28 @@ internal sealed class McpServer
 
     private async Task WriteProgressAsync(ProgressState state, string message)
     {
-        var value = Interlocked.Increment(ref state.Value);
-        await WriteResponseAsync(
-            new JsonObject
-            {
-                ["jsonrpc"] = "2.0",
-                ["method"] = "notifications/progress",
-                ["params"] = new JsonObject
+        await state.Gate.WaitAsync();
+        try
+        {
+            var value = ++state.Value;
+            await WriteResponseAsync(
+                new JsonObject
                 {
-                    ["progressToken"] = state.Token.DeepClone(),
-                    ["progress"] = value,
-                    ["message"] = message[..Math.Min(message.Length, 256)],
-                },
-            }
-        );
+                    ["jsonrpc"] = "2.0",
+                    ["method"] = "notifications/progress",
+                    ["params"] = new JsonObject
+                    {
+                        ["progressToken"] = state.Token.DeepClone(),
+                        ["progress"] = value,
+                        ["message"] = message[..Math.Min(message.Length, 256)],
+                    },
+                }
+            );
+        }
+        finally
+        {
+            state.Gate.Release();
+        }
     }
 
     private static string DescribeProgressStart(string actionName, JsonElement arguments)
@@ -734,6 +742,7 @@ internal sealed class McpServer
     private sealed class ProgressState(JsonNode token)
     {
         public JsonNode Token { get; } = token;
+        public SemaphoreSlim Gate { get; } = new(1, 1);
         public long Value;
     }
 

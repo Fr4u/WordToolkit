@@ -993,6 +993,37 @@ public sealed class McpServerTests
         Assert.Contains(messages, message => message["id"]?.GetValue<string>() == "progress");
     }
 
+    [Fact]
+    public async Task ConcurrentHandlerAndHeartbeatProgressRemainSerialized()
+    {
+        const string input =
+            "{\"jsonrpc\":\"2.0\",\"id\":\"progress-race\",\"method\":\"tools/call\",\"params\":{\"_meta\":{\"progressToken\":\"race-64\"},\"name\":\"list_live_word_documents\",\"arguments\":{}}}\n";
+        var output = new StringWriter();
+        var server = new McpServer(
+            new StringReader(input),
+            output,
+            ToolCatalog.LoadNativeWordTools(),
+            new ConcurrentProgressToolHandler(),
+            progressInterval: TimeSpan.FromMilliseconds(1)
+        );
+
+        await server.RunAsync();
+
+        var values = output.ToString()
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => JsonNode.Parse(line)!.AsObject())
+            .Where(message =>
+                message["method"]?.GetValue<string>() == "notifications/progress"
+            )
+            .Select(message => message["params"]!["progress"]!.GetValue<long>())
+            .ToArray();
+        Assert.True(values.Length >= 66);
+        Assert.Equal(
+            Enumerable.Range(1, values.Length).Select(value => (long)value),
+            values
+        );
+    }
+
     private sealed class FakeToolHandler : IToolHandler
     {
         public Task<object> CallAsync(
@@ -1104,6 +1135,28 @@ public sealed class McpServerTests
         )
         {
             await Task.Delay(35, cancellationToken);
+            return new { name };
+        }
+    }
+
+    private sealed class ConcurrentProgressToolHandler : IToolHandler
+    {
+        public async Task<object> CallAsync(
+            string name,
+            JsonElement arguments,
+            CancellationToken cancellationToken
+        )
+        {
+            var reports = Enumerable.Range(0, 64)
+                .Select(index => Task.Run(
+                    async () => await ToolProgressContext.ReportAsync(
+                        $"Concurrent handler progress {index + 1}/64"
+                    ),
+                    cancellationToken
+                ))
+                .ToArray();
+            await Task.WhenAll(reports);
+            await Task.Delay(10, cancellationToken);
             return new { name };
         }
     }

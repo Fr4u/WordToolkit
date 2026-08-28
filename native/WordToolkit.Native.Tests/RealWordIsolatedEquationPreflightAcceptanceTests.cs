@@ -182,11 +182,14 @@ public sealed class RealWordIsolatedEquationPreflightAcceptanceTests
         Assert.Equal(3, root.GetProperty("equation_count").GetInt32());
         Assert.Equal(2, root.GetProperty("valid_count").GetInt32());
         Assert.Equal(1, root.GetProperty("invalid_count").GetInt32());
+        Assert.False(root.GetProperty("conversion_valid").GetBoolean());
         var items = root.GetProperty("equations");
         Assert.Equal(new[] { 0, 1, 2 }, items.EnumerateArray()
             .Select(item => item.GetProperty("index").GetInt32()).ToArray());
         Assert.True(items[0].GetProperty("valid").GetBoolean());
         Assert.False(items[1].GetProperty("valid").GetBoolean());
+        Assert.False(items[1].GetProperty("conversion_valid").GetBoolean());
+        Assert.Equal("conversion", items[1].GetProperty("stage").GetString());
         Assert.True(items[2].GetProperty("valid").GetBoolean());
         Assert.StartsWith("weq_", items[1].GetProperty("equation_id").GetString());
         Assert.Equal(

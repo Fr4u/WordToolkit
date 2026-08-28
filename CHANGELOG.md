@@ -44,7 +44,9 @@
 - Native equation preflight now returns every attributable conversion/Word failure in
   one ordered response. Each item carries a stable content-bound `weq_` ID, bounded
   structural diagnostic and allowlisted suggestion code; infrastructure timeout and
-  cleanup still fail the action immediately.
+  cleanup still fail the action immediately. The isolated worker preserves
+  `stage=conversion` and sets both item and aggregate `conversion_valid=false` when
+  source conversion failed before Word execution.
 
 - Extended safe equation readback normalization for Word's invisible multiplication,
   redundant single-symbol accent grouping and coefficient movement into a fraction
@@ -96,7 +98,9 @@
 - Added MCP `notifications/progress` for requests carrying
   `_meta.progressToken`. Progress values increase strictly, include a bounded
   action/count start message, emit five-second heartbeats and stop before the
-  final response; the hard timeout and cancellation behavior remain enforced.
+  final response; the hard timeout and cancellation behavior remain enforced. Handler
+  progress and heartbeat numbering now share one per-request serialization gate, so
+  concurrent writers cannot emit `3` before `2`.
 
 - Added `export_live_word_artifacts` for connected documents, including unsaved
   edits. It exports a private Word PDF without saving or reopening the DOCX,
