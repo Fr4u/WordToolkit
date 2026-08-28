@@ -35,6 +35,10 @@ internal sealed partial class WordLiveService
         "[A-Za-z_]+",
         RegexOptions.CultureInvariant
     );
+    private static readonly Regex TableCellReferencePattern = new(
+        "(?<![A-Za-z0-9_])(?<column>[A-Z]{1,2})(?<row>[1-9][0-9]{0,2})(?![A-Za-z0-9_])",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase
+    );
     private static readonly HashSet<string> SafeFormulaWords = new(
         [
             "ABS",
@@ -119,21 +123,34 @@ internal sealed partial class WordLiveService
                         row = prepared.Row,
                         column = prepared.Column,
                         function = prepared.Function,
-                        source = prepared.Directions.Length > 0
-                            ? "directions"
-                            : "cell_range",
+                        source = prepared.Function == "expression"
+                            ? "expression"
+                            : prepared.Directions.Length > 0
+                                ? "directions"
+                                : "cell_range",
                         directions = prepared.Directions,
                         has_numeric_format = prepared.NumericFormat.Length > 0,
                         replace_existing = prepared.ReplaceExisting,
                         field_type = WordFormulaFieldType,
-                        rules = new[]
-                        {
-                            "typed_table_formula",
-                            "no_raw_field_code",
-                            "bounded_table_coordinates",
-                            "native_formula_field_verification",
-                            "locale_aware_formula_separators",
-                        },
+                        rules = (
+                            new[]
+                            {
+                                "typed_table_formula",
+                                "no_raw_field_code",
+                                "bounded_table_coordinates",
+                                "native_formula_field_verification",
+                                "locale_aware_formula_separators",
+                            }
+                        ).Concat(
+                            prepared.Function == "expression"
+                                ? new[]
+                                {
+                                    "bounded_arithmetic_expression",
+                                    "allowlisted_formula_functions",
+                                    "self_reference_rejected",
+                                }
+                                : Array.Empty<string>()
+                        ).ToArray(),
                     }
                 );
             }
@@ -265,6 +282,24 @@ internal sealed partial class WordLiveService
                             "INVALID_INPUT",
                             "A formula source range is outside the live table",
                             new { formula = index }
+                        );
+                    }
+                    var outsideExpressionReference = formula.CellReferences.FirstOrDefault(
+                        reference =>
+                            reference.Row > rowCount || reference.Column > columnCount
+                    );
+                    if (outsideExpressionReference != default)
+                    {
+                        throw new NativeToolException(
+                            "INVALID_INPUT",
+                            "A formula expression references a cell outside the live table",
+                            new
+                            {
+                                formula = index,
+                                reference = $"{TableColumnName(outsideExpressionReference.Column)}{outsideExpressionReference.Row}",
+                                table_rows = rowCount,
+                                table_columns = columnCount,
+                            }
                         );
                     }
                     dynamic cell = table.Cell(formula.Row, formula.Column);
@@ -416,9 +451,11 @@ internal sealed partial class WordLiveService
                                     row = formula.Row,
                                     column = formula.Column,
                                     function = formula.Function,
-                                    source = formula.Directions.Length > 0
-                                        ? "directions"
-                                        : "cell_range",
+                                    source = formula.Function == "expression"
+                                        ? "expression"
+                                        : formula.Directions.Length > 0
+                                            ? "directions"
+                                            : "cell_range",
                                     directions = formula.Directions,
                                     field_type = WordFormulaFieldType,
                                     calculated_on_insert = true,
@@ -1241,6 +1278,7 @@ internal sealed partial class WordLiveService
                 "cell_range",
                 "numeric_format",
                 "replace_existing",
+                "expression",
             ],
             "table formula",
             index
@@ -1256,12 +1294,132 @@ internal sealed partial class WordLiveService
             "max" => "MAX",
             "min" => "MIN",
             "product" => "PRODUCT",
+            "expression" => "",
             _ => throw new NativeToolException(
                 "INVALID_INPUT",
                 "Unsupported table formula function",
                 new { formula = index }
             ),
         };
+        if (function == "expression")
+        {
+            if (
+                item.TryGetProperty("directions", out _)
+                || item.TryGetProperty("cell_range", out _)
+            )
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "An expression formula cannot also specify directions or cell_range",
+                    new { formula = index }
+                );
+            }
+            var expression = item.String("expression").Trim();
+            if (expression.StartsWith('='))
+            {
+                expression = expression[1..].Trim();
+            }
+            if (
+                expression.Length is < 1 or > 1_000
+                || !FormulaCharactersPattern.IsMatch(expression)
+            )
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "expression contains unsupported characters or length",
+                    new { formula = index }
+                );
+            }
+            var normalizedExpression = expression.ToUpperInvariant();
+            var references = TableCellReferencePattern.Matches(normalizedExpression);
+            if (references.Count == 0)
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "expression must reference at least one table cell",
+                    new { formula = index }
+                );
+            }
+            var parsedReferences = new List<(int Row, int Column)>(references.Count);
+            foreach (Match reference in references)
+            {
+                var referenceColumn = 0;
+                foreach (var character in reference.Groups["column"].Value)
+                {
+                    referenceColumn = referenceColumn * 26 + character - 'A' + 1;
+                }
+                var referenceRow = int.Parse(
+                    reference.Groups["row"].Value,
+                    CultureInfo.InvariantCulture
+                );
+                if (
+                    referenceRow > 200
+                    || referenceColumn > 50
+                    || (referenceRow == row && referenceColumn == column)
+                )
+                {
+                    throw new NativeToolException(
+                        "INVALID_INPUT",
+                        "expression cell reference is outside the bounded table or targets itself",
+                        new { formula = index, reference = reference.Value }
+                    );
+                }
+                parsedReferences.Add((referenceRow, referenceColumn));
+            }
+            var withoutReferences = TableCellReferencePattern.Replace(
+                normalizedExpression,
+                " "
+            );
+            var unsupportedWords = FormulaWordsPattern
+                .Matches(withoutReferences)
+                .Select(match => match.Value)
+                .Distinct(StringComparer.Ordinal)
+                .Where(word => !SafeFormulaWords.Contains(word))
+                .ToArray();
+            if (unsupportedWords.Length > 0)
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "expression contains unsupported function names",
+                    new { formula = index, names = unsupportedWords }
+                );
+            }
+            ValidateFormulaParentheses(normalizedExpression, index);
+            var expressionFormat = item.String("numeric_format");
+            if (
+                expressionFormat.Length > 64
+                || (
+                    expressionFormat.Length > 0
+                    && !NumericFormatPattern.IsMatch(expressionFormat)
+                )
+            )
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "numeric_format contains unsupported characters"
+                );
+            }
+            return new PreparedTableFormula(
+                row,
+                column,
+                function,
+                [],
+                null,
+                null,
+                expressionFormat,
+                item.Boolean("replace_existing", false),
+                "=" + normalizedExpression,
+                parsedReferences
+            );
+        }
+        if (item.TryGetProperty("expression", out _))
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "expression is allowed only when function is expression",
+                new { formula = index }
+            );
+        }
         var hasDirections = item.TryGetProperty("directions", out var directionsNode);
         var hasRange = item.TryGetProperty("cell_range", out var rangeNode);
         if (hasDirections == hasRange)
@@ -1396,7 +1554,8 @@ internal sealed partial class WordLiveService
             rangeEnd,
             numericFormat,
             replaceExisting,
-            $"={functionName}({operands})"
+            $"={functionName}({operands})",
+            []
         );
     }
 
@@ -2153,7 +2312,8 @@ internal sealed partial class WordLiveService
         (int Row, int Column)? RangeEnd,
         string NumericFormat,
         bool ReplaceExisting,
-        string Expression
+        string Expression,
+        IReadOnlyList<(int Row, int Column)> CellReferences
     );
 
     private sealed record PreparedBookmark(

@@ -34,6 +34,8 @@ SUPPORTED_MATHML_TAGS = {
     "msup",
     "msub",
     "msubsup",
+    "mmultiscripts",
+    "mprescripts",
     "msqrt",
     "mroot",
     "munderover",
@@ -203,10 +205,12 @@ def _parse_sequence(children: list[etree._Element]) -> EquationNode:
 def _parse_node(element: etree._Element) -> EquationNode:
     tag = _local(element)
     children = _elements(element)
-    if tag in {"math", "mrow", "mstyle", "mpadded", "mphantom"}:
+    if tag in {"math", "mrow", "mstyle", "mpadded"}:
         return _parse_sequence(
             [x for x in children if _local(x) not in {"annotation", "annotation-xml"}]
         )
+    if tag == "mphantom":
+        return EquationNode.make("phantom", children=(_parse_sequence(children),))
     if tag == "semantics":
         return _parse_node(_presentation_branch(element))
     if tag == "mi":
@@ -250,6 +254,17 @@ def _parse_node(element: etree._Element) -> EquationNode:
         if base.value in NARY_SYMBOLS:
             return EquationNode.make("nary", base.value, (EMPTY, sub, sup))
         return EquationNode.make("sub_sup", children=(base, sub, sup))
+    if tag == "mmultiscripts":
+        if len(children) != 4 or _local(children[1]) != "mprescripts":
+            raise WordToolkitError(
+                ErrorCode.EQUATION_INVALID,
+                "MathML mmultiscripts is supported only for one prescript pair",
+                {"child_count": len(children)},
+            )
+        base = _parse_node(children[0])
+        sub = _parse_node(children[2])
+        sup = _parse_node(children[3])
+        return EquationNode.make("prescript", children=(sub, sup, base))
     if tag == "msqrt":
         return EquationNode.make("radical", children=(_parse_sequence(children),))
     if tag == "mroot":
@@ -393,6 +408,13 @@ def _emit(node: EquationNode) -> str:
     if node.kind == "enclosure":
         return (
             f'<menclose notation="{escape(node.attr("notation", "box"))}">{_emit(c[0])}</menclose>'
+        )
+    if node.kind == "phantom":
+        return f"<mphantom>{_emit(c[0])}</mphantom>"
+    if node.kind == "prescript":
+        return (
+            f"<mmultiscripts>{_emit(c[2])}<mprescripts/>"
+            f"{_emit(c[0])}{_emit(c[1])}</mmultiscripts>"
         )
     if node.kind == "cell":
         return _emit(c[0])

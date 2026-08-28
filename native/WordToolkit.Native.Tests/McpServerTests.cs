@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text;
 using WordToolkit.Engine.Resources;
 using WordToolkit.Engine.Semantics;
@@ -9,7 +10,7 @@ namespace WordToolkit.Native.Tests;
 public sealed class McpServerTests
 {
     // Keep the public core catalog token-lean while allowing a controlled margin over the current payload.
-    private const int PublicCoreCatalogMaxCharacters = 16_000;
+    private const int PublicCoreCatalogMaxCharacters = 25_000;
 
     [Fact]
     public async Task InitializeListAndCallUseValidLineDelimitedJsonRpc()
@@ -48,7 +49,7 @@ public sealed class McpServerTests
                 .GetString()
         );
         Assert.Equal(
-            "0.61.1",
+            "0.61.2",
             responses[0].RootElement
                 .GetProperty("result")
                 .GetProperty("serverInfo")
@@ -58,7 +59,7 @@ public sealed class McpServerTests
         var tools = responses[1].RootElement
             .GetProperty("result")
             .GetProperty("tools");
-        Assert.Equal(15, tools.GetArrayLength());
+        Assert.Equal(17, tools.GetArrayLength());
         Assert.Contains(
             tools.EnumerateArray(),
             tool => tool.GetProperty("name").GetString() == "apply_live_word_operations"
@@ -101,9 +102,11 @@ public sealed class McpServerTests
                 "start_word_application",
                 "open_live_word_document",
                 "create_live_word_document",
+                "create_live_word_equation_document",
                 "connect_live_word_document",
                 "inspect_live_word_document",
                 "get_live_word_selection",
+                "get_live_word_operation_status",
                 "save_live_word_document",
                 "disconnect_live_word_document",
             }
@@ -207,6 +210,32 @@ public sealed class McpServerTests
     }
 
     [Fact]
+    public async Task SearchGatewayRejectsNonBooleanTopSchemaFlag()
+    {
+        const string input =
+            "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"tools/call\",\"params\":{\"name\":\"search_wordtoolkit_actions\",\"arguments\":{\"query\":\"equation\",\"include_top_schema\":\"yes\"}}}\n";
+        var output = new StringWriter();
+        var server = new McpServer(
+            new StringReader(input),
+            output,
+            ToolCatalog.LoadNativeWordTools(),
+            new FakeToolHandler()
+        );
+
+        await server.RunAsync();
+
+        using var response = JsonDocument.Parse(output.ToString());
+        Assert.Equal(
+            "INVALID_INPUT",
+            response.RootElement.GetProperty("result")
+                .GetProperty("structuredContent")
+                .GetProperty("error")
+                .GetProperty("code")
+                .GetString()
+        );
+    }
+
+    [Fact]
     public async Task LazyActionsPreserveAllCapabilitiesAndCompactLargeResponses()
     {
         var input = string.Join(
@@ -220,7 +249,7 @@ public sealed class McpServerTests
         ) + "\n";
         var output = new StringWriter();
         var catalog = ToolCatalog.LoadNativeWordTools();
-        Assert.Equal(151, catalog.ActionCount);
+        Assert.Equal(157, catalog.ActionCount);
         var server = new McpServer(
             new StringReader(input),
             output,
@@ -928,6 +957,42 @@ public sealed class McpServerTests
         }
     }
 
+    [Fact]
+    public async Task ProgressTokenReceivesStrictlyIncreasingBoundedNotifications()
+    {
+        const string input =
+            "{\"jsonrpc\":\"2.0\",\"id\":\"progress\",\"method\":\"tools/call\",\"params\":{\"_meta\":{\"progressToken\":\"batch-49\"},\"name\":\"list_live_word_documents\",\"arguments\":{}}}\n";
+        var output = new StringWriter();
+        var server = new McpServer(
+            new StringReader(input),
+            output,
+            ToolCatalog.LoadNativeWordTools(),
+            new DelayedToolHandler(),
+            progressInterval: TimeSpan.FromMilliseconds(5)
+        );
+
+        await server.RunAsync();
+
+        var messages = output.ToString()
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => JsonNode.Parse(line)!.AsObject())
+            .ToArray();
+        var notifications = messages
+            .Where(message => message["method"]?.GetValue<string>() == "notifications/progress")
+            .ToArray();
+        Assert.True(notifications.Length >= 3);
+        var values = notifications
+            .Select(message => message["params"]!["progress"]!.GetValue<long>())
+            .ToArray();
+        Assert.Equal(values.OrderBy(value => value).Distinct(), values);
+        Assert.All(notifications, notification =>
+        {
+            Assert.Equal("batch-49", notification["params"]!["progressToken"]!.GetValue<string>());
+            Assert.InRange(notification["params"]!["message"]!.GetValue<string>().Length, 1, 256);
+        });
+        Assert.Contains(messages, message => message["id"]?.GetValue<string>() == "progress");
+    }
+
     private sealed class FakeToolHandler : IToolHandler
     {
         public Task<object> CallAsync(
@@ -1026,6 +1091,19 @@ public sealed class McpServerTests
         )
         {
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return new { name };
+        }
+    }
+
+    private sealed class DelayedToolHandler : IToolHandler
+    {
+        public async Task<object> CallAsync(
+            string name,
+            JsonElement arguments,
+            CancellationToken cancellationToken
+        )
+        {
+            await Task.Delay(35, cancellationToken);
             return new { name };
         }
     }

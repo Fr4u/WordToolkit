@@ -248,7 +248,8 @@ internal static class WordFixedFormatExporter
             {
                 throw new NativeToolException(
                     "VERSION_CONFLICT",
-                    "The saved-package render source is already open in Word; connect to that live document instead"
+                    "The saved-package render source is already open in Word; export artifacts from the connected live document instead",
+                    new { recommended_action = "export_live_word_artifacts" }
                 );
             }
         }

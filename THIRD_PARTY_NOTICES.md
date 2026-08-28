@@ -16,4 +16,10 @@ WordToolkit reviewed `vace/markdown-docx` at commit `0217bc8d4a4b4fad14fcc31285a
 
 Direct Python dependencies and their declared licenses must be verified by the release SBOM job. Principal dependencies are the MCP Python SDK, Starlette, Uvicorn, Pydantic, lxml, latex2mathml, httpx, PyJWT, Pillow, pypdf, Mistune and regex. The container also installs LibreOffice, Poppler and fonts from Debian packages, and builds `DocumentFormat.OpenXml` 3.3.0 from NuGet.
 
+Tectonic is an optional, explicitly configured out-of-process TeX provider and is not
+bundled in the WordToolkit archive. The Tectonic project declares the MIT License;
+TeXLive-derived resource files may carry additional licenses and remain operator-provided
+or cached outside WordToolkit. See https://github.com/tectonic-typesetting/tectonic and
+its `LICENSE` before redistributing a provider binary or resource bundle.
+
 `uv.lock` and the container base image make exact versions auditable. Before redistribution, generate an SBOM and retain all package license files required by their respective licenses.

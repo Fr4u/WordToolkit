@@ -1,3 +1,4 @@
+using System.Text.Json;
 using WordToolkit.Native.Protocol;
 using WordToolkit.Native.Rendering;
 
@@ -160,6 +161,13 @@ public sealed class WordFixedFormatExporterTests
             );
 
             Assert.Equal("VERSION_CONFLICT", exception.ErrorCode);
+            using var details = JsonDocument.Parse(
+                JsonSerializer.Serialize(exception.Details, JsonDefaults.Compact)
+            );
+            Assert.Equal(
+                "export_live_word_artifacts",
+                details.RootElement.GetProperty("recommended_action").GetString()
+            );
             Assert.Null(application.Documents.LastOpenedDocument);
         }
         finally

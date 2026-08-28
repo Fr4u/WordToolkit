@@ -56,6 +56,79 @@ public sealed class WordPreflightServiceTests
     }
 
     [Fact]
+    public async Task TableFormulaExpressionsCoverDurationCalendarAndParameterizedTaxMath()
+    {
+        await using var host = new LifecycleFakeHost();
+        var service = new WordLiveService(host);
+        using var valid = JsonDocument.Parse(
+            """
+            {
+              "formulas": [
+                {"row":2,"column":3,"function":"expression","expression":"(B2-A2)*24","numeric_format":"0.00"},
+                {"row":3,"column":3,"function":"expression","expression":"INT(B3/7)-INT((A3-1)/7)"},
+                {"row":4,"column":4,"function":"expression","expression":"IF(A4>120000,(A4-120000)*0.32+A4*0.12,A4*0.12)","numeric_format":"0.00"},
+                {"row":5,"column":4,"function":"expression","expression":"MAX(0,A5-B5)*C5","numeric_format":"0.00"}
+              ]
+            }
+            """
+        );
+
+        var result = await service.CallAsync(
+            "preflight_live_word_table_formulas",
+            valid.RootElement,
+            CancellationToken.None
+        );
+        using var json = JsonDocument.Parse(
+            JsonSerializer.Serialize(result, JsonDefaults.Compact)
+        );
+
+        Assert.True(json.RootElement.GetProperty("valid").GetBoolean());
+        Assert.Equal(4, json.RootElement.GetProperty("valid_count").GetInt32());
+        Assert.All(
+            json.RootElement.GetProperty("formulas").EnumerateArray(),
+            formula => Assert.Equal("expression", formula.GetProperty("source").GetString())
+        );
+
+        using var invalid = JsonDocument.Parse(
+            """
+            {"formulas":[
+              {"row":2,"column":3,"function":"expression","expression":"C2+1"},
+              {"row":3,"column":3,"function":"expression","expression":"WEEKDAY(A3)"}
+            ]}
+            """
+        );
+        var invalidResult = await service.CallAsync(
+            "preflight_live_word_table_formulas",
+            invalid.RootElement,
+            CancellationToken.None
+        );
+        using var invalidJson = JsonDocument.Parse(
+            JsonSerializer.Serialize(invalidResult, JsonDefaults.Compact)
+        );
+        Assert.False(invalidJson.RootElement.GetProperty("valid").GetBoolean());
+        Assert.Equal(2, invalidJson.RootElement.GetProperty("invalid_count").GetInt32());
+
+        using var mixedShapes = JsonDocument.Parse(
+            """
+            {"formulas":[
+              {"row":2,"column":3,"function":"expression","expression":"A2+B2","directions":["above"]},
+              {"row":3,"column":3,"function":"sum","expression":"A3+B3","directions":["above"]}
+            ]}
+            """
+        );
+        var mixedResult = await service.CallAsync(
+            "preflight_live_word_table_formulas",
+            mixedShapes.RootElement,
+            CancellationToken.None
+        );
+        using var mixedJson = JsonDocument.Parse(
+            JsonSerializer.Serialize(mixedResult, JsonDefaults.Compact)
+        );
+        Assert.False(mixedJson.RootElement.GetProperty("valid").GetBoolean());
+        Assert.Equal(2, mixedJson.RootElement.GetProperty("invalid_count").GetInt32());
+    }
+
+    [Fact]
     public async Task BookmarkAndFieldPreflightsRemainTypedAndBounded()
     {
         await using var host = new LifecycleFakeHost();
@@ -188,6 +261,53 @@ public sealed class WordPreflightServiceTests
     }
 
     [Fact]
+    public async Task OmmlConversionOnlyReportsDirectPlanWithoutReturningRawXml()
+    {
+        await using var host = new LifecycleFakeHost();
+        var service = new WordLiveService(host);
+        using var arguments = JsonDocument.Parse(
+            """
+            {
+              "validation_mode": "conversion_only",
+              "equations": [
+                {
+                  "value": "<m:oMath xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\"><m:f><m:num><m:r><m:t>a</m:t></m:r></m:num><m:den><m:r><m:t>b</m:t></m:r></m:den></m:f></m:oMath>",
+                  "input_format": "omml"
+                }
+              ]
+            }
+            """
+        );
+
+        var result = await service.CallAsync(
+            "preflight_live_word_equations",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        var serialized = JsonSerializer.Serialize(result, JsonDefaults.Compact);
+        using var json = JsonDocument.Parse(serialized);
+        var item = json.RootElement.GetProperty("equations")[0];
+        Assert.True(
+            item.TryGetProperty("direct_omml", out var direct),
+            serialized
+        );
+
+        Assert.False(item.TryGetProperty("valid", out _));
+        Assert.True(item.GetProperty("conversion_valid").GetBoolean());
+        Assert.True(item.GetProperty("native_readback_required").GetBoolean());
+        Assert.True(direct.GetProperty("source_validated").GetBoolean());
+        Assert.False(direct.GetProperty("native_semantic_verified").GetBoolean());
+        Assert.Equal("transitional", direct.GetProperty("namespace_identity").GetString());
+        Assert.Matches(
+            "^[0-9a-f]{64}$",
+            direct.GetProperty("expected_semantic_sha256").GetString()
+        );
+        Assert.False(direct.GetProperty("raw_omml_returned").GetBoolean());
+        Assert.DoesNotContain("<m:oMath", serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("<m:f>", serialized, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task EquationPreflightRejectsFormatAliasesInsteadOfGuessing()
     {
         await using var host = new LifecycleFakeHost();
@@ -206,16 +326,52 @@ public sealed class WordPreflightServiceTests
             """
         );
 
-        var error = await Assert.ThrowsAsync<NativeToolException>(() =>
-            service.CallAsync(
-                "preflight_live_word_equations",
-                arguments.RootElement,
-                CancellationToken.None
-            )
+        var result = await service.CallAsync(
+            "preflight_live_word_equations",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var json = JsonDocument.Parse(
+            JsonSerializer.Serialize(result, JsonDefaults.Compact)
+        );
+        Assert.False(json.RootElement.GetProperty("conversion_valid").GetBoolean());
+        var item = json.RootElement.GetProperty("equations")[0];
+        Assert.Equal("INVALID_INPUT", item.GetProperty("error_code").GetString());
+        Assert.Equal("conversion", item.GetProperty("stage").GetString());
+    }
+
+    [Fact]
+    public async Task EquationPreflightConversionFailureReportsExactInputIndex()
+    {
+        await using var host = new LifecycleFakeHost();
+        var service = new WordLiveService(host);
+        using var arguments = JsonDocument.Parse(
+            """
+            {
+              "validation_mode": "conversion_only",
+              "equations": [
+                {"value":"x+1","input_format":"latex"},
+                {"value":"\\unsupportedcommand{x}","input_format":"latex"}
+              ]
+            }
+            """
         );
 
-        Assert.Equal("INVALID_INPUT", error.ErrorCode);
-        Assert.Contains("input_format", error.Message, StringComparison.Ordinal);
+        var result = await service.CallAsync(
+            "preflight_live_word_equations",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var json = JsonDocument.Parse(
+            JsonSerializer.Serialize(result, JsonDefaults.Compact)
+        );
+        var item = json.RootElement.GetProperty("equations")[1];
+        Assert.Equal(1, item.GetProperty("index").GetInt32());
+        Assert.Equal("conversion", item.GetProperty("stage").GetString());
+        Assert.Equal(
+            "USE_SUPPORTED_LATEX_OR_UNICODEMATH",
+            item.GetProperty("suggestion_code").GetString()
+        );
     }
 
     [Fact]
@@ -381,5 +537,68 @@ public sealed class WordPreflightServiceTests
         Assert.True(data.GetProperty("conversion_valid").GetBoolean());
         Assert.False(data.GetProperty("native_execution_verified").GetBoolean());
         Assert.Equal(0, host.Application.Documents.Count);
+    }
+
+    [Fact]
+    public async Task ConversionOnlyPreflightCollectsAllErrorsAndKeepsStableEquationIds()
+    {
+        await using var host = new LifecycleFakeHost();
+        var service = new WordLiveService(host);
+        using var first = JsonDocument.Parse(
+            """
+            {
+              "validation_mode":"conversion_only",
+              "equations":[
+                {"value":"x+1","input_format":"latex"},
+                {"value":"\\unsupportedcommand{x}","input_format":"latex"},
+                {"value":"y+1","input_format":"latex"}
+              ]
+            }
+            """
+        );
+        var result = await service.CallAsync(
+            "preflight_live_word_equations",
+            first.RootElement,
+            CancellationToken.None
+        );
+        using var json = JsonDocument.Parse(
+            JsonSerializer.Serialize(result, JsonDefaults.Compact)
+        );
+        var root = json.RootElement;
+        Assert.Equal(3, root.GetProperty("equation_count").GetInt32());
+        Assert.Equal(2, root.GetProperty("valid_count").GetInt32());
+        Assert.Equal(1, root.GetProperty("invalid_count").GetInt32());
+        Assert.False(root.GetProperty("conversion_valid").GetBoolean());
+        var items = root.GetProperty("equations");
+        Assert.Equal(new[] { 0, 1, 2 }, items.EnumerateArray()
+            .Select(item => item.GetProperty("index").GetInt32()).ToArray());
+        Assert.False(items[1].GetProperty("valid").GetBoolean());
+        Assert.Equal(
+            "USE_SUPPORTED_LATEX_OR_UNICODEMATH",
+            items[1].GetProperty("suggestion_code").GetString()
+        );
+        var stableId = items[0].GetProperty("equation_id").GetString();
+
+        using var reordered = JsonDocument.Parse(
+            """
+            {"validation_mode":"conversion_only","equations":[
+              {"value":"y+1","input_format":"latex"},
+              {"value":"x+1","input_format":"latex"}
+            ]}
+            """
+        );
+        var reorderedResult = await service.CallAsync(
+            "preflight_live_word_equations",
+            reordered.RootElement,
+            CancellationToken.None
+        );
+        using var reorderedJson = JsonDocument.Parse(
+            JsonSerializer.Serialize(reorderedResult, JsonDefaults.Compact)
+        );
+        Assert.Equal(
+            stableId,
+            reorderedJson.RootElement.GetProperty("equations")[1]
+                .GetProperty("equation_id").GetString()
+        );
     }
 }

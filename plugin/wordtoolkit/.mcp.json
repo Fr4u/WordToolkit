@@ -11,7 +11,7 @@
         "DOTNET_TieredPGO": "1"
       },
       "startup_timeout_sec": 30,
-      "tool_timeout_sec": 180
+      "tool_timeout_sec": 600
     }
   }
 }

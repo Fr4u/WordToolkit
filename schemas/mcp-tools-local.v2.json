@@ -7,6 +7,8 @@
       "list_live_word_documents",
       "start_word_application",
       "create_live_word_document",
+      "create_live_word_equation_document",
+      "compile_tex_document",
       "open_live_word_document",
       "publish_ooxml_package_to_live_word",
       "connect_live_word_document",
@@ -125,6 +127,7 @@
       "insert_live_word_table",
       "preflight_live_word_table_formulas",
       "insert_live_word_table_formulas",
+      "insert_live_word_dropdowns",
       "update_live_word_table_fields",
       "insert_live_word_list",
       "preflight_live_word_bookmarks",
@@ -146,11 +149,14 @@
       "insert_live_word_equation",
       "insert_live_word_equations_batch",
       "preflight_live_word_equations",
+      "preflight_live_word_operations",
       "inspect_live_word_equations",
       "update_live_word_equation",
       "apply_live_word_operations",
+      "get_live_word_operation_status",
       "validate_live_word_document",
       "export_live_word_pdf",
+      "export_live_word_artifacts",
       "save_live_word_document",
       "close_live_word_document",
       "quit_word_application",
@@ -160,12 +166,14 @@
       "list_live_word_documents",
       "start_word_application",
       "create_live_word_document",
+      "create_live_word_equation_document",
       "open_live_word_document",
       "connect_live_word_document",
       "inspect_ooxml_package",
       "inspect_live_word_document",
       "get_live_word_selection",
       "apply_live_word_operations",
+      "get_live_word_operation_status",
       "save_live_word_document",
       "disconnect_live_word_document"
     ]
@@ -6928,7 +6936,7 @@
           "ok": {"const": true},
           "data": {
             "type": "object",
-            "required": ["operation_contract", "package_fingerprint", "source_sha256", "source_file_name", "source_mutated", "output_created", "output", "requested_first_page", "exported_first_page", "exported_last_page", "exported_page_count", "page_geometry_count", "page_geometries", "backend", "fidelity", "execution", "artifacts", "artifact_count", "safety", "runtime", "python_used", "performance"],
+            "required": ["operation_contract", "package_fingerprint", "source_sha256", "source_file_name", "source_mutated", "output_created", "output", "requested_first_page", "exported_first_page", "exported_last_page", "exported_page_count", "page_geometry_count", "page_geometries", "equation_render_qa", "warnings", "backend", "fidelity", "execution", "artifacts", "artifact_count", "safety", "runtime", "python_used", "performance"],
             "properties": {
               "operation_contract": {"const": "wordtoolkit.render_ooxml_fixed_artifacts/1.0"},
               "package_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
@@ -6961,6 +6969,21 @@
                   "additionalProperties": false
                 }
               },
+              "equation_render_qa": {
+                "type": "object",
+                "required": ["performed", "source_check_performed", "raster_check_performed", "equation_count", "raw_control_syntax_count", "equation_indexes", "analyzed_page_count", "unreadable_page_count", "page_numbers", "risk_codes", "subjective_visual_review_required", "raw_equation_text_returned", "raw_pixels_returned"],
+                "properties": {
+                  "performed": {"type": "boolean"}, "source_check_performed": {"type": "boolean"}, "raster_check_performed": {"type": "boolean"}, "raster_check_reason": {"type": ["string", "null"]},
+                  "equation_count": {"type": "integer", "minimum": 0}, "raw_control_syntax_count": {"type": "integer", "minimum": 0},
+                  "equation_indexes": {"type": "array", "maxItems": 10000, "items": {"type": "integer", "minimum": 1}},
+                  "analyzed_page_count": {"type": "integer", "minimum": 0, "maximum": 500}, "unreadable_page_count": {"type": "integer", "minimum": 0, "maximum": 500},
+                  "page_numbers": {"type": "array", "maxItems": 500, "items": {"type": "integer", "minimum": 1}},
+                  "risk_codes": {"type": "array", "uniqueItems": true, "maxItems": 8, "items": {"enum": ["RAW_LINEAR_CONTROL_SYNTAX", "PAGE_EDGE_INK", "CONTENT_EXCEEDS_USABLE_PAGE_WIDTH"]}},
+                  "subjective_visual_review_required": {"const": true}, "raw_equation_text_returned": {"const": false}, "raw_pixels_returned": {"const": false}
+                },
+                "additionalProperties": false
+              },
+              "warnings": {"type": "array", "items": {"type": "string", "enum": ["subjective_visual_review_required", "word_layout_is_not_pixel_equivalence", "pdf_geometry_not_inspected"]}, "uniqueItems": true, "maxItems": 8},
               "dpi": {"type": "integer", "minimum": 1, "maximum": 600},
               "backend": {
                 "type": "object",
@@ -18678,6 +18701,12 @@
             "default": true,
             "title": "Activate",
             "type": "boolean"
+          },
+          "lifecycle": {
+            "default": "persistent",
+            "enum": ["persistent", "scratch"],
+            "title": "Lifecycle",
+            "type": "string"
           }
         },
         "title": "create_live_word_documentArguments",
@@ -18719,6 +18748,204 @@
         }
     }
   },
+    {
+      "name": "create_live_word_equation_document",
+      "title": "Create, verify, render, and inspect an equation-only Word document",
+      "description": "Run one high-level equation-only workflow: process-isolated multi-equation native preflight, create a new no-clobber DOCX, publish every equation in one idempotent guarded batch, save, validate with Microsoft Open XML SDK, render through Word, run equation render QA, inspect the saved package, and optionally leave the document open. Invalid preflight creates no document. A failure before publication closes and removes only the new file created by this action; a later failure preserves the published DOCX and returns EQUATION_DOCUMENT_PARTIAL.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["output_path", "equations"],
+        "properties": {
+          "output_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "equations": {
+            "type": "array", "minItems": 1, "maxItems": 100,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["value"],
+              "properties": {
+                "value": {"type": "string", "minLength": 1, "maxLength": 100000},
+                "input_format": {"enum": ["latex", "unicodemath", "mathml", "omml"], "default": "latex"},
+                "display": {"type": "boolean", "default": true},
+                "verify_readback": {"type": "boolean", "default": true}
+              }
+            }
+          },
+          "idempotency_key": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9._:-]+$"},
+          "visible": {"type": "boolean", "default": true},
+          "activate": {"type": "boolean", "default": true},
+          "keep_open": {"type": "boolean", "default": true},
+          "render_output_directory": {"type": "string", "maxLength": 32767},
+          "artifact_stem": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"},
+          "render_output": {"enum": ["pdf", "png_pages", "pdf_and_png_pages"], "default": "pdf"},
+          "dpi": {"type": "integer", "minimum": 1, "maximum": 600, "default": 144},
+          "optimize_for": {"enum": ["print", "screen"], "default": "print"},
+          "include_document_properties": {"type": "boolean", "default": true},
+          "bookmarks": {"enum": ["none", "headings", "bookmarks"], "default": "headings"},
+          "pdf_a": {"type": "boolean", "default": false},
+          "pdfinfo_path": {"type": "string", "maxLength": 32767},
+          "rasterizer_path": {"type": "string", "maxLength": 32767},
+          "rasterizer_kind": {"enum": ["pdf_to_ppm", "pdf_to_cairo"], "default": "pdf_to_ppm"},
+          "per_equation_timeout_seconds": {"type": "integer", "minimum": 5, "maximum": 60, "default": 20},
+          "total_timeout_seconds": {"type": "integer", "minimum": 10, "maximum": 150, "default": 120}
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "create_new_docx_and_render_artifacts",
+        "microsoft_word": "dedicated_preflight_and_guarded_live_mutation",
+        "process": "optional_explicit_poppler_paths",
+        "network": "none"
+      },
+      "reversibility": {
+        "kind": "guarded_composite",
+        "before_publication": "created_document_closed_and_new_empty_file_removed",
+        "after_publication": "published_docx_preserved_on_later_failure"
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "operation_contract", "workflow_complete", "stage", "created",
+          "published", "saved", "rendered", "package_inspected", "output_path",
+          "equation_count", "preflight", "raw_document_content_returned"
+        ],
+        "properties": {
+          "operation_contract": {"const": "wordtoolkit.create_live_word_equation_document/1.0"},
+          "workflow_complete": {"type": "boolean"},
+          "stage": {"type": "string"},
+          "created": {"type": "boolean"},
+          "published": {"type": "boolean"},
+          "saved": {"type": "boolean"},
+          "rendered": {"type": "boolean"},
+          "package_inspected": {"type": "boolean"},
+          "output_path": {"type": "string"},
+          "live_document_id": {"type": "string"},
+          "live_version": {"type": "integer", "minimum": 0},
+          "live_document_open": {"type": "boolean"},
+          "equation_count": {"type": "integer", "minimum": 1, "maximum": 100},
+          "preflight": {"type": "object"},
+          "operation_id": {"type": ["string", "null"]},
+          "receipt_replayed": {"type": "boolean"},
+          "validation": {"type": "object"},
+          "render": {"type": "object"},
+          "package": {"type": "object"},
+          "close": {},
+          "raw_document_content_returned": {"const": false}
+        }
+      }
+    },
+    {
+      "name": "compile_tex_document",
+      "title": "Compile a complete TeX or LaTeX document with Tectonic",
+      "description": "Compile one bounded complete TeX or LaTeX source to a new PDF with an explicit local Tectonic executable. The provider always runs with --untrusted in a private temporary directory and defaults to --only-cached. An explicit allow_network_resource_fetch=true permits Tectonic to fetch missing provider resources and mutate its external cache; this is not network isolation or resource-bundle provenance. The action never searches PATH, opens Word or mutates a Word document. This is complete-TeX execution, not TeX-to-OfficeMath conversion: arbitrary TeX cannot be represented bijectively as editable OMML.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "tectonic_path", "output_path"],
+        "properties": {
+          "source": {"type": "string", "minLength": 1, "maxLength": 100000},
+          "tectonic_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "output_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "expected_tectonic_sha256": {"type": "string", "pattern": "^[0-9A-Fa-f]{64}$"},
+          "allow_network_resource_fetch": {"type": "boolean", "default": false},
+          "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 120, "default": 60}
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "read_explicit_tectonic_write_new_pdf_and_private_temporary_files",
+        "process": "explicit_hashable_tectonic_untrusted_only_cached",
+        "network": "none_by_default_or_explicit_tectonic_resource_fetch",
+        "microsoft_word": "none"
+      },
+      "reversibility": {
+        "kind": "create_new",
+        "notes": "publishes one new PDF and never overwrites an existing file"
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation_contract", "succeeded", "published",
+          "diagnostics", "pdf_bytes", "provider",
+          "source_sha256", "source_returned", "temporary_files_retained",
+          "word_opened", "document_mutated", "editable_office_math",
+          "tex_to_omml_conversion_performed", "representability"
+        ],
+        "properties": {
+          "operation_contract": {"const": "wordtoolkit.compile_tex_document/1.0"},
+          "succeeded": {"type": "boolean"},
+          "published": {"type": "boolean"},
+          "output_path": {"type": ["string", "null"]},
+          "diagnostics": {
+            "type": "array", "maxItems": 32,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["severity", "message"],
+              "properties": {
+                "severity": {"enum": ["warning", "error"]},
+                "message": {"type": "string", "maxLength": 4096},
+                "line": {"type": "integer", "minimum": 1}
+              }
+            }
+          },
+          "pdf_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+          "pdf_bytes": {"type": "integer", "minimum": 0, "maximum": 52428800},
+          "provider": {
+            "type": "object", "additionalProperties": false,
+            "required": [
+              "name", "version", "executable_sha256", "invocation_untrusted",
+              "only_cached_resources", "network_requested", "network_isolation_proven",
+              "provider_cache_mutation_possible", "resource_bundle_hash_bound"
+            ],
+            "properties": {
+              "name": {"const": "tectonic"},
+              "version": {"type": "string", "maxLength": 256},
+              "executable_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "invocation_untrusted": {"const": true},
+              "only_cached_resources": {"type": "boolean"},
+              "network_requested": {"type": "boolean"},
+              "network_isolation_proven": {"const": false},
+              "provider_cache_mutation_possible": {"type": "boolean"},
+              "resource_bundle_hash_bound": {"const": false}
+            }
+          },
+          "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "source_returned": {"const": false},
+          "temporary_files_retained": {"const": false},
+          "word_opened": {"const": false},
+          "document_mutated": {"const": false},
+          "editable_office_math": {"const": false},
+          "tex_to_omml_conversion_performed": {"const": false},
+          "representability": {
+            "type": "object", "additionalProperties": false,
+            "required": [
+              "arbitrary_tex_is_not_bijective_with_office_math",
+              "use_native_equation_actions_for_supported_latex_math",
+              "use_input_format_omml_for_exact_office_math"
+            ],
+            "properties": {
+              "arbitrary_tex_is_not_bijective_with_office_math": {"const": true},
+              "use_native_equation_actions_for_supported_latex_math": {"const": true},
+              "use_input_format_omml_for_exact_office_math": {"const": true}
+            }
+          }
+        }
+      }
+    },
     {
       "name": "connect_live_word_document",
       "title": "Connect to an open Microsoft Word document",
@@ -21205,7 +21432,7 @@
                 "column": {"type": "integer", "minimum": 1, "maximum": 50},
                 "function": {
                   "type": "string",
-                  "enum": ["sum", "average", "count", "max", "min", "product"]
+                  "enum": ["sum", "average", "count", "max", "min", "product", "expression"]
                 },
                 "directions": {"type": "array"},
                 "cell_range": {"type": "object"},
@@ -21244,6 +21471,17 @@
                           "properties": {"row": {"type": "integer", "minimum": 1, "maximum": 200}, "column": {"type": "integer", "minimum": 1, "maximum": 50}}
                         }
                       }
+                    }
+                  }
+                },
+                {
+                  "required": ["expression"],
+                  "properties": {
+                    "expression": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1000,
+                      "pattern": "^[0-9A-Za-z_+\\-*/^%(),.<>=\\s]+$"
                     }
                   }
                 }
@@ -21320,7 +21558,7 @@
               "properties": {
                 "row": {"type": "integer", "minimum": 1, "maximum": 200},
                 "column": {"type": "integer", "minimum": 1, "maximum": 50},
-                "function": {"type": "string", "enum": ["sum", "average", "count", "max", "min", "product"]},
+                "function": {"type": "string", "enum": ["sum", "average", "count", "max", "min", "product", "expression"]},
                 "directions": {"type": "array"},
                 "cell_range": {"type": "object"},
                 "numeric_format": {"type": "string", "maxLength": 64, "pattern": "^[0#.,%$€£¥()\\-+ ]*$"},
@@ -21328,7 +21566,8 @@
               },
               "oneOf": [
                 {"required": ["directions"], "properties": {"directions": {"type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": {"type": "string", "enum": ["above", "below", "left", "right"]}}}},
-                {"required": ["cell_range"], "properties": {"cell_range": {"type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": {"start": {"type": "object", "additionalProperties": false, "required": ["row", "column"], "properties": {"row": {"type": "integer", "minimum": 1, "maximum": 200}, "column": {"type": "integer", "minimum": 1, "maximum": 50}}}, "end": {"type": "object", "additionalProperties": false, "required": ["row", "column"], "properties": {"row": {"type": "integer", "minimum": 1, "maximum": 200}, "column": {"type": "integer", "minimum": 1, "maximum": 50}}}}}}}
+                {"required": ["cell_range"], "properties": {"cell_range": {"type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": {"start": {"type": "object", "additionalProperties": false, "required": ["row", "column"], "properties": {"row": {"type": "integer", "minimum": 1, "maximum": 200}, "column": {"type": "integer", "minimum": 1, "maximum": 50}}}, "end": {"type": "object", "additionalProperties": false, "required": ["row", "column"], "properties": {"row": {"type": "integer", "minimum": 1, "maximum": 200}, "column": {"type": "integer", "minimum": 1, "maximum": 50}}}}}}},
+                {"required": ["expression"], "properties": {"expression": {"type": "string", "minLength": 1, "maxLength": 1000, "pattern": "^[0-9A-Za-z_+\\-*/^%(),.<>=\\s]+$"}}}
               ]
             },
             "maxItems": 200,
@@ -21945,7 +22184,7 @@
     {
       "name": "insert_live_word_equation",
       "title": "Insert native equation directly in open Microsoft Word",
-      "description": "Convert LaTeX, UnicodeMath, Presentation MathML, or OMML to one native editable OMath. Sensitive structures and LaTeX bold scopes are verified by bounded semantic and native-style readback; any drift rolls back.",
+      "description": "Convert LaTeX, UnicodeMath, or Presentation MathML to one native editable OMath, or insert one securely validated OMML equation through a direct Word-owned XML template. Direct OMML and other sensitive structures are verified in isolated staging and again after publication by bounded semantic hashes/readback; any drift rolls back. Raw OMML is never returned.",
       "inputSchema": {
         "properties": {
           "live_document_id": {
@@ -22045,7 +22284,7 @@
     {
       "name": "insert_live_word_equations_batch",
       "title": "Insert a batch of native equations directly in open Microsoft Word",
-      "description": "Insert up to 100 LaTeX, UnicodeMath, Presentation MathML, or OMML equations as native editable OMath objects in one COM attachment and Undo record. Sensitive structures and LaTeX bold scopes force bounded readback.",
+      "description": "Insert up to 100 LaTeX, UnicodeMath, Presentation MathML, or direct single-root OMML equations as native editable OMath objects in one COM attachment and Undo record. Sensitive structures, LaTeX style scopes and direct OMML force bounded staging and post-publication readback.",
       "inputSchema": {
         "properties": {
           "live_document_id": {
@@ -22137,7 +22376,7 @@
     {
       "name": "preflight_live_word_equations",
       "title": "Preflight equations for Microsoft Word",
-      "description": "Preflight up to 200 LaTeX, UnicodeMath, Presentation MathML, or OMML equations. The default native mode creates one invisible unsaved scratch document, runs the same OMath BuildUp, style rewrite and bounded OMML readback used by live apply, then proves cleanup and restoration of Word state. conversion_only performs deterministic conversion without Word but never returns valid:true. Compact mode returns only bounded fingerprints and proof flags.",
+      "description": "Preflight up to 200 LaTeX, UnicodeMath, Presentation MathML, or direct single-root OMML equations. Native mode checks every input independently in one dedicated helper process and returns all valid and invalid items in original order rather than stopping at the first failure. Direct OMML is securely validated, inserted through a Word-owned XML template, and checked by a semantic SHA-256 without returning XML. Each item has a stable content-bound weq_ equation_id, zero-based index, bounded structural diagnostic, and rule-based suggestion_code. A 5-60 second per-equation limit and 10-150 second total limit are enforced outside COM; an infrastructure hang terminates only the verified worker-owned Word process. conversion_only likewise collects all conversion errors without Word and returns valid:null. MCP progress reports the current equation.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -22188,6 +22427,20 @@
               "conversion_only"
             ],
             "type": "string"
+          },
+          "per_equation_timeout_seconds": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 60,
+            "default": 20,
+            "description": "Hard idle limit for one equation in the dedicated worker. On expiry WordToolkit reports EQUATION_PREFLIGHT_TIMEOUT with equation_index and kills only the verified worker-owned Word process."
+          },
+          "total_timeout_seconds": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 150,
+            "default": 120,
+            "description": "Hard total worker limit; must not be lower than per_equation_timeout_seconds and remains below the outer MCP timeout."
           }
         },
         "required": [
@@ -22218,6 +22471,168 @@
             }
         }
     }
+  },
+    {
+      "name": "preflight_live_word_operations",
+      "title": "Preflight one exact mixed batch against the connected Word document",
+      "description": "Build and verify the exact 1-200 text/native-equation batch inside an isolated Flat OPC clone of the connected target. If conversion or staging finds an attributable equation problem, run one process-isolated diagnostic pass over every equation and return all failures with operation_index, stable equation_id, diagnostic and suggestion_code. Valid batches still use the exact target-derived staging path. The action publishes nothing and never advances live_version.",
+      "operationVersion": "1.1",
+      "permissions": {
+        "word": "com_read_and_hidden_scratch_document",
+        "filesystem": "private_temporary_flat_opc_only",
+        "network": false
+      },
+      "reversibility": {
+        "kind": "read_only_target_with_verified_scratch_cleanup",
+        "writes": false,
+        "undo": false
+      },
+      "inputSchema": {
+        "$defs": {
+          "liveTextFormatting": {
+            "type": "object",
+            "additionalProperties": false,
+            "allOf": [
+              {"not": {"required": ["font_size", "font_size_pt"]}},
+              {"not": {"required": ["alignment", "paragraph_alignment"]}},
+              {"not": {"required": ["strike", "double_strike"], "properties": {"strike": {"const": true}, "double_strike": {"const": true}}}}
+            ],
+            "properties": {
+              "font_name": {"type": "string", "minLength": 1, "maxLength": 128},
+              "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200},
+              "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true},
+              "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+              "bold": {"type": "boolean"},
+              "italic": {"type": "boolean"},
+              "underline": {"type": "boolean"},
+              "strike": {"type": "boolean"},
+              "double_strike": {"type": "boolean"},
+              "all_caps": {"type": "boolean"},
+              "small_caps": {"type": "boolean"},
+              "hidden": {"type": "boolean"},
+              "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16},
+              "paragraph_alignment": {"enum": ["left", "center", "right", "justify", "distribute"]},
+              "alignment": {"enum": ["left", "center", "right", "justify", "distribute"], "deprecated": true},
+              "space_before_pt": {"type": "number", "minimum": 0, "maximum": 1584},
+              "space_after_pt": {"type": "number", "minimum": 0, "maximum": 1584},
+              "left_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
+              "right_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
+              "first_line_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
+              "keep_with_next": {"type": "boolean"},
+              "keep_together": {"type": "boolean"},
+              "page_break_before": {"type": "boolean"},
+              "widow_control": {"type": "boolean"}
+            }
+          },
+          "liveRunFormatting": {
+            "type": "object",
+            "additionalProperties": false,
+            "allOf": [
+              {"not": {"required": ["font_size", "font_size_pt"]}},
+              {"not": {"required": ["strike", "double_strike"], "properties": {"strike": {"const": true}, "double_strike": {"const": true}}}}
+            ],
+            "properties": {
+              "font_name": {"type": "string", "minLength": 1, "maxLength": 128},
+              "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200},
+              "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true},
+              "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+              "bold": {"type": "boolean"},
+              "italic": {"type": "boolean"},
+              "underline": {"type": "boolean"},
+              "strike": {"type": "boolean"},
+              "double_strike": {"type": "boolean"},
+              "all_caps": {"type": "boolean"},
+              "small_caps": {"type": "boolean"},
+              "hidden": {"type": "boolean"},
+              "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16}
+            }
+          }
+        },
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "live_document_id": {"type": "string", "minLength": 1},
+          "expected_version": {"type": "integer", "minimum": 0},
+          "operations": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "type": {"enum": ["text", "equation"]},
+                "text": {"type": "string", "minLength": 1, "maxLength": 200000},
+                "runs": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 1000,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["text"],
+                    "properties": {
+                      "text": {"type": "string", "minLength": 1, "maxLength": 200000},
+                      "formatting": {"$ref": "#/$defs/liveRunFormatting"}
+                    }
+                  }
+                },
+                "as_new_paragraph": {"type": "boolean", "default": false},
+                "style": {"type": "string", "maxLength": 128},
+                "formatting": {"anyOf": [{"$ref": "#/$defs/liveTextFormatting"}, {"type": "null"}]},
+                "value": {"type": "string", "minLength": 1, "maxLength": 100000},
+                "input_format": {"enum": ["latex", "unicodemath", "mathml", "omml"], "default": "latex"},
+                "display": {"type": "boolean", "default": true},
+                "verify_readback": {"type": "boolean", "default": false}
+              },
+              "oneOf": [
+                {
+                  "properties": {"type": {"const": "text"}},
+                  "required": ["type"],
+                  "oneOf": [
+                    {"required": ["text"], "not": {"required": ["runs"]}},
+                    {"required": ["runs"], "not": {"required": ["text"]}}
+                  ]
+                },
+                {"properties": {"type": {"const": "equation"}}, "required": ["type", "value"]}
+              ]
+            }
+          }
+        },
+        "required": ["live_document_id", "expected_version", "operations"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["operation_contract", "live_document_id", "live_version", "expected_version", "validation_mode", "valid", "published", "target_document_mutated", "operation_count", "text_operation_count", "equation_operation_count", "runtime", "python_used"],
+        "properties": {
+          "operation_contract": {"const": "wordtoolkit.preflight_live_word_operations/1.1"},
+          "live_document_id": {"type": "string"},
+          "live_version": {"type": "integer", "minimum": 0},
+          "expected_version": {"type": "integer", "minimum": 0},
+          "validation_mode": {"enum": ["target_bound_exact_batch_staging", "target_bound_with_isolated_equation_diagnostics"]},
+          "valid": {"type": "boolean"},
+          "published": {"const": false},
+          "target_document_mutated": {"const": false},
+          "operation_count": {"type": "integer", "minimum": 1, "maximum": 200},
+          "text_operation_count": {"type": "integer", "minimum": 0, "maximum": 200},
+          "equation_operation_count": {"type": "integer", "minimum": 0, "maximum": 100},
+          "valid_equation_count": {"type": "integer", "minimum": 0, "maximum": 100},
+          "invalid_equation_count": {"type": "integer", "minimum": 0, "maximum": 100},
+          "equation_failures": {"type": "array", "maxItems": 100, "items": {"type": "object"}},
+          "operations": {"type": "array", "maxItems": 200, "items": {"type": "object"}},
+          "complexity": {"type": "object"},
+          "runtime": {"const": "dotnet-native"},
+          "python_used": {"const": false},
+          "performance": {"type": "object"}
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
   },
     {
       "name": "inspect_live_word_equations",
@@ -22550,6 +22965,13 @@
             "default": true,
             "title": "Optimize Screen Updates",
             "type": "boolean"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "description": "Optional caller-chosen stable key. The same key and exact request replay one transaction; a different request under that key fails IDEMPOTENCY_CONFLICT. Without it, WordToolkit derives a deterministic operation_id from the canonical request."
           }
         },
         "required": [
@@ -22563,7 +22985,7 @@
       "annotations": {
         "readOnlyHint": false,
         "destructiveHint": true,
-        "idempotentHint": false,
+        "idempotentHint": true,
         "openWorldHint": true
       }
     ,
@@ -22604,6 +23026,63 @@
         "additionalProperties": true
     }
   },
+    {
+      "name": "get_live_word_operation_status",
+      "title": "Get an unambiguous live Word transaction receipt",
+      "description": "Return the process-local receipt for one apply_live_word_operations operation_id. pending means WordToolkit is still executing after the original caller stopped waiting; succeeded returns only version/count proof; failed returns a bounded error code/type. No document text, formula, path, or raw result is returned. Receipts are bounded to 256 entries and one hour. Retrying the exact original apply request is also safe because its deterministic receipt prevents duplicate publication.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["operation_id"],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "pattern": "^wlop_[A-Za-z0-9._:-]{1,128}$",
+            "maxLength": 133
+          }
+        }
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "operationVersion": "1.0",
+      "permissions": {
+        "filesystem": "none",
+        "network": "none",
+        "microsoft_word": "none"
+      },
+      "reversibility": {"kind": "read_only"},
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation_id",
+          "operation_status",
+          "outcome_known",
+          "receipt_scope",
+          "raw_document_content_returned"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "pattern": "^wlop_[A-Za-z0-9._:-]{1,128}$",
+            "maxLength": 133
+          },
+          "operation_status": {"enum": ["pending", "succeeded", "failed", "unknown"]},
+          "outcome_known": {"type": "boolean"},
+          "created_at_utc": {"type": "string", "maxLength": 64},
+          "updated_at_utc": {"type": "string", "maxLength": 64},
+          "terminal_receipt_ttl_seconds": {"type": "integer", "minimum": 1, "maximum": 3600},
+          "receipt_scope": {"const": "current_wordtoolkit_runtime"},
+          "result": {"type": ["object", "null"]},
+          "error": {"type": ["object", "null"]},
+          "raw_document_content_returned": {"const": false}
+        }
+      }
+    },
     {
       "name": "validate_live_word_document",
       "title": "Validate open Word document snapshot",
@@ -22937,6 +23416,48 @@
         }
     }
   },
+    {
+      "name": "insert_live_word_dropdowns",
+      "title": "Insert native Word dropdown controls",
+      "description": "Insert 1 to 100 native dropdown content controls at fresh verified range tokens.",
+      "inputSchema": {
+        "type": "object",
+        "required": ["live_document_id", "expected_version", "controls"],
+        "properties": {
+          "live_document_id": {"type": "string"},
+          "expected_version": {"type": "integer", "minimum": 0},
+          "controls": {
+            "type": "array", "minItems": 1, "maxItems": 100,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["range_token", "title", "tag", "items"],
+              "properties": {
+                "range_token": {"type": "string", "minLength": 1, "maxLength": 128},
+                "title": {"type": "string", "maxLength": 256},
+                "tag": {"type": "string", "maxLength": 256},
+                "items": {"type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[^\\r\\n]+$"}},
+                "selected_item": {"type": "string", "maxLength": 256},
+                "lock_contents": {"type": "boolean", "default": false},
+                "lock_control": {"type": "boolean", "default": false}
+              }
+            }
+          }
+        }
+      },
+      "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true},
+      "operationVersion": "1.0",
+      "permissions": {"word": "com_write", "filesystem": "none", "network": false},
+      "reversibility": {"kind": "guarded_live_mutation", "writes": "word_document", "undo": true},
+      "outputSchema": {
+        "type": "object", "required": ["live_document_id", "live_version", "created_count", "controls"],
+        "properties": {
+          "live_document_id": {"type": "string"}, "live_version": {"type": "integer"},
+          "created_count": {"type": "integer"}, "controls": {"type": "array"},
+          "native_verified": {"type": "boolean"}, "single_undo_record": {"type": "boolean"},
+          "document": {"type": "object"}, "performance": {"type": "object"}
+        }, "additionalProperties": true
+      }
+    },
     {
       "name": "insert_live_word_caption",
       "title": "Insert a native Word caption",
@@ -24194,6 +24715,82 @@
         },
         "additionalProperties": true
     }
+  },
+    {
+      "name": "export_live_word_artifacts",
+      "title": "Export the connected live Word document to PDF and verified PNG artifacts",
+      "description": "Export the current connected Word state, including unsaved edits, to a private staging PDF without saving or reopening the DOCX. Optionally derive all page PNGs through explicitly configured Poppler, then publish the PDF/PNGs and provenance manifest as one create-new transaction. The action requires expected_version, proves the live document state stayed unchanged and never silently falls back to another renderer.",
+      "operationVersion": "1.0",
+      "permissions": {
+        "word": "com_read_and_fixed_format_export",
+        "filesystem": "create_new_pdf_png_manifest_outputs",
+        "network": false
+      },
+      "reversibility": {
+        "kind": "transactional_create_new_outputs",
+        "writes": "output_directory",
+        "undo": false
+      },
+      "limits": {
+        "pages": 500,
+        "dpi": 600,
+        "input_pdf_bytes": 536870912,
+        "raster_output_bytes": 536870912,
+        "external_process_timeout_seconds": 120
+      },
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "live_document_id": {"type": "string", "minLength": 1},
+          "expected_version": {"type": "integer", "minimum": 0},
+          "output_directory": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "artifact_stem": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"},
+          "output": {"enum": ["pdf", "png_pages", "pdf_and_png_pages"], "default": "pdf"},
+          "dpi": {"type": "integer", "minimum": 1, "maximum": 600, "default": 144},
+          "optimize_for": {"enum": ["print", "screen"], "default": "print"},
+          "include_document_properties": {"type": "boolean", "default": true},
+          "bookmarks": {"enum": ["none", "headings", "bookmarks"], "default": "headings"},
+          "pdf_a": {"type": "boolean", "default": false},
+          "pdfinfo_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "rasterizer_path": {"type": "string", "minLength": 1, "maxLength": 32767},
+          "rasterizer_kind": {"enum": ["pdf_to_ppm", "pdf_to_cairo"], "default": "pdf_to_ppm"}
+        },
+        "required": ["live_document_id", "expected_version", "output_directory", "artifact_stem"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["operation_contract", "live_document_id", "live_version", "source_state_sha256", "source_saved", "source_included_unsaved_changes", "source_mutated", "document_reopened", "document_saved", "output", "page_geometry_count", "page_geometries", "equation_render_qa", "warnings", "backend", "artifacts", "artifact_count", "runtime", "python_used", "performance"],
+        "properties": {
+          "operation_contract": {"const": "wordtoolkit.export_live_word_artifacts/1.0"},
+          "live_document_id": {"type": "string"},
+          "live_version": {"type": "integer", "minimum": 0},
+          "source_state_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "source_saved": {"type": "boolean"},
+          "source_included_unsaved_changes": {"type": "boolean"},
+          "source_mutated": {"const": false},
+          "document_reopened": {"const": false},
+          "document_saved": {"const": false},
+          "output": {"enum": ["pdf", "png_pages", "pdf_and_png_pages"]},
+          "page_geometry_count": {"type": "integer", "minimum": 0, "maximum": 500},
+          "page_geometries": {"type": "array", "maxItems": 500, "items": {"type": "object"}},
+          "equation_render_qa": {"type": "object"},
+          "warnings": {"type": "array", "maxItems": 8, "uniqueItems": true, "items": {"enum": ["subjective_visual_review_required", "word_layout_is_not_pixel_equivalence", "pdf_geometry_not_inspected"]}},
+          "backend": {"type": "object"},
+          "artifacts": {"type": "array", "minItems": 2, "maxItems": 502, "items": {"type": "object"}},
+          "artifact_count": {"type": "integer", "minimum": 2, "maximum": 502},
+          "runtime": {"const": "dotnet-native"},
+          "python_used": {"const": false},
+          "performance": {"type": "object"}
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
   },
     {
       "name": "close_live_word_document",

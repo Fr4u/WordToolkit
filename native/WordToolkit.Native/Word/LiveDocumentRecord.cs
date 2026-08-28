@@ -6,6 +6,8 @@ internal sealed class LiveDocumentRecord
     public required string Name { get; init; }
     public required string FullName { get; init; }
     public required int WindowHwnd { get; init; }
+    public bool RuntimeCreated { get; init; }
+    public bool AutoCloseOnDisconnect { get; init; }
     public long Version { get; set; }
 }
 

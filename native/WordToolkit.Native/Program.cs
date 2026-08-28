@@ -38,6 +38,15 @@ internal static class Program
             );
         }
 
+        if (args.Length == 1 && args[0] == "--internal-equation-preflight-worker")
+        {
+            return await EquationPreflightWorkerCli.RunAsync(
+                Console.In,
+                Console.Out,
+                Console.Error
+            );
+        }
+
         if (args.Length == 1 && args[0] == "--internal-appcontainer-probe")
         {
             return await AppContainerProbeCli.RunAsync(

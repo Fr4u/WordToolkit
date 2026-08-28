@@ -2,9 +2,9 @@
 
 The current remote Python service source of truth is `schemas/mcp-tools.v2.json`; `schemas/mcp-tools.v1.json` remains the immutable historical contract. The provider-neutral heterogeneous mutation contract, including executable input/success/error examples, is generated as `schemas/draft-operations.v1.json`. The native Windows plugin has a separate, deliberately hand-reviewed source in `schemas/mcp-tools-local.v2.json`; `schemas/mcp-tools-local.v1.json` remains the historical local contract. `WordToolkit.Native.Tests` validates the current catalog and this exporter never overwrites it. Every exported remote tool has an object JSON Schema, MCP side-effect annotations and a stable error envelope.
 
-The public MCP surface has 15 tools: 11 core actions and 4 capability gateways.
+The public MCP surface has 17 tools: 13 core actions and 4 capability gateways.
 The capability, search, inspect and execute gateways negotiate the versioned contract
-and lazily expose 151 native actions.
+and lazily expose 157 native actions.
 
 `local_path` and `output_path` are deliberate roles, not aliases: the former names an
 existing input package and the latter names a newly written artifact. Likewise, the
@@ -22,7 +22,7 @@ prerequisite and acquire missing IDs, versions or fingerprints; review the
 minimal template example; execute; then verify the documented success paths.
 On failure, follow the action's recovery mapping (refresh stale bindings,
 re-plan when required, and stop on rollback or quarantine boundaries). This
-guidance is generated for all 151 native actions and checked for
+guidance is generated for all 157 native actions and checked for
 parity by `scripts/generate_action_guidance.py --check`.
 
 Rare saved-package inspectors remain lazy so their schemas do not enter model context until

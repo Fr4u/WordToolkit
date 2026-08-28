@@ -59,7 +59,8 @@
       "name": "create_live_word_document",
       "prerequisites": [],
       "acquisition_steps": [
-        "Bind live_document_id and live_version from create_live_word_document output"
+        "Bind live_document_id and live_version from create_live_word_document output",
+        "Choose lifecycle=persistent or scratch; scratch documents auto-close on disconnect"
       ],
       "bindings": {},
       "example": {
@@ -77,6 +78,143 @@
       "recovery": {},
       "recipe_ids": [
         "live.lifecycle"
+      ]
+    },
+    {
+      "name": "create_live_word_equation_document",
+      "prerequisites": [
+        "explicit new output path; never overwrite",
+        "Use an idempotency_key for a long workflow and do not reuse it for different equations"
+      ],
+      "acquisition_steps": [
+        "Provide one new DOCX output_path and the complete 1-100 equation set; invalid preflight creates no document",
+        "For PNG render QA bind explicit pdfinfo_path and rasterizer_path, otherwise the workflow still creates Word PDF and performs structural raw-syntax QA",
+        "Use keep_open=true only when later live edits are required"
+      ],
+      "bindings": {
+        "output_path": {
+          "source": "external_input"
+        },
+        "equations": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "create_live_word_equation_document",
+        "template_only": true,
+        "arguments": {
+          "output_path": "<bind:output_path>",
+          "equations": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "operation_contract",
+          "workflow_complete",
+          "stage",
+          "created",
+          "published",
+          "saved",
+          "rendered",
+          "package_inspected",
+          "output_path",
+          "equation_count",
+          "preflight",
+          "raw_document_content_returned"
+        ],
+        "predicates": [
+          "published is present",
+          "output_path is present"
+        ]
+      },
+      "recovery": {},
+      "recipe_ids": [
+        "live.equation",
+        "package.render.fixed"
+      ]
+    },
+    {
+      "name": "compile_tex_document",
+      "prerequisites": [
+        "explicit new output path; never overwrite",
+        "Provide one explicit absolute local Tectonic executable and one new PDF output_path",
+        "Use expected_tectonic_sha256 whenever the provider binary has been qualified",
+        "Keep allow_network_resource_fetch=false unless missing TeX resources are required and that provider cache/network effect is explicitly accepted"
+      ],
+      "acquisition_steps": [
+        "Treat this as complete TeX execution only; editable_office_math and tex_to_omml_conversion_performed are always false",
+        "Use native equation actions for the representable LaTeX-math subset or direct input_format=omml for exact OfficeMath",
+        "A provider-fetch result does not bind the resource bundle hash or prove network isolation"
+      ],
+      "bindings": {
+        "source": {
+          "source": "external_input"
+        },
+        "tectonic_path": {
+          "source": "external_input"
+        },
+        "output_path": {
+          "source": "external_input"
+        },
+        "succeeded": {
+          "source": "response.succeeded"
+        },
+        "published": {
+          "source": "response.published"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "compile_tex_document",
+        "template_only": true,
+        "arguments": {
+          "source": "<provide:source>",
+          "tectonic_path": "<bind:tectonic_path>",
+          "output_path": "<bind:output_path>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "operation_contract",
+          "succeeded",
+          "published",
+          "diagnostics",
+          "pdf_bytes",
+          "provider",
+          "source_sha256",
+          "source_returned",
+          "temporary_files_retained",
+          "word_opened",
+          "document_mutated",
+          "editable_office_math",
+          "tex_to_omml_conversion_performed",
+          "representability"
+        ],
+        "predicates": [
+          "succeeded is true",
+          "published is true",
+          "pdf_sha256 is present",
+          "editable_office_math is false",
+          "tex_to_omml_conversion_performed is false"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "compile_tex_document",
+          "bindings": {
+            "output_path": "new_output_path"
+          }
+        },
+        "CLEANUP_FAILED": {
+          "next_action": "compile_tex_document",
+          "bindings": {
+            "output_path": "new_output_path"
+          }
+        }
+      },
+      "recipe_ids": [
+        "native.default"
       ]
     },
     {
@@ -695,7 +833,8 @@
         "explicit new output path; never overwrite"
       ],
       "acquisition_steps": [
-        "Bind package_fingerprint from inspect_ooxml_package.package_fingerprint; provide new output_directory and artifact_stem"
+        "Bind package_fingerprint from inspect_ooxml_package.package_fingerprint; provide new output_directory and artifact_stem",
+        "If Word reports that this exact source is already open, connect to that document and use export_live_word_artifacts instead of retrying the saved-package renderer"
       ],
       "bindings": {
         "local_path": {
@@ -733,9 +872,15 @@
       },
       "recovery": {
         "VERSION_CONFLICT": {
-          "next_action": "inspect_ooxml_package",
+          "next_action": "connect_live_word_document",
           "bindings": {
-            "expected_package_fingerprint": "package_fingerprint"
+            "full_path": "local_path"
+          }
+        },
+        "SOURCE_CHANGED": {
+          "next_action": "connect_live_word_document",
+          "bindings": {
+            "full_path": "local_path"
           }
         }
       },
@@ -5348,6 +5493,60 @@
       ]
     },
     {
+      "name": "insert_live_word_dropdowns",
+      "prerequisites": [
+        "fresh expected_version from live response",
+        "Bind fresh non-overlapping range_token values from get_live_word_selection"
+      ],
+      "acquisition_steps": [
+        "selected_item must exactly match one item; retain live_version from the mutation response"
+      ],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        },
+        "controls": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "insert_live_word_dropdowns",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          },
+          "controls": "<provide:controls>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "live_document_id",
+          "live_version",
+          "created_count",
+          "controls"
+        ],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "live.content_controls"
+      ]
+    },
+    {
       "name": "update_live_word_table_fields",
       "prerequisites": [
         "fresh expected_version from live response"
@@ -6251,8 +6450,14 @@
     },
     {
       "name": "preflight_live_word_equations",
-      "prerequisites": [],
-      "acquisition_steps": [],
+      "prerequisites": [
+        "Native mode is process-isolated and defaults to 20 seconds per equation and 120 seconds total; do not raise limits merely to hide a hanging formula"
+      ],
+      "acquisition_steps": [
+        "Submit the whole candidate set once: valid_count, invalid_count and ordered equations return every attributable failure with stable equation_id",
+        "Use suggestion_code and bounded diagnostic before rewriting only invalid equations; then rerun the complete unchanged final set",
+        "On EQUATION_PREFLIGHT_TIMEOUT read zero-based equation_index and completed_count; infrastructure timeouts still stop the worker immediately"
+      ],
       "bindings": {
         "equations": {
           "source": "external_input"
@@ -6272,7 +6477,83 @@
       },
       "recovery": {},
       "recipe_ids": [
-        "native.default"
+        "live.equation"
+      ]
+    },
+    {
+      "name": "preflight_live_word_operations",
+      "prerequisites": [
+        "fresh expected_version from live response",
+        "Use the exact operations array that will be passed unchanged to apply_live_word_operations"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        },
+        "operations": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "preflight_live_word_operations",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          },
+          "operations": []
+        }
+      },
+      "success": {
+        "required_paths": [
+          "operation_contract",
+          "live_document_id",
+          "live_version",
+          "expected_version",
+          "validation_mode",
+          "valid",
+          "published",
+          "target_document_mutated",
+          "operation_count",
+          "text_operation_count",
+          "equation_operation_count",
+          "runtime",
+          "python_used"
+        ],
+        "predicates": [
+          "valid is present",
+          "published is present"
+        ]
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        },
+        "STAGING_TARGET_DRIFT": {
+          "next_action": "disconnect_live_word_document",
+          "bindings": {
+            "live_document_id": "live_document_id"
+          }
+        },
+        "ROLLBACK_FAILED": {
+          "next_action": "disconnect_live_word_document",
+          "bindings": {
+            "live_document_id": "live_document_id"
+          }
+        }
+      },
+      "recipe_ids": [
+        "live.transactional"
       ]
     },
     {
@@ -6369,7 +6650,9 @@
         "fresh expected_version from live response"
       ],
       "acquisition_steps": [
-        "review plan and block reasons before apply"
+        "review plan and block reasons before apply",
+        "For a long batch provide a unique idempotency_key before execution; the receipt is wlop_<key>",
+        "If the caller stops waiting, query get_live_word_operation_status or repeat the exact same request. Never construct a second batch with a new key until the first receipt is terminal"
       ],
       "bindings": {
         "live_document_id": {
@@ -6441,8 +6724,49 @@
           "bindings": {
             "live_document_id": "live_document_id"
           }
+        },
+        "WORD_OPERATION_OUTCOME_UNKNOWN": {
+          "next_action": "get_live_word_operation_status",
+          "bindings": {
+            "operation_id": "operation_id"
+          }
         }
       },
+      "recipe_ids": [
+        "live.transactional"
+      ]
+    },
+    {
+      "name": "get_live_word_operation_status",
+      "prerequisites": [],
+      "acquisition_steps": [
+        "Bind operation_id from apply_live_word_operations; for a caller-supplied idempotency_key K the predictable receipt ID is wlop_K",
+        "Poll only while operation_status=pending; succeeded and failed are terminal for one hour in the current runtime"
+      ],
+      "bindings": {
+        "operation_id": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "get_live_word_operation_status",
+        "template_only": true,
+        "arguments": {
+          "operation_id": "<bind:operation_id>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "operation_id",
+          "operation_status",
+          "outcome_known",
+          "receipt_scope",
+          "raw_document_content_returned"
+        ],
+        "predicates": []
+      },
+      "recovery": {},
       "recipe_ids": [
         "live.transactional"
       ]
@@ -6513,6 +6837,79 @@
       "recovery": {},
       "recipe_ids": [
         "native.default"
+      ]
+    },
+    {
+      "name": "export_live_word_artifacts",
+      "prerequisites": [
+        "fresh expected_version from live response",
+        "explicit new output path; never overwrite",
+        "Use this action instead of render_ooxml_fixed_artifacts when the source document is already connected/open in Word"
+      ],
+      "acquisition_steps": [],
+      "bindings": {
+        "live_document_id": {
+          "source": "external_input"
+        },
+        "expected_version": {
+          "source": "live_response.live_version"
+        },
+        "output_directory": {
+          "source": "external_input"
+        },
+        "artifact_stem": {
+          "source": "external_input"
+        }
+      },
+      "example": {
+        "gateway": "execute_wordtoolkit_action",
+        "action": "export_live_word_artifacts",
+        "template_only": true,
+        "arguments": {
+          "live_document_id": "<bind:live_document_id>",
+          "expected_version": {
+            "type": "integer",
+            "source": "live_response.live_version"
+          },
+          "output_directory": "<provide:output_directory>",
+          "artifact_stem": "<provide:artifact_stem>"
+        }
+      },
+      "success": {
+        "required_paths": [
+          "operation_contract",
+          "live_document_id",
+          "live_version",
+          "source_state_sha256",
+          "source_saved",
+          "source_included_unsaved_changes",
+          "source_mutated",
+          "document_reopened",
+          "document_saved",
+          "output",
+          "page_geometry_count",
+          "page_geometries",
+          "equation_render_qa",
+          "warnings",
+          "backend",
+          "artifacts",
+          "artifact_count",
+          "runtime",
+          "python_used",
+          "performance"
+        ],
+        "predicates": []
+      },
+      "recovery": {
+        "VERSION_CONFLICT": {
+          "next_action": "inspect_live_word_document",
+          "bindings": {
+            "expected_version": "live_response.live_version"
+          }
+        }
+      },
+      "recipe_ids": [
+        "package.render.fixed"
       ]
     },
     {

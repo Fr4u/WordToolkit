@@ -48,16 +48,16 @@ public sealed class CapabilityManifestTests
 
         Assert.Equal("wordtoolkit.capabilities/1.0", manifest["contract_schema"]!.GetValue<string>());
         Assert.Equal("2.0.0", manifest["contract_schema_version"]!.GetValue<string>());
-        Assert.Equal(151, manifest["operation_count"]!.GetValue<int>());
-        Assert.Equal(15, manifest["exposed_mcp_tool_count"]!.GetValue<int>());
+        Assert.Equal(157, manifest["operation_count"]!.GetValue<int>());
+        Assert.Equal(17, manifest["exposed_mcp_tool_count"]!.GetValue<int>());
         Assert.Equal(12, manifest["operations"]!.AsArray().Count);
         Assert.Equal(12, manifest["paging"]!["next_offset"]!.GetValue<int>());
-        Assert.Equal(151, manifest["metadata_coverage"]!["input_schema"]!.GetValue<int>());
-        Assert.Equal(151, manifest["metadata_coverage"]!["mcp_effect_annotations"]!.GetValue<int>());
-        Assert.Equal(151, manifest["metadata_coverage"]!["explicit_output_schema"]!.GetValue<int>());
-        Assert.Equal(151, manifest["metadata_coverage"]!["explicit_permissions"]!.GetValue<int>());
-        Assert.Equal(151, manifest["metadata_coverage"]!["explicit_reversibility"]!.GetValue<int>());
-        Assert.Equal(151, manifest["metadata_coverage"]!["explicit_operation_version"]!.GetValue<int>());
+        Assert.Equal(157, manifest["metadata_coverage"]!["input_schema"]!.GetValue<int>());
+        Assert.Equal(157, manifest["metadata_coverage"]!["mcp_effect_annotations"]!.GetValue<int>());
+        Assert.Equal(157, manifest["metadata_coverage"]!["explicit_output_schema"]!.GetValue<int>());
+        Assert.Equal(157, manifest["metadata_coverage"]!["explicit_permissions"]!.GetValue<int>());
+        Assert.Equal(157, manifest["metadata_coverage"]!["explicit_reversibility"]!.GetValue<int>());
+        Assert.Equal(157, manifest["metadata_coverage"]!["explicit_operation_version"]!.GetValue<int>());
         Assert.Equal(manifest["operation_count"]!.GetValue<int>(), manifest["metadata_coverage"]!["guidance"]!.GetValue<int>());
         Assert.Equal(
             "operation-specific",

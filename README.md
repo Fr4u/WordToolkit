@@ -9,7 +9,7 @@ Transform changes fail closed and route to the reviewed generic patch workflow.
 Other typed mutators and the legacy Python publication path do not yet provide universal
 enforcement. The token is not a password or caller-identity proof.
 
-> **Status:** [`v0.61.1`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.61.1) is the current tagged release. Its native Windows x64 artifact was qualified from the exact tagged commit and independently recorded below. The project is not presented as a complete LaTeX engine, Word-compatibility layer, or pixel-equivalent renderer across Word versions.
+> **Status:** [`v0.61.2`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.61.2) is the current tagged release. Its native Windows x64 artifact is built deterministically from the pinned .NET 8.0.423 SDK. Complete-document TeX execution uses an explicit Tectonic provider and never pretends that arbitrary TeX layout has a lossless editable OfficeMath representation.
 
 ## Current authoring boundary
 
@@ -18,13 +18,21 @@ not equation screenshots or plain-text imitations. Mixed text/equation batches
 are built in an isolated Word document, verified, and only then published to the
 target through one guarded transaction. The live acceptance suite covers inline
 font runs, Times New Roman with an explicit point size and paragraph alignment,
-`\boxed{...}`, rollback-sensitive publication, saved-package inspection while
+`\boxed{...}`, a 60-family real-Word equation atlas, rollback-sensitive publication, saved-package inspection while
 the DOCX remains open in Word, and preservation of the user's existing Word
 process.
 
 The API is still deliberately bounded. Formatting uses documented canonical
 keys, with `font_size` and `alignment` retained only as compatibility aliases.
-LaTeX support is a tested subset. Saved-package inspection proves package
+LaTeX-to-OfficeMath support is a broad tested Word-oriented subset, not a programmable TeX
+runtime. Complete TeX documents have a separate `compile_tex_document` path through
+an explicit, hashable Tectonic executable using `--untrusted` and cache-only resources by
+default. Explicit provider fetching may populate missing resources, but does not prove
+network isolation or bind the resource-bundle hash; its PDF is never described as
+editable OMath. More than 400 one-scalar UTN28/LaTeX aliases and the major structural
+families are covered; exact OMML input uses a separate direct native path and proves
+equation semantics separately from the actual Word justification for its bounded display-
+paragraph profile. Saved-package inspection proves package
 structure, not visual identity. A file held open for writing is accepted only
 after two byte-identical bounded reads over one pinned handle; active saving
 returns retryable `SOURCE_CHANGED`. PDF export and real-Word acceptance remain
@@ -40,7 +48,7 @@ separate evidence.
 - [Security policy](docs/SECURITY.md) — active-content, external-link and trust boundaries.
 - [AI interoperability](docs/AI-INTEROPERABILITY.md) — bounded model-facing contracts.
 
-The native catalog has 151/151 first-call guidance records. Clients should search when
+The native catalog has 157/157 first-call guidance records. Clients should search when
 the capability is unknown, inspect the exact action, bind prerequisites, execute, and
 verify success or follow the declared recovery mapping. This adds no public tools.
 
@@ -223,9 +231,9 @@ These numbers are machine-specific. They are recorded as test evidence, not univ
 
 ## Supported local tools
 
-The runtime implements 64 tested Word Live actions plus 64 standalone,
-bounded OOXML engine actions. The initial MCP catalog exposes
-only 11 common actions plus four token-lean gateways. Rare schemas are
+The runtime implements 157 native actions across live Word, complete-document TeX compilation and bounded OOXML paths.
+The initial MCP catalog exposes only 13 common actions plus four token-lean gateways.
+Rare schemas are
 searched and loaded one at a time:
 
 ```text
@@ -234,6 +242,13 @@ inspect_wordtoolkit_action
 execute_wordtoolkit_action
 get_wordtoolkit_capabilities
 ```
+
+`search_wordtoolkit_actions` includes the complete schema and first-call guidance for
+the highest-ranked match by default. Other search hits remain uninspected and are not
+execution instructions. Ranking normalizes spaces and punctuation, prefers exact action
+names, then the shortest ordered name-token match, and searches core and lazy actions in
+one set. Thus `preflight live operations` resolves to
+`preflight_live_word_operations`, not the generic member executor.
 
 `get_wordtoolkit_capabilities` is the vendor-neutral discovery entry point. It
 returns the runtime, MCP and schema versions, deterministic contract hashes,
@@ -250,7 +265,7 @@ The schema form returns the exact embedded JSON Schema text plus its verifiable 
 the installed client therefore does not need repository access. The default manifest
 page is 12 operations and the hard page ceiling is 32. Full input
 schemas remain behind `inspect_wordtoolkit_action`, so capability negotiation does
-not flatten the 151-action schema set into model context. The normative shape is
+not flatten the 157-action schema set into model context. The normative shape is
 checked in as [`schemas/wordtoolkit-capabilities.v1.schema.json`](schemas/wordtoolkit-capabilities.v1.schema.json)
 and the runtime reports its SHA-256. See
 [`docs/AI-INTEROPERABILITY.md`](docs/AI-INTEROPERABILITY.md) for the contract and
@@ -280,6 +295,19 @@ PDF, page PNGs derived through explicit Poppler binaries, and a manifest. For ex
 ```powershell
 wordtoolkit-native libreoffice-render-package --request render.json --format json
 ```
+
+The Microsoft Word `render_ooxml_fixed_artifacts` action publishes the same self-contained
+bundle: PDF (when requested), verified Poppler PNG pages, and `<stem>.render.json`. The
+response and manifest include page MediaBox geometry, pixel dimensions, hashes and explicit
+warnings (`subjective_visual_review_required` and `word_layout_is_not_pixel_equivalence`).
+Those warnings are deliberate: the bundle proves artifact integrity and geometry, not that
+typography or pixels match a human visual judgement in every viewer.
+
+When the document is already connected or contains unsaved edits,
+`export_live_word_artifacts` uses that exact live identity instead. It exports a private
+Word PDF without saving or reopening the DOCX, optionally derives all page PNGs through
+explicit Poppler binaries, proves `live_version` and the semantic document state stayed
+unchanged, then publishes the requested PDF/PNGs and `.render.json` manifest atomically.
 
 The operation deletes all private staging before its create-new public transaction and
 rehashes the source immediately before publication. It requests `NEVER_EXECUTE` macros
@@ -686,6 +714,8 @@ Representative core and lazy action names are:
 list_live_word_documents
 start_word_application
 create_live_word_document
+create_live_word_equation_document
+compile_tex_document
 open_live_word_document
 connect_live_word_document
 inspect_ooxml_package
@@ -790,6 +820,7 @@ insert_live_word_equation
 insert_live_word_equations_batch
 preflight_live_word_equations
 apply_live_word_operations
+get_live_word_operation_status
 validate_live_word_document
 export_live_word_pdf
 save_live_word_document
@@ -1216,6 +1247,7 @@ For generated material, use `apply_live_word_operations` and send a coherent arr
 {
   "live_document_id": "live_...",
   "expected_version": 0,
+  "idempotency_key": "chapter-quantum-001",
   "optimize_screen_updates": true,
   "operations": [
     {
@@ -1240,6 +1272,44 @@ For generated material, use `apply_live_word_operations` and send a coherent arr
 
 The model still generates text before the tool call. Word cannot safely accept half-token fragments as a transactional document structure. The optimization is one native batch per coherent section, not fake keystroke streaming.
 
+Complex batches remain one transaction. WordToolkit builds their equations in reverse
+document order, verifies one native OMath per operation and avoids rescanning the complete
+equation collection after every styled reinsertion. The compact `complexity` block reports the
+operation, equation, styled-equation, text and formatted-inline-run counts plus the request-driven
+staging-call estimate and the two batch-boundary equation-count reads. It is diagnostic evidence, not a fake
+promise that every Word build or formula has the same cost. A guarded real-Word acceptance
+now covers one 49-operation batch with 41 text operations and eight equations, including
+six matrices and two styled formulas, without silently splitting the transaction.
+
+For a risky batch, `preflight_live_word_operations` accepts the exact same operations
+array plus the connected `live_document_id` and current `expected_version`. It executes
+the same target-derived staging path and cleanup as apply, returns bounded proof and does
+not publish or change the version. This removes the old lie where a clean scratch-document
+preflight could pass while the target document's compatibility/settings context failed.
+Long MCP calls can additionally carry `_meta.progressToken`; the server then sends strictly
+increasing `notifications/progress` with a bounded start summary and five-second heartbeats.
+The MCP tool timeout is 600 seconds. Equation preflight uses 20 seconds per equation and
+120 seconds total by default, and timeout errors report the exact zero-based
+`equation_index` plus completed count.
+
+Equation preflight collects every attributable failure in one run. Results stay in input
+order and include `valid_count`, `invalid_count`, a stable content-bound `weq_`
+`equation_id`, a bounded structural diagnostic and a rule-based `suggestion_code`.
+Infrastructure timeout or cleanup failure still stops the worker immediately.
+
+For a new document containing only equations, the core
+`create_live_word_equation_document` workflow performs native preflight before creating
+anything, publishes the complete set in one receipt-bound transaction, saves, validates,
+renders through Word, runs equation render QA and inspects the package. Invalid preflight
+creates no file. A later render or inspection failure preserves the published DOCX and
+returns `EQUATION_DOCUMENT_PARTIAL`.
+
+Word PDF/PNG export returns `equation_render_qa`. The source scan flags visible
+`eqarray(...)` only when the OfficeMath tree lacks a real equation-array or matrix object.
+When PNG pages are requested, a bounded decoder also flags ink at page edges and content
+occupying more than 97% of page width. These checks reject obvious syf but do not replace
+visual review; `subjective_visual_review_required` remains true.
+
 The canonical formatting fields are `font_size_pt` and
 `paragraph_alignment`. Compatibility inputs `font_size` and `alignment` are
 normalized before Word COM and conflict with their canonical counterpart. A
@@ -1248,12 +1318,21 @@ other font formatting inside one paragraph. Native formatting also supports
 `double_strike`, `highlight_color_index` from 0 through 16, and distributed
 paragraph alignment through `paragraph_alignment: "distribute"`. Do not enable
 `strike` and `double_strike` together; Word preserves only one. LaTeX conversion
-is intentionally bounded rather than a complete TeX implementation; the supported
-subset now includes `\boxed{...}` and `\implies`, and unsupported commands fail in
+is intentionally bounded rather than a complete TeX implementation. It covers more
+than 400 safe one-scalar UTN28/LaTeX aliases, fractions and roots, n-ary and contour
+integrals, matrices/determinants/cases/aligned structures, prescripts/multiscripts,
+over/under structures, seven phantom/smash geometries, mathematical alphabets,
+Dirac notation, `\boxed{...}`, `\implies`, `\bra`, `\ket`, `\braket`,
+`\matrixel`, `\expectation`, `\dv` and `\pdv`; unsupported commands fail in
 batch preflight with `failed_operation_index`. Both maintained live backends return
 the zero-based failing operation index when an equation failure is attributable to one
 operation; an aggregate count mismatch instead reports that the index is unavailable
 and marks the failure scope as the whole batch.
+
+An attributable equation readback failure also returns a content-free structural
+diagnostic: mismatch kind, first differing canonical position/token kinds, bounded
+expected/actual OMath-family counts and differential placement evidence. Formula text
+and raw OMML remain excluded instead of being replaced by two useless hashes.
 
 Successful batches return only identifiers, the new live version, operation
 counts, native verification and compact document state. They do not echo the
@@ -1292,21 +1371,35 @@ the quarantine. No document text, OOXML or fingerprints are returned in the diag
 
 ## Native equations
 
-The runtime accepts LaTeX, UnicodeMath, Presentation MathML and OMML strings. Every input is converted in-process to Word linear math, then Word creates an editable native `OMath`.
+The runtime accepts LaTeX, UnicodeMath, Presentation MathML and OMML strings.
+LaTeX and MathML are converted to verified Word linear math. OMML follows a direct
+path: secure single-root validation, a Word-owned placeholder OMath, replacement
+inside Word's own `WordOpenXML` wrapper, one-equation/range proof, a content-free
+semantic SHA-256 check in isolated staging, and the same check again after guarded
+publication. Raw OMML is never returned.
 
 Supported conversion includes:
 
 - fractions and nested groups;
 - square and indexed roots;
 - superscripts and subscripts;
-- sums, products, integrals and `lim`/`min`/`max` with protected operand boundaries;
-- common Greek letters, all registered mathematical symbols and named functions;
+- sums, products, simple/multiple/contour integrals and `lim`/`min`/`max` with protected operand boundaries;
+- more than 400 registered Greek, relation, set, arrow, harpoon, operator,
+  delimiter, prime, cardinal and named-function aliases;
 - angle, floor, ceiling, absolute-value and single/double-bar norm delimiters;
 - upright text plus script, Fraktur, double-struck, sans-serif and monospace Latin
   mathematical alphabets;
-- vectors, hats, bars, tildes and dots;
+- vectors, common combining accents, over/under braces/parentheses/brackets,
+  upper/lower annotations and all seven UTN28 phantom/smash geometries;
 - text spans;
-- matrices, aligned equation arrays and cases.
+- matrices, determinants, prescripts, MathML multiscripts, aligned/split/multline
+  equation arrays and cases;
+- direct Transitional or Strict OMML for every standard object family accepted by
+  the secure fragment validator and the installed Word build.
+
+TeX punctuation-only grouping for a decimal comma is preserved without visible
+parentheses: `3{,}14` becomes Word linear math `3,14`, including inside scripts,
+matrices and equations with spaced `\text{...}` units.
 
 Write differentials explicitly. The recommended LaTeX is `\int f(x)\,\mathrm{d}x`;
 `\,d x`, `\operatorname{d}x` and `\dd x` are also recognized. WordToolkit
@@ -1357,7 +1450,7 @@ and reports malformed or Word-rejected placement instead of repairing it silentl
 
 - `start_word_application` may launch Word directly through COM; it never launches a shell or helper process.
 - `open_live_word_document` accepts one explicit absolute local Word-readable path, including macro-capable formats, PDF, HTML/MHTML and XML. Macros are force-disabled and external links are not updated during open.
-- `create_live_word_document` may add a new blank document to that process and optionally save it to an explicit new `.docx` path. It never overwrites.
+- `create_live_word_document` may add a new blank document to that process and optionally save it to an explicit new `.docx` path. It never overwrites. With `lifecycle="scratch"` it creates an invisible unsaved document, forbids `output_path`, and closes it automatically on disconnect; persistent documents remain open until an explicit close policy.
 - Connecting never opens a hidden file copy; opening is a separate explicit tool.
 - Disconnecting never closes a document or quits Word.
 - Closing requires a fresh live version and an explicit save/discard policy.
@@ -1441,23 +1534,23 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-Release `v0.61.1` contains the qualified native runtime (`0.61.1+codex.20260823155411`), with runtime guidance covering 151/151 actions and 15 public MCP tools. The release also includes the machine-readable archive checksum and the independently verified native artifact described below.
+Release `v0.61.2` contains the qualified native runtime (`0.61.2+codex.20260828201723`), with runtime guidance covering 157/157 actions and 17 public MCP tools. It adds complete-document TeX execution, the expanded native equation surface, direct OMML paragraph-property proof, bounded multi-error diagnostics, progress and idempotent receipts. The archive remains a native Windows x64 plugin without a Python runtime; Tectonic is an explicit external provider and is not bundled.
 
 Version:
 
 ```text
-0.61.1+codex.20260823155411
+0.61.2+codex.20260828201723
 ```
 
 Windows x64 ZIP:
 
-Asset: `WordToolkit-0.61.1+codex.20260823155411-native-win-x64.zip`
+Asset: `WordToolkit-0.61.2+codex.20260828201723-native-win-x64.zip`
 
-[WordToolkit 0.61.1 native plugin for Windows x64](https://github.com/Fr4u/WordToolkit/releases/download/v0.61.1/WordToolkit-0.61.1%2Bcodex.20260823155411-native-win-x64.zip)
+[WordToolkit 0.61.2 native plugin for Windows x64](https://github.com/Fr4u/WordToolkit/releases/download/v0.61.2/WordToolkit-0.61.2%2Bcodex.20260828201723-native-win-x64.zip)
 
-Size: `38,362,714 bytes`
+Size: `38,502,814 bytes`
 
-SHA-256: `edcd02ede5735aeeb0e3a3ff20652c9ddb5a5b2645becd5aa90337e2a28ec83c`
+SHA-256: `af5cb2d6a761647bd2cedaf13a2f2deab0692be0350d7fa44510f5e4bb47e91b`
 
 Live demonstration document:
 

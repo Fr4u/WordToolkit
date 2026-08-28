@@ -1,4 +1,5 @@
 using System.Text.Json;
+using WordToolkit.Native.Equations;
 using WordToolkit.Native.Protocol;
 using WordToolkit.Native.Word;
 
@@ -41,6 +42,44 @@ public sealed class PreparedBatchErrorProjectionTests
         Assert.Equal("abc123", details.GetProperty("package_fingerprint").GetString());
         Assert.DoesNotContain("secret-content", JsonSerializer.Serialize(projected.Details));
         Assert.Equal("EQUATION_INVALID", projected.ErrorCode);
+    }
+
+    [Fact]
+    public void PreservesBoundedStructuralDiagnosticWithoutLeakingFormulaOrOmml()
+    {
+        var original = new NativeToolException(
+            "EQUATION_INVALID",
+            "The native equation verification failed",
+            new
+            {
+                diagnostic = new EquationReadbackDiagnostic(
+                    "canonical_structure",
+                    ExpectedCount: 12,
+                    ActualCount: 11,
+                    FirstDifferenceIndex: 5,
+                    ExpectedTokenKind: "nary",
+                    ActualTokenKind: "letter",
+                    NodePath: "equation/canonical/5",
+                    ExpectedFamilies: new Dictionary<string, int> { ["nary"] = 1 },
+                    ActualFamilies: new Dictionary<string, int> { ["nary"] = 0 }
+                ),
+                linear_input = "secret-formula",
+                raw_omml = "<m:oMath>secret</m:oMath>",
+            }
+        );
+
+        var projected = Assert.IsType<NativeToolException>(
+            WordLiveService.WithFailedOperationIndex(original, 9)
+        );
+        var serialized = JsonSerializer.Serialize(projected.Details, JsonDefaults.Compact);
+        using var details = JsonDocument.Parse(serialized);
+        var diagnostic = details.RootElement.GetProperty("diagnostic");
+
+        Assert.Equal(9, details.RootElement.GetProperty("failed_operation_index").GetInt32());
+        Assert.Equal("canonical_structure", diagnostic.GetProperty("mismatch_kind").GetString());
+        Assert.Equal("equation/canonical/5", diagnostic.GetProperty("node_path").GetString());
+        Assert.DoesNotContain("secret-formula", serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("oMath", serialized, StringComparison.Ordinal);
     }
 
     [Fact]

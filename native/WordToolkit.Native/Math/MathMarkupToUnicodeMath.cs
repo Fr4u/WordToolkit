@@ -12,6 +12,7 @@ internal static class MathMarkupToUnicodeMath
     private const char EquationArrayMarker = '█';
     private const char BelowMarker = '┬';
     private const char AboveMarker = '┴';
+    private const char PhantomMarker = '⟡';
 
     private static readonly HashSet<string> NaryOperators =
     [
@@ -22,6 +23,11 @@ internal static class MathMarkupToUnicodeMath
         "∬",
         "∭",
         "∮",
+        "∱",
+        "∲",
+        "∳",
+        "∯",
+        "∰",
         "⋃",
         "⋂",
     ];
@@ -183,19 +189,26 @@ internal static class MathMarkupToUnicodeMath
         var children = element.Elements().ToArray();
         return element.Name.LocalName switch
         {
-            "math" or "mrow" or "mstyle" or "mpadded" or "mphantom" =>
+            "math" or "mrow" or "mstyle" =>
                 MathMlSequence(children, depth + 1),
+            "mpadded" => ConvertMathMlPadded(element, children, depth),
+            "mphantom" => $"{PhantomMarker}({MathMlSequence(children, depth + 1)})",
             "semantics" => MathMlSemantics(children, depth + 1),
-            "annotation" or "annotation-xml" or "mspace" or "none" or "maligngroup"
+            "mspace" => ConvertMathMlSpace(element, children),
+            "annotation" or "annotation-xml" or "none" or "maligngroup"
                 or "malignmark" => "",
             "mi" => ConvertMathMlIdentifier(element),
             "mn" => ConvertMathMlToken(element, isIdentifier: false, asText: false),
             "mo" => ConvertMathMlToken(element, isIdentifier: false, asText: false),
             "mtext" => ConvertMathMlToken(element, isIdentifier: false, asText: true),
+            // <ms> is the MathML string-literal token.  Word linear math has
+            // no distinct string token, so preserve it as quoted text (the
+            // same representation used by mtext/OMML nor runs).
+            "ms" => $"\"{CleanQuotedText(element.Value)}\"",
             "mfrac" => BinaryMathMl(
                 children,
                 depth,
-                (left, right) => $"({left})/({right})",
+                (left, right) => ConvertMathMlFraction(element, left, right),
                 "mfrac"
             ),
             "msup" => BinaryMathMl(
@@ -217,6 +230,7 @@ internal static class MathMarkupToUnicodeMath
                     $"{ParenthesizeBase(basis)}_({subscript})^({superscript})",
                 "msubsup"
             ),
+            "mmultiscripts" => ConvertMathMlMultiscripts(element, children, depth),
             "msqrt" => $"√({MathMlSequence(children, depth + 1)})",
             "mroot" => BinaryMathMl(
                 children,
@@ -224,12 +238,7 @@ internal static class MathMarkupToUnicodeMath
                 (radicand, degree) => $"√({degree}&{radicand})",
                 "mroot"
             ),
-            "munder" => BinaryMathMl(
-                children,
-                depth,
-                (basis, lower) => $"{ParenthesizeBase(basis)}_({lower})",
-                "munder"
-            ),
+            "munder" => ConvertMathMlUnder(element, children, depth),
             "mover" => ConvertMathMlOver(children, depth),
             "munderover" => TernaryMathMl(
                 children,
@@ -240,13 +249,190 @@ internal static class MathMarkupToUnicodeMath
             ),
             "mfenced" => ConvertMathMlFence(element, children, depth),
             "mtable" => ConvertMathMlTable(element, children, depth),
-            "menclose" => $"box({MathMlSequence(children, depth + 1)})",
+            "maction" => ConvertMathMlAction(element, children, depth),
+            "menclose" => ConvertMathMlEnclose(element, children, depth),
             _ => throw new NativeToolException(
                 "EQUATION_INVALID",
                 $"Unsupported MathML element: {element.Name.LocalName}"
             ),
         };
     }
+
+    private static string ConvertMathMlFraction(XElement element, string left, string right)
+    {
+        var thickness = element.Attribute("linethickness")?.Value.Trim().ToLowerInvariant();
+        if (thickness is "0" or "0px" or "none")
+        {
+            return $"({left})¦({right})";
+        }
+        return $"({left})/({right})";
+    }
+
+    private static string ConvertMathMlUnder(XElement element, XElement[] children, int depth)
+    {
+        if (children.Length != 2) throw Arity("munder", 2, children.Length);
+        var basis = MathMlNode(children[0], depth + 1);
+        var lower = MathMlNode(children[1], depth + 1);
+        var accentUnder = element.Attribute("accentunder")?.Value.Trim().ToLowerInvariant() == "true";
+        if (accentUnder)
+        {
+            return ApplyUnderAccent(basis, lower);
+        }
+        return $"{ParenthesizeBase(basis)}_({lower})";
+    }
+
+    private static string ConvertMathMlAction(XElement element, XElement[] children, int depth)
+    {
+        if (children.Length == 0) throw Arity("maction", 1, 0);
+        var selection = element.Attribute("selection")?.Value ?? "1";
+        if (!int.TryParse(selection, out var selected) || selected < 1 || selected > children.Length)
+            throw new NativeToolException("EQUATION_INVALID", "MathML maction selection must identify an existing child");
+        return MathMlNode(children[selected - 1], depth + 1);
+    }
+
+    private static string ConvertMathMlEnclose(XElement element, XElement[] children, int depth)
+    {
+        var notation = element.Attribute("notation")?.Value.Trim().ToLowerInvariant() ?? "longdiv";
+        if (notation == "radical")
+        {
+            return $"√({MathMlSequence(children, depth + 1)})";
+        }
+        if (notation == "box")
+        {
+            return $"▭({MathMlSequence(children, depth + 1)})";
+        }
+        if (notation.Contains(' ', StringComparison.Ordinal))
+        {
+            throw new NativeToolException("EQUATION_INVALID", "MathML menclose combines notations that Word linear OMath cannot preserve", new { notation });
+        }
+        if (notation is not ("box" or "radical"))
+            throw new NativeToolException("EQUATION_INVALID", "MathML menclose notation is not losslessly representable", new { notation });
+        throw new NativeToolException(
+            "EQUATION_INVALID",
+            "MathML menclose notation is not losslessly representable",
+            new { notation }
+        );
+    }
+
+    private static string ConvertMathMlPadded(
+        XElement element,
+        XElement[] children,
+        int depth
+    )
+    {
+        var layoutAttributes = new[] { "width", "height", "depth", "lspace", "voffset" }
+            .Where(name => element.Attribute(name) is not null)
+            .ToArray();
+        if (layoutAttributes.Length > 0)
+        {
+            throw new NativeToolException(
+                "EQUATION_INVALID",
+                "MathML mpadded layout offsets cannot be represented losslessly by Word linear OMath",
+                new { attributes = layoutAttributes }
+            );
+        }
+        return MathMlSequence(children, depth + 1);
+    }
+
+    private static string ConvertMathMlSpace(XElement element, XElement[] children)
+    {
+        if (children.Length != 0)
+        {
+            throw Arity("mspace", 0, children.Length);
+        }
+        var width = element.Attribute("width")?.Value.Trim() ?? "0";
+        var height = element.Attribute("height")?.Value.Trim() ?? "0";
+        var depth = element.Attribute("depth")?.Value.Trim() ?? "0";
+        if (IsZeroMathLength(width) && IsZeroMathLength(height) && IsZeroMathLength(depth))
+        {
+            return "";
+        }
+        throw new NativeToolException(
+            "EQUATION_INVALID",
+            "Non-zero MathML mspace geometry cannot be represented losslessly by Word linear OMath",
+            new { width, height, depth }
+        );
+    }
+
+    private static bool IsZeroMathLength(string value)
+    {
+        var normalized = value.Trim().ToLowerInvariant();
+        return normalized is "0" or "0px" or "0pt" or "0em" or "0ex" or "0%";
+    }
+
+    private static string ConvertMathMlMultiscripts(
+        XElement element,
+        XElement[] children,
+        int depth
+    )
+    {
+        if (children.Length < 1)
+        {
+            throw Arity("mmultiscripts", 1, children.Length);
+        }
+        var baseValue = MathMlNode(children[0], depth + 1);
+        var result = baseValue;
+        var index = 1;
+        while (index < children.Length && children[index].Name.LocalName != "mprescripts")
+        {
+            if (index + 1 >= children.Length)
+                throw Arity("mmultiscripts", 3, children.Length);
+            var sub = MathMlNode(children[index], depth + 1);
+            var sup = MathMlNode(children[index + 1], depth + 1);
+            result = ApplyPostScripts(result, sub, sup);
+            index += 2;
+        }
+        if (index < children.Length)
+        {
+            index++;
+            var prefix = new List<(string Sub, string Sup)>();
+            while (index < children.Length)
+            {
+                if (children[index].Name.LocalName == "mprescripts")
+                {
+                    throw new NativeToolException(
+                        "EQUATION_INVALID",
+                        "MathML mmultiscripts contains more than one mprescripts marker"
+                    );
+                }
+                if (index + 1 >= children.Length)
+                    throw Arity("mmultiscripts", 3, children.Length);
+                prefix.Add((MathMlNode(children[index], depth + 1), MathMlNode(children[index + 1], depth + 1)));
+                index += 2;
+            }
+            for (var pair = prefix.Count - 1; pair >= 0; pair--)
+                result = ApplyPreScripts(result, prefix[pair].Sub, prefix[pair].Sup);
+        }
+        _ = element;
+        return result;
+    }
+
+    private static string ApplyPostScripts(string basis, string sub, string sup)
+    {
+        if (sub.Length == 0 && sup.Length == 0)
+        {
+            return basis;
+        }
+        var builder = new StringBuilder(ParenthesizeBase(basis));
+        if (sub.Length > 0) builder.Append("_(").Append(sub).Append(')');
+        if (sup.Length > 0) builder.Append("^(").Append(sup).Append(')');
+        return builder.ToString();
+    }
+
+    private static string ApplyPreScripts(string basis, string sub, string sup)
+    {
+        if (sub.Length == 0 && sup.Length == 0)
+        {
+            return basis;
+        }
+        var builder = new StringBuilder();
+        if (sub.Length > 0) builder.Append("_(").Append(sub).Append(')');
+        if (sup.Length > 0) builder.Append("^(").Append(sup).Append(')');
+        return builder.Append(ParenthesizeBase(basis)).ToString();
+    }
+
+    private static string CleanQuotedText(string value) =>
+        value.Replace("\"", "\"\"", StringComparison.Ordinal).Trim();
 
     private static string MathMlSemantics(XElement[] children, int depth)
     {
@@ -327,7 +513,7 @@ internal static class MathMarkupToUnicodeMath
         var attribute = element.Attribute("mathvariant");
         if (
             attribute is not null
-            && name is not ("math" or "mstyle" or "mi" or "mn" or "mo" or "mtext")
+            && name is not ("math" or "mstyle" or "mi" or "mn" or "mo" or "mtext" or "ms")
         )
         {
             throw new NativeToolException(
@@ -507,7 +693,9 @@ internal static class MathMarkupToUnicodeMath
         var rows = new List<string>();
         foreach (var row in children)
         {
-            if (row.Name.LocalName is not ("mtr" or "mlabeledtr"))
+            if (row.Name.LocalName == "mlabeledtr")
+                throw new NativeToolException("EQUATION_INVALID", "MathML mlabeledtr labels cannot be preserved in Word linear math");
+            if (row.Name.LocalName is not "mtr")
             {
                 throw new NativeToolException(
                     "EQUATION_INVALID",
@@ -559,6 +747,17 @@ internal static class MathMarkupToUnicodeMath
         foreach (var element in root.DescendantsAndSelf())
         {
             if (
+                IsOfficeMathNamespace(element.Name.NamespaceName)
+                && element.Name.NamespaceName != root.Name.NamespaceName
+            )
+            {
+                throw new NativeToolException(
+                    "EQUATION_INVALID",
+                    "OMML mixes Transitional and Strict Office Math namespaces",
+                    new { element = element.Name.LocalName }
+                );
+            }
+            if (
                 !IsOfficeMathNamespace(element.Name.NamespaceName)
                 && !IsAllowedWordFormattingElement(element)
             )
@@ -567,6 +766,20 @@ internal static class MathMarkupToUnicodeMath
                     "EQUATION_INVALID",
                     "OMML contains an element from an unsupported namespace",
                     new { element = element.Name.LocalName, namespace_name = element.Name.NamespaceName }
+                );
+            }
+            if (
+                IsWordprocessingNamespace(element.Name.NamespaceName)
+                && element.Name.NamespaceName
+                    != (root.Name.NamespaceName == OfficeMathStrictNamespace
+                        ? WordprocessingStrictNamespace
+                        : WordprocessingNamespace)
+            )
+            {
+                throw new NativeToolException(
+                    "EQUATION_INVALID",
+                    "OMML mixes incompatible Office Math and WordprocessingML namespaces",
+                    new { element = element.Name.LocalName }
                 );
             }
         }
@@ -616,6 +829,7 @@ internal static class MathMarkupToUnicodeMath
             "sSub" => $"{ParenthesizeBase(OmmlContainer(element, "e", depth))}_({OmmlContainer(element, "sub", depth)})",
             "sSubSup" =>
                 $"{ParenthesizeBase(OmmlContainer(element, "e", depth))}_({OmmlContainer(element, "sub", depth)})^({OmmlContainer(element, "sup", depth)})",
+            "sPre" => ConvertOmmlPreScript(element, depth),
             "rad" => ConvertOmmlRadical(element, depth),
             "nary" => ConvertOmmlNary(element, depth),
             "d" => ConvertOmmlDelimiter(element, depth),
@@ -623,14 +837,15 @@ internal static class MathMarkupToUnicodeMath
             "eqArr" =>
                 $"{EquationArrayMarker}({string.Join("@", Children(element, "e").Select(item => OmmlSequence(item.Elements(), depth + 1)))})",
             "acc" => ConvertOmmlAccent(element, depth),
-            "bar" => ApplyAccent(OmmlContainer(element, "e", depth), "bar"),
+            "bar" => ConvertOmmlBar(element, depth),
             "limLow" =>
                 $"{LimitBase(OmmlContainer(element, "e", depth))}{BelowMarker}({OmmlContainer(element, "lim", depth)})",
             "limUpp" =>
                 $"{LimitBase(OmmlContainer(element, "e", depth))}{AboveMarker}({OmmlContainer(element, "lim", depth)})",
             "func" => ConvertOmmlFunction(element, depth),
             "box" or "borderBox" => $"▭({OmmlContainer(element, "e", depth)})",
-            "groupChr" or "phant" => OmmlContainer(element, "e", depth),
+            "groupChr" => ConvertOmmlGroupChr(element, depth),
+            "phant" => ConvertOmmlPhantom(element, depth),
             var name when name.EndsWith("Pr", StringComparison.Ordinal) => "",
             _ => throw new NativeToolException(
                 "EQUATION_INVALID",
@@ -638,6 +853,159 @@ internal static class MathMarkupToUnicodeMath
             ),
         };
         return ApplyOmmlControlStyle(element, result);
+    }
+
+    private static string ConvertOmmlPreScript(XElement element, int depth)
+    {
+        var body = OmmlContainer(element, "e", depth);
+        var sub = OmmlContainer(element, "sub", depth, required: false);
+        var sup = OmmlContainer(element, "sup", depth, required: false);
+        if (sub.Length == 0 && sup.Length == 0) return body;
+        return ApplyPreScripts(body, sub, sup);
+    }
+
+    private static string ConvertOmmlGroupChr(XElement element, int depth)
+    {
+        var body = OmmlContainer(element, "e", depth);
+        var properties = Child(element, "groupChrPr");
+        var defaultsToBottom = element.Ancestors().Any(ancestor =>
+            IsOfficeMathElement(ancestor, "limLow")
+        );
+        var defaultCharacter = defaultsToBottom ? "⏟" : "⏞";
+        var defaultPosition = defaultsToBottom ? "bot" : "top";
+        var chr = properties is null
+            ? defaultCharacter
+            : ReadVal(Child(properties, "chr"), defaultCharacter);
+        var pos = properties is null
+            ? defaultPosition
+            : ReadVal(Child(properties, "pos"), defaultPosition);
+        if (pos is not ("top" or "bot"))
+        {
+            throw new NativeToolException(
+                "EQUATION_INVALID",
+                "OMML groupChr position must be top or bot",
+                new { pos }
+            );
+        }
+        const string topStretch = "⏜⏞⏠⎴";
+        const string bottomStretch = "⏝⏟⏡⎵";
+        if (topStretch.Contains(chr, StringComparison.Ordinal))
+        {
+            if (pos != "top")
+            {
+                throw new NativeToolException("EQUATION_INVALID", "OMML upper group character has a bottom position", new { chr, pos });
+            }
+            return $"{chr}({body})";
+        }
+        if (bottomStretch.Contains(chr, StringComparison.Ordinal))
+        {
+            if (pos != "bot")
+            {
+                throw new NativeToolException("EQUATION_INVALID", "OMML lower group character has a top position", new { chr, pos });
+            }
+            return $"{chr}({body})";
+        }
+        if (chr is "‾" or "¯" or "_")
+        {
+            return pos == "bot"
+                ? ApplyUnderAccent(body, "_")
+                : ApplyAccent(body, "bar");
+        }
+        if (chr == "→")
+        {
+            return pos == "bot"
+                ? ApplyUnderAccent(body, chr)
+                : ApplyAccent(body, "vec");
+        }
+        throw new NativeToolException(
+            "EQUATION_INVALID",
+            "OMML groupChr character is not representable by Word linear OMath",
+            new { chr, pos }
+        );
+    }
+
+    private static string ConvertOmmlBar(XElement element, int depth)
+    {
+        var body = OmmlContainer(element, "e", depth);
+        var properties = Child(element, "barPr");
+        var position = properties is null
+            ? "top"
+            : ReadVal(Child(properties, "pos"), "top");
+        return position switch
+        {
+            "top" => ApplyAccent(body, "bar"),
+            "bot" => ApplyUnderAccent(body, "_"),
+            _ => throw new NativeToolException(
+                "EQUATION_INVALID",
+                "OMML bar position must be top or bot",
+                new { position }
+            ),
+        };
+    }
+
+    private static string ConvertOmmlPhantom(XElement element, int depth)
+    {
+        var body = OmmlContainer(element, "e", depth);
+        var properties = Child(element, "phantPr");
+        var hasExplicitGeometry = properties?.Elements().Any(child =>
+            IsOfficeMathNamespace(child.Name.NamespaceName)
+            && child.Name.LocalName
+                is "show" or "zeroWid" or "zeroAsc" or "zeroDesc" or "transp"
+        ) == true;
+        var show = ReadOmmlToggle(
+            properties,
+            "show",
+            defaultValue: hasExplicitGeometry
+        );
+        var zeroWidth = ReadOmmlToggle(properties, "zeroWid", defaultValue: false);
+        var zeroAscent = ReadOmmlToggle(properties, "zeroAsc", defaultValue: false);
+        var zeroDescent = ReadOmmlToggle(properties, "zeroDesc", defaultValue: false);
+        var transparent = ReadOmmlToggle(properties, "transp", defaultValue: false);
+
+        var marker = (show, zeroWidth, zeroAscent, zeroDescent, transparent) switch
+        {
+            (false, false, false, false, false) => "⟡",
+            (false, false, true, true, false) => "⬄",
+            (false, true, false, false, false) => "⇳",
+            (true, false, true, true, false) => "⬍",
+            (true, true, false, false, false) => "⬌",
+            (true, false, true, false, false) => "⬆",
+            (true, false, false, true, false) => "⬇",
+            _ => "",
+        };
+        if (marker.Length > 0)
+        {
+            return $"{marker}({body})";
+        }
+        var flags = (show ? 1 : 0)
+            | (zeroWidth ? 2 : 0)
+            | (zeroAscent ? 4 : 0)
+            | (zeroDescent ? 8 : 0)
+            | (transparent ? 16 : 0);
+        return $"{PhantomMarker}({flags}&{body})";
+    }
+
+    private static bool ReadOmmlToggle(
+        XElement? properties,
+        string name,
+        bool defaultValue
+    )
+    {
+        var element = properties is null ? null : Child(properties, name);
+        if (element is null)
+        {
+            return defaultValue;
+        }
+        return ReadVal(element, "1").Trim().ToLowerInvariant() switch
+        {
+            "1" or "true" or "on" or "yes" => true,
+            "0" or "false" or "off" or "no" => false,
+            var value => throw new NativeToolException(
+                "EQUATION_INVALID",
+                "OMML phantom property contains an invalid on/off value",
+                new { property = name, value }
+            ),
+        };
     }
 
     private static string ConvertOmmlRun(
@@ -832,13 +1200,19 @@ internal static class MathMarkupToUnicodeMath
         var properties = Child(element, "dPr");
         var begin = properties is null ? "(" : ReadVal(Child(properties, "begChr"), "(");
         var end = properties is null ? ")" : ReadVal(Child(properties, "endChr"), ")");
-        var bodyElement = Child(element, "e");
-        var body = bodyElement is null ? "" : OmmlSequence(bodyElement.Elements(), depth + 1);
+        var bodyElements = Children(element, "e").ToArray();
+        var separator = properties is null ? "|" : ReadVal(Child(properties, "sepChr"), "|");
+        var body = string.Join(
+            CleanLeaf(separator),
+            bodyElements.Select(bodyElement =>
+                OmmlSequence(bodyElement.Elements(), depth + 1)
+            )
+        );
         if (
             begin == "("
             && end == ")"
-            && bodyElement is not null
-            && IsSingleNoBarFraction(bodyElement)
+            && bodyElements.Length == 1
+            && IsSingleNoBarFraction(bodyElements[0])
         )
         {
             return body;
@@ -902,6 +1276,13 @@ internal static class MathMarkupToUnicodeMath
             "~" or "˜" or "\u0303" => "tilde",
             "˙" or "·" or "\u0307" => "dot",
             "¨" or "\u0308" => "ddot",
+            "\u0301" => "acute",
+            "\u0300" => "grave",
+            "\u20DB" => "dddot",
+            "\u20DC" => "ddddot",
+            "\u030C" => "check",
+            "\u0306" => "breve",
+            "\u0332" => "underline",
             _ => "",
         };
         return function.Length > 0
@@ -932,9 +1313,35 @@ internal static class MathMarkupToUnicodeMath
             "tilde" => "\u0303",
             "dot" => "\u0307",
             "ddot" => "\u0308",
+            "acute" => "\u0301",
+            "grave" => "\u0300",
+            "dddot" => "\u20DB",
+            "ddddot" => "\u20DC",
+            "check" => "\u030C",
+            "breve" => "\u0306",
+            "underline" => "\u0332",
             _ => throw new NativeToolException(
                 "EQUATION_INVALID",
                 $"Unsupported Word accent: {function}"
+            ),
+        };
+        return $"{ParenthesizeBase(body)}{mark}";
+    }
+
+    private static string ApplyUnderAccent(string body, string accent)
+    {
+        var mark = accent switch
+        {
+            "_" or "¯" or "‾" => "\u0332",
+            "→" => "\u20EF",
+            "^" or "ˆ" => "\u032D",
+            "~" or "˜" => "\u0330",
+            "˙" or "·" => "\u0323",
+            "¨" => "\u0324",
+            _ => throw new NativeToolException(
+                "EQUATION_INVALID",
+                "MathML accentunder cannot be represented losslessly by Word linear OMath",
+                new { accent }
             ),
         };
         return $"{ParenthesizeBase(body)}{mark}";

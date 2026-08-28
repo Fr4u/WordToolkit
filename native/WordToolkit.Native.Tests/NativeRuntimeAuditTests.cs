@@ -12,7 +12,37 @@ public sealed class NativeRuntimeAuditTests
         Assert.DoesNotContain("<Exec", project, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("pywin32", project, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("pythonnet", project, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Process.Start", ReadNativeSources(projectDirectory));
+        var isolatedWorkerPath = Path.Combine(
+            projectDirectory,
+            "Word",
+            "EquationPreflightProcessRunner.cs"
+        );
+        var isolatedWorker = File.ReadAllText(isolatedWorkerPath);
+        Assert.DoesNotContain(
+            "Process.Start",
+            ReadNativeSources(projectDirectory, isolatedWorkerPath)
+        );
+        Assert.Equal(
+            1,
+            CountOccurrences(isolatedWorker, "Process.Start")
+        );
+        Assert.Contains("UseShellExecute = false", isolatedWorker, StringComparison.Ordinal);
+        Assert.Contains("CreateNoWindow = true", isolatedWorker, StringComparison.Ordinal);
+        Assert.Contains("ResolveExecutablePath()", isolatedWorker, StringComparison.Ordinal);
+        Assert.Contains(
+            "wordtoolkit-native.exe",
+            isolatedWorker,
+            StringComparison.Ordinal
+        );
+        Assert.Contains(
+            "--internal-equation-preflight-worker",
+            isolatedWorker,
+            StringComparison.Ordinal
+        );
+        Assert.DoesNotContain("cmd.exe", isolatedWorker, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("powershell", isolatedWorker, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("python.exe", isolatedWorker, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("python3", isolatedWorker, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -61,7 +91,10 @@ public sealed class NativeRuntimeAuditTests
         throw new DirectoryNotFoundException("Native project root was not found");
     }
 
-    private static string ReadNativeSources(string projectDirectory)
+    private static string ReadNativeSources(
+        string projectDirectory,
+        string? excludedPath = null
+    )
     {
         return string.Join(
             "\n",
@@ -71,7 +104,24 @@ public sealed class NativeRuntimeAuditTests
                     $"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
                     StringComparison.OrdinalIgnoreCase
                 ))
+                .Where(path => excludedPath is null || !string.Equals(
+                    Path.GetFullPath(path),
+                    Path.GetFullPath(excludedPath),
+                    StringComparison.OrdinalIgnoreCase
+                ))
                 .Select(File.ReadAllText)
         );
+    }
+
+    private static int CountOccurrences(string value, string needle)
+    {
+        var count = 0;
+        var offset = 0;
+        while ((offset = value.IndexOf(needle, offset, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            offset += needle.Length;
+        }
+        return count;
     }
 }

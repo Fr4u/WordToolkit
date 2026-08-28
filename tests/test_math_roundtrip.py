@@ -183,6 +183,91 @@ def test_plain_omml_box_preserves_its_object_family_on_omml_roundtrip() -> None:
 
 
 @pytest.mark.parametrize(
+    ("element", "body", "expected_fragment"),
+    [
+        (
+            "bar",
+            '<m:barPr><m:pos m:val="bot"/></m:barPr>'
+            '<m:e><m:r><m:t>x</m:t></m:r></m:e>',
+            '<m:pos m:val="bot"/>',
+        ),
+        (
+            "groupChr",
+            '<m:groupChrPr><m:chr m:val="⏟"/></m:groupChrPr>'
+            '<m:e><m:r><m:t>x</m:t></m:r></m:e>',
+            '<m:chr m:val="⏟"/>',
+        ),
+        ("phantom", '<m:e><m:r><m:t>x</m:t></m:r></m:e>', "<m:phantom>"),
+        (
+            "sPre",
+            '<m:sub><m:r><m:t>i</m:t></m:r></m:sub>'
+            '<m:sup><m:r><m:t>j</m:t></m:r></m:sup>'
+            '<m:e><m:r><m:t>x</m:t></m:r></m:e>',
+            "<m:sPre>",
+        ),
+    ],
+)
+def test_strict_omml_new_families_parse_and_export(
+    element: str, body: str, expected_fragment: str
+) -> None:
+    strict = "http://purl.oclc.org/ooxml/officeDocument/math"
+    source = f'<m:oMath xmlns:m="{strict}"><m:{element}>{body}</m:{element}></m:oMath>'
+    ast = MathEngine().parse(source, "omml")
+    exported = MathEngine().convert(ast.to_dict(), "ast", "omml")
+    assert f"<m:{element}" in exported
+    assert expected_fragment in exported
+    assert MathEngine().compare(source, "omml", exported, "omml").equivalent
+
+
+@pytest.mark.parametrize(
+    ("source", "latex", "unicodemath", "mathml_fragment"),
+    [
+        (
+            '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">'
+            '<m:phantom><m:e><m:r><m:t>x</m:t></m:r></m:e></m:phantom></m:oMath>',
+            r"\phantom{x}",
+            "⟡(x)",
+            "<mphantom>",
+        ),
+        (
+            '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">'
+            '<m:sPre><m:sub><m:r><m:t>i</m:t></m:r></m:sub>'
+            '<m:sup><m:r><m:t>j</m:t></m:r></m:sup>'
+            '<m:e><m:r><m:t>x</m:t></m:r></m:e></m:sPre></m:oMath>',
+            "_{i}^{j}{x}",
+            "_(i)^(j)x",
+            "<mmultiscripts>",
+        ),
+    ],
+)
+def test_office_math_phantom_and_prescript_cross_format_without_flattening(
+    source: str, latex: str, unicodemath: str, mathml_fragment: str
+) -> None:
+    engine = MathEngine()
+    assert engine.convert(source, "omml", "latex") == latex
+    assert engine.convert(source, "omml", "unicodemath") == unicodemath
+    mathml = engine.convert(source, "omml", "mathml")
+    assert mathml_fragment in mathml
+    assert engine.compare(source, "omml", mathml, "mathml").equivalent
+    assert engine.compare(source, "omml", unicodemath, "unicodemath").equivalent
+
+
+@pytest.mark.parametrize("source", [
+    '<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"/>',
+    '<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:oMath/><m:oMath/></m:oMathPara>',
+])
+def test_omathpara_requires_exactly_one_omath(source: str) -> None:
+    with pytest.raises(WordToolkitError):
+        MathEngine().parse(source, "omml")
+
+
+def test_unknown_omml_element_fails_closed() -> None:
+    source = '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:future/></m:oMath>'
+    with pytest.raises(WordToolkitError):
+        MathEngine().parse(source, "omml")
+
+
+@pytest.mark.parametrize(
     "source,count",
     [
         (

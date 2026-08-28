@@ -20,6 +20,7 @@ namespace WordToolkit.Native.Word;
 
 internal sealed partial class WordLiveService : IToolHandler
 {
+    private readonly LiveOperationReceiptStore _operationReceipts = new();
     private const int MainTextStory = 1;
     private const int NoProtection = -1;
     private const int WordTrue = -1;
@@ -173,6 +174,8 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "create_live_word_equation_document" => CreateEquationDocumentAsync(arguments, cancellationToken),
+            "compile_tex_document" => CompileTexDocumentAsync(arguments, cancellationToken),
             "open_live_word_document" => OpenDocumentAsync(
                 arguments,
                 cancellationToken
@@ -627,6 +630,10 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "insert_live_word_dropdowns" => InsertDropdownControlsAsync(
+                arguments,
+                cancellationToken
+            ),
             "insert_live_word_caption" => InsertCaptionAsync(
                 arguments,
                 cancellationToken
@@ -687,18 +694,24 @@ internal sealed partial class WordLiveService : IToolHandler
                 arguments,
                 cancellationToken
             ),
+            "get_live_word_operation_status" => Task.FromResult(GetOperationStatus(arguments)),
+            "preflight_live_word_operations" => PreflightOperationsAsync(
+                arguments,
+                cancellationToken
+            ),
             "validate_live_word_document" => ValidateLiveDocumentAsync(
                 arguments,
                 cancellationToken
             ),
             "export_live_word_pdf" => ExportPdfAsync(arguments, cancellationToken),
+            "export_live_word_artifacts" => ExportLiveWordArtifactsAsync(arguments, cancellationToken),
             "save_live_word_document" => SaveAsync(arguments, cancellationToken),
             "close_live_word_document" => CloseDocumentAsync(
                 arguments,
                 cancellationToken
             ),
             "quit_word_application" => QuitWordAsync(arguments, cancellationToken),
-            "disconnect_live_word_document" => DisconnectAsync(arguments),
+            "disconnect_live_word_document" => DisconnectAsync(arguments, cancellationToken),
             _ => throw new NativeToolException(
                 "INVALID_INPUT",
                 $"Native tool is not implemented: {name}"
@@ -965,6 +978,21 @@ internal sealed partial class WordLiveService : IToolHandler
     {
         var outputPath = arguments.String("output_path");
         var activate = arguments.Boolean("activate", true);
+        var lifecycle = arguments.String("lifecycle", "persistent");
+        if (lifecycle is not ("persistent" or "scratch"))
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "lifecycle must be persistent or scratch"
+            );
+        }
+        if (lifecycle == "scratch" && outputPath.Length > 0)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "A scratch document cannot have output_path; save a reviewed result explicitly as a persistent document"
+            );
+        }
         string resolvedOutputPath = "";
         if (outputPath.Length > 0)
         {
@@ -1010,7 +1038,9 @@ internal sealed partial class WordLiveService : IToolHandler
         return await _host.InvokeAsync<object>(
             application =>
             {
-                dynamic document = application.Documents.Add();
+                dynamic document = lifecycle == "scratch"
+                    ? application.Documents.Add(Visible: false)
+                    : application.Documents.Add();
                 if (resolvedOutputPath.Length > 0)
                 {
                     try
@@ -1042,6 +1072,8 @@ internal sealed partial class WordLiveService : IToolHandler
                     Name = name,
                     FullName = fullName,
                     WindowHwnd = ActiveWindowHwnd(application),
+                    RuntimeCreated = true,
+                    AutoCloseOnDisconnect = lifecycle == "scratch",
                     Version = 0,
                 };
                 _records[record.Id] = record;
@@ -1051,6 +1083,8 @@ internal sealed partial class WordLiveService : IToolHandler
                     live_version = record.Version,
                     created = true,
                     saved_to_disk = resolvedOutputPath.Length > 0,
+                    lifecycle,
+                    auto_close_on_disconnect = record.AutoCloseOnDisconnect,
                     output_path = resolvedOutputPath,
                     document = DocumentInfo(application, document),
                     performance = Performance(started),
@@ -2945,12 +2979,43 @@ internal sealed partial class WordLiveService : IToolHandler
         );
     }
 
-    private Task<object> ApplyOperationsAsync(
+    private async Task<object> ApplyOperationsAsync(
         JsonElement arguments,
         CancellationToken cancellationToken
     )
     {
-        var operations = arguments.RequiredArray("operations");
+        var prepared = PrepareOperations(arguments.RequiredArray("operations"));
+        var record = Record(arguments.String("live_document_id"));
+        var expectedVersion = arguments.NullableInt64("expected_version");
+        var receiptIntent = PrepareLiveOperationReceiptIntent(arguments);
+        var receipt = _operationReceipts.GetOrCreate(
+            receiptIntent.OperationId,
+            receiptIntent.Fingerprint,
+            () => ApplyPreparedOperationsAsync(
+                record,
+                prepared,
+                arguments.Boolean("activate", true),
+                expectedVersion,
+                arguments.Boolean("optimize_screen_updates", true),
+                target: "document_end",
+                selectionToken: "",
+                replaceSelection: false,
+                CancellationToken.None
+            )
+        );
+        var result = await receipt.Execution.Value.WaitAsync(cancellationToken);
+        return AddLiveOperationReceiptMetadata(
+            result,
+            receipt.OperationId,
+            replayed: !receipt.WasCreatedForCaller
+        );
+    }
+
+    private object GetOperationStatus(JsonElement arguments) =>
+        _operationReceipts.Status(arguments.String("operation_id"));
+
+    private static IReadOnlyList<PreparedOperation> PrepareOperations(JsonElement operations)
+    {
         if (operations.GetArrayLength() is < 1 or > 200)
         {
             throw new NativeToolException(
@@ -3043,17 +3108,7 @@ internal sealed partial class WordLiveService : IToolHandler
                 "At most 100 equations may be applied in one batch"
             );
         }
-        return ApplyPreparedOperationsAsync(
-            Record(arguments.String("live_document_id")),
-            prepared,
-            arguments.Boolean("activate", true),
-            arguments.NullableInt64("expected_version"),
-            arguments.Boolean("optimize_screen_updates", true),
-            target: "document_end",
-            selectionToken: "",
-            replaceSelection: false,
-            cancellationToken
-        );
+        return prepared;
     }
 
     private async Task<object> ApplyPreparedOperationsAsync(
@@ -3070,6 +3125,7 @@ internal sealed partial class WordLiveService : IToolHandler
     {
         CheckVersion(record, expectedVersion);
         var started = Stopwatch.GetTimestamp();
+        var batchComplexity = BatchComplexity.For(operations);
         return await _host.InvokeAsync<object>(
             application =>
             {
@@ -3096,32 +3152,14 @@ internal sealed partial class WordLiveService : IToolHandler
                     insertionEnd,
                     record.Version
                 );
-                var pieces = new List<string>(operations.Count);
-                var segments = new List<(int Start, int End)>(operations.Count);
-                var offset = 0;
                 var previous = insertionStart > 0
                     ? (string?)document.Range(insertionStart - 1, insertionStart).Text ?? ""
                     : "";
-                foreach (var operation in operations)
-                {
-                    var raw = NormalizeWordText(operation.Value);
-                    var newParagraph = operation.AsNewParagraph;
-                    var prefix = newParagraph
-                        && insertionStart + offset > 0
-                        && previous != "\n"
-                            ? "\n"
-                            : "";
-                    var suffix = newParagraph ? "\n" : "";
-                    var piece = prefix + raw + suffix;
-                    segments.Add((offset + prefix.Length, offset + prefix.Length + raw.Length));
-                    pieces.Add(piece);
-                    offset += piece.Length;
-                    if (piece.Length > 0)
-                    {
-                        previous = piece[^1].ToString(CultureInfo.InvariantCulture);
-                    }
-                }
-                var payload = string.Concat(pieces);
+                var batchPayload = BuildPreparedBatchPayload(
+                    operations,
+                    insertionStart,
+                    previous
+                );
                 StagedPreparedBatch? staged = null;
                 var stagingOpen = false;
                 try
@@ -3130,8 +3168,8 @@ internal sealed partial class WordLiveService : IToolHandler
                         application,
                         document,
                         operations,
-                        payload,
-                        segments
+                        batchPayload.Payload,
+                        batchPayload.Segments
                     );
                     stagingOpen = true;
                     EnsureTargetUnchangedBeforePublication(
@@ -3364,6 +3402,7 @@ internal sealed partial class WordLiveService : IToolHandler
                             var readback = built.Readback;
                             var styleRewrite = built.StyleRewrite;
                             var styleVerification = built.StyleVerification;
+                            var directOmml = built.DirectOmml;
                             results[index] = new
                             {
                                 type = "equation",
@@ -3375,6 +3414,32 @@ internal sealed partial class WordLiveService : IToolHandler
                                     native_verified = true,
                                     readback_verified = readback is not null,
                                     readback_required = equationOperation.ReadbackRequired,
+                                    direct_omml = equationOperation.DirectPlan is null
+                                        ? null
+                                        : new
+                                        {
+                                            source_validated = true,
+                                            native_semantic_verified = directOmml is not null,
+                                            namespace_identity = equationOperation.DirectPlan.NamespaceIdentity,
+                                            expected_semantic_sha256 =
+                                                equationOperation.DirectPlan.SemanticSha256,
+                                            actual_semantic_sha256 =
+                                                directOmml?.ActualCombinedSemanticSha256,
+                                            expected_equation_semantic_sha256 =
+                                                directOmml?.ExpectedEquationSemanticSha256,
+                                            actual_equation_semantic_sha256 =
+                                                directOmml?.ActualEquationSemanticSha256,
+                                            expected_paragraph_properties_sha256 =
+                                                directOmml?.ExpectedParagraphPropertiesSha256,
+                                            actual_paragraph_properties_sha256 =
+                                                directOmml?.ActualParagraphPropertiesSha256,
+                                            expected_paragraph_justification =
+                                                directOmml?.ExpectedParagraphJustification,
+                                            actual_paragraph_justification =
+                                                directOmml?.ActualParagraphJustification,
+                                            element_count = directOmml?.ElementCount,
+                                            raw_omml_returned = false,
+                                        },
                                     native_style_verified = styleVerification is not null,
                                     formatting = styleVerification is null
                                         ? null
@@ -3449,7 +3514,7 @@ internal sealed partial class WordLiveService : IToolHandler
                         equation_operation_count = staged.EquationIndexes.Count,
                         operations = results,
                         document = DocumentInfo(application, document),
-                        performance = Performance(started),
+                        performance = Performance(started, batchComplexity),
                     };
                 }
                 catch (Exception exception)
@@ -3550,9 +3615,12 @@ internal sealed partial class WordLiveService : IToolHandler
         dynamic document,
         int start,
         int end,
-        PreparedEquationOperation equationOperation
+        PreparedEquationOperation equationOperation,
+        int expectedEquationCollectionIndex
     )
     {
+        if (equationOperation.DirectPlan is not null)
+            return BuildVerifiedDirectOmmlEquation(document, start, end, equationOperation, expectedEquationCollectionIndex);
         dynamic? equationRange = null;
         dynamic? added = null;
         dynamic? equation = null;
@@ -3569,6 +3637,15 @@ internal sealed partial class WordLiveService : IToolHandler
                     dynamic addedEquationOMaths = added.OMaths;
                     try
                     {
+                        var addedEquationCount = (int)addedEquationOMaths.Count;
+                        if (addedEquationCount != 1)
+                        {
+                            throw new NativeToolException(
+                                "EQUATION_INVALID",
+                                "Microsoft Word did not create exactly one native equation for the staged operation",
+                                new { equation_count = addedEquationCount }
+                            );
+                        }
                         equation = addedEquationOMaths.Item(1);
                     }
                     finally
@@ -3643,9 +3720,9 @@ internal sealed partial class WordLiveService : IToolHandler
                 try { rewriteRange.InsertXML(styleRewrite.WordOpenXml); }
                 finally { if (Marshal.IsComObject(rewriteRange)) Marshal.FinalReleaseComObject(rewriteRange); }
                 // InsertXML replaces the OMath and Word may expand the duplicate range
-                // to include adjacent tail content.  Binding through that range is
+                // to include adjacent tail content. Binding through that range is
                 // therefore unsafe: it can return two equations or a range that escapes
-                // the publication segment.  Re-bind the replacement by its stable story
+                // the publication segment. Re-bind the replacement by its stable story
                 // position instead, then keep the existing semantic verification below.
                 dynamic? rewrittenEquation = null;
                 dynamic allEquations = document.OMaths;
@@ -3653,15 +3730,12 @@ internal sealed partial class WordLiveService : IToolHandler
                 try { allEquationCount = (int)allEquations.Count; }
                 catch
                 {
-                    if (Marshal.IsComObject(allEquations)) Marshal.FinalReleaseComObject(allEquations);
+                    FinalReleaseBatchComObject(allEquations);
                     throw;
                 }
                 if (allEquationCount != equationsBeforeRewrite)
                 {
-                    if (Marshal.IsComObject(allEquations))
-                    {
-                        Marshal.FinalReleaseComObject(allEquations);
-                    }
+                    FinalReleaseBatchComObject(allEquations);
                     throw new NativeToolException(
                         "EQUATION_INVALID",
                         "Microsoft Word changed the native equation collection while rewriting one equation",
@@ -3670,64 +3744,61 @@ internal sealed partial class WordLiveService : IToolHandler
                 }
                 try
                 {
-                    for (var equationIndex = 1; equationIndex <= allEquationCount; equationIndex++)
+                    if (
+                        expectedEquationCollectionIndex < 1
+                        || expectedEquationCollectionIndex > allEquationCount
+                    )
                     {
-                        dynamic candidate = allEquations.Item(equationIndex);
-                        var keepCandidate = false;
-                        try
+                        throw new NativeToolException(
+                            "EQUATION_INVALID",
+                            "The expected styled equation collection index is unavailable",
+                            new
+                            {
+                                expected_equation_index = expectedEquationCollectionIndex,
+                                equation_count = allEquationCount,
+                                equation_start = equationStart,
+                            }
+                        );
+                    }
+                    // Current callers build into an empty scratch document in reverse
+                    // story order, so the equation just rewritten is at this explicit
+                    // leading index. The range check below fails closed if Word ever
+                    // violates that invariant; no whole-collection scan is needed.
+                    rewrittenEquation = allEquations.Item(expectedEquationCollectionIndex);
+                    dynamic candidateRange = rewrittenEquation.Range;
+                    try
+                    {
+                        var candidateStart = (int)candidateRange.Start;
+                        var candidateEnd = (int)candidateRange.End;
+                        if (candidateStart != equationStart || candidateEnd <= candidateStart)
                         {
-                            dynamic candidateRange = candidate.Range;
-                            int candidateStart;
-                            int candidateEnd;
-                            try
-                            {
-                                candidateStart = (int)candidateRange.Start;
-                                candidateEnd = (int)candidateRange.End;
-                            }
-                            finally
-                            {
-                                FinalReleaseBatchComObject(candidateRange);
-                            }
-                            if (candidateStart == equationStart && candidateEnd > candidateStart)
-                            {
-                                if (rewrittenEquation is not null)
+                            throw new NativeToolException(
+                                "EQUATION_INVALID",
+                                "Microsoft Word changed native equation style placement during reinsertion",
+                                new
                                 {
-                                    if (Marshal.IsComObject(rewrittenEquation)) Marshal.FinalReleaseComObject(rewrittenEquation);
-                                    rewrittenEquation = null;
-                                    throw new NativeToolException(
-                                        "EQUATION_INVALID",
-                                        "Microsoft Word produced multiple styled native equations at one position",
-                                        new { equation_start = equationStart }
-                                    );
+                                    expected_start = equationStart,
+                                    actual_start = candidateStart,
+                                    actual_end = candidateEnd,
+                                    expected_equation_index = expectedEquationCollectionIndex,
                                 }
-                                rewrittenEquation = candidate;
-                                keepCandidate = true;
-                            }
+                            );
                         }
-                        finally
-                        {
-                            if (!keepCandidate && Marshal.IsComObject(candidate))
-                            {
-                                Marshal.FinalReleaseComObject(candidate);
-                            }
-                        }
+                    }
+                    finally
+                    {
+                        FinalReleaseBatchComObject(candidateRange);
                     }
                 }
                 catch
                 {
-                    if (rewrittenEquation is not null && Marshal.IsComObject(rewrittenEquation))
-                    {
-                        Marshal.FinalReleaseComObject(rewrittenEquation);
-                        rewrittenEquation = null;
-                    }
+                    FinalReleaseBatchComObject(rewrittenEquation);
+                    rewrittenEquation = null;
                     throw;
                 }
                 finally
                 {
-                    if (Marshal.IsComObject(allEquations))
-                    {
-                        Marshal.FinalReleaseComObject(allEquations);
-                    }
+                    FinalReleaseBatchComObject(allEquations);
                 }
                 if (rewrittenEquation is null)
                 {
@@ -3808,6 +3879,297 @@ internal sealed partial class WordLiveService : IToolHandler
             }
         }
     }
+
+    private static BuiltEquationResult BuildVerifiedDirectOmmlEquation(
+        dynamic document,
+        int start,
+        int end,
+        PreparedEquationOperation operation,
+        int expectedIndex
+    )
+    {
+        var plan = operation.DirectPlan
+            ?? throw new InvalidOperationException("Direct OMML plan is unavailable.");
+        dynamic? sourceRange = null;
+        dynamic? added = null;
+        dynamic? placeholderEquation = null;
+        dynamic? placeholderRange = null;
+        dynamic? replacementRange = null;
+        dynamic? equations = null;
+        dynamic? equation = null;
+        dynamic? equationRange = null;
+        var transferred = false;
+        try
+        {
+            equations = document.OMaths;
+            var beforeCount = (int)equations.Count;
+            FinalReleaseBatchComObject(equations);
+            equations = null;
+
+            sourceRange = document.Range(start, end);
+            var sourceStart = (int)sourceRange.Start;
+            equations = document.OMaths;
+            added = equations.Add(sourceRange);
+            FinalReleaseBatchComObject(equations);
+            equations = null;
+            dynamic addedEquations = added.OMaths;
+            try
+            {
+                if ((int)addedEquations.Count != 1)
+                {
+                    throw new NativeToolException(
+                        "EQUATION_INVALID",
+                        "Direct OMML placeholder did not create exactly one native equation"
+                    );
+                }
+                placeholderEquation = addedEquations.Item(1);
+            }
+            finally
+            {
+                FinalReleaseBatchComObject(addedEquations);
+                FinalReleaseBatchComObject(added);
+                added = null;
+            }
+            placeholderEquation.BuildUp();
+            placeholderEquation.Type = operation.Display ? 0 : 1;
+            placeholderRange = placeholderEquation.Range;
+            var template = (string?)placeholderRange.WordOpenXML ?? "";
+            var replacement = DirectOmmlEquationParser.BuildWordInsertXml(
+                template,
+                plan
+            );
+            replacementRange = placeholderRange.Duplicate;
+            replacementRange.InsertXML(replacement);
+            FinalReleaseBatchComObject(replacementRange);
+            replacementRange = null;
+            FinalReleaseBatchComObject(placeholderRange);
+            placeholderRange = null;
+            FinalReleaseBatchComObject(placeholderEquation);
+            placeholderEquation = null;
+            FinalReleaseBatchComObject(sourceRange);
+            sourceRange = null;
+
+            equations = document.OMaths;
+            var afterCount = (int)equations.Count;
+            if (afterCount != beforeCount + 1)
+            {
+                throw new NativeToolException(
+                    "EQUATION_INVALID",
+                    "Direct OMML did not create exactly one native equation",
+                    new
+                    {
+                        before = beforeCount,
+                        after = afterCount,
+                        expected = beforeCount + 1,
+                    }
+                );
+            }
+            if (expectedIndex < 1 || expectedIndex > afterCount)
+            {
+                throw new NativeToolException(
+                    "EQUATION_INVALID",
+                    "The expected direct OMML collection index is unavailable",
+                    new { expected_equation_index = expectedIndex, equation_count = afterCount }
+                );
+            }
+            equation = equations.Item(expectedIndex);
+            FinalReleaseBatchComObject(equations);
+            equations = null;
+
+            equationRange = equation.Range;
+            var actualStart = (int)equationRange.Start;
+            var actualEnd = (int)equationRange.End;
+            if (actualStart != sourceStart || actualEnd <= actualStart)
+            {
+                throw new NativeToolException(
+                    "EQUATION_INVALID",
+                    "Microsoft Word changed direct OMML placement during insertion",
+                    new
+                    {
+                        expected_start = sourceStart,
+                        actual_start = actualStart,
+                        actual_end = actualEnd,
+                    }
+                );
+            }
+            equation.Type = operation.Display ? 0 : 1;
+            var actualParagraphJustification = VerifyDirectOmmlParagraphProperties(
+                equation,
+                plan,
+                applyRequestedValue: true
+            );
+            var xml = ReadDirectOmmlWordOpenXml(
+                equationRange,
+                includeParagraphProperties: plan.ParagraphPropertiesOmml is not null
+            );
+            FinalReleaseBatchComObject(equationRange);
+            equationRange = null;
+            var parsed = DirectOmmlEquationParser.ParseWordReadback(xml);
+            if (
+                !string.Equals(
+                    parsed.EquationSemanticSha256,
+                    plan.EquationSemanticSha256,
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                throw new NativeToolException(
+                    "EQUATION_INVALID",
+                    "Microsoft Word changed the direct OMML semantic contract",
+                    new
+                    {
+                        expected_semantic_sha256 = plan.EquationSemanticSha256,
+                        actual_semantic_sha256 = parsed.EquationSemanticSha256,
+                        expected_paragraph_properties_sha256 =
+                            plan.ParagraphPropertiesSemanticSha256,
+                        actual_paragraph_properties_sha256 =
+                            actualParagraphJustification is null
+                                ? null
+                                : plan.ParagraphPropertiesSemanticSha256,
+                        expected_paragraph_justification = plan.ParagraphJustification,
+                        actual_paragraph_justification = actualParagraphJustification,
+                    }
+                );
+            }
+            var readback = EquationReadbackVerifier.Verify(xml, plan.LinearSemantic);
+            var directVerification = new DirectOmmlVerification(
+                plan.NamespaceIdentity,
+                plan.SemanticSha256,
+                ActualCombinedSemanticSha256: null,
+                plan.EquationSemanticSha256,
+                parsed.EquationSemanticSha256,
+                plan.ParagraphPropertiesSemanticSha256,
+                actualParagraphJustification is null
+                    ? null
+                    : plan.ParagraphPropertiesSemanticSha256,
+                plan.ParagraphJustification,
+                actualParagraphJustification,
+                parsed.ElementCount
+            );
+            var result = new BuiltEquationResult(
+                (object)equation,
+                operation,
+                readback,
+                null,
+                null,
+                directVerification
+            );
+            transferred = true;
+            return result;
+        }
+        catch (COMException exception)
+        {
+            throw new NativeToolException(
+                "EQUATION_INVALID",
+                "Microsoft Word rejected direct OMML insertion or readback",
+                new
+                {
+                    stage = "direct_omml_insert_or_readback",
+                    hresult = exception.HResult,
+                    exception_type = exception.GetType().Name,
+                }
+            );
+        }
+        finally
+        {
+            FinalReleaseBatchComObject(equationRange);
+            FinalReleaseBatchComObject(equations);
+            FinalReleaseBatchComObject(replacementRange);
+            FinalReleaseBatchComObject(placeholderRange);
+            FinalReleaseBatchComObject(placeholderEquation);
+            FinalReleaseBatchComObject(added);
+            FinalReleaseBatchComObject(sourceRange);
+            if (!transferred)
+            {
+                FinalReleaseBatchComObject(equation);
+            }
+        }
+    }
+
+    private static string ReadDirectOmmlWordOpenXml(
+        dynamic equationRange,
+        bool includeParagraphProperties
+    )
+    {
+        if (!includeParagraphProperties)
+        {
+            return (string?)equationRange.WordOpenXML ?? "";
+        }
+        dynamic? paragraphs = null;
+        dynamic? paragraph = null;
+        dynamic? paragraphRange = null;
+        try
+        {
+            paragraphs = equationRange.Paragraphs;
+            if ((int)paragraphs.Count != 1)
+            {
+                throw new NativeToolException(
+                    "EQUATION_INVALID",
+                    "Direct OMML paragraph properties require exactly one equation paragraph"
+                );
+            }
+            paragraph = paragraphs.Item(1);
+            paragraphRange = paragraph.Range;
+            return (string?)paragraphRange.WordOpenXML ?? "";
+        }
+        finally
+        {
+            FinalReleaseBatchComObject(paragraphRange);
+            FinalReleaseBatchComObject(paragraph);
+            FinalReleaseBatchComObject(paragraphs);
+        }
+    }
+
+    private static string? VerifyDirectOmmlParagraphProperties(
+        dynamic equation,
+        DirectOmmlEquationPlan plan,
+        bool applyRequestedValue
+    )
+    {
+        if (plan.ParagraphJustification is null)
+        {
+            return null;
+        }
+        var expected = plan.ParagraphJustification switch
+        {
+            "centerGroup" => 1,
+            "center" => 2,
+            "left" => 3,
+            "right" => 4,
+            _ => throw new NativeToolException(
+                "EQUATION_INVALID",
+                "Direct OMML paragraph justification is unsupported"
+            ),
+        };
+        if (applyRequestedValue)
+        {
+            equation.Justification = expected;
+        }
+        var actual = (int)equation.Justification;
+        if (actual != expected)
+        {
+            throw new NativeToolException(
+                "EQUATION_INVALID",
+                "Microsoft Word changed direct OMML paragraph justification",
+                new
+                {
+                    expected_paragraph_justification = plan.ParagraphJustification,
+                    actual_paragraph_justification = DirectOmmlJustificationName(actual),
+                }
+            );
+        }
+        return DirectOmmlJustificationName(actual);
+    }
+
+    private static string DirectOmmlJustificationName(int value) => value switch
+    {
+        1 => "centerGroup",
+        2 => "center",
+        3 => "left",
+        4 => "right",
+        7 => "inline",
+        _ => "unknown",
+    };
 
     private async Task<object> SaveAsync(
         JsonElement arguments,
@@ -4136,10 +4498,14 @@ internal sealed partial class WordLiveService : IToolHandler
         return result;
     }
 
-    private Task<object> DisconnectAsync(JsonElement arguments)
+    private async Task<object> DisconnectAsync(
+        JsonElement arguments,
+        CancellationToken cancellationToken
+    )
     {
         var id = arguments.String("live_document_id");
-        var disconnected = _records.TryRemove(id, out _);
+        var scratchClosed = false;
+        var disconnected = _records.TryGetValue(id, out var record);
         var quarantineCleared = _quarantinedRecords.TryRemove(id, out _);
         if (!disconnected && !quarantineCleared)
         {
@@ -4148,17 +4514,33 @@ internal sealed partial class WordLiveService : IToolHandler
                 "The Word Live document handle was not found"
             );
         }
+        if (record is { AutoCloseOnDisconnect: true })
+        {
+            await _host.InvokeAsync<object>(
+                application =>
+                {
+                    dynamic document = ResolveDocument(application, record);
+                    document.Close(WordDoNotSaveChanges);
+                    scratchClosed = true;
+                    return new { closed = true };
+                },
+                cancellationToken
+            );
+        }
+        if (disconnected)
+        {
+            _records.TryRemove(id, out _);
+        }
         InvalidateSelectionGrants(id);
         InvalidateRangeGrants(id);
         InvalidateUndoGrants(id);
-        return Task.FromResult<object>(
-            new
-            {
-                live_document_id = id,
-                disconnected = true,
-                quarantine_cleared = quarantineCleared,
-            }
-        );
+        return new
+        {
+            live_document_id = id,
+            disconnected = true,
+            quarantine_cleared = quarantineCleared,
+            scratch_document_closed = scratchClosed,
+        };
     }
 
     internal async Task<bool> UndoBenchmarkTransactionAsync(
@@ -4228,6 +4610,8 @@ internal sealed partial class WordLiveService : IToolHandler
         }
         var value = valueNode.GetString() ?? "";
         var inputFormat = arguments.String("input_format", "latex");
+        var display = arguments.Boolean("display", true);
+        DirectOmmlEquationPlan? directPlan = inputFormat == "omml" ? DirectOmmlEquationParser.Parse(value) : null;
         if (inputFormat is not ("latex" or "unicodemath" or "mathml" or "omml"))
         {
             throw new NativeToolException(
@@ -4245,6 +4629,13 @@ internal sealed partial class WordLiveService : IToolHandler
             throw new NativeToolException(
                 "LIMIT_EXCEEDED",
                 "Equation length must be between 1 and 100,000 characters"
+            );
+        }
+        if (directPlan?.ParagraphPropertiesOmml is not null && !display)
+        {
+            throw new NativeToolException(
+                "EQUATION_INVALID",
+                "m:oMathParaPr requires display=true for direct OMML"
             );
         }
         var conversion = inputFormat switch
@@ -4273,16 +4664,18 @@ internal sealed partial class WordLiveService : IToolHandler
             );
         }
         var readbackRequired =
-            conversion.HasFormatting
+            directPlan is not null
+            || conversion.HasFormatting
             || EquationReadbackVerifier.RequiresReadback(conversion.Linear);
         return new PreparedEquationOperation(
             conversion.Linear,
-            conversion.BuildLinear,
-            arguments.Boolean("display", true),
+            directPlan is null ? conversion.BuildLinear : "x",
+            display,
             inputFormat,
             arguments.Boolean("verify_readback", false) || readbackRequired,
             readbackRequired,
-            conversion.StyleCounts
+            conversion.StyleCounts,
+            directPlan
         );
     }
 
@@ -4340,27 +4733,78 @@ internal sealed partial class WordLiveService : IToolHandler
     {
         var count = (int)application.Documents.Count;
         var identity = NormalizeIdentity(record.FullName, record.Name);
-        var matches = new List<dynamic>();
+        var candidates = new List<object>(count);
+        var matches = new List<object>();
+        var windowMatches = new List<object>();
         for (var index = 1; index <= count; index++)
         {
             dynamic document = application.Documents.Item(index);
+            candidates.Add((object)document);
             var name = DocumentName(document);
             var fullName = DocumentFullName(document);
             if (NormalizeIdentity(fullName, name) == identity)
             {
                 matches.Add(document);
             }
+            if (
+                record.WindowHwnd != 0
+                && DocumentWindowHwnd(document) == record.WindowHwnd
+            )
+            {
+                windowMatches.Add(document);
+            }
         }
-        if (matches.Count != 1)
+        object? selected = null;
+        if (matches.Count == 1)
         {
-            throw new NativeToolException(
-                "DOCUMENT_NOT_FOUND",
-                "The connected Word document is no longer open or became ambiguous",
-                new { matches = matches.Count },
-                retryable: true
-            );
+            selected = matches[0];
         }
-        return matches[0];
+        else if (windowMatches.Count == 1)
+        {
+            selected = windowMatches[0];
+        }
+        foreach (var candidate in candidates)
+        {
+            if (!ReferenceEquals(candidate, selected))
+            {
+                FinalReleaseBatchComObject(candidate);
+            }
+        }
+        if (selected is not null)
+        {
+            return selected;
+        }
+        throw new NativeToolException(
+            "DOCUMENT_NOT_FOUND",
+            "The connected Word document is no longer open or became ambiguous",
+            new { identity_matches = matches.Count, window_matches = windowMatches.Count },
+            retryable: true
+        );
+    }
+
+    private static int DocumentWindowHwnd(dynamic document)
+    {
+        dynamic? windows = null;
+        dynamic? window = null;
+        try
+        {
+            windows = document.Windows;
+            if ((int)windows.Count < 1)
+            {
+                return 0;
+            }
+            window = windows.Item(1);
+            return (int)window.Hwnd;
+        }
+        catch
+        {
+            return 0;
+        }
+        finally
+        {
+            FinalReleaseBatchComObject(window);
+            FinalReleaseBatchComObject(windows);
+        }
     }
 
     private dynamic ResolveInsertionRange(
@@ -5370,9 +5814,9 @@ internal sealed partial class WordLiveService : IToolHandler
         return red | (green << 8) | (blue << 16);
     }
 
-    private static object Performance(long startedTimestamp)
+    private static object Performance(long startedTimestamp, BatchComplexity? batchComplexity = null)
     {
-        return new
+        var result = new
         {
             runtime = "dotnet-native",
             python_used = false,
@@ -5382,6 +5826,19 @@ internal sealed partial class WordLiveService : IToolHandler
                 Stopwatch.GetElapsedTime(startedTimestamp).TotalMilliseconds,
                 3
             ),
+        };
+        if (batchComplexity is null)
+        {
+            return result;
+        }
+        return new
+        {
+            result.runtime,
+            result.python_used,
+            result.persistent_com_sta,
+            result.com_attachments,
+            result.total_ms,
+            complexity = batchComplexity
         };
     }
 
@@ -5947,7 +6404,102 @@ internal sealed partial class WordLiveService : IToolHandler
         }
     }
 
-    private abstract record PreparedOperation(string Value, bool AsNewParagraph);
+    internal abstract record PreparedOperation(string Value, bool AsNewParagraph);
+
+    private static PreparedBatchPayload BuildPreparedBatchPayload(
+        IReadOnlyList<PreparedOperation> operations,
+        int insertionStart,
+        string previousText
+    )
+    {
+        var pieces = new List<string>(operations.Count);
+        var segments = new List<(int Start, int End)>(operations.Count);
+        var offset = 0;
+        var previous = previousText;
+        foreach (var operation in operations)
+        {
+            var raw = NormalizeWordText(operation.Value);
+            var prefix = operation.AsNewParagraph
+                && insertionStart + offset > 0
+                && previous != "\n"
+                    ? "\n"
+                    : "";
+            var suffix = operation.AsNewParagraph ? "\n" : "";
+            var piece = prefix + raw + suffix;
+            segments.Add((offset + prefix.Length, offset + prefix.Length + raw.Length));
+            pieces.Add(piece);
+            offset += piece.Length;
+            if (piece.Length > 0)
+            {
+                previous = piece[^1].ToString(CultureInfo.InvariantCulture);
+            }
+        }
+        return new PreparedBatchPayload(string.Concat(pieces), segments);
+    }
+
+    private sealed record PreparedBatchPayload(
+        string Payload,
+        IReadOnlyList<(int Start, int End)> Segments
+    );
+
+    internal sealed record BatchComplexity(
+        int OperationCount,
+        int EquationCount,
+        int StyledEquationCount,
+        int TextCharacters,
+        int FormattedRunCount,
+        int EstimatedStagingContentComCalls,
+        int BatchBoundaryEquationCountReads)
+    {
+        internal static BatchComplexity For(IReadOnlyList<PreparedOperation> operations)
+        {
+            var equations = operations.Count(operation => operation is PreparedEquationOperation);
+            var styledEquations = operations
+                .OfType<PreparedEquationOperation>()
+                .Count(operation => operation.HasFormatting);
+            var textCharacters = operations
+                .OfType<PreparedTextOperation>()
+                .Sum(operation => operation.Text.Length);
+            var runs = operations
+                .OfType<PreparedTextOperation>()
+                .Sum(operation => operation.Runs.Count(run => run.Formatting is not null));
+            return FromCounts(
+                operations.Count,
+                equations,
+                styledEquations,
+                textCharacters,
+                runs
+            );
+        }
+
+        internal static BatchComplexity FromCounts(
+            int operationCount,
+            int equationCount,
+            int styledEquationCount,
+            int textCharacters,
+            int formattedRunCount
+        )
+        {
+            // This deliberately estimates only staging content calls whose count is
+            // driven by the request. Snapshot, publication and rollback verification
+            // have fixed extra costs and are not smuggled into a fake precise total.
+            var estimatedStagingContentComCalls = checked(
+                operationCount
+                    + formattedRunCount
+                    + equationCount
+                    + (2 * styledEquationCount)
+            );
+            return new(
+                operationCount,
+                equationCount,
+                styledEquationCount,
+                textCharacters,
+                formattedRunCount,
+                estimatedStagingContentComCalls,
+                BatchBoundaryEquationCountReads: 2
+            );
+        }
+    }
 
     private sealed record PreparedTextOperation(
         string Text,
@@ -5966,7 +6518,8 @@ internal sealed partial class WordLiveService : IToolHandler
         string InputFormat,
         bool VerifyReadback,
         bool ReadbackRequired,
-        EquationStyleCounts StyleCounts
+        EquationStyleCounts StyleCounts,
+        DirectOmmlEquationPlan? DirectPlan = null
     )
         : PreparedOperation(BuildLinear, Display)
     {
@@ -5978,7 +6531,21 @@ internal sealed partial class WordLiveService : IToolHandler
         PreparedEquationOperation Operation,
         EquationReadbackVerification? Readback,
         EquationStyleRewriteResult? StyleRewrite,
-        EquationStyleVerification? StyleVerification
+        EquationStyleVerification? StyleVerification,
+        DirectOmmlVerification? DirectOmml = null
+    );
+
+    private sealed record DirectOmmlVerification(
+        string NamespaceIdentity,
+        string ExpectedSemanticSha256,
+        string? ActualCombinedSemanticSha256,
+        string ExpectedEquationSemanticSha256,
+        string ActualEquationSemanticSha256,
+        string? ExpectedParagraphPropertiesSha256,
+        string? ActualParagraphPropertiesSha256,
+        string? ExpectedParagraphJustification,
+        string? ActualParagraphJustification,
+        int ElementCount
     );
 
     private sealed record LiveMatch(

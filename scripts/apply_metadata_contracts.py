@@ -57,7 +57,7 @@ def main():
     if (
         len(items) != 89
         or len({x["name"] for x in items}) != 89
-        or len(c["native_runtime"]["actions"]) != 151
+        or len(c["native_runtime"]["actions"]) != 157
     ):
         raise SystemExit("metadata set/count drift")
     by = {x["name"]: x for x in items}
@@ -70,8 +70,8 @@ def main():
     if a.check:
         cur = json.loads(CATALOG.read_text(encoding="utf8"))
         ct = {x["name"]: x for x in cur["tools"]}
-        if sum(all(f in x for f in FIELDS) for x in cur["tools"]) != 151:
-            raise SystemExit("metadata coverage is not 151/151")
+        if sum(all(f in x for f in FIELDS) for x in cur["tools"]) != 157:
+            raise SystemExit("metadata coverage is not 157/157")
         if any(ct[n].get(f) != x[f] for n, x in by.items() for f in FIELDS):
             raise SystemExit("metadata drift")
     else:

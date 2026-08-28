@@ -105,6 +105,42 @@ public sealed class LiveOperationRollbackTests
     }
 
     [Fact]
+    public void StableSnapshotAcceptsARepeatedSemanticProjectionEvenWhenNotConsecutive()
+    {
+        var values = new Queue<string>(
+            [
+                "<w:doc xmlns:w=\"urn:w\"><w:p>A</w:p></w:doc>",
+                "<w:doc xmlns:w=\"urn:w\"><w:p>B</w:p></w:doc>",
+                "<w:doc xmlns:w=\"urn:w\"><w:p>A</w:p></w:doc>",
+            ]
+        );
+
+        var stable = WordLiveService.RollbackStableSemanticSha256ForTesting(
+            () => values.Dequeue()
+        );
+
+        Assert.Equal(
+            WordLiveService.RollbackSemanticSha256(
+                "<w:doc xmlns:w=\"urn:w\"><w:p>A</w:p></w:doc>"
+            ),
+            stable
+        );
+    }
+
+    [Fact]
+    public void StableSnapshotStillFailsClosedWhenEverySemanticProjectionDiffers()
+    {
+        var index = 0;
+        var error = Assert.Throws<NativeToolException>(() =>
+            WordLiveService.RollbackStableSemanticSha256ForTesting(
+                () => $"<w:doc xmlns:w=\"urn:w\"><w:p>{index++}</w:p></w:doc>"
+            )
+        );
+
+        Assert.Equal("ROLLBACK_SNAPSHOT_UNSTABLE", error.ErrorCode);
+    }
+
+    [Fact]
     public void SemanticRollbackHashIgnoresSystemNoteParaIdsOnly()
     {
         const string before =
@@ -156,6 +192,16 @@ public sealed class LiveOperationRollbackTests
             "EQUATION_INVALID",
             details.GetProperty("original_error_code").GetString()
         );
+        var rootCause = details.GetProperty("root_cause");
+        Assert.Equal("EQUATION_INVALID", rootCause.GetProperty("error_code").GetString());
+        if (rootCause.TryGetProperty("details", out var rootDetails)
+            && rootDetails.ValueKind == JsonValueKind.Object)
+        {
+            Assert.False(
+                rootDetails.GetProperty("raw_document_content_returned").GetBoolean()
+            );
+        }
+        Assert.DoesNotContain("raw_omml", details.GetRawText(), StringComparison.OrdinalIgnoreCase);
         Assert.True(details.GetProperty("handle_invalidated").GetBoolean());
         Assert.True(details.GetProperty("document_quarantined").GetBoolean());
         Assert.True(details.GetProperty("requires_explicit_disconnect").GetBoolean());
@@ -334,6 +380,163 @@ public sealed class LiveOperationRollbackTests
         Assert.Equal(0, host.Application.ActiveDocument.UndoCount);
         Assert.NotNull(host.Application.Documents.LastStagingDocument);
         Assert.True(host.Application.Documents.LastStagingDocument!.Closed);
+    }
+
+    [Fact]
+    public async Task TargetBoundPreflightUsesExactMixedBatchStagingWithoutPublication()
+    {
+        await using var host = new RollbackFakeHost(RollbackBehavior.RestoreExact);
+        var service = new WordLiveService(host);
+        var documentId = await ConnectAsync(service);
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = 0,
+                    operations = new object[]
+                    {
+                        new
+                        {
+                            type = "text",
+                            text = "plain text",
+                            as_new_paragraph = true,
+                        },
+                        new
+                        {
+                            type = "equation",
+                            value = "x",
+                            input_format = "unicodemath",
+                            display = true,
+                        },
+                    },
+                }
+            )
+        );
+
+        var result = await service.CallAsync(
+            "preflight_live_word_operations",
+            arguments.RootElement,
+            CancellationToken.None
+        );
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(result, JsonDefaults.Compact));
+        var root = json.RootElement;
+
+        Assert.True(root.GetProperty("valid").GetBoolean());
+        Assert.False(root.GetProperty("published").GetBoolean());
+        Assert.False(root.GetProperty("target_document_mutated").GetBoolean());
+        Assert.Equal(0, root.GetProperty("live_version").GetInt64());
+        Assert.Equal(2, root.GetProperty("operation_count").GetInt32());
+        Assert.Equal(2, root.GetProperty("operations").GetArrayLength());
+        Assert.Equal("\r", host.Application.ActiveDocument.RawText);
+        Assert.Equal(0, host.Application.ActiveDocument.FormattedTextAssignments);
+        Assert.Equal(0, host.Application.ActiveDocument.OMaths.Count);
+        Assert.NotNull(host.Application.Documents.LastStagingDocument);
+        Assert.True(host.Application.Documents.LastStagingDocument!.Closed);
+        Assert.DoesNotContain("plain", root.GetRawText(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TargetBoundPreflightReturnsFailedOperationIndexAndLeavesTargetUntouched()
+    {
+        await using var host = new RollbackFakeHost(
+            RollbackBehavior.RestoreExact,
+            failStagingEquation: true
+        );
+        var service = new WordLiveService(host);
+        var documentId = await ConnectAsync(service);
+        using var arguments = JsonDocument.Parse(
+            JsonSerializer.Serialize(
+                new
+                {
+                    live_document_id = documentId,
+                    expected_version = 0,
+                    operations = new object[]
+                    {
+                        new { type = "text", text = "safe", as_new_paragraph = true },
+                        new
+                        {
+                            type = "equation",
+                            value = "x",
+                            input_format = "unicodemath",
+                            display = true,
+                        },
+                    },
+                }
+            )
+        );
+
+        var error = await Assert.ThrowsAsync<NativeToolException>(() =>
+            service.CallAsync(
+                "preflight_live_word_operations",
+                arguments.RootElement,
+                CancellationToken.None
+            )
+        );
+        using var details = JsonDocument.Parse(
+            JsonSerializer.Serialize(error.Details, JsonDefaults.Compact)
+        );
+
+        Assert.Equal("EQUATION_INVALID", error.ErrorCode);
+        Assert.Equal(1, details.RootElement.GetProperty("failed_operation_index").GetInt32());
+        Assert.Equal("\r", host.Application.ActiveDocument.RawText);
+        Assert.Equal(0, host.Application.ActiveDocument.FormattedTextAssignments);
+        Assert.Equal(0, host.Application.ActiveDocument.OMaths.Count);
+    }
+
+    [Fact]
+    public async Task LiveArtifactExportPublishesPdfAndManifestWithoutReopeningOrSaving()
+    {
+        var outputDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"wordtoolkit-live-artifacts-{Guid.NewGuid():N}"
+        );
+        Directory.CreateDirectory(outputDirectory);
+        try
+        {
+            await using var host = new RollbackFakeHost(RollbackBehavior.RestoreExact);
+            var service = new WordLiveService(host);
+            var documentId = await ConnectAsync(service);
+            host.Application.ActiveDocument.Saved = false;
+            using var arguments = JsonDocument.Parse(
+                JsonSerializer.Serialize(
+                    new
+                    {
+                        live_document_id = documentId,
+                        expected_version = 0,
+                        output_directory = outputDirectory,
+                        artifact_stem = "live-proof",
+                        output = "pdf",
+                    }
+                )
+            );
+
+            var result = await service.CallAsync(
+                "export_live_word_artifacts",
+                arguments.RootElement,
+                CancellationToken.None
+            );
+            using var json = JsonDocument.Parse(
+                JsonSerializer.Serialize(result, JsonDefaults.Compact)
+            );
+            var root = json.RootElement;
+
+            Assert.Equal(0, root.GetProperty("live_version").GetInt64());
+            Assert.True(root.GetProperty("source_included_unsaved_changes").GetBoolean());
+            Assert.False(root.GetProperty("source_mutated").GetBoolean());
+            Assert.False(root.GetProperty("document_reopened").GetBoolean());
+            Assert.False(root.GetProperty("document_saved").GetBoolean());
+            Assert.Equal(2, root.GetProperty("artifact_count").GetInt32());
+            Assert.True(File.Exists(Path.Combine(outputDirectory, "live-proof.pdf")));
+            Assert.True(File.Exists(Path.Combine(outputDirectory, "live-proof.render.json")));
+            Assert.False(host.Application.ActiveDocument.Saved);
+            Assert.Equal(0, host.Application.ActiveDocument.FormattedTextAssignments);
+            Assert.Equal(1, host.Application.Documents.Count);
+        }
+        finally
+        {
+            Directory.Delete(outputDirectory, recursive: true);
+        }
     }
 
     [Fact]
@@ -611,6 +814,8 @@ public sealed class RollbackFakeApplication
     }
 
     public RollbackFakeDocument ActiveDocument { get; set; }
+    public string Version => "16.0";
+    public string Build => "20131";
     public RollbackFakeDocuments Documents { get; }
     public RollbackFakeUndoRecord UndoRecord { get; }
     public RollbackFakeWindow ActiveWindow { get; } = new();
@@ -771,6 +976,26 @@ public sealed class RollbackFakeDocument
     public RollbackFakeRange Range(int start, int end) => new(this, start, end);
 
     public void Activate() => _application.ActiveDocument = this;
+
+    public void ExportAsFixedFormat(
+        string outputFileName,
+        int exportFormat,
+        bool openAfterExport,
+        int optimizeFor,
+        int range,
+        int from,
+        int to,
+        int item,
+        bool includeDocumentProperties,
+        bool keepIrm,
+        int createBookmarks,
+        bool documentStructureTags,
+        bool bitmapMissingFonts,
+        bool useIso19005_1
+    )
+    {
+        File.WriteAllBytes(outputFileName, "%PDF-fake-live"u8.ToArray());
+    }
 
     public void Close(int saveChanges) => Closed = true;
 
@@ -1028,6 +1253,8 @@ public sealed class RollbackFakeAddedEquations
 
     public RollbackFakeAddedEquations(RollbackFakeEquation equation) =>
         _equation = equation;
+
+    public int Count => 1;
 
     public RollbackFakeEquation Item(int index) =>
         index == 1 ? _equation : throw new IndexOutOfRangeException();

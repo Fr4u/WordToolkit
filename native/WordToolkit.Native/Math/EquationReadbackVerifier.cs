@@ -15,6 +15,22 @@ internal sealed record EquationReadbackVerification(
     bool DifferentialPlacementVerified
 );
 
+internal sealed record EquationReadbackDiagnostic(
+    string MismatchKind,
+    int? ExpectedCount = null,
+    int? ActualCount = null,
+    int? FirstDifferenceIndex = null,
+    string? ExpectedTokenKind = null,
+    string? ActualTokenKind = null,
+    int? ExpectedCodePoint = null,
+    int? ActualCodePoint = null,
+    string? NodePath = null,
+    IReadOnlyDictionary<string, int>? ExpectedFamilies = null,
+    IReadOnlyDictionary<string, int>? ActualFamilies = null,
+    IReadOnlyList<int>? ExpectedCodePointWindow = null,
+    IReadOnlyList<int>? ActualCodePointWindow = null
+);
+
 internal static class EquationReadbackVerifier
 {
     private const string MathNamespace =
@@ -34,8 +50,37 @@ internal static class EquationReadbackVerifier
         '∬',
         '∭',
         '∮',
+        '∱',
+        '∲',
+        '∳',
+        '∯',
+        '∰',
         '⋃',
         '⋂',
+        '⨁',
+        '⨂',
+        '⨀',
+        '⨄',
+        '⨆',
+        '⋁',
+        '⋀',
+        '⨌',
+        '⨍',
+        '⨎',
+        '⨏',
+        '⨐',
+        '⨑',
+        '⨒',
+        '⨓',
+        '⨔',
+        '⨕',
+        '⨖',
+        '⨗',
+        '⨘',
+        '⨙',
+        '⨚',
+        '⨛',
+        '⨜',
         WordLinearMathNormalizer.DifferentialD,
         'ℏ',
         'ħ',
@@ -48,6 +93,25 @@ internal static class EquationReadbackVerifier
         '█',
         'Ⓒ',
         '¦',
+        '▭',
+        '┬',
+        '┴',
+        '║',
+        '⟡',
+        '⬄',
+        '⇳',
+        '⬍',
+        '⬌',
+        '⬆',
+        '⬇',
+        '⏜',
+        '⏝',
+        '⏞',
+        '⏟',
+        '⏠',
+        '⏡',
+        '⎴',
+        '⎵',
         '…',
         '⋯',
         '⋮',
@@ -58,6 +122,17 @@ internal static class EquationReadbackVerifier
         '\u0303',
         '\u0307',
         '\u0308',
+        '\u0301',
+        '\u0300',
+        '\u20DB',
+        '\u030C',
+        '\u0306',
+        '\u0332',
+        '\u20EF',
+        '\u032D',
+        '\u0330',
+        '\u0323',
+        '\u0324',
         WordMathSpacing.CaseColumn,
         WordMathSpacing.TextBoundary,
     ];
@@ -174,7 +249,12 @@ internal static class EquationReadbackVerifier
             {
                 throw Invalid(
                     "Microsoft Word did not return exactly one native Office Math equation",
-                    new { equation_count = equations.Length }
+                    new
+                    {
+                        equation_count = equations.Length,
+                        diagnostic = new EquationReadbackDiagnostic(
+                            "equation_count", ExpectedCount: 1, ActualCount: equations.Length)
+                    }
                 );
             }
 
@@ -230,6 +310,16 @@ internal static class EquationReadbackVerifier
                     || integralNaryCount > 1);
             var naryCount = equation.Descendants()
                 .Count(element => IsMathElement(element, "nary"));
+            var mismatch = BuildDiagnostic(
+                expectedContract,
+                actualContract,
+                expectedDifferentials,
+                differentialCount,
+                expectedIntegralDifferentialCounts,
+                actualIntegralDifferentialCounts,
+                placementVerified,
+                equation
+            );
 
             if (
                 !string.Equals(expectedContract, actualContract, StringComparison.Ordinal)
@@ -251,6 +341,7 @@ internal static class EquationReadbackVerifier
                         actual_integral_differential_counts = actualIntegralDifferentialCounts,
                         differential_placement_verified = placementVerified,
                         nary_count = naryCount,
+                        diagnostic = mismatch,
                     }
                 );
             }
@@ -290,13 +381,137 @@ internal static class EquationReadbackVerifier
         }
     }
 
+    private static EquationReadbackDiagnostic BuildDiagnostic(
+        string expected,
+        string actual,
+        int expectedDifferentials,
+        int actualDifferentials,
+        IReadOnlyList<int> expectedPlacement,
+        IReadOnlyList<int> actualPlacement,
+        bool placementVerified,
+        XElement equation
+    )
+    {
+        var expectedFamilies = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["nary"] = expected.Count(IsNaryCharacter),
+            ["fraction"] = expected.Count(character => character == '/'),
+            ["superscript"] = CountOccurrences(expected, "^("),
+            ["subscript"] = CountOccurrences(expected, "_("),
+            ["radical"] = expected.Count(character => character == '√'),
+            ["matrix"] = expected.Count(character => character is '■' or '⒨' or 'ⓢ' or '⒱' or '⒩'),
+        };
+        var actualFamilies = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["nary"] = equation.Descendants().Count(element => IsMathElement(element, "nary")),
+            ["fraction"] = equation.Descendants().Count(element => IsMathElement(element, "f")),
+            ["superscript"] = equation.Descendants().Count(element => IsMathElement(element, "sSup")),
+            ["subscript"] = equation.Descendants().Count(element => IsMathElement(element, "sSub")),
+            ["radical"] = equation.Descendants().Count(element => IsMathElement(element, "rad")),
+            ["matrix"] = equation.Descendants().Count(element => IsMathElement(element, "m")),
+        };
+        if (expectedDifferentials != actualDifferentials)
+        {
+            return new EquationReadbackDiagnostic(
+                "differential_count",
+                ExpectedCount: expectedDifferentials,
+                ActualCount: actualDifferentials,
+                NodePath: "equation/differential",
+                ExpectedFamilies: expectedFamilies,
+                ActualFamilies: actualFamilies
+            );
+        }
+        if (!placementVerified)
+        {
+            return new EquationReadbackDiagnostic(
+                "differential_placement",
+                ExpectedCount: expectedPlacement.Count,
+                ActualCount: actualPlacement.Count,
+                NodePath: "equation/integral_operand",
+                ExpectedFamilies: expectedFamilies,
+                ActualFamilies: actualFamilies
+            );
+        }
+        if (!string.Equals(expected, actual, StringComparison.Ordinal))
+        {
+            var limit = Math.Min(expected.Length, actual.Length);
+            var index = 0;
+            while (index < limit && expected[index] == actual[index])
+            {
+                index++;
+            }
+            return new EquationReadbackDiagnostic(
+                "canonical_structure",
+                ExpectedCount: expected.Length,
+                ActualCount: actual.Length,
+                FirstDifferenceIndex: index,
+                ExpectedTokenKind: index < expected.Length ? TokenKind(expected[index]) : "end",
+                ActualTokenKind: index < actual.Length ? TokenKind(actual[index]) : "end",
+                ExpectedCodePoint: index < expected.Length ? expected[index] : null,
+                ActualCodePoint: index < actual.Length ? actual[index] : null,
+                NodePath: $"equation/canonical/{index}",
+                ExpectedFamilies: expectedFamilies,
+                ActualFamilies: actualFamilies,
+                ExpectedCodePointWindow: CodePointWindow(expected, index),
+                ActualCodePointWindow: CodePointWindow(actual, index)
+            );
+        }
+        return new EquationReadbackDiagnostic(
+            "equation_structure",
+            NodePath: "equation",
+            ExpectedFamilies: expectedFamilies,
+            ActualFamilies: actualFamilies
+        );
+    }
+
+    private static int CountOccurrences(string value, string marker)
+    {
+        var count = 0;
+        for (var index = 0; index <= value.Length - marker.Length; index++)
+        {
+            if (value.AsSpan(index, marker.Length).SequenceEqual(marker.AsSpan()))
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static IReadOnlyList<int> CodePointWindow(string value, int center)
+    {
+        var start = Math.Max(0, center - 8);
+        var end = Math.Min(value.Length, center + 16);
+        return value.AsSpan(start, end - start)
+            .ToArray()
+            .Select(character => (int)character)
+            .ToArray();
+    }
+
+    private static string TokenKind(char character) => character switch
+    {
+        WordLinearMathNormalizer.DifferentialD => "differential",
+        _ when IsNaryCharacter(character) => "nary",
+        '■' or '⒨' or 'ⓢ' or '⒱' or '⒩' => "matrix",
+        '√' => "radical",
+        _ when char.IsLetter(character) => "letter",
+        _ when char.IsDigit(character) => "digit",
+        _ when char.IsWhiteSpace(character) => "space",
+        _ => "operator",
+    };
+
     private static string Canonicalize(string value)
     {
         var normalized = WordLinearMathNormalizer.NormalizeForWord(
             ExpandCompositeMarkers(value)
         );
+        normalized = NormalizeUnicodeScriptCharacters(normalized);
         normalized = NormalizeQuotedTextWhitespace(normalized);
         normalized = RemoveFunctionApplicationGroups(normalized);
+        normalized = RemoveRedundantSingleSymbolAccentGroups(normalized);
+        normalized = AbsorbSafeCoefficientIntoFractionNumerator(normalized);
+        normalized = RemoveRedundantMultiplicativeCoefficientGroups(normalized);
+        normalized = RemoveEmptyPrescriptBase(normalized);
+        normalized = RemoveRedundantWholePrescriptGroup(normalized);
         var output = new StringBuilder(normalized.Length);
         var inQuotedText = false;
         for (var index = 0; index < normalized.Length; index++)
@@ -327,7 +542,14 @@ internal static class EquationReadbackVerifier
             {
                 continue;
             }
-            if (!inQuotedText && character == '\u2061')
+            // Word emits U+2062 (INVISIBLE TIMES) when it builds an explicit
+            // multiplication between adjacent factors.  LaTeX/source linear
+            // math commonly leaves that multiplication implicit.  U+2062 has
+            // no operator/order semantics (unlike ×, ·, or juxtaposed
+            // cross-product notation), so it is safe to ignore for the
+            // canonical readback contract.  Keep U+2061 function-application
+            // handling and visible operators intact.
+            if (!inQuotedText && character is '\u2061' or '\u2062' or '║')
             {
                 continue;
             }
@@ -339,6 +561,381 @@ internal static class EquationReadbackVerifier
             });
         }
         return output.ToString();
+    }
+
+    private static string NormalizeUnicodeScriptCharacters(string value)
+    {
+        var output = new StringBuilder(value.Length + 8);
+        var inQuotedText = false;
+        for (var index = 0; index < value.Length; index++)
+        {
+            var character = value[index];
+            if (character == '"')
+            {
+                if (
+                    inQuotedText
+                    && index + 1 < value.Length
+                    && value[index + 1] == '"'
+                )
+                {
+                    output.Append("\"\"");
+                    index++;
+                    continue;
+                }
+                inQuotedText = !inQuotedText;
+                output.Append(character);
+                continue;
+            }
+            if (
+                inQuotedText
+                || !TryUnicodeScript(character, out var scriptKind, out var mapped)
+            )
+            {
+                output.Append(character);
+                continue;
+            }
+
+            var script = new StringBuilder().Append(mapped);
+            while (
+                index + 1 < value.Length
+                && TryUnicodeScript(
+                    value[index + 1],
+                    out var nextKind,
+                    out var nextMapped
+                )
+                && nextKind == scriptKind
+            )
+            {
+                script.Append(nextMapped);
+                index++;
+            }
+            output.Append(scriptKind).Append('(').Append(script).Append(')');
+        }
+        return output.ToString();
+    }
+
+    private static bool TryUnicodeScript(
+        char value,
+        out char kind,
+        out char mapped
+    )
+    {
+        var result = value switch
+        {
+            '⁰' => ('^', '0'),
+            '¹' => ('^', '1'),
+            '²' => ('^', '2'),
+            '³' => ('^', '3'),
+            '⁴' => ('^', '4'),
+            '⁵' => ('^', '5'),
+            '⁶' => ('^', '6'),
+            '⁷' => ('^', '7'),
+            '⁸' => ('^', '8'),
+            '⁹' => ('^', '9'),
+            '⁺' => ('^', '+'),
+            '⁻' => ('^', '-'),
+            '⁼' => ('^', '='),
+            '⁽' => ('^', '('),
+            '⁾' => ('^', ')'),
+            'ⁱ' => ('^', 'i'),
+            'ⁿ' => ('^', 'n'),
+            '₀' => ('_', '0'),
+            '₁' => ('_', '1'),
+            '₂' => ('_', '2'),
+            '₃' => ('_', '3'),
+            '₄' => ('_', '4'),
+            '₅' => ('_', '5'),
+            '₆' => ('_', '6'),
+            '₇' => ('_', '7'),
+            '₈' => ('_', '8'),
+            '₉' => ('_', '9'),
+            '₊' => ('_', '+'),
+            '₋' => ('_', '-'),
+            '₌' => ('_', '='),
+            '₍' => ('_', '('),
+            '₎' => ('_', ')'),
+            'ₐ' => ('_', 'a'),
+            'ₑ' => ('_', 'e'),
+            'ₕ' => ('_', 'h'),
+            'ᵢ' => ('_', 'i'),
+            'ⱼ' => ('_', 'j'),
+            'ₖ' => ('_', 'k'),
+            'ₗ' => ('_', 'l'),
+            'ₘ' => ('_', 'm'),
+            'ₙ' => ('_', 'n'),
+            'ₒ' => ('_', 'o'),
+            'ₚ' => ('_', 'p'),
+            'ᵣ' => ('_', 'r'),
+            'ₛ' => ('_', 's'),
+            'ₜ' => ('_', 't'),
+            'ₓ' => ('_', 'x'),
+            _ => ('\0', '\0'),
+        };
+        kind = result.Item1;
+        mapped = result.Item2;
+        return kind != '\0';
+    }
+
+    private static string RemoveRedundantWholePrescriptGroup(string value)
+    {
+        var current = value;
+        while (
+            current.Length > 3
+            && current[0] == '('
+            && MatchingParenthesis(current, 0) == current.Length - 1
+            && current[1] is '_' or '^'
+            && current[2] == '('
+        )
+        {
+            current = current[1..^1];
+        }
+        return current;
+    }
+
+    private static string RemoveEmptyPrescriptBase(string value)
+    {
+        if (!value.Contains("()_(", StringComparison.Ordinal)
+            && !value.Contains("()^(", StringComparison.Ordinal))
+        {
+            return value;
+        }
+        var output = new StringBuilder(value.Length);
+        var inQuotedText = false;
+        for (var index = 0; index < value.Length; index++)
+        {
+            if (value[index] == '"')
+            {
+                if (
+                    inQuotedText
+                    && index + 1 < value.Length
+                    && value[index + 1] == '"'
+                )
+                {
+                    output.Append("\"\"");
+                    index++;
+                    continue;
+                }
+                inQuotedText = !inQuotedText;
+                output.Append(value[index]);
+                continue;
+            }
+            if (
+                !inQuotedText
+                && index + 3 < value.Length
+                && value[index] == '('
+                && value[index + 1] == ')'
+                && value[index + 2] is '_' or '^'
+                && value[index + 3] == '('
+                && IsEmptyPrescriptBasePosition(value, index)
+            )
+            {
+                index++;
+                continue;
+            }
+            output.Append(value[index]);
+        }
+        return output.ToString();
+    }
+
+    private static bool IsEmptyPrescriptBasePosition(string value, int index)
+    {
+        for (var previous = index - 1; previous >= 0; previous--)
+        {
+            if (char.IsWhiteSpace(value[previous]))
+            {
+                continue;
+            }
+            return value[previous]
+                is '(' or '[' or '{' or '=' or '+' or '-' or '*' or '/'
+                    or ',' or ';' or ':' or '&' or '@' or '▒' or '┬' or '┴';
+        }
+        return true;
+    }
+
+    private static string RemoveRedundantSingleSymbolAccentGroups(string value)
+    {
+        if (value.Length < 4)
+        {
+            return value;
+        }
+        var output = new StringBuilder(value.Length);
+        for (var index = 0; index < value.Length; index++)
+        {
+            if (
+                index + 3 < value.Length
+                && value[index] == '('
+                && value[index + 2] == ')'
+                && IsCombiningAccent(value[index + 3])
+                && !char.IsWhiteSpace(value[index + 1])
+                && value[index + 1] is not '(' and not ')'
+            )
+            {
+                output.Append(value[index + 1]);
+                output.Append(value[index + 3]);
+                index += 3;
+                continue;
+            }
+            output.Append(value[index]);
+        }
+        return output.ToString();
+    }
+
+    private static bool IsCombiningAccent(char value) => value is
+        '\u20D7' or '\u0302' or '\u0305' or '\u0303' or '\u0307' or '\u0308'
+            or '\u0301' or '\u0300' or '\u20DB' or '\u030C' or '\u0306'
+            or '\u0332' or '\u20EF' or '\u032D' or '\u0330' or '\u0323' or '\u0324';
+
+    private static string RemoveRedundantMultiplicativeCoefficientGroups(string value)
+    {
+        var current = value;
+        var changed = true;
+        while (changed)
+        {
+            changed = false;
+            var output = new StringBuilder(current.Length);
+            for (var index = 0; index < current.Length; index++)
+            {
+                if (current[index] != '(')
+                {
+                    output.Append(current[index]);
+                    continue;
+                }
+                var closing = MatchingCoefficientParenthesis(current, index);
+                if (
+                    closing <= index + 1
+                    || !IsCoefficientGroupPosition(current, index)
+                    || !IsSafeMultiplicativeCoefficient(
+                        current.AsSpan(index + 1, closing - index - 1)
+                    )
+                    || !IsMultiplicativeFollower(current, closing + 1)
+                )
+                {
+                    output.Append(current[index]);
+                    continue;
+                }
+                output.Append(current, index + 1, closing - index - 1);
+                index = closing;
+                changed = true;
+            }
+            current = output.ToString();
+        }
+        return current;
+    }
+
+    private static string AbsorbSafeCoefficientIntoFractionNumerator(string value)
+    {
+        var current = value;
+        for (var slash = 1; slash + 1 < current.Length; slash++)
+        {
+            if (current[slash] != '/' || current[slash - 1] != ')')
+            {
+                continue;
+            }
+            var numeratorOpen = MatchingOpeningParenthesis(current, slash - 1);
+            if (numeratorOpen <= 0)
+            {
+                continue;
+            }
+            var prefixStart = MultiplicativePrefixStart(current, numeratorOpen);
+            if (prefixStart >= numeratorOpen)
+            {
+                continue;
+            }
+            var prefix = current.AsSpan(prefixStart, numeratorOpen - prefixStart);
+            if (
+                !IsSafeMultiplicativeCoefficient(prefix)
+                || !prefix.Contains("_(".AsSpan(), StringComparison.Ordinal)
+                || prefix.IndexOf('"') >= 0
+            )
+            {
+                continue;
+            }
+            var numeratorGroup = current.AsSpan(
+                numeratorOpen,
+                slash - numeratorOpen
+            );
+            var rewritten = new StringBuilder(current.Length + 2);
+            rewritten.Append(current.AsSpan(0, prefixStart));
+            rewritten.Append('(');
+            rewritten.Append(prefix);
+            rewritten.Append(numeratorGroup);
+            rewritten.Append(')');
+            rewritten.Append(current.AsSpan(slash));
+            current = rewritten.ToString();
+            slash = prefixStart;
+        }
+        return current;
+    }
+
+    private static int MatchingOpeningParenthesis(string value, int closing)
+    {
+        var depth = 0;
+        for (var index = closing; index >= 0; index--)
+        {
+            if (value[index] == ')') depth++;
+            else if (value[index] == '(' && --depth == 0) return index;
+        }
+        return -1;
+    }
+
+    private static int MultiplicativePrefixStart(string value, int end)
+    {
+        var depth = 0;
+        for (var index = end - 1; index >= 0; index--)
+        {
+            var character = value[index];
+            if (character == ')') { depth++; continue; }
+            if (character == '(') { if (depth > 0) depth--; continue; }
+            if (depth == 0 && character is '+' or '-' or '=' or ',' or ';')
+            {
+                return index + 1;
+            }
+        }
+        return 0;
+    }
+
+    private static int MatchingCoefficientParenthesis(string value, int opening)
+    {
+        var depth = 0;
+        for (var index = opening; index < value.Length; index++)
+        {
+            if (value[index] == '(') depth++;
+            else if (value[index] == ')' && --depth == 0) return index;
+        }
+        return -1;
+    }
+
+    private static bool IsSafeMultiplicativeCoefficient(ReadOnlySpan<char> value)
+    {
+        var depth = 0;
+        for (var index = 0; index < value.Length; index++)
+        {
+            var character = value[index];
+            if (character == '(') { depth++; continue; }
+            if (character == ')') { depth--; if (depth < 0) return false; continue; }
+            if (
+                depth == 0
+                && character is '+' or '-' or '=' or '/' or ',' or ';' or ':'
+            )
+            {
+                return false;
+            }
+        }
+        return depth == 0;
+    }
+
+    private static bool IsCoefficientGroupPosition(string value, int opening)
+    {
+        var index = opening - 1;
+        while (index >= 0 && char.IsWhiteSpace(value[index])) index--;
+        return index < 0 || value[index] is '+' or '-' or '=' or '(' or '[' or '{' or ',';
+    }
+
+    private static bool IsMultiplicativeFollower(string value, int index)
+    {
+        while (index < value.Length && char.IsWhiteSpace(value[index])) index++;
+        if (index >= value.Length) return false;
+        return value[index] is not ('+' or '-' or '=' or '/' or '^' or '_' or ')' or ',' or ';');
     }
 
     private static string NormalizeQuotedTextWhitespace(string value)
@@ -662,7 +1259,16 @@ internal static class EquationReadbackVerifier
     }
 
     private static bool IsIntegralCharacter(char character) =>
-        character is '∫' or '∬' or '∭' or '∮';
+        character is '∫' or '∬' or '∭' or '∮' or '∱' or '∲' or '∳' or '∯' or '∰'
+            or '\u2A0C' or '\u2A0D' or '\u2A0E' or '\u2A0F'
+            or '\u2A10' or '\u2A11' or '\u2A12' or '\u2A13'
+            or '\u2A14' or '\u2A15' or '\u2A16' or '\u2A17'
+            or '\u2A18' or '\u2A19' or '\u2A1A' or '\u2A1B' or '\u2A1C';
+
+    private static bool IsNaryCharacter(char character) =>
+        character is '∑' or '∏' or '∐' or '⋃' or '⋂'
+            or '⨁' or '⨂' or '⨀' or '⨄' or '⨆' or '⋁' or '⋀'
+            || IsIntegralCharacter(character);
 
     private static int MatchingParenthesis(string value, int openingIndex)
     {

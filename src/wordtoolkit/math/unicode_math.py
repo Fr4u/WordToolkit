@@ -65,10 +65,20 @@ NARY_COMMANDS = {
     "\\bigcap",
 }
 FUNCTIONS = {"sin", "cos", "tan", "cot", "sec", "csc", "log", "ln", "exp", "min", "max"}
-ACCENTS = {"vec": "→", "hat": "^", "bar": "¯", "tilde": "~", "dot": "˙", "ddot": "¨"}
+ACCENTS = {
+    "vec": "→",
+    "hat": "^",
+    "bar": "¯",
+    "underline": "_",
+    "tilde": "~",
+    "dot": "˙",
+    "ddot": "¨",
+    "overbrace": "⏞",
+    "underbrace": "⏟",
+}
 TOKEN_RE = re.compile(
     r'"(?:[^"\\]|\\.)*"|\\[A-Za-z]+|[A-Za-z][A-Za-z0-9]*|\d+(?:[.,]\d+)?|'
-    r"[α-ωΑ-Ω∞∑∏∫∬∭∮∯∰⨌⋃⋂√∂∇→↦¯˙¨±∓▭‖]|<=|>=|!=|:=|[+\-−*/×·=<>^_(),;:@&|~\[\]{}]"
+    r"[α-ωΑ-Ω∞∑∏∫∬∭∮∯∰⨌⋃⋂√∂∇→↦¯˙¨±∓▭⟡‖]|<=|>=|!=|:=|[+\-−*/×·=<>^_(),;:@&|~\[\]{}]"
 )
 
 
@@ -284,6 +294,34 @@ class _Parser:
             body = self.primary(stop, consume_scripts=False)
             body = body.children[0] if body.kind == "delimiter" else body
             node = EquationNode.make("enclosure", children=(body,), notation="box")
+        elif token == "⟡":
+            if self.peek() not in {"(", "{"}:
+                raise WordToolkitError(
+                    ErrorCode.EQUATION_INVALID,
+                    "UnicodeMath phantom requires a parenthesized body",
+                )
+            body = self.primary(stop, consume_scripts=False)
+            body = body.children[0] if body.kind == "delimiter" else body
+            node = EquationNode.make("phantom", children=(body,))
+        elif token in {"_", "^"}:
+            lower, upper = EMPTY, EMPTY
+            while token in {"_", "^"}:
+                value = self.primary(stop | {"_", "^"}, consume_scripts=False)
+                value = value.children[0] if value.kind == "delimiter" else value
+                if token == "_":
+                    lower = value
+                else:
+                    upper = value
+                if self.peek() not in {"_", "^"}:
+                    break
+                token = self.take()
+            if self.peek() is None or self.peek() in stop:
+                raise WordToolkitError(
+                    ErrorCode.EQUATION_INVALID,
+                    "UnicodeMath prescript requires a base",
+                )
+            base = self.primary(stop)
+            node = EquationNode.make("prescript", children=(lower, upper, base))
         elif token in {"lim", "\\lim"}:
             base = EquationNode.make("identifier", "lim")
             if self.peek() == "_":
@@ -426,9 +464,25 @@ def to_unicode_math(node: EquationNode) -> str:
     if node.kind == "equations":
         return "eqarray(" + "@".join(to_unicode_math(x) for x in c) + ")"
     if node.kind == "accent":
-        command = {"→": "vec", "¯": "bar", "^": "hat", "~": "tilde", "˙": "dot", "¨": "ddot"}.get(
-            node.value, "hat"
-        )
+        command = {
+            "→": "vec",
+            "¯": "bar",
+            "_": "underline",
+            "^": "hat",
+            "~": "tilde",
+            "˙": "dot",
+            "¨": "ddot",
+            "⏞": "overbrace",
+            "︷": "overbrace",
+            "⏟": "underbrace",
+            "︸": "underbrace",
+        }.get(node.value)
+        if command is None:
+            raise WordToolkitError(
+                ErrorCode.EQUATION_INVALID,
+                "UnicodeMath export cannot represent this OfficeMath accent or group character",
+                {"character": node.value, "omml_kind": node.attr("omml_kind")},
+            )
         return f"{command}({to_unicode_math(c[0])})"
     if node.kind == "limit_lower":
         return f"{to_unicode_math(c[0])}_({to_unicode_math(c[1])})"
@@ -443,4 +497,8 @@ def to_unicode_math(node: EquationNode) -> str:
             "UnicodeMath export does not support this enclosure notation",
             {"notation": notation},
         )
+    if node.kind == "phantom":
+        return f"⟡({to_unicode_math(c[0])})"
+    if node.kind == "prescript":
+        return f"_({to_unicode_math(c[0])})^({to_unicode_math(c[1])}){to_unicode_math(c[2])}"
     return node.value

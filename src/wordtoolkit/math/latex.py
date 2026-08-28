@@ -149,9 +149,25 @@ def to_latex(node: EquationNode) -> str:
     if node.kind == "equations":
         return "\\begin{aligned}" + r" \\ ".join(to_latex(x) for x in c) + "\\end{aligned}"
     if node.kind == "accent":
-        command = {"→": "vec", "¯": "bar", "^": "hat", "~": "tilde", "˙": "dot", "¨": "ddot"}.get(
-            node.value, "hat"
-        )
+        command = {
+            "→": "vec",
+            "¯": "bar",
+            "_": "underline",
+            "^": "hat",
+            "~": "tilde",
+            "˙": "dot",
+            "¨": "ddot",
+            "⏞": "overbrace",
+            "︷": "overbrace",
+            "⏟": "underbrace",
+            "︸": "underbrace",
+        }.get(node.value)
+        if command is None:
+            raise WordToolkitError(
+                ErrorCode.EQUATION_INVALID,
+                "LaTeX export cannot represent this OfficeMath accent or group character",
+                {"character": node.value, "omml_kind": node.attr("omml_kind")},
+            )
         return f"\\{command}{{{to_latex(c[0])}}}"
     if node.kind == "limit_lower":
         base = r"\lim" if c[0].value == "lim" else to_latex(c[0])
@@ -167,4 +183,8 @@ def to_latex(node: EquationNode) -> str:
             "LaTeX export does not support this enclosure notation",
             {"notation": notation},
         )
+    if node.kind == "phantom":
+        return f"\\phantom{{{to_latex(c[0])}}}"
+    if node.kind == "prescript":
+        return f"_{{{to_latex(c[0])}}}^{{{to_latex(c[1])}}}{{{to_latex(c[2])}}}"
     return node.value

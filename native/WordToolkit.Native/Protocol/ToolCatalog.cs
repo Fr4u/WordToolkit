@@ -197,7 +197,11 @@ internal sealed partial class ToolCatalog
         };
     }
 
-    public JsonObject SearchActions(string query, int maxResults)
+    public JsonObject SearchActions(
+        string query,
+        int maxResults,
+        bool includeTopSchema = true
+    )
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -213,31 +217,43 @@ internal sealed partial class ToolCatalog
                 "max_results must be between 1 and 12"
             );
         }
-        var terms = query.Split(
-            [' ', '-', '_', '/'],
-            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries
-        );
+        var terms = SearchTokens(query);
+        var normalizedQuery = NormalizeSearchText(query);
         var matches = _allTools
             .Select(
                 pair =>
                 {
                     var description =
                         pair.Value["description"]?.GetValue<string>() ?? "";
-                    var haystack = pair.Key + " " + description;
-                    var score = terms.Count(
-                        term =>
-                            haystack.Contains(term, StringComparison.OrdinalIgnoreCase)
-                    );
+                    var normalizedName = NormalizeSearchText(pair.Key);
+                    var normalizedDescription = NormalizeSearchText(description);
+                    var nameTokens = SearchTokens(pair.Key);
+                    var nameExact = string.Equals(normalizedName, normalizedQuery, StringComparison.Ordinal);
+                    var phraseInName = normalizedName.Contains(normalizedQuery, StringComparison.Ordinal);
+                    var nameTokenHits = terms.Count(term => nameTokens.Any(
+                        nameToken => SearchTokenMatches(nameToken, term)
+                    ));
+                    var orderedExactCoverage = NameTokenEditDistance(nameTokens, terms);
+                    var descriptionTokenHits = terms.Count(term => normalizedDescription.Contains(term, StringComparison.Ordinal));
+                    // Name matches must dominate metadata matches. Keep a tuple for deterministic tie-breaking.
                     return new
                     {
                         pair.Key,
                         Description = description,
-                        Score = score,
+                        Exact = nameExact ? 1 : 0,
+                        Phrase = phraseInName ? 1 : 0,
+                        NameHits = nameTokenHits,
+                        NameTokenDistance = orderedExactCoverage,
+                        DescriptionHits = descriptionTokenHits,
                     };
                 }
             )
-            .Where(item => item.Score > 0)
-            .OrderByDescending(item => item.Score)
+            .Where(item => item.Exact > 0 || item.Phrase > 0 || item.NameHits > 0 || item.DescriptionHits > 0)
+            .OrderByDescending(item => item.Exact)
+            .ThenByDescending(item => item.Phrase)
+            .ThenByDescending(item => item.NameHits)
+            .ThenBy(item => item.NameTokenDistance)
+            .ThenByDescending(item => item.DescriptionHits)
             .ThenBy(item => item.Key, StringComparer.Ordinal)
             .Take(maxResults)
             .Select(
@@ -252,15 +268,85 @@ internal sealed partial class ToolCatalog
                     }
             )
             .ToArray();
-        return new JsonObject
+        var result = new JsonObject
         {
             ["query"] = query,
             ["match_count"] = matches.Length,
             ["actions"] = JsonSerializer.SerializeToNode(matches, JsonDefaults.Compact),
         };
+        if (includeTopSchema && matches.Length > 0)
+        {
+            result["top_action"] = InspectAction(matches[0].action);
+            result["inspect_call_required_for_top_action"] = false;
+        }
+        return result;
     }
 
-    private static JsonNode? FirstStep(JsonObject guidance) => guidance["acquisition_steps"]?.AsArray().FirstOrDefault()?.DeepClone();
+    private static string NormalizeSearchText(string value) =>
+        string.Join(' ', SearchTokens(value));
+
+    private static string[] SearchTokens(string value) =>
+        value.Split([' ', '-', '_', '/', '.', ':'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(token => token.ToLowerInvariant())
+            .ToArray();
+
+    private static int NameTokenEditDistance(
+        IReadOnlyList<string> nameTokens,
+        IReadOnlyList<string> queryTokens
+    )
+    {
+        if (queryTokens.Count == 0)
+        {
+            return int.MaxValue;
+        }
+        var matched = 0;
+        var first = -1;
+        var last = -1;
+        for (var index = 0; index < nameTokens.Count && matched < queryTokens.Count; index++)
+        {
+            if (!SearchTokenMatches(nameTokens[index], queryTokens[matched]))
+            {
+                continue;
+            }
+            first = first < 0 ? index : first;
+            last = index;
+            matched++;
+        }
+        if (matched != queryTokens.Count)
+        {
+            return 10_000 + nameTokens.Count - Math.Min(nameTokens.Count, matched);
+        }
+        return (last - first + 1 - queryTokens.Count) * 100
+            + Math.Abs(nameTokens.Count - queryTokens.Count);
+    }
+
+    private static bool SearchTokenMatches(string candidate, string query) =>
+        string.Equals(candidate, query, StringComparison.Ordinal)
+        || string.Equals(candidate, query + "s", StringComparison.Ordinal)
+        || string.Equals(candidate + "s", query, StringComparison.Ordinal)
+        || (
+            query.EndsWith("y", StringComparison.Ordinal)
+            && string.Equals(
+                candidate,
+                query[..^1] + "ies",
+                StringComparison.Ordinal
+            )
+        )
+        || (
+            candidate.EndsWith("y", StringComparison.Ordinal)
+            && string.Equals(
+                candidate[..^1] + "ies",
+                query,
+                StringComparison.Ordinal
+            )
+        );
+
+    private static JsonNode FirstStep(JsonObject guidance) =>
+        guidance["acquisition_steps"]?.AsArray().FirstOrDefault()?.DeepClone()
+        ?? guidance["prerequisites"]?.AsArray().FirstOrDefault()?.DeepClone()
+        ?? JsonValue.Create(
+            "Use the returned top_action input schema and first-call guidance before execution."
+        )!;
     private static string[] RequiredArguments(JsonObject tool) => tool["inputSchema"]?["required"]?.AsArray().Select(x => x!.GetValue<string>()).ToArray() ?? Array.Empty<string>();
 
     public static bool IsSearchGateway(string name) =>
@@ -394,7 +480,7 @@ internal sealed partial class ToolCatalog
         {
             ["name"] = SearchActionsName,
             ["description"] =
-                "Find a rare WordToolkit action by a short capability query; inspect the chosen action before executing it.",
+                "Find a rare WordToolkit action; by default include the top match's inspected schema and guidance so it can be executed without another inspect call.",
             ["inputSchema"] = new JsonObject
             {
                 ["type"] = "object",
@@ -411,6 +497,13 @@ internal sealed partial class ToolCatalog
                         ["minimum"] = 1,
                         ["maximum"] = 12,
                         ["default"] = 8,
+                    },
+                    ["include_top_schema"] = new JsonObject
+                    {
+                        ["type"] = "boolean",
+                        ["default"] = true,
+                        ["description"] =
+                            "Include the inspected schema and guidance for only the top match (default true; set false for compact legacy responses).",
                     },
                 },
                 ["required"] = new JsonArray("query"),
@@ -432,7 +525,7 @@ internal sealed partial class ToolCatalog
         {
             ["name"] = ExecuteActionName,
             ["description"] =
-                "Execute one inspected WordToolkit action. Inspect first; compact responses omit echoed input and diagnostics; request full only when exact detail is required.",
+                "Execute one WordToolkit action using a schema returned by inspect or the top search result. Compact responses omit echoed input and diagnostics; request full only when exact detail is required.",
             ["inputSchema"] = new JsonObject
             {
                 ["type"] = "object",
