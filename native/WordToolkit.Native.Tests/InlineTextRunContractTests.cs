@@ -181,8 +181,8 @@ public sealed class InlineTextRunContractTests
         {"font_name":"Aptos","font_name_ascii":"Arial","font_name_bidi":"Tahoma",
          "font_name_far_east":"Yu Gothic","font_name_other":"Courier New",
          "font_size_pt":11.5,"font_size_bidi_pt":12,"font_color_rgb":"#00FF00",
-         "font_color_bidi_index":5,"diacritic_color":"#FF0000","bold":true,"italic":true,
-         "bold_bidi":true,"italic_bidi":false,"underline_style":"double","underline_color":"#0000FF",
+         "font_color_bidi_index":5,"diacritic_color":"#ff0000","bold":true,"italic":true,
+         "bold_bidi":true,"italic_bidi":false,"underline_style":"double","underline_color":"#0000ff",
          "strike":true,"subscript":false,"superscript":false,"all_caps":true,"small_caps":false,
          "hidden":true,"shadow":true,"outline":true,"emboss":true,"engrave":false,
          "scaling_percent":90,"spacing_pt":1.25,"position_pt":-2,"kerning_pt":8,
@@ -315,6 +315,7 @@ public sealed class InlineTextRunContractTests
     [InlineData("{\"emboss\":true,\"engrave\":true}")]
     [InlineData("{\"position_pt\":1,\"superscript\":true}")]
     [InlineData("{\"font_color_rgb\":\"#010203\",\"font_color_index\":2}")]
+    [InlineData("{\"font_color_index\":-1}")]
     [InlineData("{\"stylistic_sets\":[1,1]}")]
     public void RejectsInvalidCharacterFormattingBeforeCom(string json)
     {
@@ -551,8 +552,8 @@ public sealed class ExtendedFormattingFakeFont
         Size = 11;
         SizeBi = 11;
         Color = 0;
-        ColorIndex = -1;
-        ColorIndexBi = -1;
+        ColorIndex = 0;
+        ColorIndexBi = 0;
         DiacriticColor = unchecked((int)0xFF000000);
         Bold = 0;
         Italic = 0;

@@ -4299,11 +4299,11 @@ class LiveWordBridge:
             if (
                 isinstance(color_index, bool)
                 or not isinstance(color_index, int)
-                or (color_index != -1 and not 1 <= color_index <= 16)
+                or not 0 <= color_index <= 16
             ):
                 raise WordToolkitError(
                     ErrorCode.INVALID_INPUT,
-                    f"{name} must be -1 (automatic) or an integer from 1 to 16",
+                    f"{name} must be 0 (automatic) or an integer from 1 to 16",
                 )
             normalized[name] = color_index
         for name in ("diacritic_color", "underline_color"):

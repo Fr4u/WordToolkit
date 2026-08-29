@@ -83,7 +83,7 @@ def test_all_native_formatting_copies_publish_the_complete_character_contract() 
         assert properties["font_size_pt"]["maximum"] == 1638
         assert properties["underline"]["deprecated"] is True
         assert len(properties["underline_style"]["enum"]) == 18
-        assert properties["font_color_index"]["enum"] == [-1, *range(1, 17)]
+        assert properties["font_color_index"]["enum"] == list(range(17))
 
 
 def test_native_formatting_schema_accepts_full_surface_and_rejects_conflicts() -> None:

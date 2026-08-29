@@ -90,13 +90,13 @@ def _property_contracts() -> dict[str, Any]:
         "font_size_bidi_pt": {"type": "number", "minimum": 1, "maximum": 1638},
         "font_color_index": {
             "type": "integer",
-            "enum": [-1, *range(1, 17)],
-            "description": "Microsoft Word WdColorIndex; -1 selects automatic color.",
+            "enum": list(range(17)),
+            "description": "Microsoft Word WdColorIndex; 0 selects automatic color.",
         },
         "font_color_bidi_index": {
             "type": "integer",
-            "enum": [-1, *range(1, 17)],
-            "description": "Bidirectional-script WdColorIndex; -1 selects automatic color.",
+            "enum": list(range(17)),
+            "description": "Bidirectional-script WdColorIndex; 0 selects automatic color.",
         },
         "diacritic_color": color,
         "bold_bidi": {"type": "boolean"},

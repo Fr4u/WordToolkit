@@ -1693,6 +1693,16 @@ def test_live_word_rejects_invalid_formatting_before_word_mutation(live_bridge) 
     assert document.formatting_log == {}
 
 
+def test_live_word_indexed_font_color_uses_word_auto_zero(live_bridge) -> None:
+    bridge, _application, _document = live_bridge
+
+    assert bridge._normalize_text_formatting({"font_color_index": 0}) == {"font_color_index": 0}
+    with pytest.raises(WordToolkitError) as error:
+        bridge._normalize_text_formatting({"font_color_index": -1})
+
+    assert error.value.code is ErrorCode.INVALID_INPUT
+
+
 def test_live_word_rejects_mutually_enabled_strike_modes_before_word_mutation(
     live_bridge,
 ) -> None:

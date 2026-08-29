@@ -1316,7 +1316,13 @@ internal sealed partial class WordLiveService
             or "highlight_color_index"
             or "scaling_percent"
             or "position_pt" => value.GetInt32().ToString(CultureInfo.InvariantCulture),
-            "diacritic_color" or "underline_color" => value.GetString() ?? "",
+            "diacritic_color" or "underline_color" => string.Equals(
+                value.GetString(),
+                "automatic",
+                StringComparison.Ordinal
+            )
+                ? "automatic"
+                : (value.GetString() ?? "").ToUpperInvariant(),
             "underline" => value.GetBoolean() ? "true" : "false",
             "bold"
             or "italic"

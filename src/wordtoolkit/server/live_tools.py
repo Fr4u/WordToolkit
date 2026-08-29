@@ -31,7 +31,7 @@ LIVE_HANDLE = ToolAnnotations(
     openWorldHint=True,
 )
 LIVE_VERSION = Annotated[int, Field(strict=True, ge=0)]
-WordColorIndex = Literal[-1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+WordColorIndex = Literal[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
 WordDirectColor = (
     Literal["automatic"]
     | Annotated[

@@ -5698,12 +5698,12 @@ internal sealed partial class WordLiveService : IToolHandler
             if (
                 value.ValueKind != JsonValueKind.Number
                 || !value.TryGetInt32(out var colorIndex)
-                || (colorIndex != -1 && colorIndex is not (>= 1 and <= 16))
+                || colorIndex is < 0 or > 16
             )
             {
                 throw new NativeToolException(
                     "INVALID_INPUT",
-                    $"{name} must be -1 (automatic) or an integer from 1 to 16"
+                    $"{name} must be 0 (automatic) or an integer from 1 to 16"
                 );
             }
             return;
@@ -6056,8 +6056,8 @@ internal sealed partial class WordLiveService : IToolHandler
         {
             font.Color = ParseWordColor(fontColor.GetString() ?? "");
         }
-        SetInteger(font, formatting, "font_color_index", "ColorIndex", -1, 16);
-        SetInteger(font, formatting, "font_color_bidi_index", "ColorIndexBi", -1, 16);
+        SetInteger(font, formatting, "font_color_index", "ColorIndex", 0, 16);
+        SetInteger(font, formatting, "font_color_bidi_index", "ColorIndexBi", 0, 16);
         SetWordColor(font, formatting, "diacritic_color", "DiacriticColor");
         SetWordBoolean(font, formatting, "bold", "Bold");
         SetWordBoolean(font, formatting, "italic", "Italic");
@@ -6231,16 +6231,6 @@ internal sealed partial class WordLiveService : IToolHandler
             throw new NativeToolException(
                 "INVALID_INPUT",
                 $"{source} must be an integer between {minimum} and {maximum}"
-            );
-        }
-        if (
-            source is "font_color_index" or "font_color_bidi_index"
-            && value == 0
-        )
-        {
-            throw new NativeToolException(
-                "INVALID_INPUT",
-                $"{source} must be -1 (automatic) or an integer from 1 to 16"
             );
         }
         SetDynamicProperty(target, destination, value);
