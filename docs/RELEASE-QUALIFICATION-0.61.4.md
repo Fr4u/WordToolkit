@@ -39,7 +39,7 @@ already exists or is won by a concurrent publisher, so its new-output recovery i
 - Recovery routing: every `next_action` exists.
 - Metadata, action-guidance and schema-export generation checks: passed.
 - Plugin and skill validators: passed.
-- Python suite: 1,583 passed, 17 intentionally skipped, one Starlette deprecation warning.
+- Python suite: 1,584 passed, 17 intentionally skipped, one Starlette deprecation warning.
 - Engine tests: 939/939 passed on the pinned .NET SDK 8.0.423.
 - Native tests: 942/942 passed.
 - LibreOffice tests: 12/12 passed.
