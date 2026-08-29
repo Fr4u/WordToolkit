@@ -60,12 +60,12 @@ Runtime: `0.62.0+codex.20260829173741`
 Two independent package builds contained 204 files and produced byte-identical ZIPs:
 
 - asset: `WordToolkit-0.62.0+codex.20260829173741-native-win-x64.zip`;
-- size: 38,494,696 bytes;
-- SHA-256: `62edd0ee8a2b6e987b1200b29dd70696fe41faa2b3f16d34878ddc3b4a4fbb9f`;
+- size: 38,494,705 bytes;
+- SHA-256: `bd9bfbdb402fe3188e8a8eea9b5788d65fba816d3bd376f22ffb0affed16b899`;
 - executable SHA-256:
   `6294d215209635102f9073d12e163c6368189a284599e4d4372f87caf22e4ef0`;
 - runtime assembly SHA-256:
-  `1453db47fb379fb93de72ac7cb97da055c45ff78984c202ea177c91b471c21c1`.
+  `e61884a247054070516b7f1283a6952aecf992614bf8a68e0b476d7d3bee71ad`.
 
 The local `wordtoolkit@personal` installation is enabled at
 `0.62.0+codex.20260829173741`. Source and installed cache contain 204/204 matching files
