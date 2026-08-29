@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+## 0.62.0 - 2026-08-29
+
+- Expanded live text, inline-run and selection formatting to the complete bounded
+  writable scalar Microsoft Word `Font` surface. This includes subscript and
+  superscript, all 18 native underline styles and underline color, script-specific
+  font names, bidirectional font properties, shadow/outline/emboss/engrave, scaling,
+  spacing, baseline position, kerning, East Asian emphasis/grid settings and OpenType
+  ligatures, number forms, number spacing, stylistic sets and contextual alternates.
+
+- Added strict post-COM readback for every requested formatting field. Word no-ops,
+  unsupported font features and `wdUndefined` mixed results now fail with
+  `FORMATTING_INVALID` and the exact field. `format_live_word_selection` returns typed,
+  canonical `formatting_readback` values instead of raw Word enum integers or merely
+  echoing the request.
+
+- Added `clear_character_formatting`, which runs `Font.Reset`, explicitly removes
+  highlight and then applies sibling overrides inside the same rollback-aware
+  transaction. The schema rejects underline alias conflicts, mutually enabled
+  strike/script/emboss modes, RGB/index color conflicts and baseline-position clashes.
+
+- Added deterministic generation and parity tests for all eight copies of the native
+  formatting schema, full Python/native contract parity, every underline mapping,
+  tri-state failure behavior and a real Microsoft Word acceptance that saves DOCX,
+  exports PDF, validates OOXML/SDK output and checks the rendered page.
+
 ## 0.61.4 - 2026-08-29
 
 - Fixed the AI skill's persistent-document lifecycle value. The router incorrectly used

@@ -2148,6 +2148,7 @@
               "SESSION_NOT_FOUND",
               "VERSION_CONFLICT",
               "EQUATION_INVALID",
+              "FORMATTING_INVALID",
               "OOXML_INVALID",
               "RENDERER_UNAVAILABLE",
               "RENDER_TIMEOUT",

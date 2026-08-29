@@ -1,6 +1,7 @@
 param(
     [string]$Configuration = "Release",
-    [string]$RuntimeExecutable = ""
+    [string]$RuntimeExecutable = "",
+    [switch]$UseActiveDocument
 )
 
 $ErrorActionPreference = "Stop"
@@ -150,13 +151,21 @@ try {
             Where-Object { $_ -match "^(python|pythonw|uv)(\.exe)?$" }
     ).Count
 
-    $stage = "connect"
-    $connected = Invoke-Tool `
-        -Name "connect_live_word_document" `
-        -Arguments @{ use_active = $true; activate = $true }
+    $stage = if ($UseActiveDocument) { "connect explicit active fixture" } else { "create scratch fixture" }
+    $connected = if ($UseActiveDocument) {
+        Invoke-Tool `
+            -Name "connect_live_word_document" `
+            -Arguments @{ use_active = $true; activate = $true }
+    }
+    else {
+        Invoke-Tool `
+            -Name "create_live_word_document" `
+            -Arguments @{ lifecycle = "scratch"; activate = $true }
+    }
     $documentId = $connected.live_document_id
     $version = [long]$connected.live_version
     $report.document = $connected.document.name
+    $report.lifecycle = if ($UseActiveDocument) { "explicit_active_fixture" } else { "scratch" }
 
     $stage = "insert probe"
     $marker = "WT_NATIVE_PROBE_7F3A91"

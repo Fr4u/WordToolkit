@@ -1475,6 +1475,12 @@ internal sealed partial class WordLiveService : IToolHandler
                     {
                         ApplyFormatting(range, formatting.Value);
                     }
+                    var formattingReadback = formatting is null
+                        ? null
+                        : PublicFormattingReadback(
+                            CaptureRequestedFormatting(range, formatting.Value),
+                            formatting.Value
+                        );
                     undoRecord.EndCustomRecord();
                     undoStarted = false;
                     record.Version++;
@@ -1492,6 +1498,8 @@ internal sealed partial class WordLiveService : IToolHandler
                         },
                         style,
                         formatting_applied = formatting is not null,
+                        native_formatting_verified = formatting is not null,
+                        formatting_readback = formattingReadback,
                         document = DocumentInfo(application, document),
                         performance = Performance(started),
                     };
@@ -1593,9 +1601,14 @@ internal sealed partial class WordLiveService : IToolHandler
                     {
                         inserted.Style = style;
                     }
+                    IReadOnlyDictionary<string, object?>? formattingReadback = null;
                     if (formatting is not null)
                     {
                         ApplyFormatting(inserted, formatting.Value);
+                        formattingReadback = PublicFormattingReadback(
+                            CaptureRequestedFormatting(inserted, formatting.Value),
+                            formatting.Value
+                        );
                     }
                     undoRecord.EndCustomRecord();
                     undoStarted = false;
@@ -1613,6 +1626,8 @@ internal sealed partial class WordLiveService : IToolHandler
                         },
                         characters = text.Length,
                         style,
+                        native_formatting_verified = formatting is not null,
+                        formatting_readback = formattingReadback,
                         document = DocumentInfo(application, document),
                         performance = Performance(started),
                     };
@@ -3393,6 +3408,9 @@ internal sealed partial class WordLiveService : IToolHandler
                                     },
                                     style = textOperation.Style,
                                     run_count = textOperation.Runs.Count > 0 ? textOperation.Runs.Count : 1,
+                                    native_formatting_verified = textOperation.Formatting is not null
+                                        || textOperation.Runs.Any(run => run.Formatting is not null),
+                                    formatting_readback_returned = false,
                                 };
                                 continue;
                             }
@@ -5419,6 +5437,58 @@ internal sealed partial class WordLiveService : IToolHandler
                 "strike and double_strike cannot both be true because Microsoft Word preserves only one strike mode"
             );
         }
+        if (normalized.ContainsKey("underline") && normalized.ContainsKey("underline_style"))
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "Use either deprecated underline or canonical underline_style, not both"
+            );
+        }
+        if (
+            normalized.TryGetValue("subscript", out var subscript)
+            && subscript.GetBoolean()
+            && normalized.TryGetValue("superscript", out var superscript)
+            && superscript.GetBoolean()
+        )
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "subscript and superscript cannot both be true"
+            );
+        }
+        if (
+            normalized.TryGetValue("emboss", out var emboss)
+            && emboss.GetBoolean()
+            && normalized.TryGetValue("engrave", out var engrave)
+            && engrave.GetBoolean()
+        )
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "emboss and engrave cannot both be true"
+            );
+        }
+        if (
+            normalized.ContainsKey("position_pt")
+            && (
+                normalized.TryGetValue("subscript", out subscript) && subscript.GetBoolean()
+                || normalized.TryGetValue("superscript", out superscript)
+                    && superscript.GetBoolean()
+            )
+        )
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "position_pt cannot be combined with an enabled subscript or superscript"
+            );
+        }
+        if (normalized.ContainsKey("font_color_rgb") && normalized.ContainsKey("font_color_index"))
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                "Use either font_color_rgb or font_color_index, not both"
+            );
+        }
         return JsonSerializer.SerializeToElement(normalized);
     }
 
@@ -5428,7 +5498,14 @@ internal sealed partial class WordLiveService : IToolHandler
         bool allowParagraphFormatting
     )
     {
-        if (name == "font_name")
+        if (
+            name
+                is "font_name"
+                    or "font_name_ascii"
+                    or "font_name_bidi"
+                    or "font_name_far_east"
+                    or "font_name_other"
+        )
         {
             if (
                 value.ValueKind != JsonValueKind.String
@@ -5438,7 +5515,7 @@ internal sealed partial class WordLiveService : IToolHandler
             {
                 throw new NativeToolException(
                     "INVALID_INPUT",
-                    "font_name must be a non-empty string of at most 128 characters"
+                    $"{name} must be a non-empty string of at most 128 characters"
                 );
             }
             return;
@@ -5459,15 +5536,38 @@ internal sealed partial class WordLiveService : IToolHandler
             }
             return;
         }
+        if (name is "diacritic_color" or "underline_color")
+        {
+            var color = value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : "";
+            if (!string.Equals(color, "automatic", StringComparison.Ordinal) && !IsRgbColor(color))
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    $"{name} must be automatic or use #RRGGBB"
+                );
+            }
+            return;
+        }
         if (
             name is "bold"
                 or "italic"
+                or "bold_bidi"
+                or "italic_bidi"
                 or "underline"
                 or "strike"
                 or "double_strike"
+                or "subscript"
+                or "superscript"
                 or "all_caps"
                 or "small_caps"
                 or "hidden"
+                or "shadow"
+                or "outline"
+                or "emboss"
+                or "engrave"
+                or "disable_character_space_grid"
+                or "contextual_alternates"
+                or "clear_character_formatting"
                 or "keep_with_next"
                 or "keep_together"
                 or "page_break_before"
@@ -5492,6 +5592,118 @@ internal sealed partial class WordLiveService : IToolHandler
                 throw new NativeToolException(
                     "INVALID_INPUT",
                     $"Unsupported inline run formatting field: {name}"
+                );
+            }
+            return;
+        }
+        if (name == "underline_style")
+        {
+            if (
+                value.ValueKind != JsonValueKind.String
+                || !TryUnderlineStyle(value.GetString(), out _)
+            )
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "underline_style is not a supported Microsoft Word underline style"
+                );
+            }
+            return;
+        }
+        if (name == "emphasis_mark")
+        {
+            if (
+                value.ValueKind != JsonValueKind.String
+                || !TryEmphasisMark(value.GetString(), out _)
+            )
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "emphasis_mark must be none, over_solid_circle, over_comma, over_white_circle, or under_solid_circle"
+                );
+            }
+            return;
+        }
+        if (name == "ligatures")
+        {
+            if (
+                value.ValueKind != JsonValueKind.String
+                || !TryLigatures(value.GetString(), out _)
+            )
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "ligatures is not a supported Microsoft Word ligature combination"
+                );
+            }
+            return;
+        }
+        if (name == "number_form")
+        {
+            if (
+                value.ValueKind != JsonValueKind.String
+                || !TryNumberForm(value.GetString(), out _)
+            )
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "number_form must be default, lining, or old_style"
+                );
+            }
+            return;
+        }
+        if (name == "number_spacing")
+        {
+            if (
+                value.ValueKind != JsonValueKind.String
+                || !TryNumberSpacing(value.GetString(), out _)
+            )
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "number_spacing must be default, proportional, or tabular"
+                );
+            }
+            return;
+        }
+        if (name == "stylistic_sets")
+        {
+            if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > 20)
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    "stylistic_sets must be an array of unique integers from 1 to 20"
+                );
+            }
+            var seen = new HashSet<int>();
+            foreach (var item in value.EnumerateArray())
+            {
+                if (
+                    item.ValueKind != JsonValueKind.Number
+                    || !item.TryGetInt32(out var set)
+                    || set is < 1 or > 20
+                    || !seen.Add(set)
+                )
+                {
+                    throw new NativeToolException(
+                        "INVALID_INPUT",
+                        "stylistic_sets must be an array of unique integers from 1 to 20"
+                    );
+                }
+            }
+            return;
+        }
+        if (name is "font_color_index" or "font_color_bidi_index")
+        {
+            if (
+                value.ValueKind != JsonValueKind.Number
+                || !value.TryGetInt32(out var colorIndex)
+                || (colorIndex != -1 && colorIndex is not (>= 1 and <= 16))
+            )
+            {
+                throw new NativeToolException(
+                    "INVALID_INPUT",
+                    $"{name} must be -1 (automatic) or an integer from 1 to 16"
                 );
             }
             return;
@@ -5529,7 +5741,10 @@ internal sealed partial class WordLiveService : IToolHandler
 
         var numericRange = name switch
         {
-            "font_size_pt" => (Minimum: 1d, Maximum: 200d),
+            "font_size_pt" or "font_size_bidi_pt" => (Minimum: 1d, Maximum: 1638d),
+            "scaling_percent" => (Minimum: 1d, Maximum: 600d),
+            "spacing_pt" or "position_pt" => (Minimum: -1584d, Maximum: 1584d),
+            "kerning_pt" => (Minimum: 0d, Maximum: 1638d),
             "space_before_pt" or "space_after_pt" => (Minimum: 0d, Maximum: 1584d),
             "left_indent_pt" or "right_indent_pt" or "first_line_indent_pt" =>
                 (Minimum: -1584d, Maximum: 1584d),
@@ -5538,12 +5753,24 @@ internal sealed partial class WordLiveService : IToolHandler
         if (numericRange is not null)
         {
             if (
-                (!allowParagraphFormatting && name is not "font_size_pt")
+                (
+                    !allowParagraphFormatting
+                    && name
+                        is not (
+                            "font_size_pt"
+                            or "font_size_bidi_pt"
+                            or "scaling_percent"
+                            or "spacing_pt"
+                            or "position_pt"
+                            or "kerning_pt"
+                        )
+                )
                 || value.ValueKind != JsonValueKind.Number
                 || !value.TryGetDouble(out var number)
                 || !double.IsFinite(number)
                 || number < numericRange.Value.Minimum
                 || number > numericRange.Value.Maximum
+                || (name is "scaling_percent" or "position_pt" && number != Math.Truncate(number))
             )
             {
                 throw new NativeToolException(
@@ -5560,6 +5787,101 @@ internal sealed partial class WordLiveService : IToolHandler
                 ? $"Unsupported formatting field: {name}"
                 : $"Unsupported inline run formatting field: {name}"
         );
+    }
+
+    private static bool IsRgbColor(string value) =>
+        value.Length == 7
+        && value[0] == '#'
+        && value.AsSpan(1).ToArray().All(Uri.IsHexDigit);
+
+    private static bool TryUnderlineStyle(string? value, out int wordValue)
+    {
+        wordValue = value switch
+        {
+            "none" => 0,
+            "single" => 1,
+            "words" => 2,
+            "double" => 3,
+            "dotted" => 4,
+            "thick" => 6,
+            "dash" => 7,
+            "dot_dash" => 9,
+            "dot_dot_dash" => 10,
+            "wavy" => 11,
+            "dotted_heavy" => 20,
+            "dash_heavy" => 23,
+            "dot_dash_heavy" => 25,
+            "dot_dot_dash_heavy" => 26,
+            "wavy_heavy" => 27,
+            "dash_long" => 39,
+            "wavy_double" => 43,
+            "dash_long_heavy" => 55,
+            _ => int.MinValue,
+        };
+        return wordValue != int.MinValue;
+    }
+
+    private static bool TryEmphasisMark(string? value, out int wordValue)
+    {
+        wordValue = value switch
+        {
+            "none" => 0,
+            "over_solid_circle" => 1,
+            "over_comma" => 2,
+            "over_white_circle" => 3,
+            "under_solid_circle" => 4,
+            _ => int.MinValue,
+        };
+        return wordValue != int.MinValue;
+    }
+
+    private static bool TryLigatures(string? value, out int wordValue)
+    {
+        wordValue = value switch
+        {
+            "none" => 0,
+            "standard" => 1,
+            "contextual" => 2,
+            "standard_contextual" => 3,
+            "historical" => 4,
+            "standard_historical" => 5,
+            "contextual_historical" => 6,
+            "standard_contextual_historical" => 7,
+            "discretionary" => 8,
+            "standard_discretionary" => 9,
+            "contextual_discretionary" => 10,
+            "standard_contextual_discretionary" => 11,
+            "historical_discretionary" => 12,
+            "standard_historical_discretionary" => 13,
+            "contextual_historical_discretionary" => 14,
+            "all" => 15,
+            _ => int.MinValue,
+        };
+        return wordValue != int.MinValue;
+    }
+
+    private static bool TryNumberForm(string? value, out int wordValue)
+    {
+        wordValue = value switch
+        {
+            "default" => 0,
+            "lining" => 1,
+            "old_style" => 2,
+            _ => int.MinValue,
+        };
+        return wordValue != int.MinValue;
+    }
+
+    private static bool TryNumberSpacing(string? value, out int wordValue)
+    {
+        wordValue = value switch
+        {
+            "default" => 0,
+            "proportional" => 1,
+            "tabular" => 2,
+            _ => int.MinValue,
+        };
+        return wordValue != int.MinValue;
     }
 
     internal static JsonElement NormalizeFormattingForTesting(
@@ -5637,16 +5959,46 @@ internal sealed partial class WordLiveService : IToolHandler
         var allowed = new HashSet<string>(StringComparer.Ordinal)
         {
             "font_name",
+            "font_name_ascii",
+            "font_name_bidi",
+            "font_name_far_east",
+            "font_name_other",
             "font_size_pt",
+            "font_size_bidi_pt",
             "font_color_rgb",
+            "font_color_index",
+            "font_color_bidi_index",
+            "diacritic_color",
             "bold",
             "italic",
+            "bold_bidi",
+            "italic_bidi",
             "underline",
+            "underline_style",
+            "underline_color",
             "strike",
             "double_strike",
+            "subscript",
+            "superscript",
             "all_caps",
             "small_caps",
             "hidden",
+            "shadow",
+            "outline",
+            "emboss",
+            "engrave",
+            "scaling_percent",
+            "spacing_pt",
+            "position_pt",
+            "kerning_pt",
+            "disable_character_space_grid",
+            "emphasis_mark",
+            "ligatures",
+            "number_form",
+            "number_spacing",
+            "stylistic_sets",
+            "contextual_alternates",
+            "clear_character_formatting",
             "highlight_color_index",
             "paragraph_alignment",
             "space_before_pt",
@@ -5671,36 +6023,106 @@ internal sealed partial class WordLiveService : IToolHandler
         }
         dynamic font = range.Font;
         dynamic paragraph = range.ParagraphFormat;
+        if (
+            formatting.TryGetProperty("clear_character_formatting", out var clearFormatting)
+            && clearFormatting.GetBoolean()
+        )
+        {
+            font.Reset();
+            SetDynamicProperty(range, "HighlightColorIndex", 0);
+        }
         if (formatting.TryGetProperty("font_name", out var fontName))
         {
             font.Name = fontName.GetString() ?? "";
         }
+        SetString(font, formatting, "font_name_ascii", "NameAscii");
+        SetString(font, formatting, "font_name_bidi", "NameBi");
+        SetString(font, formatting, "font_name_far_east", "NameFarEast");
+        SetString(font, formatting, "font_name_other", "NameOther");
         if (formatting.TryGetProperty("font_size_pt", out var fontSize))
         {
             var value = fontSize.GetDouble();
-            if (value is < 1 or > 200)
+            if (value is < 1 or > 1638)
             {
                 throw new NativeToolException(
                     "INVALID_INPUT",
-                    "font_size_pt must be between 1 and 200"
+                    "font_size_pt must be between 1 and 1638"
                 );
             }
-            font.Size = value;
+            font.Size = (float)value;
         }
+        SetFloat(font, formatting, "font_size_bidi_pt", "SizeBi", 1, 1638);
         if (formatting.TryGetProperty("font_color_rgb", out var fontColor))
         {
             font.Color = ParseWordColor(fontColor.GetString() ?? "");
         }
+        SetInteger(font, formatting, "font_color_index", "ColorIndex", -1, 16);
+        SetInteger(font, formatting, "font_color_bidi_index", "ColorIndexBi", -1, 16);
+        SetWordColor(font, formatting, "diacritic_color", "DiacriticColor");
         SetWordBoolean(font, formatting, "bold", "Bold");
         SetWordBoolean(font, formatting, "italic", "Italic");
+        SetWordBoolean(font, formatting, "bold_bidi", "BoldBi");
+        SetWordBoolean(font, formatting, "italic_bidi", "ItalicBi");
         SetWordBoolean(font, formatting, "strike", "StrikeThrough");
         SetWordBoolean(font, formatting, "double_strike", "DoubleStrikeThrough");
+        SetWordBoolean(font, formatting, "subscript", "Subscript");
+        SetWordBoolean(font, formatting, "superscript", "Superscript");
         SetWordBoolean(font, formatting, "all_caps", "AllCaps");
         SetWordBoolean(font, formatting, "small_caps", "SmallCaps");
         SetWordBoolean(font, formatting, "hidden", "Hidden");
+        SetWordBoolean(font, formatting, "shadow", "Shadow");
+        SetWordBoolean(font, formatting, "outline", "Outline");
+        SetWordBoolean(font, formatting, "emboss", "Emboss");
+        SetWordBoolean(font, formatting, "engrave", "Engrave");
+        SetWordBoolean(
+            font,
+            formatting,
+            "disable_character_space_grid",
+            "DisableCharacterSpaceGrid"
+        );
+        SetWordBoolean(font, formatting, "contextual_alternates", "ContextualAlternates");
         if (formatting.TryGetProperty("underline", out var underline))
         {
             font.Underline = underline.GetBoolean() ? 1 : 0;
+        }
+        if (formatting.TryGetProperty("underline_style", out var underlineStyle))
+        {
+            _ = TryUnderlineStyle(underlineStyle.GetString(), out var wordUnderline);
+            SetDynamicProperty(font, "Underline", wordUnderline);
+        }
+        SetWordColor(font, formatting, "underline_color", "UnderlineColor");
+        SetInteger(font, formatting, "scaling_percent", "Scaling", 1, 600);
+        SetFloat(font, formatting, "spacing_pt", "Spacing", -1584, 1584);
+        SetInteger(font, formatting, "position_pt", "Position", -1584, 1584);
+        SetFloat(font, formatting, "kerning_pt", "Kerning", 0, 1638);
+        if (formatting.TryGetProperty("emphasis_mark", out var emphasisMark))
+        {
+            _ = TryEmphasisMark(emphasisMark.GetString(), out var wordEmphasisMark);
+            SetDynamicProperty(font, "EmphasisMark", wordEmphasisMark);
+        }
+        if (formatting.TryGetProperty("ligatures", out var ligatures))
+        {
+            _ = TryLigatures(ligatures.GetString(), out var wordLigatures);
+            SetDynamicProperty(font, "Ligatures", wordLigatures);
+        }
+        if (formatting.TryGetProperty("number_form", out var numberForm))
+        {
+            _ = TryNumberForm(numberForm.GetString(), out var wordNumberForm);
+            SetDynamicProperty(font, "NumberForm", wordNumberForm);
+        }
+        if (formatting.TryGetProperty("number_spacing", out var numberSpacing))
+        {
+            _ = TryNumberSpacing(numberSpacing.GetString(), out var wordNumberSpacing);
+            SetDynamicProperty(font, "NumberSpacing", wordNumberSpacing);
+        }
+        if (formatting.TryGetProperty("stylistic_sets", out var stylisticSets))
+        {
+            var wordStylisticSets = 0;
+            foreach (var item in stylisticSets.EnumerateArray())
+            {
+                wordStylisticSets |= 1 << (item.GetInt32() - 1);
+            }
+            SetDynamicProperty(font, "StylisticSet", wordStylisticSets);
         }
         if (formatting.TryGetProperty("highlight_color_index", out var highlightColorIndex))
         {
@@ -5737,6 +6159,20 @@ internal sealed partial class WordLiveService : IToolHandler
         SetWordBoolean(paragraph, formatting, "keep_together", "KeepTogether");
         SetWordBoolean(paragraph, formatting, "page_break_before", "PageBreakBefore");
         SetWordBoolean(paragraph, formatting, "widow_control", "WidowControl");
+        VerifyRequestedFormatting(range, formatting);
+    }
+
+    private static void SetString(
+        dynamic target,
+        JsonElement formatting,
+        string source,
+        string destination
+    )
+    {
+        if (formatting.TryGetProperty(source, out var value))
+        {
+            SetDynamicProperty(target, destination, value.GetString() ?? "");
+        }
     }
 
     private static void SetWordBoolean(
@@ -5774,7 +6210,61 @@ internal sealed partial class WordLiveService : IToolHandler
                 $"{source} must be between {minimum} and {maximum}"
             );
         }
+        SetDynamicProperty(target, destination, (float)value);
+    }
+
+    private static void SetInteger(
+        dynamic target,
+        JsonElement formatting,
+        string source,
+        string destination,
+        int minimum,
+        int maximum
+    )
+    {
+        if (!formatting.TryGetProperty(source, out var valueNode))
+        {
+            return;
+        }
+        if (!valueNode.TryGetInt32(out var value) || value < minimum || value > maximum)
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                $"{source} must be an integer between {minimum} and {maximum}"
+            );
+        }
+        if (
+            source is "font_color_index" or "font_color_bidi_index"
+            && value == 0
+        )
+        {
+            throw new NativeToolException(
+                "INVALID_INPUT",
+                $"{source} must be -1 (automatic) or an integer from 1 to 16"
+            );
+        }
         SetDynamicProperty(target, destination, value);
+    }
+
+    private static void SetWordColor(
+        dynamic target,
+        JsonElement formatting,
+        string source,
+        string destination
+    )
+    {
+        if (!formatting.TryGetProperty(source, out var value))
+        {
+            return;
+        }
+        var text = value.GetString() ?? "";
+        SetDynamicProperty(
+            target,
+            destination,
+            string.Equals(text, "automatic", StringComparison.Ordinal)
+                ? unchecked((int)0xFF000000)
+                : ParseWordColor(text)
+        );
     }
 
     private static void SetDynamicProperty(dynamic target, string property, object value)

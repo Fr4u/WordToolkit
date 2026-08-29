@@ -523,6 +523,54 @@ WORD_TABLE_FORMULA_DIRECTIONS = {
     "left": "LEFT",
     "right": "RIGHT",
 }
+WORD_AUTOMATIC_COLOR = -16_777_216
+WORD_UNDERLINE_STYLES = {
+    "none": 0,
+    "single": 1,
+    "words": 2,
+    "double": 3,
+    "dotted": 4,
+    "thick": 6,
+    "dash": 7,
+    "dot_dash": 9,
+    "dot_dot_dash": 10,
+    "wavy": 11,
+    "dotted_heavy": 20,
+    "dash_heavy": 23,
+    "dot_dash_heavy": 25,
+    "dot_dot_dash_heavy": 26,
+    "wavy_heavy": 27,
+    "dash_long": 39,
+    "wavy_double": 43,
+    "dash_long_heavy": 55,
+}
+WORD_EMPHASIS_MARKS = {
+    "none": 0,
+    "over_solid_circle": 1,
+    "over_comma": 2,
+    "over_white_circle": 3,
+    "under_solid_circle": 4,
+}
+WORD_LIGATURES = {
+    "none": 0,
+    "standard": 1,
+    "contextual": 2,
+    "standard_contextual": 3,
+    "historical": 4,
+    "standard_historical": 5,
+    "contextual_historical": 6,
+    "standard_contextual_historical": 7,
+    "discretionary": 8,
+    "standard_discretionary": 9,
+    "contextual_discretionary": 10,
+    "standard_contextual_discretionary": 11,
+    "historical_discretionary": 12,
+    "standard_historical_discretionary": 13,
+    "contextual_historical_discretionary": 14,
+    "all": 15,
+}
+WORD_NUMBER_FORMS = {"default": 0, "lining": 1, "old_style": 2}
+WORD_NUMBER_SPACING = {"default": 0, "proportional": 1, "tabular": 2}
 TEXT_FORMATTING_KEYS = {
     "font_name",
     "font_size_pt",
@@ -560,7 +608,38 @@ INLINE_RUN_FORMATTING_KEYS = {
     "double_strike",
     "hidden",
     "highlight_color_index",
+    "font_name_ascii",
+    "font_name_bidi",
+    "font_name_far_east",
+    "font_name_other",
+    "font_size_bidi_pt",
+    "font_color_index",
+    "font_color_bidi_index",
+    "diacritic_color",
+    "bold_bidi",
+    "italic_bidi",
+    "underline_style",
+    "underline_color",
+    "subscript",
+    "superscript",
+    "shadow",
+    "outline",
+    "emboss",
+    "engrave",
+    "scaling_percent",
+    "spacing_pt",
+    "position_pt",
+    "kerning_pt",
+    "disable_character_space_grid",
+    "emphasis_mark",
+    "ligatures",
+    "number_form",
+    "number_spacing",
+    "stylistic_sets",
+    "contextual_alternates",
+    "clear_character_formatting",
 }
+TEXT_FORMATTING_KEYS |= INLINE_RUN_FORMATTING_KEYS
 TEXT_FORMATTING_ALIASES = {
     "font_size": "font_size_pt",
     "alignment": "paragraph_alignment",
@@ -4103,14 +4182,22 @@ class LiveWordBridge:
                 {"fields": unknown},
             )
         normalized: dict[str, Any] = {}
-        if "font_name" in value:
-            font_name = value["font_name"]
+        for name in (
+            "font_name",
+            "font_name_ascii",
+            "font_name_bidi",
+            "font_name_far_east",
+            "font_name_other",
+        ):
+            if name not in value:
+                continue
+            font_name = value[name]
             if not isinstance(font_name, str) or not font_name.strip() or len(font_name) > 128:
                 raise WordToolkitError(
                     ErrorCode.INVALID_INPUT,
-                    "font_name must be a non-empty string of at most 128 characters",
+                    f"{name} must be a non-empty string of at most 128 characters",
                 )
-            normalized["font_name"] = font_name.strip()
+            normalized[name] = font_name.strip()
         if "font_color_rgb" in value:
             color = value["font_color_rgb"]
             if not isinstance(color, str) or not re.fullmatch(r"#[0-9A-Fa-f]{6}", color):
@@ -4122,12 +4209,23 @@ class LiveWordBridge:
         for name in {
             "bold",
             "italic",
+            "bold_bidi",
+            "italic_bidi",
             "underline",
             "all_caps",
             "small_caps",
             "strike",
             "double_strike",
+            "subscript",
+            "superscript",
             "hidden",
+            "shadow",
+            "outline",
+            "emboss",
+            "engrave",
+            "disable_character_space_grid",
+            "contextual_alternates",
+            "clear_character_formatting",
             "keep_with_next",
             "keep_together",
             "page_break_before",
@@ -4145,8 +4243,100 @@ class LiveWordBridge:
                 ErrorCode.INVALID_INPUT,
                 "strike and double_strike cannot both be true because Microsoft Word preserves only one strike mode",
             )
+        enum_fields = {
+            "underline_style": WORD_UNDERLINE_STYLES,
+            "emphasis_mark": WORD_EMPHASIS_MARKS,
+            "ligatures": WORD_LIGATURES,
+            "number_form": WORD_NUMBER_FORMS,
+            "number_spacing": WORD_NUMBER_SPACING,
+        }
+        for name, allowed in enum_fields.items():
+            if name not in value:
+                continue
+            selected = value[name]
+            if not isinstance(selected, str) or selected not in allowed:
+                raise WordToolkitError(
+                    ErrorCode.INVALID_INPUT,
+                    f"{name} is not a supported Microsoft Word value",
+                    {"allowed": list(allowed)},
+                )
+            normalized[name] = selected
+        if "underline_style" in value and "underline" in value:
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "Use either deprecated underline or canonical underline_style, not both",
+            )
+        if value.get("emboss") is True and value.get("engrave") is True:
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "emboss and engrave cannot both be true",
+            )
+        if value.get("subscript") is True and value.get("superscript") is True:
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "subscript and superscript cannot both be true",
+            )
+        if "stylistic_sets" in value:
+            stylistic_sets = value["stylistic_sets"]
+            if (
+                not isinstance(stylistic_sets, list)
+                or len(stylistic_sets) > 20
+                or any(
+                    isinstance(item, bool) or not isinstance(item, int) for item in stylistic_sets
+                )
+                or any(not 1 <= item <= 20 for item in stylistic_sets)
+                or len(set(stylistic_sets)) != len(stylistic_sets)
+            ):
+                raise WordToolkitError(
+                    ErrorCode.INVALID_INPUT,
+                    "stylistic_sets must contain unique integers from 1 to 20",
+                )
+            normalized["stylistic_sets"] = list(stylistic_sets)
+        for name in ("font_color_index", "font_color_bidi_index"):
+            if name not in value:
+                continue
+            color_index = value[name]
+            if (
+                isinstance(color_index, bool)
+                or not isinstance(color_index, int)
+                or (color_index != -1 and not 1 <= color_index <= 16)
+            ):
+                raise WordToolkitError(
+                    ErrorCode.INVALID_INPUT,
+                    f"{name} must be -1 (automatic) or an integer from 1 to 16",
+                )
+            normalized[name] = color_index
+        for name in ("diacritic_color", "underline_color"):
+            if name not in value:
+                continue
+            color = value[name]
+            if not isinstance(color, str) or (
+                color != "automatic" and not re.fullmatch(r"#[0-9A-Fa-f]{6}", color)
+            ):
+                raise WordToolkitError(
+                    ErrorCode.INVALID_INPUT,
+                    f"{name} must be automatic or use #RRGGBB",
+                )
+            normalized[name] = color if color == "automatic" else color.upper()
+        if "position_pt" in value and (
+            value.get("subscript") is True or value.get("superscript") is True
+        ):
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "position_pt cannot be combined with an enabled subscript or superscript",
+            )
+        if "font_color_rgb" in value and "font_color_index" in value:
+            raise WordToolkitError(
+                ErrorCode.INVALID_INPUT,
+                "Use either font_color_rgb or font_color_index, not both",
+            )
         numeric_ranges = {
-            "font_size_pt": (1.0, 200.0),
+            "font_size_pt": (1.0, 1638.0),
+            "font_size_bidi_pt": (1.0, 1638.0),
+            "scaling_percent": (1.0, 600.0),
+            "spacing_pt": (-1584.0, 1584.0),
+            "position_pt": (-1584.0, 1584.0),
+            "kerning_pt": (0.0, 1638.0),
             "space_before_pt": (0.0, 1584.0),
             "space_after_pt": (0.0, 1584.0),
             "left_indent_pt": (-1584.0, 1584.0),
@@ -4163,13 +4353,18 @@ class LiveWordBridge:
                     f"{name} must be a number",
                 )
             number = float(number)
+            if name in {"scaling_percent", "position_pt"} and not number.is_integer():
+                raise WordToolkitError(
+                    ErrorCode.INVALID_INPUT,
+                    f"{name} must be an integer",
+                )
             if not minimum <= number <= maximum:
                 raise WordToolkitError(
                     ErrorCode.INVALID_INPUT,
                     f"{name} is outside the supported Word point range",
                     {"minimum": minimum, "maximum": maximum},
                 )
-            normalized[name] = number
+            normalized[name] = int(number) if name in {"scaling_percent", "position_pt"} else number
         if "highlight_color_index" in value:
             highlight = value["highlight_color_index"]
             if (
@@ -4200,34 +4395,89 @@ class LiveWordBridge:
         return red | (green << 8) | (blue << 16)
 
     @classmethod
-    def _apply_text_formatting(cls, target_range: Any, formatting: dict[str, Any]) -> None:
+    def _word_color(cls, value: str) -> int:
+        return WORD_AUTOMATIC_COLOR if value == "automatic" else cls._word_rgb(value)
+
+    @staticmethod
+    def _word_rgb_text(value: int) -> str:
+        red = value & 0xFF
+        green = (value >> 8) & 0xFF
+        blue = (value >> 16) & 0xFF
+        return f"#{red:02X}{green:02X}{blue:02X}"
+
+    @classmethod
+    def _apply_text_formatting(
+        cls,
+        target_range: Any,
+        formatting: dict[str, Any],
+    ) -> dict[str, Any]:
         font = target_range.Font
+        if formatting.get("clear_character_formatting"):
+            font.Reset()
+            target_range.HighlightColorIndex = 0
         paragraph = target_range.ParagraphFormat
         direct_font = {
             "font_name": "Name",
+            "font_name_ascii": "NameAscii",
+            "font_name_bidi": "NameBi",
+            "font_name_far_east": "NameFarEast",
+            "font_name_other": "NameOther",
             "font_size_pt": "Size",
+            "font_size_bidi_pt": "SizeBi",
+            "font_color_index": "ColorIndex",
+            "font_color_bidi_index": "ColorIndexBi",
+            "scaling_percent": "Scaling",
+            "spacing_pt": "Spacing",
+            "position_pt": "Position",
+            "kerning_pt": "Kerning",
         }
         for source, target in direct_font.items():
             if source in formatting:
                 setattr(font, target, formatting[source])
         if "font_color_rgb" in formatting:
             font.Color = cls._word_rgb(formatting["font_color_rgb"])
+        if "diacritic_color" in formatting:
+            font.DiacriticColor = cls._word_color(formatting["diacritic_color"])
+        if "underline_color" in formatting:
+            font.UnderlineColor = cls._word_color(formatting["underline_color"])
         if "highlight_color_index" in formatting:
             target_range.HighlightColorIndex = formatting["highlight_color_index"]
         boolean_font = {
             "bold": "Bold",
             "italic": "Italic",
+            "bold_bidi": "BoldBi",
+            "italic_bidi": "ItalicBi",
             "all_caps": "AllCaps",
             "small_caps": "SmallCaps",
             "strike": "StrikeThrough",
             "double_strike": "DoubleStrikeThrough",
+            "subscript": "Subscript",
+            "superscript": "Superscript",
             "hidden": "Hidden",
+            "shadow": "Shadow",
+            "outline": "Outline",
+            "emboss": "Emboss",
+            "engrave": "Engrave",
+            "disable_character_space_grid": "DisableCharacterSpaceGrid",
+            "contextual_alternates": "ContextualAlternates",
         }
         for source, target in boolean_font.items():
             if source in formatting:
                 setattr(font, target, -1 if formatting[source] else 0)
         if "underline" in formatting:
             font.Underline = 1 if formatting["underline"] else 0
+        enum_font = {
+            "underline_style": ("Underline", WORD_UNDERLINE_STYLES),
+            "emphasis_mark": ("EmphasisMark", WORD_EMPHASIS_MARKS),
+            "ligatures": ("Ligatures", WORD_LIGATURES),
+            "number_form": ("NumberForm", WORD_NUMBER_FORMS),
+            "number_spacing": ("NumberSpacing", WORD_NUMBER_SPACING),
+        }
+        for source, (target, values) in enum_font.items():
+            if source in formatting:
+                setattr(font, target, values[formatting[source]])
+        if "stylistic_sets" in formatting:
+            font.StylisticSet = sum(1 << (item - 1) for item in formatting["stylistic_sets"])
 
         direct_paragraph = {
             "space_before_pt": "SpaceBefore",
@@ -4250,6 +4500,145 @@ class LiveWordBridge:
         for source, target in boolean_paragraph.items():
             if source in formatting:
                 setattr(paragraph, target, -1 if formatting[source] else 0)
+        readback = cls._capture_text_formatting(target_range, formatting)
+        for field, expected in formatting.items():
+            if field == "clear_character_formatting":
+                continue
+            actual = readback.get(field)
+            if not cls._formatting_values_equal(expected, actual):
+                raise WordToolkitError(
+                    ErrorCode.FORMATTING_INVALID,
+                    "Microsoft Word did not retain the requested formatting",
+                    {"field": field, "expected": expected, "actual": actual},
+                )
+        return readback
+
+    @classmethod
+    def _capture_text_formatting(
+        cls,
+        target_range: Any,
+        formatting: dict[str, Any],
+    ) -> dict[str, Any]:
+        font = target_range.Font
+        paragraph = target_range.ParagraphFormat
+        direct_font = {
+            "font_name": "Name",
+            "font_name_ascii": "NameAscii",
+            "font_name_bidi": "NameBi",
+            "font_name_far_east": "NameFarEast",
+            "font_name_other": "NameOther",
+            "font_size_pt": "Size",
+            "font_size_bidi_pt": "SizeBi",
+            "font_color_index": "ColorIndex",
+            "font_color_bidi_index": "ColorIndexBi",
+            "scaling_percent": "Scaling",
+            "spacing_pt": "Spacing",
+            "position_pt": "Position",
+            "kerning_pt": "Kerning",
+        }
+        boolean_font = {
+            "bold": "Bold",
+            "italic": "Italic",
+            "bold_bidi": "BoldBi",
+            "italic_bidi": "ItalicBi",
+            "all_caps": "AllCaps",
+            "small_caps": "SmallCaps",
+            "strike": "StrikeThrough",
+            "double_strike": "DoubleStrikeThrough",
+            "subscript": "Subscript",
+            "superscript": "Superscript",
+            "hidden": "Hidden",
+            "shadow": "Shadow",
+            "outline": "Outline",
+            "emboss": "Emboss",
+            "engrave": "Engrave",
+            "disable_character_space_grid": "DisableCharacterSpaceGrid",
+            "contextual_alternates": "ContextualAlternates",
+        }
+        enum_font = {
+            "underline_style": ("Underline", WORD_UNDERLINE_STYLES),
+            "emphasis_mark": ("EmphasisMark", WORD_EMPHASIS_MARKS),
+            "ligatures": ("Ligatures", WORD_LIGATURES),
+            "number_form": ("NumberForm", WORD_NUMBER_FORMS),
+            "number_spacing": ("NumberSpacing", WORD_NUMBER_SPACING),
+        }
+        direct_paragraph = {
+            "space_before_pt": "SpaceBefore",
+            "space_after_pt": "SpaceAfter",
+            "left_indent_pt": "LeftIndent",
+            "right_indent_pt": "RightIndent",
+            "first_line_indent_pt": "FirstLineIndent",
+        }
+        boolean_paragraph = {
+            "keep_with_next": "KeepWithNext",
+            "keep_together": "KeepTogether",
+            "page_break_before": "PageBreakBefore",
+            "widow_control": "WidowControl",
+        }
+        readback: dict[str, Any] = {}
+        for field in formatting:
+            if field in direct_font:
+                readback[field] = getattr(font, direct_font[field])
+            elif field == "font_color_rgb":
+                readback[field] = cls._word_rgb_text(int(font.Color))
+            elif field in {"diacritic_color", "underline_color"}:
+                word_color = int(
+                    getattr(
+                        font, "DiacriticColor" if field == "diacritic_color" else "UnderlineColor"
+                    )
+                )
+                readback[field] = (
+                    "automatic"
+                    if word_color == WORD_AUTOMATIC_COLOR
+                    else cls._word_rgb_text(word_color)
+                )
+            elif field in boolean_font:
+                readback[field] = cls._word_boolean(getattr(font, boolean_font[field]))
+            elif field == "underline":
+                underline = int(font.Underline)
+                readback[field] = True if underline == 1 else False if underline == 0 else underline
+            elif field in enum_font:
+                property_name, values = enum_font[field]
+                actual = int(getattr(font, property_name))
+                readback[field] = next(
+                    (name for name, word_value in values.items() if word_value == actual),
+                    actual,
+                )
+            elif field == "stylistic_sets":
+                mask = int(font.StylisticSet)
+                readback[field] = [index for index in range(1, 21) if mask & (1 << (index - 1))]
+            elif field == "highlight_color_index":
+                readback[field] = int(target_range.HighlightColorIndex)
+            elif field in direct_paragraph:
+                readback[field] = getattr(paragraph, direct_paragraph[field])
+            elif field == "paragraph_alignment":
+                alignment = int(paragraph.Alignment)
+                readback[field] = next(
+                    (
+                        name
+                        for name, word_value in PARAGRAPH_ALIGNMENT.items()
+                        if word_value == alignment
+                    ),
+                    alignment,
+                )
+            elif field in boolean_paragraph:
+                readback[field] = cls._word_boolean(getattr(paragraph, boolean_paragraph[field]))
+            elif field == "clear_character_formatting":
+                readback[field] = bool(formatting[field])
+        return readback
+
+    @staticmethod
+    def _word_boolean(value: Any) -> bool | int:
+        integer = int(value)
+        return True if integer == -1 else False if integer == 0 else integer
+
+    @staticmethod
+    def _formatting_values_equal(expected: Any, actual: Any) -> bool:
+        if isinstance(expected, bool) or isinstance(actual, bool):
+            return type(expected) is type(actual) and expected == actual
+        if isinstance(expected, (int, float)) and isinstance(actual, (int, float)):
+            return abs(float(expected) - float(actual)) <= 0.001
+        return expected == actual
 
     @staticmethod
     def _paragraph_payload(
@@ -4408,6 +4797,7 @@ class LiveWordBridge:
                 text,
                 as_new_paragraph=as_new_paragraph,
             )
+            formatting_readback: dict[str, Any] = {}
             with self._undoable(application, document, "WordToolkit: insert text"):
                 target_range.Text = payload
                 inserted_start = start + prefix_length
@@ -4416,7 +4806,10 @@ class LiveWordBridge:
                 if style:
                     inserted.Style = style
                 if normalized_formatting:
-                    self._apply_text_formatting(inserted, normalized_formatting)
+                    formatting_readback = self._apply_text_formatting(
+                        inserted,
+                        normalized_formatting,
+                    )
             record.version += 1
             caret = int(target_range.End)
             self._show_range(application, inserted, caret)
@@ -4425,6 +4818,8 @@ class LiveWordBridge:
                 "live_version": record.version,
                 "inserted_range": {"start": inserted_start, "end": inserted_end},
                 "formatting": normalized_formatting,
+                "native_formatting_verified": bool(normalized_formatting),
+                "formatting_readback": formatting_readback,
                 "document": self._document_info(application, document),
             }
 
@@ -4488,6 +4883,7 @@ class LiveWordBridge:
                     "Live formatting currently supports only the main document story",
                     {"story_type": int(target_range.StoryType)},
                 )
+            formatting_readback: dict[str, Any] = {}
             with (
                 self._screen_updates_suspended(
                     application,
@@ -4502,7 +4898,10 @@ class LiveWordBridge:
                 if style:
                     target_range.Style = style
                 if normalized:
-                    self._apply_text_formatting(target_range, normalized)
+                    formatting_readback = self._apply_text_formatting(
+                        target_range,
+                        normalized,
+                    )
             record.version += 1
             with suppress(Exception):
                 application.ActiveWindow.ScrollIntoView(target_range, True)
@@ -4514,6 +4913,8 @@ class LiveWordBridge:
                 "story_type": int(target_range.StoryType),
                 "style": style,
                 "formatting": normalized,
+                "native_formatting_verified": bool(normalized),
+                "formatting_readback": formatting_readback,
                 "screen_updates_suspended": optimize_screen_updates,
                 "document": self._document_info(application, document),
             }

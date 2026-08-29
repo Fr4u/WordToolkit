@@ -21120,35 +21120,457 @@
           "formatting": {
             "anyOf": [
               {
-                "type": "object",
-                "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify|distribute); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
-                "additionalProperties": false,
-                "allOf": [
-                  {"not": {"required": ["font_size", "font_size_pt"]}},
-                  {"not": {"required": ["alignment", "paragraph_alignment"]}},
-                  {"not": {"required": ["strike", "double_strike"], "properties": {"strike": {"const": true}, "double_strike": {"const": true}}}}
-                ],
-                "properties": {
-                  "font_name": {"type": "string", "minLength": 1, "maxLength": 128},
-                  "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200},
-                  "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true},
-                  "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
-                  "bold": {"type": "boolean"}, "italic": {"type": "boolean"},
-                  "underline": {"type": "boolean"}, "strike": {"type": "boolean"},
-                  "double_strike": {"type": "boolean"}, "all_caps": {"type": "boolean"},
-                  "small_caps": {"type": "boolean"}, "hidden": {"type": "boolean"},
-                  "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16},
-                  "paragraph_alignment": {"type": "string", "enum": ["left", "center", "right", "justify", "distribute"]},
-                  "alignment": {"type": "string", "enum": ["left", "center", "right", "justify", "distribute"], "deprecated": true},
-                  "space_before_pt": {"type": "number", "minimum": 0, "maximum": 1584},
-                  "space_after_pt": {"type": "number", "minimum": 0, "maximum": 1584},
-                  "left_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
-                  "right_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
-                  "first_line_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
-                  "keep_with_next": {"type": "boolean"}, "keep_together": {"type": "boolean"},
-                  "page_break_before": {"type": "boolean"}, "widow_control": {"type": "boolean"}
-                }
-              },
+                  "type": "object",
+                  "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..1638) and paragraph_alignment (left|center|right|justify|distribute); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
+                  "additionalProperties": false,
+                  "allOf": [
+                    {
+                      "not": {
+                        "required": [
+                          "font_size",
+                          "font_size_pt"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "alignment",
+                          "paragraph_alignment"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "underline",
+                          "underline_style"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "font_color_rgb",
+                          "font_color_index"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "strike",
+                          "double_strike"
+                        ],
+                        "properties": {
+                          "strike": {
+                            "const": true
+                          },
+                          "double_strike": {
+                            "const": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "subscript",
+                          "superscript"
+                        ],
+                        "properties": {
+                          "subscript": {
+                            "const": true
+                          },
+                          "superscript": {
+                            "const": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "emboss",
+                          "engrave"
+                        ],
+                        "properties": {
+                          "emboss": {
+                            "const": true
+                          },
+                          "engrave": {
+                            "const": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "position_pt",
+                          "subscript"
+                        ],
+                        "properties": {
+                          "subscript": {
+                            "const": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "position_pt",
+                          "superscript"
+                        ],
+                        "properties": {
+                          "superscript": {
+                            "const": true
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "properties": {
+                    "font_name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_size_pt": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 1638
+                    },
+                    "font_size": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 1638,
+                      "deprecated": true
+                    },
+                    "font_color_rgb": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$"
+                    },
+                    "font_name_ascii": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_name_bidi": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_name_far_east": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_name_other": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_size_bidi_pt": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 1638
+                    },
+                    "font_color_index": {
+                      "type": "integer",
+                      "enum": [
+                        -1,
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15,
+                        16
+                      ],
+                      "description": "Microsoft Word WdColorIndex; -1 selects automatic color."
+                    },
+                    "font_color_bidi_index": {
+                      "type": "integer",
+                      "enum": [
+                        -1,
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15,
+                        16
+                      ],
+                      "description": "Bidirectional-script WdColorIndex; -1 selects automatic color."
+                    },
+                    "diacritic_color": {
+                      "oneOf": [
+                        {
+                          "const": "automatic"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^#[0-9A-Fa-f]{6}$"
+                        }
+                      ]
+                    },
+                    "bold_bidi": {
+                      "type": "boolean"
+                    },
+                    "italic_bidi": {
+                      "type": "boolean"
+                    },
+                    "underline_style": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "single",
+                        "words",
+                        "double",
+                        "dotted",
+                        "thick",
+                        "dash",
+                        "dot_dash",
+                        "dot_dot_dash",
+                        "wavy",
+                        "dotted_heavy",
+                        "dash_heavy",
+                        "dot_dash_heavy",
+                        "dot_dot_dash_heavy",
+                        "wavy_heavy",
+                        "dash_long",
+                        "wavy_double",
+                        "dash_long_heavy"
+                      ],
+                      "description": "Canonical Microsoft Word underline style. Do not combine with deprecated underline."
+                    },
+                    "underline_color": {
+                      "oneOf": [
+                        {
+                          "const": "automatic"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^#[0-9A-Fa-f]{6}$"
+                        }
+                      ]
+                    },
+                    "subscript": {
+                      "type": "boolean"
+                    },
+                    "superscript": {
+                      "type": "boolean"
+                    },
+                    "shadow": {
+                      "type": "boolean"
+                    },
+                    "outline": {
+                      "type": "boolean"
+                    },
+                    "emboss": {
+                      "type": "boolean"
+                    },
+                    "engrave": {
+                      "type": "boolean"
+                    },
+                    "scaling_percent": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 600
+                    },
+                    "spacing_pt": {
+                      "type": "number",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "position_pt": {
+                      "type": "integer",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "kerning_pt": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1638
+                    },
+                    "disable_character_space_grid": {
+                      "type": "boolean"
+                    },
+                    "emphasis_mark": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "over_solid_circle",
+                        "over_comma",
+                        "over_white_circle",
+                        "under_solid_circle"
+                      ]
+                    },
+                    "ligatures": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "standard",
+                        "contextual",
+                        "standard_contextual",
+                        "historical",
+                        "standard_historical",
+                        "contextual_historical",
+                        "standard_contextual_historical",
+                        "discretionary",
+                        "standard_discretionary",
+                        "contextual_discretionary",
+                        "standard_contextual_discretionary",
+                        "historical_discretionary",
+                        "standard_historical_discretionary",
+                        "contextual_historical_discretionary",
+                        "all"
+                      ]
+                    },
+                    "number_form": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "lining",
+                        "old_style"
+                      ]
+                    },
+                    "number_spacing": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "proportional",
+                        "tabular"
+                      ]
+                    },
+                    "stylistic_sets": {
+                      "type": "array",
+                      "maxItems": 20,
+                      "uniqueItems": true,
+                      "items": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20
+                      }
+                    },
+                    "contextual_alternates": {
+                      "type": "boolean"
+                    },
+                    "clear_character_formatting": {
+                      "type": "boolean",
+                      "description": "Reset direct character formatting with Word Font.Reset before applying other fields in this object; paragraph formatting is unchanged."
+                    },
+                    "bold": {
+                      "type": "boolean"
+                    },
+                    "italic": {
+                      "type": "boolean"
+                    },
+                    "underline": {
+                      "type": "boolean",
+                      "deprecated": true,
+                      "description": "Compatibility boolean for single underline. Use underline_style for the complete Word surface."
+                    },
+                    "strike": {
+                      "type": "boolean"
+                    },
+                    "double_strike": {
+                      "type": "boolean"
+                    },
+                    "all_caps": {
+                      "type": "boolean"
+                    },
+                    "small_caps": {
+                      "type": "boolean"
+                    },
+                    "hidden": {
+                      "type": "boolean"
+                    },
+                    "highlight_color_index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16
+                    },
+                    "paragraph_alignment": {
+                      "type": "string",
+                      "enum": [
+                        "left",
+                        "center",
+                        "right",
+                        "justify",
+                        "distribute"
+                      ]
+                    },
+                    "alignment": {
+                      "type": "string",
+                      "enum": [
+                        "left",
+                        "center",
+                        "right",
+                        "justify",
+                        "distribute"
+                      ],
+                      "deprecated": true
+                    },
+                    "space_before_pt": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1584
+                    },
+                    "space_after_pt": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1584
+                    },
+                    "left_indent_pt": {
+                      "type": "number",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "right_indent_pt": {
+                      "type": "number",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "first_line_indent_pt": {
+                      "type": "number",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "keep_with_next": {
+                      "type": "boolean"
+                    },
+                    "keep_together": {
+                      "type": "boolean"
+                    },
+                    "page_break_before": {
+                      "type": "boolean"
+                    },
+                    "widow_control": {
+                      "type": "boolean"
+                    }
+                  }
+                },
               {
                 "type": "null"
               }
@@ -21213,7 +21635,7 @@
     {
       "name": "format_live_word_selection",
       "title": "Format the current selection directly in Microsoft Word",
-      "description": "Apply a Word style plus bounded font and paragraph formatting to the exact non-empty live selection verified by a fresh selection token. The operation uses one COM attachment, one Undo record and no text round-trip.",
+      "description": "Apply a Word style plus the complete bounded scalar Word.Font and paragraph formatting surface to the exact non-empty live selection verified by a fresh selection token. Every requested field is read back from COM; mixed or ignored values fail inside one rollback-aware Undo record.",
       "inputSchema": {
         "properties": {
           "live_document_id": {
@@ -21234,16 +21656,457 @@
           "formatting": {
             "anyOf": [
               {
-                "type": "object",
-                "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify|distribute); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
-                "additionalProperties": false,
-                "allOf": [{"not": {"required": ["font_size", "font_size_pt"]}}, {"not": {"required": ["alignment", "paragraph_alignment"]}}, {"not": {"required": ["strike", "double_strike"], "properties": {"strike": {"const": true}, "double_strike": {"const": true}}}}],
-                "properties": {
-                  "font_name": {"type": "string", "minLength": 1, "maxLength": 128}, "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200}, "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true}, "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
-                  "bold": {"type": "boolean"}, "italic": {"type": "boolean"}, "underline": {"type": "boolean"}, "strike": {"type": "boolean"}, "double_strike": {"type": "boolean"}, "all_caps": {"type": "boolean"}, "small_caps": {"type": "boolean"}, "hidden": {"type": "boolean"}, "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16},
-                  "paragraph_alignment": {"type": "string", "enum": ["left", "center", "right", "justify", "distribute"]}, "alignment": {"type": "string", "enum": ["left", "center", "right", "justify", "distribute"], "deprecated": true}, "space_before_pt": {"type": "number", "minimum": 0, "maximum": 1584}, "space_after_pt": {"type": "number", "minimum": 0, "maximum": 1584}, "left_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "right_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "first_line_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "keep_with_next": {"type": "boolean"}, "keep_together": {"type": "boolean"}, "page_break_before": {"type": "boolean"}, "widow_control": {"type": "boolean"}
-                }
-              },
+                  "type": "object",
+                  "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..1638) and paragraph_alignment (left|center|right|justify|distribute); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
+                  "additionalProperties": false,
+                  "allOf": [
+                    {
+                      "not": {
+                        "required": [
+                          "font_size",
+                          "font_size_pt"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "alignment",
+                          "paragraph_alignment"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "underline",
+                          "underline_style"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "font_color_rgb",
+                          "font_color_index"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "strike",
+                          "double_strike"
+                        ],
+                        "properties": {
+                          "strike": {
+                            "const": true
+                          },
+                          "double_strike": {
+                            "const": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "subscript",
+                          "superscript"
+                        ],
+                        "properties": {
+                          "subscript": {
+                            "const": true
+                          },
+                          "superscript": {
+                            "const": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "emboss",
+                          "engrave"
+                        ],
+                        "properties": {
+                          "emboss": {
+                            "const": true
+                          },
+                          "engrave": {
+                            "const": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "position_pt",
+                          "subscript"
+                        ],
+                        "properties": {
+                          "subscript": {
+                            "const": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "position_pt",
+                          "superscript"
+                        ],
+                        "properties": {
+                          "superscript": {
+                            "const": true
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "properties": {
+                    "font_name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_size_pt": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 1638
+                    },
+                    "font_size": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 1638,
+                      "deprecated": true
+                    },
+                    "font_color_rgb": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$"
+                    },
+                    "font_name_ascii": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_name_bidi": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_name_far_east": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_name_other": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_size_bidi_pt": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 1638
+                    },
+                    "font_color_index": {
+                      "type": "integer",
+                      "enum": [
+                        -1,
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15,
+                        16
+                      ],
+                      "description": "Microsoft Word WdColorIndex; -1 selects automatic color."
+                    },
+                    "font_color_bidi_index": {
+                      "type": "integer",
+                      "enum": [
+                        -1,
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15,
+                        16
+                      ],
+                      "description": "Bidirectional-script WdColorIndex; -1 selects automatic color."
+                    },
+                    "diacritic_color": {
+                      "oneOf": [
+                        {
+                          "const": "automatic"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^#[0-9A-Fa-f]{6}$"
+                        }
+                      ]
+                    },
+                    "bold_bidi": {
+                      "type": "boolean"
+                    },
+                    "italic_bidi": {
+                      "type": "boolean"
+                    },
+                    "underline_style": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "single",
+                        "words",
+                        "double",
+                        "dotted",
+                        "thick",
+                        "dash",
+                        "dot_dash",
+                        "dot_dot_dash",
+                        "wavy",
+                        "dotted_heavy",
+                        "dash_heavy",
+                        "dot_dash_heavy",
+                        "dot_dot_dash_heavy",
+                        "wavy_heavy",
+                        "dash_long",
+                        "wavy_double",
+                        "dash_long_heavy"
+                      ],
+                      "description": "Canonical Microsoft Word underline style. Do not combine with deprecated underline."
+                    },
+                    "underline_color": {
+                      "oneOf": [
+                        {
+                          "const": "automatic"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^#[0-9A-Fa-f]{6}$"
+                        }
+                      ]
+                    },
+                    "subscript": {
+                      "type": "boolean"
+                    },
+                    "superscript": {
+                      "type": "boolean"
+                    },
+                    "shadow": {
+                      "type": "boolean"
+                    },
+                    "outline": {
+                      "type": "boolean"
+                    },
+                    "emboss": {
+                      "type": "boolean"
+                    },
+                    "engrave": {
+                      "type": "boolean"
+                    },
+                    "scaling_percent": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 600
+                    },
+                    "spacing_pt": {
+                      "type": "number",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "position_pt": {
+                      "type": "integer",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "kerning_pt": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1638
+                    },
+                    "disable_character_space_grid": {
+                      "type": "boolean"
+                    },
+                    "emphasis_mark": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "over_solid_circle",
+                        "over_comma",
+                        "over_white_circle",
+                        "under_solid_circle"
+                      ]
+                    },
+                    "ligatures": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "standard",
+                        "contextual",
+                        "standard_contextual",
+                        "historical",
+                        "standard_historical",
+                        "contextual_historical",
+                        "standard_contextual_historical",
+                        "discretionary",
+                        "standard_discretionary",
+                        "contextual_discretionary",
+                        "standard_contextual_discretionary",
+                        "historical_discretionary",
+                        "standard_historical_discretionary",
+                        "contextual_historical_discretionary",
+                        "all"
+                      ]
+                    },
+                    "number_form": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "lining",
+                        "old_style"
+                      ]
+                    },
+                    "number_spacing": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "proportional",
+                        "tabular"
+                      ]
+                    },
+                    "stylistic_sets": {
+                      "type": "array",
+                      "maxItems": 20,
+                      "uniqueItems": true,
+                      "items": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20
+                      }
+                    },
+                    "contextual_alternates": {
+                      "type": "boolean"
+                    },
+                    "clear_character_formatting": {
+                      "type": "boolean",
+                      "description": "Reset direct character formatting with Word Font.Reset before applying other fields in this object; paragraph formatting is unchanged."
+                    },
+                    "bold": {
+                      "type": "boolean"
+                    },
+                    "italic": {
+                      "type": "boolean"
+                    },
+                    "underline": {
+                      "type": "boolean",
+                      "deprecated": true,
+                      "description": "Compatibility boolean for single underline. Use underline_style for the complete Word surface."
+                    },
+                    "strike": {
+                      "type": "boolean"
+                    },
+                    "double_strike": {
+                      "type": "boolean"
+                    },
+                    "all_caps": {
+                      "type": "boolean"
+                    },
+                    "small_caps": {
+                      "type": "boolean"
+                    },
+                    "hidden": {
+                      "type": "boolean"
+                    },
+                    "highlight_color_index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16
+                    },
+                    "paragraph_alignment": {
+                      "type": "string",
+                      "enum": [
+                        "left",
+                        "center",
+                        "right",
+                        "justify",
+                        "distribute"
+                      ]
+                    },
+                    "alignment": {
+                      "type": "string",
+                      "enum": [
+                        "left",
+                        "center",
+                        "right",
+                        "justify",
+                        "distribute"
+                      ],
+                      "deprecated": true
+                    },
+                    "space_before_pt": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1584
+                    },
+                    "space_after_pt": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1584
+                    },
+                    "left_indent_pt": {
+                      "type": "number",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "right_indent_pt": {
+                      "type": "number",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "first_line_indent_pt": {
+                      "type": "number",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "keep_with_next": {
+                      "type": "boolean"
+                    },
+                    "keep_together": {
+                      "type": "boolean"
+                    },
+                    "page_break_before": {
+                      "type": "boolean"
+                    },
+                    "widow_control": {
+                      "type": "boolean"
+                    }
+                  }
+                },
               {
                 "type": "null"
               }
@@ -21786,16 +22649,457 @@
           "formatting": {
             "anyOf": [
               {
-                "type": "object",
-                "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify|distribute); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
-                "additionalProperties": false,
-                "allOf": [{"not": {"required": ["font_size", "font_size_pt"]}}, {"not": {"required": ["alignment", "paragraph_alignment"]}}, {"not": {"required": ["strike", "double_strike"], "properties": {"strike": {"const": true}, "double_strike": {"const": true}}}}],
-                "properties": {
-                  "font_name": {"type": "string", "minLength": 1, "maxLength": 128}, "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200}, "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true}, "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
-                  "bold": {"type": "boolean"}, "italic": {"type": "boolean"}, "underline": {"type": "boolean"}, "strike": {"type": "boolean"}, "double_strike": {"type": "boolean"}, "all_caps": {"type": "boolean"}, "small_caps": {"type": "boolean"}, "hidden": {"type": "boolean"}, "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16},
-                  "paragraph_alignment": {"type": "string", "enum": ["left", "center", "right", "justify", "distribute"]}, "alignment": {"type": "string", "enum": ["left", "center", "right", "justify", "distribute"], "deprecated": true}, "space_before_pt": {"type": "number", "minimum": 0, "maximum": 1584}, "space_after_pt": {"type": "number", "minimum": 0, "maximum": 1584}, "left_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "right_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "first_line_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "keep_with_next": {"type": "boolean"}, "keep_together": {"type": "boolean"}, "page_break_before": {"type": "boolean"}, "widow_control": {"type": "boolean"}
-                }
-              },
+                  "type": "object",
+                  "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..1638) and paragraph_alignment (left|center|right|justify|distribute); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
+                  "additionalProperties": false,
+                  "allOf": [
+                    {
+                      "not": {
+                        "required": [
+                          "font_size",
+                          "font_size_pt"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "alignment",
+                          "paragraph_alignment"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "underline",
+                          "underline_style"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "font_color_rgb",
+                          "font_color_index"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "strike",
+                          "double_strike"
+                        ],
+                        "properties": {
+                          "strike": {
+                            "const": true
+                          },
+                          "double_strike": {
+                            "const": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "subscript",
+                          "superscript"
+                        ],
+                        "properties": {
+                          "subscript": {
+                            "const": true
+                          },
+                          "superscript": {
+                            "const": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "emboss",
+                          "engrave"
+                        ],
+                        "properties": {
+                          "emboss": {
+                            "const": true
+                          },
+                          "engrave": {
+                            "const": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "position_pt",
+                          "subscript"
+                        ],
+                        "properties": {
+                          "subscript": {
+                            "const": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "position_pt",
+                          "superscript"
+                        ],
+                        "properties": {
+                          "superscript": {
+                            "const": true
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "properties": {
+                    "font_name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_size_pt": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 1638
+                    },
+                    "font_size": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 1638,
+                      "deprecated": true
+                    },
+                    "font_color_rgb": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$"
+                    },
+                    "font_name_ascii": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_name_bidi": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_name_far_east": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_name_other": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_size_bidi_pt": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 1638
+                    },
+                    "font_color_index": {
+                      "type": "integer",
+                      "enum": [
+                        -1,
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15,
+                        16
+                      ],
+                      "description": "Microsoft Word WdColorIndex; -1 selects automatic color."
+                    },
+                    "font_color_bidi_index": {
+                      "type": "integer",
+                      "enum": [
+                        -1,
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15,
+                        16
+                      ],
+                      "description": "Bidirectional-script WdColorIndex; -1 selects automatic color."
+                    },
+                    "diacritic_color": {
+                      "oneOf": [
+                        {
+                          "const": "automatic"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^#[0-9A-Fa-f]{6}$"
+                        }
+                      ]
+                    },
+                    "bold_bidi": {
+                      "type": "boolean"
+                    },
+                    "italic_bidi": {
+                      "type": "boolean"
+                    },
+                    "underline_style": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "single",
+                        "words",
+                        "double",
+                        "dotted",
+                        "thick",
+                        "dash",
+                        "dot_dash",
+                        "dot_dot_dash",
+                        "wavy",
+                        "dotted_heavy",
+                        "dash_heavy",
+                        "dot_dash_heavy",
+                        "dot_dot_dash_heavy",
+                        "wavy_heavy",
+                        "dash_long",
+                        "wavy_double",
+                        "dash_long_heavy"
+                      ],
+                      "description": "Canonical Microsoft Word underline style. Do not combine with deprecated underline."
+                    },
+                    "underline_color": {
+                      "oneOf": [
+                        {
+                          "const": "automatic"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^#[0-9A-Fa-f]{6}$"
+                        }
+                      ]
+                    },
+                    "subscript": {
+                      "type": "boolean"
+                    },
+                    "superscript": {
+                      "type": "boolean"
+                    },
+                    "shadow": {
+                      "type": "boolean"
+                    },
+                    "outline": {
+                      "type": "boolean"
+                    },
+                    "emboss": {
+                      "type": "boolean"
+                    },
+                    "engrave": {
+                      "type": "boolean"
+                    },
+                    "scaling_percent": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 600
+                    },
+                    "spacing_pt": {
+                      "type": "number",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "position_pt": {
+                      "type": "integer",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "kerning_pt": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1638
+                    },
+                    "disable_character_space_grid": {
+                      "type": "boolean"
+                    },
+                    "emphasis_mark": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "over_solid_circle",
+                        "over_comma",
+                        "over_white_circle",
+                        "under_solid_circle"
+                      ]
+                    },
+                    "ligatures": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "standard",
+                        "contextual",
+                        "standard_contextual",
+                        "historical",
+                        "standard_historical",
+                        "contextual_historical",
+                        "standard_contextual_historical",
+                        "discretionary",
+                        "standard_discretionary",
+                        "contextual_discretionary",
+                        "standard_contextual_discretionary",
+                        "historical_discretionary",
+                        "standard_historical_discretionary",
+                        "contextual_historical_discretionary",
+                        "all"
+                      ]
+                    },
+                    "number_form": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "lining",
+                        "old_style"
+                      ]
+                    },
+                    "number_spacing": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "proportional",
+                        "tabular"
+                      ]
+                    },
+                    "stylistic_sets": {
+                      "type": "array",
+                      "maxItems": 20,
+                      "uniqueItems": true,
+                      "items": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20
+                      }
+                    },
+                    "contextual_alternates": {
+                      "type": "boolean"
+                    },
+                    "clear_character_formatting": {
+                      "type": "boolean",
+                      "description": "Reset direct character formatting with Word Font.Reset before applying other fields in this object; paragraph formatting is unchanged."
+                    },
+                    "bold": {
+                      "type": "boolean"
+                    },
+                    "italic": {
+                      "type": "boolean"
+                    },
+                    "underline": {
+                      "type": "boolean",
+                      "deprecated": true,
+                      "description": "Compatibility boolean for single underline. Use underline_style for the complete Word surface."
+                    },
+                    "strike": {
+                      "type": "boolean"
+                    },
+                    "double_strike": {
+                      "type": "boolean"
+                    },
+                    "all_caps": {
+                      "type": "boolean"
+                    },
+                    "small_caps": {
+                      "type": "boolean"
+                    },
+                    "hidden": {
+                      "type": "boolean"
+                    },
+                    "highlight_color_index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16
+                    },
+                    "paragraph_alignment": {
+                      "type": "string",
+                      "enum": [
+                        "left",
+                        "center",
+                        "right",
+                        "justify",
+                        "distribute"
+                      ]
+                    },
+                    "alignment": {
+                      "type": "string",
+                      "enum": [
+                        "left",
+                        "center",
+                        "right",
+                        "justify",
+                        "distribute"
+                      ],
+                      "deprecated": true
+                    },
+                    "space_before_pt": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1584
+                    },
+                    "space_after_pt": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1584
+                    },
+                    "left_indent_pt": {
+                      "type": "number",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "right_indent_pt": {
+                      "type": "number",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "first_line_indent_pt": {
+                      "type": "number",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "keep_with_next": {
+                      "type": "boolean"
+                    },
+                    "keep_together": {
+                      "type": "boolean"
+                    },
+                    "page_break_before": {
+                      "type": "boolean"
+                    },
+                    "widow_control": {
+                      "type": "boolean"
+                    }
+                  }
+                },
               {
                 "type": "null"
               }
@@ -22489,70 +23793,486 @@
       },
       "inputSchema": {
         "$defs": {
+          "liveCharacterFormatting": {
+              "type": "object",
+              "allOf": [
+                {
+                  "not": {
+                    "required": [
+                      "font_size",
+                      "font_size_pt"
+                    ]
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "underline",
+                      "underline_style"
+                    ]
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "font_color_rgb",
+                      "font_color_index"
+                    ]
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "strike",
+                      "double_strike"
+                    ],
+                    "properties": {
+                      "strike": {
+                        "const": true
+                      },
+                      "double_strike": {
+                        "const": true
+                      }
+                    }
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "subscript",
+                      "superscript"
+                    ],
+                    "properties": {
+                      "subscript": {
+                        "const": true
+                      },
+                      "superscript": {
+                        "const": true
+                      }
+                    }
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "emboss",
+                      "engrave"
+                    ],
+                    "properties": {
+                      "emboss": {
+                        "const": true
+                      },
+                      "engrave": {
+                        "const": true
+                      }
+                    }
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "position_pt",
+                      "subscript"
+                    ],
+                    "properties": {
+                      "subscript": {
+                        "const": true
+                      }
+                    }
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "position_pt",
+                      "superscript"
+                    ],
+                    "properties": {
+                      "superscript": {
+                        "const": true
+                      }
+                    }
+                  }
+                }
+              ],
+              "properties": {
+                "font_name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "font_size_pt": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 1638
+                },
+                "font_size": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 1638,
+                  "deprecated": true
+                },
+                "font_color_rgb": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$"
+                },
+                "font_name_ascii": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "font_name_bidi": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "font_name_far_east": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "font_name_other": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "font_size_bidi_pt": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 1638
+                },
+                "font_color_index": {
+                  "type": "integer",
+                  "enum": [
+                    -1,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16
+                  ],
+                  "description": "Microsoft Word WdColorIndex; -1 selects automatic color."
+                },
+                "font_color_bidi_index": {
+                  "type": "integer",
+                  "enum": [
+                    -1,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16
+                  ],
+                  "description": "Bidirectional-script WdColorIndex; -1 selects automatic color."
+                },
+                "diacritic_color": {
+                  "oneOf": [
+                    {
+                      "const": "automatic"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$"
+                    }
+                  ]
+                },
+                "bold_bidi": {
+                  "type": "boolean"
+                },
+                "italic_bidi": {
+                  "type": "boolean"
+                },
+                "underline_style": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "single",
+                    "words",
+                    "double",
+                    "dotted",
+                    "thick",
+                    "dash",
+                    "dot_dash",
+                    "dot_dot_dash",
+                    "wavy",
+                    "dotted_heavy",
+                    "dash_heavy",
+                    "dot_dash_heavy",
+                    "dot_dot_dash_heavy",
+                    "wavy_heavy",
+                    "dash_long",
+                    "wavy_double",
+                    "dash_long_heavy"
+                  ],
+                  "description": "Canonical Microsoft Word underline style. Do not combine with deprecated underline."
+                },
+                "underline_color": {
+                  "oneOf": [
+                    {
+                      "const": "automatic"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$"
+                    }
+                  ]
+                },
+                "subscript": {
+                  "type": "boolean"
+                },
+                "superscript": {
+                  "type": "boolean"
+                },
+                "shadow": {
+                  "type": "boolean"
+                },
+                "outline": {
+                  "type": "boolean"
+                },
+                "emboss": {
+                  "type": "boolean"
+                },
+                "engrave": {
+                  "type": "boolean"
+                },
+                "scaling_percent": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 600
+                },
+                "spacing_pt": {
+                  "type": "number",
+                  "minimum": -1584,
+                  "maximum": 1584
+                },
+                "position_pt": {
+                  "type": "integer",
+                  "minimum": -1584,
+                  "maximum": 1584
+                },
+                "kerning_pt": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1638
+                },
+                "disable_character_space_grid": {
+                  "type": "boolean"
+                },
+                "emphasis_mark": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "over_solid_circle",
+                    "over_comma",
+                    "over_white_circle",
+                    "under_solid_circle"
+                  ]
+                },
+                "ligatures": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "standard",
+                    "contextual",
+                    "standard_contextual",
+                    "historical",
+                    "standard_historical",
+                    "contextual_historical",
+                    "standard_contextual_historical",
+                    "discretionary",
+                    "standard_discretionary",
+                    "contextual_discretionary",
+                    "standard_contextual_discretionary",
+                    "historical_discretionary",
+                    "standard_historical_discretionary",
+                    "contextual_historical_discretionary",
+                    "all"
+                  ]
+                },
+                "number_form": {
+                  "type": "string",
+                  "enum": [
+                    "default",
+                    "lining",
+                    "old_style"
+                  ]
+                },
+                "number_spacing": {
+                  "type": "string",
+                  "enum": [
+                    "default",
+                    "proportional",
+                    "tabular"
+                  ]
+                },
+                "stylistic_sets": {
+                  "type": "array",
+                  "maxItems": 20,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20
+                  }
+                },
+                "contextual_alternates": {
+                  "type": "boolean"
+                },
+                "clear_character_formatting": {
+                  "type": "boolean",
+                  "description": "Reset direct character formatting with Word Font.Reset before applying other fields in this object; paragraph formatting is unchanged."
+                },
+                "bold": {
+                  "type": "boolean"
+                },
+                "italic": {
+                  "type": "boolean"
+                },
+                "underline": {
+                  "type": "boolean",
+                  "deprecated": true,
+                  "description": "Compatibility boolean for single underline. Use underline_style for the complete Word surface."
+                },
+                "strike": {
+                  "type": "boolean"
+                },
+                "double_strike": {
+                  "type": "boolean"
+                },
+                "all_caps": {
+                  "type": "boolean"
+                },
+                "small_caps": {
+                  "type": "boolean"
+                },
+                "hidden": {
+                  "type": "boolean"
+                },
+                "highlight_color_index": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 16
+                }
+              }
+            },
           "liveTextFormatting": {
             "type": "object",
-            "additionalProperties": false,
             "allOf": [
-              {"not": {"required": ["font_size", "font_size_pt"]}},
-              {"not": {"required": ["alignment", "paragraph_alignment"]}},
-              {"not": {"required": ["strike", "double_strike"], "properties": {"strike": {"const": true}, "double_strike": {"const": true}}}}
+              {
+                "$ref": "#/$defs/liveCharacterFormatting"
+              },
+              {
+                "not": {
+                  "required": [
+                    "alignment",
+                    "paragraph_alignment"
+                  ]
+                }
+              }
             ],
             "properties": {
-              "font_name": {"type": "string", "minLength": 1, "maxLength": 128},
-              "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200},
-              "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true},
-              "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
-              "bold": {"type": "boolean"},
-              "italic": {"type": "boolean"},
-              "underline": {"type": "boolean"},
-              "strike": {"type": "boolean"},
-              "double_strike": {"type": "boolean"},
-              "all_caps": {"type": "boolean"},
-              "small_caps": {"type": "boolean"},
-              "hidden": {"type": "boolean"},
-              "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16},
-              "paragraph_alignment": {"enum": ["left", "center", "right", "justify", "distribute"]},
-              "alignment": {"enum": ["left", "center", "right", "justify", "distribute"], "deprecated": true},
-              "space_before_pt": {"type": "number", "minimum": 0, "maximum": 1584},
-              "space_after_pt": {"type": "number", "minimum": 0, "maximum": 1584},
-              "left_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
-              "right_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
-              "first_line_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
-              "keep_with_next": {"type": "boolean"},
-              "keep_together": {"type": "boolean"},
-              "page_break_before": {"type": "boolean"},
-              "widow_control": {"type": "boolean"}
-            }
+              "paragraph_alignment": {
+                "enum": [
+                  "left",
+                  "center",
+                  "right",
+                  "justify",
+                  "distribute"
+                ]
+              },
+              "alignment": {
+                "enum": [
+                  "left",
+                  "center",
+                  "right",
+                  "justify",
+                  "distribute"
+                ],
+                "deprecated": true
+              },
+              "space_before_pt": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1584
+              },
+              "space_after_pt": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1584
+              },
+              "left_indent_pt": {
+                "type": "number",
+                "minimum": -1584,
+                "maximum": 1584
+              },
+              "right_indent_pt": {
+                "type": "number",
+                "minimum": -1584,
+                "maximum": 1584
+              },
+              "first_line_indent_pt": {
+                "type": "number",
+                "minimum": -1584,
+                "maximum": 1584
+              },
+              "keep_with_next": {
+                "type": "boolean"
+              },
+              "keep_together": {
+                "type": "boolean"
+              },
+              "page_break_before": {
+                "type": "boolean"
+              },
+              "widow_control": {
+                "type": "boolean"
+              }
+            },
+            "unevaluatedProperties": false
           },
           "liveRunFormatting": {
             "type": "object",
-            "additionalProperties": false,
             "allOf": [
-              {"not": {"required": ["font_size", "font_size_pt"]}},
-              {"not": {"required": ["strike", "double_strike"], "properties": {"strike": {"const": true}, "double_strike": {"const": true}}}}
+              {
+                "$ref": "#/$defs/liveCharacterFormatting"
+              }
             ],
-            "properties": {
-              "font_name": {"type": "string", "minLength": 1, "maxLength": 128},
-              "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200},
-              "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true},
-              "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
-              "bold": {"type": "boolean"},
-              "italic": {"type": "boolean"},
-              "underline": {"type": "boolean"},
-              "strike": {"type": "boolean"},
-              "double_strike": {"type": "boolean"},
-              "all_caps": {"type": "boolean"},
-              "small_caps": {"type": "boolean"},
-              "hidden": {"type": "boolean"},
-              "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16}
-            }
+            "unevaluatedProperties": false
           }
         },
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "live_document_id": {"type": "string", "minLength": 1},
-          "expected_version": {"type": "integer", "minimum": 0},
+          "live_document_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0
+          },
           "operations": {
             "type": "array",
             "minItems": 1,
@@ -22561,8 +24281,17 @@
               "type": "object",
               "additionalProperties": false,
               "properties": {
-                "type": {"enum": ["text", "equation"]},
-                "text": {"type": "string", "minLength": 1, "maxLength": 200000},
+                "type": {
+                  "enum": [
+                    "text",
+                    "equation"
+                  ]
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200000
+                },
                 "runs": {
                   "type": "array",
                   "minItems": 1,
@@ -22570,60 +24299,214 @@
                   "items": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": ["text"],
+                    "required": [
+                      "text"
+                    ],
                     "properties": {
-                      "text": {"type": "string", "minLength": 1, "maxLength": 200000},
-                      "formatting": {"$ref": "#/$defs/liveRunFormatting"}
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200000
+                      },
+                      "formatting": {
+                        "$ref": "#/$defs/liveRunFormatting"
+                      }
                     }
                   }
                 },
-                "as_new_paragraph": {"type": "boolean", "default": false},
-                "style": {"type": "string", "maxLength": 128},
-                "formatting": {"anyOf": [{"$ref": "#/$defs/liveTextFormatting"}, {"type": "null"}]},
-                "value": {"type": "string", "minLength": 1, "maxLength": 100000},
-                "input_format": {"enum": ["latex", "unicodemath", "mathml", "omml"], "default": "latex"},
-                "display": {"type": "boolean", "default": true},
-                "verify_readback": {"type": "boolean", "default": false}
+                "as_new_paragraph": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "style": {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                "formatting": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/liveTextFormatting"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "value": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100000
+                },
+                "input_format": {
+                  "enum": [
+                    "latex",
+                    "unicodemath",
+                    "mathml",
+                    "omml"
+                  ],
+                  "default": "latex"
+                },
+                "display": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "verify_readback": {
+                  "type": "boolean",
+                  "default": false
+                }
               },
               "oneOf": [
                 {
-                  "properties": {"type": {"const": "text"}},
-                  "required": ["type"],
+                  "properties": {
+                    "type": {
+                      "const": "text"
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
                   "oneOf": [
-                    {"required": ["text"], "not": {"required": ["runs"]}},
-                    {"required": ["runs"], "not": {"required": ["text"]}}
+                    {
+                      "required": [
+                        "text"
+                      ],
+                      "not": {
+                        "required": [
+                          "runs"
+                        ]
+                      }
+                    },
+                    {
+                      "required": [
+                        "runs"
+                      ],
+                      "not": {
+                        "required": [
+                          "text"
+                        ]
+                      }
+                    }
                   ]
                 },
-                {"properties": {"type": {"const": "equation"}}, "required": ["type", "value"]}
+                {
+                  "properties": {
+                    "type": {
+                      "const": "equation"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "value"
+                  ]
+                }
               ]
             }
           }
         },
-        "required": ["live_document_id", "expected_version", "operations"]
+        "required": [
+          "live_document_id",
+          "expected_version",
+          "operations"
+        ]
       },
       "outputSchema": {
         "type": "object",
-        "required": ["operation_contract", "live_document_id", "live_version", "expected_version", "validation_mode", "valid", "published", "target_document_mutated", "operation_count", "text_operation_count", "equation_operation_count", "runtime", "python_used"],
+        "required": [
+          "operation_contract",
+          "live_document_id",
+          "live_version",
+          "expected_version",
+          "validation_mode",
+          "valid",
+          "published",
+          "target_document_mutated",
+          "operation_count",
+          "text_operation_count",
+          "equation_operation_count",
+          "runtime",
+          "python_used"
+        ],
         "properties": {
-          "operation_contract": {"const": "wordtoolkit.preflight_live_word_operations/1.1"},
-          "live_document_id": {"type": "string"},
-          "live_version": {"type": "integer", "minimum": 0},
-          "expected_version": {"type": "integer", "minimum": 0},
-          "validation_mode": {"enum": ["target_bound_exact_batch_staging", "target_bound_with_isolated_equation_diagnostics"]},
-          "valid": {"type": "boolean"},
-          "published": {"const": false},
-          "target_document_mutated": {"const": false},
-          "operation_count": {"type": "integer", "minimum": 1, "maximum": 200},
-          "text_operation_count": {"type": "integer", "minimum": 0, "maximum": 200},
-          "equation_operation_count": {"type": "integer", "minimum": 0, "maximum": 100},
-          "valid_equation_count": {"type": "integer", "minimum": 0, "maximum": 100},
-          "invalid_equation_count": {"type": "integer", "minimum": 0, "maximum": 100},
-          "equation_failures": {"type": "array", "maxItems": 100, "items": {"type": "object"}},
-          "operations": {"type": "array", "maxItems": 200, "items": {"type": "object"}},
-          "complexity": {"type": "object"},
-          "runtime": {"const": "dotnet-native"},
-          "python_used": {"const": false},
-          "performance": {"type": "object"}
+          "operation_contract": {
+            "const": "wordtoolkit.preflight_live_word_operations/1.1"
+          },
+          "live_document_id": {
+            "type": "string"
+          },
+          "live_version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "validation_mode": {
+            "enum": [
+              "target_bound_exact_batch_staging",
+              "target_bound_with_isolated_equation_diagnostics"
+            ]
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "published": {
+            "const": false
+          },
+          "target_document_mutated": {
+            "const": false
+          },
+          "operation_count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "text_operation_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 200
+          },
+          "equation_operation_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "valid_equation_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "invalid_equation_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "equation_failures": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "object"
+            }
+          },
+          "operations": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "object"
+            }
+          },
+          "complexity": {
+            "type": "object"
+          },
+          "runtime": {
+            "const": "dotnet-native"
+          },
+          "python_used": {
+            "const": false
+          },
+          "performance": {
+            "type": "object"
+          }
         },
         "additionalProperties": false
       },
@@ -22633,7 +24516,7 @@
         "idempotentHint": true,
         "openWorldHint": true
       }
-  },
+    },
     {
       "name": "inspect_live_word_equations",
       "title": "Inspect native equations in open Microsoft Word",
@@ -22822,63 +24705,473 @@
       "description": "Apply up to 200 text/native-equation operations through one staged, verified Undo transaction. Failure rolls back; an unprovable rollback quarantines the live handle.",
       "inputSchema": {
         "$defs": {
+          "liveCharacterFormatting": {
+              "type": "object",
+              "allOf": [
+                {
+                  "not": {
+                    "required": [
+                      "font_size",
+                      "font_size_pt"
+                    ]
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "underline",
+                      "underline_style"
+                    ]
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "font_color_rgb",
+                      "font_color_index"
+                    ]
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "strike",
+                      "double_strike"
+                    ],
+                    "properties": {
+                      "strike": {
+                        "const": true
+                      },
+                      "double_strike": {
+                        "const": true
+                      }
+                    }
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "subscript",
+                      "superscript"
+                    ],
+                    "properties": {
+                      "subscript": {
+                        "const": true
+                      },
+                      "superscript": {
+                        "const": true
+                      }
+                    }
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "emboss",
+                      "engrave"
+                    ],
+                    "properties": {
+                      "emboss": {
+                        "const": true
+                      },
+                      "engrave": {
+                        "const": true
+                      }
+                    }
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "position_pt",
+                      "subscript"
+                    ],
+                    "properties": {
+                      "subscript": {
+                        "const": true
+                      }
+                    }
+                  }
+                },
+                {
+                  "not": {
+                    "required": [
+                      "position_pt",
+                      "superscript"
+                    ],
+                    "properties": {
+                      "superscript": {
+                        "const": true
+                      }
+                    }
+                  }
+                }
+              ],
+              "properties": {
+                "font_name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "font_size_pt": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 1638
+                },
+                "font_size": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 1638,
+                  "deprecated": true
+                },
+                "font_color_rgb": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$"
+                },
+                "font_name_ascii": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "font_name_bidi": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "font_name_far_east": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "font_name_other": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "font_size_bidi_pt": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 1638
+                },
+                "font_color_index": {
+                  "type": "integer",
+                  "enum": [
+                    -1,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16
+                  ],
+                  "description": "Microsoft Word WdColorIndex; -1 selects automatic color."
+                },
+                "font_color_bidi_index": {
+                  "type": "integer",
+                  "enum": [
+                    -1,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16
+                  ],
+                  "description": "Bidirectional-script WdColorIndex; -1 selects automatic color."
+                },
+                "diacritic_color": {
+                  "oneOf": [
+                    {
+                      "const": "automatic"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$"
+                    }
+                  ]
+                },
+                "bold_bidi": {
+                  "type": "boolean"
+                },
+                "italic_bidi": {
+                  "type": "boolean"
+                },
+                "underline_style": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "single",
+                    "words",
+                    "double",
+                    "dotted",
+                    "thick",
+                    "dash",
+                    "dot_dash",
+                    "dot_dot_dash",
+                    "wavy",
+                    "dotted_heavy",
+                    "dash_heavy",
+                    "dot_dash_heavy",
+                    "dot_dot_dash_heavy",
+                    "wavy_heavy",
+                    "dash_long",
+                    "wavy_double",
+                    "dash_long_heavy"
+                  ],
+                  "description": "Canonical Microsoft Word underline style. Do not combine with deprecated underline."
+                },
+                "underline_color": {
+                  "oneOf": [
+                    {
+                      "const": "automatic"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$"
+                    }
+                  ]
+                },
+                "subscript": {
+                  "type": "boolean"
+                },
+                "superscript": {
+                  "type": "boolean"
+                },
+                "shadow": {
+                  "type": "boolean"
+                },
+                "outline": {
+                  "type": "boolean"
+                },
+                "emboss": {
+                  "type": "boolean"
+                },
+                "engrave": {
+                  "type": "boolean"
+                },
+                "scaling_percent": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 600
+                },
+                "spacing_pt": {
+                  "type": "number",
+                  "minimum": -1584,
+                  "maximum": 1584
+                },
+                "position_pt": {
+                  "type": "integer",
+                  "minimum": -1584,
+                  "maximum": 1584
+                },
+                "kerning_pt": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1638
+                },
+                "disable_character_space_grid": {
+                  "type": "boolean"
+                },
+                "emphasis_mark": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "over_solid_circle",
+                    "over_comma",
+                    "over_white_circle",
+                    "under_solid_circle"
+                  ]
+                },
+                "ligatures": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "standard",
+                    "contextual",
+                    "standard_contextual",
+                    "historical",
+                    "standard_historical",
+                    "contextual_historical",
+                    "standard_contextual_historical",
+                    "discretionary",
+                    "standard_discretionary",
+                    "contextual_discretionary",
+                    "standard_contextual_discretionary",
+                    "historical_discretionary",
+                    "standard_historical_discretionary",
+                    "contextual_historical_discretionary",
+                    "all"
+                  ]
+                },
+                "number_form": {
+                  "type": "string",
+                  "enum": [
+                    "default",
+                    "lining",
+                    "old_style"
+                  ]
+                },
+                "number_spacing": {
+                  "type": "string",
+                  "enum": [
+                    "default",
+                    "proportional",
+                    "tabular"
+                  ]
+                },
+                "stylistic_sets": {
+                  "type": "array",
+                  "maxItems": 20,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20
+                  }
+                },
+                "contextual_alternates": {
+                  "type": "boolean"
+                },
+                "clear_character_formatting": {
+                  "type": "boolean",
+                  "description": "Reset direct character formatting with Word Font.Reset before applying other fields in this object; paragraph formatting is unchanged."
+                },
+                "bold": {
+                  "type": "boolean"
+                },
+                "italic": {
+                  "type": "boolean"
+                },
+                "underline": {
+                  "type": "boolean",
+                  "deprecated": true,
+                  "description": "Compatibility boolean for single underline. Use underline_style for the complete Word surface."
+                },
+                "strike": {
+                  "type": "boolean"
+                },
+                "double_strike": {
+                  "type": "boolean"
+                },
+                "all_caps": {
+                  "type": "boolean"
+                },
+                "small_caps": {
+                  "type": "boolean"
+                },
+                "hidden": {
+                  "type": "boolean"
+                },
+                "highlight_color_index": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 16
+                }
+              }
+            },
           "liveTextFormatting": {
             "type": "object",
-            "additionalProperties": false,
             "allOf": [
-              {"not": {"required": ["font_size", "font_size_pt"]}},
-              {"not": {"required": ["alignment", "paragraph_alignment"]}},
-              {"not": {"required": ["strike", "double_strike"], "properties": {"strike": {"const": true}, "double_strike": {"const": true}}}}
+              {
+                "$ref": "#/$defs/liveCharacterFormatting"
+              },
+              {
+                "not": {
+                  "required": [
+                    "alignment",
+                    "paragraph_alignment"
+                  ]
+                }
+              }
             ],
             "properties": {
-              "font_name": {"type": "string", "minLength": 1, "maxLength": 128},
-              "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200},
-              "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true},
-              "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
-              "bold": {"type": "boolean"},
-              "italic": {"type": "boolean"},
-              "underline": {"type": "boolean"},
-              "strike": {"type": "boolean"},
-              "double_strike": {"type": "boolean"},
-              "all_caps": {"type": "boolean"},
-              "small_caps": {"type": "boolean"},
-              "hidden": {"type": "boolean"},
-              "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16},
-              "paragraph_alignment": {"enum": ["left", "center", "right", "justify", "distribute"]},
-              "alignment": {"enum": ["left", "center", "right", "justify", "distribute"], "deprecated": true},
-              "space_before_pt": {"type": "number", "minimum": 0, "maximum": 1584},
-              "space_after_pt": {"type": "number", "minimum": 0, "maximum": 1584},
-              "left_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
-              "right_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
-              "first_line_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584},
-              "keep_with_next": {"type": "boolean"},
-              "keep_together": {"type": "boolean"},
-              "page_break_before": {"type": "boolean"},
-              "widow_control": {"type": "boolean"}
-            }
+              "paragraph_alignment": {
+                "enum": [
+                  "left",
+                  "center",
+                  "right",
+                  "justify",
+                  "distribute"
+                ]
+              },
+              "alignment": {
+                "enum": [
+                  "left",
+                  "center",
+                  "right",
+                  "justify",
+                  "distribute"
+                ],
+                "deprecated": true
+              },
+              "space_before_pt": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1584
+              },
+              "space_after_pt": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1584
+              },
+              "left_indent_pt": {
+                "type": "number",
+                "minimum": -1584,
+                "maximum": 1584
+              },
+              "right_indent_pt": {
+                "type": "number",
+                "minimum": -1584,
+                "maximum": 1584
+              },
+              "first_line_indent_pt": {
+                "type": "number",
+                "minimum": -1584,
+                "maximum": 1584
+              },
+              "keep_with_next": {
+                "type": "boolean"
+              },
+              "keep_together": {
+                "type": "boolean"
+              },
+              "page_break_before": {
+                "type": "boolean"
+              },
+              "widow_control": {
+                "type": "boolean"
+              }
+            },
+            "unevaluatedProperties": false
           },
           "liveRunFormatting": {
             "type": "object",
-            "additionalProperties": false,
             "allOf": [
-              {"not": {"required": ["font_size", "font_size_pt"]}},
-              {"not": {"required": ["strike", "double_strike"], "properties": {"strike": {"const": true}, "double_strike": {"const": true}}}}
+              {
+                "$ref": "#/$defs/liveCharacterFormatting"
+              }
             ],
-            "properties": {
-              "font_name": {"type": "string", "minLength": 1, "maxLength": 128},
-              "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200},
-              "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true},
-              "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
-              "bold": {"type": "boolean"},
-              "italic": {"type": "boolean"},
-              "underline": {"type": "boolean"},
-              "strike": {"type": "boolean"},
-              "double_strike": {"type": "boolean"},
-              "all_caps": {"type": "boolean"},
-              "small_caps": {"type": "boolean"},
-              "hidden": {"type": "boolean"},
-              "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16}
-            }
+            "unevaluatedProperties": false
           }
         },
         "properties": {
@@ -22892,8 +25185,17 @@
               "additionalProperties": false,
               "description": "Text uses text or 1-1000 inline runs; equation uses value and input_format.",
               "properties": {
-                "type": {"enum": ["text", "equation"]},
-                "text": {"type": "string", "minLength": 1, "maxLength": 200000},
+                "type": {
+                  "enum": [
+                    "text",
+                    "equation"
+                  ]
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200000
+                },
                 "runs": {
                   "type": "array",
                   "minItems": 1,
@@ -22901,48 +25203,105 @@
                   "items": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": ["text"],
+                    "required": [
+                      "text"
+                    ],
                     "properties": {
-                      "text": {"type": "string", "minLength": 1, "maxLength": 200000},
-                      "formatting": {"$ref": "#/$defs/liveRunFormatting"}
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200000
+                      },
+                      "formatting": {
+                        "$ref": "#/$defs/liveRunFormatting"
+                      }
                     }
                   }
                 },
-                "as_new_paragraph": {"type": "boolean", "default": false},
-                "style": {"type": "string", "maxLength": 128},
+                "as_new_paragraph": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "style": {
+                  "type": "string",
+                  "maxLength": 128
+                },
                 "formatting": {
                   "anyOf": [
-                    {"$ref": "#/$defs/liveTextFormatting"},
-                    {"type": "null"}
+                    {
+                      "$ref": "#/$defs/liveTextFormatting"
+                    },
+                    {
+                      "type": "null"
+                    }
                   ]
                 },
-                "value": {"type": "string", "minLength": 1, "maxLength": 100000},
-                "input_format": {"enum": ["latex", "unicodemath", "mathml", "omml"], "default": "latex"},
-                "display": {"type": "boolean", "default": true},
-                "verify_readback": {"type": "boolean", "default": false}
+                "value": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100000
+                },
+                "input_format": {
+                  "enum": [
+                    "latex",
+                    "unicodemath",
+                    "mathml",
+                    "omml"
+                  ],
+                  "default": "latex"
+                },
+                "display": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "verify_readback": {
+                  "type": "boolean",
+                  "default": false
+                }
               },
               "oneOf": [
                 {
                   "properties": {
-                    "type": {"const": "text"}
+                    "type": {
+                      "const": "text"
+                    }
                   },
-                  "required": ["type"],
+                  "required": [
+                    "type"
+                  ],
                   "oneOf": [
                     {
-                      "required": ["text"],
-                      "not": {"required": ["runs"]}
+                      "required": [
+                        "text"
+                      ],
+                      "not": {
+                        "required": [
+                          "runs"
+                        ]
+                      }
                     },
                     {
-                      "required": ["runs"],
-                      "not": {"required": ["text"]}
+                      "required": [
+                        "runs"
+                      ],
+                      "not": {
+                        "required": [
+                          "text"
+                        ]
+                      }
                     }
                   ]
                 },
                 {
                   "properties": {
-                    "type": {"const": "equation"}
+                    "type": {
+                      "const": "equation"
+                    }
                   },
-                  "required": ["type", "value"]
+                  "required": [
+                    "type",
+                    "value"
+                  ]
                 }
               ]
             },
@@ -22987,45 +25346,44 @@
         "destructiveHint": true,
         "idempotentHint": true,
         "openWorldHint": true
-      }
-    ,
-    "operationVersion": "1.0",
-    "permissions": {
+      },
+      "operationVersion": "1.0",
+      "permissions": {
         "word": "com_write",
         "filesystem": "none",
         "network": false
-    },
-    "reversibility": {
+      },
+      "reversibility": {
         "kind": "guarded_transaction",
         "writes": "word_document",
         "undo": true
-    },
-    "outputSchema": {
+      },
+      "outputSchema": {
         "type": "object",
         "required": [
-            "live_document_id",
-            "live_version"
+          "live_document_id",
+          "live_version"
         ],
         "properties": {
-            "live_document_id": {
-                "type": "string"
-            },
-            "live_version": {
-                "type": "integer"
-            },
-            "operations": {
-                "type": "array"
-            },
-            "verification": {
-                "type": "object"
-            },
-            "rollback": {
-                "type": "object"
-            }
+          "live_document_id": {
+            "type": "string"
+          },
+          "live_version": {
+            "type": "integer"
+          },
+          "operations": {
+            "type": "array"
+          },
+          "verification": {
+            "type": "object"
+          },
+          "rollback": {
+            "type": "object"
+          }
         },
         "additionalProperties": true
-    }
-  },
+      }
+    },
     {
       "name": "get_live_word_operation_status",
       "title": "Get an unambiguous live Word transaction receipt",
@@ -24553,16 +26911,457 @@
           "formatting": {
             "anyOf": [
               {
-                "type": "object",
-                "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..200) and paragraph_alignment (left|center|right|justify|distribute); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
-                "additionalProperties": false,
-                "allOf": [{"not": {"required": ["font_size", "font_size_pt"]}}, {"not": {"required": ["alignment", "paragraph_alignment"]}}, {"not": {"required": ["strike", "double_strike"], "properties": {"strike": {"const": true}, "double_strike": {"const": true}}}}],
-                "properties": {
-                  "font_name": {"type": "string", "minLength": 1, "maxLength": 128}, "font_size_pt": {"type": "number", "minimum": 1, "maximum": 200}, "font_size": {"type": "number", "minimum": 1, "maximum": 200, "deprecated": true}, "font_color_rgb": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
-                  "bold": {"type": "boolean"}, "italic": {"type": "boolean"}, "underline": {"type": "boolean"}, "strike": {"type": "boolean"}, "double_strike": {"type": "boolean"}, "all_caps": {"type": "boolean"}, "small_caps": {"type": "boolean"}, "hidden": {"type": "boolean"}, "highlight_color_index": {"type": "integer", "minimum": 0, "maximum": 16},
-                  "paragraph_alignment": {"type": "string", "enum": ["left", "center", "right", "justify", "distribute"]}, "alignment": {"type": "string", "enum": ["left", "center", "right", "justify", "distribute"], "deprecated": true}, "space_before_pt": {"type": "number", "minimum": 0, "maximum": 1584}, "space_after_pt": {"type": "number", "minimum": 0, "maximum": 1584}, "left_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "right_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "first_line_indent_pt": {"type": "number", "minimum": -1584, "maximum": 1584}, "keep_with_next": {"type": "boolean"}, "keep_together": {"type": "boolean"}, "page_break_before": {"type": "boolean"}, "widow_control": {"type": "boolean"}
-                }
-              },
+                  "type": "object",
+                  "description": "Live Word font/paragraph formatting. Canonical size/alignment fields are font_size_pt (1..1638) and paragraph_alignment (left|center|right|justify|distribute); deprecated aliases font_size and alignment are accepted. Supplying an alias together with its canonical field is invalid.",
+                  "additionalProperties": false,
+                  "allOf": [
+                    {
+                      "not": {
+                        "required": [
+                          "font_size",
+                          "font_size_pt"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "alignment",
+                          "paragraph_alignment"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "underline",
+                          "underline_style"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "font_color_rgb",
+                          "font_color_index"
+                        ]
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "strike",
+                          "double_strike"
+                        ],
+                        "properties": {
+                          "strike": {
+                            "const": true
+                          },
+                          "double_strike": {
+                            "const": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "subscript",
+                          "superscript"
+                        ],
+                        "properties": {
+                          "subscript": {
+                            "const": true
+                          },
+                          "superscript": {
+                            "const": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "emboss",
+                          "engrave"
+                        ],
+                        "properties": {
+                          "emboss": {
+                            "const": true
+                          },
+                          "engrave": {
+                            "const": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "position_pt",
+                          "subscript"
+                        ],
+                        "properties": {
+                          "subscript": {
+                            "const": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "not": {
+                        "required": [
+                          "position_pt",
+                          "superscript"
+                        ],
+                        "properties": {
+                          "superscript": {
+                            "const": true
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "properties": {
+                    "font_name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_size_pt": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 1638
+                    },
+                    "font_size": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 1638,
+                      "deprecated": true
+                    },
+                    "font_color_rgb": {
+                      "type": "string",
+                      "pattern": "^#[0-9A-Fa-f]{6}$"
+                    },
+                    "font_name_ascii": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_name_bidi": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_name_far_east": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_name_other": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "font_size_bidi_pt": {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 1638
+                    },
+                    "font_color_index": {
+                      "type": "integer",
+                      "enum": [
+                        -1,
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15,
+                        16
+                      ],
+                      "description": "Microsoft Word WdColorIndex; -1 selects automatic color."
+                    },
+                    "font_color_bidi_index": {
+                      "type": "integer",
+                      "enum": [
+                        -1,
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15,
+                        16
+                      ],
+                      "description": "Bidirectional-script WdColorIndex; -1 selects automatic color."
+                    },
+                    "diacritic_color": {
+                      "oneOf": [
+                        {
+                          "const": "automatic"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^#[0-9A-Fa-f]{6}$"
+                        }
+                      ]
+                    },
+                    "bold_bidi": {
+                      "type": "boolean"
+                    },
+                    "italic_bidi": {
+                      "type": "boolean"
+                    },
+                    "underline_style": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "single",
+                        "words",
+                        "double",
+                        "dotted",
+                        "thick",
+                        "dash",
+                        "dot_dash",
+                        "dot_dot_dash",
+                        "wavy",
+                        "dotted_heavy",
+                        "dash_heavy",
+                        "dot_dash_heavy",
+                        "dot_dot_dash_heavy",
+                        "wavy_heavy",
+                        "dash_long",
+                        "wavy_double",
+                        "dash_long_heavy"
+                      ],
+                      "description": "Canonical Microsoft Word underline style. Do not combine with deprecated underline."
+                    },
+                    "underline_color": {
+                      "oneOf": [
+                        {
+                          "const": "automatic"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^#[0-9A-Fa-f]{6}$"
+                        }
+                      ]
+                    },
+                    "subscript": {
+                      "type": "boolean"
+                    },
+                    "superscript": {
+                      "type": "boolean"
+                    },
+                    "shadow": {
+                      "type": "boolean"
+                    },
+                    "outline": {
+                      "type": "boolean"
+                    },
+                    "emboss": {
+                      "type": "boolean"
+                    },
+                    "engrave": {
+                      "type": "boolean"
+                    },
+                    "scaling_percent": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 600
+                    },
+                    "spacing_pt": {
+                      "type": "number",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "position_pt": {
+                      "type": "integer",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "kerning_pt": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1638
+                    },
+                    "disable_character_space_grid": {
+                      "type": "boolean"
+                    },
+                    "emphasis_mark": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "over_solid_circle",
+                        "over_comma",
+                        "over_white_circle",
+                        "under_solid_circle"
+                      ]
+                    },
+                    "ligatures": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "standard",
+                        "contextual",
+                        "standard_contextual",
+                        "historical",
+                        "standard_historical",
+                        "contextual_historical",
+                        "standard_contextual_historical",
+                        "discretionary",
+                        "standard_discretionary",
+                        "contextual_discretionary",
+                        "standard_contextual_discretionary",
+                        "historical_discretionary",
+                        "standard_historical_discretionary",
+                        "contextual_historical_discretionary",
+                        "all"
+                      ]
+                    },
+                    "number_form": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "lining",
+                        "old_style"
+                      ]
+                    },
+                    "number_spacing": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "proportional",
+                        "tabular"
+                      ]
+                    },
+                    "stylistic_sets": {
+                      "type": "array",
+                      "maxItems": 20,
+                      "uniqueItems": true,
+                      "items": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 20
+                      }
+                    },
+                    "contextual_alternates": {
+                      "type": "boolean"
+                    },
+                    "clear_character_formatting": {
+                      "type": "boolean",
+                      "description": "Reset direct character formatting with Word Font.Reset before applying other fields in this object; paragraph formatting is unchanged."
+                    },
+                    "bold": {
+                      "type": "boolean"
+                    },
+                    "italic": {
+                      "type": "boolean"
+                    },
+                    "underline": {
+                      "type": "boolean",
+                      "deprecated": true,
+                      "description": "Compatibility boolean for single underline. Use underline_style for the complete Word surface."
+                    },
+                    "strike": {
+                      "type": "boolean"
+                    },
+                    "double_strike": {
+                      "type": "boolean"
+                    },
+                    "all_caps": {
+                      "type": "boolean"
+                    },
+                    "small_caps": {
+                      "type": "boolean"
+                    },
+                    "hidden": {
+                      "type": "boolean"
+                    },
+                    "highlight_color_index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 16
+                    },
+                    "paragraph_alignment": {
+                      "type": "string",
+                      "enum": [
+                        "left",
+                        "center",
+                        "right",
+                        "justify",
+                        "distribute"
+                      ]
+                    },
+                    "alignment": {
+                      "type": "string",
+                      "enum": [
+                        "left",
+                        "center",
+                        "right",
+                        "justify",
+                        "distribute"
+                      ],
+                      "deprecated": true
+                    },
+                    "space_before_pt": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1584
+                    },
+                    "space_after_pt": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1584
+                    },
+                    "left_indent_pt": {
+                      "type": "number",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "right_indent_pt": {
+                      "type": "number",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "first_line_indent_pt": {
+                      "type": "number",
+                      "minimum": -1584,
+                      "maximum": 1584
+                    },
+                    "keep_with_next": {
+                      "type": "boolean"
+                    },
+                    "keep_together": {
+                      "type": "boolean"
+                    },
+                    "page_break_before": {
+                      "type": "boolean"
+                    },
+                    "widow_control": {
+                      "type": "boolean"
+                    }
+                  }
+                },
               {
                 "type": "null"
               }

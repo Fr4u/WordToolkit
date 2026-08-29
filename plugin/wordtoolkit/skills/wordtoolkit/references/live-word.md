@@ -34,9 +34,18 @@ and closes without saving on disconnect. Persistent documents do not auto-close.
 - A text operation accepts exactly one of non-empty `text` or non-empty `runs`; never pass
   both. Use `runs` when one paragraph needs distinct emphasis. Every run needs non-empty
   text; the runtime concatenates them. Put paragraph formatting on the parent operation.
-- Canonical formatting keys include `font_size_pt` and `paragraph_alignment`.
-  Compatibility aliases `font_size` and `alignment` are accepted only when the canonical
-  key is absent.
+- Character formatting covers every bounded writable scalar `Word.Font` property,
+  including subscript/superscript, all 18 `underline_style` values and underline color,
+  script-specific fonts, bidi emphasis, effects, spacing/scaling/position/kerning and
+  OpenType typography. Use exact inspected enum names; do not guess raw COM integers.
+- Canonical formatting keys include `font_size_pt` (1..1638) and
+  `paragraph_alignment`. Compatibility aliases `font_size` and `alignment` are accepted
+  only when the canonical key is absent. Deprecated boolean `underline` means single
+  underline and cannot be combined with `underline_style`.
+- `clear_character_formatting=true` resets direct Font formatting and highlight before
+  applying sibling fields; it does not reset paragraph formatting. A successful live
+  selection response includes canonical `formatting_readback` and
+  `native_formatting_verified=true`.
 - Do not preflight ordinary text. Use `preflight_live_word_operations` only for an exact
   risky mixed batch; pass the unchanged operations array to apply after it succeeds.
 - For a long apply, set one stable `idempotency_key`. If the caller stops waiting, query

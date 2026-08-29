@@ -644,19 +644,42 @@ selection. It never replaces or returns the selected text. Style, font and
 paragraph changes run inside one Undo record and preserve the selection.
 
 The formatting object is also accepted by `insert_live_word_text` and each
-`type="text"` entry in `apply_live_word_operations`. Supported fields cover
-font family and size, `#RRGGBB` color, bold/italic/underline, caps, single or
-double strike, hidden text, highlight color indexes `0` through `16`, paragraph
-alignment, spacing and indentation, keep-with-next, keep-together,
-page-break-before and widow control. The canonical size and alignment names are
-`font_size_pt` (1 through 200) and `paragraph_alignment` (`left`, `center`,
-`right`, `justify`, or `distribute`). Compatibility
-aliases `font_size` and `alignment` are accepted and normalized before COM;
-supplying an alias together with its canonical field is invalid. The action
-schema publishes types and bounds for the complete property set. Unknown names, wrong JSON
-types and out-of-range values fail during preflight, before Word is mutated.
-`strike` and `double_strike` may each be false or omitted, but cannot both be
-true because Word clears the first mode when the second is applied.
+`type="text"` entry in `apply_live_word_operations`. It exposes the complete bounded,
+writable scalar `Word.Font` surface: script-specific font names and bidirectional size;
+RGB and indexed colors; bold/italic for Latin and bidirectional scripts; all 18 native
+underline styles plus underline color; strike, double strike, subscript, superscript,
+caps, hidden text, shadow, outline, emboss and engrave; scaling, spacing, baseline
+position and kerning; East Asian emphasis/grid behavior; OpenType ligatures, number
+forms, number spacing, stylistic sets and contextual alternates. Highlight color indexes
+remain `0` through `16`. Paragraph alignment, spacing, indentation, keep-with-next,
+keep-together, page-break-before and widow control remain available on parent text
+formatting.
+
+The canonical size and alignment names are `font_size_pt` (1 through 1638) and
+`paragraph_alignment` (`left`, `center`, `right`, `justify`, or `distribute`).
+Compatibility aliases `font_size` and `alignment` are accepted and normalized before
+COM; supplying an alias together with its canonical field is invalid. Deprecated
+`underline` remains a boolean single-underline compatibility field; use
+`underline_style` for the complete native enum and never provide both. The schema also
+rejects mutually enabled strike/double-strike, subscript/superscript, emboss/engrave,
+RGB/indexed font-color conflicts and explicit baseline position combined with an enabled
+subscript or superscript.
+
+`clear_character_formatting=true` calls Word `Font.Reset`, clears highlight explicitly,
+then applies the remaining fields in the same object. It intentionally leaves paragraph
+formatting unchanged. Every requested scalar is read back from COM immediately; a Word
+no-op, unsupported OpenType setting or mixed `wdUndefined` result fails with
+`FORMATTING_INVALID` and the exact field instead of reporting success. Selection
+formatting returns canonical `formatting_readback` values rather than raw Word enum
+integers.
+
+The contract does not pretend that every button in the Font ribbon is persistent scalar
+formatting. `Grow` and `Shrink` are relative, non-idempotent methods; callers should set
+the exact `font_size_pt`. Change Case mutates text through `Range.Case`, not `Font`, and
+belongs to a separate content transformation. Nested OfficeArt glow, reflection, 3-D,
+fill, line and detailed shadow objects primarily target WordArt/drawing text and are not
+claimed as deterministic ordinary-body-text formatting. Deprecated `Font.Animation` is
+not exposed.
 
 One text operation may use `runs` instead of `text` to apply distinct font
 formatting inside a single paragraph. Run-level formatting accepts font fields

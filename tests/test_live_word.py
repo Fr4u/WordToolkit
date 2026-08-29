@@ -13,7 +13,12 @@ from wordtoolkit.live_member_capabilities import (
     PreparedMemberOperation,
     build_member_capability_registry,
 )
-from wordtoolkit.live_word import LiveWordBridge, _word_utf16_length
+from wordtoolkit.live_word import (
+    WORD_AUTOMATIC_COLOR,
+    WORD_UNDERLINE_STYLES,
+    LiveWordBridge,
+    _word_utf16_length,
+)
 from wordtoolkit.math import MathEngine
 
 _FAKE_MATH = MathEngine()
@@ -107,6 +112,8 @@ class FakeFormattingObject:
             return
         if self.document.fail_format_property == name:
             raise RuntimeError(f"simulated formatting failure for {name}")
+        if self.document.ignore_format_property == name:
+            return
         self.document.formatting_log[f"{self.prefix}.{name}"] = value
         self.document.formatting_ranges.append(
             (self.prefix, name, self.target_range.Start, self.target_range.End, value)
@@ -128,6 +135,57 @@ class FakeParagraphFormat(FakeFormattingObject):
 class FakeFont(FakeFormattingObject):
     def __init__(self, document, target_range):
         super().__init__(document, target_range, "font")
+        defaults = {
+            "Name": "Calibri",
+            "NameAscii": "Calibri",
+            "NameBi": "Calibri",
+            "NameFarEast": "Calibri",
+            "NameOther": "Calibri",
+            "Size": 11.0,
+            "SizeBi": 11.0,
+            "Color": 0,
+            "ColorIndex": -1,
+            "ColorIndexBi": -1,
+            "DiacriticColor": WORD_AUTOMATIC_COLOR,
+            "Bold": 0,
+            "Italic": 0,
+            "BoldBi": 0,
+            "ItalicBi": 0,
+            "Underline": 0,
+            "UnderlineColor": WORD_AUTOMATIC_COLOR,
+            "StrikeThrough": 0,
+            "DoubleStrikeThrough": 0,
+            "Subscript": 0,
+            "Superscript": 0,
+            "AllCaps": 0,
+            "SmallCaps": 0,
+            "Hidden": 0,
+            "Shadow": 0,
+            "Outline": 0,
+            "Emboss": 0,
+            "Engrave": 0,
+            "Scaling": 100,
+            "Spacing": 0.0,
+            "Position": 0,
+            "Kerning": 0.0,
+            "DisableCharacterSpaceGrid": 0,
+            "EmphasisMark": 0,
+            "Ligatures": 0,
+            "NumberForm": 0,
+            "NumberSpacing": 0,
+            "StylisticSet": 0,
+            "ContextualAlternates": 0,
+        }
+        for name, value in defaults.items():
+            object.__setattr__(self, name, value)
+
+    def Reset(self) -> None:
+        self.document.formatting_log["font.Reset"] = True
+        object.__setattr__(self, "Bold", 0)
+        object.__setattr__(self, "Italic", 0)
+        object.__setattr__(self, "Underline", 0)
+        object.__setattr__(self, "Subscript", 0)
+        object.__setattr__(self, "Superscript", 0)
 
 
 class FakeFind:
@@ -876,14 +934,29 @@ class FakeUndoRecord:
         self.started = 0
         self.ended = 0
         self.current_label = ""
-        self.snapshot: tuple[Any, str, bool] | None = None
+        self.snapshot: (
+            tuple[
+                Any,
+                str,
+                bool,
+                dict[str, Any],
+                list[tuple[str, str, int, int, Any]],
+            ]
+            | None
+        ) = None
         self.fail_end_once = False
 
     def StartCustomRecord(self, label: str) -> None:
         self.started += 1
         self.current_label = label
         document = self.application.ActiveDocument
-        self.snapshot = (document, document.text, document.Saved)
+        self.snapshot = (
+            document,
+            document.text,
+            document.Saved,
+            dict(document.formatting_log),
+            list(document.formatting_ranges),
+        )
 
     def EndCustomRecord(self) -> None:
         self.ended += 1
@@ -946,6 +1019,7 @@ class FakeDocument:
         self.formatting_log: dict[str, Any] = {}
         self.formatting_ranges: list[tuple[str, str, int, int, Any]] = []
         self.fail_format_property: str | None = None
+        self.ignore_format_property: str | None = None
         self.word_open_xml_override: str | None = None
         self.word_open_xml_queue: list[str] = []
         self.paragraph_styles: dict[int, str] = {}
@@ -1018,9 +1092,13 @@ class FakeDocument:
         if self._application.undo_entries:
             self._application.undo_entries.pop(0)
             if self._application.undo_snapshots:
-                document, text, saved = self._application.undo_snapshots.pop(0)
+                document, text, saved, formatting_log, formatting_ranges = (
+                    self._application.undo_snapshots.pop(0)
+                )
                 document.text = text
                 document.Saved = saved
+                document.formatting_log = formatting_log
+                document.formatting_ranges = formatting_ranges
             return True
         return False
 
@@ -1032,7 +1110,15 @@ class FakeApplication:
         self.Selection = FakeSelection(documents[0], 0, 0)
         self.ActiveWindow = FakeWindow()
         self.undo_entries: list[str] = []
-        self.undo_snapshots: list[tuple[Any, str, bool]] = []
+        self.undo_snapshots: list[
+            tuple[
+                Any,
+                str,
+                bool,
+                dict[str, Any],
+                list[tuple[str, str, int, int, Any]],
+            ]
+        ] = []
         self.CommandBars = FakeCommandBars(self)
         self.UndoRecord = FakeUndoRecord(self)
         self.UserName = "WordToolkit Tester"
@@ -1421,6 +1507,169 @@ def test_live_word_formats_exact_selection_in_one_undo_record(live_bridge) -> No
     assert document.formatting_log["range.HighlightColorIndex"] == 7
     assert document.formatting_log["paragraph.KeepWithNext"] == -1
     assert document.formatting_log["paragraph.FirstLineIndent"] == 18.0
+
+
+def test_live_word_applies_and_reads_back_complete_character_formatting(live_bridge) -> None:
+    bridge, application, document = live_bridge
+    connected = bridge.connect("owner", use_active=True)
+    application.Selection.SetRange(0, 8)
+    token = bridge.selection("owner", connected["live_document_id"])["selection"]["selection_token"]
+    formatting = {
+        "font_name": "Aptos",
+        "font_name_ascii": "Arial",
+        "font_name_bidi": "Tahoma",
+        "font_name_far_east": "Yu Gothic",
+        "font_name_other": "Courier New",
+        "font_size_pt": 11.5,
+        "font_size_bidi_pt": 12,
+        "font_color_rgb": "#00FF00",
+        "font_color_bidi_index": 5,
+        "diacritic_color": "#FF0000",
+        "bold": True,
+        "italic": True,
+        "bold_bidi": True,
+        "italic_bidi": False,
+        "underline_style": "wavy_double",
+        "underline_color": "#0000FF",
+        "strike": True,
+        "subscript": False,
+        "superscript": False,
+        "all_caps": True,
+        "small_caps": False,
+        "hidden": True,
+        "shadow": True,
+        "outline": True,
+        "emboss": True,
+        "engrave": False,
+        "scaling_percent": 90,
+        "spacing_pt": 1.25,
+        "position_pt": -2,
+        "kerning_pt": 8,
+        "disable_character_space_grid": True,
+        "emphasis_mark": "over_solid_circle",
+        "ligatures": "standard_contextual",
+        "number_form": "old_style",
+        "number_spacing": "proportional",
+        "stylistic_sets": [1, 3],
+        "contextual_alternates": True,
+        "highlight_color_index": 7,
+    }
+
+    result = bridge.format_selection(
+        "owner",
+        connected["live_document_id"],
+        selection_token=token,
+        formatting=formatting,
+        expected_version=0,
+    )
+
+    assert result["native_formatting_verified"] is True
+    assert result["formatting_readback"] == formatting
+    assert document.formatting_log["font.Underline"] == 43
+    assert document.formatting_log["font.ColorIndexBi"] == 5
+    assert document.formatting_log["font.StylisticSet"] == 5
+
+
+@pytest.mark.parametrize(("style", "word_value"), WORD_UNDERLINE_STYLES.items())
+def test_live_word_maps_every_underline_style(
+    live_bridge,
+    style: str,
+    word_value: int,
+) -> None:
+    bridge, application, document = live_bridge
+    connected = bridge.connect("owner", use_active=True)
+    application.Selection.SetRange(0, 8)
+    token = bridge.selection("owner", connected["live_document_id"])["selection"]["selection_token"]
+
+    result = bridge.format_selection(
+        "owner",
+        connected["live_document_id"],
+        selection_token=token,
+        formatting={"underline_style": style},
+        expected_version=0,
+    )
+
+    assert document.formatting_log["font.Underline"] == word_value
+    assert result["formatting_readback"] == {"underline_style": style}
+
+
+@pytest.mark.parametrize("field", ["subscript", "superscript"])
+def test_live_word_applies_baseline_script_formatting(live_bridge, field: str) -> None:
+    bridge, application, document = live_bridge
+    connected = bridge.connect("owner", use_active=True)
+    application.Selection.SetRange(0, 8)
+    token = bridge.selection("owner", connected["live_document_id"])["selection"]["selection_token"]
+
+    result = bridge.format_selection(
+        "owner",
+        connected["live_document_id"],
+        selection_token=token,
+        formatting={field: True},
+        expected_version=0,
+    )
+
+    assert document.formatting_log[f"font.{field.title()}"] == -1
+    assert result["formatting_readback"] == {field: True}
+
+
+def test_live_word_clear_character_formatting_precedes_explicit_overrides(live_bridge) -> None:
+    bridge, application, document = live_bridge
+    connected = bridge.connect("owner", use_active=True)
+    application.Selection.SetRange(0, 8)
+    token = bridge.selection("owner", connected["live_document_id"])["selection"]["selection_token"]
+
+    result = bridge.format_selection(
+        "owner",
+        connected["live_document_id"],
+        selection_token=token,
+        formatting={"clear_character_formatting": True, "bold": True},
+        expected_version=0,
+    )
+
+    assert document.formatting_log["font.Reset"] is True
+    assert document.formatting_log["font.Bold"] == -1
+    assert result["formatting_readback"] == {
+        "clear_character_formatting": True,
+        "bold": True,
+    }
+
+
+def test_live_word_rolls_back_when_word_silently_ignores_formatting(live_bridge) -> None:
+    bridge, application, document = live_bridge
+    connected = bridge.connect("owner", use_active=True)
+    application.Selection.SetRange(0, 8)
+    token = bridge.selection("owner", connected["live_document_id"])["selection"]["selection_token"]
+    document.ignore_format_property = "Ligatures"
+    requested = {
+        "underline_style": "wavy_double",
+        "underline_color": "#C00000",
+        "shadow": True,
+        "scaling_percent": 110,
+        "spacing_pt": 1.25,
+        "position_pt": 2,
+        "kerning_pt": 8,
+        "ligatures": "standard_contextual",
+    }
+
+    with pytest.raises(WordToolkitError) as error:
+        bridge.format_selection(
+            "owner",
+            connected["live_document_id"],
+            selection_token=token,
+            formatting=requested,
+            expected_version=0,
+        )
+
+    assert error.value.code is ErrorCode.FORMATTING_INVALID
+    assert error.value.details == {
+        "field": "ligatures",
+        "expected": "standard_contextual",
+        "actual": "none",
+    }
+    assert document.undo_calls == 1
+    assert document.formatting_log == {}
+    assert document.formatting_ranges == []
+    assert bridge.inspect("owner", connected["live_document_id"])["live_version"] == 0
 
 
 def test_live_word_rejects_invalid_formatting_before_word_mutation(live_bridge) -> None:

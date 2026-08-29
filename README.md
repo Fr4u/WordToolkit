@@ -1493,14 +1493,18 @@ dist/WordToolkit-<version>-native-win-x64.zip
 
 The build fails if the packaged tree contains `.py`, `.pyc`, `.pyo`, `uv`, `uv.lock`, `pyproject.toml`, or `.venv`, or if `.mcp.json` does not launch `wordtoolkit-native.exe`.
 
-Run the destructive-but-self-restoring real-Word acceptance test:
+Run the destructive real-Word acceptance test against its own unsaved scratch document:
 
 ```powershell
 pwsh -File native/scripts/live-acceptance.ps1 `
   -RuntimeExecutable dist/wordtoolkit/runtime/win-x64/wordtoolkit-native.exe
 ```
 
-Every test mutation is tracked, verified and undone. The script fails if cleanup leaves any outstanding WordToolkit operation.
+Every test mutation is tracked, verified and undone. The scratch document is discarded on
+disconnect, so a failed Undo proof cannot contaminate the user's active document. Testing an
+already-open disposable fixture requires the explicit `-UseActiveDocument` switch; never pass it
+for a real user document. The script fails if cleanup leaves any outstanding WordToolkit
+operation.
 
 Run the complete packaged live acceptance gate:
 
