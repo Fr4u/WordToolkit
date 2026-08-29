@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "tag": "v0.62.0",
   "published_at": "2026-08-29T17:41:35Z",
-  "source_commit": "8ba15468edc50ff5302a1fac4cfcd916a488c9dd",
+  "source_commit": "352ebe827db5d348f61af6fe24ffa08cee6aaf72",
   "release_url": "https://github.com/Fr4u/WordToolkit/releases/tag/v0.62.0",
   "runtime_version": "0.62.0+codex.20260829173741",
   "native_action_count": 157,
