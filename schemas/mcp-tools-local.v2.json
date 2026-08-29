@@ -21280,7 +21280,7 @@
                     "font_color_index": {
                       "type": "integer",
                       "enum": [
-                        -1,
+                        0,
                         1,
                         2,
                         3,
@@ -21298,12 +21298,12 @@
                         15,
                         16
                       ],
-                      "description": "Microsoft Word WdColorIndex; -1 selects automatic color."
+                      "description": "Microsoft Word WdColorIndex; 0 selects automatic color."
                     },
                     "font_color_bidi_index": {
                       "type": "integer",
                       "enum": [
-                        -1,
+                        0,
                         1,
                         2,
                         3,
@@ -21321,7 +21321,7 @@
                         15,
                         16
                       ],
-                      "description": "Bidirectional-script WdColorIndex; -1 selects automatic color."
+                      "description": "Bidirectional-script WdColorIndex; 0 selects automatic color."
                     },
                     "diacritic_color": {
                       "oneOf": [
@@ -21816,7 +21816,7 @@
                     "font_color_index": {
                       "type": "integer",
                       "enum": [
-                        -1,
+                        0,
                         1,
                         2,
                         3,
@@ -21834,12 +21834,12 @@
                         15,
                         16
                       ],
-                      "description": "Microsoft Word WdColorIndex; -1 selects automatic color."
+                      "description": "Microsoft Word WdColorIndex; 0 selects automatic color."
                     },
                     "font_color_bidi_index": {
                       "type": "integer",
                       "enum": [
-                        -1,
+                        0,
                         1,
                         2,
                         3,
@@ -21857,7 +21857,7 @@
                         15,
                         16
                       ],
-                      "description": "Bidirectional-script WdColorIndex; -1 selects automatic color."
+                      "description": "Bidirectional-script WdColorIndex; 0 selects automatic color."
                     },
                     "diacritic_color": {
                       "oneOf": [
@@ -22809,7 +22809,7 @@
                     "font_color_index": {
                       "type": "integer",
                       "enum": [
-                        -1,
+                        0,
                         1,
                         2,
                         3,
@@ -22827,12 +22827,12 @@
                         15,
                         16
                       ],
-                      "description": "Microsoft Word WdColorIndex; -1 selects automatic color."
+                      "description": "Microsoft Word WdColorIndex; 0 selects automatic color."
                     },
                     "font_color_bidi_index": {
                       "type": "integer",
                       "enum": [
-                        -1,
+                        0,
                         1,
                         2,
                         3,
@@ -22850,7 +22850,7 @@
                         15,
                         16
                       ],
-                      "description": "Bidirectional-script WdColorIndex; -1 selects automatic color."
+                      "description": "Bidirectional-script WdColorIndex; 0 selects automatic color."
                     },
                     "diacritic_color": {
                       "oneOf": [
@@ -23944,7 +23944,7 @@
                 "font_color_index": {
                   "type": "integer",
                   "enum": [
-                    -1,
+                    0,
                     1,
                     2,
                     3,
@@ -23962,12 +23962,12 @@
                     15,
                     16
                   ],
-                  "description": "Microsoft Word WdColorIndex; -1 selects automatic color."
+                  "description": "Microsoft Word WdColorIndex; 0 selects automatic color."
                 },
                 "font_color_bidi_index": {
                   "type": "integer",
                   "enum": [
-                    -1,
+                    0,
                     1,
                     2,
                     3,
@@ -23985,7 +23985,7 @@
                     15,
                     16
                   ],
-                  "description": "Bidirectional-script WdColorIndex; -1 selects automatic color."
+                  "description": "Bidirectional-script WdColorIndex; 0 selects automatic color."
                 },
                 "diacritic_color": {
                   "oneOf": [
@@ -24856,7 +24856,7 @@
                 "font_color_index": {
                   "type": "integer",
                   "enum": [
-                    -1,
+                    0,
                     1,
                     2,
                     3,
@@ -24874,12 +24874,12 @@
                     15,
                     16
                   ],
-                  "description": "Microsoft Word WdColorIndex; -1 selects automatic color."
+                  "description": "Microsoft Word WdColorIndex; 0 selects automatic color."
                 },
                 "font_color_bidi_index": {
                   "type": "integer",
                   "enum": [
-                    -1,
+                    0,
                     1,
                     2,
                     3,
@@ -24897,7 +24897,7 @@
                     15,
                     16
                   ],
-                  "description": "Bidirectional-script WdColorIndex; -1 selects automatic color."
+                  "description": "Bidirectional-script WdColorIndex; 0 selects automatic color."
                 },
                 "diacritic_color": {
                   "oneOf": [
@@ -27071,7 +27071,7 @@
                     "font_color_index": {
                       "type": "integer",
                       "enum": [
-                        -1,
+                        0,
                         1,
                         2,
                         3,
@@ -27089,12 +27089,12 @@
                         15,
                         16
                       ],
-                      "description": "Microsoft Word WdColorIndex; -1 selects automatic color."
+                      "description": "Microsoft Word WdColorIndex; 0 selects automatic color."
                     },
                     "font_color_bidi_index": {
                       "type": "integer",
                       "enum": [
-                        -1,
+                        0,
                         1,
                         2,
                         3,
@@ -27112,7 +27112,7 @@
                         15,
                         16
                       ],
-                      "description": "Bidirectional-script WdColorIndex; -1 selects automatic color."
+                      "description": "Bidirectional-script WdColorIndex; 0 selects automatic color."
                     },
                     "diacritic_color": {
                       "oneOf": [

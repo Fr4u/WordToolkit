@@ -203,6 +203,8 @@ def _update_schema_object(schema: dict[str, Any]) -> dict[str, Any]:
     additions = _property_contracts()
     rebuilt: dict[str, Any] = {}
     for key, value in properties.items():
+        if key in additions:
+            continue
         rebuilt[key] = value
         if key == "font_color_rgb":
             rebuilt.update(additions)
