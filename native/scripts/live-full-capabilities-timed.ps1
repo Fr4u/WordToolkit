@@ -464,6 +464,7 @@ try {
         -Name "create_live_word_document" `
         -Arguments @{
             output_path = $documentPath
+            lifecycle = "persistent"
             activate = $true
         }
     $documentId = $created.live_document_id

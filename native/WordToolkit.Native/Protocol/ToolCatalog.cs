@@ -262,6 +262,11 @@ internal sealed partial class ToolCatalog
                         NameHits = nameTokenHits,
                         NameTokenDistance = orderedExactCoverage,
                         DescriptionHits = descriptionTokenHits,
+                        WorkflowPreference = WorkflowSearchPreference(
+                            pair.Key,
+                            terms,
+                            _allTools
+                        ),
                     };
                 }
             )
@@ -269,6 +274,7 @@ internal sealed partial class ToolCatalog
             .OrderByDescending(item => item.Exact)
             .ThenByDescending(item => item.Phrase)
             .ThenByDescending(item => item.NameHits)
+            .ThenByDescending(item => item.WorkflowPreference)
             .ThenBy(item => item.NameTokenDistance)
             .ThenByDescending(item => item.DescriptionHits)
             .ThenBy(item => item.Key, StringComparer.Ordinal)
@@ -309,6 +315,42 @@ internal sealed partial class ToolCatalog
         value.Split([' ', '-', '_', '/', '.', ':'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(token => token.ToLowerInvariant())
             .ToArray();
+
+    private static int WorkflowSearchPreference(
+        string action,
+        IReadOnlyCollection<string> queryTerms,
+        IReadOnlyDictionary<string, JsonObject> allTools
+    )
+    {
+        var explicitApply = queryTerms.Contains("apply", StringComparer.Ordinal);
+        if (action.StartsWith("plan_", StringComparison.Ordinal))
+        {
+            var suffix = action["plan_".Length..];
+            var directApply = "apply_" + suffix;
+            var shortenedApply = suffix.EndsWith("_apply", StringComparison.Ordinal)
+                ? "apply_" + suffix[..^"_apply".Length]
+                : "";
+            if (
+                allTools.ContainsKey(directApply)
+                || shortenedApply.Length > 0 && allTools.ContainsKey(shortenedApply)
+            )
+            {
+                return explicitApply ? 0 : 1;
+            }
+        }
+        if (action.StartsWith("apply_", StringComparison.Ordinal))
+        {
+            var suffix = action["apply_".Length..];
+            if (
+                allTools.ContainsKey("plan_" + suffix)
+                || allTools.ContainsKey("plan_" + suffix + "_apply")
+            )
+            {
+                return explicitApply ? 1 : 0;
+            }
+        }
+        return 0;
+    }
 
     private static int NameTokenEditDistance(
         IReadOnlyList<string> nameTokens,

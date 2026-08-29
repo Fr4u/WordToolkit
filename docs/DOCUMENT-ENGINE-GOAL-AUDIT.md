@@ -359,14 +359,14 @@ The current release checkpoint is qualified24: version `0.60.1+codex.20260821204
   fixed.
 - `scripts/build_native_plugin.ps1` — self-contained native package built with no
   Python runtime.
-- Two current local package builds are byte-identical: 195 files, 85,150,302 expanded
+- Two local package builds for that checkpoint were byte-identical: 195 files, 85,150,302 expanded
   bytes and a 36,200,235-byte ZIP at SHA-256
   `e1ef21c763cae801f48bcfa43d1513ff279936a8fd026e00b28a04133755afe8`.
   The packaged executable reports 85 operations/15 exposed tools, discovers the
   transform action and leaves the Word-process count at zero. Mandatory CI run
   `29970012359` passed all five jobs, and its downloaded Windows ZIP matched both local
   archives byte for byte at the same size and SHA-256.
-- The current development head exposes 15 public tools and 85 lazy actions. Inspection,
+- That checkpoint's development head exposed 15 public tools and 85 lazy actions. Inspection,
   semantic query and transform now have transport-neutral typed Engine contracts. Query
   uses one canonical result across SDK, JSON CLI, direct MCP and indexed MCP, and is the
   first action whose output schema, version, permission and reversibility metadata are

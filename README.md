@@ -9,7 +9,7 @@ Transform changes fail closed and route to the reviewed generic patch workflow.
 Other typed mutators and the legacy Python publication path do not yet provide universal
 enforcement. The token is not a password or caller-identity proof.
 
-> **Status:** [`v0.61.3`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.61.3) is the current tagged release. Its native Windows x64 artifact is built deterministically from the pinned .NET 8.0.423 SDK. Complete-document TeX execution uses an explicit Tectonic provider and never pretends that arbitrary TeX layout has a lossless editable OfficeMath representation.
+> **Status:** [`v0.61.4`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.61.4) is the current tagged release. Its native Windows x64 artifact is built deterministically from the pinned .NET 8.0.423 SDK. Complete-document TeX execution uses an explicit Tectonic provider and never pretends that arbitrary TeX layout has a lossless editable OfficeMath representation.
 
 ## Current authoring boundary
 
@@ -1534,30 +1534,29 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-Release `v0.61.3` contains the qualified native runtime (`0.61.3+codex.20260829085321`), with runtime guidance covering 157/157 actions and 17 public MCP tools. It replaces the monolithic AI manual with a short task router and lazy references, reduces default action-search noise, keeps the complete contract available on demand, and fixes Word-default normalization in direct OMML semantic readback. The archive remains a native Windows x64 plugin without a Python runtime; Tectonic is an explicit external provider and is not bundled.
+Release `v0.61.4` contains the qualified native runtime (`0.61.4+codex.20260829104544`), with runtime guidance covering 157/157 actions and 17 public MCP tools. It corrects the persistent-document lifecycle value exposed to AI clients, adds a schema-derived regression for every documented lifecycle value, explicitly tests `lifecycle="persistent"` in the full Word gate, clarifies compact-versus-full success evidence, and ranks reviewed plans before ambiguous guarded apply actions. The archive remains a native Windows x64 plugin without a Python runtime; Tectonic is an explicit external provider and is not bundled.
 
 Version:
 
 ```text
-0.61.3+codex.20260829085321
+0.61.4+codex.20260829104544
 ```
 
 Windows x64 ZIP:
 
-Asset: `WordToolkit-0.61.3+codex.20260829085321-native-win-x64.zip`
+Asset: `WordToolkit-0.61.4+codex.20260829104544-native-win-x64.zip`
 
-[WordToolkit 0.61.3 native plugin for Windows x64](https://github.com/Fr4u/WordToolkit/releases/download/v0.61.3/WordToolkit-0.61.3%2Bcodex.20260829085321-native-win-x64.zip)
+[WordToolkit 0.61.4 native plugin for Windows x64](https://github.com/Fr4u/WordToolkit/releases/download/v0.61.4/WordToolkit-0.61.4%2Bcodex.20260829104544-native-win-x64.zip)
 
-Size: `38,475,539 bytes`
+Size: `38,475,982 bytes`
 
-SHA-256: `8657d755516b8926090fe1dbe59d455cf90c75b6936878b02d89c0cfdd72e80d`
+SHA-256: `96a176ef08e1cabc74221709908ecb065fbba5d015f902b4d5b69cb318ea553e`
 
-Live demonstration document:
-
-```text
-C:\Users\Admin\Desktop\WordToolkit-Native-Mechanika-Kwantowa-2026-07-20.docx
-```
-
-The document contains 16 paragraphs, four editable native equations and a native four-item list. It was saved through Word and validated with zero Microsoft Open XML SDK errors.
+Release qualification is recorded in
+[`docs/RELEASE-QUALIFICATION-0.61.4.md`](docs/RELEASE-QUALIFICATION-0.61.4.md).
+The packaged full-live gate created 70 paragraphs, one table and 12 editable native
+equations, passed Microsoft Open XML validation, exported a three-page Word PDF, reopened
+and reconnected the document, and left no test document open in Word. All three PDF pages
+were rasterized and visually inspected.
 
 See [native migration details](docs/NATIVE-MIGRATION.md) for architecture, benchmarks, package audit and known limits.
