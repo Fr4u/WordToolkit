@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+## 0.61.4 - 2026-08-29
+
+- Fixed the AI skill's persistent-document lifecycle value. The router incorrectly used
+  `lifecycle="owned"`, while the native schema and runtime accept only `persistent` or
+  `scratch`; this caused an avoidable `INVALID_INPUT` before Word was touched. The
+  router now uses `lifecycle="persistent"` for saved deliverables.
+
+- Added a schema-derived regression that extracts every explicit lifecycle value from
+  the skill and its references and rejects any value outside the current
+  `create_live_word_document` enum. The full packaged Word gate now passes
+  `lifecycle="persistent"` explicitly instead of relying on the default.
+
+- Clarified that action-guidance `success.required_paths` describes the complete
+  `response_mode="full"` contract. Compact responses may intentionally omit telemetry;
+  AI clients should verify compact predicates and action-specific postconditions rather
+  than treating absent `runtime`, `python_used`, or `performance` as failure.
+
+- Made ambiguous guarded-mutation search safe by default. Queries such as
+  `patch rollback`, `merge package`, or `semantic edits` now rank the reviewed
+  `plan_ooxml_*` action before its `apply_ooxml_*` partner. An explicit `apply` token or
+  exact apply action still selects apply. The AI router also refuses to execute any
+  returned `apply_ooxml_*` action unless the exact reviewed plan and bindings are already
+  in context.
+
+- Reworded two old checkpoint statements in the chronological engine audit so their
+  15-tool/85-action and package-size evidence cannot be mistaken for the current
+  17-tool/157-action release.
+
 ## 0.61.3 - 2026-08-29
 
 - Replaced the 102,000-character all-in-one AI skill with an 8,000-character routing

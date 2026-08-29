@@ -89,3 +89,24 @@ def test_plugin_mcp_entrypoint_is_local_native_runtime() -> None:
     assert server["command"] == "./runtime/win-x64/wordtoolkit-native.exe"
     assert server["cwd"] == "."
     assert server["args"] == []
+
+
+def test_skill_lifecycle_values_match_native_create_schema() -> None:
+    source_catalog = json.loads(
+        (ROOT / "schemas" / "mcp-tools-local.v2.json").read_text(encoding="utf-8")
+    )
+    create_tool = next(
+        tool for tool in source_catalog["tools"] if tool["name"] == "create_live_word_document"
+    )
+    allowed = set(create_tool["inputSchema"]["properties"]["lifecycle"]["enum"])
+    skill_root = ROOT / "plugin" / "wordtoolkit" / "skills" / "wordtoolkit"
+    documented = {
+        value
+        for path in skill_root.rglob("*.md")
+        for value in re.findall(r'lifecycle="([a-z_]+)"', path.read_text(encoding="utf-8"))
+    }
+
+    assert documented
+    assert documented <= allowed
+    assert "persistent" in documented
+    assert "owned" not in documented

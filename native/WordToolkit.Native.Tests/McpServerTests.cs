@@ -49,7 +49,7 @@ public sealed class McpServerTests
                 .GetString()
         );
         Assert.Equal(
-            "0.61.3",
+            "0.61.4",
             responses[0].RootElement
                 .GetProperty("result")
                 .GetProperty("serverInfo")

@@ -253,6 +253,11 @@ internal sealed partial class ToolCatalog
                     var orderedExactCoverage = NameTokenEditDistance(nameTokens, terms);
                     var descriptionTokenHits = terms.Count(term => normalizedDescription.Contains(term, StringComparison.Ordinal));
                     // Name matches must dominate metadata matches. Keep a tuple for deterministic tie-breaking.
+                    var workflowPreference = WorkflowSearchPreference(
+                        pair.Key,
+                        terms,
+                        _allTools
+                    );
                     return new
                     {
                         pair.Key,
@@ -262,13 +267,17 @@ internal sealed partial class ToolCatalog
                         NameHits = nameTokenHits,
                         NameTokenDistance = orderedExactCoverage,
                         DescriptionHits = descriptionTokenHits,
+                        ExplicitWorkflowPreference = workflowPreference.Explicit,
+                        SafetyWorkflowPreference = workflowPreference.Safety,
                     };
                 }
             )
             .Where(item => item.Exact > 0 || item.Phrase > 0 || item.NameHits > 0 || item.DescriptionHits > 0)
             .OrderByDescending(item => item.Exact)
+            .ThenByDescending(item => item.ExplicitWorkflowPreference)
             .ThenByDescending(item => item.Phrase)
             .ThenByDescending(item => item.NameHits)
+            .ThenByDescending(item => item.SafetyWorkflowPreference)
             .ThenBy(item => item.NameTokenDistance)
             .ThenByDescending(item => item.DescriptionHits)
             .ThenBy(item => item.Key, StringComparer.Ordinal)
@@ -309,6 +318,43 @@ internal sealed partial class ToolCatalog
         value.Split([' ', '-', '_', '/', '.', ':'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(token => token.ToLowerInvariant())
             .ToArray();
+
+    private static (int Explicit, int Safety) WorkflowSearchPreference(
+        string action,
+        IReadOnlyCollection<string> queryTerms,
+        IReadOnlyDictionary<string, JsonObject> allTools
+    )
+    {
+        var explicitApply = queryTerms.Contains("apply", StringComparer.Ordinal)
+            && !queryTerms.Contains("plan", StringComparer.Ordinal);
+        if (action.StartsWith("plan_", StringComparison.Ordinal))
+        {
+            var suffix = action["plan_".Length..];
+            var directApply = "apply_" + suffix;
+            var shortenedApply = suffix.EndsWith("_apply", StringComparison.Ordinal)
+                ? "apply_" + suffix[..^"_apply".Length]
+                : "";
+            if (
+                allTools.ContainsKey(directApply)
+                || shortenedApply.Length > 0 && allTools.ContainsKey(shortenedApply)
+            )
+            {
+                return explicitApply ? (0, 0) : (0, 1);
+            }
+        }
+        if (action.StartsWith("apply_", StringComparison.Ordinal))
+        {
+            var suffix = action["apply_".Length..];
+            if (
+                allTools.ContainsKey("plan_" + suffix)
+                || allTools.ContainsKey("plan_" + suffix + "_apply")
+            )
+            {
+                return explicitApply ? (1, 0) : (0, 0);
+            }
+        }
+        return (0, 0);
+    }
 
     private static int NameTokenEditDistance(
         IReadOnlyList<string> nameTokens,

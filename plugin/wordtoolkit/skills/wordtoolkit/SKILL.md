@@ -25,7 +25,7 @@ Use WordToolkit as a narrow execution engine, not as a catalog to read up front.
 
 `create_live_word_document` -> one coherent `apply_live_word_operations` batch -> `save_live_word_document` -> render or export when appearance matters. Inspect only when the apply response does not prove the postcondition needed for the next step.
 
-Use `lifecycle="scratch"` for temporary work and omit `output_path`. Use `lifecycle="owned"` with an explicit output path for a deliverable. Do not create a scratch document as a substitute for opening a user file.
+Use `lifecycle="scratch"` for temporary work and omit `output_path`. Use `lifecycle="persistent"` with an explicit output path for a deliverable. Do not create a scratch document as a substitute for opening a user file.
 
 ### Edit an existing Word document
 
@@ -38,6 +38,8 @@ Call `inspect_ooxml_package` directly only for structural package facts. For sem
 ### Discover a rare capability
 
 Call `search_wordtoolkit_actions` with one precise phrase such as `insert dropdown`, `compare documents`, or `repair numbering`. Execute the returned top contract directly. Call `inspect_wordtoolkit_action` only for a lower-ranked result or when the full contract is required.
+
+Never execute a returned `apply_ooxml_*` action unless the exact reviewed plan and every required fingerprint/token are already in context. Without that evidence, select the matching plan workflow first even if an apply action appears in search results.
 
 ## Non-negotiable safety rules
 
@@ -60,6 +62,7 @@ Call `search_wordtoolkit_actions` with one precise phrase such as `insert dropdo
 - For long operations, pass an idempotency key when supported and poll `get_live_word_operation_status` instead of resubmitting.
 - Use bounded page/range queries. Do not request the entire semantic tree when one section, table, bookmark, or page answers the question.
 - Return only facts needed by the user: artifact path, mutation result, version, validation result, and unresolved limitations. Do not dump schemas or internal hashes unless they explain a failure.
+- In action guidance, `success.required_paths` describes the complete `response_mode="full"` output contract. A compact response may intentionally omit telemetry such as `runtime`, `python_used`, or `performance`; that omission is not failure. For compact responses, verify the returned success predicates and the action-specific postcondition. Request `full` only when an omitted path is needed for the next decision.
 
 ## Live mutation contract
 

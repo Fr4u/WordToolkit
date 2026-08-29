@@ -267,6 +267,10 @@ bounded to 256 entries and retained for one hour, so they are not crash-durable.
 `action-guidance.v1.json`: prerequisites, acquisition steps, a minimal gateway example,
 success predicates, recovery hints and recipe IDs. Treat placeholders as bindings, never
 invent fingerprints, versions, plans or tokens, and preserve exact plan/apply arguments.
+`success.required_paths` enumerates the complete `response_mode="full"` output contract;
+compact responses may intentionally omit telemetry such as `runtime`, `python_used`, or
+`performance`. Use the returned predicates and action-specific postcondition for compact
+success, and request `full` only when the next decision consumes an omitted path.
 
 ## Metadata coverage is evidence, not decoration
 
