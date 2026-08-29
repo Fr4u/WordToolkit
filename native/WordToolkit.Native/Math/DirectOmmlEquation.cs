@@ -626,6 +626,10 @@ internal static class DirectOmmlEquationParser
         {
             return true;
         }
+        if (IsDefaultMathRunProperty(element, mathNamespace))
+        {
+            return true;
+        }
         if (element.Name.LocalName == "ctrlPr")
         {
             return true;
@@ -644,6 +648,37 @@ internal static class DirectOmmlEquationParser
             !ShouldOmitSemanticElement(child, mathNamespace)
         );
         return !hasMeaningfulAttribute && !hasMeaningfulText && !hasMeaningfulChild;
+    }
+
+    private static bool IsDefaultMathRunProperty(
+        XElement element,
+        string mathNamespace
+    )
+    {
+        if (
+            element.Parent is not { } parent
+            || parent.Name.NamespaceName != mathNamespace
+            || parent.Name.LocalName != "rPr"
+            || element.Elements().Any()
+            || element.Nodes().OfType<XText>().Any(text =>
+                !string.IsNullOrWhiteSpace(text.Value)
+            )
+        )
+        {
+            return false;
+        }
+        var attributes = element.Attributes()
+            .Where(attribute => !attribute.IsNamespaceDeclaration)
+            .ToArray();
+        if (
+            attributes.Length != 1
+            || attributes[0].Name != XName.Get("val", mathNamespace)
+        )
+        {
+            return false;
+        }
+        return (element.Name.LocalName, attributes[0].Value) is
+            ("sty", "i") or ("scr", "roman");
     }
 
     private static void AppendToken(StringBuilder output, string kind, string value)

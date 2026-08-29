@@ -9,7 +9,7 @@ Transform changes fail closed and route to the reviewed generic patch workflow.
 Other typed mutators and the legacy Python publication path do not yet provide universal
 enforcement. The token is not a password or caller-identity proof.
 
-> **Status:** [`v0.61.2`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.61.2) is the current tagged release. Its native Windows x64 artifact is built deterministically from the pinned .NET 8.0.423 SDK. Complete-document TeX execution uses an explicit Tectonic provider and never pretends that arbitrary TeX layout has a lossless editable OfficeMath representation.
+> **Status:** [`v0.61.3`](https://github.com/Fr4u/WordToolkit/releases/tag/v0.61.3) is the current tagged release. Its native Windows x64 artifact is built deterministically from the pinned .NET 8.0.423 SDK. Complete-document TeX execution uses an explicit Tectonic provider and never pretends that arbitrary TeX layout has a lossless editable OfficeMath representation.
 
 ## Current authoring boundary
 
@@ -1534,23 +1534,23 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-Release `v0.61.2` contains the qualified native runtime (`0.61.2+codex.20260828201723`), with runtime guidance covering 157/157 actions and 17 public MCP tools. It adds complete-document TeX execution, the expanded native equation surface, direct OMML paragraph-property proof, bounded multi-error diagnostics, progress and idempotent receipts. The archive remains a native Windows x64 plugin without a Python runtime; Tectonic is an explicit external provider and is not bundled.
+Release `v0.61.3` contains the qualified native runtime (`0.61.3+codex.20260829085321`), with runtime guidance covering 157/157 actions and 17 public MCP tools. It replaces the monolithic AI manual with a short task router and lazy references, reduces default action-search noise, keeps the complete contract available on demand, and fixes Word-default normalization in direct OMML semantic readback. The archive remains a native Windows x64 plugin without a Python runtime; Tectonic is an explicit external provider and is not bundled.
 
 Version:
 
 ```text
-0.61.2+codex.20260828201723
+0.61.3+codex.20260829085321
 ```
 
 Windows x64 ZIP:
 
-Asset: `WordToolkit-0.61.2+codex.20260828201723-native-win-x64.zip`
+Asset: `WordToolkit-0.61.3+codex.20260829085321-native-win-x64.zip`
 
-[WordToolkit 0.61.2 native plugin for Windows x64](https://github.com/Fr4u/WordToolkit/releases/download/v0.61.2/WordToolkit-0.61.2%2Bcodex.20260828201723-native-win-x64.zip)
+[WordToolkit 0.61.3 native plugin for Windows x64](https://github.com/Fr4u/WordToolkit/releases/download/v0.61.3/WordToolkit-0.61.3%2Bcodex.20260829085321-native-win-x64.zip)
 
-Size: `38,503,127 bytes`
+Size: `38,475,539 bytes`
 
-SHA-256: `6987568efccf4ed8184f3ecdc81a92c4be2d5b2119087d7bfa4e91e8e86c4873`
+SHA-256: `8657d755516b8926090fe1dbe59d455cf90c75b6936878b02d89c0cfdd72e80d`
 
 Live demonstration document:
 

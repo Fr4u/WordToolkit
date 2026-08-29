@@ -106,6 +106,21 @@ public sealed class DirectOmmlEquationTests
     }
 
     [Fact]
+    public void SemanticHashNormalizesDocumentedDefaultMathStyleAndScript()
+    {
+        var implicitDefaults = DirectOmmlEquationParser.Parse(SimpleRun("x"));
+        var explicitDefaults = DirectOmmlEquationParser.Parse(
+            $"<m:oMath xmlns:m=\"{Transitional}\"><m:r><m:rPr><m:sty m:val=\"i\"/><m:scr m:val=\"roman\"/></m:rPr><m:t>x</m:t></m:r></m:oMath>"
+        );
+        var explicitPlain = DirectOmmlEquationParser.Parse(
+            $"<m:oMath xmlns:m=\"{Transitional}\"><m:r><m:rPr><m:sty m:val=\"p\"/></m:rPr><m:t>x</m:t></m:r></m:oMath>"
+        );
+
+        Assert.Equal(implicitDefaults.SemanticSha256, explicitDefaults.SemanticSha256);
+        Assert.NotEqual(implicitDefaults.SemanticSha256, explicitPlain.SemanticSha256);
+    }
+
+    [Fact]
     public void ParsesExactlyOneEquationFromWordReadbackWrapper()
     {
         var source = DirectOmmlEquationParser.Parse(SimpleRun("x"));
