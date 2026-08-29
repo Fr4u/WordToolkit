@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -31,44 +31,173 @@ LIVE_HANDLE = ToolAnnotations(
     openWorldHint=True,
 )
 LIVE_VERSION = Annotated[int, Field(strict=True, ge=0)]
+WordColorIndex = Literal[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
+WordDirectColor = (
+    Literal["automatic"]
+    | Annotated[
+        str,
+        Field(pattern=r"^#[0-9A-Fa-f]{6}$"),
+    ]
+)
+WordUnderlineStyle = Literal[
+    "none",
+    "single",
+    "words",
+    "double",
+    "dotted",
+    "thick",
+    "dash",
+    "dot_dash",
+    "dot_dot_dash",
+    "wavy",
+    "dotted_heavy",
+    "dash_heavy",
+    "dot_dash_heavy",
+    "dot_dot_dash_heavy",
+    "wavy_heavy",
+    "dash_long",
+    "wavy_double",
+    "dash_long_heavy",
+]
+WordEmphasisMark = Literal[
+    "none",
+    "over_solid_circle",
+    "over_comma",
+    "over_white_circle",
+    "under_solid_circle",
+]
+WordLigatures = Literal[
+    "none",
+    "standard",
+    "contextual",
+    "standard_contextual",
+    "historical",
+    "standard_historical",
+    "contextual_historical",
+    "standard_contextual_historical",
+    "discretionary",
+    "standard_discretionary",
+    "contextual_discretionary",
+    "standard_contextual_discretionary",
+    "historical_discretionary",
+    "standard_historical_discretionary",
+    "contextual_historical_discretionary",
+    "all",
+]
+
+
+def _formatting_schema_conflicts(*, include_paragraph: bool) -> list[dict[str, Any]]:
+    conflicts: list[dict[str, Any]] = [
+        {"not": {"required": ["font_size", "font_size_pt"]}},
+        {"not": {"required": ["underline", "underline_style"]}},
+        {"not": {"required": ["font_color_rgb", "font_color_index"]}},
+        {
+            "not": {
+                "required": ["strike", "double_strike"],
+                "properties": {
+                    "strike": {"const": True},
+                    "double_strike": {"const": True},
+                },
+            }
+        },
+        {
+            "not": {
+                "required": ["subscript", "superscript"],
+                "properties": {
+                    "subscript": {"const": True},
+                    "superscript": {"const": True},
+                },
+            }
+        },
+        {
+            "not": {
+                "required": ["emboss", "engrave"],
+                "properties": {"emboss": {"const": True}, "engrave": {"const": True}},
+            }
+        },
+        {
+            "not": {
+                "required": ["position_pt", "subscript"],
+                "properties": {"subscript": {"const": True}},
+            }
+        },
+        {
+            "not": {
+                "required": ["position_pt", "superscript"],
+                "properties": {"superscript": {"const": True}},
+            }
+        },
+    ]
+    if include_paragraph:
+        conflicts.insert(1, {"not": {"required": ["alignment", "paragraph_alignment"]}})
+    return conflicts
 
 
 class LiveRunFormatting(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
         json_schema_extra={
-            "allOf": [
-                {"not": {"required": ["font_size", "font_size_pt"]}},
-                {
-                    "not": {
-                        "required": ["strike", "double_strike"],
-                        "properties": {
-                            "strike": {"const": True},
-                            "double_strike": {"const": True},
-                        },
-                    }
-                },
-            ]
+            "allOf": cast(Any, _formatting_schema_conflicts(include_paragraph=False))
         },
     )
 
     font_name: str | None = Field(default=None, min_length=1, max_length=128)
-    font_size_pt: float | None = Field(default=None, ge=1, le=200)
+    font_name_ascii: str | None = Field(default=None, min_length=1, max_length=128)
+    font_name_bidi: str | None = Field(default=None, min_length=1, max_length=128)
+    font_name_far_east: str | None = Field(default=None, min_length=1, max_length=128)
+    font_name_other: str | None = Field(default=None, min_length=1, max_length=128)
+    font_size_pt: float | None = Field(default=None, ge=1, le=1638)
+    font_size_bidi_pt: float | None = Field(default=None, ge=1, le=1638)
     font_size: float | None = Field(
         default=None,
         ge=1,
-        le=200,
+        le=1638,
         json_schema_extra={"deprecated": True},
     )
     font_color_rgb: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    font_color_index: WordColorIndex | None = None
+    font_color_bidi_index: WordColorIndex | None = None
+    diacritic_color: WordDirectColor | None = None
     bold: bool | None = None
     italic: bool | None = None
-    underline: bool | None = None
+    bold_bidi: bool | None = None
+    italic_bidi: bool | None = None
+    underline: bool | None = Field(
+        default=None,
+        json_schema_extra={"deprecated": True},
+        description="Compatibility boolean for single underline; use underline_style for every Word style.",
+    )
+    underline_style: WordUnderlineStyle | None = None
+    underline_color: WordDirectColor | None = None
     strike: bool | None = None
     double_strike: bool | None = None
+    subscript: bool | None = None
+    superscript: bool | None = None
     all_caps: bool | None = None
     small_caps: bool | None = None
     hidden: bool | None = None
+    shadow: bool | None = None
+    outline: bool | None = None
+    emboss: bool | None = None
+    engrave: bool | None = None
+    scaling_percent: int | None = Field(default=None, ge=1, le=600)
+    spacing_pt: float | None = Field(default=None, ge=-1584, le=1584)
+    position_pt: int | None = Field(default=None, ge=-1584, le=1584)
+    kerning_pt: float | None = Field(default=None, ge=0, le=1638)
+    disable_character_space_grid: bool | None = None
+    emphasis_mark: WordEmphasisMark | None = None
+    ligatures: WordLigatures | None = None
+    number_form: Literal["default", "lining", "old_style"] | None = None
+    number_spacing: Literal["default", "proportional", "tabular"] | None = None
+    stylistic_sets: list[Annotated[int, Field(ge=1, le=20)]] | None = Field(
+        default=None,
+        max_length=20,
+    )
+    contextual_alternates: bool | None = None
+    clear_character_formatting: bool | None = Field(
+        default=None,
+        description="Reset direct Font formatting before applying the remaining fields; paragraph formatting is unchanged.",
+    )
     highlight_color_index: int | None = Field(default=None, ge=0, le=16)
 
     @model_validator(mode="after")
@@ -77,6 +206,20 @@ class LiveRunFormatting(BaseModel):
             raise ValueError("Use either font_size or font_size_pt, not both")
         if self.strike is True and self.double_strike is True:
             raise ValueError("strike and double_strike cannot both be true")
+        if self.underline is not None and self.underline_style is not None:
+            raise ValueError("Use either deprecated underline or canonical underline_style")
+        if self.font_color_rgb is not None and self.font_color_index is not None:
+            raise ValueError("Use either font_color_rgb or font_color_index")
+        if self.subscript is True and self.superscript is True:
+            raise ValueError("subscript and superscript cannot both be true")
+        if self.emboss is True and self.engrave is True:
+            raise ValueError("emboss and engrave cannot both be true")
+        if self.position_pt is not None and (self.subscript is True or self.superscript is True):
+            raise ValueError("position_pt cannot combine with subscript/superscript")
+        if self.stylistic_sets is not None and len(set(self.stylistic_sets)) != len(
+            self.stylistic_sets
+        ):
+            raise ValueError("stylistic_sets values must be unique")
         return self
 
 
@@ -84,19 +227,7 @@ class LiveTextFormatting(LiveRunFormatting):
     model_config = ConfigDict(
         extra="forbid",
         json_schema_extra={
-            "allOf": [
-                {"not": {"required": ["font_size", "font_size_pt"]}},
-                {"not": {"required": ["alignment", "paragraph_alignment"]}},
-                {
-                    "not": {
-                        "required": ["strike", "double_strike"],
-                        "properties": {
-                            "strike": {"const": True},
-                            "double_strike": {"const": True},
-                        },
-                    }
-                },
-            ]
+            "allOf": cast(Any, _formatting_schema_conflicts(include_paragraph=True))
         },
     )
 
@@ -723,7 +854,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         target: Literal["selection", "cursor", "document_end"] = "cursor",
         as_new_paragraph: bool = False,
         style: str = Field(default="", max_length=128),
-        formatting: dict | None = None,
+        formatting: LiveTextFormatting | None = None,
         selection_token: str = Field(default="", max_length=128),
         replace_selection: bool = False,
         activate: bool = True,
@@ -739,7 +870,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
             target=target,
             as_new_paragraph=as_new_paragraph,
             style=style,
-            formatting=formatting,
+            formatting=formatting.model_dump(exclude_none=True) if formatting else None,
             selection_token=selection_token,
             replace_selection=replace_selection,
             activate=activate,
@@ -749,7 +880,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
 
     @mcp.tool(
         title="Format the current selection directly in Microsoft Word",
-        description="Apply a Word style plus bounded font and paragraph formatting to the exact non-empty live selection verified by a fresh selection token. The operation uses one COM attachment, one Undo record and no text round-trip.",
+        description="Apply a Word style plus the complete bounded scalar Word.Font and paragraph formatting surface to the exact non-empty live selection verified by a fresh selection token. Every requested field is read back from COM; mixed or ignored values fail inside one rollback-aware Undo record.",
         annotations=LIVE_WRITE,
     )
     @_safe
@@ -757,7 +888,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         live_document_id: str,
         selection_token: str = Field(max_length=128),
         style: str = Field(default="", max_length=128),
-        formatting: dict | None = None,
+        formatting: LiveTextFormatting | None = None,
         optimize_screen_updates: bool = True,
         expected_version: LIVE_VERSION = Field(),
     ) -> dict:
@@ -769,7 +900,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
             live_document_id,
             selection_token=selection_token,
             style=style,
-            formatting=formatting,
+            formatting=formatting.model_dump(exclude_none=True) if formatting else None,
             optimize_screen_updates=optimize_screen_updates,
             expected_version=expected_version,
         )
@@ -899,7 +1030,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
         selection_token: str = Field(default="", max_length=128),
         replace_selection: bool = False,
         style: str = Field(default="", max_length=128),
-        formatting: dict | None = None,
+        formatting: LiveTextFormatting | None = None,
         activate: bool = True,
         optimize_screen_updates: bool = True,
         expected_version: LIVE_VERSION = Field(),
@@ -916,7 +1047,7 @@ def register_live_tools(mcp: FastMCP, runtime: ToolRuntime) -> None:
             selection_token=selection_token,
             replace_selection=replace_selection,
             style=style,
-            formatting=formatting,
+            formatting=formatting.model_dump(exclude_none=True) if formatting else None,
             activate=activate,
             optimize_screen_updates=optimize_screen_updates,
             expected_version=expected_version,

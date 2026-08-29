@@ -252,7 +252,7 @@ def test_live_formatting_contract_is_typed_and_alias_safe() -> None:
             )
         )
         assert list(validator.iter_errors({"font_size_pt": "banana"}))
-        assert list(validator.iter_errors({"font_size_pt": 201}))
+        assert list(validator.iter_errors({"font_size_pt": 1639}))
         assert list(validator.iter_errors({"font_name": "x" * 129}))
         assert list(validator.iter_errors({"font_color_rgb": "#GGGGGG"}))
         assert list(validator.iter_errors({"double_strike": 1}))
@@ -273,13 +273,15 @@ def test_live_mixed_formatting_contract_matches_extended_runtime_fields() -> Non
     )
     tool = next(item for item in catalog["tools"] if item["name"] == "apply_live_word_operations")
     defs = tool["inputSchema"]["$defs"]
+    character = defs["liveCharacterFormatting"]
     run = defs["liveRunFormatting"]
     text = defs["liveTextFormatting"]
     schema = tool["inputSchema"]
     Draft202012Validator.check_schema(schema)
     validator = Draft202012Validator(schema)
-    assert run["properties"]["font_name"]["maxLength"] == 128
-    assert {"double_strike", "highlight_color_index"} <= set(run["properties"])
+    assert character["properties"]["font_name"]["maxLength"] == 128
+    assert {"double_strike", "highlight_color_index"} <= set(character["properties"])
+    assert run["allOf"] == [{"$ref": "#/$defs/liveCharacterFormatting"}]
     assert "distribute" in text["properties"]["paragraph_alignment"]["enum"]
     valid = {
         "live_document_id": "live",

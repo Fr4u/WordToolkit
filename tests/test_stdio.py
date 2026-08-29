@@ -13,6 +13,7 @@ from wordtoolkit import __version__
 from wordtoolkit import runtime as runtime_module
 from wordtoolkit.config import Settings
 from wordtoolkit.errors import ErrorCode, WordToolkitError
+from wordtoolkit.live_word import INLINE_RUN_FORMATTING_KEYS
 from wordtoolkit.runtime import ToolRuntime
 from wordtoolkit.server.stdio import build_stdio_server
 from wordtoolkit.server.tools import OpenAIFile
@@ -131,21 +132,7 @@ async def test_live_word_tools_exist_only_on_local_stdio(tmp_path: Path) -> None
     text_formatting = definitions["LiveTextFormatting"]
     assert run_formatting["additionalProperties"] is False
     assert text_formatting["additionalProperties"] is False
-    assert set(run_formatting["properties"]) == {
-        "font_name",
-        "font_size_pt",
-        "font_size",
-        "font_color_rgb",
-        "bold",
-        "italic",
-        "underline",
-        "strike",
-        "double_strike",
-        "all_caps",
-        "small_caps",
-        "hidden",
-        "highlight_color_index",
-    }
+    assert set(run_formatting["properties"]) == INLINE_RUN_FORMATTING_KEYS | {"font_size"}
     assert {
         "paragraph_alignment",
         "alignment",

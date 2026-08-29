@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -1193,27 +1194,62 @@ internal sealed partial class WordLiveService
             values[property.Name] = property.Name switch
             {
                 "font_name" => Convert.ToString(font.Name, CultureInfo.InvariantCulture) ?? "",
+                "font_name_ascii" => Convert.ToString(font.NameAscii, CultureInfo.InvariantCulture) ?? "",
+                "font_name_bidi" => Convert.ToString(font.NameBi, CultureInfo.InvariantCulture) ?? "",
+                "font_name_far_east" => Convert.ToString(font.NameFarEast, CultureInfo.InvariantCulture) ?? "",
+                "font_name_other" => Convert.ToString(font.NameOther, CultureInfo.InvariantCulture) ?? "",
                 "font_size_pt" => FormatFloating(font.Size),
-                "font_color_rgb" => FormatInteger(font.Color),
-                "bold" => FormatInteger(font.Bold),
-                "italic" => FormatInteger(font.Italic),
-                "underline" => FormatInteger(font.Underline),
-                "strike" => FormatInteger(font.StrikeThrough),
-                "double_strike" => FormatInteger(font.DoubleStrikeThrough),
-                "all_caps" => FormatInteger(font.AllCaps),
-                "small_caps" => FormatInteger(font.SmallCaps),
-                "hidden" => FormatInteger(font.Hidden),
+                "font_size_bidi_pt" => FormatFloating(font.SizeBi),
+                "font_color_rgb" => FormatWordRgb(font.Color),
+                "font_color_index" => FormatInteger(font.ColorIndex),
+                "font_color_bidi_index" => FormatInteger(font.ColorIndexBi),
+                "diacritic_color" => FormatWordColor(font.DiacriticColor),
+                "bold" => FormatWordBoolean(font.Bold),
+                "italic" => FormatWordBoolean(font.Italic),
+                "bold_bidi" => FormatWordBoolean(font.BoldBi),
+                "italic_bidi" => FormatWordBoolean(font.ItalicBi),
+                "underline" => FormatUnderlineBoolean(font.Underline),
+                "underline_style" => FormatEnumReadback((object)font.Underline, UnderlineStyleName),
+                "underline_color" => FormatWordColor(font.UnderlineColor),
+                "strike" => FormatWordBoolean(font.StrikeThrough),
+                "double_strike" => FormatWordBoolean(font.DoubleStrikeThrough),
+                "subscript" => FormatWordBoolean(font.Subscript),
+                "superscript" => FormatWordBoolean(font.Superscript),
+                "all_caps" => FormatWordBoolean(font.AllCaps),
+                "small_caps" => FormatWordBoolean(font.SmallCaps),
+                "hidden" => FormatWordBoolean(font.Hidden),
+                "shadow" => FormatWordBoolean(font.Shadow),
+                "outline" => FormatWordBoolean(font.Outline),
+                "emboss" => FormatWordBoolean(font.Emboss),
+                "engrave" => FormatWordBoolean(font.Engrave),
+                "scaling_percent" => FormatInteger(font.Scaling),
+                "spacing_pt" => FormatFloating(font.Spacing),
+                "position_pt" => FormatInteger(font.Position),
+                "kerning_pt" => FormatFloating(font.Kerning),
+                "disable_character_space_grid" => FormatWordBoolean(font.DisableCharacterSpaceGrid),
+                "emphasis_mark" => FormatEnumReadback((object)font.EmphasisMark, EmphasisMarkName),
+                "ligatures" => FormatEnumReadback((object)font.Ligatures, LigaturesName),
+                "number_form" => FormatEnumReadback((object)font.NumberForm, NumberFormName),
+                "number_spacing" => FormatEnumReadback((object)font.NumberSpacing, NumberSpacingName),
+                "stylistic_sets" => FormatStylisticSets(font.StylisticSet),
+                "contextual_alternates" => FormatWordBoolean(font.ContextualAlternates),
+                "clear_character_formatting" => property.Value.GetBoolean()
+                    ? CaptureCharacterFormattingFingerprint(range)
+                    : "0",
                 "highlight_color_index" => FormatInteger(range.HighlightColorIndex),
-                "paragraph_alignment" => FormatInteger(paragraph.Alignment),
+                "paragraph_alignment" => FormatEnumReadback(
+                    (object)paragraph.Alignment,
+                    ParagraphAlignmentName
+                ),
                 "space_before_pt" => FormatFloating(paragraph.SpaceBefore),
                 "space_after_pt" => FormatFloating(paragraph.SpaceAfter),
                 "left_indent_pt" => FormatFloating(paragraph.LeftIndent),
                 "right_indent_pt" => FormatFloating(paragraph.RightIndent),
                 "first_line_indent_pt" => FormatFloating(paragraph.FirstLineIndent),
-                "keep_with_next" => FormatInteger(paragraph.KeepWithNext),
-                "keep_together" => FormatInteger(paragraph.KeepTogether),
-                "page_break_before" => FormatInteger(paragraph.PageBreakBefore),
-                "widow_control" => FormatInteger(paragraph.WidowControl),
+                "keep_with_next" => FormatWordBoolean(paragraph.KeepWithNext),
+                "keep_together" => FormatWordBoolean(paragraph.KeepTogether),
+                "page_break_before" => FormatWordBoolean(paragraph.PageBreakBefore),
+                "widow_control" => FormatWordBoolean(paragraph.WidowControl),
                 _ => throw new NativeToolException(
                     "INVALID_INPUT",
                     $"Unsupported formatting field: {property.Name}"
@@ -1221,6 +1257,367 @@ internal sealed partial class WordLiveService
             };
         }
         return values;
+    }
+
+    private static void VerifyRequestedFormatting(dynamic range, JsonElement formatting)
+    {
+        Dictionary<string, string> actual = CaptureRequestedFormatting(
+            (object)range,
+            formatting
+        );
+        foreach (var property in formatting.EnumerateObject())
+        {
+            if (property.Name == "clear_character_formatting")
+            {
+                continue;
+            }
+            var expected = ExpectedRequestedFormatting(property);
+            if (
+                !actual.TryGetValue(property.Name, out var actualValue)
+                || !string.Equals(expected, actualValue, StringComparison.Ordinal)
+            )
+            {
+                throw new NativeToolException(
+                    "FORMATTING_INVALID",
+                    "Microsoft Word did not retain the requested character or paragraph formatting",
+                    new
+                    {
+                        field = property.Name,
+                        expected,
+                        actual = actualValue ?? "missing",
+                    }
+                );
+            }
+        }
+    }
+
+    private static string ExpectedRequestedFormatting(JsonProperty property)
+    {
+        var value = property.Value;
+        return property.Name switch
+        {
+            "font_name"
+            or "font_name_ascii"
+            or "font_name_bidi"
+            or "font_name_far_east"
+            or "font_name_other" => value.GetString() ?? "",
+            "font_size_pt"
+            or "font_size_bidi_pt"
+            or "spacing_pt"
+            or "kerning_pt"
+            or "space_before_pt"
+            or "space_after_pt"
+            or "left_indent_pt"
+            or "right_indent_pt"
+            or "first_line_indent_pt" => FormatFloating(value.GetDouble()),
+            "font_color_rgb" => FormatWordRgb(ParseWordColor(value.GetString() ?? "")),
+            "font_color_index"
+            or "font_color_bidi_index"
+            or "highlight_color_index"
+            or "scaling_percent"
+            or "position_pt" => value.GetInt32().ToString(CultureInfo.InvariantCulture),
+            "diacritic_color" or "underline_color" => string.Equals(
+                value.GetString(),
+                "automatic",
+                StringComparison.Ordinal
+            )
+                ? "automatic"
+                : (value.GetString() ?? "").ToUpperInvariant(),
+            "underline" => value.GetBoolean() ? "true" : "false",
+            "bold"
+            or "italic"
+            or "bold_bidi"
+            or "italic_bidi"
+            or "strike"
+            or "double_strike"
+            or "subscript"
+            or "superscript"
+            or "all_caps"
+            or "small_caps"
+            or "hidden"
+            or "shadow"
+            or "outline"
+            or "emboss"
+            or "engrave"
+            or "disable_character_space_grid"
+            or "contextual_alternates"
+            or "keep_with_next"
+            or "keep_together"
+            or "page_break_before"
+            or "widow_control" => value.GetBoolean() ? "true" : "false",
+            "underline_style"
+            or "emphasis_mark"
+            or "ligatures"
+            or "number_form"
+            or "number_spacing" => value.GetString() ?? "",
+            "stylistic_sets" => FormatStylisticSets(StylisticSetsMask(value)),
+            "paragraph_alignment" => value.GetString() ?? "",
+            _ => throw new NativeToolException(
+                "INVALID_INPUT",
+                $"Unsupported formatting field: {property.Name}"
+            ),
+        };
+    }
+
+    private static int StylisticSetsMask(JsonElement value)
+    {
+        var mask = 0;
+        foreach (var item in value.EnumerateArray())
+        {
+            mask |= 1 << (item.GetInt32() - 1);
+        }
+        return mask;
+    }
+
+    private static string FormatWordColor(dynamic value)
+    {
+        var color = Convert.ToInt32(value, CultureInfo.InvariantCulture);
+        return color == unchecked((int)0xFF000000) ? "automatic" : FormatWordRgb(color);
+    }
+
+    private static string FormatWordRgb(dynamic value)
+    {
+        var color = Convert.ToInt32(value, CultureInfo.InvariantCulture);
+        var red = color & 0xFF;
+        var green = (color >> 8) & 0xFF;
+        var blue = (color >> 16) & 0xFF;
+        return $"#{red:X2}{green:X2}{blue:X2}";
+    }
+
+    private static string FormatWordBoolean(dynamic value)
+    {
+        var number = Convert.ToInt32(value, CultureInfo.InvariantCulture);
+        return number switch
+        {
+            -1 => "true",
+            0 => "false",
+            _ => number.ToString(CultureInfo.InvariantCulture),
+        };
+    }
+
+    private static string FormatUnderlineBoolean(dynamic value)
+    {
+        var number = Convert.ToInt32(value, CultureInfo.InvariantCulture);
+        return number switch
+        {
+            1 => "true",
+            0 => "false",
+            _ => number.ToString(CultureInfo.InvariantCulture),
+        };
+    }
+
+    private static string FormatEnumReadback(
+        object value,
+        Func<int, string?> nameResolver
+    )
+    {
+        var number = Convert.ToInt32(value, CultureInfo.InvariantCulture);
+        return nameResolver(number) ?? number.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string? UnderlineStyleName(int value) => value switch
+    {
+        0 => "none",
+        1 => "single",
+        2 => "words",
+        3 => "double",
+        4 => "dotted",
+        6 => "thick",
+        7 => "dash",
+        9 => "dot_dash",
+        10 => "dot_dot_dash",
+        11 => "wavy",
+        20 => "dotted_heavy",
+        23 => "dash_heavy",
+        25 => "dot_dash_heavy",
+        26 => "dot_dot_dash_heavy",
+        27 => "wavy_heavy",
+        39 => "dash_long",
+        43 => "wavy_double",
+        55 => "dash_long_heavy",
+        _ => null,
+    };
+
+    private static string? EmphasisMarkName(int value) => value switch
+    {
+        0 => "none",
+        1 => "over_solid_circle",
+        2 => "over_comma",
+        3 => "over_white_circle",
+        4 => "under_solid_circle",
+        _ => null,
+    };
+
+    private static string? LigaturesName(int value) => value switch
+    {
+        0 => "none",
+        1 => "standard",
+        2 => "contextual",
+        3 => "standard_contextual",
+        4 => "historical",
+        5 => "standard_historical",
+        6 => "contextual_historical",
+        7 => "standard_contextual_historical",
+        8 => "discretionary",
+        9 => "standard_discretionary",
+        10 => "contextual_discretionary",
+        11 => "standard_contextual_discretionary",
+        12 => "historical_discretionary",
+        13 => "standard_historical_discretionary",
+        14 => "contextual_historical_discretionary",
+        15 => "all",
+        _ => null,
+    };
+
+    private static string? NumberFormName(int value) => value switch
+    {
+        0 => "default",
+        1 => "lining",
+        2 => "old_style",
+        _ => null,
+    };
+
+    private static string? NumberSpacingName(int value) => value switch
+    {
+        0 => "default",
+        1 => "proportional",
+        2 => "tabular",
+        _ => null,
+    };
+
+    private static string? ParagraphAlignmentName(int value) => value switch
+    {
+        0 => "left",
+        1 => "center",
+        2 => "right",
+        3 => "justify",
+        4 => "distribute",
+        _ => null,
+    };
+
+    private static string FormatStylisticSets(int mask)
+    {
+        var sets = Enumerable.Range(1, 20)
+            .Where(index => (mask & (1 << (index - 1))) != 0)
+            .ToArray();
+        return JsonSerializer.Serialize(sets, JsonDefaults.Compact);
+    }
+
+    private static IReadOnlyDictionary<string, object?> PublicFormattingReadback(
+        IReadOnlyDictionary<string, string> captured,
+        JsonElement formatting
+    )
+    {
+        var result = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var property in formatting.EnumerateObject())
+        {
+            if (property.Name == "clear_character_formatting")
+            {
+                result[property.Name] = property.Value.GetBoolean();
+                continue;
+            }
+            var value = captured[property.Name];
+            result[property.Name] = property.Name switch
+            {
+                "bold"
+                or "italic"
+                or "bold_bidi"
+                or "italic_bidi"
+                or "underline"
+                or "strike"
+                or "double_strike"
+                or "subscript"
+                or "superscript"
+                or "all_caps"
+                or "small_caps"
+                or "hidden"
+                or "shadow"
+                or "outline"
+                or "emboss"
+                or "engrave"
+                or "disable_character_space_grid"
+                or "contextual_alternates"
+                or "keep_with_next"
+                or "keep_together"
+                or "page_break_before"
+                or "widow_control" => bool.Parse(value),
+                "font_color_index"
+                or "font_color_bidi_index"
+                or "highlight_color_index"
+                or "scaling_percent"
+                or "position_pt" => int.Parse(value, CultureInfo.InvariantCulture),
+                "font_size_pt"
+                or "font_size_bidi_pt"
+                or "spacing_pt"
+                or "kerning_pt"
+                or "space_before_pt"
+                or "space_after_pt"
+                or "left_indent_pt"
+                or "right_indent_pt"
+                or "first_line_indent_pt" => double.Parse(
+                    value,
+                    CultureInfo.InvariantCulture
+                ),
+                "stylistic_sets" => JsonSerializer.Deserialize<int[]>(
+                    value,
+                    JsonDefaults.Compact
+                ) ?? [],
+                _ => value,
+            };
+        }
+        return result;
+    }
+
+    private static string CaptureCharacterFormattingFingerprint(dynamic range)
+    {
+        dynamic font = range.Font;
+        var components = new[]
+        {
+            Convert.ToString(font.Name, CultureInfo.InvariantCulture) ?? "",
+            Convert.ToString(font.NameAscii, CultureInfo.InvariantCulture) ?? "",
+            Convert.ToString(font.NameBi, CultureInfo.InvariantCulture) ?? "",
+            Convert.ToString(font.NameFarEast, CultureInfo.InvariantCulture) ?? "",
+            Convert.ToString(font.NameOther, CultureInfo.InvariantCulture) ?? "",
+            FormatFloating(font.Size),
+            FormatFloating(font.SizeBi),
+            FormatInteger(font.Color),
+            FormatInteger(font.ColorIndex),
+            FormatInteger(font.ColorIndexBi),
+            FormatInteger(font.DiacriticColor),
+            FormatInteger(font.Bold),
+            FormatInteger(font.BoldBi),
+            FormatInteger(font.Italic),
+            FormatInteger(font.ItalicBi),
+            FormatInteger(font.Underline),
+            FormatInteger(font.UnderlineColor),
+            FormatInteger(font.StrikeThrough),
+            FormatInteger(font.DoubleStrikeThrough),
+            FormatInteger(font.Subscript),
+            FormatInteger(font.Superscript),
+            FormatInteger(font.AllCaps),
+            FormatInteger(font.SmallCaps),
+            FormatInteger(font.Hidden),
+            FormatInteger(font.Shadow),
+            FormatInteger(font.Outline),
+            FormatInteger(font.Emboss),
+            FormatInteger(font.Engrave),
+            FormatInteger(font.Scaling),
+            FormatFloating(font.Spacing),
+            FormatInteger(font.Position),
+            FormatFloating(font.Kerning),
+            FormatInteger(font.DisableCharacterSpaceGrid),
+            FormatInteger(font.EmphasisMark),
+            FormatInteger(font.Ligatures),
+            FormatInteger(font.NumberForm),
+            FormatInteger(font.NumberSpacing),
+            FormatInteger(font.StylisticSet),
+            FormatInteger(font.ContextualAlternates),
+            FormatInteger(range.HighlightColorIndex),
+        };
+        return Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\0', components)))
+            )
+            .ToLowerInvariant();
     }
 
     internal static string ReadStyleIdentity(object rangeObject)

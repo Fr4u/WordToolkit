@@ -10,10 +10,15 @@ and lazily expose 157 native actions.
 existing input package and the latter names a newly written artifact. Likewise, the
 gateway dispatcher field is `action`; `action_name` is not a compatibility spelling.
 
-Live Word formatting uses canonical `font_size_pt` and `paragraph_alignment` keys.
-Compatibility spellings `font_size` and `alignment` are normalized before COM and
-cannot be supplied together with their canonical counterpart. The inspected action
-schema enumerates and types every formatting field before execution.
+Live Word formatting exposes the complete bounded writable scalar `Word.Font` surface,
+including baseline scripts, 18 underline styles and color, script-specific fonts, bidi
+properties, effects, spacing/scaling/position/kerning and OpenType typography. Canonical
+keys include `font_size_pt` (1..1638), `underline_style` and
+`paragraph_alignment`; compatibility spellings `font_size`, boolean `underline` and
+`alignment` are normalized only when their canonical counterpart is absent. Requested
+values are read back from COM and a mixed or ignored field fails instead of being reported
+as applied. The inspected action schema enumerates, types and bounds every field before
+execution.
 
 ## First-call guidance
 

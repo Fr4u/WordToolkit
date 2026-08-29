@@ -1493,14 +1493,18 @@ dist/WordToolkit-<version>-native-win-x64.zip
 
 The build fails if the packaged tree contains `.py`, `.pyc`, `.pyo`, `uv`, `uv.lock`, `pyproject.toml`, or `.venv`, or if `.mcp.json` does not launch `wordtoolkit-native.exe`.
 
-Run the destructive-but-self-restoring real-Word acceptance test:
+Run the destructive real-Word acceptance test against its own unsaved scratch document:
 
 ```powershell
 pwsh -File native/scripts/live-acceptance.ps1 `
   -RuntimeExecutable dist/wordtoolkit/runtime/win-x64/wordtoolkit-native.exe
 ```
 
-Every test mutation is tracked, verified and undone. The script fails if cleanup leaves any outstanding WordToolkit operation.
+Every test mutation is tracked, verified and undone. The scratch document is discarded on
+disconnect, so a failed Undo proof cannot contaminate the user's active document. Testing an
+already-open disposable fixture requires the explicit `-UseActiveDocument` switch; never pass it
+for a real user document. The script fails if cleanup leaves any outstanding WordToolkit
+operation.
 
 Run the complete packaged live acceptance gate:
 
@@ -1534,29 +1538,28 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-Release `v0.61.4` contains the qualified native runtime (`0.61.4+codex.20260829104544`), with runtime guidance covering 157/157 actions and 17 public MCP tools. It corrects the persistent-document lifecycle value exposed to AI clients, adds a schema-derived regression for every documented lifecycle value, explicitly tests `lifecycle="persistent"` in the full Word gate, clarifies compact-versus-full success evidence, and ranks reviewed plans before ambiguous guarded apply actions. The archive remains a native Windows x64 plugin without a Python runtime; Tectonic is an explicit external provider and is not bundled.
+Release `v0.62.0` contains the qualified native runtime (`0.62.0+codex.20260829173741`), with runtime guidance covering 157/157 actions and 17 public MCP tools. It adds the complete bounded scalar Microsoft Word character-formatting surface, all 18 underline styles, subscript/superscript, script-specific and OpenType typography, strict COM readback, verified clear-formatting and token-lean shared schemas. The archive remains a native Windows x64 plugin without a Python runtime; Tectonic is an explicit external provider and is not bundled.
 
 Version:
 
 ```text
-0.61.4+codex.20260829104544
+0.62.0+codex.20260829173741
 ```
 
 Windows x64 ZIP:
 
-Asset: `WordToolkit-0.61.4+codex.20260829104544-native-win-x64.zip`
+Asset: `WordToolkit-0.62.0+codex.20260829173741-native-win-x64.zip`
 
-[WordToolkit 0.61.4 native plugin for Windows x64](https://github.com/Fr4u/WordToolkit/releases/download/v0.61.4/WordToolkit-0.61.4%2Bcodex.20260829104544-native-win-x64.zip)
+[WordToolkit 0.62.0 native plugin for Windows x64](https://github.com/Fr4u/WordToolkit/releases/download/v0.62.0/WordToolkit-0.62.0%2Bcodex.20260829173741-native-win-x64.zip)
 
-Size: `38,476,379 bytes`
+Size: `38,494,696 bytes`
 
-SHA-256: `8ef03604b581578fc1ba92e460a1d63f6cc3b1c0d221c91b4557d9ffb3c4910e`
+SHA-256: `62edd0ee8a2b6e987b1200b29dd70696fe41faa2b3f16d34878ddc3b4a4fbb9f`
 
 Release qualification is recorded in
-[`docs/RELEASE-QUALIFICATION-0.61.4.md`](docs/RELEASE-QUALIFICATION-0.61.4.md).
-The packaged full-live gate created 70 paragraphs, one table and 12 editable native
-equations, passed Microsoft Open XML validation, exported a three-page Word PDF, reopened
-and reconnected the document, and left no test document open in Word. All three PDF pages
-were rasterized and visually inspected.
+[`docs/RELEASE-QUALIFICATION-0.62.0.md`](docs/RELEASE-QUALIFICATION-0.62.0.md).
+The real-Word formatting gate checked every scalar on exact COM ranges, saved and
+validated DOCX, exported PDF and rasterized the page at 240 DPI. The exact installed cache
+also passed a scratch-document MCP smoke without targeting the user's active document.
 
 See [native migration details](docs/NATIVE-MIGRATION.md) for architecture, benchmarks, package audit and known limits.
