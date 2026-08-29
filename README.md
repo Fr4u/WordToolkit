@@ -1538,23 +1538,23 @@ The cleaner constrains every target to the repository root. It preserves only th
 
 ## Latest published artifact
 
-Release `v0.62.0` contains the qualified native runtime (`0.62.0+codex.20260829164917`), with runtime guidance covering 157/157 actions and 17 public MCP tools. It adds the complete bounded scalar Microsoft Word character-formatting surface, all 18 underline styles, subscript/superscript, script-specific and OpenType typography, strict COM readback, verified clear-formatting and token-lean shared schemas. The archive remains a native Windows x64 plugin without a Python runtime; Tectonic is an explicit external provider and is not bundled.
+Release `v0.62.0` contains the qualified native runtime (`0.62.0+codex.20260829173741`), with runtime guidance covering 157/157 actions and 17 public MCP tools. It adds the complete bounded scalar Microsoft Word character-formatting surface, all 18 underline styles, subscript/superscript, script-specific and OpenType typography, strict COM readback, verified clear-formatting and token-lean shared schemas. The archive remains a native Windows x64 plugin without a Python runtime; Tectonic is an explicit external provider and is not bundled.
 
 Version:
 
 ```text
-0.62.0+codex.20260829164917
+0.62.0+codex.20260829173741
 ```
 
 Windows x64 ZIP:
 
-Asset: `WordToolkit-0.62.0+codex.20260829164917-native-win-x64.zip`
+Asset: `WordToolkit-0.62.0+codex.20260829173741-native-win-x64.zip`
 
-[WordToolkit 0.62.0 native plugin for Windows x64](https://github.com/Fr4u/WordToolkit/releases/download/v0.62.0/WordToolkit-0.62.0%2Bcodex.20260829164917-native-win-x64.zip)
+[WordToolkit 0.62.0 native plugin for Windows x64](https://github.com/Fr4u/WordToolkit/releases/download/v0.62.0/WordToolkit-0.62.0%2Bcodex.20260829173741-native-win-x64.zip)
 
-Size: `38,494,764 bytes`
+Size: `38,494,696 bytes`
 
-SHA-256: `adc250d91110e917b9eb666ddeebecfc5da5e67859cbf8b093edea8a9c8b2cfb`
+SHA-256: `62edd0ee8a2b6e987b1200b29dd70696fe41faa2b3f16d34878ddc3b4a4fbb9f`
 
 Release qualification is recorded in
 [`docs/RELEASE-QUALIFICATION-0.62.0.md`](docs/RELEASE-QUALIFICATION-0.62.0.md).

@@ -2,7 +2,7 @@
 
 Date: 2026-08-29
 
-Runtime: `0.62.0+codex.20260829164917`
+Runtime: `0.62.0+codex.20260829173741`
 
 ## Scope and boundaries
 
@@ -33,9 +33,9 @@ Runtime: `0.62.0+codex.20260829164917`
 - Python: 1,610 passed, 17 intentionally skipped, one existing Starlette deprecation
   warning.
 - Engine: 939/939 passed on pinned .NET SDK 8.0.423.
-- Native: 978/978 passed in Release.
+- Native: 979/979 passed in Release.
 - LibreOffice: 12/12 passed in Release.
-- Formatting unit/contract slice: 49/49 passed, including every underline enum and
+- Formatting unit/contract slice: 50/50 passed, including every underline enum and
   `wdUndefined` failure behavior.
 - Plugin validator: passed.
 
@@ -59,15 +59,17 @@ Runtime: `0.62.0+codex.20260829164917`
 
 Two independent package builds contained 204 files and produced byte-identical ZIPs:
 
-- asset: `WordToolkit-0.62.0+codex.20260829164917-native-win-x64.zip`;
-- size: 38,494,764 bytes;
-- SHA-256: `adc250d91110e917b9eb666ddeebecfc5da5e67859cbf8b093edea8a9c8b2cfb`;
+- asset: `WordToolkit-0.62.0+codex.20260829173741-native-win-x64.zip`;
+- size: 38,494,696 bytes;
+- SHA-256: `62edd0ee8a2b6e987b1200b29dd70696fe41faa2b3f16d34878ddc3b4a4fbb9f`;
 - executable SHA-256:
-  `039b159c439a62d079ef2b59b93d2b35c916cbde66adc47ba42235f05f82de68`;
+  `6294d215209635102f9073d12e163c6368189a284599e4d4372f87caf22e4ef0`;
 - runtime assembly SHA-256:
-  `aa1fefa398d802df85399ba622e6e8579e1b7552828e19d9751e6b4b12da3529`.
+  `1453db47fb379fb93de72ac7cb97da055c45ff78984c202ea177c91b471c21c1`.
 
 The local `wordtoolkit@personal` installation is enabled at
-`0.62.0+codex.20260829164917`. Source and installed cache contain 204/204 matching files
+`0.62.0+codex.20260829173741`. Source and installed cache contain 204/204 matching files
 with zero missing, extra or hash-mismatched entries. The previous marketplace source is
-preserved at `C:\Users\Admin\plugins\wordtoolkit.backup-0.61.4-20260829164917`.
+preserved at `C:\Users\Admin\plugins\wordtoolkit.backup-0.61.4-20260829164917`; the
+superseded pre-review 0.62.0 candidate is preserved separately at
+`C:\Users\Admin\plugins\wordtoolkit.backup-0.62.0-20260829164917`.
