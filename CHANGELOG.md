@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+## 0.61.3 - 2026-08-29
+
+- Replaced the 102,000-character all-in-one AI skill with an 8,000-character routing
+  contract plus four task-specific references. An agent now loads only live Word,
+  equation/TeX, saved-package, or guarded-edit guidance required by the current request.
+  Common paths explicitly batch deterministic work, avoid redundant inspection, preserve
+  fresh version/fingerprint/token bindings, and resolve uncertain timeouts through
+  idempotent operation receipts instead of blind retries.
+
+- Reduced lazy-action discovery noise. `search_wordtoolkit_actions` now returns three
+  ranked candidates by default and inlines only the top action's executable input schema,
+  annotations, and first-call guidance. The exact output schema, permissions, and
+  reversibility remain available through `inspect_wordtoolkit_action`; callers can still
+  set `include_top_schema=false` for the smallest discovery response.
+
+- Cut plugin presentation metadata from a 133-item capability dump, 49 starter prompts,
+  and an 11,000-character description to 12 meaningful capabilities, three prompts, and
+  a concise description. Runtime capabilities and all 157 native action contracts remain
+  unchanged and lazily discoverable.
+
+- Added contract tests proving the compact top match is directly executable, full inspect
+  retains the complete action contract, the runtime and published search defaults agree,
+  and compact opt-out behavior remains available.
+
+- Fixed direct-OMML semantic readback for Word's documented implicit math defaults.
+  Explicit `m:sty m:val="i"` and `m:scr m:val="roman"` now hash identically to the
+  equivalent properties Word omits, while non-default plain/bold/script values remain
+  significant. The exact previously rejected fraction with four run styles and a control
+  style now passes native preflight with matching expected/actual hashes.
+
+- Repaired the packaged full-live release gate after the public catalog grew to 17 tools
+  and member-capability summaries became compact. The gate now checks all 17 public tools
+  and reads `member_name`/`member_kind` instead of obsolete nested fields.
+
 ## 0.61.2 - 2026-08-28
 
 - Added `compile_tex_document`, a separate complete-document TeX/LaTeX execution

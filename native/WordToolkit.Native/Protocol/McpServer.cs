@@ -336,7 +336,7 @@ internal sealed class McpServer
                     root.TryGetProperty("max_results", out var maxNode)
                     && maxNode.TryGetInt32(out var requestedMaximum)
                         ? requestedMaximum
-                        : 8;
+                        : 3;
                 var includeTopSchema = true;
                 if (root.TryGetProperty("include_top_schema", out var includeNode))
                 {

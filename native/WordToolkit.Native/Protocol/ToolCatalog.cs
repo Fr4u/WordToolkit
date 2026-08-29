@@ -197,6 +197,23 @@ internal sealed partial class ToolCatalog
         };
     }
 
+    private JsonObject SearchTopAction(string name)
+    {
+        var tool = _allTools[name];
+        return new JsonObject
+        {
+            ["action"] = name,
+            ["tool"] = new JsonObject
+            {
+                ["name"] = tool["name"]?.DeepClone(),
+                ["description"] = tool["description"]?.DeepClone(),
+                ["inputSchema"] = tool["inputSchema"]?.DeepClone(),
+                ["annotations"] = tool["annotations"]?.DeepClone(),
+            },
+            ["guidance"] = _guidance.Get(name),
+        };
+    }
+
     public JsonObject SearchActions(
         string query,
         int maxResults,
@@ -257,14 +274,16 @@ internal sealed partial class ToolCatalog
             .ThenBy(item => item.Key, StringComparer.Ordinal)
             .Take(maxResults)
             .Select(
-                item =>
+                (item, index) =>
                     new
                     {
                         action = item.Key,
                         description = FirstSentence(item.Description),
                         required_arguments = RequiredArguments(_allTools[item.Key]),
                         first_step = FirstStep(_guidance.Get(item.Key)),
-                        guidance = "inspect_wordtoolkit_action before execute",
+                        guidance = index == 0 && includeTopSchema
+                            ? "execute with top_action.tool.inputSchema; inspect only for the complete contract"
+                            : "inspect_wordtoolkit_action before execute",
                     }
             )
             .ToArray();
@@ -276,8 +295,9 @@ internal sealed partial class ToolCatalog
         };
         if (includeTopSchema && matches.Length > 0)
         {
-            result["top_action"] = InspectAction(matches[0].action);
+            result["top_action"] = SearchTopAction(matches[0].action);
             result["inspect_call_required_for_top_action"] = false;
+            result["inspect_call_required_for_full_contract"] = true;
         }
         return result;
     }
@@ -480,7 +500,7 @@ internal sealed partial class ToolCatalog
         {
             ["name"] = SearchActionsName,
             ["description"] =
-                "Find a rare WordToolkit action; by default include the top match's inspected schema and guidance so it can be executed without another inspect call.",
+                "Find a rare WordToolkit action; by default include the top match's executable input schema and guidance. Inspect only when the complete contract is needed.",
             ["inputSchema"] = new JsonObject
             {
                 ["type"] = "object",
@@ -496,14 +516,14 @@ internal sealed partial class ToolCatalog
                         ["type"] = "integer",
                         ["minimum"] = 1,
                         ["maximum"] = 12,
-                        ["default"] = 8,
+                        ["default"] = 3,
                     },
                     ["include_top_schema"] = new JsonObject
                     {
                         ["type"] = "boolean",
                         ["default"] = true,
                         ["description"] =
-                            "Include the inspected schema and guidance for only the top match (default true; set false for compact legacy responses).",
+                            "Include the executable input schema and guidance for only the top match (default true; set false for the smallest response).",
                     },
                 },
                 ["required"] = new JsonArray("query"),

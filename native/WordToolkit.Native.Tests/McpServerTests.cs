@@ -49,7 +49,7 @@ public sealed class McpServerTests
                 .GetString()
         );
         Assert.Equal(
-            "0.61.2",
+            "0.61.3",
             responses[0].RootElement
                 .GetProperty("result")
                 .GetProperty("serverInfo")
@@ -88,6 +88,11 @@ public sealed class McpServerTests
             tool => tool.GetProperty("name").GetString() == "search_wordtoolkit_actions"
         ).GetProperty("inputSchema");
         Assert.False(searchSchema.GetProperty("properties").TryGetProperty("view", out _));
+        Assert.Equal(
+            3,
+            searchSchema.GetProperty("properties").GetProperty("max_results")
+                .GetProperty("default").GetInt32()
+        );
         var capabilitySchema = tools.EnumerateArray().Single(
             tool => tool.GetProperty("name").GetString() == "get_wordtoolkit_capabilities"
         ).GetProperty("inputSchema");
@@ -233,6 +238,31 @@ public sealed class McpServerTests
                 .GetProperty("code")
                 .GetString()
         );
+    }
+
+    [Fact]
+    public async Task SearchGatewayDefaultsToThreeMatchesAndAnExecutableTopContract()
+    {
+        const string input =
+            "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"search_wordtoolkit_actions\",\"arguments\":{\"query\":\"live word\"}}}\n";
+        var output = new StringWriter();
+        var server = new McpServer(
+            new StringReader(input),
+            output,
+            ToolCatalog.LoadNativeWordTools(),
+            new FakeToolHandler()
+        );
+
+        await server.RunAsync();
+
+        using var response = JsonDocument.Parse(output.ToString());
+        var data = response.RootElement.GetProperty("result")
+            .GetProperty("structuredContent").GetProperty("data");
+        Assert.Equal(3, data.GetProperty("actions").GetArrayLength());
+        var topTool = data.GetProperty("top_action").GetProperty("tool");
+        Assert.True(topTool.TryGetProperty("inputSchema", out _));
+        Assert.False(topTool.TryGetProperty("outputSchema", out _));
+        Assert.True(data.GetProperty("inspect_call_required_for_full_contract").GetBoolean());
     }
 
     [Fact]

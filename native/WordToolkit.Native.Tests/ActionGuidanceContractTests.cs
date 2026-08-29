@@ -34,7 +34,10 @@ public sealed class ActionGuidanceContractTests
         var result = ToolCatalog.LoadNativeWordTools().SearchActions("equation", 1);
 
         Assert.False(result["inspect_call_required_for_top_action"]!.GetValue<bool>());
+        Assert.True(result["inspect_call_required_for_full_contract"]!.GetValue<bool>());
         Assert.NotNull(result["top_action"]!["tool"]!["inputSchema"]);
+        Assert.NotNull(result["top_action"]!["tool"]!["annotations"]);
+        Assert.Null(result["top_action"]!["tool"]!["outputSchema"]);
     }
 
     [Fact]
@@ -44,6 +47,7 @@ public sealed class ActionGuidanceContractTests
 
         Assert.Null(result["top_action"]);
         Assert.Null(result["inspect_call_required_for_top_action"]);
+        Assert.Null(result["inspect_call_required_for_full_contract"]);
     }
 
     [Fact]
@@ -60,6 +64,19 @@ public sealed class ActionGuidanceContractTests
         Assert.False(string.IsNullOrWhiteSpace(top["action"]!.GetValue<string>()));
         Assert.NotNull(top["tool"]!["inputSchema"]);
         Assert.NotNull(top["guidance"]!["example"]);
+    }
+
+    [Fact]
+    public void InspectStillReturnsTheCompleteActionContract()
+    {
+        var result = ToolCatalog.LoadNativeWordTools().InspectAction(
+            "preflight_live_word_equations"
+        );
+
+        Assert.NotNull(result["tool"]!["inputSchema"]);
+        Assert.NotNull(result["tool"]!["outputSchema"]);
+        Assert.NotNull(result["tool"]!["permissions"]);
+        Assert.NotNull(result["tool"]!["reversibility"]);
     }
 
     [Theory]

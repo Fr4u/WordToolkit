@@ -94,9 +94,11 @@ $exposedTools = @(
     "create_live_word_document",
     "open_live_word_document",
     "connect_live_word_document",
+    "create_live_word_equation_document",
     "inspect_ooxml_package",
     "inspect_live_word_document",
     "get_live_word_selection",
+    "get_live_word_operation_status",
     "apply_live_word_operations",
     "save_live_word_document",
     "disconnect_live_word_document",
@@ -374,12 +376,12 @@ try {
             }
         })
 
-    $stage = "verify the token-lean 15-tool catalog and lazy live actions"
+    $stage = "verify the token-lean 17-tool catalog and lazy live actions"
     $catalog = Invoke-Mcp -Method "tools/list" -Params @{}
     $script:catalogNames = @($catalog.result.tools | ForEach-Object { $_.name })
     Assert-True `
-        -Condition ($script:catalogNames.Count -eq 15) `
-        -Message "Expected 15 exposed tools, got $($script:catalogNames.Count)"
+        -Condition ($script:catalogNames.Count -eq 17) `
+        -Message "Expected 17 exposed tools, got $($script:catalogNames.Count)"
     foreach ($name in $exposedTools) {
         Assert-True `
             -Condition ($script:catalogNames -contains $name) `
@@ -606,8 +608,8 @@ try {
     $rangeTextRead = @(
         $rangeTextCapabilities.capabilities |
             Where-Object {
-                $_.member.name -eq "Text" -and
-                $_.member.kind -eq "property_get"
+                $_.member_name -eq "Text" -and
+                $_.member_kind -eq "property_get"
             }
     )[0]
     Assert-True `
@@ -664,8 +666,8 @@ try {
     $rangeSelect = @(
         $rangeSelectCapabilities.capabilities |
             Where-Object {
-                $_.member.name -eq "Select" -and
-                $_.member.kind -eq "method"
+                $_.member_name -eq "Select" -and
+                $_.member_kind -eq "method"
             }
     )[0]
     Assert-True `
@@ -685,8 +687,8 @@ try {
     $documentRange = @(
         $documentRangeCapabilities.capabilities |
             Where-Object {
-                $_.member.name -eq "Range" -and
-                $_.member.kind -eq "method"
+                $_.member_name -eq "Range" -and
+                $_.member_kind -eq "method"
             }
     )[0]
     Assert-True `
@@ -1482,12 +1484,9 @@ try {
             $equationBatch.operations[1].equation.formatting.bold_run_count -ge 4 -and
             $equationBatch.operations[1].equation.formatting.italic_run_count -ge 2 -and
             $equationBatch.operations[1].equation.formatting.bold_italic_run_count -ge 2 -and
-            $equationBatch.operations[2].equation.native_style_verified -and
-            $equationBatch.operations[2].equation.formatting.plain_run_count -ge 1 -and
-            $equationBatch.operations[2].equation.formatting.bold_run_count -ge 1 -and
-            $equationBatch.operations[2].equation.formatting.italic_run_count -ge 1 -and
-            $equationBatch.operations[2].equation.formatting.bold_italic_run_count -ge 1 -and
-            $equationBatch.operations[2].equation.formatting.italic_control_count -ge 1 -and
+            $equationBatch.operations[2].equation.direct_omml.native_semantic_verified -and
+            $equationBatch.operations[2].equation.direct_omml.expected_equation_semantic_sha256 -eq
+                $equationBatch.operations[2].equation.direct_omml.actual_equation_semantic_sha256 -and
             $equationBatch.operations[8].equation.native_style_verified -and
             $equationBatch.operations[8].equation.formatting.region_count -eq 2 -and
             $equationBatch.operations[9].equation.native_style_verified -and
