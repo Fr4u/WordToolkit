@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -136,7 +136,9 @@ def _formatting_schema_conflicts(*, include_paragraph: bool) -> list[dict[str, A
 class LiveRunFormatting(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
-        json_schema_extra={"allOf": _formatting_schema_conflicts(include_paragraph=False)},
+        json_schema_extra={
+            "allOf": cast(Any, _formatting_schema_conflicts(include_paragraph=False))
+        },
     )
 
     font_name: str | None = Field(default=None, min_length=1, max_length=128)
@@ -224,7 +226,9 @@ class LiveRunFormatting(BaseModel):
 class LiveTextFormatting(LiveRunFormatting):
     model_config = ConfigDict(
         extra="forbid",
-        json_schema_extra={"allOf": _formatting_schema_conflicts(include_paragraph=True)},
+        json_schema_extra={
+            "allOf": cast(Any, _formatting_schema_conflicts(include_paragraph=True))
+        },
     )
 
     paragraph_alignment: Literal["left", "center", "right", "justify", "distribute"] | None = None
