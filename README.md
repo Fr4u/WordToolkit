@@ -1548,9 +1548,9 @@ Asset: `WordToolkit-0.61.4+codex.20260829104544-native-win-x64.zip`
 
 [WordToolkit 0.61.4 native plugin for Windows x64](https://github.com/Fr4u/WordToolkit/releases/download/v0.61.4/WordToolkit-0.61.4%2Bcodex.20260829104544-native-win-x64.zip)
 
-Size: `38,475,982 bytes`
+Size: `38,476,379 bytes`
 
-SHA-256: `96a176ef08e1cabc74221709908ecb065fbba5d015f902b4d5b69cb318ea553e`
+SHA-256: `8ef03604b581578fc1ba92e460a1d63f6cc3b1c0d221c91b4557d9ffb3c4910e`
 
 Release qualification is recorded in
 [`docs/RELEASE-QUALIFICATION-0.61.4.md`](docs/RELEASE-QUALIFICATION-0.61.4.md).

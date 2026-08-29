@@ -107,6 +107,7 @@ public sealed class ActionGuidanceContractTests
     [InlineData("patch rollback", "plan_ooxml_patch_rollback")]
     [InlineData("merge package", "plan_ooxml_merge")]
     [InlineData("semantic edits", "plan_ooxml_semantic_edits")]
+    [InlineData("plan patch apply", "plan_ooxml_patch_apply")]
     public void SearchPrefersReviewedPlanForAmbiguousGuardedMutation(
         string query,
         string expected
@@ -125,6 +126,7 @@ public sealed class ActionGuidanceContractTests
     [InlineData("apply patch rollback", "apply_ooxml_patch_rollback")]
     [InlineData("apply merge package", "apply_ooxml_merge")]
     [InlineData("apply semantic edits", "apply_ooxml_semantic_edits")]
+    [InlineData("patch apply", "apply_ooxml_patch")]
     public void SearchHonorsExplicitApplyIntent(string query, string expected)
     {
         var result = ToolCatalog.LoadNativeWordTools().SearchActions(
