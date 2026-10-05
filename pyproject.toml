@@ -42,7 +42,7 @@ dev = [
   "mypy>=1.16,<3",
 ]
 mutation = [
-  "mutmut==3.7.0",
+  "mutmut==3.8.0",
 ]
 
 [project.scripts]
