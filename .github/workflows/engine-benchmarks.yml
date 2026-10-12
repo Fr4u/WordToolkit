@@ -53,7 +53,7 @@ jobs:
           dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- mce --target-nodes 999000 --output artifacts/benchmarks/mce-999k.json
           dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- patch --payload-mib 128 --parts 128 --output artifacts/benchmarks/patch-128mib.json
           dotnet run --project native/WordToolkit.Engine.Benchmarks -c Release --no-build -- patch --payload-mib 200 --parts 200 --output artifacts/benchmarks/patch-200mib.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wordtoolkit-engine-benchmarks-${{ github.sha }}
           path: artifacts/benchmarks/*.json
